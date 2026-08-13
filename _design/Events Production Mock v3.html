@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Events Production Mock v3 — "Quiet board, rules on contact"
+  ═══════════════════════════════════════════════════════════════════════════
+  SUPERSEDES v2. IDENTICAL MODEL — same field set, same three gates, same
+  owner requirement, same org-level optional fields. Nothing about how the
+  board WORKS changed. What changed is how much of it is printed at rest.
+
+  ── WHY ────────────────────────────────────────────────────────────────────
+  v2 was overwhelming, and the count says so plainly:
+
+                       v2      v3
+      lane header    23 wd    2 wd
+      card          18 wd    11 wd   (9 lines → 6)
+      whole board  296 wd   134 wd
+
+  The cause was that v2 said each fact up to four times. A Planning lane
+  announced its rule ("needs an owner"), its meaning ("someone's on it"),
+  its visibility ("officers only"), AND drew a dashed private edge on every
+  card — four encodings of one idea, permanently on screen. Cards did the
+  same: prep pips, "4/6 FIELDS", and "Needs a date and a location" are three
+  renderings of one status.
+
+  ── THE RULE APPLIED ───────────────────────────────────────────────────────
+  A kanban card is a HANDLE for the thing, not a summary of it (Trello,
+  Linear, Jira all land here). Detail belongs one click deep, in the panel
+  that already exists. And instructional text belongs at the moment of
+  violation, not permanently on screen — it is read once and then is noise
+  forever.
+
+  So the rules moved to where they already worked:
+    · the DRAG CUE states the lane's rule at the moment you attempt it
+    · the FIX-STEP collects what's missing when you're blocked
+    · the PANEL lists every field, required and optional
+  All three already existed in v2. The header text was a fourth copy.
+
+  ── WHAT WAS CUT (and what it cost) ────────────────────────────────────────
+  · Lane rule line, meaning line, visibility pill → name + count only.
+    Cost: a first-time user doesn't learn the pipeline by reading. They
+    learn it on first drag, which is one interaction later.
+  · Card prep pips + "n/6 FIELDS" → gone. The blocker line already named
+    what's missing; the pips only counted it.
+  · Card type label ("Program · Grand Ballroom") → the colored LEFT EDGE
+    carries type now. Subtitle is the place alone.
+  · Separate owner row → folded into the status row. One line, two facts.
+  · "Published to the chapter" on every Confirmed card → one eye glyph.
+  · Timeline strip's explanatory paragraph → the header already says
+    "what everyone sees".
+
+  ── WHAT DELIBERATELY SURVIVED ─────────────────────────────────────────────
+  · The blocker line. It is the one thing on a card that says what to DO,
+    and it's why the attention rail was removable back in v1.
+  · The dashed left edge on Idea/Planning cards — private vs public is now
+    carried by that edge alone rather than edge + pill + rule text.
+  · "Required" on mandatory events, the success stars, the glance strip.
+  · Every gate, fix-step, and the org-level field picker, untouched.
+
+  ── EVERYTHING BELOW IS v2's HEADER, STILL ACCURATE ────────────────────────
+  Same shell, same dusk tokens, same four lanes. What changed in v2 was the
+  MODEL underneath the board.
+
+  ── WHAT V1 GOT WRONG ──────────────────────────────────────────────────────
+  v1 kept the four hardcoded prep booleans (Room · Itinerary · Flyer · Socials
+  mtg, lib/programming.ts:209) as the gate, and kept ProgrammingChecklistItem
+  as a second, optional list beside it. Its fix #4 was to LABEL the two lists
+  differently — "Gates confirming" vs "Optional" — so the user could finally
+  tell which one counted.
+
+  That's a label fixing a modeling problem. Two lists both called "checklist",
+  one of which is four booleans hardcoded for one kind of org, and the other
+  free text that gates nothing.
+
+  ── THE MODEL NOW ──────────────────────────────────────────────────────────
+  There is ONE list, and it is the event's own fields. No prep booleans, no
+  ProgrammingChecklistItem.
+
+      REQUIRED        title · category · mandatory · location · date
+      OPTIONAL        description · budget · attachment · + org's chosen extras
+
+  What this buys, concretely:
+
+  (a) `itineraryNotNeeded` and `roomStatus: "na"` disappear. Both columns
+      exist ONLY as escape hatches — a boolean whose job is to mark another
+      field done without a file, because a mandatory gate item isn't always
+      applicable. When the attachment is optional, neither is needed.
+  (b) Prep stops being fraternity-specific. "Flyer posted" and "socials mtg"
+      currently gate confirming for EVERY org on the platform. A nonprofit
+      chapter has no socials meeting and today cannot confirm an event
+      without lying about one. Five required fields are true of any org.
+  (c) "Confirmed" becomes checkable. `flyerPosted` is self-attested — I
+      clicked it, therefore it's true. A date and a location are facts. A
+      confirmed event is one with a real time and place, which is exactly
+      what publishing to the Timeline promises the chapter.
+
+  The cost, stated plainly: per-event ad-hoc notes ("call the DJ back") lose
+  their home. `description` absorbs some; the org-level optional fields below
+  absorb the rest by making the common ones first-class instead of free text.
+
+  ── THE LANES, AND THE OWNER GATE ──────────────────────────────────────────
+  Collapsing the required set to title + category made Idea and Planning
+  identical — same requirements, same permitted states, same visibility. The
+  drag between them would record a decision with no consequence anywhere,
+  which is what makes a lane feel decorative.
+
+  The distinction is real, though. "This could be a good event sometime" and
+  "this is happening, someone's chasing the venue" are different states. The
+  difference isn't how many fields are filled — it's COMMITMENT. So the gate
+  is the thing commitment actually means:
+
+      lane       entry rule              on the Timeline   meaning
+      Idea       title + category        no                belongs to the chapter
+      Planning   + AN OWNER              no                belongs to somebody
+      Confirmed  + date + location       YES               locked in, public
+      Done       —                       yes               wrapped
+
+  An idea belongs to the chapter; an event in planning belongs to a person.
+  Three boundaries, three distinct meanings: someone's on it → it's real and
+  public → it's over. Every drag costs something and buys something.
+
+  This also finally uses ProgrammingEvent.owner, which is `String
+  @default("")` today with no UI that writes it — v1's problem (b), drawn as
+  a proposal in v1's fix #4 and load-bearing here.
+
+  ── ORG-LEVEL OPTIONAL FIELDS ──────────────────────────────────────────────
+  Not per-event custom items (that's what we deleted — nobody fills them in
+  twice the same way). The org picks its optional fields ONCE, and they then
+  appear on every event. Same pattern as Membership.customFields and the
+  per-org transaction categories that shipped 2026-08-08: the org defines the
+  vocabulary, the rows fill it in.
+
+  Typed columns, not a JSON blob, because budget and head count are the two
+  you most want to compute with — you can't chart a budget that's a string.
+  Toggle the set live in the panel's "Fields this chapter collects" row.
+
+  Shipped in the fixture: head count · budget (requested vs approved, since
+  spendingCents already holds ACTUAL and a treasurer needs those apart) ·
+  co-host (collabOrg already exists on the model) · point of contact · setup
+  time · risk form · dress code · transportation.
+
+  ── WHAT CARRIED OVER FROM V1 UNCHANGED ────────────────────────────────────
+  · Lanes declare their own entry rule in the header (v1 fix #1).
+  · Only Confirmed publishes; Idea/Planning are officers-only with a dashed
+    private edge, and the Timeline strip below the board is the proof (fix
+    #2). Today stageRequiresCalendar is `stage !== "idea"`, so Planning is
+    already published and already needs a date — still a behavior change.
+  · A rejected drag opens a fix-step instead of snapping back with a toast
+    (fix #3). Now there are TWO, one per gate, from the same component.
+  · The top third stays collapsed: one status line, glance strip, board.
+  · Per-org type color from a {slug: color} fixture; "Rush Week" is custom.
+  · No-matches state, ≥44px coarse targets, reduced-motion block.
+
+  ── MIGRATION NOTE (real, not cosmetic) ────────────────────────────────────
+  Moving the publish boundary from Planning to Confirmed means every event
+  currently in Planning is on the Timeline today and won't be after. Either
+  demote them (they vanish from the chapter's calendar) or sweep the ones
+  that have a date + location into Confirmed. Sweep the qualifying ones,
+  leave the rest — but it should be a deliberate call, not whatever the
+  migration happens to do.
+
+  ── OUT OF SCOPE ───────────────────────────────────────────────────────────
+  Owner as a real FK (shipped here as the string ProgrammingEvent.owner
+  already is — enough to make the gate real, a join table is Stage 2);
+  multi-doc attachments; RSVP; Calendar and Table views.
+
+  ── INTERACTIONS TO TRY ────────────────────────────────────────────────────
+  · Drag "Speaker Series" (no owner) into Planning   → the owner step opens.
+  · Drag "Rush Week Info Night" into Planning        → same step, one field.
+  · Drag "Boba Fundraiser" (no date/location) into Confirmed → the publish
+    step opens with both missing fields inline.
+  · Drag "Spring Banquet" (complete) into Confirmed  → moves clean. The
+    contrast between those two is the point.
+  · Drag anything out of Confirmed → watch it leave the Timeline strip.
+  · Click any card → the panel: required fields, then the org's optional set.
+  · In the panel, toggle "Fields this chapter collects" → optional fields
+    appear/disappear on every event at once. That's the org-level model.
+  · Press T → Ivory.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Events Production Mock v3 · Quiet board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  /* Dusk tokens — canonical source app/components/dashboard/dashboard-ledger.css:36-61 */
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  }
+  /* Ivory — dashboard-ledger.css:63-85 */
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  ::selection { background: var(--vio-bg); }
+  button { font: inherit; }
+
+  .shell { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh; }
+
+  /* ── Sidebar ──────────────────────────────────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ─────────────────────────────────────────────────────────────── */
+  .main { padding: 30px 38px 40px; max-width: 1360px; min-width: 0; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .status-line { margin-top: 9px; font-size: 13.5px; color: var(--muted); max-width: 620px; }
+  .status-line b { color: var(--ink-soft); font-weight: 550; }
+  .status-line .warn { color: var(--gold); }
+  .status-line .block { color: var(--rose); }
+
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); }
+
+  .theme-toggle { position: fixed; bottom: 18px; right: 20px; z-index: 90;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Toolbar ──────────────────────────────────────────────────────────── */
+  .toolbar { margin-top: 14px; display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  .views { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+  .views button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: none; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
+  .views button.on { color: var(--ink); background: var(--card-2); }
+  .views button:hover:not(.on) { color: var(--ink-soft); }
+  .chip { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    background: transparent; display: inline-flex; align-items: center; gap: 6px; }
+  .chip .cdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
+  .chip.on { color: var(--ink); background: var(--card-2); }
+  .chip:hover:not(.on) { color: var(--ink-soft); border-color: var(--vio); }
+  .toolbar .grow { flex: 1; min-width: 0; }
+  .searchbox { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 11px; background: var(--card); color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .05em; }
+  .searchbox svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .searchbox input { background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--mono);
+    font-size: 10px; letter-spacing: .05em; width: 120px; }
+  .searchbox input::placeholder { color: var(--faint); }
+
+  /* ── The board. Lanes declare their entry rule. ───────────────────────── */
+  .board { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  .lane { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden; min-width: 0; transition: border-color .14s, background .14s; }
+  .lane.drop-ok  { border-color: var(--ok);  background: color-mix(in srgb, var(--ok) 5%, var(--card)); }
+  .lane.drop-gate{ border-color: var(--gold);background: color-mix(in srgb, var(--gold) 5%, var(--card)); }
+
+  /* Name + count. The rules live in the drag cue and the panel — printing
+     them permanently made every lane a paragraph you read once and then
+     never again. */
+  .lane-head { padding: 11px 14px 10px; border-bottom: 1px solid var(--line-soft); }
+  .lane-head .lh-top { display: flex; align-items: center; gap: 8px; }
+  .lane-head .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .lane-head .lh { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+  .lane-head .lc { margin-left: auto; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--faint);
+    background: var(--paper); border: 1px solid var(--line-soft); border-radius: 999px; padding: 1px 8px; }
+  .dot.idea { background: var(--faint); }
+  .dot.planning { background: var(--gold); }
+  .dot.confirmed { background: var(--vio); }
+  .dot.done { background: var(--ok); }
+  /* Each lane's own entry rule + what the lane MEANS. */
+  .lane-head .rule-line { margin-top: 6px; font-family: var(--mono); font-size: 9px; letter-spacing: .07em;
+    text-transform: uppercase; color: var(--faint); line-height: 1.55; }
+  .lane-head .rule-line .gate { color: var(--gold); }
+  .lane-head .rule-line .pub { color: var(--vio); }
+  .lane-head .meaning { margin-top: 5px; font-size: 10.5px; color: var(--muted); font-style: italic; line-height: 1.4; }
+  .lane-head .visibility { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    border-radius: 999px; padding: 2px 8px 2px 6px; border: 1px solid var(--line-soft); }
+  .visibility svg { width: 10px; height: 10px; flex-shrink: 0; }
+  .visibility.private { color: var(--faint); background: var(--paper); }
+  .visibility.public  { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
+
+  /* Capped so one busy lane doesn't leave a dead column beside it. The board
+     stays a comparison of four lanes, not a single tall list. */
+  .lane-body { padding: 10px; display: flex; flex-direction: column; gap: 9px;
+    min-height: 96px; max-height: 78vh; overflow-y: auto; overscroll-behavior: contain;
+    /* A soft bottom edge so a clipped card reads as "more below", not as broken. */
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%); }
+  .lane-body:not(.scrolls) { mask-image: none; -webkit-mask-image: none; }
+  .lane-body::-webkit-scrollbar { width: 5px; }
+  .lane-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .lane-body::-webkit-scrollbar-track { background: transparent; }
+  .lane-body .empty { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--faint); text-align: center; padding: 18px 6px; }
+  .lane-body .dropcue { border: 1px dashed var(--line); border-radius: 10px; padding: 12px 10px; text-align: center;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .lane-body .dropcue.gate { border-color: var(--gold); color: var(--gold); }
+  .lane-body .dropcue.ok   { border-color: var(--ok); color: var(--ok); }
+
+  /* ── Event card ───────────────────────────────────────────────────────── */
+  .ev-card { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card-2);
+    padding: 11px 12px; cursor: grab; transition: border-color .12s, transform .12s, opacity .12s; min-width: 0; }
+  .ev-card:hover { border-color: var(--vio); transform: translateY(-1px); }
+  .ev-card:active { cursor: grabbing; }
+  .ev-card.sel { border-color: var(--vio); box-shadow: 0 0 0 1px var(--vio-bg); }
+  .ev-card.dragging { opacity: .4; transform: scale(.97); }
+  .ev-card.private { border-left: 1px dashed var(--faint); border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+  .ev-card.landed { animation: land .5s cubic-bezier(.2,.8,.2,1); }
+  @keyframes land { 0% { transform: scale(.94); box-shadow: 0 0 0 4px var(--vio-bg); } 100% { transform: none; box-shadow: none; } }
+
+  /* Type is the left edge, not a glyph + a repeated word. */
+  .ev-card { border-left: 2px solid var(--tc); }
+  .ev-card.private { border-left: 2px dashed var(--tc); border-top-left-radius: 4px; border-bottom-left-radius: 4px; }
+
+  .ev-card .ec-t { font-size: 13px; font-weight: 550; color: var(--ink); line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+
+  /* One meta row: when · where · required · stars. */
+  .ev-card .ec-meta { margin-top: 7px; display: flex; align-items: center; gap: 6px; min-width: 0;
+    font-size: 11px; color: var(--faint); }
+  .ev-card .ec-when { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; white-space: nowrap; flex-shrink: 0; }
+  .ev-card .ec-when.soon { color: var(--gold); }
+  .ev-card .ec-when.today { color: var(--rose); }
+  .ev-card .ec-when.nodate { font-style: italic; }
+  .ev-card .ec-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .ev-card .ec-where::before { content: "· "; }
+  /* Set apart, not run into the location text. */
+  .ec-mand { font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--rose); background: var(--rose-bg); border-radius: 999px; padding: 2px 6px;
+    flex-shrink: 0; margin-left: 2px; }
+  .ev-card .stars { margin-left: auto; color: var(--gold); font-size: 10px; letter-spacing: .5px; flex-shrink: 0; }
+  .ev-card .stars .off { color: var(--line); }
+  .ev-card.ghost { opacity: .66; }
+  .ev-card.ghost:hover { opacity: 1; }
+
+  .lead-av { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 7.5px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
+  .lead-av.none { background: transparent; border: 1px dashed var(--faint); color: var(--faint); }
+
+  /* The one status row. Carries the owner AND what's next — the two things
+     you'd otherwise print on separate lines. */
+  .ev-card .ec-block { margin-top: 9px; font-size: 11px; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .ev-card .ec-block.gold { color: var(--gold); }
+  .ev-card .ec-block.rose { color: var(--rose); }
+  .ev-card .ec-block.ok   { color: var(--ok); }
+  .ev-card .ec-block.quiet { color: var(--muted); }
+  .ev-card .ec-block span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  /* A published card is settled, not empty — one glyph, no sentence. */
+  .ev-card .ec-pub { margin-left: auto; color: var(--vio); flex-shrink: 0; display: inline-flex; overflow: visible; }
+  .ev-card .ec-pub svg { width: 13px; height: 13px; }
+
+  .more-row { text-align: center; font-family: var(--mono); font-size: 9px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--faint); background: transparent; border: 1px dashed var(--line);
+    border-radius: 9px; padding: 9px; cursor: pointer; width: 100%; }
+  .more-row:hover { color: var(--ink-soft); border-color: var(--vio); }
+
+  .nomatch { margin-top: 14px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card);
+    padding: 44px 24px; text-align: center; }
+  .nomatch .nm-t { font-family: var(--serif); font-size: 19px; color: var(--ink); }
+  .nomatch .nm-s { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
+  .nomatch button { margin-top: 15px; }
+
+  /* ── Timeline strip — confirming publishes; this is the proof. ────────── */
+  .tl { margin-top: 26px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden; }
+  .tl-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .tl-head .t { font-family: var(--serif); font-size: 16px; color: var(--ink); }
+  .tl-head .s { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .tl-head .cnt { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border-radius: 999px; padding: 3px 10px; }
+  .tl-body { padding: 12px 16px; display: flex; gap: 9px; flex-wrap: wrap; align-items: center; min-height: 62px; }
+  .tl-chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line);
+    background: var(--card-2); border-radius: 999px; padding: 6px 13px 6px 9px; max-width: 100%; min-width: 0; }
+  .tl-chip .tc-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .tl-chip .tc-t { font-size: 12px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .tl-chip .tc-d { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); flex-shrink: 0; }
+  .tl-chip .tc-w { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); flex-shrink: 0;
+    max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-chip.enter { animation: tlin .45s cubic-bezier(.2,.8,.2,1); }
+  .tl-chip.leave { animation: tlout .32s ease forwards; }
+  @keyframes tlin  { from { opacity: 0; transform: translateY(9px) scale(.94); } to { opacity: 1; transform: none; } }
+  @keyframes tlout { to { opacity: 0; transform: translateY(-7px) scale(.94); } }
+  .tl-empty { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .tl-note { padding: 0 16px 12px; font-size: 11.5px; color: var(--faint); font-style: italic; }
+
+  /* ── Glance strip ─────────────────────────────────────────────────────── */
+  .glance { margin-top: 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 15px 18px 14px; border-right: 1px solid var(--line-soft); min-width: 0; }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em; color: var(--ink);
+    margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .v small { font-size: 13px; color: var(--faint); font-weight: 400; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; }
+  .measure .note.good { color: var(--ok); }
+  .measure .note.warn { color: var(--gold); }
+
+  footer { margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+
+  /* ── The fix-steps. One per gate, same component. ─────────────────────── */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100; display: none;
+    align-items: center; justify-content: center; padding: 24px; }
+  .scrim.open { display: flex; animation: fade .18s ease; }
+  [data-theme="ivory"] .scrim { background: rgba(23,20,16,.34); }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .fixstep { width: min(540px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+    border: 1px solid var(--gold); border-radius: 14px; background: var(--card);
+    box-shadow: 0 0 0 1px var(--gold-bg), 0 30px 70px -30px rgba(0,0,0,.8); animation: pop .22s cubic-bezier(.2,.8,.2,1); }
+  @keyframes pop { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+  .fixstep .fs-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--line-soft); }
+  .fs-head .fs-k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+  .fs-head h3 { font-family: var(--serif); font-weight: 400; font-size: 23px; color: var(--ink); margin-top: 8px; line-height: 1.2; }
+  .fs-head p { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
+  .fs-head p b { color: var(--ink-soft); font-weight: 550; }
+  .fs-body { padding: 16px 22px 6px; }
+  .fs-lbl { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+    margin-bottom: 9px; }
+  .fs-lbl.spaced { margin-top: 16px; }
+
+  /* A missing required field, collected inline. */
+  .fs-field { border: 1px solid var(--rose-bg); background: var(--rose-bg); border-radius: 10px;
+    padding: 11px 13px; margin-bottom: 9px; }
+  .fs-field.filled { border-color: var(--ok-bg); background: var(--ok-bg); }
+  .fs-field .ff-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .fs-field .ff-l { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--rose); }
+  .fs-field.filled .ff-l { color: var(--ok); }
+  .fs-field .ff-hint { font-size: 11px; color: var(--faint); margin-top: 6px; }
+  .fs-field input, .fs-field select {
+    margin-left: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 7px;
+    color: var(--ink); font-family: var(--mono); font-size: 11px; padding: 7px 10px; min-height: 34px; min-width: 0; }
+  .fs-field input:focus, .fs-field select:focus { outline: none; border-color: var(--vio); }
+  .fs-field input[type="text"] { flex: 1; min-width: 140px; }
+
+  /* Owner picker — the Idea→Planning gate. */
+  .owner-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  .owner-opt { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line);
+    background: var(--paper); border-radius: 999px; padding: 5px 12px 5px 6px; cursor: pointer;
+    font-size: 12px; color: var(--ink-soft); transition: border-color .12s, background .12s; }
+  .owner-opt:hover { border-color: var(--vio); }
+  .owner-opt.on { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
+  .owner-opt .oo-role { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--faint); }
+
+  .fs-foot { padding: 14px 22px 18px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .fs-foot .remain { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+  .fs-foot .remain.ready { color: var(--ok); }
+  .fs-foot .sp { flex: 1; min-width: 0; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-height: 38px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+    color: var(--paper); background: var(--vio); border: 1px solid var(--vio); border-radius: 9px; padding: 10px 16px; }
+  .btn-primary:hover:not(:disabled) { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-ghost { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-height: 38px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; }
+  .btn-ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── The panel. One list of fields: required, then optional. ──────────── */
+  .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(430px, 100vw); z-index: 95;
+    background: var(--card); border-left: 1px solid var(--line); box-shadow: -24px 0 60px -40px rgba(0,0,0,.9);
+    transform: translateX(100%); transition: transform .26s cubic-bezier(.2,.8,.2,1); overflow: auto; }
+  .panel.open { transform: none; }
+  .pn-head { padding: 22px 22px 16px; border-bottom: 1px solid var(--line-soft); }
+  .pn-head .pn-top { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .pn-stage { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    border-radius: 999px; padding: 3px 10px; }
+  .pn-close { margin-left: auto; background: transparent; border: 1px solid var(--line); border-radius: 8px;
+    color: var(--muted); width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer; flex-shrink: 0; }
+  .pn-close:hover { color: var(--ink); border-color: var(--vio); }
+  .pn-head h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; line-height: 1.18; color: var(--ink);
+    margin: 12px 0 6px; overflow-wrap: anywhere; }
+  .pn-lead { margin-top: 13px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--line-soft);
+    background: var(--paper); border-radius: 10px; padding: 9px 12px; }
+  .pn-lead.gate-miss { border-color: var(--gold-bg); background: var(--gold-bg); }
+  .pn-lead .pl-k { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .pn-lead.gate-miss .pl-k { color: var(--gold); }
+  .pn-lead .pl-who { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+  .pn-lead .pl-who .lead-n { font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pn-vis { margin-top: 10px; }
+
+  .pn-sec { padding: 17px 22px; border-bottom: 1px solid var(--line-soft); }
+  .pn-sec .ps-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 11px; flex-wrap: wrap; }
+  .pn-sec .ps-t { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+  .pn-sec .ps-why { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase;
+    border-radius: 999px; padding: 2px 8px; }
+  .ps-why.gates { color: var(--gold); background: var(--gold-bg); }
+  .ps-why.opt   { color: var(--faint); background: var(--paper); border: 1px solid var(--line-soft); }
+  .pn-sec .ps-n { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pn-sec .ps-n.ready { color: var(--ok); }
+
+  /* A field row — label left, value right. The value IS the checkmark. */
+  .fld { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+  .fld:last-child { border-bottom: none; }
+  .fld-mark { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); flex-shrink: 0;
+    display: grid; place-items: center; color: transparent; margin-top: 1px; }
+  .fld.set .fld-mark { border-color: var(--ok); background: var(--ok); color: var(--paper); }
+  .fld.miss .fld-mark { border-color: var(--gold); border-style: dashed; }
+  .fld-mark svg { width: 10px; height: 10px; }
+  .fld-main { min-width: 0; flex: 1; }
+  .fld-k { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  /* Inline, not flex — an avatar or a money run sits in the text line rather
+     than becoming its own flex item that can break onto a second row. */
+  .fld-v { font-size: 12.5px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; line-height: 1.5; }
+  .fld-v .lead-av { display: inline-grid; vertical-align: -4px; margin-right: 4px; }
+  .fld.miss .fld-v { color: var(--gold); font-style: italic; }
+  .fld-v.empty { color: var(--faint); font-style: italic; }
+  .fld-v .money { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .fld-file { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--vio); }
+  .fld-file svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* Org-level field picker — the whole point of "optional checklists". */
+  .fieldpick { margin-top: 4px; }
+  .fieldpick .fp-k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); margin-bottom: 8px; }
+  .fp-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fp-opt { font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--faint); border: 1px solid var(--line); background: transparent; border-radius: 999px;
+    padding: 4px 10px; cursor: pointer; }
+  .fp-opt.on { color: var(--vio); border-color: var(--vio-bg); background: var(--vio-bg); }
+  .fp-opt:hover { border-color: var(--vio); }
+  .fp-note { font-size: 11px; color: var(--faint); margin-top: 9px; font-style: italic; line-height: 1.45; }
+
+  .pn-foot { padding: 17px 22px 26px; }
+  .pn-gatebar { display: flex; align-items: center; gap: 9px; border-radius: 10px; padding: 11px 13px; font-size: 12px; }
+  .pn-gatebar svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .pn-gatebar.blocked { border: 1px solid var(--gold-bg); background: var(--gold-bg); color: var(--gold); }
+  .pn-gatebar.ready   { border: 1px solid var(--ok-bg);   background: var(--ok-bg);   color: var(--ok); }
+
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(16px); z-index: 120;
+    border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 11px 16px;
+    box-shadow: var(--shadow); font-size: 12.5px; color: var(--ink-soft); opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px); }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+  .toast b { color: var(--vio); font-weight: 600; }
+
+  /* ── Responsive ───────────────────────────────────────────────────────── */
+  @media (max-width: 1180px) {
+    .board  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .measure:nth-child(2) { border-right: none; }
+    .measure:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); }
+  }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: row; align-items: center; gap: 16px;
+      padding: 14px 18px; border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; }
+    .side .nav { flex-direction: row; padding: 0; }
+    .side .wordmark .org, .side .user { display: none; }
+    .main { padding: 22px 20px 36px; }
+    h1.greeting { font-size: 28px; }
+  }
+  @media (max-width: 640px) {
+    .board  { grid-template-columns: minmax(0, 1fr); }
+    .glance { grid-template-columns: minmax(0, 1fr); }
+    .measure { border-right: none; border-bottom: 1px solid var(--line-soft); }
+    .measure:last-child { border-bottom: none; }
+    .main { padding: 18px 14px 30px; }
+    .briefing { flex-direction: column; gap: 14px; }
+    h1.greeting { font-size: 25px; }
+    .panel { width: 100vw; }
+    .fs-field input[type="text"] { margin-left: 0; width: 100%; }
+  }
+
+  @media (pointer: coarse) {
+    .chip, .views button { min-height: 44px; padding-top: 0; padding-bottom: 0; align-items: center; }
+    .views button { display: inline-flex; }
+    .ev-card { padding: 14px; }
+    .pn-close { width: 44px; height: 44px; }
+    .fld { min-height: 48px; }
+    .more-row { min-height: 44px; }
+    .owner-opt { min-height: 44px; }
+    .fp-opt { min-height: 44px; display: inline-flex; align-items: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: .001ms !important; scroll-behavior: auto !important; }
+    .panel { transition: none; }
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi<br>Epsilon</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Timeline</a>
+      <a href="#">Brothers</a>
+      <a href="#">Meetings</a>
+      <a href="#">Treasury</a>
+      <a class="active" href="#">Programming</a>
+      <a href="#">Instagram</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Social Chair</p>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Saturday, June 13, 2026</span>&ensp;·&ensp;Spring Semester</p>
+        <h1 class="greeting">The <em>programme</em>.</h1>
+        <p class="status-line" id="statusLine"></p>
+      </div>
+      <button class="add-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New event
+      </button>
+    </div>
+
+    <div class="glance">
+      <div class="measure">
+        <div class="k">On the slate</div>
+        <div class="v" id="mSlate">—</div>
+        <div class="note" id="mSlateNote">—</div>
+      </div>
+      <div class="measure">
+        <div class="k">Next 14 days</div>
+        <div class="v" id="mSoon">—</div>
+        <div class="note warn" id="mSoonNote">—</div>
+      </div>
+      <div class="measure">
+        <div class="k">Unowned ideas</div>
+        <div class="v" id="mUnowned">—</div>
+        <div class="note" id="mUnownedNote">—</div>
+      </div>
+      <div class="measure">
+        <div class="k">Spent this term</div>
+        <div class="v">$1,240</div>
+        <div class="note">$310 committed, unspent</div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <div class="views">
+        <button class="on">Board</button>
+        <button>Calendar</button>
+        <button>Table</button>
+      </div>
+      <div id="typeChips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+      <span class="grow"></span>
+      <label class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search" placeholder="Search events…">
+      </label>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <div class="nomatch" id="nomatch" style="display:none">
+      <p class="nm-t">No events match.</p>
+      <p class="nm-s" id="nmSub">Nothing on the slate fits this filter.</p>
+      <button class="btn-ghost" id="clearFilters">Clear filters</button>
+    </div>
+
+    <div class="tl">
+      <div class="tl-head">
+        <span class="t">On the chapter Timeline</span>
+        <span class="s">what everyone sees</span>
+        <span class="cnt" id="tlCount">0 published</span>
+      </div>
+      <div class="tl-body" id="tlBody"></div>
+    </div>
+
+    <footer>Lambda Phi Epsilon · ChaptOS — events production mock v3 · quiet board, rules on contact · Jun 13, 2026</footer>
+  </main>
+</div>
+
+<!-- The fix-step. One component, two gates. -->
+<div class="scrim" id="scrim">
+  <div class="fixstep" role="dialog" aria-modal="true" aria-labelledby="fsTitle">
+    <div class="fs-head">
+      <div class="fs-k" id="fsKicker">One step</div>
+      <h3 id="fsTitle">—</h3>
+      <p id="fsSub">—</p>
+    </div>
+    <div class="fs-body" id="fsBody"></div>
+    <div class="fs-foot">
+      <span class="remain" id="fsRemain">—</span>
+      <span class="sp"></span>
+      <button class="btn-ghost" id="fsCancel">Cancel</button>
+      <button class="btn-primary" id="fsGo" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+<aside class="panel" id="panel" aria-label="Event details"></aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   THEME
+   ════════════════════════════════════════════════════════════════════════ */
+const root = document.documentElement;
+const themeBtn = document.getElementById("toggle");
+function setTheme(t) {
+  root.dataset.theme = t;
+  themeBtn.innerHTML = t === "dusk" ? "◐&nbsp; Ivory" : "◑&nbsp; Dusk";
+  try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
+}
+themeBtn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeFix(); closePanel(); return; }
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) themeBtn.click();
+});
+try { if (localStorage.getItem("chaptos-mock-theme") === "ivory") setTheme("ivory"); } catch {}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PER-ORG TYPE COLOR — driven from a {slug: …} fixture, exactly as
+   CalendarEventType rows would. "rush" is a custom type; it colors with no
+   code change. (Today four hardcoded tables key off the English display
+   LABEL — PrepStatusPill.tsx:44-67 — so a renamed type falls back to grey.)
+   ════════════════════════════════════════════════════════════════════════ */
+const TYPES = {
+  program:    { label: "Program",           glyph: "PR", color: "#a78bfa", colorIvory: "#6d28d9" },
+  social:     { label: "Social",            glyph: "SO", color: "#ddb36a", colorIvory: "#9a7224" },
+  fundraiser: { label: "Fundraiser",        glyph: "FU", color: "#7fb08a", colorIvory: "#3f7a50" },
+  service:    { label: "Community Service", glyph: "CS", color: "#5fbdb0", colorIvory: "#2f8579" },
+  rush:       { label: "Rush Week",         glyph: "RW", color: "#d98ba3", colorIvory: "#b34f72" },
+};
+const typeColor = slug => root.dataset.theme === "ivory" ? TYPES[slug].colorIvory : TYPES[slug].color;
+const rgba = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE FIELD MODEL — this replaces both "checklists".
+
+   REQUIRED, in the order the gates need them. `gate` says WHICH boundary
+   the field unlocks, which is what lets the lane headers, the card pips,
+   the fix-steps and the panel all derive from one table instead of four
+   hardcoded lists.
+   ════════════════════════════════════════════════════════════════════════ */
+const REQUIRED = [
+  { key: "title",     label: "Title",     gate: "idea",      kind: "text",
+    hint: "What the chapter will see on the calendar." },
+  { key: "category",  label: "Category",  gate: "idea",      kind: "type",
+    hint: "Drives color, reporting, and which committee owns it." },
+  { key: "owner",     label: "Owner",     gate: "planning",  kind: "person",
+    hint: "One person accountable. An idea belongs to the chapter; a plan belongs to somebody." },
+  { key: "date",      label: "Date",      gate: "confirmed", kind: "date",
+    hint: "Publishing puts this on everyone's calendar, so it has to be real." },
+  { key: "location",  label: "Location",  gate: "confirmed", kind: "text",
+    hint: "Where people actually go." },
+  { key: "mandatory", label: "Attendance", gate: "confirmed", kind: "bool",
+    hint: "Required of every member, or optional." },
+];
+
+/* The org's OPTIONAL set. Not per-event custom items — the org picks these
+   once and they appear on every event. Typed, because budget and head count
+   are the two you most want to compute with. `on` is this org's saved choice. */
+const OPTIONAL = [
+  { key: "description",   label: "Description",     on: true,  kind: "text",
+    note: "Absorbs the loose notes the old per-event checklist held." },
+  { key: "budget",        label: "Budget",          on: true,  kind: "money",
+    note: "Requested vs approved. spendingCents already holds ACTUAL — a treasurer needs those apart." },
+  { key: "attachment",    label: "Attachment",      on: true,  kind: "file",
+    note: "Was a mandatory prep item. Optional now, which is what kills itineraryNotNeeded." },
+  { key: "headcount",     label: "Head count",      on: true,  kind: "num",
+    note: "Expected attendance — capacity, cost-per-head, and a number to compare check-ins against." },
+  { key: "cohost",        label: "Co-host",         on: true,  kind: "text",
+    note: "collabOrg already exists on the model and already flows through resolveProgrammingDisplay." },
+  { key: "contact",       label: "Point of contact", on: false, kind: "text",
+    note: "The venue manager or vendor. Distinct from the owner — external, not accountable." },
+  { key: "setup",         label: "Setup time",      on: false, kind: "text",
+    note: "\"In the room at 6, doors at 8.\" `time` only holds one of those." },
+  { key: "risk",          label: "Risk form",       on: false, kind: "bool",
+    note: "Nationals-affiliated orgs file these N days ahead. Visible before it's late." },
+  { key: "dress",         label: "Dress code",      on: false, kind: "text",
+    note: "Pure member-facing info that currently gets buried in the description." },
+  { key: "transport",     label: "Transportation",  on: false, kind: "text",
+    note: "The other question that gets asked forty times in the group chat." },
+];
+const optOn = () => OPTIONAL.filter(f => f.on);
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIXTURE · pinned to Sat Jun 13 2026, same chapter vocabulary as v1 so the
+   two mocks read as the same slate. Every gate state is on screen at once.
+   ════════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date(2026, 5, 13);
+const ROSTER = [
+  { n: "Maya R.", i: "MR", role: "Social Chair" },
+  { n: "Dev P.", i: "DP", role: "Programming" },
+  { n: "Issac Y.", i: "IY", role: "Service Chair" },
+  { n: "Ana G.", i: "AG", role: "Secretary" },
+  { n: "Thalha T.", i: "TT", role: "Social Chair" },
+  { n: "Christopher Nakamura-Alvarez", i: "CN", role: "Member" },
+];
+
+let EVENTS = [
+  /* IDEA — unowned by definition. One dated (a date in Idea is legal, it just
+     isn't what promotes it), one bare, one custom-type. */
+  { id: 1, stage: "idea", type: "program", title: "Speaker Series",
+    date: null, location: null, mandatory: false, owner: null,
+    f: { description: "Alumni in tech, panel format." } },
+  { id: 2, stage: "idea", type: "service", title: "Beach Cleanup",
+    date: "2026-07-18", location: null, mandatory: false, owner: null,
+    f: { description: "Pitched by Issac at chapter." } },
+  { id: 3, stage: "idea", type: "rush", title: "Rush Week Info Night",
+    date: null, location: null, mandatory: false, owner: null, f: {} },
+
+  /* PLANNING — all owned (that's the entry rule). One missing both confirm
+     fields, one complete and ready, one missing only a location, and one
+     long-titled + long-named to prove the 2-line clamp holds. */
+  { id: 4, stage: "planning", type: "fundraiser", title: "Boba Fundraiser",
+    date: null, location: null, mandatory: false, owner: ROSTER[0],
+    f: { budget: { req: 200, appr: null }, headcount: 80, description: "Table outside the Union, 11–3." } },
+  { id: 5, stage: "planning", type: "program", title: "Spring Banquet",
+    date: "2026-06-21", location: "Grand Ballroom", mandatory: true, owner: ROSTER[1],
+    f: { budget: { req: 1400, appr: 1200 }, headcount: 120, attachment: "banquet-run-of-show.pdf",
+         cohost: "Kappa Delta Phi", description: "Seated dinner, awards after." } },
+  { id: 6, stage: "planning", type: "social", title: "Mixer",
+    date: "2026-07-02", location: null, mandatory: false, owner: ROSTER[3],
+    f: { headcount: 45 } },
+  { id: 7, stage: "planning", type: "social", title: "Brotherhood Social w/ KDF — Lakeside Barbecue & Field Games",
+    date: "2026-06-27", location: "Lakeside Pavilion", mandatory: false, owner: ROSTER[5],
+    f: { budget: { req: 350, appr: 350 }, headcount: 60, cohost: "Kappa Delta Phi",
+         description: "Grills, field games, sunset." } },
+
+  /* CONFIRMED — complete by definition. */
+  { id: 8, stage: "confirmed", type: "social", title: "Beach Day",
+    date: "2026-06-18", location: "Marine Park", mandatory: false, owner: ROSTER[4],
+    f: { budget: { req: 180, appr: 180 }, headcount: 40, cohost: "Kappa Delta Phi",
+         attachment: "beach-day-flyer.png", description: "Volleyball nets reserved." } },
+  { id: 9, stage: "confirmed", type: "program", title: "Alumni Panel",
+    date: "2026-07-09", location: "Kerckhoff 400", mandatory: true, owner: ROSTER[3],
+    f: { budget: { req: 90, appr: 90 }, headcount: 70, attachment: "panel-agenda.pdf" } },
+
+  /* DONE — enough to trigger the +N collapse, with success stars. */
+  { id: 10, stage: "done", type: "fundraiser", title: "Boba Fundraiser",
+    date: "2026-05-14", location: "Student Union", mandatory: false, owner: ROSTER[0], stars: 5,
+    f: { budget: { req: 200, appr: 200 }, headcount: 75, description: "Raised $410." } },
+  { id: 11, stage: "done", type: "service", title: "Park Cleanup",
+    date: "2026-05-24", location: "Elysian Park", mandatory: false, owner: ROSTER[2], stars: 4,
+    f: { headcount: 8, description: "8 brothers · 24 hrs logged." } },
+  { id: 12, stage: "done", type: "social", title: "Spring Mixer",
+    date: "2026-05-30", location: "Chapter House", mandatory: false, owner: ROSTER[1], stars: 4,
+    f: { cohost: "Delta Sigma Pi", headcount: 60 } },
+  { id: 13, stage: "done", type: "program", title: "Study Night",
+    date: "2026-05-06", location: "Powell Library", mandatory: false, owner: ROSTER[3], stars: 3, f: {} },
+  { id: 14, stage: "done", type: "social", title: "Game Night",
+    date: "2026-04-28", location: "Chapter House", mandatory: false, owner: ROSTER[4], stars: 4, f: {} },
+  { id: 15, stage: "done", type: "fundraiser", title: "Bake Sale",
+    date: "2026-04-11", location: "Bruin Walk", mandatory: false, owner: ROSTER[0], stars: 3,
+    f: { budget: { req: 60, appr: 60 }, description: "Raised $180." } },
+];
+
+/* ── Stage definitions. Each lane states its entry rule AND its meaning. ── */
+const STAGES = [
+  { id: "idea", label: "Idea",
+    rule: "Title + category", rule2: null,
+    meaning: "Up in the air. Belongs to the chapter.",
+    vis: "private", visLabel: "Officers only" },
+  { id: "planning", label: "Planning",
+    rule: "Needs an owner", rule2: null, gated: true,
+    meaning: "Someone's on it. Belongs to a person.",
+    vis: "private", visLabel: "Officers only" },
+  { id: "confirmed", label: "Confirmed",
+    rule: "Needs a date + a location", rule2: "Goes on the timeline", gated: true, pubs: true,
+    meaning: "Locked in. The chapter can plan around it.",
+    vis: "public", visLabel: "Chapter can see" },
+  { id: "done", label: "Done",
+    rule: "Wrapped", rule2: null,
+    meaning: "Over. Rated and on the record.",
+    vis: "public", visLabel: "Chapter can see" },
+];
+
+/* ── Field access. One reader for required fields, wherever they live. ─── */
+function fieldValue(e, key) {
+  if (key === "title")     return e.title || null;
+  if (key === "category")  return e.type || null;
+  if (key === "owner")     return e.owner || null;
+  if (key === "date")      return e.date || null;
+  if (key === "location")  return e.location || null;
+  if (key === "mandatory") return true; /* a boolean is always answered */
+  return e.f?.[key] ?? null;
+}
+const hasField = (e, key) => {
+  const v = fieldValue(e, key);
+  return v !== null && v !== undefined && v !== "";
+};
+
+/* Which required fields a given stage demands — cumulative down the lanes. */
+const GATE_ORDER = ["idea", "planning", "confirmed", "done"];
+function fieldsFor(stage) {
+  const upto = GATE_ORDER.indexOf(stage === "done" ? "confirmed" : stage);
+  return REQUIRED.filter(f => GATE_ORDER.indexOf(f.gate) <= upto);
+}
+function missingFor(e, stage) { return fieldsFor(stage).filter(f => !hasField(e, f.key)); }
+const canEnter = (e, stage) => missingFor(e, stage).length === 0;
+
+/* ── Helpers ──────────────────────────────────────────────────────────── */
+const dayDiff = ds => Math.round((new Date(ds + "T00:00:00") - TODAY) / 86400000);
+function fmtDate(ds) {
+  if (!ds) return null;
+  const d = new Date(ds + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+function longDate(ds) {
+  if (!ds) return null;
+  return new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+function whenLabel(e) {
+  if (!e.date) return { txt: "No date yet", cls: "nodate" };
+  const n = dayDiff(e.date);
+  if (n < 0)  return { txt: fmtDate(e.date), cls: "" };
+  if (n === 0) return { txt: "Today", cls: "today" };
+  if (n <= 7) return { txt: `${new Date(e.date + "T00:00:00").toLocaleDateString("en-US",{weekday:"short"})} · ${n}d`, cls: "today" };
+  if (n <= 14) return { txt: fmtDate(e.date), cls: "soon" };
+  return { txt: fmtDate(e.date), cls: "" };
+}
+/* The blocker line — named, not counted. A card with one gap names that gap;
+   a card with nothing says so as one phrase. This is what replaced v1's
+   attention rail, and it now speaks in FIELDS rather than prep booleans. */
+function blocker(e) {
+  /* Confirmed and Done are settled — they fall through to the quiet owner
+     row rather than printing "Published to the chapter" on every card. */
+  if (e.stage === "done" || e.stage === "confirmed") return null;
+  const urgent = e.date && dayDiff(e.date) <= 14;
+  if (e.stage === "idea") {
+    /* An owned idea is unremarkable; only the unowned one needs saying. */
+    return e.owner ? null : { cls: urgent ? "rose" : "gold", txt: "Needs an owner" };
+  }
+  /* planning */
+  const miss = missingFor(e, "confirmed");
+  if (!miss.length) return { cls: "ok", txt: "Ready to confirm" };
+  return { cls: urgent ? "rose" : "gold",
+           txt: "Needs " + miss.map(f => f.label.toLowerCase()).join(" + ") };
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function avatar(who, cls = "") {
+  if (!who) return `<span class="lead-av none ${cls}">?</span>`;
+  return `<span class="lead-av ${cls}">${esc(who.i)}</span>`;
+}
+const shortTitle = t => t.split(" — ")[0];
+const money = n => "$" + n.toLocaleString("en-US");
+
+/* ── Filters ──────────────────────────────────────────────────────────── */
+let activeTypes = new Set();
+let query = "";
+function visible(e) {
+  if (activeTypes.size && !activeTypes.has(e.type)) return false;
+  if (query && !(e.title + " " + (e.location || "") + " " + (e.f?.cohost || "")).toLowerCase().includes(query)) return false;
+  return true;
+}
+
+const chipWrap = document.getElementById("typeChips");
+function renderChips() {
+  chipWrap.innerHTML = Object.entries(TYPES).map(([slug, t]) => {
+    const on = activeTypes.has(slug);
+    return `<button class="chip ${on ? "on" : ""}" data-type="${slug}"
+      style="${on ? `color:${typeColor(slug)};border-color:${rgba(typeColor(slug), .5)}` : ""}">
+      <span class="cdot" style="background:${typeColor(slug)}"></span>${esc(t.label)}</button>`;
+  }).join("");
+  chipWrap.querySelectorAll(".chip").forEach(c => c.addEventListener("click", () => {
+    const t = c.dataset.type;
+    activeTypes.has(t) ? activeTypes.delete(t) : activeTypes.add(t);
+    renderChips(); renderBoard();
+  }));
+}
+document.getElementById("search").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); renderBoard(); });
+document.getElementById("clearFilters").addEventListener("click", () => {
+  activeTypes.clear(); query = ""; document.getElementById("search").value = "";
+  renderChips(); renderBoard();
+});
+
+/* ── Board render ─────────────────────────────────────────────────────── */
+const board = document.getElementById("board");
+let expandedDone = false;
+
+function cardHTML(e) {
+  const w = whenLabel(e);
+  const b = blocker(e);
+  const c = typeColor(e.type);
+  const priv = e.stage === "idea" || e.stage === "planning";
+  /* Pips = the required fields for the NEXT gate, not a fixed four. An Idea
+     shows the two-field idea set; Planning shows what confirming will need. */
+  const stars = e.stars
+    ? `<span class="stars">${"★".repeat(e.stars)}<span class="off">${"★".repeat(5 - e.stars)}</span></span>` : "";
+  /* The subtitle is the PLACE. The type is already the colored glyph, so
+     saying "Program ·" here is the same fact twice. */
+  const sub = e.location || (e.f?.cohost ? "w/ " + e.f.cohost : "");
+  return `<div class="ev-card ${e.stage === "done" || e.stage === "idea" ? "ghost" : ""} ${priv ? "private" : ""}"
+      draggable="true" data-id="${e.id}" tabindex="0" role="button"
+      style="--tc:${c}">
+    <div class="ec-t">${esc(e.title)}</div>
+    <div class="ec-meta">
+      <span class="ec-when ${w.cls}">${esc(w.txt)}</span>
+      ${sub ? `<span class="ec-where">${esc(sub)}</span>` : ""}
+      ${e.mandatory ? `<span class="ec-mand" title="Required of every member">Required</span>` : ""}
+      ${stars}
+    </div>
+    ${b ? `<div class="ec-block ${b.cls}">
+      ${e.owner ? avatar(e.owner) : `<span class="lead-av none">?</span>`}
+      <span>${esc(b.txt)}</span></div>` : `<div class="ec-block quiet">
+      ${avatar(e.owner)}<span>${e.owner ? esc(e.owner.n) : "No owner"}</span>
+      ${e.stage === "confirmed" ? `<span class="ec-pub" title="On the chapter Timeline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/></svg></span>` : ""}</div>`}
+  </div>`;
+}
+
+function renderBoard() {
+  const any = EVENTS.some(visible);
+  board.style.display = any ? "" : "none";
+  document.getElementById("nomatch").style.display = any ? "none" : "";
+  if (!any) {
+    const bits = [];
+    if (activeTypes.size) bits.push([...activeTypes].map(t => TYPES[t].label).join(" or "));
+    if (query) bits.push(`“${query}”`);
+    document.getElementById("nmSub").textContent =
+      `Nothing on the slate matches ${bits.join(" + ")}. All ${EVENTS.length} events are still there.`;
+  }
+
+  board.innerHTML = STAGES.map(s => {
+    let list = EVENTS.filter(e => e.stage === s.id && visible(e));
+    const total = list.length;
+    let collapsed = false;
+    if (s.id === "done" && !expandedDone && total > 3) { list = list.slice(0, 3); collapsed = true; }
+    const cards = list.length
+      ? list.map(cardHTML).join("")
+      : `<div class="empty">Nothing here</div>`;
+    const more = collapsed
+      ? `<button class="more-row" data-more="1">+${total - 3} more wrapped</button>` : "";
+    return `<section class="lane" data-stage="${s.id}">
+      <header class="lane-head">
+        <div class="lh-top">
+          <span class="dot ${s.id}"></span>
+          <span class="lh">${s.label}</span>
+          <span class="lc">${total}</span>
+        </div>
+      </header>
+      <div class="lane-body">${cards}${more}</div>
+    </section>`;
+  }).join("");
+
+  wireBoard();
+  /* Only fade the bottom edge of a lane that actually has more below. */
+  board.querySelectorAll(".lane-body").forEach(b =>
+    b.classList.toggle("scrolls", b.scrollHeight > b.clientHeight + 1));
+  renderTimeline();
+  renderGlance();
+  renderStatus();
+}
+
+/* ── One status line, derived. ────────────────────────────────────────── */
+function renderStatus() {
+  const live = EVENTS.filter(e => e.stage !== "done" && e.date);
+  const next = live.filter(e => dayDiff(e.date) >= 0).sort((a, b) => a.date < b.date ? -1 : 1)[0];
+  const unowned = EVENTS.filter(e => e.stage === "idea" && !e.owner).length;
+  const readyNow = EVENTS.filter(e => e.stage === "planning" && canEnter(e, "confirmed")).length;
+  const bits = [];
+  if (next) {
+    const n = dayDiff(next.date);
+    const day = new Date(next.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" });
+    bits.push(`<b>${esc(shortTitle(next.title))}</b> is next — ${n === 0 ? "today" : n === 1 ? "tomorrow" : day}.`);
+  }
+  if (readyNow) bits.push(`<span class="warn">${readyNow} ready to confirm.</span>`);
+  if (unowned) bits.push(`<span class="warn">${unowned} idea${unowned === 1 ? "" : "s"} with no one on ${unowned === 1 ? "it" : "them"}.</span>`);
+  document.getElementById("statusLine").innerHTML = bits.join(" ") || "Nothing scheduled.";
+}
+
+function renderGlance() {
+  const idea = EVENTS.filter(e => e.stage === "idea").length;
+  const plan = EVENTS.filter(e => e.stage === "planning").length;
+  const conf = EVENTS.filter(e => e.stage === "confirmed").length;
+  document.getElementById("mSlate").textContent = idea + plan + conf;
+  document.getElementById("mSlateNote").textContent = `${idea} ideas · ${plan} planning · ${conf} confirmed`;
+
+  const soon = EVENTS.filter(e => e.stage !== "done" && e.date && dayDiff(e.date) >= 0 && dayDiff(e.date) <= 14);
+  document.getElementById("mSoon").innerHTML = `${soon.length} <small>event${soon.length === 1 ? "" : "s"}</small>`;
+  const unconfirmed = soon.filter(e => e.stage !== "confirmed").length;
+  document.getElementById("mSoonNote").textContent = unconfirmed
+    ? `${unconfirmed} not confirmed yet` : "all confirmed";
+
+  /* The measure the owner gate makes worth watching. */
+  const unowned = EVENTS.filter(e => e.stage === "idea" && !e.owner).length;
+  const ideas = EVENTS.filter(e => e.stage === "idea").length;
+  document.getElementById("mUnowned").innerHTML = `${unowned} <small>of ${ideas}</small>`;
+  document.getElementById("mUnownedNote").textContent = unowned
+    ? "nobody's picked them up" : "every idea has someone";
+  document.getElementById("mUnownedNote").className = "note" + (unowned ? " warn" : " good");
+}
+
+/* ── Timeline strip. Confirmed + Done publish, and both carry a place. ─── */
+let tlPrev = new Set();
+function renderTimeline() {
+  const body = document.getElementById("tlBody");
+  const pub = EVENTS.filter(e => e.stage === "confirmed" || e.stage === "done")
+                    .sort((a, b) => (a.date || "") < (b.date || "") ? -1 : 1);
+  const ids = new Set(pub.map(e => e.id));
+  const gone = [...tlPrev].filter(id => !ids.has(id));
+
+  const draw = () => {
+    body.innerHTML = pub.length ? pub.map(e => {
+      const c = typeColor(e.type);
+      const isNew = !tlPrev.has(e.id) && tlPrev.size > 0;
+      return `<span class="tl-chip ${isNew ? "enter" : ""}">
+        <span class="tc-dot" style="background:${c}"></span>
+        <span class="tc-t">${esc(shortTitle(e.title))}</span>
+        <span class="tc-w">${esc(e.location || "—")}</span>
+        <span class="tc-d">${esc(fmtDate(e.date) || "—")}</span></span>`;
+    }).join("") : `<span class="tl-empty">Nothing published yet</span>`;
+    document.getElementById("tlCount").textContent = `${pub.length} published`;
+    tlPrev = ids;
+  };
+
+  /* Let a demoted event visibly leave before the redraw — that's the promise. */
+  if (gone.length && body.children.length) {
+    const goneTitles = gone.map(id => shortTitle(EVENTS.find(e => e.id === id)?.title || ""));
+    [...body.children].forEach(el => {
+      const t = el.querySelector(".tc-t");
+      if (t && goneTitles.includes(t.textContent)) el.classList.add("leave");
+    });
+    setTimeout(draw, 300);
+  } else draw();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   DRAG — a blocked drop opens the fix-step for THAT gate. Never a toast.
+   ════════════════════════════════════════════════════════════════════════ */
+let dragId = null;
+function wireBoard() {
+  board.querySelectorAll(".ev-card").forEach(card => {
+    card.addEventListener("dragstart", ev => {
+      dragId = Number(card.dataset.id);
+      card.classList.add("dragging");
+      ev.dataTransfer.effectAllowed = "move";
+      try { ev.dataTransfer.setData("text/plain", String(dragId)); } catch {}
+    });
+    card.addEventListener("dragend", () => { card.classList.remove("dragging"); clearCues(); dragId = null; });
+    card.addEventListener("click", () => openPanel(Number(card.dataset.id)));
+    card.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPanel(Number(card.dataset.id)); } });
+  });
+
+  board.querySelectorAll(".lane").forEach(lane => {
+    const stage = lane.dataset.stage;
+    lane.addEventListener("dragover", ev => {
+      if (dragId == null) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "move";
+      const e = EVENTS.find(x => x.id === dragId);
+      if (!e || e.stage === stage) return;
+      const gated = !canEnter(e, stage);
+      lane.classList.toggle("drop-gate", gated);
+      lane.classList.toggle("drop-ok", !gated);
+      showCue(lane, stage, gated, e);
+    });
+    lane.addEventListener("dragleave", ev => { if (!lane.contains(ev.relatedTarget)) clearCue(lane); });
+    lane.addEventListener("drop", ev => {
+      ev.preventDefault();
+      const id = dragId ?? Number(ev.dataTransfer.getData("text/plain"));
+      clearCues();
+      if (id == null) return;
+      attemptMove(id, stage);
+      dragId = null;
+    });
+  });
+
+  const m = board.querySelector("[data-more]");
+  if (m) m.addEventListener("click", () => { expandedDone = true; renderBoard(); });
+}
+function showCue(lane, stage, gated, e) {
+  const body = lane.querySelector(".lane-body");
+  let cue = body.querySelector(".dropcue");
+  if (!cue) { cue = document.createElement("div"); cue.className = "dropcue"; body.appendChild(cue); }
+  cue.className = "dropcue " + (gated ? "gate" : "ok");
+  /* This cue is now the ONLY place the lane's rule appears, so it says the
+     rule rather than just "drop here". Teaching at the moment of the attempt
+     beats a paragraph printed permanently in the header. */
+  const miss = missingFor(e, stage);
+  if (gated) {
+    cue.textContent = `Needs ${miss.map(f => f.label.toLowerCase()).join(" + ")} — drop to add`;
+  } else if (stage === "confirmed") {
+    cue.textContent = "Drop to confirm — the chapter will see it";
+  } else if (stage === "planning") {
+    cue.textContent = e.stage === "confirmed" || e.stage === "done"
+      ? "Drop — comes off the timeline" : "Drop to start planning";
+  } else if (stage === "idea") {
+    cue.textContent = e.stage === "confirmed" || e.stage === "done"
+      ? "Drop — comes off the timeline" : "Drop back to ideas";
+  } else cue.textContent = "Drop here";
+}
+function clearCue(lane) { lane.classList.remove("drop-gate", "drop-ok"); lane.querySelectorAll(".dropcue").forEach(c => c.remove()); }
+function clearCues() { board.querySelectorAll(".lane").forEach(clearCue); }
+
+function attemptMove(id, stage) {
+  const e = EVENTS.find(x => x.id === id);
+  if (!e || e.stage === stage) return;
+  /* THE gates. Demotion is always free — you can always park something. */
+  const forward = GATE_ORDER.indexOf(stage) > GATE_ORDER.indexOf(e.stage);
+  if (forward && !canEnter(e, stage)) { openFix(e, stage); return; }
+  const wasPublic = e.stage === "confirmed" || e.stage === "done";
+  const willPublic = stage === "confirmed" || stage === "done";
+  e.stage = stage;
+  renderBoard();
+  flashCard(id);
+  if (!wasPublic && willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
+  else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again.`);
+  else if (stage === "planning" && e.owner) toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(e.owner.n)}'s now.`);
+}
+function flashCard(id) {
+  const el = board.querySelector(`.ev-card[data-id="${id}"]`);
+  if (el) { el.classList.add("landed"); setTimeout(() => el.classList.remove("landed"), 520); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE FIX-STEP — one component, driven by whichever fields the target lane
+   is missing. The Idea→Planning step collects an owner; the Planning→
+   Confirmed step collects date + location. Same code path.
+   ════════════════════════════════════════════════════════════════════════ */
+const scrim = document.getElementById("scrim");
+let fixEvent = null, fixStage = null, fixDraft = null;
+
+function openFix(e, stage) {
+  fixEvent = e;
+  fixStage = stage;
+  const miss = missingFor(e, stage);
+  fixDraft = {};
+  miss.forEach(f => { fixDraft[f.key] = f.key === "mandatory" ? e.mandatory : null; });
+
+  const kicker = stage === "planning" ? "One step to start planning" : "One step to confirm";
+  document.getElementById("fsKicker").textContent = kicker;
+  document.getElementById("fsTitle").textContent = e.title;
+  document.getElementById("fsSub").innerHTML = stage === "planning"
+    ? `Planning means somebody's on it. Pick <b>who owns this</b> and it moves — nothing else changes, and the chapter still can't see it.`
+    : `Confirming publishes it to the chapter Timeline, so it needs <b>${miss.map(f => f.label.toLowerCase()).join("</b> and <b>")}</b>.`;
+  document.getElementById("fsCancel").textContent = stage === "planning" ? "Leave as an idea" : "Leave in Planning";
+  document.getElementById("fsGo").textContent = stage === "planning" ? "Start planning" : "Confirm & publish";
+  drawFix();
+  scrim.classList.add("open");
+  document.getElementById("fsGo").focus();
+}
+
+function drawFix() {
+  const miss = missingFor(fixEvent, fixStage);
+  const body = document.getElementById("fsBody");
+
+  body.innerHTML = miss.map(f => {
+    const val = fixDraft[f.key];
+    const filled = val !== null && val !== undefined && val !== "";
+    if (f.kind === "person") {
+      return `<div class="fs-field ${filled ? "filled" : ""}">
+        <div class="ff-top">
+          <span class="ff-l">${filled ? "Owner set" : "No owner yet"}</span>
+        </div>
+        <p class="ff-hint">${esc(f.hint)}</p>
+        <div class="owner-grid">
+          ${ROSTER.map((p, i) => `<button class="owner-opt ${val && val.i === p.i ? "on" : ""}" data-owner="${i}">
+            ${avatar(p)}<span>${esc(p.n)}</span><span class="oo-role">${esc(p.role)}</span></button>`).join("")}
+        </div>
+      </div>`;
+    }
+    const input = f.kind === "date"
+      ? `<input type="date" data-f="${f.key}" value="${val || ""}" min="2026-01-01" max="2026-12-31">`
+      : `<input type="text" data-f="${f.key}" value="${val ? esc(val) : ""}" placeholder="${f.key === "location" ? "Grand Ballroom, Kerckhoff 400…" : ""}">`;
+    return `<div class="fs-field ${filled ? "filled" : ""}">
+      <div class="ff-top">
+        <span class="ff-l">${filled ? f.label + " set" : "Missing " + f.label.toLowerCase()}</span>
+        ${input}
+      </div>
+      <p class="ff-hint">${esc(f.hint)}</p>
+    </div>`;
+  }).join("");
+
+  body.querySelectorAll("[data-owner]").forEach(b => b.addEventListener("click", () => {
+    fixDraft.owner = ROSTER[Number(b.dataset.owner)];
+    drawFix();
+  }));
+  body.querySelectorAll("[data-f]").forEach(inp => {
+    const commit = ev => { fixDraft[ev.target.dataset.f] = ev.target.value || null; syncFoot(); };
+    inp.addEventListener("change", ev => { commit(ev); drawFix(); });
+    inp.addEventListener("input", commit);
+  });
+  syncFoot();
+}
+function syncFoot() {
+  const miss = missingFor(fixEvent, fixStage);
+  const left = miss.filter(f => {
+    const v = fixDraft[f.key];
+    return v === null || v === undefined || v === "";
+  }).length;
+  const rem = document.getElementById("fsRemain");
+  rem.textContent = left ? `${left} left` : "All clear";
+  rem.classList.toggle("ready", left === 0);
+  document.getElementById("fsGo").disabled = left > 0;
+}
+function closeFix() { scrim.classList.remove("open"); fixEvent = null; fixStage = null; }
+document.getElementById("fsCancel").addEventListener("click", closeFix);
+scrim.addEventListener("click", ev => { if (ev.target === scrim) closeFix(); });
+document.getElementById("fsGo").addEventListener("click", () => {
+  const e = fixEvent, stage = fixStage;
+  /* Write the collected fields back onto the event itself — no side table. */
+  Object.entries(fixDraft).forEach(([k, v]) => {
+    if (v === null || v === undefined || v === "") return;
+    if (k === "owner") e.owner = v;
+    else if (k === "date") e.date = v;
+    else if (k === "location") e.location = v;
+    else if (k === "title") e.title = v;
+    else e.f[k] = v;
+  });
+  e.stage = stage;
+  closeFix();
+  renderBoard();
+  flashCard(e.id);
+  if (stage === "confirmed") toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
+  else toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(e.owner.n)}'s now. Still officers-only.`);
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE PANEL — one list of fields. Required first (with which gate each
+   one unlocks), then the org's optional set, then the org-level picker.
+   ════════════════════════════════════════════════════════════════════════ */
+const panel = document.getElementById("panel");
+let panelId = null;
+
+function fieldRowHTML(e, f, required) {
+  const has = hasField(e, f.key);
+  let v = "";
+  if (f.key === "title")         v = esc(e.title);
+  else if (f.key === "category") v = esc(TYPES[e.type].label);
+  else if (f.key === "owner")    v = e.owner ? `${avatar(e.owner)} ${esc(e.owner.n)}` : "";
+  else if (f.key === "date")     v = e.date ? esc(longDate(e.date)) : "";
+  else if (f.key === "location") v = e.location ? esc(e.location) : "";
+  else if (f.key === "mandatory") v = e.mandatory ? "Required of every member" : "Optional — no attendance taken";
+  else if (f.key === "budget") {
+    const b = e.f.budget;
+    v = b ? `<span class="money">${money(b.req)}</span> requested${b.appr != null
+      ? ` · <span class="money">${money(b.appr)}</span> approved`
+      : ` · <span style="color:var(--gold)">not approved yet</span>`}` : "";
+  }
+  else if (f.key === "attachment") {
+    v = e.f.attachment
+      ? `<span class="fld-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>${esc(e.f.attachment)}</span>` : "";
+  }
+  else if (f.key === "headcount") v = e.f.headcount ? `<span class="money">${e.f.headcount}</span> expected` : "";
+  else if (f.key === "risk")      v = e.f.risk ? "Filed" : "";
+  else v = e.f[f.key] ? esc(String(e.f[f.key])) : "";
+
+  const cls = has ? "set" : (required ? "miss" : "");
+  const emptyTxt = required
+    ? `Needed to ${f.gate === "planning" ? "start planning" : f.gate === "confirmed" ? "confirm" : "save"}`
+    : "Not set";
+  return `<div class="fld ${cls}">
+    <span class="fld-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+    <span class="fld-main">
+      <span class="fld-k">${esc(f.label)}</span>
+      <span class="fld-v ${has ? "" : "empty"}">${has ? v : esc(emptyTxt)}</span>
+    </span>
+  </div>`;
+}
+
+function openPanel(id) {
+  const e = EVENTS.find(x => x.id === id);
+  if (!e) return;
+  panelId = id;
+  const c = typeColor(e.type);
+  const pub = e.stage === "confirmed" || e.stage === "done";
+  const stageColor = { idea: "var(--faint)", planning: "var(--gold)", confirmed: "var(--vio)", done: "var(--ok)" }[e.stage];
+
+  /* Required set shown is the one for THIS event's next boundary. */
+  const target = e.stage === "idea" ? "planning" : "confirmed";
+  const reqSet = fieldsFor(target);
+  const reqGot = reqSet.filter(f => hasField(e, f.key)).length;
+  const missNext = missingFor(e, target);
+  const opt = optOn();
+
+  panel.innerHTML = `
+    <div class="pn-head">
+      <div class="pn-top">
+        <span class="pn-stage" style="color:${stageColor};background:${e.stage === "idea" ? "var(--paper)" : "transparent"};border:1px solid currentColor">${esc(e.stage)}</span>
+        <span class="pn-stage" style="color:${c};background:${rgba(c, .12)}">${esc(TYPES[e.type].label)}</span>
+        <button class="pn-close" id="pnClose" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <h3>${esc(e.title)}</h3>
+      ${!e.owner ? `
+      <div class="pn-lead gate-miss">
+        <span class="pl-k">Unowned</span>
+        <span class="pl-who"><button class="btn-ghost" id="pnAssignLead" style="min-height:30px;padding:5px 11px">Give it an owner</button></span>
+      </div>` : ""}
+      <div class="pn-vis">
+        <span class="visibility ${pub ? "public" : "private"}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            ${pub ? '<circle cx="12" cy="12" r="3.2"/><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>'
+                  : '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>'}
+          </svg>${pub ? "On the chapter Timeline" : "Not visible to the chapter yet"}
+        </span>
+      </div>
+    </div>
+
+    <div class="pn-sec">
+      <div class="ps-head">
+        <span class="ps-t">Required</span>
+        <span class="ps-why gates">Gates the board</span>
+        <span class="ps-n ${reqGot === reqSet.length ? "ready" : ""}">${reqGot}/${reqSet.length}</span>
+      </div>
+      ${reqSet.map(f => fieldRowHTML(e, f, true)).join("")}
+    </div>
+
+    <div class="pn-sec">
+      <div class="ps-head">
+        <span class="ps-t">Optional</span>
+        <span class="ps-why opt">Never blocks</span>
+        <span class="ps-n">${opt.filter(f => hasField(e, f.key)).length}/${opt.length}</span>
+      </div>
+      ${opt.length ? opt.map(f => fieldRowHTML(e, f, false)).join("")
+        : `<p style="font-size:12px;color:var(--faint)">This chapter collects nothing optional. Turn fields on below.</p>`}
+    </div>
+
+    <div class="pn-sec">
+      <div class="fieldpick">
+        <p class="fp-k">Fields this chapter collects</p>
+        <div class="fp-grid">
+          ${OPTIONAL.map((f, i) => `<button class="fp-opt ${f.on ? "on" : ""}" data-fp="${i}" title="${esc(f.note)}">${esc(f.label)}</button>`).join("")}
+        </div>
+        <p class="fp-note">Set once for the org, not per event — every event gets the same sheet. Required fields aren't listed here; those are the same everywhere.</p>
+      </div>
+    </div>
+
+    <div class="pn-foot">
+      ${e.stage === "done" ? `
+        <div class="pn-gatebar ready">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Wrapped${e.stars ? ` · rated ${e.stars}/5` : ""}.
+        </div>`
+      : e.stage === "confirmed" ? `
+        <div class="pn-gatebar ready">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          Confirmed and published to the chapter.
+        </div>`
+      : !missNext.length ? `
+        <div class="pn-gatebar ready" style="margin-bottom:11px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          ${e.stage === "idea" ? "Owned — it can move into Planning." : "Everything's filled — confirming publishes it."}
+        </div>
+        <button class="btn-primary" id="pnGo">${e.stage === "idea" ? "Start planning" : "Confirm &amp; publish"}</button>`
+      : `
+        <div class="pn-gatebar blocked" style="margin-bottom:11px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+          Needs ${missNext.map(f => f.label.toLowerCase()).join(" and ")} to ${e.stage === "idea" ? "start planning" : "confirm"}.
+        </div>
+        <button class="btn-primary" id="pnGo">${e.stage === "idea" ? "Add an owner" : "Finish &amp; confirm"}</button>`}
+    </div>`;
+
+  panel.classList.add("open");
+  panel.querySelector("#pnClose").addEventListener("click", closePanel);
+
+  const go = panel.querySelector("#pnGo");
+  if (go) go.addEventListener("click", () => {
+    closePanel();
+    attemptMove(e.id, target);
+  });
+  const lb = panel.querySelector("#pnAssignLead");
+  if (lb) lb.addEventListener("click", () => { closePanel(); openFix(e, "planning"); });
+
+  /* The org-level toggle — flips the field for EVERY event at once. */
+  panel.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => {
+    const f = OPTIONAL[Number(b.dataset.fp)];
+    f.on = !f.on;
+    openPanel(id);
+    toast(f.on
+      ? `<b>${esc(f.label)}</b> now collected on every event.`
+      : `<b>${esc(f.label)}</b> no longer collected. Existing values are kept.`);
+  }));
+
+  board.querySelectorAll(".ev-card").forEach(c2 => c2.classList.toggle("sel", Number(c2.dataset.id) === id));
+}
+function closePanel() { panel.classList.remove("open"); panelId = null; board.querySelectorAll(".ev-card").forEach(c => c.classList.remove("sel")); }
+
+/* ── Toast — confirmations only, never gate rejections. ───────────────── */
+const toastEl = document.getElementById("toast");
+let toastT;
+function toast(html) {
+  toastEl.innerHTML = html;
+  toastEl.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => toastEl.classList.remove("show"), 4200);
+}
+
+/* Retheming rebuilds the type-color-driven bits. */
+const mo = new MutationObserver(() => { renderChips(); renderBoard(); if (panelId != null) openPanel(panelId); });
+mo.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+
+document.querySelectorAll(".views button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".views button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on");
+}));
+
+renderChips();
+renderBoard();
+tlPrev = new Set(EVENTS.filter(e => e.stage === "confirmed" || e.stage === "done").map(e => e.id));
+</script>
+</body>
+</html>
