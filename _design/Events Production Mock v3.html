@@ -1041,6 +1041,66 @@
   .fp-opt.on { color: var(--vio); border-color: var(--vio-bg); background: var(--vio-bg); }
   .fp-opt:hover { border-color: var(--vio); }
   .fp-note { font-size: 11px; color: var(--faint); margin-top: 9px; font-style: italic; line-height: 1.45; }
+  /* A chapter's own field. Marked, because "Head count" is a field we chose
+     for them and "DJ contact" is one they chose — only the second can be
+     renamed or deleted without breaking every other org on the platform. */
+  .fp-opt.custom { border-style: dashed; display: inline-flex; align-items: stretch; gap: 0; padding: 0;
+    overflow: hidden; }
+  .fp-opt.custom.on { border-style: solid; }
+  .fp-opt.custom > button { background: transparent; border: none; cursor: pointer; color: inherit;
+    font: inherit; letter-spacing: inherit; text-transform: inherit; }
+  .fp-opt.custom .fpc-t { padding: 4px 8px 4px 10px; color: inherit; }
+  .fp-opt.custom .fpc-t:hover { color: var(--ink); }
+  /* The pencil is its own target with its own hairline, so a click that means
+     "rename" can never be read as "stop collecting this". */
+  .fp-opt.custom .fpc-e { padding: 0 7px 0 6px; display: grid; place-items: center; color: var(--faint);
+    border-left: 1px solid var(--line); }
+  .fp-opt.custom.on .fpc-e { border-left-color: var(--vio-bg); }
+  .fp-opt.custom .fpc-e svg { width: 9px; height: 9px; }
+  .fp-opt.custom .fpc-e:hover { color: var(--vio); background: var(--vio-bg); }
+  .fp-add { font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); border: 1px dashed var(--line); background: transparent; border-radius: 999px;
+    padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .fp-add:hover { color: var(--vio); border-color: var(--vio); }
+  .fp-add svg { width: 9px; height: 9px; }
+
+  /* The composer. Opens in place under the pills rather than as a modal —
+     it's a small act, and the row it's adding to is the thing you want to
+     keep looking at while you name it. */
+  .fp-new { margin-top: 10px; border: 1px solid var(--vio-bg); background: var(--vio-bg);
+    border-radius: 10px; padding: 12px 13px; }
+  .fp-new .fn-k { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); margin-bottom: 8px; }
+  .fp-new input[type="text"] { width: 100%; background: var(--paper); border: 1px solid var(--line);
+    border-radius: 7px; color: var(--ink); font-family: var(--sans); font-size: 12.5px;
+    padding: 7px 10px; min-height: 34px; outline: none; }
+  .fp-new input[type="text"]:focus { border-color: var(--vio); }
+  .fp-new .fn-sub { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); margin: 11px 0 7px; }
+  .fn-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+  .fn-kind { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; min-width: 0;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
+    font-size: 11.5px; color: var(--ink-soft); transition: border-color .12s, background .12s; }
+  .fn-kind:hover { border-color: var(--vio); }
+  .fn-kind.on { border-color: var(--vio); background: var(--card); color: var(--ink); }
+  /* What the chosen type will actually draw on an event — a type picker with
+     no preview is a guess, and the wrong guess is only visible later on
+     fifteen events at once. */
+  .fn-eg { margin-top: 10px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .fn-eg b { color: var(--ink-soft); font-weight: 550; }
+  .fn-err { margin-top: 9px; font-size: 11px; color: var(--rose); }
+  .fn-foot { margin-top: 12px; display: flex; align-items: center; gap: 8px; }
+  .fn-foot .sp { flex: 1; }
+  .btn-sm { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    border-radius: 8px; padding: 8px 13px; cursor: pointer; min-height: 34px; }
+  .btn-sm.go { color: var(--paper); background: var(--vio); border: 1px solid var(--vio); font-weight: 600; }
+  .btn-sm.go:hover:not(:disabled) { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+  .btn-sm.go:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-sm.ghost { color: var(--muted); background: transparent; border: 1px solid var(--line); }
+  .btn-sm.ghost:hover { color: var(--ink); border-color: var(--vio); }
+  /* Removing a custom field is destructive across every event, so it asks. */
+  .fn-danger { color: var(--rose); background: transparent; border: 1px solid var(--rose-bg); }
+  .fn-danger:hover { background: var(--rose-bg); border-color: var(--rose); }
 
   .pn-foot { padding: 17px 22px 26px; }
   .pn-gatebar { display: flex; align-items: center; gap: 9px; border-radius: 10px; padding: 11px 13px; font-size: 12px; }
@@ -1780,6 +1840,55 @@ const OPTIONAL = [
     note: "The other question that gets asked forty times in the group chat." },
 ];
 const optOn = () => OPTIONAL.filter(f => f.on);
+
+/* ── The chapter's own fields ───────────────────────────────────────────
+   The ten above are fields WE chose for every org. A chapter that runs
+   philanthropy events wants "Beneficiary"; one that buses people to formals
+   wants "Bus company". Guessing every such field is how you end up with a
+   settings page of forty toggles nobody reads.
+
+   This is the same shape as the per-org transaction categories that shipped
+   2026-08-08 and Membership.customFields: the ORG defines the vocabulary
+   once, and every row fills it in. It is NOT the per-event checklist this
+   mock deleted — that failed because each event's list was written from
+   scratch, so nothing could be compared, counted, or charted across events.
+   A field the org declares once is the opposite: every event answers the
+   same question.
+
+   `builtin` marks the ten as reserved — renameable only by us, never
+   deletable, because their keys are what the board, the fix-step, and any
+   future reporting query all address them by. */
+OPTIONAL.forEach(f => { f.builtin = true; });
+
+/* The types a chapter can pick from. Deliberately the SAME `kind` values the
+   editors already switch on, so a custom field is a first-class citizen the
+   moment it exists — no separate rendering path that drifts. */
+const FIELD_KINDS = [
+  { kind: "text",  label: "Text",    eg: "Anything written — a name, a note, an address." },
+  { kind: "num",   label: "Number",  eg: "A count you can total or average across events." },
+  { kind: "money", label: "Money",   eg: "Requested vs approved, like Budget — a treasurer can split them." },
+  { kind: "bool",  label: "Yes / no", eg: "A box that's filed or not, like Risk form." },
+  { kind: "date",  label: "Date",    eg: "A second date — a deadline, an RSVP cutoff." },
+  { kind: "person",label: "Person",  eg: "Someone from the roster. Not the owner — that's already a field." },
+  /* The built-in Attachment is ONE file slot. A chapter that needs a signed
+     contract AND a venue invoice AND a waiver has nowhere to put the second
+     and third — this is what "multi-doc attachments" was deferred as, solved
+     from the side: not many files on one field, but many file FIELDS, each
+     named for what it holds. */
+  { kind: "file",  label: "File",    eg: "A document, named for what it is — a contract, an invoice, a waiver." },
+];
+
+/* A stable key from a label, since the key is what every event's `f` object
+   is addressed by. Collisions get a numeric suffix rather than silently
+   overwriting an existing column. */
+function keyFor(label) {
+  const base = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
+  const taken = new Set(OPTIONAL.map(f => f.key).concat(REQUIRED.map(f => f.key)));
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}_${n}`)) n++;
+  return `${base}_${n}`;
+}
 
 /* ════════════════════════════════════════════════════════════════════════
    FIXTURE · pinned to Sat Jun 13 2026, same chapter vocabulary as v1 so the
@@ -2652,9 +2761,28 @@ function openPanel(id) {
       <div class="fieldpick">
         <p class="fp-k">Fields this chapter collects</p>
         <div class="fp-grid">
-          ${OPTIONAL.map((f, i) => `<button class="fp-opt ${f.on ? "on" : ""}" data-fp="${i}" title="${esc(f.note)}">${esc(f.label)}</button>`).join("")}
+          ${OPTIONAL.map((f, i) => f.builtin
+            ? `<button class="fp-opt ${f.on ? "on" : ""}" data-fp="${i}" title="${esc(f.note)}">${esc(f.label)}</button>`
+            /* A chapter's own field carries a second control. Double-click on
+               the pill was the first attempt and is unusable: dblclick also
+               fires two clicks, so the field toggled off-then-on and each
+               toggle re-rendered the panel, destroying the pill mid-gesture.
+               A visible pencil is both discoverable and survivable. */
+            : `<span class="fp-opt custom ${f.on ? "on" : ""}" data-custom="${i}">
+                 <button class="fpc-t" data-fp="${i}" title="Click to stop collecting this field">${esc(f.label)}</button>
+                 <button class="fpc-e" data-fpedit="${i}" title="Rename or delete this field" aria-label="Edit ${esc(f.label)}">
+                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>
+                 </button>
+               </span>`).join("")}
+          <button class="fp-add" id="fpAdd">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            New field
+          </button>
         </div>
-        <p class="fp-note">Set once for the org, not per event — every event gets the same sheet. Required fields aren't listed here; those are the same everywhere.</p>
+        ${newField ? composerHTML() : ""}
+        <p class="fp-note">Set once for the org, not per event — every event gets the same sheet. Required fields aren't listed here; those are the same everywhere.${
+          OPTIONAL.some(f => !f.builtin)
+            ? ` Dashed pills are this chapter's own — use the pencil to rename or delete one.` : ""}</p>
       </div>
     </div>
 
