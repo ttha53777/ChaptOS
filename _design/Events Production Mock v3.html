@@ -328,7 +328,6 @@
   · Drag "Spring Banquet" (complete) into Confirmed  → moves clean. The
     contrast between those two is the point.
   · Drag anything out of Confirmed → watch it leave the Timeline strip.
-  · Click any card → the panel: required fields, then the org's optional set.
   · In the panel, toggle "Fields this chapter collects" → optional fields
     appear/disappear on every event at once. That's the org-level model.
   · Press T → Ivory.
@@ -903,6 +902,48 @@
   .pn-sec .ps-n { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .pn-sec .ps-n.ready { color: var(--ok); }
 
+  /* ── The stage control ────────────────────────────────────────────────
+     The four lanes, in the panel. The board teaches the pipeline by drag;
+     a panel that can't move the thing it's describing sends you back to the
+     board to do the one thing you opened it for. Same gates as the drag —
+     a step you can't take is drawn locked and names what locks it. */
+  .pn-stages { padding: 15px 22px 16px; border-bottom: 1px solid var(--line-soft); }
+  .stage-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+  .stage-step { position: relative; background: transparent; border: none; cursor: pointer; padding: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; color: var(--faint); }
+  /* The connecting rail. Drawn per-step from the node's centre to the next,
+     so it never overshoots the first or last node. */
+  .stage-step:not(:last-child)::after { content: ""; position: absolute; top: 8px; left: calc(50% + 11px);
+    width: calc(100% - 22px); height: 1.5px; background: var(--line); }
+  .stage-step.done-rail:not(:last-child)::after { background: var(--sc, var(--vio)); opacity: .5; }
+  .stage-node { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--line);
+    background: var(--card); display: grid; place-items: center; flex-shrink: 0; z-index: 1;
+    transition: border-color .14s, background .14s, transform .14s; }
+  .stage-node svg { width: 9px; height: 9px; opacity: 0; }
+  .stage-step.past .stage-node { border-color: var(--sc); background: var(--sc); color: var(--card); }
+  .stage-step.past .stage-node svg { opacity: 1; }
+  .stage-step.on .stage-node { border-color: var(--sc); background: var(--sc); transform: scale(1.22);
+    box-shadow: 0 0 0 3.5px var(--sc-bg); }
+  .stage-step.locked .stage-node { border-style: dashed; border-color: var(--gold); }
+  .stage-lbl { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .stage-step.on .stage-lbl { color: var(--ink); }
+  .stage-step.past .stage-lbl { color: var(--muted); }
+  .stage-step.locked .stage-lbl { color: var(--gold); }
+  .stage-step:not(.on):not(.locked):hover .stage-node { border-color: var(--vio); }
+  .stage-step:not(.on):hover .stage-lbl { color: var(--ink-soft); }
+  .stage-step:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; border-radius: 6px; }
+  /* What the CURRENT lane means, and what the next one costs. The lane
+     headers dropped this line in v3; the panel is where it belongs, because
+     here it's about one event rather than printed four times on the board. */
+  .stage-say { margin-top: 12px; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+  .stage-say b { color: var(--ink-soft); font-weight: 550; }
+  .stage-say .lock { color: var(--gold); }
+  /* Clicking a named missing field jumps to its row and opens the editor. */
+  .stage-say .jump { color: var(--gold); background: none; border: none; padding: 0; cursor: pointer;
+    font: inherit; text-decoration: underline; text-underline-offset: 2px; text-decoration-style: dotted; }
+  .stage-say .jump:hover { color: var(--ink); }
+
   /* A field row — label left, value right. The value IS the checkmark. */
   .fld { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
   .fld:last-child { border-bottom: none; }
@@ -925,6 +966,69 @@
   .fld-v .money { font-family: var(--mono); font-variant-numeric: tabular-nums; }
   .fld-file { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--vio); }
   .fld-file svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* ── Inline editing ───────────────────────────────────────────────────
+     The panel was a receipt: it could tell you a date was missing and could
+     not take one. So the ROW is the control. Not a pencil you have to hit —
+     an unset field's value is the two faint words "Not set", which is a
+     smaller target than the label above it. */
+  .fld-main.edit { cursor: text; border-radius: 7px; margin: -5px -7px; padding: 5px 7px; position: relative;
+    transition: background .12s; }
+  .fld-main.edit:hover { background: var(--line-soft); }
+  .fld-main.edit:focus-visible { outline: 2px solid var(--vio); outline-offset: 0; background: var(--line-soft); }
+  /* The affordance rides the LABEL row, where there's always slack, rather
+     than chasing the end of a value that may wrap to two lines. */
+  .fld-pencil { position: absolute; top: 5px; right: 7px; width: 12px; height: 12px; color: var(--faint);
+    opacity: 0; transition: opacity .12s; pointer-events: none; }
+  .fld-main.edit:hover .fld-pencil, .fld-main.edit:focus-visible .fld-pencil { opacity: 1; }
+  /* Held open while its editor is up, so the row doesn't flicker on mouseout. */
+  .fld-main.editing { background: var(--line-soft); }
+  .fld-main.editing .fld-pencil { opacity: 0; }
+
+  .fld-ed { margin-top: 5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .fld-ed input, .fld-ed select, .fld-ed textarea {
+    background: var(--paper); border: 1px solid var(--vio); border-radius: 7px; color: var(--ink);
+    font-family: var(--sans); font-size: 12.5px; padding: 6px 9px; min-height: 32px; min-width: 0; flex: 1;
+    outline: none; }
+  .fld-ed input[type="date"], .fld-ed input[type="number"], .fld-ed .money-in {
+    font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .fld-ed textarea { resize: vertical; min-height: 62px; line-height: 1.5; flex-basis: 100%; }
+  .fld-ed input::placeholder, .fld-ed textarea::placeholder { color: var(--faint); }
+  /* Two money inputs share the row and must not each claim 100%. */
+  .fld-ed .money-pair { display: flex; gap: 7px; flex: 1; min-width: 0; }
+  .fld-ed .money-cell { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+  .fld-ed .money-cell span { font-family: var(--mono); font-size: 8px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--faint); }
+  .fld-ed .ed-hint { flex-basis: 100%; font-size: 10.5px; color: var(--faint); line-height: 1.45; }
+  .fld-ed .ed-clear { flex-shrink: 0; background: transparent; border: 1px solid var(--line); border-radius: 7px;
+    color: var(--muted); font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 7px 9px; cursor: pointer; min-height: 32px; }
+  .fld-ed .ed-clear:hover { color: var(--rose); border-color: var(--rose); }
+
+  /* Choice editors — type, owner, and the two booleans. Same pill vocabulary
+     as the fix-step's owner picker, so a field looks the same wherever you
+     meet it. */
+  .fld-ed .pick { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+  .pick-opt { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-width: 0;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px;
+    font-size: 12px; color: var(--ink-soft); transition: border-color .12s, background .12s; }
+  .pick-opt:hover { border-color: var(--vio); }
+  .pick-opt.on { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
+  .pick-opt .lead-av { flex-shrink: 0; }
+  .pick-opt .pdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .pick-opt > span:not(.lead-av):not(.pdot) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* A just-committed row pulses once, so a change you made three rows up is
+     still visible after the panel re-renders under you. */
+  .fld.just { animation: fldjust .9s ease; }
+  @keyframes fldjust {
+    0%   { background: var(--vio-bg); }
+    100% { background: transparent; }
+  }
+  /* A field the stage control sent you to, when it's already open below the
+     fold — the scroll alone doesn't say which row it meant. */
+  .fld.hunted .fld-mark { animation: hunt .8s ease 2; }
+  @keyframes hunt { 0%, 100% { transform: none; } 50% { transform: scale(1.35); } }
 
   /* Org-level field picker — the whole point of "optional checklists". */
   .fieldpick { margin-top: 4px; }
@@ -1784,6 +1888,25 @@ const hasField = (e, key) => {
   return v !== null && v !== undefined && v !== "";
 };
 
+/* The writer that pairs with fieldValue(). Five of the six required fields
+   are top-level columns and everything else lives in e.f, so without one
+   place that knows which is which, every editor has to remember — and the
+   fix-step's own commit block (four else-ifs and a fallthrough) is the
+   evidence that they don't stay in sync. */
+const TOP_LEVEL = { title: "title", category: "type", owner: "owner", date: "date",
+                    location: "location", mandatory: "mandatory" };
+function setField(e, key, val) {
+  const blank = val === null || val === undefined || val === "";
+  if (TOP_LEVEL[key]) {
+    /* mandatory is a real boolean — false is a VALUE, not an empty. */
+    e[TOP_LEVEL[key]] = key === "mandatory" ? !!val : (blank ? null : val);
+  } else if (blank) {
+    delete e.f[key];
+  } else {
+    e.f[key] = val;
+  }
+}
+
 /* Which required fields a given stage demands — cumulative down the lanes. */
 const GATE_ORDER = ["idea", "planning", "confirmed", "done"];
 function fieldsFor(stage) {
@@ -2193,14 +2316,11 @@ document.getElementById("fsCancel").addEventListener("click", closeFix);
 scrim.addEventListener("click", ev => { if (ev.target === scrim) closeFix(); });
 document.getElementById("fsGo").addEventListener("click", () => {
   const e = fixEvent, stage = fixStage;
-  /* Write the collected fields back onto the event itself — no side table. */
+  /* Write the collected fields back onto the event itself — no side table.
+     Through the same setField() the panel's inline editors use. */
   Object.entries(fixDraft).forEach(([k, v]) => {
     if (v === null || v === undefined || v === "") return;
-    if (k === "owner") e.owner = v;
-    else if (k === "date") e.date = v;
-    else if (k === "location") e.location = v;
-    else if (k === "title") e.title = v;
-    else e.f[k] = v;
+    setField(e, k, v);
   });
   e.stage = stage;
   closeFix();
@@ -2217,6 +2337,12 @@ document.getElementById("fsGo").addEventListener("click", () => {
 const panel = document.getElementById("panel");
 let panelId = null;
 
+/* Which row is open for editing, panel-wide. One at a time: two open editors
+   means two half-finished values and no way to tell which one Escape means. */
+let editKey = null;
+/* Set for one render after a commit, to pulse the row that changed. */
+let justKey = null;
+
 function fieldRowHTML(e, f, required) {
   const has = hasField(e, f.key);
   let v = "";
@@ -2232,24 +2358,232 @@ function fieldRowHTML(e, f, required) {
       ? ` · <span class="money">${money(b.appr)}</span> approved`
       : ` · <span style="color:var(--gold)">not approved yet</span>`}` : "";
   }
-  else if (f.key === "attachment") {
-    v = e.f.attachment
-      ? `<span class="fld-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>${esc(e.f.attachment)}</span>` : "";
+  /* Keyed on KIND, not on the name "attachment" — a chapter's own file field
+     ("Signed contract", "Venue invoice") has to draw the same document chip,
+     or it silently degrades to plain text and stops looking like a file. */
+  else if (f.kind === "file") {
+    v = e.f[f.key]
+      ? `<span class="fld-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>${esc(e.f[f.key])}</span>` : "";
   }
   else if (f.key === "headcount") v = e.f.headcount ? `<span class="money">${e.f.headcount}</span> expected` : "";
   else if (f.key === "risk")      v = e.f.risk ? "Filed" : "";
+  /* A chapter's own field renders by KIND, not by key — the branches above
+     are the built-ins, and without these a custom person field prints
+     "[object Object]" and a custom money field prints nothing sensible. */
+  else if (f.kind === "person")   v = e.f[f.key] ? `${avatar(e.f[f.key])} ${esc(e.f[f.key].n)}` : "";
+  else if (f.kind === "bool")     v = e.f[f.key] ? "Yes" : "";
+  else if (f.kind === "date")     v = e.f[f.key] ? esc(longDate(e.f[f.key])) : "";
+  else if (f.kind === "num")      v = e.f[f.key] != null ? `<span class="money">${esc(String(e.f[f.key]))}</span>` : "";
+  else if (f.kind === "money") {
+    const b = e.f[f.key];
+    v = b ? `<span class="money">${money(b.req)}</span> requested${b.appr != null
+      ? ` · <span class="money">${money(b.appr)}</span> approved`
+      : ` · <span style="color:var(--gold)">not approved yet</span>`}` : "";
+  }
   else v = e.f[f.key] ? esc(String(e.f[f.key])) : "";
 
   const cls = has ? "set" : (required ? "miss" : "");
   const emptyTxt = required
     ? `Needed to ${f.gate === "planning" ? "start planning" : f.gate === "confirmed" ? "confirm" : "save"}`
     : "Not set";
-  return `<div class="fld ${cls}">
+  const open = editKey === f.key;
+  /* A Done event is the record of something that already happened — its
+     fields stop being editable, which is also why the fixture gives it
+     stars instead of a blocker line. */
+  const locked = e.stage === "done";
+  const pencil = `<svg class="fld-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>`;
+
+  return `<div class="fld ${cls} ${justKey === f.key ? "just" : ""}" data-row="${esc(f.key)}">
     <span class="fld-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
-    <span class="fld-main">
+    <span class="fld-main ${locked ? "" : "edit"} ${open ? "editing" : ""}"
+      ${locked ? "" : `data-edit="${esc(f.key)}" data-opt="${required ? "0" : "1"}" role="button" tabindex="0"
+      aria-label="Edit ${esc(f.label)}"`}>
       <span class="fld-k">${esc(f.label)}</span>
       <span class="fld-v ${has ? "" : "empty"}">${has ? v : esc(emptyTxt)}</span>
+      ${locked ? "" : pencil}
+      ${open ? editorHTML(e, f) : ""}
     </span>
+  </div>`;
+}
+
+/* ── The editors. One per `kind`, because a date deserves a date input and
+   an owner deserves the roster — a single text box for all of them is how
+   you get "TBD" typed into a date column. ─────────────────────────────── */
+function editorHTML(e, f) {
+  const hint = f.hint || f.note || "";
+  const hintRow = hint ? `<p class="ed-hint">${esc(hint)}</p>` : "";
+  const clear = `<button class="ed-clear" data-clear="${esc(f.key)}">Clear</button>`;
+  const kind = f.kind;
+
+  if (kind === "person") {
+    const cur = e.owner;
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <div class="pick">
+        ${ROSTER.map((p, i) => `<button class="pick-opt ${cur && cur.i === p.i ? "on" : ""}" data-pick="${i}">
+          ${avatar(p)}<span>${esc(p.n)}</span></button>`).join("")}
+        ${cur ? `<button class="pick-opt" data-pick="none">Unassign</button>` : ""}
+      </div>${hintRow}</div>`;
+  }
+  if (kind === "type") {
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <div class="pick">
+        ${Object.entries(TYPES).map(([slug, t]) => `<button class="pick-opt ${e.type === slug ? "on" : ""}" data-pick="${esc(slug)}">
+          <span class="pdot" style="background:${typeColor(slug)}"></span><span>${esc(t.label)}</span></button>`).join("")}
+      </div>${hintRow}</div>`;
+  }
+  if (kind === "bool") {
+    /* `mandatory` is always answered, so it offers two states and no Clear.
+       An optional boolean (risk form) can genuinely be unset. */
+    const cur = fieldValue(e, f.key);
+    const isMand = f.key === "mandatory";
+    const yes = isMand ? "Required of every member" : "Filed";
+    const no  = isMand ? "Optional — no attendance taken" : "Not filed";
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <div class="pick">
+        <button class="pick-opt ${cur === true ? "on" : ""}" data-pick="yes">${esc(yes)}</button>
+        <button class="pick-opt ${cur === false || (!isMand && !cur) ? "on" : ""}" data-pick="no">${esc(no)}</button>
+      </div>${hintRow}</div>`;
+  }
+  if (kind === "money") {
+    /* Keyed off f.key, not e.f.budget — a chapter's own money field would
+       otherwise open the budget's numbers and write over them on save. */
+    const b = e.f[f.key] || {};
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <div class="money-pair">
+        <label class="money-cell"><span>Requested</span>
+          <input class="money-in" type="number" min="0" step="10" data-money="req" value="${b.req ?? ""}" placeholder="0"></label>
+        <label class="money-cell"><span>Approved</span>
+          <input class="money-in" type="number" min="0" step="10" data-money="appr" value="${b.appr ?? ""}" placeholder="pending"></label>
+      </div>
+      ${b.req != null ? clear : ""}${hintRow}</div>`;
+  }
+  if (kind === "file") {
+    const cur = e.f[f.key];
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <input type="text" data-in="${esc(f.key)}" value="${cur ? esc(cur) : ""}" placeholder="run-of-show.pdf">
+      ${cur ? clear : ""}
+      <p class="ed-hint">A real upload picks a file; the mock takes the name. ${esc(hint)}</p></div>`;
+  }
+  if (kind === "num") {
+    const cur = fieldValue(e, f.key);
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <input type="number" min="0" step="1" data-in="${esc(f.key)}" value="${cur ?? ""}" placeholder="0">
+      ${cur ? clear : ""}${hintRow}</div>`;
+  }
+  if (kind === "date") {
+    return `<div class="fld-ed" data-ed="${esc(f.key)}">
+      <input type="date" data-in="${esc(f.key)}" value="${e.date || ""}" min="2026-01-01" max="2027-12-31">
+      ${e.date ? clear : ""}${hintRow}</div>`;
+  }
+  /* text — description gets a textarea, everything else one line. */
+  const cur = fieldValue(e, f.key) || "";
+  const long = f.key === "description";
+  const ph = f.key === "location" ? "Grand Ballroom, Kerckhoff 400…"
+           : f.key === "cohost"   ? "Kappa Delta Phi"
+           : f.key === "title"    ? "What the chapter will see"
+           : "";
+  const ctrl = long
+    ? `<textarea data-in="${esc(f.key)}" placeholder="${esc(ph)}">${esc(cur)}</textarea>`
+    : `<input type="text" data-in="${esc(f.key)}" value="${esc(cur)}" placeholder="${esc(ph)}">`;
+  /* Title is the one field that can't be emptied — a nameless card is
+     unfindable on the board and in search. */
+  return `<div class="fld-ed" data-ed="${esc(f.key)}">
+    ${ctrl}${cur && f.key !== "title" ? clear : ""}${hintRow}</div>`;
+}
+
+/* ── The stage control ──────────────────────────────────────────────────
+   The lanes ARE the model, and until now the panel could only describe the
+   one you were in. Same gates as the drag: forward needs canEnter(), and
+   backward is always free, because parking something is never a mistake
+   the product should argue with. ─────────────────────────────────────── */
+const STAGE_COLOR = { idea: "var(--faint)", planning: "var(--gold)", confirmed: "var(--vio)", done: "var(--ok)" };
+const STAGE_BG    = { idea: "var(--line-soft)", planning: "var(--gold-bg)", confirmed: "var(--vio-bg)", done: "var(--ok-bg)" };
+
+function stageControlHTML(e) {
+  const at = GATE_ORDER.indexOf(e.stage);
+  const steps = STAGES.map((s, i) => {
+    const on = i === at, past = i < at;
+    /* Only FORWARD steps can be gated. */
+    const locked = i > at && !canEnter(e, s.id);
+    const cls = [on ? "on" : "", past ? "past" : "", locked ? "locked" : "", i < at ? "done-rail" : ""].join(" ");
+    const c = STAGE_COLOR[s.id];
+    return `<button class="stage-step ${cls}" data-stage-to="${esc(s.id)}"
+        style="--sc:${c};--sc-bg:${STAGE_BG[s.id]}"
+        ${on ? 'aria-current="step"' : ""}
+        aria-label="${esc(s.label)}${locked ? " — locked" : ""}">
+      <span class="stage-node">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </span>
+      <span class="stage-lbl">${esc(s.label)}</span>
+    </button>`;
+  }).join("");
+
+  /* What this lane means, then what the next one costs. Two sentences, and
+     the second one is the only place a gate is ever stated as a demand. */
+  const here = STAGES[at];
+  let say = `<b>${esc(here.label)}.</b> ${esc(here.meaning)}`;
+  const next = STAGES[at + 1];
+  if (next) {
+    const miss = missingFor(e, next.id);
+    if (miss.length) {
+      /* Name the missing fields as buttons — the gate should be one click
+         from the thing that satisfies it, not a sentence you then go hunting
+         for a row to act on. */
+      const named = miss.map(f =>
+        `<button class="jump" data-jump="${esc(f.key)}">${esc(f.label.toLowerCase())}</button>`).join(" and ");
+      say += ` <span class="lock">Needs ${named}</span> to reach ${esc(next.label)}.`;
+    } else if (next.id === "confirmed") {
+      say += ` Ready to confirm — that publishes it to the chapter.`;
+    } else {
+      say += ` Can move to ${esc(next.label)}.`;
+    }
+  }
+  return `<div class="pn-stages">
+    <div class="stage-row" role="group" aria-label="Stage">${steps}</div>
+    <p class="stage-say">${say}</p>
+  </div>`;
+}
+
+/* ── The new-field composer ─────────────────────────────────────────────
+   Open state lives outside openPanel() because the panel re-renders on
+   every keystroke commit, and a draft that resets when the sheet redraws
+   is a draft you lose. `null` = closed; an object = being written.
+   `editing` holds the index of a custom field being renamed instead. */
+let newField = null;
+
+function composerHTML() {
+  const d = newField;
+  const label = d.label.trim();
+  /* Name collisions are checked against the LABEL, since that's what a
+     person sees — two fields both called "Contact" is the confusing part,
+     not that one is keyed contact_2. */
+  const clash = label && OPTIONAL.some((f, i) =>
+    i !== d.editing && f.label.toLowerCase() === label.toLowerCase());
+  const ok = label.length > 0 && !clash;
+  const chosen = FIELD_KINDS.find(k => k.kind === d.kind);
+  const isEdit = d.editing != null;
+
+  return `<div class="fp-new" id="fpNew">
+    <p class="fn-k">${isEdit ? "Edit this chapter's field" : "New field for every event"}</p>
+    <input type="text" id="fnLabel" value="${esc(d.label)}" maxlength="32"
+      placeholder="Beneficiary, Bus company, DJ contact…" autocomplete="off">
+    <p class="fn-sub">What kind of answer</p>
+    <div class="fn-kinds">
+      ${FIELD_KINDS.map(k => `<button class="fn-kind ${d.kind === k.kind ? "on" : ""}" data-kind="${esc(k.kind)}"
+        ${isEdit ? "disabled title='A field&apos;s type can&apos;t change once events have answered it.'" : ""}
+        style="${isEdit && d.kind !== k.kind ? "opacity:.35;cursor:not-allowed" : ""}">${esc(k.label)}</button>`).join("")}
+    </div>
+    <p class="fn-eg">${isEdit
+      ? `Type is fixed once events have answered it — renaming is safe, retyping isn't.`
+      : `<b>${esc(chosen.label)}.</b> ${esc(chosen.eg)}`}</p>
+    ${clash ? `<p class="fn-err">There's already a field called "${esc(label)}".</p>` : ""}
+    <div class="fn-foot">
+      ${isEdit && !OPTIONAL[d.editing].builtin
+        ? `<button class="btn-sm fn-danger" id="fnDelete">Delete field</button>` : ""}
+      <span class="sp"></span>
+      <button class="btn-sm ghost" id="fnCancel">Cancel</button>
+      <button class="btn-sm go" id="fnSave" ${ok ? "" : "disabled"}>${isEdit ? "Save" : "Add field"}</button>
+    </div>
   </div>`;
 }
 
@@ -2292,6 +2626,8 @@ function openPanel(id) {
         </span>
       </div>
     </div>
+
+    ${stageControlHTML(e)}
 
     <div class="pn-sec">
       <div class="ps-head">
@@ -2349,28 +2685,340 @@ function openPanel(id) {
 
   panel.classList.add("open");
   panel.querySelector("#pnClose").addEventListener("click", closePanel);
+  justKey = null;   /* the pulse is for one render only */
 
   const go = panel.querySelector("#pnGo");
   if (go) go.addEventListener("click", () => {
     closePanel();
     attemptMove(e.id, target);
   });
+  /* The header's "Give it an owner" now opens the owner row in place rather
+     than throwing a modal over the panel you're already reading. */
   const lb = panel.querySelector("#pnAssignLead");
-  if (lb) lb.addEventListener("click", () => { closePanel(); openFix(e, "planning"); });
+  if (lb) lb.addEventListener("click", () => openEditor("owner"));
+
+  wirePanelEditing(e);
+  wireStageControl(e);
 
   /* The org-level toggle — flips the field for EVERY event at once. */
   panel.querySelectorAll("[data-fp]").forEach(b => b.addEventListener("click", () => {
-    const f = OPTIONAL[Number(b.dataset.fp)];
+    const idx = Number(b.dataset.fp);
+    const f = OPTIONAL[idx];
     f.on = !f.on;
+    /* Turning a field off while you're editing it would otherwise leave the
+       open editor attached to a row that no longer belongs on the sheet. */
+    if (!f.on && editKey === f.key) editKey = null;
     openPanel(id);
     toast(f.on
       ? `<b>${esc(f.label)}</b> now collected on every event.`
       : `<b>${esc(f.label)}</b> no longer collected. Existing values are kept.`);
   }));
 
+  /* A chapter's own field can be renamed or removed; ours can't. */
+  panel.querySelectorAll("[data-fpedit]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation();
+    const i = Number(b.dataset.fpedit);
+    newField = { label: OPTIONAL[i].label, kind: OPTIONAL[i].kind, editing: i };
+    openPanel(id);
+    const inp = panel.querySelector("#fnLabel");
+    if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }));
+
+  wireComposer(id);
+
   board.querySelectorAll(".ev-card").forEach(c2 => c2.classList.toggle("sel", Number(c2.dataset.id) === id));
 }
-function closePanel() { panel.classList.remove("open"); panelId = null; board.querySelectorAll(".ev-card").forEach(c => c.classList.remove("sel")); }
+function closePanel() {
+  panel.classList.remove("open");
+  panelId = null;
+  editKey = null;
+  newField = null;   /* an unsaved draft doesn't survive the sheet closing */
+  board.querySelectorAll(".ev-card").forEach(c => c.classList.remove("sel"));
+}
+
+/* ── Opening and closing an editor ────────────────────────────────────── */
+/* Re-render the panel with `key`'s row open, then put the caret in it. */
+function openEditor(key, hunt) {
+  if (panelId == null) return;
+  editKey = key;
+  openPanel(panelId);
+  const row = panel.querySelector(`.fld[data-row="${CSS.escape(key)}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: "center", behavior: "smooth" });
+  if (hunt) { row.classList.add("hunted"); setTimeout(() => row.classList.remove("hunted"), 1700); }
+  /* Focus the first real control. A pick-list has no text caret, so its
+     first pill takes focus instead and arrows/Enter do the rest. */
+  const first = row.querySelector("[data-in], [data-money], .pick-opt");
+  if (first) {
+    first.focus();
+    if (first.select && first.type !== "date" && first.type !== "number") first.select();
+  }
+}
+function closeEditor() {
+  if (editKey == null) return;
+  editKey = null;
+  if (panelId != null) openPanel(panelId);
+}
+
+/* Commit a value and re-render everything it can touch. Editing a date is
+   not a panel-local act: it can unlock a lane, change the card's blocker
+   line, move the glance counts, and put the event on the Timeline. */
+function commitField(e, key, val, opts = {}) {
+  const before = fieldValue(e, key);
+  const same = JSON.stringify(before ?? null) === JSON.stringify(val ?? null);
+  if (!same) {
+    setField(e, key, val);
+    justKey = key;
+  }
+  editKey = opts.keepOpen ? key : null;
+  renderBoard();                 /* card text, lane counts, timeline, glance */
+  if (panelId != null) openPanel(panelId);
+  if (!same && opts.toast !== false) announceField(e, key, val);
+}
+
+/* What a committed edit says out loud. Most edits are self-evident on
+   screen and need no toast at all — the row you just changed is right
+   there. The ones worth announcing are the ones with consequences you
+   CAN'T see from the panel. */
+function announceField(e, key, val) {
+  const t = esc(shortTitle(e.title));
+  if (key === "owner") {
+    toast(val ? `<b>${t}</b> is ${esc(val.n)}'s now.` : `<b>${t}</b> has no owner.`);
+    return;
+  }
+  /* A field that was blocking the next lane just stopped blocking it. */
+  const at = GATE_ORDER.indexOf(e.stage);
+  const next = STAGES[at + 1];
+  if (next && REQUIRED.some(f => f.key === key) && canEnter(e, next.id)) {
+    toast(next.id === "confirmed"
+      ? `<b>${t}</b> has everything it needs — confirming will publish it.`
+      : `<b>${t}</b> can move to ${esc(next.label)} now.`);
+  }
+}
+
+/* ── Wiring the rows ──────────────────────────────────────────────────── */
+function wirePanelEditing(e) {
+  /* Open on click anywhere in the row's main column — but not when the
+     click landed inside the editor that's already open there. */
+  panel.querySelectorAll("[data-edit]").forEach(m => {
+    m.addEventListener("click", ev => {
+      if (ev.target.closest(".fld-ed")) return;
+      const k = m.dataset.edit;
+      editKey === k ? closeEditor() : openEditor(k);
+    });
+    m.addEventListener("keydown", ev => {
+      if (ev.target.closest(".fld-ed")) return;
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openEditor(m.dataset.edit); }
+    });
+  });
+
+  const ed = panel.querySelector(".fld-ed");
+  if (!ed) return;
+  const key = ed.dataset.ed;
+  const field = REQUIRED.concat(OPTIONAL).find(f => f.key === key);
+
+  /* Text / date / number / file — commit on Enter or blur, revert on Escape.
+     Blur-to-commit is what makes this feel like a document rather than a
+     form: there is no Save button to hunt for, and no way to lose a value
+     by clicking away from it. */
+  ed.querySelectorAll("[data-in]").forEach(inp => {
+    inp.addEventListener("keydown", ev => {
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); closeEditor(); return; }
+      /* Enter commits — except in the textarea, where it's a newline and
+         ⌘/Ctrl+Enter is the commit. */
+      const isArea = inp.tagName === "TEXTAREA";
+      if (ev.key === "Enter" && (!isArea || ev.metaKey || ev.ctrlKey)) {
+        ev.preventDefault();
+        commitField(e, key, readInput(inp, field));
+      }
+    });
+    inp.addEventListener("blur", () => {
+      /* Only if this editor is still the open one — a re-render during
+         commit blurs the input a second time. */
+      if (editKey !== key) return;
+      commitField(e, key, readInput(inp, field));
+    });
+  });
+
+  /* Budget is two inputs writing one object, so it can't use readInput(). */
+  ed.querySelectorAll("[data-money]").forEach(inp => {
+    const commitMoney = () => {
+      const cells = ed.querySelectorAll("[data-money]");
+      const req  = cells[0].value.trim(), appr = cells[1].value.trim();
+      /* No requested amount means no budget at all — an approval with
+         nothing requested isn't a state the treasury view can read.
+         Writes to `key`, not a literal "budget": the same editor now serves
+         any money field the chapter defines. */
+      commitField(e, key, req === "" ? null
+        : { req: Number(req), appr: appr === "" ? null : Number(appr) });
+    };
+    inp.addEventListener("keydown", ev => {
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); closeEditor(); }
+      if (ev.key === "Enter")  { ev.preventDefault(); commitMoney(); }
+    });
+    inp.addEventListener("blur", ev => {
+      /* Tabbing between the two money cells must not commit-and-rerender
+         mid-edit, or the second input is destroyed under the caret. */
+      if (editKey !== key) return;
+      if (ed.contains(ev.relatedTarget)) return;
+      commitMoney();
+    });
+  });
+
+  /* Pick-lists commit on choice and close — one click, done. */
+  ed.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => {
+    const raw = b.dataset.pick;
+    let val;
+    if (field.kind === "person")     val = raw === "none" ? null : ROSTER[Number(raw)];
+    else if (field.kind === "type")  val = raw;
+    else                             val = raw === "yes";
+    commitField(e, key, val);
+  }));
+
+  /* Clear listens on MOUSEDOWN, not click. Pressing it blurs the input
+     first, and that blur commits the OLD value and re-renders — which
+     destroys this button before its click can ever land, so the field
+     silently refuses to empty. mousedown runs ahead of the blur; the
+     preventDefault stops the focus change that would trigger it at all. */
+  const cl = ed.querySelector("[data-clear]");
+  if (cl) cl.addEventListener("mousedown", ev => {
+    ev.preventDefault();
+    commitField(e, key, null);
+  });
+}
+
+/* Read a control back as the right TYPE. A number input hands back a string,
+   and "80" in a head-count column is the kind of thing that quietly breaks
+   a sum three screens away. */
+function readInput(inp, field) {
+  const raw = inp.value.trim();
+  if (raw === "") return null;
+  if (field && (field.kind === "num")) return Number(raw);
+  return raw;
+}
+
+function wireStageControl(e) {
+  panel.querySelectorAll("[data-stage-to]").forEach(b => b.addEventListener("click", () => {
+    const to = b.dataset.stageTo;
+    if (to === e.stage) return;
+    const forward = GATE_ORDER.indexOf(to) > GATE_ORDER.indexOf(e.stage);
+    const miss = missingFor(e, to);
+    /* A locked step opens the first thing blocking it, in place. The fix-step
+       modal stays for the DRAG, where you're on the board and the panel isn't
+       open; here, the fields are already in front of you. */
+    if (forward && miss.length) { openEditor(miss[0].key, true); return; }
+    const wasPublic = e.stage === "confirmed" || e.stage === "done";
+    const willPublic = to === "confirmed" || to === "done";
+    e.stage = to;
+    editKey = null;
+    renderBoard();
+    openPanel(e.id);
+    flashCard(e.id);
+    if (!wasPublic && willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> is on the chapter Timeline now.`);
+    else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again.`);
+    else toast(`<b>${esc(shortTitle(e.title))}</b> moved to ${esc(STAGES.find(s => s.id === to).label)}.`);
+  }));
+
+  /* The named gaps in the stage sentence. */
+  panel.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation();
+    openEditor(b.dataset.jump, true);
+  }));
+}
+
+/* ── Wiring the composer ──────────────────────────────────────────────── */
+function wireComposer(id) {
+  const add = panel.querySelector("#fpAdd");
+  if (add) add.addEventListener("click", () => {
+    newField = { label: "", kind: "text", editing: null };
+    openPanel(id);
+    panel.querySelector("#fnLabel")?.focus();
+  });
+
+  const box = panel.querySelector("#fpNew");
+  if (!box) return;
+
+  /* The label is held in the draft on every keystroke rather than read at
+     save time, because choosing a type re-renders the composer — and a
+     half-typed name that vanishes when you pick "Number" is the bug this
+     avoids. Re-rendering also keeps the collision warning live. */
+  const input = box.querySelector("#fnLabel");
+  input.addEventListener("input", () => {
+    newField.label = input.value;
+    /* Only the parts that depend on the text need redrawing, and a full
+       re-render would take the caret with it. */
+    const label = input.value.trim();
+    const clash = label && OPTIONAL.some((f, i) =>
+      i !== newField.editing && f.label.toLowerCase() === label.toLowerCase());
+    box.querySelector("#fnSave").disabled = !(label.length > 0 && !clash);
+    let err = box.querySelector(".fn-err");
+    if (clash && !err) {
+      err = document.createElement("p");
+      err.className = "fn-err";
+      box.querySelector(".fn-foot").before(err);
+    }
+    if (err) err.textContent = clash ? `There's already a field called "${label}".` : "";
+    if (err && !clash) err.remove();
+  });
+  input.addEventListener("keydown", ev => {
+    if (ev.key === "Enter") { ev.preventDefault(); box.querySelector("#fnSave").click(); }
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); newField = null; openPanel(id); }
+  });
+
+  box.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => {
+    if (b.disabled) return;
+    newField.kind = b.dataset.kind;
+    openPanel(id);
+    /* Keep the caret where it was — picking a type shouldn't cost the name. */
+    const i2 = panel.querySelector("#fnLabel");
+    if (i2) { i2.focus(); i2.setSelectionRange(i2.value.length, i2.value.length); }
+  }));
+
+  box.querySelector("#fnCancel").addEventListener("click", () => { newField = null; openPanel(id); });
+
+  box.querySelector("#fnSave").addEventListener("click", () => {
+    const label = newField.label.trim();
+    if (!label) return;
+    if (newField.editing != null) {
+      /* Rename only. The KEY never changes — it's what every event's stored
+         answer is filed under, so renaming the label must not orphan the
+         values already given. Same rule the per-org transaction categories
+         landed on: slug immutable, label renameable. */
+      const f = OPTIONAL[newField.editing];
+      const was = f.label;
+      f.label = label;
+      newField = null;
+      openPanel(id);
+      toast(`<b>${esc(was)}</b> is now <b>${esc(label)}</b>. Answers already given are kept.`);
+      return;
+    }
+    const key = keyFor(label);
+    OPTIONAL.push({ key, label, on: true, kind: newField.kind, builtin: false,
+      note: "This chapter's own field." });
+    newField = null;
+    openPanel(id);
+    toast(`<b>${esc(label)}</b> added — it's on all ${EVENTS.length} events now, and blocks nothing.`);
+  });
+
+  const del = box.querySelector("#fnDelete");
+  if (del) del.addEventListener("click", () => {
+    const f = OPTIONAL[newField.editing];
+    /* Deleting is not the same as switching it off, and the difference is
+       the answers. Off keeps them; delete drops the column from every event.
+       Say the number, because it's the part that can't be undone. */
+    const answered = EVENTS.filter(e => hasField(e, f.key)).length;
+    const msg = answered
+      ? `Delete "${f.label}"? ${answered} event${answered === 1 ? " has" : "s have"} an answer, and it'll be dropped. Turning the field off instead keeps them.`
+      : `Delete "${f.label}"? No event has answered it yet.`;
+    if (!confirm(msg)) return;
+    if (editKey === f.key) editKey = null;
+    EVENTS.forEach(e => { delete e.f[f.key]; });
+    OPTIONAL.splice(newField.editing, 1);
+    newField = null;
+    openPanel(id);
+    toast(`<b>${esc(f.label)}</b> deleted from every event.`);
+  });
+}
 
 /* ── Toast — confirmations only, never gate rejections. ───────────────── */
 const toastEl = document.getElementById("toast");
