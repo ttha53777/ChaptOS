@@ -163,7 +163,164 @@
   already is — enough to make the gate real, a join table is Stage 2);
   multi-doc attachments; RSVP; Calendar and Table views.
 
+  ── THE SIDEBAR (added after the board) ────────────────────────────────────
+  The board shipped beside eight dead `href="#"` links. The real sidebar
+  (app/components/Sidebar.tsx) is a working surface, and since Programming is
+  a page people sit on for a long stretch, the nav beside it is worth making
+  honest. Four things the flat list could not say:
+
+    GROUPS     Overview / Members / Operations, from lib/nav-order.ts. Eleven
+               flat items is a list you re-scan every visit; three labelled
+               runs of 2–6 is a shape you learn once.
+    BADGES     Work waiting on YOU — 3 join requests, 2 reimbursements. The
+               queue lives on another page, so the nav is the only place it
+               can be seen from here. Timeline's excuse count is 0 and so
+               draws nothing; a zero badge is noise.
+    WORKFLOWS  Pages the org disabled don't render. Parties is off in the
+               fixture, so the filter is visible rather than theoretical.
+    WHO        Profile block + org switcher, both real menus.
+
+  Added beyond parity, each earning its place on THIS page:
+    · COLLAPSE TO A RAIL. The board is four lanes in a 1fr grid — 166px back
+      is most of a fifth lane (measured: 1212 → 1360px of board). Persisted,
+      "[" toggles it, and every icon keeps its label as a hover tooltip so a
+      rail never becomes a row of mystery glyphs.
+    · A REAL DRAWER on mobile. v3 turned the sidebar into a horizontally
+      scrolling bar that hid most pages behind a swipe and could carry
+      neither the groups, the badges, nor the profile menu.
+    · KEYBOARD. `g` then a key jumps (g-e Programming, g-y Treasury), arrows
+      roam the nav, "[" collapses, Escape closes any menu and returns focus
+      to whatever opened it.
+
+  Two implementation notes worth keeping:
+    · The rail tooltip is a FIXED, body-parented element, not an ::after on
+      the row. `overflow-y:auto` forces overflow-x to clip, so anything drawn
+      inside the nav is cut off at the 62px rail edge — and simply dropping
+      the scroll container pushes the profile footer off a short viewport.
+    · `g t` (Timeline) must not also flip the theme, since the theme handler
+      is listening for a bare "t". A shared `gArmedUntil` makes the theme
+      handler stand down while a jump is armed.
+
+  ── THE PANEL BECAME EDITABLE (added after the sidebar) ────────────────────
+  The panel was a RECEIPT. It could tell you a date was missing and could not
+  take one. The only way to set any field was to drag a card into a lane that
+  refused it and fill in the fix-step — so a field you weren't currently being
+  BLOCKED by had no way in at all. Nobody can put next week's head count on an
+  event without first pretending to promote it.
+
+  Two additions, both derived from the model already here:
+
+  1. EVERY FIELD ROW EDITS IN PLACE. The row is the control — an unset value
+     is the two faint words "Not set", a smaller target than its own label, so
+     hit-area is the whole main column with the pencil riding the label line.
+     One editor open at a time; two means two half-finished values and no way
+     to say which one Escape meant. Each `kind` gets its own editor (roster
+     pills for owner, the type list for category, two cells for budget, a
+     textarea for description) because one text box for all of them is how
+     "TBD" ends up in a date column. Commit on Enter or blur, revert on
+     Escape, and no Save button anywhere — a document, not a form.
+
+  2. A STAGE CONTROL. The lanes ARE the model, and the panel could only ever
+     describe the one you were in — you closed it and went back to the board
+     to do the single thing you opened it for. Same gates as the drag:
+     forward needs canEnter(), backward is always free. A locked step names
+     what locks it AND the names are buttons, so the gate is one click from
+     the thing that satisfies it.
+
+  Editing feeds the gates live: fill a date and the Confirmed step unlocks
+  under you, the card's blocker line changes, the glance strip recounts, and
+  the Timeline gains a chip. That's the loop the fix-step only ever half
+  closed.
+
+  Kept deliberately: the FIX-STEP still owns the DRAG path, where you're on
+  the board and no panel is open. A Done event is read-only — it's the record
+  of something that already happened, which is why the fixture gives it stars
+  instead of a blocker line. And `title` alone has no Clear: a nameless card
+  is unfindable on the board and in search.
+
+  Two bugs worth keeping in the record, both found by the Playwright pass:
+    · CLEAR MUST LISTEN ON MOUSEDOWN. Pressing it blurs the input first, and
+      that blur commits the OLD value and re-renders — destroying the button
+      before its click lands, so the field silently refused to empty.
+    · Toggling an optional field OFF while editing it stranded the open
+      editor on a row no longer on the sheet.
+
+  ── THE CHAPTER'S OWN FIELDS (added after the editors) ─────────────────────
+  The ten optional fields were the ones WE chose for every org. A chapter
+  running philanthropy events wants "Beneficiary"; one bussing people to
+  formals wants "Bus company". Guessing every such field is how a settings
+  page ends up with forty toggles nobody reads.
+
+  So "Fields this chapter collects" gained a + NEW FIELD composer: name it,
+  pick what kind of answer it takes (text · number · money · yes-no · date ·
+  person · file), and it joins the org's optional set on every event at once.
+
+  FILE is the type worth calling out, because it quietly answers something
+  this header deferred as out of scope: "multi-doc attachments". The built-in
+  Attachment is ONE slot, so a chapter needing a signed contract AND a venue
+  invoice AND a waiver had nowhere to put the second and third. The fix isn't
+  many files on one field — it's many file FIELDS, each named for what it
+  holds, which is strictly better than a pile of untitled uploads: you can
+  see at a glance WHICH document is missing.
+
+  This is NOT the per-event checklist this mock deleted, and the difference
+  is the whole argument. That failed because each event's list was written
+  from scratch, so nothing could be counted or compared across events. A
+  field the org declares ONCE is the opposite: every event answers the same
+  question. Same shape as the per-org transaction categories that shipped
+  2026-08-08 and Membership.customFields.
+
+  Rules it inherits rather than invents:
+    · NEVER GATES. Optional means optional — only the five required fields
+      move a card, which is what made "Confirmed" checkable to begin with.
+    · THE KEY IS IMMUTABLE, THE LABEL ISN'T. Renaming "Beneficiary" to
+      "Charity partner" keeps every answer, because the key is what each
+      event's `f` object files them under. Exactly the slug/label split the
+      transaction categories landed on.
+    · TYPE IS FIXED after creation. Renaming is safe; retyping isn't, once
+      fifteen events have answered.
+    · OFF ≠ DELETE. Off hides the row and keeps the answers; delete drops
+      the column from every event and says how many answers that costs.
+    · THE TEN BUILT-INS ARE RESERVED — no pencil, no delete. Their keys are
+      what the board, the fix-step, and any future report address them by.
+
+  A third bug, and the reason custom pills carry a visible pencil rather than
+  a double-click: DBLCLICK ALSO FIRES TWO CLICKS, so the field toggled
+  off-then-on and each toggle re-rendered the panel, destroying the pill
+  mid-gesture. The composer never opened. A fourth: the value renderer and
+  the money/file editors were keyed to `budget`/`attachment` by NAME, so a
+  chapter's own money field opened the budget's numbers and a custom person
+  field printed "[object Object]" — they dispatch on `kind` now. The file
+  branch had the same shape and was caught the same way: a custom file field
+  rendered as plain text instead of a document chip.
+
   ── INTERACTIONS TO TRY ────────────────────────────────────────────────────
+  · Click any card → click any field row → it edits in place. Enter or click
+    away commits; Escape reverts and keeps the panel open.
+  · Open "Boba Fundraiser" → the stage sentence says "Needs date and location".
+    Click the word "date" → that row opens, scrolled to and focused.
+  · Fill both → the Confirmed step unlocks under you. Click it: the card
+    moves, the Timeline gains it, the toast says the chapter can see it.
+  · Click a LOCKED stage step → it opens the first field blocking it.
+  · Open a Done event → nothing is editable. It already happened.
+  · Toggle "Description" off in the field picker → the row leaves every event.
+  · Click + NEW FIELD → name it "Beneficiary", pick a type, add it. It's now
+    a row on all 15 events, editable like any other, and gates nothing.
+  · Make one of each type — the Money one draws two cells, the Person one
+    draws the roster, the Yes/no one draws two states.
+  · Add two FILE fields ("Signed contract", "Venue invoice") → one event now
+    carries three separate named documents, which is the multi-doc case the
+    single built-in Attachment couldn't hold.
+  · Pencil on a dashed pill → rename it. Every answer survives, because the
+    key never moved. Delete instead → it says how many answers that costs.
+  · Press [ (or the chevron) → the sidebar collapses; the board gets the room.
+    Hover any icon for its label.
+  · Press g then e / y / b → jump between pages. Only Programming is built.
+  · Drag "Treasury" above "Docs" → reorder persists org-wide. Try dragging it
+    into Overview: refused, because reordering is scoped within a group.
+  · Click the profile row → the menu opens UPWARD. Escape returns focus to it.
+  · Narrow under 900px → the sidebar becomes a drawer with the groups and
+    badges intact.
   · Drag "Speaker Series" (no owner) into Planning   → the owner step opens.
   · Drag "Rush Week Info Night" into Planning        → same step, one field.
   · Drag "Boba Fundraiser" (no date/location) into Confirmed → the publish
@@ -241,42 +398,194 @@
   ::selection { background: var(--vio-bg); }
   button { font: inherit; }
 
-  .shell { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh; }
+  .shell { display: grid; grid-template-columns: var(--side-w, 228px) minmax(0, 1fr); min-height: 100vh;
+    transition: grid-template-columns .2s cubic-bezier(.2,.8,.2,1); }
+  /* Collapsed to a rail: icons only, labels revealed on hover as tooltips. */
+  .shell.rail { --side-w: 62px; }
 
   /* ── Sidebar ──────────────────────────────────────────────────────────── */
   .side {
     border-right: 1px solid var(--line);
     background: var(--paper-2);
-    padding: 26px 0 20px;
-    display: flex; flex-direction: column; gap: 26px;
-    position: sticky; top: 0; height: 100vh;
+    display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh; min-width: 0;
   }
-  .wordmark { padding: 0 24px; }
-  .wordmark .product {
-    font-family: var(--serif); font-style: italic; font-weight: 600;
-    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+
+  /* Org header — the link home, plus the rail toggle. */
+  .org-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 10px 12px;
+    border-bottom: 1px solid var(--line-soft); min-height: 58px; }
+  .org-link { display: flex; align-items: center; gap: 10px; text-decoration: none; border-radius: 9px;
+    padding: 5px 6px; margin: -5px -6px; min-width: 0; flex: 1; }
+  .org-link:hover { background: var(--line-soft); }
+  .org-mark { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--vio), var(--vio-deep)); color: #fff;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: .02em;
+    box-shadow: 0 2px 8px rgba(124,58,237,.3); }
+  .org-who { min-width: 0; display: flex; flex-direction: column; }
+  .org-name { font-family: var(--serif); font-size: 13.5px; font-weight: 600; color: var(--ink);
+    line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .org-term { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--faint); margin-top: 2px; white-space: nowrap; }
+  .rail-btn { flex-shrink: 0; width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer;
+    background: transparent; border: 1px solid transparent; border-radius: 7px; color: var(--faint); }
+  .rail-btn svg { width: 15px; height: 15px; transition: transform .2s; }
+  .rail-btn:hover { color: var(--ink); border-color: var(--line); background: var(--card); }
+  .shell.rail .rail-btn svg { transform: rotate(180deg); }
+
+  /* Org switcher. */
+  .org-switch { position: relative; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); }
+  .switch-btn { width: 100%; display: flex; align-items: center; gap: 6px; cursor: pointer;
+    background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); min-width: 0; }
+  .switch-btn > span:not(.switch-n) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; flex: 1; }
+  .switch-btn svg { width: 12px; height: 12px; flex-shrink: 0; opacity: .7; }
+  .switch-n { flex-shrink: 0; font-family: var(--mono); font-size: 9px; color: var(--faint);
+    background: var(--paper); border: 1px solid var(--line-soft); border-radius: 999px; padding: 1px 6px; }
+  .switch-btn:hover { color: var(--ink); border-color: var(--vio); }
+  .switch-menu { position: absolute; left: 12px; right: 12px; top: calc(100% - 2px); z-index: 70;
+    background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; padding: 5px;
+    box-shadow: 0 14px 38px -14px rgba(0,0,0,.75); }
+  .switch-menu button { width: 100%; display: flex; align-items: center; gap: 8px; cursor: pointer;
+    background: transparent; border: none; border-radius: 7px; padding: 7px 9px; text-align: left;
+    font-size: 12px; color: var(--ink-soft); min-width: 0; }
+  .switch-menu button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .switch-menu button:hover { background: var(--line-soft); color: var(--ink); }
+  .switch-menu button.on { color: var(--ink); }
+  .switch-menu button.on::after { content: "✓"; margin-left: auto; color: var(--vio); flex-shrink: 0; }
+  .switch-menu .sm-new { border-top: 1px solid var(--line-soft); margin-top: 4px; padding-top: 7px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* ── Nav ──────────────────────────────────────────────────────────────── */
+  .nav { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 10px; scrollbar-width: thin; }
+  .nav::-webkit-scrollbar { width: 5px; }
+  .nav::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .nav-group + .nav-group { margin-top: 16px; }
+  .nav-group > .ng-h { padding: 0 12px; margin-bottom: 6px; font-family: var(--mono); font-size: 9px;
+    font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+  .nav-item { position: relative; border-radius: 8px; }
+  .nav-item + .nav-item { margin-top: 1px; }
+  .nav-item > a {
+    position: relative; display: flex; align-items: center; gap: 10px;
+    padding: 7px 11px; border-radius: 8px; text-decoration: none;
+    font-size: 13px; font-weight: 500; color: var(--muted); min-width: 0;
+    transition: color .12s, background .12s;
   }
-  .wordmark .org {
-    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
-    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  .nav-item > a svg { width: 16px; height: 16px; flex-shrink: 0; opacity: .75; }
+  .nav-item > a .nl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-item > a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav-item > a.active { color: var(--ink); background: var(--card-2); }
+  .nav-item > a.active svg { opacity: 1; color: var(--vio); }
+  .nav-item > a.active::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 15px; border-radius: 0 2px 2px 0; background: var(--vio); }
+  .nav-item > a:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
+  /* Count badge — the rose pill NavCountBadge draws. */
+  .nav-badge { margin-left: auto; flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px;
+    display: inline-flex; align-items: center; justify-content: center; border-radius: 999px;
+    background: #f43f5e; color: #fff; font-family: var(--mono); font-size: 9.5px; font-weight: 700;
+    line-height: 1; box-shadow: 0 1px 4px rgba(244,63,94,.45); }
+
+  /* Drag-to-reorder, org-admin only — the same gesture Sidebar.tsx ships. */
+  .nav-item.dragging { opacity: .4; }
+  .nav-item.drop-before::before { content: ""; position: absolute; left: 8px; right: 8px; top: -2px;
+    height: 2px; border-radius: 2px; background: var(--vio); z-index: 2; }
+  .nav-item[draggable="true"] > a { cursor: grab; }
+  .nav-item[draggable="true"]:active > a { cursor: grabbing; }
+
+  /* ── Rail (collapsed) ─────────────────────────────────────────────────── */
+  .shell.rail .org-who,
+  .shell.rail .org-switch,
+  .shell.rail .ng-h,
+  .shell.rail .nav-item > a .nl,
+  .shell.rail .who,
+  .shell.rail .chev,
+  .shell.rail .build { display: none; }
+  .shell.rail .org-head { padding: 10px 8px; flex-direction: column; gap: 8px; min-height: 0; }
+  .shell.rail .org-link { justify-content: center; flex: none; margin: 0; padding: 4px; }
+  .shell.rail .nav { padding: 12px 8px; }
+  /* The group HEADINGS are gone in a rail, so without a divider the ten icons
+     read as one undifferentiated column. The rule replaces the heading. */
+  .shell.rail .nav-group + .nav-group { margin-top: 9px; padding-top: 9px; position: relative; }
+  .shell.rail .nav-group + .nav-group::before {
+    content: ""; position: absolute; top: 0; left: 10px; right: 10px; height: 1px; background: var(--line);
   }
-  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
-  .nav a {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px; border-radius: 7px; text-decoration: none;
-    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
-    text-transform: uppercase; color: var(--muted);
+  .shell.rail .nav-item > a { justify-content: center; padding: 9px 0; }
+  /* The 3px accent sits at the row's left edge; in a rail the row starts at the
+     sidebar's own edge, so it needs to come inboard to stay visible. */
+  .shell.rail .nav-item > a.active::before { left: -6px; }
+  /* Badge can't sit in the row when there's no room — pin it to the icon. */
+  .shell.rail .nav-badge { position: absolute; top: 2px; right: 4px; margin: 0; min-width: 15px; height: 15px;
+    font-size: 8.5px; padding: 0 3px; }
+  .shell.rail .profile-btn { justify-content: center; padding: 7px 0; }
+  .shell.rail .side-foot { padding: 8px; }
+  /* The label becomes a tooltip, so a rail is still readable.
+     This is a FIXED element positioned from JS, not an ::after on the row: the
+     nav is a scroll container (overflow-y:auto forces overflow-x to clip), so
+     anything drawn inside it gets cut off at the 62px rail edge. Dropping the
+     scroller instead would push the profile footer off a short viewport. */
+  .rail-tip {
+    position: fixed; z-index: 88; pointer-events: none;
+    background: var(--card-2); color: var(--ink); border: 1px solid var(--line); border-radius: 7px;
+    padding: 5px 10px; font-size: 12px; font-weight: 500; white-space: nowrap;
+    box-shadow: 0 8px 24px -10px rgba(0,0,0,.7);
+    opacity: 0; transform: translateX(-4px); transition: opacity .12s, transform .12s;
   }
-  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
-  .nav a.active { color: var(--ink); background: var(--card-2); }
-  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
-  .side .spacer { flex: 1; }
-  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
-  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
-    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
-  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+  .rail-tip.show { opacity: 1; transform: none; }
+
+  /* ── Profile ──────────────────────────────────────────────────────────── */
+  .side-foot { flex-shrink: 0; border-top: 1px solid var(--line-soft); padding: 8px 10px 8px; }
+  .profile-wrap { position: relative; }
+  .profile-btn { width: 100%; display: flex; align-items: center; gap: 9px; cursor: pointer;
+    background: transparent; border: none; border-radius: 9px; padding: 6px 8px; text-align: left; min-width: 0; }
+  .profile-btn:hover { background: var(--line-soft); }
+  .profile-btn:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
+  .profile-btn .avatar, .profile-pop .avatar { border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-weight: 600; flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px var(--line); }
+  .profile-btn .avatar { width: 28px; height: 28px; font-size: 9.5px; }
+  .profile-btn .who { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+  .who-n { font-size: 12.5px; font-weight: 600; color: var(--ink); line-height: 1.2;
+    display: flex; align-items: center; gap: 5px; min-width: 0; }
+  .who-n > .admin-pill { flex-shrink: 0; }
+  .admin-pill { font-family: var(--mono); font-size: 7.5px; font-weight: 700; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--vio); background: var(--vio-bg); border-radius: 999px;
+    padding: 2px 5px; box-shadow: inset 0 0 0 1px var(--vio-bg); }
+  .who-r { font-size: 10.5px; color: var(--faint); line-height: 1.2; margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .profile-btn .chev { width: 13px; height: 13px; flex-shrink: 0; color: var(--faint); transition: transform .15s; }
+  .profile-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+  /* Opens UPWARD — it's pinned to the bottom of the viewport. */
+  .profile-pop { position: absolute; bottom: calc(100% + 8px); left: 0; right: 0; z-index: 75;
+    min-width: 210px; background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 12px 40px -12px rgba(0,0,0,.75); animation: pop .16s cubic-bezier(.2,.8,.2,1); }
+  .shell.rail .profile-pop { right: auto; width: 230px; }
+  .pp-id { display: flex; align-items: center; gap: 10px; padding: 12px 13px; }
+  .pp-id .avatar { width: 34px; height: 34px; font-size: 11px; }
+  .pp-id .pp-who { min-width: 0; }
+  .pp-id .pp-n { font-size: 12.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pp-id .pp-r { font-size: 11px; color: var(--muted); margin-top: 1px; }
+  .pp-id .pp-e { font-size: 11px; color: var(--faint); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pp-div { height: 1px; background: var(--line-soft); }
+  .pp-sec { padding: 5px; }
+  .pp-sec button { width: 100%; display: flex; align-items: center; gap: 9px; cursor: pointer;
+    background: transparent; border: none; border-radius: 8px; padding: 7px 9px; text-align: left;
+    font-size: 12.5px; font-weight: 500; color: var(--muted); }
+  .pp-sec button svg { width: 15px; height: 15px; flex-shrink: 0; opacity: .75; }
+  .pp-sec button:hover { background: var(--line-soft); color: var(--ink); }
+  .pp-sec button.warn:hover { color: var(--gold); background: var(--gold-bg); }
+  .pp-sec button.danger:hover { color: var(--rose); background: var(--rose-bg); }
+  .build { padding: 6px 11px 2px; font-family: var(--mono); font-size: 9px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--faint); }
+
+  /* ── Mobile drawer ────────────────────────────────────────────────────── */
+  .drawer-btn { display: none; position: fixed; top: 12px; left: 12px; z-index: 92;
+    width: 40px; height: 40px; align-items: center; justify-content: center; cursor: pointer;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: var(--ink-soft);
+    box-shadow: var(--shadow); }
+  .drawer-btn svg { width: 18px; height: 18px; }
+  .side-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 93; animation: fade .18s ease; }
+  [data-theme="ivory"] .side-scrim { background: rgba(23,20,16,.34); }
 
   /* ── Main ─────────────────────────────────────────────────────────────── */
   .main { padding: 30px 38px 40px; max-width: 1360px; min-width: 0; }
@@ -653,22 +962,31 @@
     .measure:nth-child(2) { border-right: none; }
     .measure:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); }
   }
+  /* Below 900 the sidebar becomes an off-canvas drawer. A horizontal scrolling
+     nav bar (what v3 shipped) hides most of the pages behind a swipe and can't
+     carry the groups, the badges, or the profile menu at all. */
   @media (max-width: 900px) {
-    .shell { grid-template-columns: 1fr; }
-    .side { position: static; height: auto; flex-direction: row; align-items: center; gap: 16px;
-      padding: 14px 18px; border-right: none; border-bottom: 1px solid var(--line);
-      overflow-x: auto; scrollbar-width: none;
-      /* The bar scrolls; a hard cut mid-word reads as a clipping bug, so the
-         last item fades to say "there's more this way". */
-      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%); }
-    .side::-webkit-scrollbar { display: none; }
-    .side .nav { flex-direction: row; padding: 0; flex-wrap: nowrap; }
-    .side .nav a { white-space: nowrap; }
-    .side .wordmark { flex-shrink: 0; }
-    /* flex:1 in a horizontal bar pushed the row 300px past the viewport. */
-    .side .wordmark .org, .side .user, .side .spacer { display: none; }
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    .drawer-btn { display: inline-flex; }
+    .side { position: fixed; top: 0; left: 0; bottom: 0; width: 260px; z-index: 94; height: 100dvh;
+      transform: translateX(-100%); transition: transform .22s cubic-bezier(.2,.8,.2,1);
+      box-shadow: 24px 0 60px -40px rgba(0,0,0,.9); }
+    .side.open { transform: none; }
+    /* The rail is a desktop affordance; in a drawer it just hides the labels. */
+    .rail-btn { display: none; }
+    .shell.rail { --side-w: auto; }
+    .shell.rail .org-who, .shell.rail .org-switch, .shell.rail .ng-h,
+    .shell.rail .nav-item > a .nl, .shell.rail .who, .shell.rail .chev,
+    .shell.rail .build { display: revert; }
+    .shell.rail .nav-item > a { justify-content: flex-start; padding: 7px 11px; }
+    .shell.rail .nav-item > a::after { content: none; }
+    .shell.rail .org-head { flex-direction: row; padding: 10px 10px 10px 12px; min-height: 58px; }
+    .shell.rail .org-link { justify-content: flex-start; flex: 1; }
+    .shell.rail .nav-badge { position: static; margin-left: auto; min-width: 18px; height: 18px; font-size: 9.5px; padding: 0 5px; }
+    .shell.rail .profile-btn { justify-content: flex-start; padding: 6px 8px; }
+    /* Clear the fixed hamburger. */
     .main { padding: 22px 20px 36px; }
+    .briefing { padding-left: 52px; }
     h1.greeting { font-size: 28px; }
   }
   @media (max-width: 640px) {
@@ -692,6 +1010,15 @@
     .more-row { min-height: 44px; }
     .owner-opt { min-height: 44px; }
     .fp-opt { min-height: 44px; display: inline-flex; align-items: center; }
+    .fp-add, .btn-sm { min-height: 44px; }
+    .fn-kind { min-height: 44px; }
+    /* The pencil needs a real target of its own on touch, not a 9px glyph. */
+    .fp-opt.custom .fpc-e { min-width: 40px; }
+    .nav-item > a { min-height: 44px; }
+    .switch-btn, .switch-menu button { min-height: 44px; }
+    .profile-btn { min-height: 48px; }
+    .pp-sec button { min-height: 44px; }
+    .rail-btn { width: 40px; height: 40px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -704,29 +1031,58 @@
 <body>
 <button class="theme-toggle" id="toggle" title="Press T">◐&nbsp; Ivory</button>
 
-<div class="shell">
-  <aside class="side">
-    <div class="wordmark">
-      <div class="product">ChaptOS</div>
-      <div class="org">Lambda Phi<br>Epsilon</div>
+<button class="drawer-btn" id="drawerBtn" aria-label="Open navigation" aria-expanded="false" aria-controls="side">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+</button>
+<div class="side-scrim" id="sideScrim" hidden></div>
+
+<div class="shell" id="shell">
+  <aside class="side" id="side">
+
+    <!-- Org header. Doubles as the link home, exactly as Sidebar.tsx's does. -->
+    <div class="org-head">
+      <a class="org-link" href="#" id="orgHome" title="Go to dashboard home">
+        <span class="org-mark" id="orgMark">LP</span>
+        <span class="org-who">
+          <span class="org-name" id="orgName">Lambda Phi Epsilon</span>
+          <span class="org-term">Spring 2026</span>
+        </span>
+      </a>
+      <!-- Collapse to a rail. The board is the widest surface in the product,
+           so the sidebar is the first thing you want out of the way. -->
+      <button class="rail-btn" id="railBtn" aria-label="Collapse sidebar" title="Collapse sidebar  [">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
     </div>
-    <nav class="nav">
-      <a href="#">Dashboard</a>
-      <a href="#">Timeline</a>
-      <a href="#">Brothers</a>
-      <a href="#">Meetings</a>
-      <a href="#">Treasury</a>
-      <a class="active" href="#">Programming</a>
-      <a href="#">Instagram</a>
-      <a href="#">Settings</a>
-    </nav>
-    <div class="spacer"></div>
-    <div class="user">
-      <div class="avatar">TT</div>
-      <div class="who">
-        <p>Thalha Thabish</p>
-        <p>Social Chair</p>
+
+    <!-- Org switcher — only renders with >1 membership, as OrgSwitcher.tsx does. -->
+    <div class="org-switch" id="orgSwitchWrap">
+      <!-- The header above already names the active org. Repeating it here just
+           spends a row on a fact already on screen — so the control says what
+           it DOES, and the count says what's behind it. -->
+      <button class="switch-btn" id="switchBtn" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l4-4 4 4M8 15l4 4 4-4"/></svg>
+        <span id="switchLabel">Switch org</span>
+        <span class="switch-n" id="switchN">2</span>
+      </button>
+      <div class="switch-menu" id="switchMenu" role="menu" hidden></div>
+    </div>
+
+    <nav class="nav" id="nav" aria-label="Main navigation"></nav>
+
+    <div class="side-foot">
+      <div class="profile-wrap" id="profileWrap">
+        <div class="profile-pop" id="profilePop" role="menu" hidden></div>
+        <button class="profile-btn" id="profileBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu">
+          <span class="avatar">TT</span>
+          <span class="who">
+            <span class="who-n">Thalha <span class="admin-pill">Admin</span></span>
+            <span class="who-r">Social Chair</span>
+          </span>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 9l-7 7-7-7"/></svg>
+        </button>
       </div>
+      <p class="build">ChaptOS · v1.0</p>
     </div>
   </aside>
 
@@ -836,13 +1192,421 @@ function setTheme(t) {
   try { localStorage.setItem("chaptos-mock-theme", t); } catch {}
 }
 themeBtn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" ? "ivory" : "dusk"));
+/* Set while a "g" jump is armed, so `g t` (Timeline) doesn't also flip the
+   theme — both this handler and the sidebar's see the same "t". */
+let gArmedUntil = 0;
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { closeFix(); closePanel(); return; }
+  if (e.key === "Escape") {
+    /* An open editor is the innermost thing Escape can mean — dismissing
+       the whole panel because someone backed out of one field loses the
+       place they were reading. */
+    if (editKey != null) { closeEditor(); return; }
+    closeFix(); closePanel(); return;
+  }
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if (Date.now() < gArmedUntil) return;
   if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) themeBtn.click();
 });
 try { if (localStorage.getItem("chaptos-mock-theme") === "ivory") setTheme("ivory"); } catch {}
+
+/* ════════════════════════════════════════════════════════════════════════
+   SIDEBAR
+   ───────────────────────────────────────────────────────────────────────
+   v3 shipped eight dead `href="#"` links. The shipping sidebar
+   (app/components/Sidebar.tsx) is a real surface, and the board is the
+   page you sit on longest — so the nav beside it does the most work when
+   it's honest about four things the flat list couldn't say:
+
+     GROUPS      Overview / Members / Operations (lib/nav-order.ts). Eleven
+                 flat items is a list you re-scan every time; three labelled
+                 runs of 2–6 is one you learn the shape of once.
+     BADGES      Counts of work waiting on YOU — join requests, pending
+                 reimbursements, excuses. The real sidebar's whole reason for
+                 a red pill is that the queue lives on another page, so the
+                 nav is the only place it can be seen from here.
+     WORKFLOWS   Pages the org turned off aren't rendered. An org without a
+                 treasury shouldn't be shown a Treasury it can't open.
+     WHO         The profile block, with the org switcher above it.
+
+   Added for UX beyond parity, and why each earns its place on THIS page:
+     · COLLAPSE TO A RAIL — the board is four lanes in a 1fr grid; 166px
+       back is most of a fifth lane. Persisted, "[" toggles, labels survive
+       as tooltips so the rail never becomes a row of mystery glyphs.
+     · A REAL DRAWER on mobile, replacing the horizontal scroll bar that hid
+       most pages behind a swipe and could not carry groups or badges.
+     · KEYBOARD: g-then-key jumps, arrows roam the nav, "[" collapses.
+       Every menu closes on Escape and returns focus to its trigger.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Icons are the shipping NAV_ICONS paths, so a label reads the same here
+   as it does in the app. */
+const NAV_ICONS = {
+  Dashboard:   "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+  Timeline:    "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+  Brotherhood: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+  Chapter:     "M3 4h18M4 4v10a1 1 0 001 1h14a1 1 0 001-1V4M12 15v4m0 0l-3 2m3-2l3 2M9 9l2 2 4-4",
+  Tasks:       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
+  Docs:        "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
+  Instagram:   "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+  Programming: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+  Service:     "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
+  Parties:     "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
+  Treasury:    "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+};
+
+/* Groups + default order, from lib/nav-order.ts. `wf` is the workflow that
+   has to be enabled for the page to render (null = always on). `key` is the
+   g-jump shortcut. */
+const NAV_GROUPS = [
+  { label: "Overview", items: [
+    { id: "Dashboard",   wf: null,     key: "d" },
+    { id: "Timeline",    wf: null,     key: "t", badge: "excuses" },
+  ]},
+  { label: "Members", items: [
+    { id: "Brotherhood", wf: "members", key: "b", badge: "join", display: "Brothers" },
+    { id: "Chapter",     wf: "meetings",key: "c", display: "Meetings" },
+    { id: "Tasks",       wf: "tasks",   key: "k" },
+  ]},
+  { label: "Operations", items: [
+    { id: "Docs",        wf: "docs",           key: "o" },
+    { id: "Instagram",   wf: "communications", key: "i" },
+    { id: "Programming", wf: "events",         key: "e", display: "Programming" },
+    { id: "Service",     wf: "service",        key: "s" },
+    { id: "Parties",     wf: "parties",        key: "p" },
+    { id: "Treasury",    wf: "finance",        key: "y", badge: "reimb" },
+  ]},
+];
+
+/* This org's state — the shape /api/auth/me returns. `parties` is off, which
+   is what makes the workflow filter visible rather than theoretical. */
+const ORG = {
+  name: "Lambda Phi Epsilon",
+  term: "Spring 2026",
+  enabledWorkflows: ["members", "meetings", "tasks", "docs", "communications", "events", "service", "finance"],
+  isOrgAdmin: true,
+  navOrder: [],
+  badges: { join: 3, reimb: 2, excuses: 0 },
+};
+const MEMBERSHIPS = [
+  { id: 1, name: "Lambda Phi Epsilon", active: true },
+  { id: 2, name: "Beta Theta Service Corps", active: false },
+];
+const ME = { name: "Thalha Thabish", first: "Thalha", role: "Social Chair", email: "thalha@ucla.edu", initials: "TT", isAdmin: true };
+
+let activeNav = "Programming";       /* this mock IS the Programming page */
+const orgInitials = n => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+
+/* Order a group by the admin's saved navOrder — applyNavOrder(), sparse and
+   advisory: listed labels first, everything else keeps its default slot. */
+function applyNavOrder(items, order) {
+  if (!order.length) return [...items];
+  const ranked = items.filter(i => order.includes(i.id)).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  return [...ranked, ...items.filter(i => !order.includes(i.id))];
+}
+const navVisible = it => it.wf === null || ORG.enabledWorkflows.includes(it.wf);
+
+const navEl = document.getElementById("nav");
+function renderNav() {
+  navEl.innerHTML = NAV_GROUPS.map(g => {
+    const items = applyNavOrder(g.items, ORG.navOrder).filter(navVisible);
+    if (!items.length) return "";
+    const gid = "ng-" + g.label.toLowerCase();
+    return `<section class="nav-group" aria-labelledby="${gid}" data-group="${esc(g.label)}">
+      <p class="ng-h" id="${gid}">${esc(g.label)}</p>
+      ${items.map(it => {
+        const on = it.id === activeNav;
+        const label = it.display || it.id;
+        const n = it.badge ? (ORG.badges[it.badge] || 0) : 0;
+        return `<div class="nav-item" data-id="${esc(it.id)}" ${ORG.isOrgAdmin ? 'draggable="true"' : ""}>
+          <a href="#" data-nav="${esc(it.id)}" data-label="${esc(label)}" class="${on ? "active" : ""}"
+             ${on ? 'aria-current="page"' : ""} draggable="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round"><path d="${NAV_ICONS[it.id]}"/></svg>
+            <span class="nl">${esc(label)}</span>
+            ${n ? `<span class="nav-badge" aria-label="${n} awaiting review">${n > 9 ? "9+" : n}</span>` : ""}
+          </a>
+        </div>`;
+      }).join("")}
+    </section>`;
+  }).join("");
+  wireNav();
+}
+
+function wireNav() {
+  navEl.querySelectorAll("[data-nav]").forEach(a => {
+    a.addEventListener("click", ev => {
+      ev.preventDefault();
+      go(a.dataset.nav);
+    });
+  });
+  if (ORG.isOrgAdmin) wireNavDrag();
+}
+
+/* Navigating is a mock, so it says so rather than pretending — except for
+   Programming, which is the page you're on. */
+function go(id) {
+  closeDrawer();
+  if (id === activeNav) return;
+  const item = NAV_GROUPS.flatMap(g => g.items).find(i => i.id === id);
+  const label = item?.display || id;
+  activeNav = id;
+  renderNav();
+  toast(`<b>${esc(label)}</b> — this mock only builds out Programming.`);
+  /* Snap back so the board never looks orphaned under another page's name. */
+  setTimeout(() => { activeNav = "Programming"; renderNav(); }, 1400);
+}
+
+/* ── Drag-to-reorder, within a group, org-admin only ───────────────────── */
+let navDrag = null;
+function wireNavDrag() {
+  navEl.querySelectorAll(".nav-item").forEach(row => {
+    row.addEventListener("dragstart", ev => {
+      navDrag = row.dataset.id;
+      row.classList.add("dragging");
+      ev.dataTransfer.effectAllowed = "move";
+      try { ev.dataTransfer.setData("text/plain", navDrag); } catch {}
+    });
+    row.addEventListener("dragend", () => {
+      navDrag = null;
+      navEl.querySelectorAll(".nav-item").forEach(r => r.classList.remove("dragging", "drop-before"));
+    });
+    row.addEventListener("dragover", ev => {
+      if (!navDrag || navDrag === row.dataset.id) return;
+      /* Reordering is scoped WITHIN a group — crossing a heading would fight
+         the group structure, so a cross-group hover shows no drop line. */
+      const src = navEl.querySelector(`.nav-item[data-id="${CSS.escape(navDrag)}"]`);
+      if (!src || src.closest(".nav-group") !== row.closest(".nav-group")) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "move";
+      navEl.querySelectorAll(".nav-item").forEach(r => r.classList.toggle("drop-before", r === row));
+    });
+    row.addEventListener("dragleave", ev => {
+      if (!row.contains(ev.relatedTarget)) row.classList.remove("drop-before");
+    });
+    row.addEventListener("drop", ev => {
+      ev.preventDefault();
+      const from = navDrag, to = row.dataset.id;
+      navEl.querySelectorAll(".nav-item").forEach(r => r.classList.remove("drop-before"));
+      if (!from || from === to) return;
+      const g = NAV_GROUPS.find(g => g.items.some(i => i.id === from));
+      if (!g || !g.items.some(i => i.id === to)) return;
+      /* Recompose the FULL order across every group, as persistNavOrder does —
+         one array describes the whole sidebar. */
+      ORG.navOrder = NAV_GROUPS.flatMap(gr => {
+        const ordered = applyNavOrder(gr.items, ORG.navOrder).map(i => i.id);
+        if (gr !== g) return ordered;
+        const next = ordered.filter(l => l !== from);
+        next.splice(next.indexOf(to), 0, from);
+        return next;
+      });
+      renderNav();
+      toast("Sidebar order saved for the whole chapter.");
+    });
+  });
+}
+
+/* ── Rail collapse ────────────────────────────────────────────────────── */
+const shellEl = document.getElementById("shell");
+const railBtn = document.getElementById("railBtn");
+function setRail(on) {
+  shellEl.classList.toggle("rail", on);
+  railBtn.setAttribute("aria-label", on ? "Expand sidebar" : "Collapse sidebar");
+  railBtn.title = (on ? "Expand sidebar" : "Collapse sidebar") + "  [";
+  document.getElementById("side").setAttribute("aria-expanded", String(!on));
+  try { localStorage.setItem("chaptos-mock-rail", on ? "1" : "0"); } catch {}
+}
+railBtn.addEventListener("click", () => setRail(!shellEl.classList.contains("rail")));
+try { if (localStorage.getItem("chaptos-mock-rail") === "1") setRail(true); } catch {}
+
+/* Declared here rather than beside the drawer below: the rail tooltip consults
+   it, and a const is in its TDZ until its own line runs. */
+const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
+
+/* Rail tooltips. Positioned against the hovered row in viewport coordinates so
+   they clear the scroll container that would otherwise clip them. */
+const railTip = document.createElement("div");
+railTip.className = "rail-tip";
+railTip.setAttribute("aria-hidden", "true");
+document.body.appendChild(railTip);
+function showTip(a) {
+  if (!shellEl.classList.contains("rail") || isMobile()) return;
+  railTip.textContent = a.dataset.label;
+  const r = a.getBoundingClientRect();
+  railTip.style.left = (r.right + 10) + "px";
+  /* Measure after the text is set, then center on the row and keep it on screen. */
+  const h = railTip.offsetHeight;
+  railTip.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, r.top + r.height / 2 - h / 2)) + "px";
+  railTip.classList.add("show");
+}
+const hideTip = () => railTip.classList.remove("show");
+navEl.addEventListener("mouseover", e => { const a = e.target.closest("[data-nav]"); if (a) showTip(a); });
+navEl.addEventListener("mouseout",  e => { if (e.target.closest("[data-nav]")) hideTip(); });
+navEl.addEventListener("focusin",   e => { const a = e.target.closest("[data-nav]"); if (a) showTip(a); });
+navEl.addEventListener("focusout",  hideTip);
+navEl.addEventListener("scroll",    hideTip);
+window.addEventListener("resize",   hideTip);
+
+/* ── Org switcher ─────────────────────────────────────────────────────── */
+const switchBtn  = document.getElementById("switchBtn");
+const switchMenu = document.getElementById("switchMenu");
+/* Renders only with >1 membership — the same rule OrgSwitcher.tsx applies. */
+if (MEMBERSHIPS.length <= 1) document.getElementById("orgSwitchWrap").hidden = true;
+document.getElementById("switchN").textContent = MEMBERSHIPS.length;
+
+function drawSwitch() {
+  switchMenu.innerHTML = MEMBERSHIPS.map(m =>
+    `<button role="menuitem" class="${m.active ? "on" : ""}" data-org="${m.id}"><span>${esc(m.name)}</span></button>`
+  ).join("") + `<button role="menuitem" class="sm-new" data-org="new">＋ Create a new organization</button>`;
+  switchMenu.querySelectorAll("[data-org]").forEach(b => b.addEventListener("click", () => {
+    const v = b.dataset.org;
+    closeSwitch();
+    if (v === "new") { toast("Would open <b>/create</b>."); return; }
+    const m = MEMBERSHIPS.find(x => x.id === Number(v));
+    if (!m || m.active) return;
+    MEMBERSHIPS.forEach(x => x.active = x === m);
+    document.getElementById("orgName").textContent = m.name;
+    document.getElementById("orgMark").textContent = orgInitials(m.name);
+    toast(`Switched to <b>${esc(m.name)}</b>. A real switch reloads at /${esc(m.name.toLowerCase().split(" ")[0])}.`);
+  }));
+}
+function openSwitch() {
+  drawSwitch();
+  switchMenu.hidden = false;
+  switchBtn.setAttribute("aria-expanded", "true");
+}
+function closeSwitch(refocus) {
+  switchMenu.hidden = true;
+  switchBtn.setAttribute("aria-expanded", "false");
+  if (refocus) switchBtn.focus();
+}
+switchBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  switchMenu.hidden ? openSwitch() : closeSwitch();
+});
+
+/* ── Profile popover ──────────────────────────────────────────────────── */
+const profileBtn = document.getElementById("profileBtn");
+const profilePop = document.getElementById("profilePop");
+const PP_ICON = {
+  settings: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+  photo:    "M4 7h3l1.6-2h6.8L17 7h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z",
+  leave:    "M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3",
+  out:      "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+};
+const ppRow = (icon, label, cls = "") =>
+  `<button role="menuitem" class="${cls}" data-pp="${esc(label)}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${PP_ICON[icon]}"/></svg>
+    ${esc(label)}</button>`;
+
+function drawProfile() {
+  profilePop.innerHTML = `
+    <div class="pp-id">
+      <span class="avatar">${esc(ME.initials)}</span>
+      <span class="pp-who">
+        <p class="pp-n">${esc(ME.name)}</p>
+        <p class="pp-r">${esc(ME.role)}</p>
+        <p class="pp-e">${esc(ME.email)}</p>
+      </span>
+    </div>
+    <div class="pp-div"></div>
+    <div class="pp-sec">${ppRow("settings", "Settings")}${ppRow("photo", "Change photo")}</div>
+    <div class="pp-div"></div>
+    <div class="pp-sec">${ppRow("leave", "Leave organization", "warn")}</div>
+    <div class="pp-div"></div>
+    <div class="pp-sec">${ppRow("out", "Sign out", "danger")}</div>`;
+  profilePop.querySelectorAll("[data-pp]").forEach(b => b.addEventListener("click", () => {
+    const what = b.dataset.pp;
+    closeProfile(true);
+    toast(`<b>${esc(what)}</b> — not wired in this mock.`);
+  }));
+}
+function openProfile() {
+  drawProfile();
+  profilePop.hidden = false;
+  profileBtn.setAttribute("aria-expanded", "true");
+}
+function closeProfile(refocus) {
+  profilePop.hidden = true;
+  profileBtn.setAttribute("aria-expanded", "false");
+  if (refocus) profileBtn.focus();
+}
+profileBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  profilePop.hidden ? openProfile() : closeProfile();
+});
+
+/* One outside-click handler for both menus. */
+document.addEventListener("click", e => {
+  if (!switchMenu.hidden && !e.target.closest("#orgSwitchWrap")) closeSwitch();
+  if (!profilePop.hidden && !e.target.closest("#profileWrap")) closeProfile();
+});
+
+/* ── Mobile drawer ────────────────────────────────────────────────────── */
+const sideEl = document.getElementById("side");
+const drawerBtn = document.getElementById("drawerBtn");
+const sideScrim = document.getElementById("sideScrim");
+function openDrawer() {
+  sideEl.classList.add("open");
+  sideScrim.hidden = false;
+  drawerBtn.setAttribute("aria-expanded", "true");
+  sideEl.querySelector(".nav-item > a")?.focus();
+}
+function closeDrawer(refocus) {
+  if (!sideEl.classList.contains("open")) return;
+  sideEl.classList.remove("open");
+  sideScrim.hidden = true;
+  drawerBtn.setAttribute("aria-expanded", "false");
+  if (refocus) drawerBtn.focus();
+}
+drawerBtn.addEventListener("click", () => sideEl.classList.contains("open") ? closeDrawer(true) : openDrawer());
+sideScrim.addEventListener("click", () => closeDrawer(true));
+/* Leaving mobile with the drawer open would strand it as a floating panel. */
+window.addEventListener("resize", () => { if (!isMobile()) closeDrawer(); });
+
+document.getElementById("orgHome").addEventListener("click", e => { e.preventDefault(); go("Dashboard"); });
+
+/* ── Keyboard ─────────────────────────────────────────────────────────── */
+/* Arrows roam the nav — one Tab stop in, then up/down, like a real menu. */
+navEl.addEventListener("keydown", e => {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+  const links = [...navEl.querySelectorAll("[data-nav]")];
+  const i = links.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  links[(i + (e.key === "ArrowDown" ? 1 : links.length - 1)) % links.length].focus();
+});
+
+/* g-then-key jumps, "[" collapses. Registered ahead of the existing theme
+   handler's concerns — both bail on inputs and on modifier chords. */
+document.addEventListener("keydown", e => {
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  if (e.key === "Escape") {
+    if (!switchMenu.hidden) { closeSwitch(true); return; }
+    if (!profilePop.hidden) { closeProfile(true); return; }
+    if (sideEl.classList.contains("open")) { closeDrawer(true); return; }
+    return;
+  }
+  if (e.key === "[") { e.preventDefault(); setRail(!shellEl.classList.contains("rail")); return; }
+
+  const k = e.key.toLowerCase();
+  if (Date.now() < gArmedUntil) {
+    gArmedUntil = 0;
+    const hit = NAV_GROUPS.flatMap(g => g.items).filter(navVisible).find(i => i.key === k);
+    if (hit) { e.preventDefault(); go(hit.id); }
+    return;
+  }
+  if (k === "g") { gArmedUntil = Date.now() + 1200; }
+});
+
+document.getElementById("orgName").textContent = ORG.name;
+document.getElementById("orgMark").textContent = orgInitials(ORG.name);
+/* renderNav() is called at the very bottom, after toast()'s element const is
+   initialized — a nav click reaches toast(), and a const is in its TDZ until
+   its own line runs, unlike the hoisted function declarations around it. */
 
 /* ════════════════════════════════════════════════════════════════════════
    PER-ORG TYPE COLOR — driven from a {slug: …} fixture, exactly as
@@ -1629,6 +2393,7 @@ document.querySelectorAll(".views button").forEach(b => b.addEventListener("clic
 
 renderChips();
 renderBoard();
+renderNav();
 tlPrev = new Set(EVENTS.filter(e => e.stage === "confirmed" || e.stage === "done").map(e => e.id));
 </script>
 </body>
