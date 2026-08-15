@@ -51,8 +51,8 @@
   ── WHAT DELIBERATELY SURVIVED ─────────────────────────────────────────────
   · The blocker line. It is the one thing on a card that says what to DO,
     and it's why the attention rail was removable back in v1.
-  · The dashed left edge on Idea/Planning cards — private vs public is now
-    carried by that edge alone rather than edge + pill + rule text.
+  · The dashed left edge on Idea/Planning cards — off-Timeline vs on-Timeline
+    is now carried by that edge alone rather than edge + pill + rule text.
   · "Required" on mandatory events, the success stars, the glance strip.
   · Every gate, fix-step, and the org-level field picker, untouched.
 
@@ -140,8 +140,9 @@
 
   ── WHAT CARRIED OVER FROM V1 UNCHANGED ────────────────────────────────────
   · Lanes declare their own entry rule in the header (v1 fix #1).
-  · Only Confirmed publishes; Idea/Planning are officers-only with a dashed
-    private edge, and the Timeline strip below the board is the proof (fix
+  · Only Confirmed publishes to the Timeline; Idea/Planning are on the board
+    for everyone but off the Timeline, marked with a dashed edge, and the
+    Timeline strip below the board is the proof (fix
     #2). Today stageRequiresCalendar is `stage !== "idea"`, so Planning is
     already published and already needs a date — still a behavior change.
   · A rejected drag opens a fix-step instead of snapping back with a toast
@@ -2627,7 +2628,7 @@ function attemptMove(id, stage) {
   renderBoard();
   flashCard(id);
   if (!wasPublic && willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
-  else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again.`);
+  else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the Timeline.`);
   else if (stage === "planning" && e.owner) toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(ownerLabel(e.owner))}'s now.`);
 }
 function flashCard(id) {
@@ -2873,7 +2874,7 @@ document.getElementById("niGo").addEventListener("click", () => {
   closeIdea();
   renderBoard();
   flashCard(e.id);
-  toast(`<b>${esc(shortTitle(title))}</b> is on the slate — Idea, officers only.`);
+  toast(`<b>${esc(shortTitle(title))}</b> is on the slate — an Idea, not on the Timeline yet.`);
 });
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -3578,7 +3579,7 @@ function refuseEdit(e, key) {
          detour was to edit THAT, and making them find it again wastes the
          step they just took. */
       openEditor(key, true);
-      toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again — edit away.`);
+      toast(`<b>${esc(shortTitle(e.title))}</b> came off the Timeline — edit away.`);
     });
 }
 let refuseT;
@@ -3612,7 +3613,7 @@ function wireStageControl(e) {
     openPanel(e.id);
     flashCard(e.id);
     if (!wasPublic && willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> is on the chapter Timeline now.`);
-    else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again.`);
+    else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the Timeline.`);
     else toast(`<b>${esc(shortTitle(e.title))}</b> moved to ${esc(STAGES.find(s => s.id === to).label)}.`);
   }));
 
@@ -3632,7 +3633,7 @@ function wireStageControl(e) {
     renderBoard();
     openPanel(e.id);
     flashCard(e.id);
-    toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again — edit away.`);
+    toast(`<b>${esc(shortTitle(e.title))}</b> came off the Timeline — edit away.`);
   });
 }
 
