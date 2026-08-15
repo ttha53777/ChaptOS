@@ -2305,6 +2305,16 @@ function fieldsFor(stage) {
 function missingFor(e, stage) { return fieldsFor(stage).filter(f => !hasField(e, f.key)); }
 const canEnter = (e, stage) => missingFor(e, stage).length === 0;
 
+/* Done is the one gate that isn't about FIELDS, so missingFor() can't state
+   it: a complete Planning event has every field Confirmed needs, which used
+   to let the stage control take it straight to Done — publishing it to the
+   chapter Timeline (Done publishes too) with a toast that only said
+   "wrapped". Nobody was ever told the chapter could now see it.
+
+   "Wrapped" means an event happened, and an event the chapter was never told
+   about didn't happen to them. So Done is reachable only from Confirmed. */
+const needsConfirmFirst = (e, stage) => stage === "done" && e.stage !== "confirmed";
+
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 const dayDiff = ds => Math.round((new Date(ds + "T00:00:00") - TODAY) / 86400000);
 function fmtDate(ds) {
@@ -2573,7 +2583,7 @@ function wireBoard() {
       ev.dataTransfer.dropEffect = "move";
       const e = EVENTS.find(x => x.id === dragId);
       if (!e || e.stage === stage) return;
-      const gated = !canEnter(e, stage);
+      const gated = !canEnter(e, stage) || needsConfirmFirst(e, stage);
       lane.classList.toggle("drop-gate", gated);
       lane.classList.toggle("drop-ok", !gated);
       showCue(lane, stage, gated, e);
@@ -2601,8 +2611,13 @@ function showCue(lane, stage, gated, e) {
      rule rather than just "drop here". Teaching at the moment of the attempt
      beats a paragraph printed permanently in the header. */
   const miss = missingFor(e, stage);
-  if (gated) {
-    cue.textContent = `Needs ${miss.map(f => f.label.toLowerCase()).join(" + ")} — drop to add`;
+  if (needsConfirmFirst(e, stage)) {
+    cue.className = "dropcue gate";
+    cue.textContent = "Confirm it first — the chapter has to have seen it";
+  } else if (gated) {
+    /* "Drop to add" promised something the drop doesn't do: it opens a step
+       you can still cancel out of. Say what actually happens. */
+    cue.textContent = `Needs ${miss.map(f => f.label.toLowerCase()).join(" + ")} — drop to fill them in`;
   } else if (stage === "confirmed") {
     cue.textContent = "Drop to confirm — the chapter will see it";
   } else if (stage === "planning") {
@@ -2622,6 +2637,15 @@ function attemptMove(id, stage) {
   /* THE gates. Demotion is always free — you can always park something. */
   const forward = GATE_ORDER.indexOf(stage) > GATE_ORDER.indexOf(e.stage);
   if (forward && !canEnter(e, stage)) { openFix(e, stage); return; }
+  /* Dragging Planning → Done skips the publish entirely: Done is public, so
+     the event lands on the chapter Timeline having never been announced. */
+  if (needsConfirmFirst(e, stage)) {
+    toastAction(
+      `<b>${esc(shortTitle(e.title))}</b> hasn't been confirmed, so there's nothing for the chapter to have attended. Confirm it first.`,
+      "Confirm it",
+      () => attemptMove(e.id, "confirmed"));
+    return;
+  }
   /* Confirmed → Done has nothing missing to collect — it's the one gate
      that asks something NEW instead: how it went. Same "one step" pattern,
      different question. */
@@ -3096,8 +3120,10 @@ function stageControlHTML(e) {
   const at = GATE_ORDER.indexOf(e.stage);
   const steps = STAGES.map((s, i) => {
     const on = i === at, past = i < at;
-    /* Only FORWARD steps can be gated. */
-    const locked = i > at && !canEnter(e, s.id);
+    /* Only FORWARD steps can be gated. Done carries the extra rule that it
+       must be reached THROUGH Confirmed, which is a gate about the path
+       rather than about the fields. */
+    const locked = i > at && (!canEnter(e, s.id) || needsConfirmFirst(e, s.id));
     const cls = [on ? "on" : "", past ? "past" : "", locked ? "locked" : "", i < at ? "done-rail" : ""].join(" ");
     const c = STAGE_COLOR[s.id];
     return `<button class="stage-step ${cls}" data-stage-to="${esc(s.id)}"
@@ -3138,6 +3164,12 @@ function stageControlHTML(e) {
     } else {
       say += ` Can move to ${esc(next.label)}.`;
     }
+  }
+  /* Done sits two steps away from Planning, so the loop above — which only
+     ever describes the NEXT lane — left its padlock unexplained. A locked
+     step with nothing missing beside it reads as a bug. */
+  if (needsConfirmFirst(e, "done") && GATE_ORDER.indexOf(e.stage) < GATE_ORDER.indexOf("done")) {
+    say += ` <span class="lock">Wrapping up comes after confirming</span> — the chapter has to have seen it first.`;
   }
   return `<div class="pn-stages">
     <div class="stage-row" role="group" aria-label="Stage">${steps}</div>
@@ -3634,6 +3666,17 @@ function wireStageControl(e) {
        modal stays for the DRAG, where you're on the board and the panel isn't
        open; here, the fields are already in front of you. */
     if (forward && miss.length) { openEditor(miss[0].key, true); return; }
+    /* Nothing is MISSING on a complete Planning event, but Done still isn't
+       reachable from here — it would publish and wrap in one click, and the
+       wrap-up toast never mentions that the chapter can now see it. Offer
+       the step that actually comes next instead of refusing flatly. */
+    if (needsConfirmFirst(e, to)) {
+      toastAction(
+        `<b>${esc(shortTitle(e.title))}</b> hasn't been confirmed, so there's nothing for the chapter to have attended. Confirm it first.`,
+        "Confirm it",
+        () => { closePanel(); attemptMove(e.id, "confirmed"); });
+      return;
+    }
     if (to === "done") { openWrap(e); return; }
     const wasPublic = e.stage === "confirmed" || e.stage === "done";
     const willPublic = to === "confirmed" || to === "done";
