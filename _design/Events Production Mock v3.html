@@ -599,12 +599,19 @@
   .status-line .warn { color: var(--gold); }
   .status-line .block { color: var(--rose); }
 
+  .briefing-actions { flex-shrink: 0; display: flex; gap: 8px; }
+
   .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
     font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
     color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
     padding: 8px 14px; cursor: pointer; }
   .add-btn:hover { border-color: var(--vio); }
   .add-btn svg { stroke: var(--vio); }
+
+  .add-btn.ghost { color: var(--muted); background: transparent; border: 1px solid var(--line); }
+  .add-btn.ghost:hover { color: var(--ink); border-color: var(--vio); }
+  .add-btn.ghost svg { stroke: var(--muted); }
+  .add-btn.ghost:hover svg { stroke: var(--vio); }
 
   .theme-toggle { position: fixed; bottom: 18px; right: 20px; z-index: 90;
     font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
@@ -1258,10 +1265,16 @@
         <h1 class="greeting">The <em>programme</em>.</h1>
         <p class="status-line" id="statusLine"></p>
       </div>
-      <button class="add-btn">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        New event
-      </button>
+      <div class="briefing-actions">
+        <button class="add-btn ghost" id="addIdeaBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New idea
+        </button>
+        <button class="add-btn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New event
+        </button>
+      </div>
     </div>
 
     <div class="glance">
