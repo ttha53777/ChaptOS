@@ -1,0 +1,23 @@
+-- Events v3, part 2: Planning no longer requires a date.
+--
+-- `ProgrammingEvent_stage_date_check` was `stage = 'idea' OR date IS NOT NULL`.
+-- It is the second constraint (after ProgrammingEvent_stage_calendar_check, which
+-- 20260815000000 replaced) that encoded the OLD lane boundary: back when Planning
+-- published to the chapter's timeline, a Planning event necessarily had a date.
+--
+-- Under the field model the lanes are cut differently. Planning costs an OWNER
+-- and nothing else — "somebody is accountable for this" is a decision worth
+-- recording before a date exists, and it is the whole reason Idea→Planning is a
+-- real move rather than a decorative one. Date and location are what CONFIRMED
+-- costs, because confirming is what publishes.
+--
+-- Left in place this constraint would reject the ordinary case (promote an idea
+-- to Planning by giving it an owner) at the DB layer, after the service's gates
+-- had already allowed it — a 500 on a supported action.
+--
+-- The invariant it protected is not lost: a date is now required at Confirmed,
+-- enforced by canEnter() in the service, and a published event's date can't be
+-- cleared (updateProgrammingTask). The remaining DB guarantee — published events
+-- have a CalendarEvent, which itself has a NOT NULL date — is carried by
+-- programming_event_publish_check.
+ALTER TABLE "ProgrammingEvent" DROP CONSTRAINT IF EXISTS "ProgrammingEvent_stage_date_check";

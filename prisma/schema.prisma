@@ -52,7 +52,7 @@ model Organization {
   docFolders                DocFolder[]
   programmingEvents         ProgrammingEvent[]
   programmingEventDocs      ProgrammingEventDoc[]
-  programmingChecklistItems ProgrammingChecklistItem[]
+  eventFieldDefinitions     EventFieldDefinition[]
   transactions              Transaction[]
   transactionCategories     TransactionCategory[]
   reimbursements            Reimbursement[]
@@ -266,6 +266,9 @@ model Brother {
   taskAssignments       TaskAssignment[]
   pollAssignments       PollAssignment[]
   pollVotes             PollVote[]
+  // Programming events this person owns. SetNull, not Cascade: leaving one org
+  // must never delete another org's events (see ProgrammingEvent.ownerBrotherId).
+  ownedProgramming      ProgrammingEvent[]     @relation("ProgrammingOwner")
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -409,6 +412,9 @@ model Role {
   brothers        BrotherRole[]
   taskAssignments TaskAssignment[]
   pollAssignments PollAssignment[]
+  // Programming events owned by the standing duty rather than a person. The
+  // whole point of a role owner is that a rename propagates here for free.
+  ownedProgramming ProgrammingEvent[] @relation("ProgrammingOwner")
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -834,12 +840,24 @@ model CalendarEventType {
   @@index([organizationId])
 }
 
+// The owning record for the events (Programming) page.
+//
+// An event's readiness IS its own fields — there is no separate prep checklist
+// any more. Six required fields gate the lanes cumulatively (lib/programming.ts:
+// REQUIRED_FIELDS): title + category to exist at all, an owner to enter Planning,
+// and date + location + mandatory to enter Confirmed. A CalendarEvent is created
+// only at CONFIRMED, which is what "published to the chapter" means; Planning is
+// a private lane.
+//
+// The four prep booleans this replaced (roomStatus / flyerPosted / socialsMeeting
+// / itineraryNotNeeded) were one fraternity's ops list hardcoded for every org,
+// and every one of them was self-attested. A date and a location are facts.
 model ProgrammingEvent {
   id                 Int      @id @default(autoincrement())
   organizationId     Int
   calendarEventId    Int?     @unique
   // Owning planning fields. A CalendarEvent is created only once the event
-  // leaves the "idea" stage (Planning+); until then these live here alone.
+  // reaches "confirmed"; until then these live here alone.
   title              String
   date               String?
   category           String
@@ -849,47 +867,91 @@ model ProgrammingEvent {
   status             String   @default("Upcoming")
   stage              String   @default("idea")
   mandatory          Boolean  @default(false)
-  // Prep / ops fields.
-  owner              String   @default("")
   collabOrg          String   @default("")
-  itineraryUrl       String? // deprecated — backfilled into attachmentUrl
   attachmentUrl      String?
   attachmentDocId    Int?
-  roomStatus         String   @default("not_submitted")
-  itineraryNotNeeded Boolean  @default(false) // marks the itinerary prep item done without a file
-  flyerPosted        Boolean  @default(false)
-  socialsMeeting     Boolean  @default(false)
   spendingCents      Int      @default(0)
   successRating      Int?
   wrapUpNotes        String?
+
+  // Owner is either a roster member or a ROLE — a standing duty (mixers belong
+  // to the Social Chair) shouldn't freeze on whoever held the title when the card
+  // was made. Exactly one is set; ownerRoleId follows renames for free, which is
+  // the point. Mirrors TaskAssignment's brotherId?/roleId? pair.
+  //
+  // onDelete: SetNull, deliberately NOT Cascade. AttendanceRecord.brotherId
+  // cascades because it is a join row; this is an owning column, and the FK has
+  // no org filter — a person leaving ONE org must not erase another org's events.
+  ownerBrotherId Int?
+  ownerRoleId    Int?
+  // Retired free-text owner that matched no roster row at migration time.
+  // Read-only, surfaced so nothing is silently lost; dropped in a follow-up.
+  ownerNote      String?
+
+  // Org-defined optional field answers, sparse { slug → value }. Definitions live
+  // in EventFieldDefinition. Same shape as Membership.customFields. Sanitized on
+  // every read AND write against the live definitions (sanitizeFieldValues), which
+  // is what makes disabling a field hide it without destroying the answers.
+  fieldValues Json @default("{}")
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  organization  Organization               @relation(fields: [organizationId], references: [id])
-  calendarEvent CalendarEvent?             @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
-  attachmentDoc Doc?                       @relation(fields: [attachmentDocId], references: [id], onDelete: SetNull)
+  organization  Organization          @relation(fields: [organizationId], references: [id])
+  calendarEvent CalendarEvent?        @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+  attachmentDoc Doc?                  @relation(fields: [attachmentDocId], references: [id], onDelete: SetNull)
+  ownerBrother  Brother?              @relation("ProgrammingOwner", fields: [ownerBrotherId], references: [id], onDelete: SetNull)
+  ownerRole     Role?                 @relation("ProgrammingOwner", fields: [ownerRoleId], references: [id], onDelete: SetNull)
   docs          ProgrammingEventDoc[]
-  checklist     ProgrammingChecklistItem[]
 
   @@index([organizationId, calendarEventId])
   @@index([organizationId, stage])
   @@index([organizationId, date])
+  @@index([organizationId, ownerBrotherId])
+  @@index([organizationId, ownerRoleId])
 }
 
-model ProgrammingChecklistItem {
-  id                 Int      @id @default(autoincrement())
-  organizationId     Int
-  programmingEventId Int
-  label              String
-  done               Boolean  @default(false)
-  sortOrder          Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+// The org's OPTIONAL event field set — the vocabulary it declares ONCE, which
+// every event then answers.
+//
+// This is the deliberate opposite of the per-event ProgrammingChecklistItem it
+// replaces: that list was written from scratch on each event, so no two events
+// spelled the same item the same way and nothing could ever be counted, compared
+// or charted across them. A field the org declares once is answerable in a
+// uniform way by every event.
+//
+// Same posture as TransactionCategory and CalendarEventType: there is deliberately
+// NO FK from ProgrammingEvent.fieldValues keys to this table — integrity is
+// enforced in the service layer (sanitizeFieldValues), because a JSON key can't
+// carry one and because a composite FK diverges between prod and the RLS test
+// harness.
+model EventFieldDefinition {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  // Keys ProgrammingEvent.fieldValues. SERVER-DERIVED from the label and
+  // IMMUTABLE — never accepted from the client (see lib/event-fields.ts).
+  slug           String
+  // Freely renameable display name; the answers are filed under `slug`, so a
+  // rename is a one-row UPDATE and no event data moves.
+  label          String
+  // text|num|money|bool|date|person|file. Fixed after create: retyping a field
+  // fifteen events have already answered has no safe interpretation.
+  kind           String
+  // OFF ≠ DELETE. Disabling hides the row from every response and editor while
+  // the answers stay on disk; re-enabling resurrects them.
+  enabled        Boolean  @default(true)
+  // Reserved: the ten fields the platform ships. Renameable, never deletable and
+  // never disable-able — their slugs are what the board and any future report
+  // address them by.
+  builtin        Boolean  @default(false)
+  displayOrder   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization     Organization     @relation(fields: [organizationId], references: [id])
-  programmingEvent ProgrammingEvent @relation(fields: [programmingEventId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([organizationId, programmingEventId])
+  @@unique([organizationId, slug])
+  @@index([organizationId])
 }
 
 model ProgrammingEventDoc {
