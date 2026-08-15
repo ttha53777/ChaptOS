@@ -961,6 +961,23 @@
   .owner-kind button.on { color: var(--ink); background: var(--card-2); }
   .owner-kind button:hover:not(.on) { color: var(--ink-soft); }
 
+  /* ── New-idea composer — Idea's entire entry rule is title + category, so
+     this is the one dialog with no missing-field list to walk through: just
+     the two inputs, on the same shell as the fix-steps so it reads as the
+     same kind of moment rather than a fifth form pattern. */
+  .ni-field input[type="text"] { width: 100%; background: var(--paper); border: 1px solid var(--line);
+    border-radius: 8px; color: var(--ink); font-family: var(--sans); font-size: 14px;
+    padding: 10px 12px; min-height: 40px; outline: none; }
+  .ni-field input[type="text"]:focus { border-color: var(--vio); }
+  .ni-cats { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+  .ni-cat { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px 6px 10px;
+    cursor: pointer; background: var(--paper); display: inline-flex; align-items: center; gap: 6px;
+    transition: border-color .12s, background .12s, color .12s; }
+  .ni-cat .cdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
+  .ni-cat:hover:not(.on) { color: var(--ink-soft); border-color: var(--vio); }
+  .ni-cat.on { color: var(--c, var(--ink)); border-color: var(--c, var(--vio)); background: var(--cbg, var(--vio-bg)); }
+
   .fs-foot { padding: 14px 22px 18px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fs-foot .remain { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
   .fs-foot .remain.ready { color: var(--ok); }
@@ -1536,6 +1553,33 @@
       <span class="sp"></span>
       <button class="btn-ghost" id="wrCancel">Leave in Confirmed</button>
       <button class="btn-primary" id="wrGo">Mark as done</button>
+    </div>
+  </div>
+</div>
+
+<!-- New idea. Idea's entire entry rule is title + category (see STAGES),
+     so this is the one composer with nothing to fix — just those two,
+     on the same fix-step shell so it reads as the same family of moment. -->
+<div class="scrim" id="ideaScrim">
+  <div class="fixstep" role="dialog" aria-modal="true" aria-labelledby="niTitle">
+    <div class="fs-head">
+      <div class="fs-k">New idea</div>
+      <h3 id="niTitle">What's the idea?</h3>
+      <p>Lands in <b>Idea</b>, officers-only — nobody owns it yet and the chapter can't see it. Just enough to hold the thought.</p>
+    </div>
+    <div class="fs-body">
+      <div class="ni-field">
+        <div class="fs-lbl">Title</div>
+        <input type="text" id="niInput" placeholder="Speaker series, beach cleanup, rush info night…" maxlength="120">
+      </div>
+      <div class="fs-lbl spaced">Category</div>
+      <div class="ni-cats" id="niCats"></div>
+    </div>
+    <div class="fs-foot">
+      <span class="remain" id="niRemain">—</span>
+      <span class="sp"></span>
+      <button class="btn-ghost" id="niCancel">Cancel</button>
+      <button class="btn-primary" id="niGo" disabled>Add idea</button>
     </div>
   </div>
 </div>
@@ -2757,6 +2801,66 @@ document.getElementById("wrGo").addEventListener("click", () => {
   flashCard(e.id);
   if (panelId === e.id) openPanel(e.id);
   toast(`<b>${esc(shortTitle(e.title))}</b> is wrapped${wrapStars ? ` · rated ${wrapStars}/5` : ""}. ${wasPublic ? "Still on the record for the chapter." : ""}`);
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   NEW IDEA — Idea's entry rule (see STAGES) is title + category and
+   nothing else, so this composer collects exactly those two and creates
+   the event on submit, rather than opening a blank card into the panel
+   for a two-field job.
+   ════════════════════════════════════════════════════════════════════════ */
+const ideaScrim = document.getElementById("ideaScrim");
+const niInput = document.getElementById("niInput");
+let niType = null;
+
+function nextEventId() { return EVENTS.reduce((m, e) => Math.max(m, e.id), 0) + 1; }
+
+function openIdea() {
+  niType = null;
+  niInput.value = "";
+  drawIdeaCats();
+  syncIdeaFoot();
+  ideaScrim.classList.add("open");
+  niInput.focus();
+}
+function drawIdeaCats() {
+  const box = document.getElementById("niCats");
+  box.innerHTML = Object.entries(TYPES).map(([slug, t]) => {
+    const on = slug === niType;
+    const c = typeColor(slug);
+    return `<button type="button" class="ni-cat ${on ? "on" : ""}" data-type="${slug}"
+      style="${on ? `--c:${c};--cbg:${rgba(c, .16)}` : ""}">
+      <span class="cdot" style="background:${c}"></span>${esc(t.label)}</button>`;
+  }).join("");
+  box.querySelectorAll("[data-type]").forEach(b => b.addEventListener("click", () => {
+    niType = niType === b.dataset.type ? null : b.dataset.type;
+    drawIdeaCats();
+    syncIdeaFoot();
+  }));
+}
+function syncIdeaFoot() {
+  const missing = [!niInput.value.trim() && "a title", !niType && "a category"].filter(Boolean);
+  const rem = document.getElementById("niRemain");
+  rem.textContent = missing.length ? `Needs ${missing.join(" + ")}` : "Ready";
+  rem.classList.toggle("ready", !missing.length);
+  document.getElementById("niGo").disabled = !!missing.length;
+}
+niInput.addEventListener("input", syncIdeaFoot);
+niInput.addEventListener("keydown", ev => { if (ev.key === "Enter" && !document.getElementById("niGo").disabled) document.getElementById("niGo").click(); });
+function closeIdea() { ideaScrim.classList.remove("open"); niType = null; }
+document.getElementById("niCancel").addEventListener("click", closeIdea);
+ideaScrim.addEventListener("click", ev => { if (ev.target === ideaScrim) closeIdea(); });
+document.getElementById("addIdeaBtn").addEventListener("click", openIdea);
+document.getElementById("niGo").addEventListener("click", () => {
+  const title = niInput.value.trim();
+  if (!title || !niType) return;
+  const e = { id: nextEventId(), stage: "idea", type: niType, title,
+    date: null, location: null, mandatory: false, owner: null, f: {} };
+  EVENTS.push(e);
+  closeIdea();
+  renderBoard();
+  flashCard(e.id);
+  toast(`<b>${esc(shortTitle(title))}</b> is on the slate — Idea, officers only.`);
 });
 
 /* ════════════════════════════════════════════════════════════════════════
