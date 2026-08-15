@@ -233,10 +233,42 @@
   closed.
 
   Kept deliberately: the FIX-STEP still owns the DRAG path, where you're on
-  the board and no panel is open. A Done event is read-only — it's the record
-  of something that already happened, which is why the fixture gives it stars
-  instead of a blocker line. And `title` alone has no Clear: a nameless card
-  is unfindable on the board and in search.
+  the board and no panel is open. And `title` alone has no Clear: a nameless
+  card is unfindable on the board and in search.
+
+  ── PUBLISHED EVENTS ARE FROZEN (added after the field composer) ───────────
+  Read-only used to mean Done alone. It now means Done AND Confirmed, and the
+  reason is what Confirmed promises: the event is on everyone's Timeline, so
+  the chapter has already read it and planned around it. Silently moving the
+  room or the date changes a plan people made without telling one of them.
+  Editing requires demoting first, and demoting un-publishes — the deliberate
+  act of taking the promise back before you change it.
+
+  The important half is that a frozen row still ANSWERS. A field that does
+  nothing when clicked reads as broken; the rule is only a rule if it's
+  legible at the moment it bites. So a click on a frozen row:
+    · shakes the row and marks it with a padlock,
+    · says which field is locked and why, and
+    · carries a MOVE TO PLANNING button that demotes, re-renders, and opens
+      the very field you were reaching for — because that's what the detour
+      was for, and making you find it again wastes the step you just took.
+  The same unfreeze is offered ahead of time as an inline link in the stage
+  sentence, so the rule is readable before you've been refused.
+
+  Done is the one case with no way back: the event happened, so "move it to
+  Planning" would be offering to un-happen it. Its refusal explains and stops
+  ("wrapped — the location is part of the record now"), with no action.
+
+  The org-level FIELD PICKER stays live on a frozen event on purpose. It
+  changes which fields the chapter collects everywhere, not this event's
+  values, so it isn't touching the published promise.
+
+  One layout bug, caught by the width sweep: the actionable toast is a flex
+  row whose button must not shrink, and with no width basis on the sentence
+  the button won the space — crushing the text into a 195px column 295px
+  tall and pushing its own edge past the toast's. Fixed with an explicit
+  `width:max-content` + `flex:1 1 auto` on the sentence, and the action drops
+  below the text under 560px.
 
   Two bugs worth keeping in the record, both found by the Playwright pass:
     · CLEAR MUST LISTEN ON MOUSEDOWN. Pressing it blurs the input first, and
@@ -302,7 +334,11 @@
   · Fill both → the Confirmed step unlocks under you. Click it: the card
     moves, the Timeline gains it, the toast says the chapter can see it.
   · Click a LOCKED stage step → it opens the first field blocking it.
-  · Open a Done event → nothing is editable. It already happened.
+  · Open a CONFIRMED event ("Beach Day") → every field is padlocked. Click
+    one: it shakes, names itself, and offers MOVE TO PLANNING. Take it — the
+    event leaves the Timeline and that same field opens for editing.
+  · Open a Done event → nothing is editable, and there's no way back. It
+    already happened.
   · Toggle "Description" off in the field picker → the row leaves every event.
   · Click + NEW FIELD → name it "Beneficiary", pick a type, add it. It's now
     a row on all 15 events, editable like any other, and gates nothing.
@@ -991,6 +1027,24 @@
   /* Held open while its editor is up, so the row doesn't flicker on mouseout. */
   .fld-main.editing { background: var(--line-soft); }
   .fld-main.editing .fld-pencil { opacity: 0; }
+
+  /* Frozen rows. A published event's fields are read-only, but the row is
+     still a target — clicking it explains why and offers the way back. The
+     cursor is the tell before the click: not-allowed, never text. */
+  .fld-main.locked { cursor: not-allowed; border-radius: 7px; margin: -5px -7px; padding: 5px 7px;
+    position: relative; transition: background .12s; }
+  .fld-main.locked:hover { background: var(--gold-bg); }
+  .fld-main.locked:focus-visible { outline: 2px solid var(--gold); outline-offset: 0; }
+  .fld-main.locked:hover .fld-lock, .fld-main.locked:focus-visible .fld-lock { opacity: 1; color: var(--gold); }
+  /* The row that was just refused — a one-shot nudge, so a second click on
+     the same row still reads as a fresh answer rather than a dead control. */
+  .fld.refused .fld-main.locked { background: var(--gold-bg); }
+  .fld.refused { animation: refuse .5s cubic-bezier(.36,.07,.19,.97); }
+  @keyframes refuse {
+    10%, 90% { transform: translateX(-1.5px); }
+    30%, 70% { transform: translateX(2.5px); }
+    50%      { transform: translateX(-2.5px); }
+  }
 
   .fld-ed { margin-top: 5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
   .fld-ed input, .fld-ed select, .fld-ed textarea {
@@ -2527,20 +2581,31 @@ function fieldRowHTML(e, f, required) {
     ? `Needed to ${f.gate === "planning" ? "start planning" : f.gate === "confirmed" ? "confirm" : "save"}`
     : "Not set";
   const open = editKey === f.key;
-  /* A Done event is the record of something that already happened — its
-     fields stop being editable, which is also why the fixture gives it
-     stars instead of a blocker line. */
-  const locked = e.stage === "done";
+  /* Published events are frozen. Done is the record of something that
+     already happened. Confirmed is a promise the chapter has ALREADY READ —
+     it sits on everyone's Timeline, so quietly moving the room or the date
+     changes a plan people made without telling one of them. Editing means
+     demoting first, and demoting un-publishes: the deliberate act of taking
+     the promise back before you change it. */
+  const locked = e.stage === "done" || e.stage === "confirmed";
   const pencil = `<svg class="fld-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>`;
+  const lock = `<svg class="fld-pencil fld-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>`;
 
-  return `<div class="fld ${cls} ${justKey === f.key ? "just" : ""}" data-row="${esc(f.key)}">
+  /* A frozen row still ANSWERS a click — it just answers with the way out.
+     A field that silently does nothing reads as broken; one that names the
+     move teaches the rule at the moment it bites, which is the same
+     principle as the drag cue and the fix-step. */
+  return `<div class="fld ${cls} ${justKey === f.key ? "just" : ""} ${locked ? "frozen" : ""}" data-row="${esc(f.key)}">
     <span class="fld-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
-    <span class="fld-main ${locked ? "" : "edit"} ${open ? "editing" : ""}"
-      ${locked ? "" : `data-edit="${esc(f.key)}" data-opt="${required ? "0" : "1"}" role="button" tabindex="0"
+    <span class="fld-main ${locked ? "locked" : "edit"} ${open ? "editing" : ""}"
+      ${locked
+        ? `data-locked="${esc(f.key)}" role="button" tabindex="0"
+      aria-label="${esc(f.label)} — locked while ${esc(e.stage)}"`
+        : `data-edit="${esc(f.key)}" data-opt="${required ? "0" : "1"}" role="button" tabindex="0"
       aria-label="Edit ${esc(f.label)}"`}>
       <span class="fld-k">${esc(f.label)}</span>
       <span class="fld-v ${has ? "" : "empty"}">${has ? v : esc(emptyTxt)}</span>
-      ${locked ? "" : pencil}
+      ${locked ? lock : pencil}
       ${open ? editorHTML(e, f) : ""}
     </span>
   </div>`;
@@ -2662,6 +2727,14 @@ function stageControlHTML(e) {
      the second one is the only place a gate is ever stated as a demand. */
   const here = STAGES[at];
   let say = `<b>${esc(here.label)}.</b> ${esc(here.meaning)}`;
+  /* Say the freeze up front, where the stage is being explained, rather than
+     letting people discover it by clicking a row that won't open. The
+     unfreeze is the same button the refusal offers. */
+  if (e.stage === "confirmed") {
+    say += ` Fields are locked while the chapter can see it — <button class="jump" data-unlock="1">move it back to Planning</button> to change anything.`;
+  } else if (e.stage === "done") {
+    say += ` Fields are part of the record now and can't be changed.`;
+  }
   const next = STAGES[at + 1];
   if (next) {
     const miss = missingFor(e, next.id);
@@ -2971,6 +3044,15 @@ function wirePanelEditing(e) {
     });
   });
 
+  /* Frozen rows answer with the way out rather than doing nothing. */
+  panel.querySelectorAll("[data-locked]").forEach(m => {
+    const refuse = () => refuseEdit(e, m.dataset.locked);
+    m.addEventListener("click", refuse);
+    m.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); refuse(); }
+    });
+  });
+
   const ed = panel.querySelector(".fld-ed");
   if (!ed) return;
   const key = ed.dataset.ed;
@@ -3046,6 +3128,49 @@ function wirePanelEditing(e) {
   });
 }
 
+/* ── Refusing an edit on a published event ──────────────────────────────
+   The rule is "confirmed events are frozen", but a rule you can only learn
+   by having a click do nothing is not a rule, it's a defect. So the refusal
+   names the field, states why, and carries the button that unblocks it. */
+function refuseEdit(e, key) {
+  const f = REQUIRED.concat(OPTIONAL).find(x => x.key === key);
+  const name = f ? f.label.toLowerCase() : "this";
+  const row = panel.querySelector(`.fld[data-row="${CSS.escape(key)}"]`);
+  if (row) {
+    /* Restart the animation on every attempt — without the reflow, a second
+       click on the same row does nothing visible and reads as a dead
+       control, which is the exact failure this is here to prevent. */
+    row.classList.remove("refused");
+    void row.offsetWidth;
+    row.classList.add("refused");
+    clearTimeout(refuseT);
+    refuseT = setTimeout(() => row.classList.remove("refused"), 2600);
+  }
+  if (e.stage === "done") {
+    /* Done has no way back that makes sense — the event happened. Offering
+       "move it to Planning" would be offering to un-happen it. */
+    toast(`<b>${esc(shortTitle(e.title))}</b> is wrapped — the ${esc(name)} is part of the record now.`);
+    return;
+  }
+  toastAction(
+    `The chapter can see this event, so the <b>${esc(name)}</b> is locked. Move it back to Planning to change it.`,
+    "Move to Planning",
+    () => {
+      const wasId = e.id;
+      e.stage = "planning";
+      editKey = null;
+      renderBoard();
+      openPanel(wasId);
+      flashCard(wasId);
+      /* Open the field they were reaching for — the whole point of the
+         detour was to edit THAT, and making them find it again wastes the
+         step they just took. */
+      openEditor(key, true);
+      toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again — edit away.`);
+    });
+}
+let refuseT;
+
 /* Read a control back as the right TYPE. A number input hands back a string,
    and "80" in a head-count column is the kind of thing that quietly breaks
    a sum three screens away. */
@@ -3083,6 +3208,19 @@ function wireStageControl(e) {
     ev.stopPropagation();
     openEditor(b.dataset.jump, true);
   }));
+
+  /* "move it back to Planning" in the stage sentence — the same unfreeze the
+     refusal toast offers, reachable before you've been refused. */
+  const un = panel.querySelector("[data-unlock]");
+  if (un) un.addEventListener("click", ev => {
+    ev.stopPropagation();
+    e.stage = "planning";
+    editKey = null;
+    renderBoard();
+    openPanel(e.id);
+    flashCard(e.id);
+    toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again — edit away.`);
+  });
 }
 
 /* ── Wiring the composer ──────────────────────────────────────────────── */
