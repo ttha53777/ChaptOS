@@ -367,7 +367,91 @@
   Fixture: "Mixer" is owned by the Social Chair role rather than either Maya
   or Thalha by name — drag it, open its panel, switch the Owner row's tabs.
 
+  ── THE CALENDAR (added after owner-by-role) ───────────────────────────────
+  "Calendar and Table views" were listed as OUT OF SCOPE above. Calendar is
+  now in; Table was cut from this mock rather than shipped as a stub.
+
+  The three view buttons were decorative — clicking "Calendar" moved a CSS
+  class and changed nothing. Two of the three are real now.
+
+  ── WHY A SECOND VIEW AT ALL ───────────────────────────────────────────────
+  The board sorts by COMMITMENT, and that's the right default — this whole
+  mock is an argument that a lane is a decision. But it means the board
+  cannot answer the question anyone actually brings to a calendar: what does
+  June LOOK like? A kanban column has no idea that Mixer and Beach Cleanup
+  are eleven days apart, or that the week of the 15th is empty. Same events,
+  second ordering: commitment, and time.
+
+  ── THE CONSTRAINT IT INHERITS, AND THE DESIGN THAT FALLS OUT ──────────────
+  Only Confirmed and Done are on the chapter's calendar. That is the rule the
+  dashed card edge, the publish gate, and the Timeline strip all exist to
+  state. So a calendar drawing all fifteen events as equals would quietly
+  contradict the model the rest of the page is built on — it would show the
+  chapter's calendar containing things that by definition aren't on it.
+
+  Hiding the unpublished ones instead throws away the view's one unique
+  power. "Mixer is penciled for July 2 and still isn't confirmed" is exactly
+  the fact no other surface here can show: the board sorts by stage, and the
+  Timeline strip only lists what published.
+
+  So BOTH, distinguished. A published event is SOLID; a dated-but-unpublished
+  one is a GHOST carrying the same dashed type-colored rail the private board
+  cards already use. The legend spends two words on it. This is what makes
+  "penciled in" a state you can see rather than infer, and it's why the view
+  earns its place instead of being the same data in a grid.
+
+  ── THE UNDATED RAIL ───────────────────────────────────────────────────────
+  Six of the fifteen fixture events have no date. A calendar that silently
+  omits them is lying about the slate — it would draw nine and imply that's
+  all there is. They sit in a rail beside the month that you drag FROM, which
+  is how a date gets set and the reason the rail is a source, not a list. Its
+  footer says what dating one would buy ("1 of these is waiting on nothing
+  but a date"), since that's the whole argument for dragging it.
+
+  ── WHAT A DROP DOES, AND DELIBERATELY DOESN'T ─────────────────────────────
+  A drop sets `date`. It does NOT promote. Handing an event a date often
+  COMPLETES the Confirmed set, and auto-publishing on that would put the
+  event in front of the whole chapter as a side effect of a drag aimed at a
+  calendar square — the exact silent publish every gate on the board exists
+  to prevent. The toast offers it as a button instead, the same actionable-
+  toast pattern "Confirm it first" already uses.
+
+  Dropping a PUBLISHED event on a new day is refused the same way the panel
+  refuses a frozen field: people planned around that date, so taking the
+  promise back comes first. The refusal carries MOVE TO PLANNING, and taking
+  it applies the new date too — the detour shouldn't waste the gesture.
+  Done can't be dragged at all: it already happened.
+
+  ── LAYOUT NOTES WORTH KEEPING ─────────────────────────────────────────────
+  · ROW HEIGHT FOLLOWS THE BUSIEST DAY. A fixed 104px row × 6 rows for a
+    month holding three events is a screen of empty boxes — the calendar's
+    dominant visual saying nothing. The floor is set from JS off what's
+    actually drawn, and grows when a day stacks up.
+  · ONLY THE WEEKS THE MONTH TOUCHES. June 2026 needs five rows; the sixth
+    would be seven greyed July squares. A fixed six-row grid buys stability
+    that isn't worth a whole dead band.
+  · UNDER 640px the month can't hold titles at ~50px a column, so each event
+    becomes a colored bar — solid vs dashed still carrying published vs
+    penciled — and the bar stays a real button, since tapping it is the only
+    way the day's contents are reachable at that width.
+  · applyView() is the ONE place that decides which pane is visible. It used
+    to be renderBoard(), which meant any re-render while the calendar was up
+    silently un-hid the board underneath it.
+
   ── INTERACTIONS TO TRY ────────────────────────────────────────────────────
+  · Press CALENDAR. Beach Day (Jun 18) is solid — it's confirmed. Spring
+    Banquet and Brotherhood Social are dashed: dated, but not published.
+  · Drag "Speaker Series" from the No-date-yet rail onto any June day. It
+    gets a date and stays an Idea — the toast names what it still needs.
+  · Give "Boba Fundraiser" a location in the panel, then drop it on a day →
+    the toast says that's everything it needed and offers CONFIRM IT.
+  · Drag "Beach Day" (published) to another day → refused, with MOVE TO
+    PLANNING. Take it: it leaves the Timeline and lands on the new date.
+  · Stack several events on one day → the day caps at three with "+N more",
+    and the whole grid's rows grow to fit.
+  · Set a date in the panel → the pill moves. Clear it → it returns to the
+    rail. Change a stage on the BOARD → the pill goes solid or dashed.
+  · Type chips and the search box keep filtering, whichever view is up.
   · Click any card → click any field row → it edits in place. Enter or click
     away commits; Escape reverts and keeps the panel open.
   · Open "Boba Fundraiser" → the stage sentence says "Needs date and location".
@@ -863,6 +947,163 @@
   .nomatch .nm-t { font-family: var(--serif); font-size: 19px; color: var(--ink); }
   .nomatch .nm-s { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
   .nomatch button { margin-top: 15px; }
+
+  /* ══ CALENDAR ═════════════════════════════════════════════════════════════
+     The board sorts by COMMITMENT; the calendar sorts by TIME, which is the
+     one question the board structurally cannot answer — it has no idea that
+     Mixer and Beach Cleanup are both penciled for early July.
+
+     The hard constraint it inherits: only Confirmed and Done are on the
+     chapter's calendar. Drawing all fifteen would contradict the model the
+     whole board is built on. So a dated-but-unpublished event is a GHOST —
+     the same dashed type-colored rail the private cards already use — and
+     the calendar becomes the one surface where "penciled in" is a state you
+     can see rather than infer. ════════════════════════════════════════════ */
+  .cal { margin-top: 14px; display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 14px;
+    align-items: start; }
+
+  .cal-main { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
+
+  /* Month bar — the month, how much of it is real, and the way through it. */
+  .cal-bar { display: flex; align-items: center; gap: 12px; padding: 11px 14px;
+    border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .cal-month { font-family: var(--serif); font-size: 17px; color: var(--ink); letter-spacing: -.01em; }
+  .cal-month .yr { color: var(--faint); font-size: 14px; margin-left: 5px; }
+  .cal-sum { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); }
+  .cal-sum .pub { color: var(--vio); }
+  .cal-sum .pen { color: var(--gold); }
+  .cal-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--paper); flex-shrink: 0; }
+  .cal-nav button { background: transparent; border: none; border-radius: 6px; cursor: pointer;
+    color: var(--muted); padding: 5px 9px; display: inline-flex; align-items: center;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .cal-nav button svg { width: 13px; height: 13px; }
+  .cal-nav button:hover { color: var(--ink); background: var(--card-2); }
+  .cal-nav button:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
+
+  /* Weekday rail. */
+  .cal-dow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    border-bottom: 1px solid var(--line-soft); background: var(--paper-2); }
+  .cal-dow span { padding: 7px 10px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--faint); }
+
+  /* The grid. Rows are equal so a busy week doesn't crush a quiet one into a
+     sliver — the month has to stay readable as a SHAPE.
+
+     The row FLOOR is set from JS, not fixed here: a month holding three
+     events at 104px a row is six rows of void, and a calendar whose dominant
+     visual is empty boxes has spent the page's whole remaining height saying
+     nothing. The floor grows with the busiest day instead. */
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-auto-rows: minmax(var(--row-h, 104px), auto); }
+  .cal-day { border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
+    padding: 6px 6px 7px; min-width: 0; display: flex; flex-direction: column; gap: 4px;
+    transition: background .12s; }
+  .cal-day:nth-child(7n) { border-right: none; }
+  .cal-grid > .cal-day:nth-last-child(-n+7) { border-bottom: none; }
+  /* Adjacent months are dimmed, never blank — a calendar that stops dead at
+     the 1st loses the fact that the 30th and the 2nd are three days apart. */
+  .cal-day.out { background: var(--paper-2); }
+  .cal-day.out .cd-n { color: var(--faint); opacity: .55; }
+  /* Weekends recede. Chapter events cluster on them, so the two columns that
+     matter most should be findable without counting across from Sunday. */
+  .cal-day.wknd:not(.out) { background: var(--paper-2); }
+  .cal-day.past:not(.out) { opacity: .72; }
+  .cal-day.past .cd-n { color: var(--faint); }
+  .cal-day.drop-ok { background: color-mix(in srgb, var(--vio) 9%, var(--card));
+    box-shadow: inset 0 0 0 1px var(--vio); }
+
+  .cd-h { display: flex; align-items: center; gap: 5px; min-height: 18px; }
+  .cd-n { font-family: var(--mono); font-size: 10.5px; font-variant-numeric: tabular-nums;
+    color: var(--ink-soft); flex-shrink: 0; }
+  /* Today is a filled disc, the one thing on the grid that gets a solid fill. */
+  .cal-day.today .cd-n { background: var(--vio); color: #fff; border-radius: 999px;
+    padding: 2px 6px; margin: -2px -2px -2px -3px; font-weight: 700; }
+  [data-theme="ivory"] .cal-day.today .cd-n { color: #fff; }
+  .cd-mark { margin-left: auto; font-family: var(--mono); font-size: 8px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--faint); flex-shrink: 0; }
+
+  /* ── The pill. Type on the left edge, exactly as the board card does. ──── */
+  .cev { display: flex; align-items: center; gap: 5px; border-radius: 6px; padding: 4px 6px 4px 7px;
+    background: var(--card-2); border: 1px solid var(--line-soft); border-left: 2px solid var(--tc);
+    cursor: grab; min-width: 0; text-align: left; width: 100%; font: inherit;
+    transition: border-color .12s, transform .12s, background .12s; }
+  .cev:hover { border-color: var(--vio); transform: translateX(1px); }
+  .cev:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; }
+  .cev:active { cursor: grabbing; }
+  .cev.dragging { opacity: .4; }
+  .cev .cv-t { font-size: 10.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; min-width: 0; flex: 1; }
+  .cev .cv-w { font-family: var(--mono); font-size: 8.5px; color: var(--faint); flex-shrink: 0; }
+
+  /* PENCILED IN — dated but not published. Same dashed type rail the private
+     board cards carry, for the same reason: this is not on the chapter's
+     calendar yet. The 2px solid left border is replaced by an overlaid
+     gradient so the dashes stay even (a dashed 2px border draws ragged). */
+  .cev.pencil { border-left-color: transparent; position: relative; background: transparent; }
+  .cev.pencil::before { content: ""; position: absolute; top: -1px; bottom: -1px; left: -2px; width: 2px;
+    background: repeating-linear-gradient(to bottom, var(--tc) 0 4px, transparent 4px 7px);
+    border-radius: 2px; pointer-events: none; }
+  .cev.pencil .cv-t { color: var(--muted); }
+  .cev.done { opacity: .55; }
+  .cev.done:hover { opacity: 1; }
+  .cev.mand .cv-t::after { content: "•"; color: var(--rose); margin-left: 4px; }
+  .cev.landed { animation: land .5s cubic-bezier(.2,.8,.2,1); }
+
+  .cd-more { background: transparent; border: none; cursor: pointer; text-align: left; padding: 1px 7px;
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--faint); }
+  .cd-more:hover { color: var(--vio); }
+
+  /* ── Legend. Two words, because the ghost pill is the one thing here that
+     isn't self-evident. ─────────────────────────────────────────────────── */
+  .cal-key { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 9px 14px; border-top: 1px solid var(--line-soft); background: var(--paper-2); }
+  .cal-key span { display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  /* Miniature pills, drawn the same way the real ones are — a swatch that
+     doesn't match the thing it labels is a second thing to learn. */
+  .ks { position: relative; width: 26px; height: 13px; border-radius: 4px; background: var(--card-2);
+    border: 1px solid var(--line-soft); border-left: 2px solid var(--vio); flex-shrink: 0; }
+  .ks.pencil { border-left-color: transparent; }
+  .ks.pencil::before { content: ""; position: absolute; top: -1px; bottom: -1px; left: -2px; width: 2px;
+    background: repeating-linear-gradient(to bottom, var(--gold) 0 4px, transparent 4px 7px); border-radius: 2px; }
+
+  /* ── The undated rail. Six of fifteen events have no date; a calendar that
+     silently omits them is lying about the slate. They sit HERE, and you
+     drag one onto a day to give it one — which is the calendar's native
+     gesture and the reason this rail isn't just a list. ─────────────────── */
+  .cal-side { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden; position: sticky; top: 14px; }
+  .cs-h { padding: 11px 13px 10px; border-bottom: 1px solid var(--line-soft); }
+  .cs-t { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-soft); display: flex; align-items: center; gap: 8px; }
+  .cs-t .lc { margin-left: auto; font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums;
+    color: var(--faint); background: var(--paper); border: 1px solid var(--line-soft); border-radius: 999px; padding: 1px 8px; }
+  .cs-s { margin-top: 6px; font-size: 10.5px; color: var(--muted); font-style: italic; line-height: 1.4; }
+  .cs-body { padding: 9px; display: flex; flex-direction: column; gap: 7px; max-height: 62vh; overflow-y: auto; }
+  .cs-body::-webkit-scrollbar { width: 5px; }
+  .cs-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .cs-card { border: 1px solid var(--line-soft); border-left: 2px solid var(--tc); border-radius: 9px;
+    background: var(--card-2); padding: 8px 10px; cursor: grab; min-width: 0;
+    transition: border-color .12s, transform .12s; }
+  .cs-card:hover { border-color: var(--vio); transform: translateY(-1px); }
+  .cs-card:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; }
+  .cs-card.dragging { opacity: .4; }
+  .cs-card .cc-t { font-size: 12px; font-weight: 550; color: var(--ink); line-height: 1.3;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .cs-card .cc-m { margin-top: 5px; display: flex; align-items: center; gap: 6px;
+    font-size: 10.5px; color: var(--faint); min-width: 0; }
+  .cs-card .cc-m .st { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; text-transform: uppercase;
+    border-radius: 999px; padding: 2px 6px; flex-shrink: 0; }
+  .cs-card .cc-m .st.idea { color: var(--faint); background: var(--paper); }
+  .cs-card .cc-m .st.planning { color: var(--gold); background: var(--gold-bg); }
+  .cs-empty { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); text-align: center; padding: 20px 8px; }
+  .cs-foot { padding: 9px 13px 11px; border-top: 1px solid var(--line-soft); font-size: 10.5px;
+    color: var(--faint); line-height: 1.45; }
 
   /* ── Timeline strip — confirming publishes; this is the proof. ────────── */
   .tl { margin-top: 26px; border: 1px solid var(--line); border-radius: 12px; background: var(--card);
@@ -1379,6 +1620,12 @@
     .searchbox input { width: 100%; }
     .board  { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* The rail stops being a rail and becomes a row above the month — at this
+       width a 232px column costs the grid a whole day of legibility. */
+    .cal { grid-template-columns: minmax(0, 1fr); }
+    .cal-side { position: static; order: -1; }
+    .cal-side .cs-body { flex-direction: row; flex-wrap: wrap; max-height: none; }
+    .cal-side .cs-card { flex: 1 1 190px; }
     .measure:nth-child(2) { border-right: none; }
     .measure:nth-child(-n+2) { border-bottom: 1px solid var(--line-soft); }
   }
@@ -1419,6 +1666,23 @@
     h1.greeting { font-size: 25px; }
     .panel { width: 100vw; }
     .fs-field input[type="text"] { margin-left: 0; width: 100%; }
+    /* Seven columns in 390px is ~50px a day — narrower than one pill's title.
+       The month keeps its shape but each event drops to a colored bar (solid
+       vs dashed still carries published vs penciled), and the bar stays a
+       real button: tapping it opens the same panel, which is the only way
+       the day's contents are reachable at this width. */
+    .cal-grid { grid-auto-rows: minmax(56px, auto) !important; }
+    .cal-day { padding: 4px 3px 5px; gap: 3px; }
+    .cev { padding: 4px 0; border: none; border-radius: 0; background: transparent; min-height: 0; }
+    .cev::after { content: ""; display: block; width: 100%; height: 4px; border-radius: 999px;
+      background: var(--tc); }
+    .cev:hover { transform: none; }
+    .cev.pencil::after { background: repeating-linear-gradient(to right, var(--tc) 0 3px, transparent 3px 6px); }
+    .cev.pencil::before { content: none; }
+    .cev .cv-t, .cev .cv-w { display: none; }
+    /* "Today" spelled out doesn't fit a 50px column beside the date disc. */
+    .cd-mark { display: none; }
+    .cal-day .cd-more { padding: 0; font-size: 8px; }
   }
 
   @media (pointer: coarse) {
@@ -1429,6 +1693,8 @@
     .fld { min-height: 48px; }
     .more-row { min-height: 44px; }
     .owner-opt { min-height: 44px; }
+    .cal-nav button { min-height: 44px; }
+    .cs-card { min-height: 48px; }
     .fp-opt { min-height: 44px; display: inline-flex; align-items: center; }
     .fp-add, .btn-sm { min-height: 44px; }
     .fn-kind { min-height: 44px; }
@@ -1553,9 +1819,8 @@
 
     <div class="toolbar">
       <div class="views">
-        <button class="on">Board</button>
-        <button>Calendar</button>
-        <button>Table</button>
+        <button class="on" data-view="board">Board</button>
+        <button data-view="calendar">Calendar</button>
       </div>
       <div id="typeChips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
       <span class="grow"></span>
@@ -1566,6 +1831,45 @@
     </div>
 
     <div class="board" id="board"></div>
+
+    <!-- CALENDAR. Same events, same filters, same panel — sorted by time
+         instead of by commitment. Built in JS so the month, the pills, the
+         counts and the undated rail all derive from EVENTS rather than
+         drifting from it. -->
+    <div class="cal" id="cal" hidden>
+      <div class="cal-main">
+        <div class="cal-bar">
+          <div>
+            <span class="cal-month" id="calMonth">—</span>
+          </div>
+          <span class="cal-sum" id="calSum">—</span>
+          <div class="cal-nav">
+            <button id="calPrev" aria-label="Previous month">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button id="calToday">Today</button>
+            <button id="calNext" aria-label="Next month">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="cal-dow" id="calDow"></div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-key">
+          <span><i class="ks"></i> On the chapter calendar</span>
+          <span><i class="ks pencil"></i> Penciled in — not published</span>
+        </div>
+      </div>
+
+      <aside class="cal-side">
+        <div class="cs-h">
+          <div class="cs-t">No date yet <span class="lc" id="csCount">0</span></div>
+          <p class="cs-s">Drop one on a day to set its date.</p>
+        </div>
+        <div class="cs-body" id="csBody"></div>
+        <p class="cs-foot" id="csFoot"></p>
+      </aside>
+    </div>
 
     <div class="nomatch" id="nomatch" style="display:none">
       <p class="nm-t">No events match.</p>
@@ -2667,9 +2971,21 @@ function cardHTML(e) {
   </div>`;
 }
 
-function renderBoard() {
+/* Which pane is on screen. The view buttons used to only swap a CSS class
+   on themselves, so "Calendar" was a control that changed nothing — this
+   makes both real.
+
+   `applyView()` is the ONE place that decides what's visible, because the
+   no-matches state is shared: a filter that empties the slate has to hide
+   whichever pane is up, and having renderBoard() own `display` (as it did)
+   meant re-rendering the board while the calendar was up would silently
+   un-hide the board underneath it. */
+let view = "board";
+function applyView() {
   const any = EVENTS.some(visible);
-  board.style.display = any ? "" : "none";
+  const calEl = document.getElementById("cal");
+  board.style.display = view === "board" && any ? "" : "none";
+  calEl.hidden = !(view === "calendar" && any);
   document.getElementById("nomatch").style.display = any ? "none" : "";
   if (!any) {
     const bits = [];
@@ -2678,6 +2994,10 @@ function renderBoard() {
     document.getElementById("nmSub").textContent =
       `Nothing on the slate matches ${bits.join(" + ")}. All ${EVENTS.length} events are still there.`;
   }
+}
+
+function renderBoard() {
+  applyView();
 
   board.innerHTML = STAGES.map(s => {
     let list = EVENTS.filter(e => e.stage === s.id && visible(e));
@@ -2708,6 +3028,11 @@ function renderBoard() {
   renderTimeline();
   renderGlance();
   renderStatus();
+  /* Every mutation in this mock already funnels through renderBoard(), so
+     redrawing the calendar here is what keeps a date set in the panel, a
+     stage moved by drag, and a filter toggled in the toolbar all landing on
+     the month without any of them having to know the calendar exists. */
+  renderCalendar();
 }
 
 /* ── One status line, derived. ────────────────────────────────────────── */
@@ -2795,6 +3120,296 @@ function renderTimeline() {
     setTimeout(draw, 300);
   } else draw();
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE CALENDAR
+
+   The board sorts by COMMITMENT. That is the right default — the whole mock
+   is an argument that a lane is a decision — but it means the board cannot
+   answer the one question anyone actually asks a calendar: what does June
+   LOOK like? Nothing on a kanban board knows that Mixer and Beach Cleanup
+   are eleven days apart, or that the week of the 15th is empty.
+
+   ── THE CONSTRAINT IT INHERITS ─────────────────────────────────────────
+   Only Confirmed and Done are on the chapter's calendar. That's the rule the
+   dashed card edge, the Timeline strip, and the whole publish gate exist to
+   state. A calendar view that drew all fifteen events as equals would
+   quietly contradict the model the rest of the page is built on — it would
+   show the chapter's calendar containing things that are, by definition, not
+   on it.
+
+   But hiding the unpublished dated events instead throws away the calendar's
+   one unique power. "Mixer is penciled for July 2 and still isn't confirmed"
+   is precisely the fact no other surface here can show, because the board
+   sorts by stage and the Timeline strip only lists what published.
+
+   So both, distinguished: a published event is SOLID, a dated-but-
+   unpublished one is a GHOST carrying the same dashed type-colored rail the
+   private board cards already use. The legend spends two words on it. This
+   makes "penciled in" a visible state rather than an inferred one, and it is
+   the reason this view earns its place next to the board rather than being
+   the same data in a grid.
+
+   ── THE UNDATED RAIL ───────────────────────────────────────────────────
+   Six of the fifteen fixture events have no date. A calendar that silently
+   omits them is lying about the slate — it would show nine events and imply
+   that's all there is. They sit in a rail beside the month, and you drag one
+   onto a day to give it a date, which is the calendar's native gesture and
+   the reason the rail is a source rather than a list.
+
+   ── WHAT A DROP DOES, AND DELIBERATELY DOESN'T ─────────────────────────
+   Dropping on a day sets `date`. It does NOT promote. Handing an event a
+   date can complete the Confirmed set, and auto-publishing on that would
+   put an event in front of the whole chapter as a side effect of a drag
+   aimed at a calendar square — the exact silent publish the board's gates
+   exist to prevent. Instead the toast says it's now ready and offers the
+   promotion as a button, which is the same actionable-toast pattern the
+   board already uses for "Confirm it first".
+
+   Dragging a DONE event to a new date is refused: it already happened, and
+   the date is part of the record — the same rule that makes Done's fields
+   read-only with no way back.
+   ════════════════════════════════════════════════════════════════════════ */
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/* The month on screen, as a first-of-month Date. Starts on TODAY's month. */
+let calCursor = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+/* Days the user expanded past the 3-pill cap, keyed by ISO date. */
+let calExpanded = new Set();
+
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const publishes = e => e.stage === "confirmed" || e.stage === "done";
+
+function renderCalendar() {
+  const grid = document.getElementById("calGrid");
+  if (!grid) return;
+
+  document.getElementById("calDow").innerHTML = DOW.map(d => `<span>${d}</span>`).join("");
+  document.getElementById("calMonth").innerHTML =
+    `${calCursor.toLocaleDateString("en-US", { month: "long" })}<span class="yr">${calCursor.getFullYear()}</span>`;
+
+  /* Only the weeks this month actually touches. A fixed six-row grid keeps
+     the page from jumping on a nav click, but June 2026 needs five — and the
+     sixth row would be seven greyed July squares, a whole band of the page
+     spent on a month you aren't looking at. Stability isn't worth that; the
+     header and the nav stay put either way. */
+  const first = new Date(calCursor.getFullYear(), calCursor.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(1 - first.getDay());
+  const last = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 0);
+  const weeks = Math.ceil((first.getDay() + last.getDate()) / 7);
+
+  const dated = EVENTS.filter(e => e.date && visible(e));
+  const byDay = {};
+  dated.forEach(e => (byDay[e.date] ||= []).push(e));
+  /* Published first inside a day, then by title — so the things the chapter
+     has actually been told about sit at the top of the square. */
+  Object.values(byDay).forEach(list => list.sort((a, b) =>
+    (publishes(b) - publishes(a)) || (a.title < b.title ? -1 : 1)));
+
+  const cells = [];
+  let busiest = 0;
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = iso(d);
+    const out = d.getMonth() !== calCursor.getMonth();
+    const isToday = key === iso(TODAY);
+    const list = byDay[key] || [];
+    const open = calExpanded.has(key);
+    const shown = open ? list : list.slice(0, 3);
+    const hidden = list.length - shown.length;
+    /* Counted from what's actually DRAWN in the visible weeks — an expanded
+       day is taller, and a busy day in a month you're not looking at
+       shouldn't set the height of the one you are. */
+    busiest = Math.max(busiest, shown.length + (hidden > 0 ? 1 : 0));
+
+    cells.push(`<div class="cal-day ${out ? "out" : ""} ${isToday ? "today" : ""}
+        ${d < TODAY && !isToday ? "past" : ""} ${d.getDay() === 0 || d.getDay() === 6 ? "wknd" : ""}"
+        data-day="${key}">
+      <div class="cd-h">
+        <span class="cd-n">${d.getDate()}</span>
+        ${isToday ? `<span class="cd-mark">Today</span>` : ""}
+      </div>
+      ${shown.map(e => calPill(e)).join("")}
+      ${hidden > 0 ? `<button class="cd-more" data-more-day="${key}">+${hidden} more</button>` : ""}
+    </div>`);
+  }
+  /* The row floor follows the busiest day. A quiet month shouldn't spend six
+     tall bands of the page saying "nothing happened" — but a busy one still
+     needs the room, so the floor grows rather than being clamped low. */
+  grid.style.setProperty("--row-h", `${Math.max(62, 32 + busiest * 25)}px`);
+  grid.innerHTML = cells.join("");
+
+  /* The month summary counts what's IN this month, which is the number the
+     header is actually about — not the whole slate. */
+  const inMonth = dated.filter(e => {
+    const d = new Date(e.date + "T00:00:00");
+    return d.getMonth() === calCursor.getMonth() && d.getFullYear() === calCursor.getFullYear();
+  });
+  const pub = inMonth.filter(publishes).length;
+  const pen = inMonth.length - pub;
+  document.getElementById("calSum").innerHTML = inMonth.length
+    ? `<span class="pub">${pub} published</span>${pen ? ` · <span class="pen">${pen} penciled in</span>` : ""}`
+    : `Nothing this month`;
+
+  renderUndated();
+  wireCalendar();
+}
+
+function calPill(e) {
+  const c = typeColor(e.type);
+  const pencil = !publishes(e);
+  const t = shortTitle(e.title);
+  return `<button class="cev ${pencil ? "pencil" : ""} ${e.stage === "done" ? "done" : ""} ${e.mandatory ? "mand" : ""}"
+      draggable="true" data-id="${e.id}" style="--tc:${c}"
+      title="${esc(t)}${e.location ? " · " + esc(e.location) : ""} — ${esc(STAGES.find(s => s.id === e.stage).label)}">
+    <span class="cv-t">${esc(t)}</span>
+  </button>`;
+}
+
+/* The undated rail — the events a month grid has no square for. */
+function renderUndated() {
+  const body = document.getElementById("csBody");
+  const list = EVENTS.filter(e => !e.date && visible(e));
+  document.getElementById("csCount").textContent = list.length;
+  body.innerHTML = list.length ? list.map(e => `
+    <div class="cs-card" draggable="true" data-id="${e.id}" tabindex="0" role="button"
+         style="--tc:${typeColor(e.type)}">
+      <div class="cc-t">${esc(e.title)}</div>
+      <div class="cc-m">
+        <span class="st ${e.stage}">${esc(STAGES.find(s => s.id === e.stage).label)}</span>
+        <span>${e.owner ? esc(ownerShortLabel(e.owner)) : "No owner"}</span>
+      </div>
+    </div>`).join("") : `<p class="cs-empty">Everything has a date</p>`;
+
+  /* Say what dating one BUYS, since that's the whole reason to drag it. */
+  const ready = list.filter(e => e.stage === "planning" &&
+    missingFor(e, "confirmed").every(f => f.key === "date")).length;
+  document.getElementById("csFoot").textContent = !list.length
+    ? "Every event on the slate is on the month."
+    : ready
+      ? `${ready} of these ${ready === 1 ? "is" : "are"} waiting on nothing but a date.`
+      : "A date alone won't confirm them — they're missing other fields too.";
+}
+
+/* ── Calendar wiring. Drag a pill or a rail card onto a day to set its
+   date; click either to open the same panel the board opens. ──────────── */
+let calDragId = null;
+function wireCalendar() {
+  const grid = document.getElementById("calGrid");
+
+  document.querySelectorAll(".cev, .cs-card").forEach(el => {
+    const id = Number(el.dataset.id);
+    el.addEventListener("dragstart", ev => {
+      calDragId = id;
+      el.classList.add("dragging");
+      ev.dataTransfer.effectAllowed = "move";
+      try { ev.dataTransfer.setData("text/plain", String(id)); } catch {}
+    });
+    el.addEventListener("dragend", () => {
+      el.classList.remove("dragging");
+      grid.querySelectorAll(".drop-ok").forEach(d => d.classList.remove("drop-ok"));
+      calDragId = null;
+    });
+    el.addEventListener("click", () => openPanel(id));
+    if (el.classList.contains("cs-card")) {
+      el.addEventListener("keydown", ev => {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openPanel(id); }
+      });
+    }
+  });
+
+  grid.querySelectorAll(".cal-day").forEach(day => {
+    day.addEventListener("dragover", ev => {
+      if (calDragId == null) return;
+      const e = EVENTS.find(x => x.id === calDragId);
+      /* Done is the record. Its date isn't a plan you can move. */
+      if (!e || e.stage === "done" || e.date === day.dataset.day) return;
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "move";
+      day.classList.add("drop-ok");
+    });
+    day.addEventListener("dragleave", ev => {
+      if (!day.contains(ev.relatedTarget)) day.classList.remove("drop-ok");
+    });
+    day.addEventListener("drop", ev => {
+      ev.preventDefault();
+      const id = calDragId ?? Number(ev.dataTransfer.getData("text/plain"));
+      grid.querySelectorAll(".drop-ok").forEach(d => d.classList.remove("drop-ok"));
+      calDragId = null;
+      if (id != null) setDateByDrop(id, day.dataset.day);
+    });
+  });
+
+  grid.querySelectorAll("[data-more-day]").forEach(b => b.addEventListener("click", ev => {
+    ev.stopPropagation();
+    calExpanded.add(b.dataset.moreDay);
+    renderCalendar();
+  }));
+}
+
+/* A drop sets the DATE. It never promotes — see the header above. */
+function setDateByDrop(id, day) {
+  const e = EVENTS.find(x => x.id === id);
+  if (!e || e.stage === "done" || e.date === day) return;
+
+  /* A published event's date is a promise the chapter already read and
+     planned around. Same rule the panel enforces on every frozen field:
+     you take the promise back first, then you change it. */
+  if (publishes(e)) {
+    toastAction(
+      `<b>${esc(shortTitle(e.title))}</b> is on the chapter Timeline — people planned around ${esc(fmtDate(e.date))}. Moving it takes that back first.`,
+      "Move to Planning",
+      () => {
+        e.stage = "planning";
+        setField(e, "date", day);
+        renderBoard();
+        if (panelId === e.id) openPanel(e.id);
+        flashCal(e.id);
+        toast(`<b>${esc(shortTitle(e.title))}</b> came off the Timeline and moved to ${esc(fmtDate(day))}.`);
+      });
+    return;
+  }
+
+  const had = e.date;
+  setField(e, "date", day);
+  if (panelId === e.id) openPanel(e.id);
+  renderBoard();
+  flashCal(e.id);
+
+  /* Setting a date can complete the Confirmed set. Publishing on that
+     automatically would put the event in front of the whole chapter as a
+     side effect of a drag aimed at a square — so the toast offers it. */
+  if (e.stage === "planning" && canEnter(e, "confirmed")) {
+    toastAction(
+      `<b>${esc(shortTitle(e.title))}</b> is set for ${esc(fmtDate(day))} — that's everything it needed.`,
+      "Confirm it",
+      () => attemptMove(e.id, "confirmed"));
+  } else {
+    const miss = missingFor(e, "confirmed").filter(f => f.key !== "date");
+    toast(had
+      ? `<b>${esc(shortTitle(e.title))}</b> moved to ${esc(fmtDate(day))}.`
+      : `<b>${esc(shortTitle(e.title))}</b> is penciled for ${esc(fmtDate(day))}${miss.length ? ` — still needs ${esc(miss.map(f => f.label.toLowerCase()).join(" + "))}` : ""}.`);
+  }
+}
+
+function flashCal(id) {
+  const el = document.querySelector(`.cev[data-id="${id}"]`);
+  if (el) { el.classList.add("landed"); setTimeout(() => el.classList.remove("landed"), 520); }
+}
+
+/* Month nav. Jumping months keeps the filters and the rail — it's the same
+   slate, seen from a different window onto it. */
+function calGo(delta) {
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + delta, 1);
+  renderCalendar();
+}
+document.getElementById("calPrev").addEventListener("click", () => calGo(-1));
+document.getElementById("calNext").addEventListener("click", () => calGo(1));
+document.getElementById("calToday").addEventListener("click", () => {
+  calCursor = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
+  renderCalendar();
+});
 
 /* ════════════════════════════════════════════════════════════════════════
    DRAG — a blocked drop opens the fix-step for THAT gate. Never a toast.
@@ -4212,9 +4827,16 @@ function toastAction(html, label, fn) {
 const mo = new MutationObserver(() => { renderChips(); renderBoard(); if (panelId != null) openPanel(panelId); });
 mo.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
 
+/* The view switcher, made real. Board and Calendar are two orderings of one
+   slate — commitment and time — so switching re-renders rather than
+   re-fetching, and the type chips and the search box keep applying to
+   whichever is up. */
 document.querySelectorAll(".views button").forEach(b => b.addEventListener("click", () => {
   document.querySelectorAll(".views button").forEach(x => x.classList.remove("on"));
   b.classList.add("on");
+  view = b.dataset.view;
+  if (view === "calendar") renderCalendar();
+  applyView();
 }));
 
 renderChips();
