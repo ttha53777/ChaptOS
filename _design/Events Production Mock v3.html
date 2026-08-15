@@ -1121,6 +1121,24 @@
     transition: opacity .2s, transform .2s; max-width: calc(100vw - 32px); }
   .toast.show { opacity: 1; transform: translateX(-50%); }
   .toast b { color: var(--vio); font-weight: 600; }
+  /* An actionable toast carries its own fix, so it needs to lay out as a row
+     and stay clickable — the base toast is pointer-events:none.
+     The sentence needs an explicit width basis: without one the button (which
+     must not shrink) wins the space, crushing the text into a 195px column
+     295px tall and pushing its own edge past the toast's. */
+  .toast:has(.toast-go) { display: flex; align-items: center; gap: 13px; pointer-events: auto;
+    width: max-content; max-width: calc(100vw - 32px); }
+  .toast:has(.toast-go) > span { flex: 1 1 auto; min-width: 0; }
+  .toast-go { flex: 0 0 auto; cursor: pointer; background: var(--vio); border: 1px solid var(--vio);
+    border-radius: 8px; color: var(--paper); font-family: var(--mono); font-size: 9px; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; padding: 7px 12px; min-height: 32px; }
+  .toast-go:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+  /* Narrow: side by side leaves the sentence three words a line, so the
+     action drops beneath it and spans the width. */
+  @media (max-width: 560px) {
+    .toast:has(.toast-go) { flex-direction: column; align-items: stretch; gap: 10px; width: auto; }
+    .toast-go { width: 100%; }
+  }
 
   /* ── Responsive ───────────────────────────────────────────────────────── */
   @media (max-width: 1180px) {
@@ -3169,6 +3187,23 @@ function toast(html) {
   toastEl.classList.add("show");
   clearTimeout(toastT);
   toastT = setTimeout(() => toastEl.classList.remove("show"), 4200);
+}
+
+/* A toast that carries the fix. Telling someone "move it back to Planning"
+   and making them go find the control is two steps where one will do — the
+   sentence and the button that performs it belong in the same place.
+   Held longer than a plain toast, because this one has to be READ and then
+   acted on, not just noticed. */
+function toastAction(html, label, fn) {
+  toastEl.innerHTML = `<span>${html}</span><button class="toast-go">${esc(label)}</button>`;
+  toastEl.querySelector(".toast-go").addEventListener("click", () => {
+    toastEl.classList.remove("show");
+    clearTimeout(toastT);
+    fn();
+  });
+  toastEl.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => toastEl.classList.remove("show"), 7000);
 }
 
 /* Retheming rebuilds the type-color-driven bits. */
