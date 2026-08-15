@@ -912,6 +912,33 @@
     color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 9px; padding: 10px 16px; }
   .btn-ghost:hover { color: var(--ink); border-color: var(--vio); }
 
+  /* ── The wrap-up step's own controls ─────────────────────────────────── */
+  .wr-stars { display: flex; gap: 4px; }
+  .wr-stars button { width: 40px; height: 40px; display: grid; place-items: center; cursor: pointer;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 9px; color: var(--faint);
+    font-size: 19px; line-height: 1; transition: border-color .12s, color .12s, background .12s, transform .1s; }
+  .wr-stars button:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
+  .wr-stars button.on { border-color: var(--gold); background: var(--gold-bg); color: var(--gold); }
+  .wr-notes { width: 100%; min-height: 92px; resize: vertical; margin-top: 10px;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 9px; color: var(--ink);
+    font-family: var(--sans); font-size: 12.5px; line-height: 1.5; padding: 10px 12px; }
+  .wr-notes:focus { outline: none; border-color: var(--vio); }
+  .wr-notes::placeholder { color: var(--faint); }
+  #wrRemain { color: var(--faint); }
+  #wrRemain.ready { color: var(--ok); }
+
+  /* ── The wrap-up record, read in the panel once an event is Done. ─────── */
+  .pn-wrap { margin: 0 22px 18px; border: 1px solid var(--ok-bg); background: var(--ok-bg); border-radius: 11px;
+    padding: 13px 15px; }
+  .pn-wrap .pw-head { display: flex; align-items: center; gap: 8px; }
+  .pn-wrap .pw-k { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ok); }
+  .pn-wrap .pw-stars { margin-left: auto; color: var(--gold); font-size: 13px; letter-spacing: 1px; }
+  .pn-wrap .pw-stars .off { color: var(--faint); opacity: .45; }
+  .pn-wrap .pw-none { font-size: 11.5px; color: var(--faint); font-style: italic; }
+  .pn-wrap .pw-notes { margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere; }
+  .pn-wrap .pw-nonotes { margin-top: 8px; font-size: 11.5px; color: var(--faint); font-style: italic; }
+
   /* ── The panel. One list of fields: required, then optional. ──────────── */
   .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(430px, 100vw); z-index: 95;
     background: var(--card); border-left: 1px solid var(--line); box-shadow: -24px 0 60px -40px rgba(0,0,0,.9);
@@ -1421,6 +1448,31 @@
       <span class="sp"></span>
       <button class="btn-ghost" id="fsCancel">Cancel</button>
       <button class="btn-primary" id="fsGo" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- The wrap-up step. Confirmed → Done is the one drag with no fields to
+     collect and something new to ask instead: how'd it go. Same shell as the
+     fix-step so it reads as the same kind of moment, not a different feature. -->
+<div class="scrim" id="wrapScrim">
+  <div class="fixstep" role="dialog" aria-modal="true" aria-labelledby="wrTitle">
+    <div class="fs-head">
+      <div class="fs-k" style="color:var(--ok)">Wrap up this event</div>
+      <h3 id="wrTitle">—</h3>
+      <p>It happened — this is what goes on the record. Both are optional, but a rating is what shows up on the card.</p>
+    </div>
+    <div class="fs-body">
+      <div class="fs-lbl">How'd it go</div>
+      <div class="wr-stars" id="wrStars" role="radiogroup" aria-label="Rating"></div>
+      <div class="fs-lbl spaced">Review notes</div>
+      <textarea id="wrNotes" class="wr-notes" placeholder="Turnout, what to redo, what to skip next time…" maxlength="500"></textarea>
+    </div>
+    <div class="fs-foot">
+      <span class="remain" id="wrRemain">No rating yet</span>
+      <span class="sp"></span>
+      <button class="btn-ghost" id="wrCancel">Leave in Confirmed</button>
+      <button class="btn-primary" id="wrGo">Mark as done</button>
     </div>
   </div>
 </div>
@@ -2410,6 +2462,10 @@ function attemptMove(id, stage) {
   /* THE gates. Demotion is always free — you can always park something. */
   const forward = GATE_ORDER.indexOf(stage) > GATE_ORDER.indexOf(e.stage);
   if (forward && !canEnter(e, stage)) { openFix(e, stage); return; }
+  /* Confirmed → Done has nothing missing to collect — it's the one gate
+     that asks something NEW instead: how it went. Same "one step" pattern,
+     different question. */
+  if (stage === "done") { openWrap(e); return; }
   const wasPublic = e.stage === "confirmed" || e.stage === "done";
   const willPublic = stage === "confirmed" || stage === "done";
   e.stage = stage;
@@ -2522,6 +2578,63 @@ document.getElementById("fsGo").addEventListener("click", () => {
   flashCard(e.id);
   if (stage === "confirmed") toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
   else toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(e.owner.n)}'s now. Still officers-only.`);
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE WRAP-UP STEP — Confirmed → Done, from either the board drag or the
+   panel's stage control. Nothing is missing at this gate (Confirmed already
+   required everything), so instead of collecting fields it collects the
+   record: a rating and review notes. Both optional, because a chapter
+   should be able to close an event out without stopping to grade it — but
+   the star picker is what the card and the Done lane actually show, so the
+   footer says plainly when none is set rather than silently defaulting one.
+   ════════════════════════════════════════════════════════════════════════ */
+const wrapScrim = document.getElementById("wrapScrim");
+let wrapEvent = null, wrapStars = 0;
+
+function openWrap(e) {
+  wrapEvent = e;
+  wrapStars = 0;
+  document.getElementById("wrTitle").textContent = e.title;
+  document.getElementById("wrNotes").value = "";
+  drawWrapStars();
+  syncWrapFoot();
+  wrapScrim.classList.add("open");
+  document.getElementById("wrCancel").focus();
+}
+function drawWrapStars() {
+  const box = document.getElementById("wrStars");
+  box.innerHTML = [1, 2, 3, 4, 5].map(n => `<button type="button" class="${n <= wrapStars ? "on" : ""}"
+    data-star="${n}" role="radio" aria-checked="${n === wrapStars}" aria-label="${n} star${n === 1 ? "" : "s"}">★</button>`).join("");
+  box.querySelectorAll("[data-star]").forEach(b => b.addEventListener("click", () => {
+    /* Clicking the star that's already the rating clears it, so a
+       misclick has a way back besides picking a different number. */
+    const n = Number(b.dataset.star);
+    wrapStars = wrapStars === n ? 0 : n;
+    drawWrapStars();
+    syncWrapFoot();
+  }));
+}
+function syncWrapFoot() {
+  const rem = document.getElementById("wrRemain");
+  rem.textContent = wrapStars ? `Rated ${wrapStars}/5` : "No rating yet";
+  rem.classList.toggle("ready", wrapStars > 0);
+}
+function closeWrap() { wrapScrim.classList.remove("open"); wrapEvent = null; }
+document.getElementById("wrCancel").addEventListener("click", closeWrap);
+wrapScrim.addEventListener("click", ev => { if (ev.target === wrapScrim) closeWrap(); });
+document.getElementById("wrGo").addEventListener("click", () => {
+  const e = wrapEvent;
+  const notes = document.getElementById("wrNotes").value.trim();
+  if (wrapStars) e.stars = wrapStars; else delete e.stars;
+  if (notes) e.f.reviewNotes = notes; else delete e.f.reviewNotes;
+  const wasPublic = e.stage === "confirmed" || e.stage === "done";
+  e.stage = "done";
+  closeWrap();
+  renderBoard();
+  flashCard(e.id);
+  if (panelId === e.id) openPanel(e.id);
+  toast(`<b>${esc(shortTitle(e.title))}</b> is wrapped${wrapStars ? ` · rated ${wrapStars}/5` : ""}. ${wasPublic ? "Still on the record for the chapter." : ""}`);
 });
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -2800,6 +2913,22 @@ function composerHTML() {
   </div>`;
 }
 
+/* What the wrap-up step collected, read back once an event is Done. There's
+   no pencil here — Done has no way back (openWrap is the only writer), same
+   as every other frozen field, so this is a record, not another editor. */
+function wrapRecordHTML(e) {
+  const stars = e.stars
+    ? `<span class="pw-stars">${"★".repeat(e.stars)}<span class="off">${"★".repeat(5 - e.stars)}</span></span>`
+    : `<span class="pw-none">Not rated</span>`;
+  const notes = e.f?.reviewNotes
+    ? `<p class="pw-notes">${esc(e.f.reviewNotes)}</p>`
+    : `<p class="pw-nonotes">No review notes.</p>`;
+  return `<div class="pn-wrap">
+    <div class="pw-head"><span class="pw-k">Wrap-up</span>${stars}</div>
+    ${notes}
+  </div>`;
+}
+
 function openPanel(id) {
   const e = EVENTS.find(x => x.id === id);
   if (!e) return;
@@ -2841,6 +2970,8 @@ function openPanel(id) {
     </div>
 
     ${stageControlHTML(e)}
+
+    ${e.stage === "done" ? wrapRecordHTML(e) : ""}
 
     <div class="pn-sec">
       <div class="ps-head">
@@ -3191,6 +3322,7 @@ function wireStageControl(e) {
        modal stays for the DRAG, where you're on the board and the panel isn't
        open; here, the fields are already in front of you. */
     if (forward && miss.length) { openEditor(miss[0].key, true); return; }
+    if (to === "done") { openWrap(e); return; }
     const wasPublic = e.stage === "confirmed" || e.stage === "done";
     const willPublic = to === "confirmed" || to === "done";
     e.stage = to;
