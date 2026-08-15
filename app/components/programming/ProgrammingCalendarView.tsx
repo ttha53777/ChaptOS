@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ProgrammingTask } from "../../data";
-import { TYPE_DOT } from "./PrepStatusPill";
+import { TYPE_DOT } from "./ProgrammingChips";
 import { todayStr } from "../../lib/dates";
 
 const MONTH_NAMES = [

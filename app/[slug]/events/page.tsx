@@ -25,9 +25,15 @@ import {
   eventsTermStats,
   isProgrammingManagedType,
   nextOnDeckEvent,
-  programmingPrepChecks,
+  attentionLabel,
+  fieldsFor,
+  hasRequiredField,
+  missingFor,
   type AttentionEntry,
+  type RequiredField,
 } from "@/lib/programming";
+import { ownerLabel } from "@/lib/event-owner";
+import { STAGE_LABELS } from "@/lib/state/programming-stage";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
 import "./events-ledger.css";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -195,8 +201,11 @@ export default function ProgrammingPage() {
 
   const patchEvent = useCallback(async (id: number, patch: ApiPatch) => {
     syncEvents(prev => prev.map(e => e.id === id ? { ...e, ...patch } as ProgrammingTask : e));
-    // `checklist` is a client-only optimistic field; never PATCH it to /api/programming.
-    const { checklist: _checklist, ...rest } = patch;
+    // Read-only DTO fields the server RESOLVES rather than accepts: `owner` is a
+    // person-or-role object built from the FK pair (set it with ownerBrotherId /
+    // ownerRoleId), `ownerNote` is retired migration data, and `type` is the
+    // category's display label. PATCHing any of them would 400 on the schema.
+    const { owner: _owner, ownerNote: _ownerNote, type: _type, ...rest } = patch;
     if (Object.keys(rest).length === 0) return;
     try {
       const saved = await requestJson<ProgrammingTask>(`/api/programming/${id}`, {
@@ -215,8 +224,11 @@ export default function ProgrammingPage() {
   const moveStage = useCallback(async (id: number, stage: ProgrammingStage): Promise<boolean> => {
     const target = events.find(e => e.id === id);
     if (!target) return false;
-    if (stage !== "idea" && !target.dueDate) {
-      // Promoting out of Idea needs a date — ask for one first.
+    // A date is what CONFIRMING costs, not what leaving Idea costs. Planning asks
+    // for an owner and nothing else — "somebody is accountable for this" is worth
+    // recording before a date exists, and demanding one here would pop a modal
+    // the server would not have asked for.
+    if ((stage === "confirmed" || stage === "done") && !target.dueDate) {
       setPromotePrompt({ id, stage });
       return false;
     }
@@ -429,10 +441,10 @@ export default function ProgrammingPage() {
                     label="Next 14 days"
                     value={String(stats.next14)}
                     unit={stats.next14 === 1 ? " event" : " events"}
-                    note={stats.next14NeedRoom > 0
-                      ? `${stats.next14NeedRoom} need${stats.next14NeedRoom === 1 ? "s" : ""} a room booked`
-                      : "all rooms handled"}
-                    noteWarn={stats.next14NeedRoom > 0}
+                    note={stats.next14Unready > 0
+                      ? `${stats.next14Unready} can't be confirmed yet`
+                      : "all confirmed or ready to be"}
+                    noteWarn={stats.next14Unready > 0}
                   />
                   <Measure
                     label="Avg success"
@@ -529,15 +541,15 @@ export default function ProgrammingPage() {
                         <p className="lbl">Needs attention · before its date</p>
                         <div className="ev-attn">
                           {attention.length === 0 ? (
-                            <p className="a-empty">Everything's prepped — nice work.</p>
-                          ) : attention.map(({ task, reason, tone }) => (
-                            <button key={task.id} className="a-row" onClick={() => selectCard(task.id)}>
-                              <span className={`a-flag ${tone}`} />
+                            <p className="a-empty">Nothing's waiting on anyone — nice work.</p>
+                          ) : attention.map(entry => (
+                            <button key={entry.task.id} className="a-row" onClick={() => selectCard(entry.task.id)}>
+                              <span className={`a-flag ${entry.tone}`} />
                               <div className="a-main">
-                                <div className="a-t">{task.title}</div>
-                                <div className={`a-need ${tone}`}>{attnReason(reason)}</div>
+                                <div className="a-t">{entry.task.title}</div>
+                                <div className={`a-need ${entry.tone}`}>{attnReason(entry)}</div>
                               </div>
-                              <span className="a-when">{whenLabel(task.dueDate, today)}</span>
+                              <span className="a-when">{whenLabel(entry.task.dueDate, today)}</span>
                             </button>
                           ))}
                         </div>
@@ -677,7 +689,7 @@ function PromoteDateModal({ onConfirm, onCancel, minDate, maxDate }: {
         onSubmit={e => { e.preventDefault(); if (date) onConfirm(date); }}
         className="space-y-4"
       >
-        <p className="text-[12px] text-[#958d7c]">Pick a date to move this event out of the Idea backlog. Scheduling it adds it to the chapter timeline, where brothers can see it.</p>
+        <p className="text-[12px] text-[#958d7c]">Confirming publishes this event to the chapter&apos;s timeline, so it needs a real date. It also needs a location — set that on the event itself.</p>
         <input
           type="date"
           value={date}
@@ -726,10 +738,9 @@ function digestWhen(dueDate: string | null, today: string): string {
   return fmtDate(dueDate);
 }
 
-function attnReason(reason: AttentionEntry<ProgrammingTask>["reason"]): string {
-  if (reason === "room") return "Room not booked";
-  if (reason === "flyer") return "Flyer not posted";
-  return "Prep incomplete";
+/** The rail's blocker sentence — the gap NAMED, not a count of prep items. */
+function attnReason(entry: AttentionEntry<ProgrammingTask>): string {
+  return attentionLabel(entry);
 }
 
 /** The AI digest sentence under the briefing — derived, not a live model call. */
@@ -744,31 +755,47 @@ function briefingDigest(
   const lead = `${onDeck.title} is up first — ${digestWhen(onDeck.dueDate, today)}.`;
   const blocker = attention.find(a => a.task.id === onDeck.id);
   if (blocker) {
-    return `${lead} ${attnReason(blocker.reason)} — that's the one thing standing between you and a clear slate.`;
+    return `${lead} ${attnReason(blocker)} — that's the one thing standing between you and a clear slate.`;
   }
   const others = attention.length;
   if (others > 0) {
-    return `${lead} It's fully prepped, but ${others} other ${others === 1 ? "event" : "events"} still need attention before their date.`;
+    return `${lead} It's ready, but ${others} other ${others === 1 ? "event" : "events"} still need someone or a missing detail.`;
   }
-  return `${lead} Everything on the slate is prepped and on track.`;
+  return `${lead} Everything on the slate is owned and on track.`;
 }
 
-/** Contextual hero CTA: label reflects the top blocker; all open the inspector. */
-function heroCta(checks: ReturnType<typeof programmingPrepChecks>): { label: string; icon: "room" | "flyer" | "check" } {
-  const room = checks.find(c => c.key === "room");
-  const flyer = checks.find(c => c.key === "flyer");
-  if (room && !room.done) return { label: "Book the room", icon: "room" };
-  if (flyer && !flyer.done) return { label: "Post the flyer", icon: "flyer" };
-  return { label: "Open checklist", icon: "check" };
+/**
+ * The lane this event is trying to enter next, and what it still owes to get
+ * there. Null once an event is Confirmed or Done — those are settled, and the
+ * hero has nothing to ask for.
+ */
+function heroGate(event: ProgrammingTask): { next: ProgrammingStage; missing: RequiredField[] } | null {
+  const next: ProgrammingStage | null =
+    event.stage === "idea" ? "planning" : event.stage === "planning" ? "confirmed" : null;
+  return next ? { next, missing: missingFor(event, next) } : null;
+}
+
+/** Contextual hero CTA: names the first missing FIELD; all open the inspector. */
+function heroCta(gate: ReturnType<typeof heroGate>): { label: string; icon: "owner" | "date" | "check" } {
+  const first = gate?.missing[0];
+  if (first?.key === "owner")    return { label: "Give it an owner", icon: "owner" };
+  if (first?.key === "date")     return { label: "Set the date", icon: "date" };
+  if (first?.key === "location") return { label: "Set the location", icon: "date" };
+  return { label: "Open event", icon: "check" };
 }
 
 function OnDeckHero({ event, today, onOpen }: { event: ProgrammingTask; today: string; onOpen: () => void }) {
-  const checks = programmingPrepChecks(event);
+  const gate = heroGate(event);
+  const cta = heroCta(gate);
+  // Every required field for the lane it's reaching for, answered or not — so
+  // the hero shows the whole bar, not only the gaps. Replaced a four-item prep
+  // meter whose items were the same for every org on the platform.
+  const checks = gate
+    ? fieldsFor(gate.next).map(f => ({ field: f, done: hasRequiredField(event, f.key) }))
+    : [];
   const done = checks.filter(c => c.done).length;
   const total = checks.length;
-  const full = done === total;
-  const cta = heroCta(checks);
-  const blocker = checks.find(c => !c.done);
+  const full = total > 0 && done === total;
   const days = event.dueDate ? daysUntil(event.dueDate, today) : null;
   const cnt = days != null ? (days === 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`) : null;
 
@@ -795,37 +822,42 @@ function OnDeckHero({ event, today, onOpen }: { event: ProgrammingTask; today: s
         <p className="meta">
           {event.location && <span><b>{event.location}</b></span>}
           {event.collab && <><span>·</span><span>w/ <b>{event.collab}</b></span></>}
-          {event.owner && <><span>·</span><span>Owner <b>{event.owner.split(" ")[0]}</b></span></>}
+          {event.owner && <><span>·</span><span>Owner <b>{ownerLabel(event.owner)}</b></span></>}
           {event.spendingCents > 0 && <><span>·</span><span>Budget <b>{fmt$(event.spendingCents / 100)}</b></span></>}
         </p>
 
-        <div className="ev-prep">
-          <div className="p-head">
-            <span className="p-lbl">Prep checklist</span>
-            <span className="p-count"><b>{done}</b> / {total} ready</span>
-            <span className={`p-state ${full ? "ok" : "warn"}`}>{full ? "✓ All set" : `${total - done} to go`}</span>
-          </div>
-          <div className="ev-pchecks">
-            {checks.map(c => (
-              <div key={c.key} className={`ev-pcheck ${c.done ? "done" : "block"}`}>
-                <div className="pc-ico">
-                  {c.done ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-                  )}
-                  <span className="pc-k">{c.label}</span>
+        {gate && total > 0 && (
+          <div className="ev-prep">
+            <div className="p-head">
+              <span className="p-lbl">To reach {STAGE_LABELS[gate.next]}</span>
+              <span className="p-count"><b>{done}</b> / {total} answered</span>
+              <span className={`p-state ${full ? "ok" : "warn"}`}>{full ? "✓ Ready" : `${total - done} to go`}</span>
+            </div>
+            <div className="ev-pchecks">
+              {checks.map(c => (
+                <div key={c.field.key} className={`ev-pcheck ${c.done ? "done" : "block"}`}>
+                  <div className="pc-ico">
+                    {c.done ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
+                    )}
+                    <span className="pc-k">{c.field.label}</span>
+                  </div>
+                  <div className="pc-v">{fieldValueLabel(c.field.key, event)}</div>
                 </div>
-                <div className="pc-v">{prepValue(c.key, c.done)}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
-        {blocker && (
+        {gate && gate.missing.length > 0 && (
           <div className="ev-blocker">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><path d="M12 9v4M12 17h.01" /></svg>
-            <p><b>{blockerHead(blocker.key)}</b> {blockerTail(blocker.key, days)}</p>
+            <p>
+              <b>Needs {gate.missing.map(f => f.label.toLowerCase()).join(" + ")}.</b>{" "}
+              {blockerTail(gate.next, days)}
+            </p>
           </div>
         )}
 
@@ -834,49 +866,55 @@ function OnDeckHero({ event, today, onOpen }: { event: ProgrammingTask; today: s
             <CtaIcon icon={cta.icon} />
             {cta.label}
           </button>
-          <button className="ev-btn-ghost" onClick={onOpen}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-            Open event
-          </button>
+          {/* The ghost button is the same destination said plainly, so it only
+              earns its place when the primary is asking for something specific.
+              A settled event's CTA already reads "Open event" — showing it twice
+              is two buttons that do one thing. */}
+          {cta.icon !== "check" && (
+            <button className="ev-btn-ghost" onClick={onOpen}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+              Open event
+            </button>
+          )}
         </div>
       </div>
     </>
   );
 }
 
-function prepValue(key: string, done: boolean): string {
+/** The answer itself, where there is one — a date reads better than "Done". */
+function fieldValueLabel(key: RequiredField["key"], event: ProgrammingTask): string {
   switch (key) {
-    case "room":       return done ? "Booked" : "Not booked";
-    case "attachment": return done ? "Attached" : "Missing";
-    case "flyer":      return done ? "Posted" : "Not posted";
-    case "socials":    return done ? "Held" : "Not held";
-    default:           return done ? "Done" : "To do";
+    case "title":     return event.title || "Untitled";
+    case "category":  return event.type;
+    case "owner":     return event.owner ? ownerLabel(event.owner) ?? "—" : "Nobody yet";
+    case "date":      return event.dueDate ? fmtDate(event.dueDate) : "Not set";
+    case "location":  return event.location || "Not set";
+    case "mandatory": return event.mandatory ? "Required" : "Optional";
   }
 }
 
-function blockerHead(key: string): string {
-  if (key === "room") return "Room not booked.";
-  if (key === "flyer") return "Flyer not posted.";
-  if (key === "attachment") return "No itinerary attached.";
-  return "Socials meeting not held.";
-}
-
-function blockerTail(key: string, days: number | null): string {
+/**
+ * The consequence half of the blocker line. Confirmed is the lane that publishes
+ * to the whole chapter, so it is worth saying so — that is the cost the two extra
+ * fields are buying.
+ */
+function blockerTail(next: ProgrammingStage, days: number | null): string {
   const window = days != null && days >= 0
     ? days === 0 ? "It's today" : `It's in ${days} day${days === 1 ? "" : "s"}`
-    : "It's coming up";
-  if (key === "room") return `${window} — reserve the venue to clear the slate.`;
-  if (key === "flyer") return `${window} — post the flyer so brothers can RSVP.`;
-  if (key === "attachment") return `${window} — attach the itinerary or run-of-show.`;
-  return `${window} — sync with socials before the event.`;
+    : "No date on it yet";
+  return next === "confirmed"
+    ? `${window} — confirming puts it on the whole chapter's timeline.`
+    : `${window} — an event in planning belongs to somebody.`;
 }
 
-function CtaIcon({ icon }: { icon: "room" | "flyer" | "check" }) {
-  if (icon === "room") {
-    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18M8 3v4M16 3v4" /><rect x="3" y="5" width="18" height="16" rx="2" /></svg>;
+function CtaIcon({ icon }: { icon: "owner" | "date" | "check" }) {
+  if (icon === "owner") {
+    // A person, for "give it an owner".
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>;
   }
-  if (icon === "flyer") {
-    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>;
+  if (icon === "date") {
+    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18M8 3v4M16 3v4" /><rect x="3" y="5" width="18" height="16" rx="2" /></svg>;
   }
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
 }

@@ -4,28 +4,48 @@ import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { scrapeMetadata } from "@/lib/og-metadata";
 import {
+  canEnter,
   fromProgrammingInput,
   isProgrammingManagedType,
   makeLabelResolver,
+  missingFor,
+  needsConfirmFirst,
   resolveProgrammingDisplay,
   toCalendarFields,
   toProgrammingTask,
 } from "@/lib/programming";
-import { isProgrammingStage, stageRequiresCalendar } from "@/lib/state/programming-stage";
-import { programmingPrepScore } from "@/lib/programming";
-import { isRoomStatus } from "@/lib/state/programming-prep";
+import { isProgrammingStage, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
+import { mergeFieldValues, sanitizeFieldValues, type EventFieldDef } from "@/lib/event-fields";
+import { loadEventFieldDefs } from "@/lib/event-fields-db";
 import { assertWithinActiveSemester } from "./semester-bounds";
 import type {
   AttachProgrammingDocInput,
-  CreateChecklistItemInput,
   CreateProgrammingTaskInput,
   SetStageInput,
-  UpdateChecklistItemInput,
   UpdateProgrammingTaskInput,
 } from "@/lib/validation/programming";
 
-// ProgrammingEvent is now the owning record. CalendarEvent exists only for
-// Planning+ stages (created on promotion, deleted on demotion).
+/**
+ * ProgrammingEvent is the owning record. A CalendarEvent — the chapter-visible
+ * mirror — exists only for CONFIRMED and DONE, created on promotion into
+ * Confirmed and deleted on demotion out of it.
+ *
+ * That boundary moved here from Planning. Planning used to publish, which made
+ * Idea→Planning a drag with no consequence anywhere and put dateless, placeless
+ * events on everyone's calendar. Planning is now a private lane and Confirmed is
+ * the one that costs a date and a location.
+ */
+function stageIsPublished(stage: ProgrammingStage | string): boolean {
+  return stage === "confirmed" || stage === "done";
+}
+
+/**
+ * Lane order, for telling a forward move from a backward one. Only forward moves
+ * are gated — parking something is never a mistake the product should argue with,
+ * and a free demotion is the documented escape from the published-event freeze.
+ */
+const STAGE_ORDER = STAGES;
+
 const ROW_SELECT = {
   id:              true,
   title:           true,
@@ -37,21 +57,23 @@ const ROW_SELECT = {
   status:          true,
   stage:           true,
   mandatory:       true,
-  owner:           true,
   collabOrg:       true,
-  itineraryUrl:    true,
   attachmentUrl:   true,
   attachmentDocId: true,
-  roomStatus:      true,
-  itineraryNotNeeded: true,
-  flyerPosted:     true,
-  socialsMeeting:  true,
   spendingCents:   true,
   successRating:   true,
   wrapUpNotes:     true,
   calendarEventId: true,
+  ownerBrotherId:  true,
+  ownerRoleId:     true,
+  ownerNote:       true,
+  fieldValues:     true,
+  // Nested so ownerLabel resolves a role's current holders without an N+1. The
+  // holder list is brotherIds only; their org-local display names come from the
+  // one roster read in `nameResolver` (Membership.name, not Brother.name).
+  ownerBrother:    { select: { id: true, name: true } },
+  ownerRole:       { select: { id: true, name: true, brothers: { select: { brotherId: true } } } },
   _count:          { select: { docs: true } },
-  checklist:       { select: { id: true, label: true, done: true, sortOrder: true }, orderBy: { sortOrder: "asc" } },
 } as const satisfies Prisma.ProgrammingEventSelect;
 
 type ProgrammingRow = Prisma.ProgrammingEventGetPayload<{ select: typeof ROW_SELECT }>;
@@ -72,6 +94,46 @@ async function managedTypes(ctx: RequestContext) {
     select: { slug: true, label: true, creatable: true, hidden: true },
   }) as { slug: string; label: string; creatable: boolean; hidden: boolean }[];
   return rows.filter(isProgrammingManagedType);
+}
+
+/**
+ * brotherId → the name THIS ORG uses for that person.
+ *
+ * Owner labels must never render Brother.name, which is the account-canonical
+ * string no roster shows (AGENTS.md: everything an org assesses about a member
+ * lives on the Membership, including the name). One roster read serves every row
+ * in the response, so a board of forty events costs one query, not forty.
+ */
+async function nameResolver(ctx: RequestContext): Promise<(brotherId: number) => string | null> {
+  const roster = await ctx.db.member.listRoster();
+  const byId = new Map(roster.map(m => [m.id, m.name]));
+  return brotherId => byId.get(brotherId) ?? null;
+}
+
+/**
+ * Everything a response needs beyond the rows themselves: the type labels, the
+ * org's live field definitions, and the roster name map. Fetched once per service
+ * call and threaded through, so the DTO mapping stays pure.
+ */
+interface ResponseDeps {
+  labelFor: (slug: string) => string;
+  nameFor: (brotherId: number) => string | null;
+  defs: EventFieldDef[];
+}
+
+async function responseDeps(ctx: RequestContext, types: ManagedType[]): Promise<ResponseDeps> {
+  const [nameFor, defs] = await Promise.all([nameResolver(ctx), loadEventFieldDefs(ctx.db)]);
+  return { labelFor: makeLabelResolver(types), nameFor, defs };
+}
+
+/**
+ * Map a row to the DTO, sanitizing its answers against the org's LIVE
+ * definitions on the way out. Sanitizing on READ is what makes a disabled field
+ * disappear from every response while its answers stay on disk — the mock's
+ * "OFF ≠ DELETE" rule, with no extra machinery.
+ */
+function mapRow(row: ProgrammingRow, deps: ResponseDeps) {
+  return toProgrammingTask(row, deps.labelFor, deps.nameFor, sanitizeFieldValues(row.fieldValues, deps.defs));
 }
 
 /**
@@ -134,29 +196,55 @@ async function requireProgrammingEvent(
   return { row, types };
 }
 
-async function loadTask(ctx: RequestContext, id: number, labelFor?: (slug: string) => string) {
+async function loadTask(ctx: RequestContext, id: number, deps?: ResponseDeps) {
   const row = await ctx.db.programmingEvent.findUnique({ where: { id }, select: ROW_SELECT }) as ProgrammingRow | null;
   // Reload after a committed mutation — the row normally exists, but guard the
   // race where it's deleted in between so we return a clean 404 instead of a
   // raw TypeError 500. Mirrors requireProgrammingEvent above.
   if (!row) throw new NotFoundError("Programming event");
-  return toProgrammingTask(row, labelFor ?? makeLabelResolver(await managedTypes(ctx)));
+  return mapRow(row, deps ?? await responseDeps(ctx, await managedTypes(ctx)));
 }
 
 export async function listProgrammingTasks(ctx: RequestContext) {
   const types = await managedTypes(ctx);
-  const rows = await ctx.db.programmingEvent.findMany({
-    where:   { category: { in: types.map(t => t.slug) } },
-    orderBy: [{ date: "asc" }, { id: "asc" }],
-    select:  ROW_SELECT,
-  });
-  const labelFor = makeLabelResolver(types);
-  return rows.map(row => toProgrammingTask(row, labelFor));
+  const [rows, deps] = await Promise.all([
+    ctx.db.programmingEvent.findMany({
+      where:   { category: { in: types.map(t => t.slug) } },
+      orderBy: [{ date: "asc" }, { id: "asc" }],
+      select:  ROW_SELECT,
+    }) as unknown as Promise<ProgrammingRow[]>,
+    responseDeps(ctx, types),
+  ]);
+  return rows.map(row => mapRow(row, deps));
+}
+
+/**
+ * Confirm an owner id belongs to THIS org before it reaches the FK.
+ *
+ * The foreign key would catch a fabricated id, but as a 409 naming a constraint;
+ * a 400 naming the field is the error an officer can act on. More importantly the
+ * FK alone would accept a *real* id belonging to ANOTHER org — Brother and Role
+ * are both cross-org tables, and only the roster/role read here is org-scoped.
+ */
+async function assertOwnerInOrg(
+  ctx: RequestContext,
+  ownerBrotherId?: number | null,
+  ownerRoleId?: number | null,
+) {
+  if (ownerBrotherId != null) {
+    const member = await ctx.db.member.findByBrotherId(ownerBrotherId);
+    if (!member) throw new ValidationError("That owner isn't on this org's roster");
+  }
+  if (ownerRoleId != null) {
+    const role = await ctx.db.role.findFirst({ where: { id: ownerRoleId }, select: { id: true } });
+    if (!role) throw new ValidationError("That owner role doesn't exist in this org");
+  }
 }
 
 export async function createProgrammingTask(ctx: RequestContext, input: CreateProgrammingTaskInput) {
   const types = await managedTypes(ctx);
   requireManagedCategory(types, input.category);
+  await assertOwnerInOrg(ctx, input.ownerBrotherId, input.ownerRoleId);
   // Requires an active semester even for a dateless Idea; when a dueDate is set
   // it must fall within the semester (it lands on the calendar on promotion).
   await assertWithinActiveSemester(ctx, input.dueDate);
@@ -165,15 +253,42 @@ export async function createProgrammingTask(ctx: RequestContext, input: CreatePr
   const created = await ctx.db.programmingEvent.create({
     data: data as Omit<Prisma.ProgrammingEventUncheckedCreateInput, "organizationId">,
     select: ROW_SELECT,
-  });
+  }) as unknown as ProgrammingRow;
   await emit(ctx, "programming.created", { type: "ProgrammingEvent", id: created.id }, {
     title: created.title, stage: created.stage,
   });
-  return toProgrammingTask(created, makeLabelResolver(types));
+  return mapRow(created, await responseDeps(ctx, types));
 }
+
+/**
+ * Fields whose edit is refused on a PUBLISHED event (Confirmed / Done).
+ *
+ * Confirmed sits on everyone's Timeline, so silently moving the room or the date
+ * changes a plan people have already made around. The rule belongs on the server,
+ * not only in the panel — a stale tab or a direct PATCH is the same edit.
+ *
+ * The exit is demotion, which is free and which the error names: move it back to
+ * Planning, change it, confirm it again. That sequence is visible (the event
+ * leaves the Timeline and comes back), which is exactly the point.
+ *
+ * Wrap-up fields are deliberately NOT frozen — successRating, wrapUpNotes and
+ * spendingCents are what a Done event exists to collect.
+ */
+const FROZEN_WHEN_PUBLISHED = ["title", "dueDate", "location", "time", "category", "mandatory", "collab"] as const;
 
 export async function updateProgrammingTask(ctx: RequestContext, id: number, input: UpdateProgrammingTaskInput) {
   const { row: existing, types } = await requireProgrammingEvent(ctx, id);
+
+  if (stageIsPublished(existing.stage)) {
+    const frozen = FROZEN_WHEN_PUBLISHED.filter(f => input[f] !== undefined);
+    if (frozen.length > 0) {
+      throw new ValidationError(
+        `This event is published to the chapter, so its ${frozen.join(", ")} can't be edited here. Move it back to Planning first, then confirm it again.`,
+      );
+    }
+  }
+
+  await assertOwnerInOrg(ctx, input.ownerBrotherId, input.ownerRoleId);
 
   const data: Prisma.ProgrammingEventUncheckedUpdateInput = {};
   const changedFields: string[] = [];
@@ -181,33 +296,51 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   if (input.title !== undefined)        { data.title = input.title.trim(); changedFields.push("title"); }
   if (input.collab !== undefined)       { data.collabOrg = input.collab?.trim() ?? ""; changedFields.push("collabOrg"); }
   if (input.dueDate !== undefined) {
-    // A promoted event (Planning+) is on the calendar and must keep a date.
-    if (input.dueDate == null && existing.stage !== "idea") {
-      throw new ValidationError("A scheduled event must keep its date. Move it back to Idea first to clear the date.");
+    // A published event (Confirmed+) is on the calendar and must keep a date.
+    if (input.dueDate == null && stageIsPublished(existing.stage)) {
+      throw new ValidationError("A published event must keep its date. Move it back to Planning first to clear the date.");
     }
     // Setting a concrete date must stay within the active semester; clearing it
-    // to null (Idea only, handled above) is exempt.
+    // to null (Idea/Planning only, handled above) is exempt.
     if (input.dueDate != null) await assertWithinActiveSemester(ctx, input.dueDate);
     data.date = input.dueDate;
     changedFields.push("date");
   }
   if (input.location !== undefined)     { data.location = input.location?.trim() || null; changedFields.push("location"); }
   if (input.time !== undefined)         { data.time = input.time?.trim() || null; changedFields.push("time"); }
-  if (input.owner !== undefined)        { data.owner = input.owner.trim(); changedFields.push("owner"); }
+  // Setting one owner clears the other: an event is owned by a person OR a role,
+  // and leaving the old FK behind would leave two owners on the row for
+  // resolveOwner to pick between by declaration order.
+  if (input.ownerBrotherId !== undefined) {
+    data.ownerBrotherId = input.ownerBrotherId;
+    if (input.ownerBrotherId != null) data.ownerRoleId = null;
+    changedFields.push("owner");
+  }
+  if (input.ownerRoleId !== undefined) {
+    data.ownerRoleId = input.ownerRoleId;
+    if (input.ownerRoleId != null) data.ownerBrotherId = null;
+    if (!changedFields.includes("owner")) changedFields.push("owner");
+  }
   if (input.mandatory !== undefined)    { data.mandatory = input.mandatory; changedFields.push("mandatory"); }
   if (input.status !== undefined)       { data.status = input.status; changedFields.push("status"); }
   if (input.description !== undefined)  { data.description = input.description; changedFields.push("description"); }
-  if (input.itineraryUrl !== undefined)  { data.itineraryUrl = input.itineraryUrl; changedFields.push("itineraryUrl"); }
   if (input.attachmentUrl !== undefined) { data.attachmentUrl = input.attachmentUrl; changedFields.push("attachmentUrl"); }
   if (input.attachmentDocId !== undefined) { data.attachmentDocId = input.attachmentDocId; changedFields.push("attachmentDocId"); }
-  if (input.roomStatus !== undefined)   { data.roomStatus = input.roomStatus; changedFields.push("roomStatus"); }
-  if (input.itineraryNotNeeded !== undefined) { data.itineraryNotNeeded = input.itineraryNotNeeded; changedFields.push("itineraryNotNeeded"); }
-  if (input.flyerPosted !== undefined)  { data.flyerPosted = input.flyerPosted; changedFields.push("flyerPosted"); }
-  if (input.socialsMeeting !== undefined) { data.socialsMeeting = input.socialsMeeting; changedFields.push("socialsMeeting"); }
   if (input.spendingCents !== undefined) { data.spendingCents = input.spendingCents; changedFields.push("spendingCents"); }
   if (input.successRating !== undefined) { data.successRating = input.successRating; changedFields.push("successRating"); }
   if (input.wrapUpNotes !== undefined)  { data.wrapUpNotes = input.wrapUpNotes; changedFields.push("wrapUpNotes"); }
   if (input.category !== undefined)     { requireManagedCategory(types, input.category); data.category = input.category; changedFields.push("category"); }
+
+  const deps = await responseDeps(ctx, types);
+
+  // Answers to the org's optional fields. Merged over what's stored (a PATCH
+  // carries only the edited slugs) and sanitized against the LIVE definitions, so
+  // an unknown slug is dropped, a value is coerced to its field's kind, and an
+  // explicit empty clears the answer.
+  if (input.fieldValues !== undefined) {
+    data.fieldValues = mergeFieldValues(existing.fieldValues, input.fieldValues, deps.defs);
+    changedFields.push("fieldValues");
+  }
 
   const nextCategory = (data.category as string | undefined) ?? existing.category;
   const wasService   = isServiceCategory(existing.category);
@@ -221,7 +354,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
     });
 
     // Mirror calendar-relevant fields onto the CalendarEvent if this event is
-    // promoted (Planning+). Idea events have no calendar row to mirror to.
+    // published (Confirmed+). Idea and Planning have no calendar row to mirror to.
     if (updated.calendarEventId != null) {
       await tx.calendarEvent.update({
         where: { id: updated.calendarEventId },
@@ -235,7 +368,14 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
     }
   });
 
-  const full = await loadTask(ctx, id, makeLabelResolver(types));
+  const full = await loadTask(ctx, id, deps);
+  // Emitted on EVERY edit, unlike the calendar.updated below it. Updates used to
+  // ride on that event alone, so an Idea-stage edit emitted nothing at all —
+  // and moving the publish boundary to Confirmed widened that silent window from
+  // one lane to two.
+  await emit(ctx, "programming.updated", { type: "ProgrammingEvent", id }, {
+    title: full.title, stage: full.stage, changedFields,
+  });
   if (existing.calendarEventId != null) {
     await emit(ctx, "calendar.updated", { type: "CalendarEvent", id: existing.calendarEventId }, {
       title: full.title, changedFields,
@@ -245,36 +385,55 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
 }
 
 /**
- * Promote/demote engine. Crossing into Planning+ creates a CalendarEvent (and a
- * ServiceEvent for service-category events); dropping back to Idea deletes it.
- * Lateral moves among calendar-backed stages only flip the stage column.
+ * Promote/demote engine, and the one place the lane rules are enforced.
+ *
+ * Crossing into CONFIRMED creates the CalendarEvent (and a ServiceEvent for
+ * service-category events) — that is what "published to the chapter" means.
+ * Dropping back to Planning or Idea deletes it. Lateral moves between Idea and
+ * Planning, or Confirmed and Done, only flip the stage column.
+ *
+ * Forward moves are gated by the event's own FIELDS (canEnter), and the error
+ * NAMES what's missing rather than counting it. Backward moves are always free:
+ * parking something is never a mistake the product should argue with, and
+ * demotion is the documented escape from the published-event freeze.
  */
 export async function setStage(ctx: RequestContext, id: number, input: SetStageInput) {
   const next = input.stage;
   if (!isProgrammingStage(next)) throw new ValidationError("Unknown stage");
   const { row: pe, types } = await requireProgrammingEvent(ctx, id);
-  const labelFor = makeLabelResolver(types);
-  if (pe.stage === next) return toProgrammingTask(pe, labelFor);
+  const deps = await responseDeps(ctx, types);
+  if (pe.stage === next) return mapRow(pe, deps);
 
-  const promoting = stageRequiresCalendar(next) && pe.calendarEventId == null;
-  const demoting  = !stageRequiresCalendar(next) && pe.calendarEventId != null;
+  const forward = STAGE_ORDER.indexOf(next) > STAGE_ORDER.indexOf(pe.stage as ProgrammingStage);
 
-  if (promoting && !pe.date) {
-    throw new ValidationError("A date is required to move an event out of Idea.");
-  }
-  // Promotion puts the event on the calendar — its date (set while in Idea, where
-  // the bound isn't enforced) must fall within the active semester.
-  if (promoting) await assertWithinActiveSemester(ctx, pe.date);
-
-  if (next === "confirmed" && pe.stage === "planning") {
-    const roomStatus = isRoomStatus(pe.roomStatus) ? pe.roomStatus : "not_submitted";
-    const { done, total } = programmingPrepScore({ ...pe, roomStatus });
-    if (done < total) {
+  if (forward) {
+    // Done is the one gate that isn't about fields: a complete Planning event
+    // already satisfies everything Confirmed needs, so without this the stage
+    // control takes it straight to Done — publishing it to the chapter (Done
+    // publishes too) with a toast that only says "wrapped". Nobody is ever told
+    // the chapter can now see it.
+    if (needsConfirmFirst(pe, next)) {
       throw new ValidationError(
-        `Finish the prep checklist before confirming — ${total - done} item${total - done === 1 ? "" : "s"} still need${total - done === 1 ? "s" : ""} to be checked off.`,
+        "Confirm this event before wrapping it. Done means it happened, and the chapter was never told it was on.",
+      );
+    }
+    if (!canEnter(pe, next)) {
+      const missing = missingFor(pe, next).map(f => f.label.toLowerCase());
+      throw new ValidationError(
+        `Needs ${missing.join(" + ")} before it can move to ${next}.`,
+        { missing: missingFor(pe, next).map(f => f.key) },
       );
     }
   }
+
+  const willPublish = stageIsPublished(next);
+  const promoting = willPublish && pe.calendarEventId == null;
+  const demoting  = !willPublish && pe.calendarEventId != null;
+
+  // Promotion puts the event on the chapter's calendar — its date (set while in
+  // Idea or Planning, where the bound isn't enforced) must fall in the active
+  // semester. canEnter already guarantees a date exists by this point.
+  if (promoting) await assertWithinActiveSemester(ctx, pe.date);
 
   let createdCalendarId: number | null = null;
   let deletedCalendarId: number | null = null;
@@ -302,6 +461,12 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
     }
   });
 
+  // `published` says whether this move changed what the CHAPTER can see, which is
+  // the fact a notification handler would care about — a stage column moving is
+  // not, on its own, news.
+  await emit(ctx, "programming.stage_changed", { type: "ProgrammingEvent", id }, {
+    title: pe.title, from: pe.stage, to: next, published: stageIsPublished(next),
+  });
   if (createdCalendarId != null) {
     await emit(ctx, "calendar.created", { type: "CalendarEvent", id: createdCalendarId }, {
       title: pe.title, date: pe.date ?? "", category: pe.category,
@@ -310,7 +475,7 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   if (deletedCalendarId != null) {
     await emit(ctx, "calendar.deleted", { type: "CalendarEvent", id: deletedCalendarId }, { title: pe.title });
   }
-  return loadTask(ctx, id, labelFor);
+  return loadTask(ctx, id, deps);
 }
 
 export async function deleteProgrammingTask(ctx: RequestContext, id: number) {
@@ -320,8 +485,13 @@ export async function deleteProgrammingTask(ctx: RequestContext, id: number) {
     if (target.calendarEventId != null) {
       if (isServiceCategory(target.category)) await removeServiceEvent(tx, target.calendarEventId);
       // Deleting the PE first would SET NULL then orphan the CalendarEvent; null
-      // the link, delete the calendar row, then delete the PE (checklist + docs cascade).
-      await tx.programmingEvent.update({ where: { id }, data: { calendarEventId: null } });
+      // the link, delete the calendar row, then delete the PE (docs cascade).
+      //
+      // The stage is demoted in the SAME statement, not left alone: the publish
+      // CHECK says a confirmed/done row must have a CalendarEvent, so nulling the
+      // link on a published event is a violation even though the row is about to
+      // disappear. Postgres checks per-statement, not at commit.
+      await tx.programmingEvent.update({ where: { id }, data: { calendarEventId: null, stage: "idea" } });
       await tx.calendarEvent.delete({ where: { id: target.calendarEventId } });
     }
     await tx.programmingEvent.delete({ where: { id } });
@@ -385,63 +555,4 @@ export async function detachProgrammingDoc(ctx: RequestContext, eventId: number,
     await tx.doc.delete({ where: { id: docId } });
   });
   await emit(ctx, "doc.deleted", { type: "Doc", id: docId }, { title: link.doc.title });
-}
-
-/* ---------------------------------------------------------------- */
-/* Checklist                                                        */
-/* ---------------------------------------------------------------- */
-
-export async function listChecklist(ctx: RequestContext, eventId: number) {
-  await requireProgrammingEvent(ctx, eventId);
-  return ctx.db.programmingChecklistItem.findMany({
-    where:   { programmingEventId: eventId },
-    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    select:  { id: true, label: true, done: true, sortOrder: true },
-  });
-}
-
-export async function addChecklistItem(ctx: RequestContext, eventId: number, input: CreateChecklistItemInput) {
-  await requireProgrammingEvent(ctx, eventId);
-  const agg = await ctx.db.programmingChecklistItem.aggregate({
-    where: { programmingEventId: eventId },
-    _max:  { sortOrder: true },
-  });
-  const nextOrder = (agg._max?.sortOrder ?? -1) + 1;
-  return ctx.db.programmingChecklistItem.create({
-    data: { programmingEventId: eventId, label: input.label, sortOrder: nextOrder },
-    select: { id: true, label: true, done: true, sortOrder: true },
-  });
-}
-
-export async function updateChecklistItem(
-  ctx: RequestContext,
-  eventId: number,
-  itemId: number,
-  input: UpdateChecklistItemInput,
-) {
-  await requireProgrammingEvent(ctx, eventId);
-  const item = await ctx.db.programmingChecklistItem.findFirst({
-    where: { id: itemId, programmingEventId: eventId },
-    select: { id: true },
-  });
-  if (!item) throw new NotFoundError("Checklist item");
-  return ctx.db.programmingChecklistItem.update({
-    where: { id: itemId },
-    data:  {
-      ...(input.label !== undefined     ? { label: input.label } : {}),
-      ...(input.done !== undefined      ? { done: input.done } : {}),
-      ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
-    },
-    select: { id: true, label: true, done: true, sortOrder: true },
-  });
-}
-
-export async function deleteChecklistItem(ctx: RequestContext, eventId: number, itemId: number) {
-  await requireProgrammingEvent(ctx, eventId);
-  const item = await ctx.db.programmingChecklistItem.findFirst({
-    where: { id: itemId, programmingEventId: eventId },
-    select: { id: true },
-  });
-  if (!item) throw new NotFoundError("Checklist item");
-  await ctx.db.programmingChecklistItem.delete({ where: { id: itemId } });
 }

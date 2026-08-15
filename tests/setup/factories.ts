@@ -7,6 +7,7 @@
 import { testPrisma } from "./prisma";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 import { isReservedCategory, resolveCategorySeeds, type CategorySeed } from "@/lib/transaction-categories";
+import { BUILTIN_EVENT_FIELDS } from "@/lib/event-fields";
 
 /**
  * The income/expense vocabulary a test org is seeded with.
@@ -70,6 +71,22 @@ export async function createOrg(name: string, slug: string, opts?: { categories?
       builtin:        isReservedCategory(c.kind, c.slug),
       hidden:         false,
       displayOrder:   order[c.kind]!++,
+    })),
+  });
+
+  // And the event-field vocabulary, mirroring provisionOrg. Without it every
+  // fieldValues answer would be sanitized away as an unknown slug — the org would
+  // simply have no optional fields to answer.
+  await testPrisma.eventFieldDefinition.createMany({
+    skipDuplicates: true,
+    data: BUILTIN_EVENT_FIELDS.map((f, i) => ({
+      organizationId: org.id,
+      slug:           f.slug,
+      label:          f.label,
+      kind:           f.kind,
+      enabled:        f.defaultEnabled,
+      builtin:        true,
+      displayOrder:   i,
     })),
   });
   return org;

@@ -22,6 +22,7 @@ export type SubjectType =
   | "CalendarEvent"
   | "CalendarEventType"
   | "ProgrammingEvent"
+  | "EventFieldDefinition"
   | "ServiceEvent"
   | "ServiceParticipation"
   | "PartyEvent"
@@ -87,7 +88,16 @@ export interface EventMetadata {
   "calendar_event_type.hidden":  { slug: string; label: string; hidden: boolean };
   "calendar_event_type.deleted": { slug: string; label: string };
   "programming.created": { title: string; stage: string };
+  // Emitted on every programming edit, calendar-backed or not. Updates used to
+  // ride on "calendar.updated" alone, which meant an Idea-stage edit emitted
+  // nothing at all; moving the publish boundary from Planning to Confirmed
+  // widened that silent window from one lane to two.
+  "programming.updated": { title: string; stage: string; changedFields: string[] };
+  "programming.stage_changed": { title: string; from: string; to: string; published: boolean };
   "programming.deleted": { title: string };
+  "event_field.created": { slug: string; label: string; kind: string };
+  "event_field.updated": { slug: string; label: string; changedFields: string[] };
+  "event_field.deleted": { slug: string; label: string };
   "service_event.created": { title: string; date: string; calendarEventId: number };
   "service_event.updated": { title: string; changedFields: string[] };
   "service_event.deleted": { title: string };
@@ -232,7 +242,8 @@ const KNOWN_ACTIONS = new Set<Action>([
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
   "calendar.created", "calendar.updated", "calendar.deleted",
   "calendar_event_type.created", "calendar_event_type.updated", "calendar_event_type.hidden", "calendar_event_type.deleted",
-  "programming.created", "programming.deleted",
+  "programming.created", "programming.updated", "programming.stage_changed", "programming.deleted",
+  "event_field.created", "event_field.updated", "event_field.deleted",
   "service_event.created", "service_event.updated", "service_event.deleted",
   "service_participation.logged", "service_participation.removed",
   "party.created", "party.updated", "party.completed", "party.deleted",

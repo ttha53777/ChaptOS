@@ -71,7 +71,12 @@ export function ProgrammingBoard({
                 <span className="lc">{items.length}</span>
               </div>
               <p className="ev-lane-sub">
-                {stage === "idea" ? "Backlog · not on the timeline" : "On the timeline"}
+                {/* The publish boundary is CONFIRMED, not Planning. Planning used
+                    to publish, which is exactly what made Idea→Planning a drag
+                    with no consequence — both lanes said the same thing. */}
+                {stage === "idea"     ? "Backlog · not on the timeline"
+                  : stage === "planning" ? "Owned · not yet public"
+                  : "On the chapter's timeline"}
               </p>
               <div className="ev-lane-body">
                 {items.length === 0 ? (

@@ -19,6 +19,7 @@ import { fmtUsd as fmtMoney, money } from "@/lib/money";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
 import { netBalance } from "@/lib/treasury-balance";
 import { isProgrammingManagedType } from "@/lib/programming";
+import { ownerLabel, resolveOwner, type OwnerRow } from "@/lib/event-owner";
 import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { signProposalBlob } from "@/lib/ai-approval-sig";
@@ -1705,9 +1706,28 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
     take: clampLimit(args.limit),
     select: {
       id: true, title: true, date: true, category: true, stage: true,
-      owner: true, location: true, collabOrg: true,
+      location: true, collabOrg: true,
+      // The owner is a person-or-role FK now, not a free-text string. The role
+      // case is why: "the Social Chair owns it" has to answer with whoever holds
+      // that role TODAY, which a snapshotted name could never do.
+      ownerBrother: { select: { id: true, name: true } },
+      ownerRole:    { select: { id: true, name: true, brothers: { select: { brotherId: true } } } },
+      ownerBrotherId: true, ownerRoleId: true,
+      // A pre-migration name that matched nobody on the roster. Reported as-is so
+      // the model doesn't call an event unowned when a name is sitting right there.
+      ownerNote: true,
     },
-  });
+    // The scoped wrapper isn't select-narrowed in its return type; the runtime
+    // select is the shape below. Same cast the programming service makes.
+  }) as unknown as (OwnerRow & {
+    id: number; title: string; date: string | null; category: string; stage: string;
+    location: string | null; collabOrg: string; ownerNote: string | null;
+  })[];
+
+  // One roster read for every row's owner name, resolved org-locally
+  // (Membership.name) rather than from the account-canonical Brother.name.
+  const roster = await scoped.member.listRoster();
+  const nameById = new Map(roster.map(m => [m.id, m.name]));
 
   const mapped = rows
     .map(e => ({
@@ -1716,7 +1736,7 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
       type:     labelBySlug.get(e.category) ?? e.category,
       stage:    e.stage,
       date:     e.date ?? null,
-      owner:    e.owner,
+      owner:    ownerLabel(resolveOwner(e, id => nameById.get(id) ?? null)) ?? e.ownerNote ?? "",
       location: e.location ?? null,
       collabOrg: e.collabOrg || null,
     }));

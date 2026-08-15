@@ -1,8 +1,9 @@
 "use client";
 
 import type { SheetColumn } from "../grid/SheetGrid";
-import { SheetCheckboxCell, SheetTextCell } from "../grid/SheetGrid";
-import { PrepStatusPill, StarRating, TYPE_DOT } from "./PrepStatusPill";
+import { SheetTextCell } from "../grid/SheetGrid";
+import { StarRating, TYPE_DOT } from "./ProgrammingChips";
+import { ownerLabel } from "@/lib/event-owner";
 import type { ProgrammingTask } from "../../data";
 import { fmtDate } from "../../data";
 
@@ -85,16 +86,19 @@ export function programmingTableColumns({
       ),
     },
     {
-      key: "room",
-      label: "Room Confirmed?",
-      kind: "select",
-      width: "w-40",
-      render: (e, canManage) => (
-        <PrepStatusPill
-          value={e.roomStatus}
-          onChange={v => onPatch(e.id, { roomStatus: v })}
-          disabled={!canManage}
-        />
+      // Replaced the "Room Confirmed?" column. An owner is a gating field now —
+      // it is what an event needs to leave Idea — whereas room status was one
+      // org's booking form applied to every org, and self-attested besides.
+      // Read-only here: choosing between a person and a role needs a picker, and
+      // the panel is where that lives.
+      key: "owner",
+      label: "Owner",
+      kind: "text",
+      width: "w-44",
+      render: e => (
+        e.owner
+          ? <span className="truncate text-[12px] text-[#c9c2b4]">{ownerLabel(e.owner)}</span>
+          : <span className="text-[12px] italic text-[#6b6354]">Unowned</span>
       ),
     },
     {
@@ -174,20 +178,6 @@ export function programmingTableColumns({
             if (!Number.isFinite(dollars) || dollars < 0) return;
             onPatch(e.id, { spendingCents: Math.round(dollars * 100) });
           }}
-        />
-      ),
-    },
-    {
-      key: "flyer",
-      label: "Flyer Posted?",
-      kind: "checkbox",
-      width: "w-24",
-      align: "center",
-      render: (e, canManage) => (
-        <SheetCheckboxCell
-          checked={e.flyerPosted}
-          canManage={canManage}
-          onChange={next => onPatch(e.id, { flyerPosted: next })}
         />
       ),
     },

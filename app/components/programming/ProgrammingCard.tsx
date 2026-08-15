@@ -2,11 +2,43 @@
 
 import type { ProgrammingTask } from "../../data";
 import { fmtDate } from "../../data";
-import { TypeBadge, StarRating } from "./PrepStatusPill";
-import { programmingPrepScore } from "@/lib/programming";
+import { TypeBadge, StarRating } from "./ProgrammingChips";
+import { missingFor } from "@/lib/programming";
+import { ownerShortLabel } from "@/lib/event-owner";
 import { todayStr } from "../../lib/dates";
 
 const TODAY = todayStr();
+
+/** An event inside this window reads urgent (rose) rather than merely open (gold). */
+const URGENT_DAYS = 14;
+
+/**
+ * The card's one-line blocker — NAMED, not counted.
+ *
+ * This replaced the prep ring (a "3/4 prep" fraction over four booleans). A
+ * fraction told you how much was left but never what, and three of the four
+ * things it counted were self-attested. A card with one gap now names that gap.
+ *
+ * Confirmed and Done return null: they are settled, and printing "published to
+ * the chapter" on every one of them buries the cards that need a person.
+ */
+function cardBlocker(task: ProgrammingTask): { text: string; tone: "rose" | "gold" | "ok" } | null {
+  if (task.stage === "done" || task.stage === "confirmed") return null;
+  const days = task.dueDate
+    ? Math.round((new Date(task.dueDate + "T00:00:00").getTime() - new Date(TODAY + "T00:00:00").getTime()) / 86_400_000)
+    : null;
+  const tone: "rose" | "gold" = days != null && days <= URGENT_DAYS ? "rose" : "gold";
+
+  // An OWNED idea is unremarkable — a backlog is allowed to sit. The only thing
+  // worth saying about an idea is that nobody has picked it up.
+  if (task.stage === "idea") {
+    return task.owner ? null : { text: "Needs an owner", tone };
+  }
+  // A ProgrammingTask carries `dueDate`, not `date` — hasRequiredField reads both.
+  const missing = missingFor(task, "confirmed");
+  if (missing.length === 0) return { text: "Ready to confirm", tone: "ok" };
+  return { text: `Needs ${missing.map(f => f.label.toLowerCase()).join(" + ")}`, tone };
+}
 
 function countdown(dueDate: string | null): { label: string; tone: string } | null {
   if (!dueDate) return null;
@@ -103,8 +135,7 @@ function DefaultCard({
   onDragStart,
 }: CardProps) {
   const cd = countdown(task.dueDate);
-  const done = task.checklist.filter(c => c.done).length;
-  const total = task.checklist.length;
+  const blocker = cardBlocker(task);
   const isDone = task.stage === "done";
 
   return (
@@ -138,28 +169,22 @@ function DefaultCard({
         <div className="mt-2 text-[12px] text-amber-400">
           <StarRating value={task.successRating} disabled onChange={() => {}} />
         </div>
-      ) : total > 0 ? (
-        <div className="mt-2.5">
-          <div className="mb-1 flex items-center justify-between text-[10px] text-slate-500">
-            <span>Checklist</span>
-            <span className="tabular-nums">{done}/{total}</span>
-          </div>
-          <div className="h-1 overflow-hidden rounded-full bg-white/[0.06]">
-            <div
-              className={`h-full rounded-full ${done === total ? "bg-emerald-500" : "bg-indigo-500"}`}
-              style={{ width: `${(done / total) * 100}%` }}
-            />
-          </div>
-        </div>
+      ) : blocker ? (
+        <p className={`mt-2 text-[11px] font-medium ${
+          blocker.tone === "rose" ? "text-rose-300" : blocker.tone === "gold" ? "text-amber-300" : "text-emerald-300"
+        }`}>
+          {blocker.text}
+        </p>
+      ) : task.owner ? (
+        // Settled: the quiet owner row rather than a blocker line.
+        <p className="mt-2 truncate text-[11px] text-slate-500">{ownerShortLabel(task.owner)}</p>
       ) : null}
     </div>
   );
 }
 
-const RING_CIRC = 2 * Math.PI * 15; // r=15 → ~94.25
-
 /** Dusk-themed card for the redesigned events pipeline: type glyph, relative date,
- *  and a prep ring (or success stars when done). Styled via .ev-* classes in
+ *  and the blocker line (or success stars when done). Styled via .ev-* classes in
  *  events-ledger.css; tokens resolve from the .dash.dash-events scope. */
 function DuskCard({
   task,
@@ -173,9 +198,7 @@ function DuskCard({
   const isDone = task.stage === "done";
   const glyph = DUSK_GLYPH[task.type] ?? { txt: task.type.slice(0, 2).toUpperCase(), cls: "" };
   const when = duskWhen(task.dueDate);
-  const { done, total } = programmingPrepScore(task);
-  const full = total > 0 && done === total;
-  const offset = total > 0 ? RING_CIRC * (1 - done / total) : RING_CIRC;
+  const blocker = cardBlocker(task);
 
   const sub = [task.type, task.location || null, task.collab ? `w/ ${task.collab}` : null]
     .filter(Boolean)
@@ -203,24 +226,14 @@ function DuskCard({
               <span className="stars">{"★".repeat(task.successRating)}</span>
             )}
           </>
-        ) : (
-          <>
-            <svg className="ev-ring" viewBox="0 0 36 36" aria-hidden>
-              <circle className="track" cx="18" cy="18" r="15" />
-              <circle
-                className={`val${full ? " full" : ""}`}
-                cx="18"
-                cy="18"
-                r="15"
-                strokeDasharray={RING_CIRC.toFixed(2)}
-                strokeDashoffset={offset.toFixed(2)}
-              />
-            </svg>
-            <span className="ec-prep">
-              <b>{done}</b>/{total} {full ? "ready" : "prep"}
-            </span>
-          </>
-        )}
+        ) : blocker ? (
+          // The blocker line replaced a prep ring showing "3/4". A fraction says
+          // how much is left but never what, so it could never be acted on
+          // without opening the card.
+          <span className={`ec-blocker ${blocker.tone}`}>{blocker.text}</span>
+        ) : task.owner ? (
+          <span className="ec-prep">{ownerShortLabel(task.owner)}</span>
+        ) : null}
       </div>
     </div>
   );

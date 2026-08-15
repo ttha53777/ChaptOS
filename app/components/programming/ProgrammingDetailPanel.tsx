@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import type { ProgrammingTask, Transaction } from "../../data";
 import { fmt$, fmtDate } from "../../data";
 import { Card, Modal } from "../dashboard/primitives";
 import { inputDuskCls } from "../dashboard/styles";
-import { PrepStatusPill, TypeBadge } from "./PrepStatusPill";
-import { ProgrammingChecklist } from "./ProgrammingChecklist";
+import { TypeBadge } from "./ProgrammingChips";
 import { AttachmentField } from "./AttachmentField";
 import { TxForm, type TxFormEvent } from "../treasury/TxForm";
 import type { Doc } from "@/app/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
-import { programmingPrepChecks, programmingPrepScore } from "@/lib/programming";
+import { missingFor, needsConfirmFirst } from "@/lib/programming";
+import { ownerLabel } from "@/lib/event-owner";
+import type { EventFieldDef } from "@/lib/event-fields";
 import { STAGE_LABELS, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
 import { todayStr } from "../../lib/dates";
 
@@ -36,102 +37,42 @@ export function ProgrammingDetailPanel({
   const [linkedTxns, setLinkedTxns] = useState<Transaction[]>([]);
   const [showTxForm, setShowTxForm] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
-  // Animate prep ring from 0 → real value on mount/event change.
-  const [prepPct, setPrepPct] = useState(0);
-  // Collapsed-by-default disclosure for the completed prep items.
-  const [showDone, setShowDone] = useState(false);
+  // The org's optional field definitions. Fetched rather than passed so the panel
+  // works from anywhere it's mounted; the list is small and cached by the browser.
+  const [fieldDefs, setFieldDefs] = useState<EventFieldDef[]>([]);
 
   const isPast = event.dueDate != null && event.dueDate < todayStr();
   const isDone = event.stage === "done";
-  const prep = programmingPrepScore(event);
 
-  // Per-item done-ness comes straight from the scoring helper so the rows stay in
-  // lockstep with the progress bar. Each row pairs that status with its inline control.
-  const prepDone = Object.fromEntries(
-    programmingPrepChecks(event).map(c => [c.key, c.done]),
-  ) as Record<string, boolean>;
-  const hasItineraryFile = Boolean(event.attachmentUrl?.trim() || event.attachmentDocId);
-  const prepRows = [
-    {
-      key: "room",
-      label: "Room confirmed",
-      done: prepDone.room,
-      onToggleDone: canManage && !isDone
-        ? () => onPatch(event.id, { roomStatus: prepDone.room ? "not_submitted" : "confirmed" })
-        : undefined,
-      control: (
-        <PrepStatusPill
-          value={event.roomStatus}
-          disabled={!canManage || isDone}
-          onChange={isDone ? undefined : v => onPatch(event.id, { roomStatus: v as ProgrammingTask["roomStatus"] })}
-        />
-      ),
-    },
-    {
-      key: "attachment",
-      label: "Itinerary attached",
-      done: prepDone.attachment,
-      wide: canManage && !isDone && !hasItineraryFile,
-      onToggleDone: canManage && !isDone && !hasItineraryFile
-        ? () => onPatch(event.id, { itineraryNotNeeded: !event.itineraryNotNeeded })
-        : undefined,
-      control: isDone ? (
-        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${prepDone.attachment ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/35" : "bg-white/[0.06] text-[#958d7c] ring-white/[0.1]"}`}>
-          {prepDone.attachment ? "Attached" : "None"}
-        </span>
-      ) : (
-        <AttachmentField
-          attachmentUrl={event.attachmentUrl}
-          attachmentDocId={event.attachmentDocId}
-          docs={resourceDocs}
-          canManage={canManage}
-          onUrlCommit={url => onPatch(event.id, { attachmentUrl: url, attachmentDocId: null })}
-          onDocPick={id => onPatch(event.id, { attachmentDocId: id, attachmentUrl: null })}
-          onClear={() => onPatch(event.id, { attachmentUrl: null, attachmentDocId: null })}
-        />
-      ),
-    },
-    {
-      key: "flyer",
-      label: "Flyer posted",
-      done: prepDone.flyer,
-      onToggleDone: canManage && !isDone ? () => onPatch(event.id, { flyerPosted: !event.flyerPosted }) : undefined,
-      control: (
-        <PrepToggle
-          on={event.flyerPosted}
-          disabled={!canManage || isDone}
-          onToggle={() => onPatch(event.id, { flyerPosted: !event.flyerPosted })}
-        />
-      ),
-    },
-    {
-      key: "socials",
-      label: "Socials meeting held",
-      done: prepDone.socials,
-      onToggleDone: canManage && !isDone ? () => onPatch(event.id, { socialsMeeting: !event.socialsMeeting }) : undefined,
-      control: (
-        <PrepToggle
-          on={event.socialsMeeting}
-          disabled={!canManage || isDone}
-          onToggle={() => onPatch(event.id, { socialsMeeting: !event.socialsMeeting })}
-        />
-      ),
-    },
-  ];
-  const todoRows = prepRows.filter(r => !r.done);
-  const doneRows = prepRows.filter(r => r.done);
+  /**
+   * What this event still needs before it can move up a lane — the FIELDS, not a
+   * prep score. The four booleans this replaced were one org's ops list, and
+   * three of the four were self-attested; "Needs date + location" is checkable.
+   */
+  const nextStage: ProgrammingStage | null =
+    event.stage === "idea" ? "planning" : event.stage === "planning" ? "confirmed" : null;
+  const missing = nextStage ? missingFor(event, nextStage) : [];
+
+  // Published events are frozen: Confirmed sits on everyone's Timeline, so
+  // changing the room or the date silently rewrites a plan people already made.
+  // The server enforces this too — the panel just doesn't offer the edit.
+  const isPublished = event.stage === "confirmed" || event.stage === "done";
+  const canEditFields = canManage && !isPublished;
 
   useEffect(() => {
     setNotes(event.wrapUpNotes ?? "");
   }, [event.id, event.wrapUpNotes]);
 
-  // Kick off prep-bar animation after first paint so the CSS transition fires.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      setPrepPct(prep.total ? (prep.done / prep.total) * 100 : 0);
-    });
-    return () => cancelAnimationFrame(id);
-  }, [event.id, prep.done, prep.total]);
+    requestJson<EventFieldDef[]>("/api/events/fields")
+      .then(setFieldDefs)
+      .catch(() => setFieldDefs([]));
+  }, []);
+
+  // Disabled fields are hidden, never deleted — their answers stay on disk and
+  // come back if the org switches the field on again (the server sanitizes reads
+  // against the live definitions, so a disabled answer simply doesn't ship).
+  const enabledFields = fieldDefs.filter(d => d.enabled);
 
   // Fetch Resources docs once for the / picker.
   useEffect(() => {
@@ -189,8 +130,14 @@ export function ProgrammingDetailPanel({
                   )}
                 </div>
               )}
+              {/* The owner is a field now, so it says who — and for a role owner,
+                  who that is TODAY. A role owner survives the officer turning
+                  over; the parenthetical is just a gloss on who holds it. */}
+              <span className="text-[11px] text-[#958d7c]">
+                {event.owner ? ownerLabel(event.owner) : event.ownerNote ? `${event.ownerNote} (not on the roster)` : "Unowned"}
+              </span>
               <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#6b6354]">
-                {event.calendarEventId != null ? "· On the timeline" : "· Promote to add to the timeline"}
+                {event.calendarEventId != null ? "· The chapter can see this" : "· Confirm to publish it to the chapter"}
               </span>
             </div>
           </div>
@@ -205,24 +152,29 @@ export function ProgrammingDetailPanel({
             </div>
           )}
         </div>
-        {!isDone && (
-          <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] px-3 py-2.5">
-            <ProgressRing pct={prepPct} complete={prep.done === prep.total} />
-            <div className="min-w-0">
-              {prep.done === prep.total ? (
-                <>
-                  <p className="text-[12.5px] font-semibold text-[#7ecba3]">Ready to go</p>
-                  <p className="text-[11px] text-[#6b6354]">All {prep.total} prep items complete</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-[12.5px] font-semibold text-[#ece7dd]">
-                    <span className="tabular-nums text-[#d9b08b]">{prep.total - prep.done}</span> {prep.total - prep.done === 1 ? "item" : "items"} left to prep
-                  </p>
-                  <p className="text-[11px] text-[#6b6354]">{prep.done} of {prep.total} done</p>
-                </>
-              )}
-            </div>
+        {nextStage && (
+          <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.015] px-3 py-2.5">
+            {missing.length === 0 ? (
+              <>
+                <p className="text-[12.5px] font-semibold text-[#7ecba3]">
+                  Ready to move to {STAGE_LABELS[nextStage]}
+                </p>
+                <p className="text-[11px] text-[#6b6354]">
+                  {nextStage === "confirmed"
+                    ? "Confirming publishes it to the chapter's timeline."
+                    : "Planning means somebody owns it."}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[12.5px] font-semibold text-[#ece7dd]">
+                  Needs {missing.map(f => f.label.toLowerCase()).join(" + ")}
+                </p>
+                <p className="text-[11px] text-[#6b6354]">
+                  to move to {STAGE_LABELS[nextStage]}
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -284,43 +236,35 @@ export function ProgrammingDetailPanel({
           </section>
         )}
 
-        {!isDone && (
+        {/* ── The org's optional fields ────────────────────────────────────
+            One list, declared by the org once, answered the same way by every
+            event — which is what makes a budget or a head count something you
+            can compare across the term. The per-event free-text checklist this
+            replaced was written from scratch each time, so nothing could ever be
+            counted or compared. */}
+        {enabledFields.length > 0 && (
           <section className="space-y-2">
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Prep checklist</h3>
-
-            {todoRows.length > 0 ? (
-              <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.015]">
-                {todoRows.map((row, i) => (
-                  <PrepRow key={row.key} row={row} divider={i > 0} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-xl border border-[#7ecba3]/20 bg-[#7ecba3]/[0.06] px-3 py-2.5 text-[12.5px] font-medium text-[#7ecba3]">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M20 6L9 17l-5-5" /></svg>
-                Every prep item is done
-              </div>
-            )}
-
-            {doneRows.length > 0 && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowDone(v => !v)}
-                  className="flex w-full items-center gap-1.5 px-1 py-1.5 text-[11px] font-medium text-[#6b6354] transition-colors hover:text-[#958d7c]"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className={`h-3 w-3 transition-transform ${showDone ? "rotate-90" : ""}`}><path d="M9 18l6-6-6-6" /></svg>
-                  <span className="tabular-nums">{doneRows.length}</span> completed
-                  {!showDone && <span className="truncate text-[#4a4439]">· {doneRows.map(r => r.label.replace(/ (confirmed|attached|posted|held)$/, "")).join(", ")}</span>}
-                </button>
-                {showDone && (
-                  <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.01]">
-                    {doneRows.map((row, i) => (
-                      <PrepRow key={row.key} row={row} divider={i > 0} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Details</h3>
+              {isPublished && canManage && (
+                <span className="text-[10.5px] text-[#6b6354]">
+                  Published — move back to Planning to edit
+                </span>
+              )}
+            </div>
+            <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.015]">
+              {enabledFields.map((def, i) => (
+                <FieldRow
+                  key={def.slug}
+                  def={def}
+                  event={event}
+                  docs={resourceDocs}
+                  canEdit={canEditFields}
+                  divider={i > 0}
+                  onPatch={onPatch}
+                />
+              ))}
+            </div>
           </section>
         )}
 
@@ -421,105 +365,197 @@ export function ProgrammingDetailPanel({
           </section>
         )}
 
-        {!isDone && (
-          <ProgrammingChecklist
-            eventId={event.id}
-            items={event.checklist}
-            canManage={canManage}
-            onChange={items => onPatch(event.id, { checklist: items })}
-          />
-        )}
-
       </div>
     </Card>
   );
 }
 
-type PrepRowData = { key: string; label: string; done: boolean; control: ReactNode; wide?: boolean; onToggleDone?: () => void };
-
 /**
- * One prep checklist row: status dot · label · inline control. A `wide` control
- * (e.g. the empty itinerary picker, which is a full-width input) stacks below the
- * label instead of cramming into the narrow inline right slot.
+ * One optional-field row: label · value editor, typed by the field's `kind`.
+ *
+ * Three of the built-in slugs are backed by REAL COLUMNS rather than by
+ * fieldValues — description, attachment and cohost predate this table and their
+ * data was never copied into JSON. They render here so an org can turn them off
+ * like any other optional field, but they read and write their own column; a
+ * copy in the JSON would be a second, drifting source of truth.
  */
-function PrepRow({ row, divider }: { row: PrepRowData; divider: boolean }) {
+function FieldRow({
+  def,
+  event,
+  docs,
+  canEdit,
+  divider,
+  onPatch,
+}: {
+  def: EventFieldDef;
+  event: ProgrammingTask;
+  docs: Doc[];
+  canEdit: boolean;
+  divider: boolean;
+  onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
+}) {
   const border = divider ? "border-t border-white/[0.05]" : "";
-  const labelCls = `text-[12.5px] ${row.done ? "text-[#958d7c]" : "font-medium text-[#ece7dd]"}`;
-  if (row.wide) {
+
+  // Column-backed built-ins first — these never touch fieldValues.
+  if (def.slug === "attachment") {
     return (
       <div className={`px-3 py-2.5 ${border}`}>
-        <div className="flex items-center gap-3">
-          <PrepDot done={row.done} onToggle={row.onToggleDone} label={row.label} />
-          <span className={`min-w-0 flex-1 ${labelCls}`}>{row.label}</span>
-        </div>
-        <div className="mt-2 pl-8" onClick={e => e.stopPropagation()}>{row.control}</div>
+        <p className="mb-2 text-[12.5px] text-[#958d7c]">{def.label}</p>
+        <AttachmentField
+          attachmentUrl={event.attachmentUrl}
+          attachmentDocId={event.attachmentDocId}
+          docs={docs}
+          canManage={canEdit}
+          onUrlCommit={url => onPatch(event.id, { attachmentUrl: url, attachmentDocId: null })}
+          onDocPick={id => onPatch(event.id, { attachmentDocId: id, attachmentUrl: null })}
+          onClear={() => onPatch(event.id, { attachmentUrl: null, attachmentDocId: null })}
+        />
+      </div>
+    );
+  }
+
+  if (def.slug === "description") {
+    return (
+      <FieldShell label={def.label} border={border} stacked>
+        {canEdit ? (
+          <TextValue
+            value={event.description ?? ""}
+            multiline
+            onCommit={v => onPatch(event.id, { description: v || null })}
+          />
+        ) : (
+          <ReadValue text={event.description} />
+        )}
+      </FieldShell>
+    );
+  }
+
+  if (def.slug === "cohost") {
+    return (
+      <FieldShell label={def.label} border={border}>
+        {canEdit ? (
+          <TextValue value={event.collab ?? ""} onCommit={v => onPatch(event.id, { collab: v || null })} />
+        ) : (
+          <ReadValue text={event.collab} />
+        )}
+      </FieldShell>
+    );
+  }
+
+  // Everything else lives in fieldValues, keyed by slug.
+  const raw = event.fieldValues?.[def.slug] ?? null;
+  const commit = (value: string | number | boolean | null) =>
+    onPatch(event.id, { fieldValues: { ...event.fieldValues, [def.slug]: value } });
+
+  if (def.kind === "bool") {
+    return (
+      <FieldShell label={def.label} border={border}>
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={() => commit(!raw)}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset transition-colors ${raw
+              ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30 hover:bg-emerald-500/25"
+              : "bg-white/[0.04] text-[#958d7c] ring-white/10 hover:bg-white/[0.08] hover:text-[#c9c2b4]"}`}
+          >
+            {raw ? "Yes" : "No"}
+          </button>
+        ) : (
+          <ReadValue text={raw ? "Yes" : "No"} />
+        )}
+      </FieldShell>
+    );
+  }
+
+  if (def.kind === "num" || def.kind === "money") {
+    const asNumber = typeof raw === "number" ? raw : null;
+    return (
+      <FieldShell label={def.label} border={border}>
+        {canEdit ? (
+          <div className="relative w-[130px]">
+            {def.kind === "money" && (
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#6b6354]">$</span>
+            )}
+            <input
+              type="number"
+              min={0}
+              step={def.kind === "money" ? 0.01 : 1}
+              defaultValue={asNumber ?? ""}
+              className={`${inputDuskCls} tabular-nums ${def.kind === "money" ? "pl-6" : ""}`}
+              onBlur={e => {
+                const v = e.target.value.trim();
+                const n = v === "" ? null : Number(v);
+                if (n !== asNumber) commit(Number.isFinite(n as number) ? n : null);
+              }}
+            />
+          </div>
+        ) : (
+          <ReadValue text={asNumber == null ? null : def.kind === "money" ? fmt$(asNumber) : String(asNumber)} />
+        )}
+      </FieldShell>
+    );
+  }
+
+  // text / date / person / file all edit as a string; `date` gets a date input.
+  const asText = raw == null ? "" : String(raw);
+  return (
+    <FieldShell label={def.label} border={border}>
+      {canEdit ? (
+        <TextValue value={asText} type={def.kind === "date" ? "date" : "text"} onCommit={v => commit(v || null)} />
+      ) : (
+        <ReadValue text={asText || null} />
+      )}
+    </FieldShell>
+  );
+}
+
+/** Label on the left, control on the right — or stacked, for a multiline value. */
+function FieldShell({
+  label, border, stacked, children,
+}: { label: string; border: string; stacked?: boolean; children: React.ReactNode }) {
+  if (stacked) {
+    return (
+      <div className={`px-3 py-2.5 ${border}`}>
+        <p className="mb-2 text-[12.5px] text-[#958d7c]">{label}</p>
+        {children}
       </div>
     );
   }
   return (
     <div className={`flex items-center gap-3 px-3 py-2.5 ${border}`}>
-      <PrepDot done={row.done} onToggle={row.onToggleDone} label={row.label} />
-      <span className={`min-w-0 flex-1 ${labelCls}`}>{row.label}</span>
-      <div className="flex shrink-0 items-center" onClick={e => e.stopPropagation()}>{row.control}</div>
+      <span className="min-w-0 flex-1 text-[12.5px] text-[#958d7c]">{label}</span>
+      <div className="flex shrink-0 items-center">{children}</div>
     </div>
   );
 }
 
-/** Compact circular prep-progress indicator. Animates via the stroke-dashoffset on pct change. */
-function ProgressRing({ pct, complete }: { pct: number; complete: boolean }) {
-  const r = 15;
-  const c = 2 * Math.PI * r;
-  const color = complete ? "#7ecba3" : "#a78bfa";
-  return (
-    <svg viewBox="0 0 36 36" className="h-10 w-10 shrink-0 -rotate-90">
-      <circle cx="18" cy="18" r={r} fill="none" stroke="rgba(236,231,221,0.08)" strokeWidth={3} />
-      <circle
-        cx="18" cy="18" r={r} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={c - (c * pct) / 100}
-        style={{ transition: "stroke-dashoffset 600ms cubic-bezier(0.22,1,0.36,1)" }}
-      />
-    </svg>
-  );
+/** An unanswered field says so rather than rendering an empty row. */
+function ReadValue({ text }: { text: string | null }) {
+  return text
+    ? <span className="text-[12.5px] text-[#c9c2b4]">{text}</span>
+    : <span className="text-[12px] italic text-[#4a4439]">Not set</span>;
 }
 
-/**
- * Status dot for a prep row: filled check when done, hollow ring when outstanding.
- * When `onToggle` is supplied the dot becomes a button that flips the item's done
- * state (a quick alternative to the inline control). Itinerary passes no toggle —
- * you can't "mark" a file attached by clicking a dot — so its dot stays passive.
- */
-function PrepDot({ done, onToggle, label }: { done: boolean; onToggle?: () => void; label?: string }) {
-  const filled = (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#7ecba3]/15 text-[#7ecba3]">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6L9 17l-5-5" /></svg>
-    </span>
-  );
-  const hollow = <span className="h-5 w-5 shrink-0 rounded-full border-[1.5px] border-dashed border-[#d9b08b]/50" aria-hidden />;
-
-  if (!onToggle) return done ? filled : hollow;
-
+/** Commit-on-blur text input, so a field isn't PATCHed on every keystroke. */
+function TextValue({
+  value, multiline, type = "text", onCommit,
+}: { value: string; multiline?: boolean; type?: string; onCommit: (v: string) => void }) {
+  if (multiline) {
+    return (
+      <textarea
+        defaultValue={value}
+        className="min-h-[70px] w-full resize-none rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-[12.5px] text-[#c9c2b4] placeholder:text-[#4a4439] transition-colors focus:border-[#d9b08b]/40 focus:outline-none"
+        onBlur={e => { if (e.target.value !== value) onCommit(e.target.value.trim()); }}
+      />
+    );
+  }
   return (
-    <button
-      type="button"
-      onClick={e => { e.stopPropagation(); onToggle(); }}
-      aria-pressed={done}
-      title={done ? `Mark "${label}" not done` : `Mark "${label}" done`}
-      className="group relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]/50"
-    >
-      {done ? (
-        // Check by default; swaps to an × on hover to signal it'll un-check.
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#7ecba3]/15 text-[#7ecba3] group-hover:bg-[#d98ba3]/15 group-hover:text-[#d98ba3]">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 group-hover:hidden"><path d="M20 6L9 17l-5-5" /></svg>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="hidden h-3 w-3 group-hover:block"><path d="M18 6L6 18M6 6l12 12" /></svg>
-        </span>
-      ) : (
-        // Hollow ring solidifies + shows a faint check on hover to invite the click.
-        <span className="flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] border-dashed border-[#d9b08b]/50 text-transparent group-hover:border-solid group-hover:border-[#7ecba3]/60 group-hover:text-[#7ecba3]/70">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3"><path d="M20 6L9 17l-5-5" /></svg>
-        </span>
-      )}
-    </button>
+    <input
+      type={type}
+      defaultValue={value}
+      className={`${inputDuskCls} w-[170px]`}
+      onBlur={e => { if (e.target.value !== value) onCommit(e.target.value.trim()); }}
+    />
   );
 }
 
@@ -563,24 +599,3 @@ function StarRatingLarge({
   );
 }
 
-/** Compact yes/no toggle for boolean prep items (flyer, socials meeting). */
-function PrepToggle({ on, disabled, onToggle }: { on: boolean; disabled?: boolean; onToggle: () => void }) {
-  if (disabled) {
-    return (
-      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${on ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/35" : "bg-white/[0.06] text-[#958d7c] ring-white/[0.1]"}`}>
-        {on ? "Done" : "To do"}
-      </span>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ring-1 ring-inset ${on
-        ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30 hover:bg-emerald-500/25"
-        : "bg-white/[0.04] text-[#958d7c] ring-white/10 hover:bg-white/[0.08] hover:text-[#c9c2b4]"}`}
-    >
-      {on ? "Done" : "Mark done"}
-    </button>
-  );
-}

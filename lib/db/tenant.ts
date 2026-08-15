@@ -1004,35 +1004,40 @@ function scopedProgrammingEventDoc(orgId: number, run: Run) {
   };
 }
 
-function scopedProgrammingChecklistItem(orgId: number, run: Run) {
-  type W = Prisma.ProgrammingChecklistItemWhereInput;
+// The org's optional event-field vocabulary. No onTx: every field definition
+// write is a single-row CRUD with no transaction around it, and the answers on
+// ProgrammingEvent.fieldValues are reconciled at read time (sanitizeFieldValues)
+// rather than rewritten when a definition changes.
+function scopedEventFieldDefinition(orgId: number, run: Run) {
+  type W = Prisma.EventFieldDefinitionWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
 
-  async function verify(where: Prisma.ProgrammingChecklistItemWhereUniqueInput): Promise<number> {
-    const row = await run(p => p.programmingChecklistItem.findFirst({ where: org(where as W), select: { id: true } }));
+  async function verify(where: Prisma.EventFieldDefinitionWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.eventFieldDefinition.findFirst({ where: org(where as W), select: { id: true } }));
     if (!row) notInOrg();
     return row.id;
   }
 
   return {
-    findMany:   (args?: Prisma.ProgrammingChecklistItemFindManyArgs)  => run(p => p.programmingChecklistItem.findMany({ ...args, where: org(args?.where) })),
-    findFirst:  (args?: Prisma.ProgrammingChecklistItemFindFirstArgs) => run(p => p.programmingChecklistItem.findFirst({ ...args, where: org(args?.where) })),
-    findUnique: (args: Prisma.ProgrammingChecklistItemFindUniqueArgs) => run(p => p.programmingChecklistItem.findFirst({ ...args, where: org(args.where as W) })),
-    create:     (args: Omit<Prisma.ProgrammingChecklistItemCreateArgs, "data"> & { data: Omit<Prisma.ProgrammingChecklistItemUncheckedCreateInput, "organizationId"> }) =>
-      run(p => p.programmingChecklistItem.create({ ...args, data: { ...args.data, organizationId: orgId } })),
-    update:     async (args: Prisma.ProgrammingChecklistItemUpdateArgs) => {
+    findMany:   (args?: Prisma.EventFieldDefinitionFindManyArgs)  => run(p => p.eventFieldDefinition.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.EventFieldDefinitionFindFirstArgs) => run(p => p.eventFieldDefinition.findFirst({ ...args, where: org(args?.where) })),
+    findUnique: (args: Prisma.EventFieldDefinitionFindUniqueArgs) => run(p => p.eventFieldDefinition.findFirst({ ...args, where: org(args.where as W) })),
+    create:     (args: Omit<Prisma.EventFieldDefinitionCreateArgs, "data"> & { data: Omit<Prisma.EventFieldDefinitionUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.eventFieldDefinition.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    createMany: (args: { data: Omit<Prisma.EventFieldDefinitionUncheckedCreateInput, "organizationId">[]; skipDuplicates?: boolean }) =>
+      run(p => p.eventFieldDefinition.createMany({
+        ...args,
+        data: args.data.map(d => ({ ...d, organizationId: orgId })),
+      })),
+    update:     async (args: Prisma.EventFieldDefinitionUpdateArgs) => {
       const id = await verify(args.where);
-      return run(p => p.programmingChecklistItem.update({ ...args, where: { id } }));
+      return run(p => p.eventFieldDefinition.update({ ...args, where: { id } }));
     },
-    delete:     async (args: Prisma.ProgrammingChecklistItemDeleteArgs) => {
+    delete:     async (args: Prisma.EventFieldDefinitionDeleteArgs) => {
       const id = await verify(args.where);
-      return run(p => p.programmingChecklistItem.delete({ where: { id } }));
+      return run(p => p.eventFieldDefinition.delete({ where: { id } }));
     },
-    deleteMany: (args?: Prisma.ProgrammingChecklistItemDeleteManyArgs) =>
-      run(p => p.programmingChecklistItem.deleteMany({ ...args, where: org(args?.where) })),
-    count:      (args?: Prisma.ProgrammingChecklistItemCountArgs)     => run(p => p.programmingChecklistItem.count({ ...args, where: org(args?.where) })),
-    aggregate:  (args: Omit<Prisma.ProgrammingChecklistItemAggregateArgs, "where"> & { where?: W }) =>
-      run(p => p.programmingChecklistItem.aggregate({ ...args, where: org(args?.where) })),
+    count:      (args?: Prisma.EventFieldDefinitionCountArgs) => run(p => p.eventFieldDefinition.count({ ...args, where: org(args?.where) })),
   };
 }
 
@@ -1824,7 +1829,7 @@ export function db(orgId: number) {
     docFolder:           scopedDocFolder(orgId, run),
     programmingEvent:    scopedProgrammingEvent(orgId, run),
     programmingEventDoc: scopedProgrammingEventDoc(orgId, run),
-    programmingChecklistItem: scopedProgrammingChecklistItem(orgId, run),
+    eventFieldDefinition: scopedEventFieldDefinition(orgId, run),
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
@@ -1932,7 +1937,7 @@ export function _dbWithClient(orgId: number, client: P) {
     docFolder:           scopedDocFolder(orgId, run),
     programmingEvent:    scopedProgrammingEvent(orgId, run),
     programmingEventDoc: scopedProgrammingEventDoc(orgId, run),
-    programmingChecklistItem: scopedProgrammingChecklistItem(orgId, run),
+    eventFieldDefinition: scopedEventFieldDefinition(orgId, run),
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),

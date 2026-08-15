@@ -1,45 +1,12 @@
 "use client";
 
-import type { RoomConfirmedStatus } from "@/lib/state/programming-prep";
-import { ROOM_CONFIRMED_LABELS, ROOM_CONFIRMED_PILL, ROOM_CONFIRMED_STATUSES } from "@/lib/state/programming-prep";
-
-export function PrepStatusPill({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: RoomConfirmedStatus;
-  onChange?: (v: RoomConfirmedStatus) => void;
-  disabled?: boolean;
-}) {
-  const pill = ROOM_CONFIRMED_PILL[value];
-  const label = ROOM_CONFIRMED_LABELS[value];
-
-  const PILL_BASE =
-    "inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset";
-
-  if (!onChange || disabled) {
-    return <span className={`${PILL_BASE} ${pill.text} ${pill.bg} ${pill.ring}`}>{label}</span>;
-  }
-
-  return (
-    <div className="relative inline-flex">
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value as RoomConfirmedStatus)}
-        onClick={e => e.stopPropagation()}
-        className={`${PILL_BASE} max-w-[130px] cursor-pointer appearance-none border-0 pr-5 focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/50 ${pill.text} ${pill.bg} ${pill.ring}`}
-      >
-        {ROOM_CONFIRMED_STATUSES.map(s => (
-          <option key={s} value={s} className="bg-[#0f0d0a] text-[#c9c2b4]">{ROOM_CONFIRMED_LABELS[s]}</option>
-        ))}
-      </select>
-      <svg className={`pointer-events-none absolute right-1.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 ${pill.text}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-      </svg>
-    </div>
-  );
-}
+/**
+ * Shared programming chips: the type badge/dot and the wrap-up star rating.
+ *
+ * Was PrepStatusPill.tsx, whose namesake export — a dropdown for the room-booking
+ * status — went away with the prep booleans in the v3 field model. Room status was
+ * one org's ops form applied to every org, and self-attested besides.
+ */
 
 /** Category → dot color, shared by the badge, board card, and calendar chips. */
 export const TYPE_DOT: Record<string, string> = {

@@ -1,6 +1,7 @@
-import type { ProgrammingChecklistItem, TaskStatus } from "@/app/data";
-import type { RoomStatus } from "@/lib/state/programming-prep";
-import type { ProgrammingStage } from "@/lib/state/programming-stage";
+import type { TaskStatus } from "@/app/data";
+import type { FieldValues } from "@/lib/event-fields";
+import { resolveOwner, type OwnerRef, type OwnerRow } from "@/lib/event-owner";
+import { STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
 
 /**
  * Which of an org's CalendarEventType rows the Programming (events) page
@@ -47,7 +48,7 @@ export function resolveProgrammingDisplay(row: { title: string; collabOrg?: stri
 }
 
 /** A ProgrammingEvent row (now the owning record) as selected by the service. */
-export interface ProgrammingTaskRow {
+export interface ProgrammingTaskRow extends OwnerRow {
   id: number;
   title: string;
   date: string | null;
@@ -59,20 +60,14 @@ export interface ProgrammingTaskRow {
   mandatory: boolean;
   description: string | null;
   collabOrg: string;
-  owner: string;
-  itineraryUrl: string | null;
+  ownerNote: string | null;
   attachmentUrl: string | null;
   attachmentDocId: number | null;
-  roomStatus: string;
-  itineraryNotNeeded?: boolean;
-  flyerPosted: boolean;
-  socialsMeeting: boolean;
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;
   calendarEventId: number | null;
   _count?: { docs: number };
-  checklist?: { id: number; label: string; done: boolean; sortOrder: number }[];
 }
 
 export interface ProgrammingTaskDto {
@@ -89,23 +84,39 @@ export interface ProgrammingTaskDto {
   stage: ProgrammingStage;
   mandatory: boolean;
   collab: string | null;
-  owner: string;
+  /** Resolved person-or-role owner; null when the event is unowned. */
+  owner: OwnerRef;
+  /**
+   * A pre-migration free-text owner that matched no roster row. Read-only and
+   * surfaced only so nobody's note is silently lost; it is NOT an owner and does
+   * not satisfy the Planning gate. Dropped in a follow-up once re-owned by hand.
+   */
+  ownerNote: string | null;
   description: string | null;
   attachmentUrl: string | null;
   attachmentDocId: number | null;
-  roomStatus: RoomStatus;
-  itineraryNotNeeded: boolean;
-  flyerPosted: boolean;
-  socialsMeeting: boolean;
+  /** Answers to the org's optional fields, already sanitized against live defs. */
+  fieldValues: FieldValues;
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;
-  checklist: ProgrammingChecklistItem[];
   calendarEventId?: number | null;
 }
 
-/** Map a ProgrammingEvent row to the task shape the Programming page expects. */
-export function toProgrammingTask(row: ProgrammingTaskRow, labelFor: (slug: string) => string): ProgrammingTaskDto {
+/**
+ * Map a ProgrammingEvent row to the task shape the Programming page expects.
+ *
+ * `nameFor` resolves a brotherId to this org's name for that person; `values`
+ * is the row's fieldValues already run through sanitizeFieldValues (which needs
+ * the org's live definitions, so the service does it and passes the result in —
+ * this module stays pure).
+ */
+export function toProgrammingTask(
+  row: ProgrammingTaskRow,
+  labelFor: (slug: string) => string,
+  nameFor: (brotherId: number) => string | null,
+  values: FieldValues,
+): ProgrammingTaskDto {
   const { title, collab } = resolveProgrammingDisplay({
     title: row.title,
     collabOrg: row.collabOrg,
@@ -122,20 +133,15 @@ export function toProgrammingTask(row: ProgrammingTaskRow, labelFor: (slug: stri
     stage:           row.stage as ProgrammingStage,
     mandatory:       row.mandatory ?? false,
     collab,
-    owner:           row.owner ?? "",
+    owner:           resolveOwner(row, nameFor),
+    ownerNote:       row.ownerNote ?? null,
     description:     row.description ?? null,
     attachmentUrl:   row.attachmentUrl ?? null,
     attachmentDocId: row.attachmentDocId ?? null,
-    roomStatus:      (row.roomStatus ?? "not_submitted") as RoomStatus,
-    itineraryNotNeeded: row.itineraryNotNeeded ?? false,
-    flyerPosted:     row.flyerPosted ?? false,
-    socialsMeeting:  row.socialsMeeting ?? false,
+    fieldValues:     values,
     spendingCents:   row.spendingCents ?? 0,
     successRating:   row.successRating ?? null,
     wrapUpNotes:     row.wrapUpNotes ?? null,
-    checklist:       (row.checklist ?? []).map(c => ({
-      id: c.id, label: c.label, done: c.done, sortOrder: c.sortOrder,
-    })),
     calendarEventId: row.calendarEventId ?? null,
   };
 }
@@ -146,7 +152,9 @@ export interface ProgrammingTaskInput {
   location?: string | null;
   time?:    string | null;
   collab?:  string | null;
-  owner?:   string;
+  /** Owner is set by id, either a roster member or a role — never a name string. */
+  ownerBrotherId?: number | null;
+  ownerRoleId?: number | null;
   status?:  string;
   /** CalendarEventType slug — validated against the org's rows in the service. */
   category: string;
@@ -169,7 +177,8 @@ export function fromProgrammingInput(input: ProgrammingTaskInput) {
     category:  input.category,
     stage:     "idea",
     mandatory: input.mandatory ?? false,
-    owner:     input.owner?.trim() ?? "",
+    ownerBrotherId: input.ownerBrotherId ?? null,
+    ownerRoleId:    input.ownerRoleId ?? null,
     collabOrg: input.collab?.trim() ?? "",
   };
 }
@@ -199,53 +208,117 @@ export function toCalendarFields(row: {
   };
 }
 
+// ─── The lane gates ─────────────────────────────────────────────────────────
+// An event's readiness IS its own fields. There is no separate prep list; what
+// gates a lane is whether the event can answer the questions that lane implies.
+//
+// This replaced four booleans (roomStatus / flyerPosted / socialsMeeting /
+// itineraryNotNeeded) that were one org's ops list applied to every org on the
+// platform, and that were self-attested besides — "flyer posted" is true because
+// somebody clicked it. A date and a location are facts, and Confirmed publishes
+// to the whole chapter's calendar, so that is what it should cost.
+
+export interface RequiredField {
+  key: "title" | "category" | "owner" | "date" | "location" | "mandatory";
+  label: string;
+  /** The earliest lane that demands this field. */
+  gate: ProgrammingStage;
+}
+
 /**
- * Prep readiness for an event, as a four-part checklist:
- * room confirmed · flyer/attachment present · flyer posted · socials meeting held.
- * Drives the inspector prep bar, the board card prep rings, and the on-deck hero meter.
+ * The required set, in gate order. Each lane boundary now costs something and
+ * buys something:
+ *
+ *   Idea      title + category   — belongs to the chapter
+ *   Planning  + an owner         — belongs to SOMEBODY
+ *   Confirmed + date + location  — locked in, and PUBLISHED to the Timeline
+ *   Done      (through Confirmed) — wrapped
+ *
+ * "+ an owner" is what makes Idea→Planning a real decision rather than a
+ * decorative drag: before this, Planning already published to the chapter and
+ * already required a date, so the two lanes meant the same thing.
+ *
+ * `mandatory` is listed at the confirmed gate and is always satisfied — a boolean
+ * column is answered by existing. It is there so the panel shows "attendance:
+ * required / optional" as a field the publish decision covers, not so it can block.
  */
-export interface PrepCheck { key: "room" | "attachment" | "flyer" | "socials"; label: string; done: boolean; }
+export const REQUIRED_FIELDS: readonly RequiredField[] = [
+  { key: "title",     label: "Title",      gate: "idea"      },
+  { key: "category",  label: "Type",       gate: "idea"      },
+  { key: "owner",     label: "Owner",      gate: "planning"  },
+  { key: "date",      label: "Date",       gate: "confirmed" },
+  { key: "location",  label: "Location",   gate: "confirmed" },
+  { key: "mandatory", label: "Attendance", gate: "confirmed" },
+] as const;
 
-export function programmingPrepChecks(event: {
-  roomStatus: RoomStatus;
-  attachmentUrl: string | null;
-  attachmentDocId: number | null;
-  itineraryNotNeeded?: boolean;
-  flyerPosted: boolean;
-  socialsMeeting: boolean;
-}): PrepCheck[] {
-  return [
-    { key: "room",       label: "Room",        done: event.roomStatus === "confirmed" || event.roomStatus === "na" },
-    { key: "attachment", label: "Itinerary",   done: Boolean(event.attachmentUrl?.trim() || event.attachmentDocId) || Boolean(event.itineraryNotNeeded) },
-    { key: "flyer",      label: "Flyer",       done: event.flyerPosted },
-    { key: "socials",    label: "Socials mtg", done: event.socialsMeeting },
-  ];
+/** The minimum an event must carry for the gate checks to read it. */
+export interface GateableEvent {
+  title?: string | null;
+  category?: string | null;
+  /** Either the resolved DTO owner or the raw FK pair — both are accepted. */
+  owner?: OwnerRef | undefined;
+  ownerBrotherId?: number | null;
+  ownerRoleId?: number | null;
+  date?: string | null;
+  dueDate?: string | null;
+  location?: string | null;
+  mandatory?: boolean | null;
 }
 
-export function programmingPrepScore(event: {
-  roomStatus: RoomStatus;
-  attachmentUrl: string | null;
-  attachmentDocId: number | null;
-  itineraryNotNeeded?: boolean;
-  flyerPosted: boolean;
-  socialsMeeting: boolean;
-}): { done: number; total: number } {
-  const checks = programmingPrepChecks(event);
-  return { done: checks.filter(c => c.done).length, total: checks.length };
+/**
+ * Is this required field answered?
+ *
+ * `owner` reads BOTH shapes deliberately: the service checks a raw DB row
+ * (ownerBrotherId / ownerRoleId) while the page checks a mapped DTO (a resolved
+ * `owner`), and having one gate definition means the two can't drift into
+ * disagreeing about what "owned" means. `ownerNote` is deliberately not consulted
+ * — a pre-migration string that matched nobody is a note, not an owner.
+ */
+export function hasRequiredField(event: GateableEvent, key: RequiredField["key"]): boolean {
+  switch (key) {
+    case "title":    return Boolean(event.title?.trim());
+    case "category": return Boolean(event.category?.trim());
+    case "owner":
+      return Boolean(event.owner) || event.ownerBrotherId != null || event.ownerRoleId != null;
+    case "date":     return Boolean(event.date ?? event.dueDate);
+    case "location": return Boolean(event.location?.trim());
+    // A boolean is always answered — false is a VALUE (attendance optional), not
+    // an empty. Checking truthiness here would make every optional-attendance
+    // event unconfirmable.
+    case "mandatory": return true;
+  }
 }
 
-/** Whether an upcoming event needs officer attention. */
-export function programmingNeedsAttention(event: {
-  dueDate: string | null;
-  roomStatus: RoomStatus;
-  attachmentUrl: string | null;
-  attachmentDocId: number | null;
-}, todayStr: string): boolean {
-  if (event.dueDate && event.dueDate < todayStr) return false;
-  return (
-    event.roomStatus === "not_submitted" ||
-    !Boolean(event.attachmentUrl?.trim() || event.attachmentDocId)
-  );
+/** Which required fields a stage demands — cumulative down the lanes. */
+export function fieldsFor(stage: ProgrammingStage): RequiredField[] {
+  // Done demands exactly what Confirmed does; what makes it distinct is the
+  // route it must arrive by (see needsConfirmFirst), not an extra field.
+  const upto = STAGES.indexOf(stage === "done" ? "confirmed" : stage);
+  return REQUIRED_FIELDS.filter(f => STAGES.indexOf(f.gate) <= upto);
+}
+
+/** The fields this event would still have to answer to sit in `stage`. */
+export function missingFor(event: GateableEvent, stage: ProgrammingStage): RequiredField[] {
+  return fieldsFor(stage).filter(f => !hasRequiredField(event, f.key));
+}
+
+export function canEnter(event: GateableEvent, stage: ProgrammingStage): boolean {
+  return missingFor(event, stage).length === 0;
+}
+
+/**
+ * Done is the one gate that isn't about fields, so missingFor() can't state it.
+ *
+ * A complete Planning event already satisfies every FIELD Confirmed needs, so
+ * without this guard the stage control takes it straight to Done — publishing it
+ * to the chapter Timeline (Done publishes too) with a toast that only says
+ * "wrapped". Nobody is ever told the chapter can now see it.
+ *
+ * "Wrapped" means an event happened, and an event the chapter was never told
+ * about didn't happen to them. So Done is reachable only from Confirmed.
+ */
+export function needsConfirmFirst(event: { stage: ProgrammingStage | string }, stage: ProgrammingStage): boolean {
+  return stage === "done" && event.stage !== "confirmed";
 }
 
 // ─── Page derivations (on-deck hero, attention rail, glance strip) ───────────
@@ -261,11 +334,8 @@ export interface ProgrammingTaskLike {
   id: number;
   dueDate: string | null;
   stage: ProgrammingStage;
-  roomStatus: RoomStatus;
-  attachmentUrl: string | null;
-  attachmentDocId: number | null;
-  flyerPosted: boolean;
-  socialsMeeting: boolean;
+  owner: OwnerRef;
+  location: string;
   successRating: number | null;
   spendingCents: number;
 }
@@ -278,32 +348,81 @@ export function nextOnDeckEvent<T extends ProgrammingTaskLike>(tasks: T[], today
   return upcoming[0] ?? null;
 }
 
-export interface AttentionEntry<T> { task: T; reason: "room" | "flyer" | "prep"; tone: "rose" | "gold"; }
+export interface AttentionEntry<T> {
+  task: T;
+  /** "owner" = an unowned idea; "fields" = a Planning event missing confirm fields. */
+  reason: "owner" | "fields";
+  /** The named gaps, for "Needs date + location". Empty for `reason: "owner"`. */
+  missing: RequiredField[];
+  tone: "rose" | "gold";
+}
+
+/** An event within this many days is urgent enough to read rose rather than gold. */
+const URGENT_WINDOW_DAYS = 14;
+
+/** The confirm-gate fields a Planning event can genuinely still be missing. */
+const CONFIRM_GATE_FIELDS = REQUIRED_FIELDS.filter(f => f.key === "date" || f.key === "location");
 
 /**
- * Upcoming, not-done events that still need work before their date, soonest first.
- * Room-not-booked is the hard blocker (rose); a missing flyer or incomplete prep is
- * a softer nudge (gold). Mirrors programmingNeedsAttention but annotated for the rail.
+ * What still stands between each event and its next lane — NAMED, not counted.
+ *
+ * Ported from the mock's `blocker()`. Two rules that are easy to get wrong:
+ *
+ *  - **Confirmed and Done are settled** and return nothing. They are published;
+ *    there is no gap left to name, and printing "published to the chapter" on
+ *    every one of them buries the cards that do need a person.
+ *  - **An OWNED idea is unremarkable.** An idea is allowed to sit unscheduled
+ *    indefinitely — that is what a backlog is for. The only thing worth saying
+ *    about one is that nobody has picked it up.
+ *
+ * Unlike the prep version this replaced, a dateless event still appears: an
+ * unowned idea with no date is exactly the card that goes stale unnoticed. Rose
+ * is reserved for a gap inside the 14-day window, where it is about to matter.
  */
 export function eventsNeedingAttention<T extends ProgrammingTaskLike>(tasks: T[], today: string): AttentionEntry<T>[] {
   return tasks
-    .filter(t => t.stage !== "done" && t.dueDate != null && t.dueDate >= today)
+    .filter(t => t.stage === "idea" || t.stage === "planning")
+    .filter(t => t.dueDate == null || t.dueDate >= today)
     .map((task): AttentionEntry<T> | null => {
-      if (task.roomStatus === "not_submitted") return { task, reason: "room", tone: "rose" };
-      if (!task.flyerPosted) return { task, reason: "flyer", tone: "gold" };
-      const { done, total } = programmingPrepScore(task);
-      if (done < total) return { task, reason: "prep", tone: "gold" };
-      return null;
+      const urgent = task.dueDate != null && daysBetween(today, task.dueDate) <= URGENT_WINDOW_DAYS;
+      const tone: "rose" | "gold" = urgent ? "rose" : "gold";
+      if (task.stage === "idea") {
+        return task.owner ? null : { task, reason: "owner", missing: [], tone };
+      }
+      // Only the two confirm-gate fields a Planning event can actually be
+      // missing. title/category are guaranteed on a persisted event and absent
+      // from this structural type, so the full missingFor would name them every
+      // time; `mandatory` is always answered.
+      const missing = CONFIRM_GATE_FIELDS.filter(f => !hasRequiredField(task, f.key));
+      if (missing.length === 0) return null;
+      return { task, reason: "fields", missing, tone };
     })
     .filter((e): e is AttentionEntry<T> => e !== null)
-    .sort((a, b) => (a.task.dueDate as string).localeCompare(b.task.dueDate as string));
+    .sort((a, b) => {
+      // Dated first (soonest wins); undated ideas sort last — they're real, but
+      // nothing about them is late yet.
+      if (a.task.dueDate == null) return b.task.dueDate == null ? 0 : 1;
+      if (b.task.dueDate == null) return -1;
+      return a.task.dueDate.localeCompare(b.task.dueDate);
+    });
+}
+
+/** The blocker sentence for an entry: "Needs an owner" / "Needs date + location". */
+export function attentionLabel(entry: AttentionEntry<unknown>): string {
+  if (entry.reason === "owner") return "Needs an owner";
+  return `Needs ${entry.missing.map(f => f.label.toLowerCase()).join(" + ")}`;
 }
 
 export interface EventsTermStats {
   total: number;
   byStage: Record<ProgrammingStage, number>;
   next14: number;
-  next14NeedRoom: number;
+  /**
+   * Of the next 14 days' events, how many can't be confirmed yet. Replaces
+   * `next14NeedRoom` — same job (what's about to be late), but measured against
+   * fields the org actually agreed matter rather than one org's room-booking form.
+   */
+  next14Unready: number;
   avgSuccess: number | null;
   doneCount: number;
   spendCents: number;
@@ -318,7 +437,13 @@ export function eventsTermStats(tasks: ProgrammingTaskLike[], today: string): Ev
   const inWindow = tasks.filter(
     t => t.stage !== "done" && t.dueDate != null && t.dueDate >= today && t.dueDate <= horizon,
   );
-  const next14NeedRoom = inWindow.filter(t => t.roomStatus === "not_submitted").length;
+  // Checked field-by-field rather than through canEnter: a ProgrammingTaskLike
+  // carries only what the page holds, and title/category are guaranteed present
+  // on any persisted event — running the full gate here would count every event
+  // as unready because those two keys are absent from the structural type.
+  const next14Unready = inWindow.filter(
+    t => !hasRequiredField(t, "owner") || !hasRequiredField(t, "location") || !hasRequiredField(t, "date"),
+  ).length;
 
   const rated = tasks.filter(t => t.stage === "done" && t.successRating != null);
   const avgSuccess = rated.length
@@ -329,7 +454,7 @@ export function eventsTermStats(tasks: ProgrammingTaskLike[], today: string): Ev
     total: tasks.length,
     byStage,
     next14: inWindow.length,
-    next14NeedRoom,
+    next14Unready,
     avgSuccess,
     doneCount: byStage.done,
     spendCents: tasks.reduce((sum, t) => sum + (t.spendingCents ?? 0), 0),
@@ -341,4 +466,10 @@ function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+/** Whole days from `from` to `to`, both YYYY-MM-DD (UTC-safe; negative = past). */
+function daysBetween(from: string, to: string): number {
+  const ms = new Date(to + "T00:00:00Z").getTime() - new Date(from + "T00:00:00Z").getTime();
+  return Math.round(ms / 86_400_000);
 }

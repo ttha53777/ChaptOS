@@ -30,9 +30,6 @@ const DONE_EVENTS = [
     spendingCents: 12000,
     successRating: 4,
     wrapUpNotes: "Great turnout — 40+ attendees. Add more food next time.",
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "confirmed",
     mandatory: false,
   },
   {
@@ -47,9 +44,6 @@ const DONE_EVENTS = [
     spendingCents: 0,
     successRating: 5,
     wrapUpNotes: "24 pints collected — best chapter total ever.",
-    flyerPosted: true,
-    socialsMeeting: false,
-    roomStatus: "confirmed",
     mandatory: true,
   },
   {
@@ -64,9 +58,6 @@ const DONE_EVENTS = [
     spendingCents: 8500,
     successRating: 4,
     wrapUpNotes: "Raised ~$680. Dumplings sold out by noon.",
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "confirmed",
     mandatory: false,
   },
   {
@@ -81,9 +72,6 @@ const DONE_EVENTS = [
     spendingCents: 1500,
     successRating: 3,
     wrapUpNotes: "Low energy mid-semester. Consider a snack budget.",
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "confirmed",
     mandatory: false,
   },
   {
@@ -98,9 +86,6 @@ const DONE_EVENTS = [
     spendingCents: 22000,
     successRating: 5,
     wrapUpNotes: "12 alumni connected. Strong networking all night.",
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "confirmed",
     mandatory: false,
   },
   {
@@ -115,9 +100,6 @@ const DONE_EVENTS = [
     spendingCents: 5500,
     successRating: 4,
     wrapUpNotes: "Sold 120 cups. Profit ~$460. Good collab with Pi Delta.",
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "na",
     mandatory: false,
   },
   {
@@ -132,9 +114,6 @@ const DONE_EVENTS = [
     spendingCents: 3000,
     successRating: 5,
     wrapUpNotes: "35 brothers participated. Excellent visibility for chapter.",
-    flyerPosted: true,
-    socialsMeeting: false,
-    roomStatus: "na",
     mandatory: true,
   },
   {
@@ -149,9 +128,6 @@ const DONE_EVENTS = [
     spendingCents: 2000,
     successRating: 3,
     wrapUpNotes: "Profit $320. Weather was rough — reschedule for fall.",
-    flyerPosted: true,
-    socialsMeeting: false,
-    roomStatus: "na",
     mandatory: false,
   },
   {
@@ -166,9 +142,6 @@ const DONE_EVENTS = [
     spendingCents: 18000,
     successRating: 5,
     wrapUpNotes: "Best turnout of the year. BBQ + pool, great vibe.",
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "na",
     mandatory: false,
   },
   {
@@ -183,9 +156,6 @@ const DONE_EVENTS = [
     spendingCents: 55000,
     successRating: 5,
     wrapUpNotes: "Awards ceremony + dinner. Formal attire turnout exceeded expectations.",
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "confirmed",
     mandatory: true,
   },
   {
@@ -200,9 +170,6 @@ const DONE_EVENTS = [
     spendingCents: 34000,
     successRating: 4,
     wrapUpNotes: "2-day retreat. Strong bonding. Exec planning for fall locked in.",
-    flyerPosted: true,
-    socialsMeeting: false,
-    roomStatus: "confirmed",
     mandatory: false,
   },
 ] as const;
@@ -220,9 +187,6 @@ const CONFIRMED_EVENTS = [
     spendingCents: 25000,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: true,
-    socialsMeeting: true,
-    roomStatus: "confirmed",
     mandatory: false,
   },
   {
@@ -237,9 +201,6 @@ const CONFIRMED_EVENTS = [
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: true,
-    socialsMeeting: false,
-    roomStatus: "na",
     mandatory: true,
   },
   {
@@ -254,9 +215,6 @@ const CONFIRMED_EVENTS = [
     spendingCents: 7500,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: true,
-    roomStatus: "confirmed",
     mandatory: false,
   },
 ] as const;
@@ -274,9 +232,6 @@ const PLANNING_EVENTS = [
     spendingCents: 15000,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "not_submitted",
     mandatory: false,
   },
   {
@@ -291,9 +246,6 @@ const PLANNING_EVENTS = [
     spendingCents: 2500,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "submitted",
     mandatory: false,
   },
   {
@@ -308,9 +260,6 @@ const PLANNING_EVENTS = [
     spendingCents: 40000,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "na",
     mandatory: false,
   },
 ] as const;
@@ -328,9 +277,6 @@ const IDEA_EVENTS = [
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "not_submitted",
     mandatory: false,
   },
   {
@@ -345,9 +291,6 @@ const IDEA_EVENTS = [
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "not_submitted",
     mandatory: false,
   },
   {
@@ -362,9 +305,6 @@ const IDEA_EVENTS = [
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "na",
     mandatory: false,
   },
   {
@@ -379,9 +319,6 @@ const IDEA_EVENTS = [
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,
-    flyerPosted: false,
-    socialsMeeting: false,
-    roomStatus: "not_submitted",
     mandatory: false,
   },
 ] as const;
@@ -419,8 +356,22 @@ async function main() {
     console.log(`  Deleted ${delCal} linked CalendarEvent rows.`);
   }
 
-  const calendarBacked = [...DONE_EVENTS, ...CONFIRMED_EVENTS, ...PLANNING_EVENTS];
-  const ideas = [...IDEA_EVENTS];
+  // The publish boundary is CONFIRMED now, not Planning. Planning events are a
+  // private lane with no CalendarEvent, so they seed alongside the ideas.
+  const calendarBacked = [...DONE_EVENTS, ...CONFIRMED_EVENTS];
+  const unpublished = [...PLANNING_EVENTS, ...IDEA_EVENTS];
+
+  // Owner is a roster FK now, not a free-text name. Resolve the seed's names
+  // against this org's Membership rows (the name an org actually uses); anything
+  // unmatched seeds as an unowned event rather than inventing a member.
+  const roster = await prisma.membership.findMany({
+    where: { organizationId: ORG_ID },
+    select: { brotherId: true, name: true, brother: { select: { name: true } } },
+  });
+  const brotherIdByName = new Map(
+    roster.map(m => [(m.name ?? m.brother.name).toLowerCase(), m.brotherId] as const),
+  );
+  const ownerIdFor = (name: string) => brotherIdByName.get(name.trim().toLowerCase()) ?? null;
 
   let seeded = 0;
 
@@ -450,16 +401,13 @@ async function main() {
         stage: "idea", // placeholder — constraint allows null calendarEventId for idea
         location: e.location || null,
         time: e.time ?? null,
-        owner: e.owner,
+        ownerBrotherId: ownerIdFor(e.owner),
         collabOrg: e.collabOrg,
         status: "Upcoming",
         mandatory: e.mandatory,
         spendingCents: e.spendingCents,
         successRating: e.successRating ?? null,
         wrapUpNotes: e.wrapUpNotes ?? null,
-        flyerPosted: e.flyerPosted,
-        socialsMeeting: e.socialsMeeting,
-        roomStatus: e.roomStatus,
         description: null,
         attachmentUrl: null,
         attachmentDocId: null,
@@ -475,32 +423,31 @@ async function main() {
     seeded++;
   }
 
-  // Ideas: ProgrammingEvent only, no CalendarEvent.
+  // Ideas and Planning: ProgrammingEvent only, no CalendarEvent — neither lane
+  // publishes to the chapter any more. Planning keeps its date and location where
+  // the seed gave it one; that is exactly what makes it confirmable.
   await prisma.programmingEvent.createMany({
-    data: ideas.map(e => ({
+    data: unpublished.map(e => ({
       organizationId: ORG_ID,
       title: e.title,
-      date: null,
+      date: "date" in e ? (e.date as string | null) : null,
       category: e.category,
-      stage: "idea" as const,
-      location: null,
-      time: null,
-      owner: e.owner,
+      stage: e.stage,
+      location: "location" in e ? ((e.location as string) || null) : null,
+      time: "time" in e ? ((e.time as string | undefined) ?? null) : null,
+      ownerBrotherId: ownerIdFor(e.owner),
       collabOrg: e.collabOrg,
       status: "Upcoming",
-      mandatory: false,
+      mandatory: "mandatory" in e ? Boolean(e.mandatory) : false,
       spendingCents: 0,
       successRating: null,
       wrapUpNotes: null,
-      flyerPosted: false,
-      socialsMeeting: false,
-      roomStatus: "not_submitted",
       description: null,
       attachmentUrl: null,
       attachmentDocId: null,
     })),
   });
-  seeded += ideas.length;
+  seeded += unpublished.length;
 
   console.log(`\nSeeded ${seeded} programming events:`);
   console.log(`  ${DONE_EVENTS.length} done, ${CONFIRMED_EVENTS.length} confirmed, ${PLANNING_EVENTS.length} planning, ${IDEA_EVENTS.length} ideas`);

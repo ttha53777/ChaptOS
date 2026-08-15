@@ -1,20 +1,34 @@
 /**
- * Unit tests for the pure page-derivation helpers in lib/programming.ts that
- * drive the redesigned events page (on-deck hero, attention rail, glance strip).
- * No DB — these operate on the in-memory task list the page already holds.
+ * Unit tests for the pure gate + derivation helpers in lib/programming.ts.
+ *
+ * These are the rules that decide which lane an event may sit in, and they run
+ * in two places that must never disagree: the service (over a raw DB row) and
+ * the page (over a mapped DTO). No DB here — everything is in-memory.
+ *
+ * The fixture cases are ported from the v3 design mock, so a behavior change
+ * here shows up as a diff against the design argument rather than silently.
  */
 
 import { describe, expect, it } from "vitest";
 import {
+  attentionLabel,
+  canEnter,
   eventsNeedingAttention,
   eventsTermStats,
+  fieldsFor,
+  hasRequiredField,
+  missingFor,
+  needsConfirmFirst,
   nextOnDeckEvent,
-  programmingPrepChecks,
-  programmingPrepScore,
   type ProgrammingTaskDto,
 } from "@/lib/programming";
+import type { OwnerRef } from "@/lib/event-owner";
 
 const TODAY = "2026-06-15";
+
+const person = (name = "Maya Chen"): OwnerRef => ({ kind: "brother", id: 1, name, initials: "MC" });
+const role = (name = "Social Chair", holders: string[] = ["Maya Chen"]): OwnerRef =>
+  ({ kind: "role", id: 7, name, holders });
 
 /** Minimal valid ProgrammingTaskDto; override only what a test cares about. */
 function task(over: Partial<ProgrammingTaskDto> = {}): ProgrammingTaskDto {
@@ -30,157 +44,209 @@ function task(over: Partial<ProgrammingTaskDto> = {}): ProgrammingTaskDto {
     stage: "confirmed",
     mandatory: false,
     collab: null,
-    owner: "",
+    owner: null,
+    ownerNote: null,
     description: null,
     attachmentUrl: null,
     attachmentDocId: null,
-    roomStatus: "not_submitted",
-    itineraryNotNeeded: false,
-    flyerPosted: false,
-    socialsMeeting: false,
+    fieldValues: {},
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,
-    checklist: [],
     ...over,
   };
 }
 
-describe("programmingPrepScore / programmingPrepChecks", () => {
-  it("counts four checks", () => {
-    expect(programmingPrepScore(task()).total).toBe(4);
-    expect(programmingPrepChecks(task())).toHaveLength(4);
+describe("fieldsFor", () => {
+  it("is cumulative down the lanes", () => {
+    expect(fieldsFor("idea").map(f => f.key)).toEqual(["title", "category"]);
+    expect(fieldsFor("planning").map(f => f.key)).toEqual(["title", "category", "owner"]);
+    expect(fieldsFor("confirmed").map(f => f.key)).toEqual(
+      ["title", "category", "owner", "date", "location", "mandatory"],
+    );
   });
 
-  it("scores zero when nothing is prepped", () => {
-    expect(programmingPrepScore(task())).toEqual({ done: 0, total: 4 });
-  });
-
-  it("counts room (confirmed or na), attachment, flyer, and socials meeting", () => {
-    const full = task({
-      roomStatus: "confirmed",
-      attachmentUrl: "https://x.test/itin",
-      flyerPosted: true,
-      socialsMeeting: true,
-    });
-    expect(programmingPrepScore(full)).toEqual({ done: 4, total: 4 });
-
-    // roomStatus "na" also counts as room-done; attachmentDocId satisfies attachment.
-    const partial = task({ roomStatus: "na", attachmentDocId: 7 });
-    const score = programmingPrepScore(partial);
-    expect(score.done).toBe(2); // room + attachment, no flyer/socials
-  });
-
-  it("treats itinerary as done when marked not-needed, even without a file", () => {
-    const check = programmingPrepChecks(task({ itineraryNotNeeded: true }))[1];
-    expect(check.key).toBe("attachment");
-    expect(check.done).toBe(true);
-  });
-
-  it("treats submitted/not_submitted room as not done", () => {
-    expect(programmingPrepChecks(task({ roomStatus: "submitted" }))[0].done).toBe(false);
-    expect(programmingPrepChecks(task({ roomStatus: "not_submitted" }))[0].done).toBe(false);
+  it("asks Done for exactly what Confirmed asks", () => {
+    // What makes Done distinct is the ROUTE it must arrive by, not an extra
+    // field — see needsConfirmFirst.
+    expect(fieldsFor("done")).toEqual(fieldsFor("confirmed"));
   });
 });
 
-describe("nextOnDeckEvent", () => {
-  it("returns the soonest dated, not-done event on or after today", () => {
-    const list = [
-      task({ id: 1, dueDate: "2026-06-20" }),
-      task({ id: 2, dueDate: "2026-06-16" }),
-      task({ id: 3, dueDate: "2026-07-01" }),
-    ];
-    expect(nextOnDeckEvent(list, TODAY)?.id).toBe(2);
+describe("hasRequiredField", () => {
+  it("reads the owner from either the DTO shape or the raw FK pair", () => {
+    // One gate definition serves the service (raw row) and the page (mapped
+    // DTO); if these two disagreed, the board and the server would too.
+    expect(hasRequiredField({ owner: person() }, "owner")).toBe(true);
+    expect(hasRequiredField({ ownerBrotherId: 4 }, "owner")).toBe(true);
+    expect(hasRequiredField({ ownerRoleId: 9 }, "owner")).toBe(true);
+    expect(hasRequiredField({ owner: null }, "owner")).toBe(false);
   });
 
-  it("includes an event dated exactly today", () => {
-    const list = [task({ id: 9, dueDate: TODAY }), task({ id: 10, dueDate: "2026-06-30" })];
-    expect(nextOnDeckEvent(list, TODAY)?.id).toBe(9);
+  it("does not accept a retired ownerNote as an owner", () => {
+    // A pre-migration string that matched nobody is a note, not an accountable
+    // person; treating it as an owner would let an unowned event into Planning.
+    expect(hasRequiredField(task({ owner: null, ownerNote: "Chris" }), "owner")).toBe(false);
   });
 
-  it("ignores past, dateless, and done events", () => {
-    const list = [
-      task({ id: 1, dueDate: "2026-06-01" }),          // past
-      task({ id: 2, dueDate: null }),                   // no date
-      task({ id: 3, dueDate: "2026-06-25", stage: "done" }), // done
-    ];
-    expect(nextOnDeckEvent(list, TODAY)).toBeNull();
+  it("treats mandatory:false as ANSWERED, not empty", () => {
+    // A boolean is answered by existing. Checking truthiness here would make
+    // every optional-attendance event permanently unconfirmable.
+    expect(hasRequiredField({ mandatory: false }, "mandatory")).toBe(true);
   });
 
-  it("returns null for an empty slate", () => {
-    expect(nextOnDeckEvent([], TODAY)).toBeNull();
+  it("rejects whitespace-only text as unanswered", () => {
+    expect(hasRequiredField({ location: "   " }, "location")).toBe(false);
+    expect(hasRequiredField({ title: "  " }, "title")).toBe(false);
+  });
+
+  it("accepts either date key, since row and DTO spell it differently", () => {
+    expect(hasRequiredField({ date: "2026-06-20" }, "date")).toBe(true);
+    expect(hasRequiredField({ dueDate: "2026-06-20" }, "date")).toBe(true);
+  });
+});
+
+describe("canEnter / missingFor", () => {
+  it("refuses Planning without an owner and accepts it with either kind", () => {
+    const unowned = task({ stage: "idea", owner: null });
+    expect(canEnter(unowned, "planning")).toBe(false);
+    expect(missingFor(unowned, "planning").map(f => f.key)).toEqual(["owner"]);
+
+    expect(canEnter(task({ owner: person() }), "planning")).toBe(true);
+    expect(canEnter(task({ owner: role() }), "planning")).toBe(true);
+  });
+
+  it("names BOTH missing confirm fields — the mock's Boba Fundraiser case", () => {
+    const boba = task({ stage: "planning", title: "Boba Fundraiser", owner: person(), dueDate: null, location: "" });
+    expect(canEnter(boba, "confirmed")).toBe(false);
+    expect(missingFor(boba, "confirmed").map(f => f.label)).toEqual(["Date", "Location"]);
+  });
+
+  it("names only the one that's missing", () => {
+    const dated = task({ stage: "planning", owner: person(), dueDate: "2026-07-01", location: "" });
+    expect(missingFor(dated, "confirmed").map(f => f.key)).toEqual(["location"]);
+
+    const placed = task({ stage: "planning", owner: person(), dueDate: null, location: "EMU" });
+    expect(missingFor(placed, "confirmed").map(f => f.key)).toEqual(["date"]);
+  });
+
+  it("passes a complete event — the mock's Spring Banquet case", () => {
+    const banquet = task({
+      stage: "planning", title: "Spring Banquet", owner: person(), dueDate: "2026-07-01", location: "Ballroom",
+    });
+    expect(canEnter(banquet, "confirmed")).toBe(true);
+    expect(missingFor(banquet, "confirmed")).toEqual([]);
+  });
+});
+
+describe("needsConfirmFirst", () => {
+  it("blocks Planning → Done even when every field is answered", () => {
+    // The whole point: a complete Planning event satisfies every FIELD Confirmed
+    // needs, so field checks alone would wave it through to Done — publishing it
+    // to the chapter with a toast that only says "wrapped".
+    const ready = task({ stage: "planning", owner: person(), dueDate: "2026-06-01", location: "EMU" });
+    expect(canEnter(ready, "done")).toBe(true);
+    expect(needsConfirmFirst(ready, "done")).toBe(true);
+  });
+
+  it("allows Confirmed → Done", () => {
+    expect(needsConfirmFirst(task({ stage: "confirmed" }), "done")).toBe(false);
+  });
+
+  it("has nothing to say about any other target lane", () => {
+    expect(needsConfirmFirst(task({ stage: "idea" }), "planning")).toBe(false);
+    expect(needsConfirmFirst(task({ stage: "planning" }), "confirmed")).toBe(false);
   });
 });
 
 describe("eventsNeedingAttention", () => {
-  it("flags an unbooked room as a rose blocker", () => {
-    const list = [task({ id: 1, dueDate: "2026-06-20", roomStatus: "not_submitted" })];
-    const out = eventsNeedingAttention(list, TODAY);
+  it("flags an unowned idea and stays quiet about an owned one", () => {
+    const unowned = task({ stage: "idea", title: "Speaker Series", owner: null, dueDate: null });
+    const owned   = task({ stage: "idea", title: "Beach Cleanup", owner: person(), dueDate: null });
+
+    const out = eventsNeedingAttention([unowned, owned], TODAY);
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ reason: "room", tone: "rose" });
+    expect(out[0]!.task.title).toBe("Speaker Series");
+    expect(attentionLabel(out[0]!)).toBe("Needs an owner");
   });
 
-  it("flags a missing flyer as a gold nudge once the room is handled", () => {
-    const list = [task({ id: 1, dueDate: "2026-06-20", roomStatus: "confirmed", flyerPosted: false })];
-    expect(eventsNeedingAttention(list, TODAY)[0]).toMatchObject({ reason: "flyer", tone: "gold" });
+  it("names a planning event's missing confirm fields", () => {
+    const boba = task({
+      stage: "planning", title: "Boba Fundraiser", owner: person(), dueDate: "2026-06-20", location: "",
+    });
+    const out = eventsNeedingAttention([boba], TODAY);
+    expect(attentionLabel(out[0]!)).toBe("Needs location");
   });
 
-  it("flags incomplete prep (gold) when room+flyer are done but other checks aren't", () => {
-    const list = [task({
-      id: 1, dueDate: "2026-06-20",
-      roomStatus: "confirmed", flyerPosted: true,
-      // missing attachment + socials → prep incomplete
-    })];
-    expect(eventsNeedingAttention(list, TODAY)[0]).toMatchObject({ reason: "prep", tone: "gold" });
+  it("says nothing about Confirmed or Done — they are settled", () => {
+    const confirmed = task({ stage: "confirmed", owner: person(), dueDate: "2026-06-20", location: "EMU" });
+    const done      = task({ stage: "done", owner: person(), dueDate: "2026-06-01", location: "EMU" });
+    expect(eventsNeedingAttention([confirmed, done], TODAY)).toEqual([]);
   });
 
-  it("omits fully-prepped, past, and done events; sorts soonest first", () => {
-    const ready = {
-      roomStatus: "confirmed" as const, flyerPosted: true,
-      socialsMeeting: true, attachmentUrl: "https://x.test",
-    };
-    const list = [
-      task({ id: 1, dueDate: "2026-06-30", ...ready }),                 // fully prepped → omit
-      task({ id: 2, dueDate: "2026-06-01", roomStatus: "not_submitted" }), // past → omit
-      task({ id: 3, dueDate: "2026-06-28", stage: "done" }),            // done → omit
-      task({ id: 4, dueDate: "2026-06-25", roomStatus: "not_submitted" }),
-      task({ id: 5, dueDate: "2026-06-18", roomStatus: "not_submitted" }),
-    ];
-    const out = eventsNeedingAttention(list, TODAY);
-    expect(out.map(e => e.task.id)).toEqual([5, 4]);
+  it("reads rose inside 14 days and gold outside it", () => {
+    const soon = task({ stage: "idea", owner: null, dueDate: "2026-06-20" });   // 5 days
+    const far  = task({ stage: "idea", owner: null, dueDate: "2026-08-20" });   // ~66 days
+    const out = eventsNeedingAttention([far, soon], TODAY);
+    expect(out.find(e => e.task.id === soon.id)!.tone).toBe("rose");
+    expect(out.find(e => e.task.id === far.id)!.tone).toBe("gold");
+  });
+
+  it("keeps an undated unowned idea, sorted last", () => {
+    // A dateless idea nobody owns is exactly the card that goes stale unnoticed —
+    // the prep version this replaced dropped it entirely.
+    const undated = task({ stage: "idea", title: "Someday", owner: null, dueDate: null });
+    const dated   = task({ stage: "idea", title: "Soon", owner: null, dueDate: "2026-06-20" });
+    const out = eventsNeedingAttention([undated, dated], TODAY);
+    expect(out.map(e => e.task.title)).toEqual(["Soon", "Someday"]);
+  });
+
+  it("drops events whose date has already passed", () => {
+    const past = task({ stage: "planning", owner: person(), dueDate: "2026-01-01", location: "" });
+    expect(eventsNeedingAttention([past], TODAY)).toEqual([]);
   });
 });
 
 describe("eventsTermStats", () => {
-  it("counts stages, the 14-day window, room gaps, avg success, and spend", () => {
-    const list = [
-      task({ stage: "idea" }),
-      task({ stage: "planning" }),
-      task({ stage: "confirmed", dueDate: "2026-06-18", roomStatus: "not_submitted", spendingCents: 5000 }),
-      task({ stage: "confirmed", dueDate: "2026-06-29", roomStatus: "confirmed", spendingCents: 2000 }),
-      task({ stage: "confirmed", dueDate: "2026-07-10" }), // outside 14-day window
-      task({ stage: "done", successRating: 5, spendingCents: 1000 }),
-      task({ stage: "done", successRating: 3 }),
+  it("counts the next 14 days' events that can't be confirmed yet", () => {
+    const rows = [
+      task({ stage: "planning", owner: person(), dueDate: "2026-06-20", location: "EMU" }),  // ready
+      task({ stage: "planning", owner: person(), dueDate: "2026-06-21", location: "" }),     // no location
+      task({ stage: "idea",     owner: null,     dueDate: "2026-06-22", location: "EMU" }),  // no owner
+      task({ stage: "planning", owner: person(), dueDate: "2026-09-01", location: "" }),     // outside window
     ];
-    const s = eventsTermStats(list, TODAY);
-    expect(s.total).toBe(7);
-    expect(s.byStage).toEqual({ idea: 1, planning: 1, confirmed: 3, done: 2 });
-    expect(s.next14).toBe(2);          // Jun 18 + Jun 29 (Jul 10 is > today+14)
-    expect(s.next14NeedRoom).toBe(1);  // only Jun 18 is not_submitted
-    expect(s.avgSuccess).toBe(4);      // (5 + 3) / 2
-    expect(s.doneCount).toBe(2);
-    expect(s.spendCents).toBe(8000);
+    const stats = eventsTermStats(rows, TODAY);
+    expect(stats.next14).toBe(3);
+    expect(stats.next14Unready).toBe(2);
   });
 
-  it("reports null avg success when nothing is rated", () => {
-    expect(eventsTermStats([task({ stage: "done" })], TODAY).avgSuccess).toBeNull();
+  it("tallies stages, spend, and average success", () => {
+    const rows = [
+      task({ stage: "done", successRating: 4, spendingCents: 1000 }),
+      task({ stage: "done", successRating: 2, spendingCents: 500 }),
+      task({ stage: "idea", owner: person() }),
+    ];
+    const stats = eventsTermStats(rows, TODAY);
+    expect(stats.total).toBe(3);
+    expect(stats.byStage.done).toBe(2);
+    expect(stats.doneCount).toBe(2);
+    expect(stats.avgSuccess).toBe(3);
+    expect(stats.spendCents).toBe(1500);
+  });
+});
+
+describe("nextOnDeckEvent", () => {
+  it("picks the soonest dated, not-done event on or after today", () => {
+    const rows = [
+      task({ stage: "confirmed", title: "Later",   dueDate: "2026-07-01" }),
+      task({ stage: "confirmed", title: "Sooner",  dueDate: "2026-06-18" }),
+      task({ stage: "done",      title: "Wrapped", dueDate: "2026-06-16" }),
+      task({ stage: "confirmed", title: "Past",    dueDate: "2026-06-01" }),
+    ];
+    expect(nextOnDeckEvent(rows, TODAY)?.title).toBe("Sooner");
   });
 
-  it("includes the upper edge of the 14-day window (today + 14)", () => {
-    const list = [
-      task({ stage: "confirmed", dueDate: "2026-06-29" }), // today+14 exactly
-      task({ stage: "confirmed", dueDate: "2026-06-30" }), // today+15
-    ];
-    expect(eventsTermStats(list, TODAY).next14).toBe(1);
+  it("returns null when nothing is coming up", () => {
+    expect(nextOnDeckEvent([task({ stage: "idea", dueDate: null })], TODAY)).toBeNull();
   });
 });

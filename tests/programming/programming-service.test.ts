@@ -1,6 +1,7 @@
 /**
- * Tests for the programming service. ProgrammingEvent is the owning record;
- * a CalendarEvent exists only once an event is promoted out of the Idea stage.
+ * Tests for the programming service. ProgrammingEvent is the owning record; a
+ * CalendarEvent — the chapter-visible mirror — exists only once an event reaches
+ * CONFIRMED. Planning is a private lane, which is the v3 change these tests pin.
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -9,17 +10,12 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createCalendarEvent, createEventType, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
-  addChecklistItem,
   createProgrammingTask,
-  deleteChecklistItem,
   deleteProgrammingTask,
-  listChecklist,
   listProgrammingTasks,
   setStage,
-  updateChecklistItem,
   updateProgrammingTask,
 } from "@/lib/services/programming-service";
-import { programmingPrepScore } from "@/lib/programming";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import type { RequestContext } from "@/lib/context";
 
@@ -62,9 +58,21 @@ async function seedOrg() {
   return { org, admin };
 }
 
-/** Create + promote to confirmed (gives the event a CalendarEvent). */
+/** A second roster member, for use as an event owner. */
+async function seedOwner(orgId: number, name = "Maya Chen") {
+  return createBrother({ orgId, name });
+}
+
+/**
+ * Create + promote to confirmed (gives the event a CalendarEvent).
+ *
+ * Confirming needs an owner, a date AND a location now, so the helper supplies
+ * an owner unless the caller names one — every caller here is testing the
+ * calendar mirror, not the gate.
+ */
 async function createConfirmed(ctx: RequestContext, input: Parameters<typeof createProgrammingTask>[1]) {
-  const task = await createProgrammingTask(ctx, input);
+  const owner = input.ownerBrotherId ?? (await seedOwner(ctx.orgId, `Owner ${Math.random().toString(36).slice(2, 7)}`)).id;
+  const task = await createProgrammingTask(ctx, { ...input, ownerBrotherId: owner });
   return setStage(ctx, task.id, { stage: "confirmed" });
 }
 
@@ -118,23 +126,81 @@ describe("listProgrammingTasks", () => {
 });
 
 describe("setStage", () => {
-  it("requires a date to promote out of Idea", async () => {
+  it("refuses Idea → Planning without an owner", async () => {
+    // The rule that gives Idea→Planning a meaning. Before v3 this drag recorded
+    // a decision with no consequence anywhere — Planning already published.
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const task = await createProgrammingTask(ctx, { title: "Undated", category: "program" });
+    const task = await createProgrammingTask(ctx, { title: "Unowned", category: "program" });
 
-    await expect(setStage(ctx, task.id, { stage: "planning" })).rejects.toThrow(ValidationError);
+    await expect(setStage(ctx, task.id, { stage: "planning" })).rejects.toThrow(/owner/i);
   });
 
-  it("promotes to Planning+ by creating a CalendarEvent", async () => {
+  it("accepts Idea → Planning with a person owner, and creates NO CalendarEvent", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
+    const owner = await seedOwner(org.id);
     const task = await createProgrammingTask(ctx, {
-      title: "Speaker Series", dueDate: "2026-09-15", location: "EMU", time: "7:00 PM", category: "program",
+      title: "Speaker Series", category: "program", ownerBrotherId: owner.id,
     });
 
-    const promoted = await setStage(ctx, task.id, { stage: "planning" });
-    expect(promoted.stage).toBe("planning");
+    const planning = await setStage(ctx, task.id, { stage: "planning" });
+    expect(planning.stage).toBe("planning");
+    expect(planning.owner).toMatchObject({ kind: "brother", id: owner.id });
+
+    // The v3 publish boundary: Planning is PRIVATE.
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect(pe?.calendarEventId).toBeNull();
+    expect(await testPrisma.calendarEvent.count({ where: { organizationId: org.id } })).toBe(0);
+  });
+
+  it("accepts a ROLE owner, and resolves it to today's holders", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const role = await testPrisma.role.create({
+      data: { organizationId: org.id, name: "Social Chair", rank: 1, permissions: 0 },
+    });
+    const holder = await seedOwner(org.id, "Maya Chen");
+    await testPrisma.brotherRole.create({
+      data: { organizationId: org.id, brotherId: holder.id, roleId: role.id },
+    });
+
+    const task = await createProgrammingTask(ctx, {
+      title: "Mixer", category: "social", ownerRoleId: role.id,
+    });
+    const planning = await setStage(ctx, task.id, { stage: "planning" });
+
+    expect(planning.stage).toBe("planning");
+    expect(planning.owner).toMatchObject({ kind: "role", name: "Social Chair", holders: ["Maya Chen"] });
+  });
+
+  it("refuses Planning → Confirmed missing a date OR a location, naming what's missing", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const owner = await seedOwner(org.id);
+
+    const noLocation = await createProgrammingTask(ctx, {
+      title: "No place", category: "program", ownerBrotherId: owner.id, dueDate: "2026-09-15",
+    });
+    await expect(setStage(ctx, noLocation.id, { stage: "confirmed" })).rejects.toThrow(/location/i);
+
+    const noDate = await createProgrammingTask(ctx, {
+      title: "No date", category: "program", ownerBrotherId: owner.id, location: "EMU",
+    });
+    await expect(setStage(ctx, noDate.id, { stage: "confirmed" })).rejects.toThrow(/date/i);
+  });
+
+  it("publishes to the chapter at Confirmed by creating the CalendarEvent", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const owner = await seedOwner(org.id);
+    const task = await createProgrammingTask(ctx, {
+      title: "Speaker Series", dueDate: "2026-09-15", location: "EMU", time: "7:00 PM",
+      category: "program", ownerBrotherId: owner.id,
+    });
+
+    const confirmed = await setStage(ctx, task.id, { stage: "confirmed" });
+    expect(confirmed.stage).toBe("confirmed");
 
     const pe = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
     expect(pe?.calendarEventId).not.toBeNull();
@@ -144,21 +210,51 @@ describe("setStage", () => {
     expect(ce?.category).toBe("program");
   });
 
-  it("creates a ServiceEvent when a service event is promoted", async () => {
+  it("refuses Planning → Done even when every field is answered", async () => {
+    // A complete Planning event satisfies every FIELD Confirmed needs. Without
+    // this guard it would go straight to Done — published to the chapter with a
+    // toast that only says "wrapped", so nobody is told the chapter can see it.
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
+    const owner = await seedOwner(org.id);
     const task = await createProgrammingTask(ctx, {
+      title: "Complete", dueDate: "2026-09-15", location: "EMU", category: "program", ownerBrotherId: owner.id,
+    });
+    await setStage(ctx, task.id, { stage: "planning" });
+
+    await expect(setStage(ctx, task.id, { stage: "done" })).rejects.toThrow(/confirm/i);
+  });
+
+  it("allows Confirmed → Done", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Wrapped", dueDate: "2026-09-15", location: "EMU", category: "program",
+    });
+    const done = await setStage(ctx, confirmed.id, { stage: "done" });
+    expect(done.stage).toBe("done");
+    // Done still publishes — the CalendarEvent stays.
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe?.calendarEventId).not.toBeNull();
+  });
+
+  it("creates a ServiceEvent when a service event is confirmed", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+
+    const promoted = await createConfirmed(ctx, {
       title: "Park Cleanup", dueDate: "2026-09-18", location: "City Park", category: "service",
     });
-
-    const promoted = await setStage(ctx, task.id, { stage: "confirmed" });
     const pe = await testPrisma.programmingEvent.findUnique({ where: { id: promoted.id } });
     const svc = await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: pe!.calendarEventId! } });
     expect(svc?.title).toBe("Park Cleanup");
     expect(svc?.location).toBe("City Park");
   });
 
-  it("demotes to Idea by deleting the CalendarEvent (and ServiceEvent), keeping the event", async () => {
+  it("unpublishes on Confirmed → Planning, deleting the CalendarEvent but keeping the event", async () => {
+    // Backward moves are always free — parking something is never a mistake the
+    // product should argue with, and this is the documented escape from the
+    // published-event freeze.
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const confirmed = await createConfirmed(ctx, {
@@ -166,26 +262,41 @@ describe("setStage", () => {
     });
     const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
-    const demoted = await setStage(ctx, confirmed.id, { stage: "idea" });
-    expect(demoted.stage).toBe("idea");
+    const demoted = await setStage(ctx, confirmed.id, { stage: "planning" });
+    expect(demoted.stage).toBe("planning");
 
     const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
     expect(pe).not.toBeNull();                 // event preserved
-    expect(pe?.calendarEventId).toBeNull();    // link removed
+    expect(pe?.calendarEventId).toBeNull();    // no longer on the chapter's calendar
     expect(await testPrisma.calendarEvent.findUnique({ where: { id: calId } })).toBeNull();
     expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: calId } })).toBeNull();
   });
 
-  it("re-promoting after demotion recreates a CalendarEvent", async () => {
+  it("re-confirming after demotion recreates a CalendarEvent", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", category: "social" });
+    const confirmed = await createConfirmed(ctx, {
+      title: "Mixer", dueDate: "2026-09-01", location: "House", category: "social",
+    });
     await setStage(ctx, confirmed.id, { stage: "idea" });
 
     const re = await setStage(ctx, confirmed.id, { stage: "confirmed" });
     expect(re.stage).toBe("confirmed");
     const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
     expect(pe?.calendarEventId).not.toBeNull();
+  });
+
+  it("rejects an owner from another org", async () => {
+    const { org, admin } = await seedOrg();
+    const other = await createOrg("Other Org", "other-org");
+    const stranger = await createBrother({ orgId: other.id, name: "Stranger" });
+    const ctx = ctxFor(org.id, admin.id);
+
+    // The FK alone would accept this — Brother is a cross-org table, and only the
+    // org-scoped roster read catches it.
+    await expect(
+      createProgrammingTask(ctx, { title: "Mixer", category: "social", ownerBrotherId: stranger.id }),
+    ).rejects.toThrow(ValidationError);
   });
 });
 
@@ -198,32 +309,56 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     await expect(deleteProgrammingTask(ctx, 999999)).rejects.toThrow(NotFoundError);
   });
 
-  it("updates fields and mirrors to the CalendarEvent once promoted", async () => {
+  it("freezes the details of a PUBLISHED event, and names the way out", async () => {
+    // Confirmed sits on everyone's Timeline, so silently moving the room or the
+    // date rewrites a plan people already made around. The rule lives on the
+    // server, not just in the panel — a stale tab is the same edit.
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const confirmed = await createConfirmed(ctx, {
       title: "Tabling", dueDate: "2026-10-01", location: "Main Quad", category: "social",
     });
 
+    await expect(updateProgrammingTask(ctx, confirmed.id, { location: "Parking Lot B" }))
+      .rejects.toThrow(/back to Planning/i);
+    await expect(updateProgrammingTask(ctx, confirmed.id, { dueDate: "2026-10-02" }))
+      .rejects.toThrow(/back to Planning/i);
+
+    // Wrap-up fields are deliberately NOT frozen — they are what a finished
+    // event exists to collect.
+    const rated = await updateProgrammingTask(ctx, confirmed.id, { successRating: 4, spendingCents: 900 });
+    expect(rated.successRating).toBe(4);
+    expect(rated.spendingCents).toBe(900);
+  });
+
+  it("mirrors an edit to the CalendarEvent after demoting to Planning", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Tabling", dueDate: "2026-10-01", location: "Main Quad", category: "social",
+    });
+
+    await setStage(ctx, confirmed.id, { stage: "planning" });
     const updated = await updateProgrammingTask(ctx, confirmed.id, {
-      status: "Complete", category: "fundy", location: "Parking Lot B", time: "11:00 AM", collab: "DSP",
+      category: "fundy", location: "Parking Lot B", time: "11:00 AM", collab: "DSP",
     });
     expect(updated.type).toBe("Fundraiser");
     expect(updated.location).toBe("Parking Lot B");
     expect(updated.collab).toBe("DSP");
 
-    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
-    expect(pe?.category).toBe("fundy");
-    expect(pe?.collabOrg).toBe("DSP");
+    const reconfirmed = await setStage(ctx, confirmed.id, { stage: "confirmed" });
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: reconfirmed.id } });
     const ce = await testPrisma.calendarEvent.findUnique({ where: { id: pe!.calendarEventId! } });
     expect(ce?.category).toBe("fundy");
     expect(ce?.location).toBe("Parking Lot B");
   });
 
-  it("rejects clearing the date on a promoted event", async () => {
+  it("rejects clearing the date on a published event", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const confirmed = await createConfirmed(ctx, { title: "Mixer", dueDate: "2026-09-01", category: "social" });
+    const confirmed = await createConfirmed(ctx, {
+      title: "Mixer", dueDate: "2026-09-01", location: "House", category: "social",
+    });
 
     await expect(updateProgrammingTask(ctx, confirmed.id, { dueDate: null })).rejects.toThrow(ValidationError);
   });
@@ -237,19 +372,39 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     expect(updated.dueDate).toBeNull();
   });
 
-  it("updates ops fields", async () => {
+  it("updates wrap-up fields", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const task = await createProgrammingTask(ctx, { title: "Block Party", category: "social" });
 
     const updated = await updateProgrammingTask(ctx, task.id, {
-      roomStatus: "confirmed", itineraryUrl: "https://docs.google.com/document/d/test",
-      flyerPosted: true, socialsMeeting: true, spendingCents: 12500, successRating: 4,
+      spendingCents: 12500, successRating: 4, wrapUpNotes: "Good turnout",
     });
-    expect(updated.roomStatus).toBe("confirmed");
-    expect(updated.flyerPosted).toBe(true);
     expect(updated.spendingCents).toBe(12500);
     expect(updated.successRating).toBe(4);
+    expect(updated.wrapUpNotes).toBe("Good turnout");
+  });
+
+  it("swapping owner kinds clears the other FK", async () => {
+    // An event is owned by a person OR a role. Leaving the old FK behind would
+    // put two owners on the row for resolveOwner to pick between by declaration
+    // order — which is not a decision anyone made.
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const person = await seedOwner(org.id, "Maya Chen");
+    const role = await testPrisma.role.create({
+      data: { organizationId: org.id, name: "Social Chair", rank: 1, permissions: 0 },
+    });
+
+    const task = await createProgrammingTask(ctx, {
+      title: "Mixer", category: "social", ownerBrotherId: person.id,
+    });
+    const swapped = await updateProgrammingTask(ctx, task.id, { ownerRoleId: role.id });
+    expect(swapped.owner).toMatchObject({ kind: "role", id: role.id });
+
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect(pe?.ownerBrotherId).toBeNull();
+    expect(pe?.ownerRoleId).toBe(role.id);
   });
 
   it("removes the ServiceEvent when type changes away from community service", async () => {
@@ -280,29 +435,88 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
   });
 });
 
-describe("checklist", () => {
-  it("adds, lists, toggles, and deletes items", async () => {
+describe("fieldValues", () => {
+  it("stores answers to the org's optional fields, coerced by kind", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
     const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
 
-    const a = await addChecklistItem(ctx, task.id, { label: "Book room" });
-    const b = await addChecklistItem(ctx, task.id, { label: "Design flyer" });
-    expect(b.sortOrder).toBeGreaterThan(a.sortOrder);
+    const updated = await updateProgrammingTask(ctx, task.id, {
+      // "40" arrives as a string from a number input; headcount is kind "num".
+      fieldValues: { headcount: "40", budget: 250.5 },
+    });
+    expect(updated.fieldValues.headcount).toBe(40);
+    expect(updated.fieldValues.budget).toBe(250.5);
+  });
 
-    let items = await listChecklist(ctx, task.id);
-    expect(items.map(i => i.label)).toEqual(["Book room", "Design flyer"]);
+  it("merges a partial answer set instead of replacing it", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { headcount: 40, budget: 100 } });
 
-    await updateChecklistItem(ctx, task.id, a.id, { done: true });
-    items = await listChecklist(ctx, task.id);
-    expect(items.find(i => i.id === a.id)?.done).toBe(true);
+    const patched = await updateProgrammingTask(ctx, task.id, { fieldValues: { budget: 200 } });
+    expect(patched.fieldValues.headcount).toBe(40);   // untouched
+    expect(patched.fieldValues.budget).toBe(200);
+  });
 
-    // Checklist surfaces on the task DTO.
-    const tasks = await listProgrammingTasks(ctx);
-    expect(tasks.find(t => t.id === task.id)?.checklist).toHaveLength(2);
+  it("clears an answer on an explicit empty", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { headcount: 40 } });
 
-    await deleteChecklistItem(ctx, task.id, b.id);
-    expect(await listChecklist(ctx, task.id)).toHaveLength(1);
+    const cleared = await updateProgrammingTask(ctx, task.id, { fieldValues: { headcount: null } });
+    expect(cleared.fieldValues.headcount).toBeUndefined();
+  });
+
+  it("drops a slug this org never defined", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+
+    const updated = await updateProgrammingTask(ctx, task.id, {
+      fieldValues: { headcount: 12, notARealField: "nope" },
+    });
+    expect(updated.fieldValues.headcount).toBe(12);
+    expect(updated.fieldValues.notARealField).toBeUndefined();
+  });
+
+  it("hides a DISABLED field's answers without destroying them", async () => {
+    // OFF is not DELETE. Sanitizing on read is what gives this for free: the row
+    // stays on disk and comes straight back when the field is re-enabled.
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { headcount: 40 } });
+
+    await testPrisma.eventFieldDefinition.updateMany({
+      where: { organizationId: org.id, slug: "headcount" }, data: { enabled: false },
+    });
+    const hidden = (await listProgrammingTasks(ctx)).find(t => t.id === task.id)!;
+    expect(hidden.fieldValues.headcount).toBeUndefined();
+
+    // Still on disk.
+    const row = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect((row!.fieldValues as Record<string, unknown>).headcount).toBe(40);
+
+    await testPrisma.eventFieldDefinition.updateMany({
+      where: { organizationId: org.id, slug: "headcount" }, data: { enabled: true },
+    });
+    const back = (await listProgrammingTasks(ctx)).find(t => t.id === task.id)!;
+    expect(back.fieldValues.headcount).toBe(40);
+  });
+
+  it("never writes a column-backed builtin into the JSON", async () => {
+    // description / attachment / cohost read and write real columns. A copy in
+    // fieldValues would be a second, drifting source of truth.
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { description: "should not land here" } });
+    const row = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect((row!.fieldValues as Record<string, unknown>).description).toBeUndefined();
   });
 });
 
@@ -343,16 +557,4 @@ describe("attachment", () => {
     expect(cleared.attachmentDocId).toBeNull();
   });
 
-  it("prep score treats has-attachment as complete", () => {
-    const base = { roomStatus: "not_submitted" as const, flyerPosted: false, socialsMeeting: false };
-    const none = programmingPrepScore({ ...base, attachmentUrl: null, attachmentDocId: null });
-    expect(none.done).toBe(0);
-    expect(none.total).toBe(4);
-
-    const withUrl = programmingPrepScore({ ...base, attachmentUrl: "https://example.com", attachmentDocId: null });
-    expect(withUrl.done).toBe(1);
-
-    const withDoc = programmingPrepScore({ ...base, attachmentUrl: null, attachmentDocId: 42 });
-    expect(withDoc.done).toBe(1);
-  });
 });

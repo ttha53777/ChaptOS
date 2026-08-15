@@ -1,4 +1,5 @@
 import { fmtUsd, money } from "@/lib/money";
+import type { OwnerRef } from "@/lib/event-owner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -201,13 +202,6 @@ export interface InstagramTask {
   calendarEventId?: number | null;
 }
 
-export interface ProgrammingChecklistItem {
-  id: number;
-  label: string;
-  done: boolean;
-  sortOrder: number;
-}
-
 export interface ProgrammingTask {
   id: number;
   title: string;
@@ -222,18 +216,25 @@ export interface ProgrammingTask {
   stage: "idea" | "planning" | "confirmed" | "done";
   mandatory: boolean;
   collab: string | null;
-  owner: string;
+  /**
+   * Person-or-role owner, resolved server-side; null when unowned. An owner is
+   * what an event needs to leave Idea — see REQUIRED_FIELDS in lib/programming.ts.
+   */
+  owner: OwnerRef;
+  /**
+   * A pre-migration free-text owner that matched no roster row. Read-only, and
+   * NOT an owner: it does not satisfy the Planning gate. Surfaced only so an
+   * officer can see whose name was there and re-own by hand.
+   */
+  ownerNote: string | null;
   description: string | null;
   attachmentUrl: string | null;
   attachmentDocId: number | null;
-  roomStatus: "na" | "not_submitted" | "submitted" | "confirmed";
-  itineraryNotNeeded: boolean;
-  flyerPosted: boolean;
-  socialsMeeting: boolean;
+  /** Answers to the org's own optional fields, keyed by EventFieldDefinition.slug. */
+  fieldValues: Record<string, string | number | boolean | null>;
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;
-  checklist: ProgrammingChecklistItem[];
   calendarEventId?: number | null;
 }
 

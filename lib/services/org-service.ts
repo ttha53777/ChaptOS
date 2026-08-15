@@ -34,6 +34,7 @@ import { validateSlugFormat } from "@/lib/slug-rules";
 import { DEFAULT_EVENT_TYPE_SEEDS, getOrgType, normalizeWorkflows, type RoleSeed } from "@/lib/org-types";
 import { BUILTIN_EVENT_TYPES } from "@/lib/event-types";
 import { isReservedCategory, resolveCategorySeeds } from "@/lib/transaction-categories";
+import { BUILTIN_EVENT_FIELDS } from "@/lib/event-fields";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
 import { BUILTIN_METRIC_IDS } from "@/lib/onboarding/kinds";
@@ -432,6 +433,26 @@ export async function provisionOrg(
           builtin:        isReservedCategory(c.kind, c.slug),
           hidden:         false,
           displayOrder:   categoryOrder[c.kind]!++,
+        })),
+      });
+
+      // 2f. Event field vocabulary — the ten built-in optional fields every event
+      // can answer (lib/event-fields.ts), mirroring what the v3 migration seeded
+      // onto existing orgs. Without this a new org's event panel would be empty
+      // and its officers would have to invent every field themselves.
+      //
+      // Five arrive enabled and five don't: the disabled ones are real questions
+      // (risk forms, dress code) that only some orgs ask, and one tap turns them
+      // on. `builtin` marks all ten as reserved — renameable, never deletable.
+      await tx.eventFieldDefinition.createMany({
+        data: BUILTIN_EVENT_FIELDS.map((f, i) => ({
+          organizationId: org.id,
+          slug:           f.slug,
+          label:          f.label,
+          kind:           f.kind,
+          enabled:        f.defaultEnabled,
+          builtin:        true,
+          displayOrder:   i,
         })),
       });
 
