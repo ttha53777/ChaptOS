@@ -326,6 +326,46 @@
   branch had the same shape and was caught the same way: a custom file field
   rendered as plain text instead of a document chip.
 
+  ── OWNER BY ROLE (added after the chapter's own fields) ───────────────────
+  Owner has always meant "one person accountable" — but a standing duty
+  (Mixer is the Social Chair's; cleanups are the Service Chair's) isn't
+  really owned by whoever happened to fill the title when the card was made.
+  It's owned by the TITLE. Naming Maya specifically freezes the moment she
+  hands Social Chair to someone else — the card still says her name for an
+  event that isn't hers anymore. `ROSTER` already has two Social Chairs
+  today (Maya R., Thalha T.), which is exactly the case a single person
+  picker can't express: "either of them, whoever's covering it."
+
+  So Owner now accepts a ROLE as well as a person. Same field, same gate,
+  same `String @default("")`-successor shape as before — `e.owner` is either
+  a roster object (`{n, i, role}`) or a role object (`{isRole:true, role}`).
+  Nothing that reads `e.owner` as "is someone accountable set" changes; only
+  the three spots that read a NAME off it (`ownerLabel`/`ownerAvatarHTML`/
+  `ownerShortLabel`) had to learn the second shape.
+
+  Both pickers — the Idea→Planning fix-step and the panel's Owner row — gained
+  a Person/Role tab rather than growing the roster grid with role rows mixed
+  in, because a role isn't a 7th person: it's a different KIND of answer, and
+  mixing them in one grid is how "Social Chair" would get treated as a name
+  with an odd avatar. The fix-step's role pills show "N now" (how many people
+  currently hold it) since that's the first time anyone sees the concept and
+  the number is the whole argument for why it's not just a person with a
+  different picture. The panel's pills drop the count — same reason the card
+  itself doesn't repeat "Program ·" beside its own colored edge, established
+  above: once you already know what a role-owner is, the count is a fact
+  you'd read every time and use once.
+
+  `ownerLabel()` resolves a role to "Social Chair (Maya / Thalha)" — the
+  role stays canonical (renaming the title, not this event, is how it'd
+  change) while still naming today's holders so the card doesn't read as
+  more abstract than it has to. `Member` is excluded from `ROLES`: it's the
+  roster's default, not a duty anyone was elected to, so it's never offerable
+  as an owning role — the whole feature is "give this to a real
+  responsibility," and everyone already qualifies as a person for that.
+
+  Fixture: "Mixer" is owned by the Social Chair role rather than either Maya
+  or Thalha by name — drag it, open its panel, switch the Owner row's tabs.
+
   ── INTERACTIONS TO TRY ────────────────────────────────────────────────────
   · Click any card → click any field row → it edits in place. Enter or click
     away commits; Escape reverts and keeps the panel open.
@@ -349,6 +389,11 @@
     single built-in Attachment couldn't hold.
   · Pencil on a dashed pill → rename it. Every answer survives, because the
     key never moved. Delete instead → it says how many answers that costs.
+  · Open "Mixer" (Planning) → its Owner row reads "Social Chair (Maya /
+    Thalha)" with a gold square badge, not a person's circle. Click it,
+    switch PERSON ↔ ROLE — Role shows how many people hold each title today.
+  · Drag "Speaker Series" into Planning → in the fix-step, switch the Owner
+    field to ROLE and give it to a title instead of a name.
   · Press [ (or the chevron) → the sidebar collapses; the board gets the room.
     Hover any icon for its label.
   · Press g then e / y / b → jump between pages. Only Programming is built.
@@ -780,6 +825,10 @@
   .lead-av { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
     font-family: var(--mono); font-size: 7.5px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
   .lead-av.none { background: transparent; border: 1px dashed var(--faint); color: var(--faint); }
+  /* A role-owner is a POSITION, not a face — same size and rhythm as a
+     person's circular initials, but a rounded square in gold so "Social
+     Chair" never gets mistaken for a specific person at a glance. */
+  .lead-av.role { border-radius: 5px; background: var(--gold-bg); color: var(--gold); font-size: 7px; }
 
   /* The one status row. Carries the owner AND what's next — the two things
      you'd otherwise print on separate lines. */
@@ -897,6 +946,20 @@
   .owner-opt.on { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
   .owner-opt .oo-role { margin-left: auto; padding-left: 4px; font-family: var(--mono); font-size: 8.5px;
     letter-spacing: .08em; text-transform: uppercase; color: var(--faint); flex-shrink: 0; }
+  /* A role-owner pill reuses .owner-opt's shape but never shows a role
+     suffix — the role IS the pill, so repeating it would be the card's own
+     "Program · Grand Ballroom" mistake this mock already cut once. */
+  .owner-opt.role-opt .oo-count { margin-left: auto; padding-left: 4px; font-family: var(--mono); font-size: 8.5px;
+    letter-spacing: .04em; color: var(--faint); flex-shrink: 0; }
+
+  /* Person / Role — who an owner picker is choosing FROM. Same segmented
+     shape as .views, so it reads as "a mode", not a third field. */
+  .owner-kind { display: inline-flex; gap: 2px; padding: 2px; margin-top: 10px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+  .owner-kind button { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  .owner-kind button.on { color: var(--ink); background: var(--card-2); }
+  .owner-kind button:hover:not(.on) { color: var(--ink-soft); }
 
   .fs-foot { padding: 14px 22px 18px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fs-foot .remain { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
@@ -2041,6 +2104,39 @@ const ROSTER = [
   { n: "Christopher Nakamura-Alvarez", i: "CN", role: "Member" },
 ];
 
+/* ── Owner by role ────────────────────────────────────────────────────────
+   An owner has always been "one person accountable" — but for a standing
+   duty (Social Chair runs mixers; Service Chair runs cleanups) the person
+   IS the role this term, and naming Maya specifically on every mixer is a
+   fact that goes stale the moment she hands the title off. So an owner can
+   now be the POSITION instead of a name: whoever holds "Social Chair" is
+   accountable, today that's Maya R. or Thalha T., and the card follows the
+   title rather than freezing on whoever filled it when the event was made.
+
+   `Member` is the roster's default, not a duty anyone was elected to, so it
+   is not offerable as an owning role — the whole point is "someone with a
+   real responsibility for this", and everyone already qualifies as a person. */
+const ROLES = [...new Set(ROSTER.filter(p => p.role !== "Member").map(p => p.role))];
+
+const isRoleOwner = o => !!o && o.isRole === true;
+function ownerHolders(o) { return isRoleOwner(o) ? ROSTER.filter(p => p.role === o.role) : []; }
+function ownerLabel(o) {
+  if (!o) return null;
+  if (!isRoleOwner(o)) return o.n;
+  const holders = ownerHolders(o);
+  return holders.length ? `${o.role} (${holders.map(p => p.n.split(" ")[0]).join(" / ")})` : o.role;
+}
+/* Card-length label — the role alone. The full "(Maya / Thalha)" gloss is
+   for the panel and the fix-step, where there's room to say who that is
+   today; a kanban card is a handle, and the role name already IS the fact
+   that doesn't go stale. */
+const ownerShortLabel = o => (!o ? null : isRoleOwner(o) ? o.role : o.n);
+function ownerAvatarHTML(o) {
+  if (!o) return `<span class="lead-av none">?</span>`;
+  if (isRoleOwner(o)) return `<span class="lead-av role" title="${esc(o.role)}">${esc(o.role.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase())}</span>`;
+  return `<span class="lead-av">${esc(o.i)}</span>`;
+}
+
 let EVENTS = [
   /* IDEA — unowned by definition. One dated (a date in Idea is legal, it just
      isn't what promotes it), one bare, one custom-type. */
@@ -2063,8 +2159,10 @@ let EVENTS = [
     date: "2026-06-21", location: "Grand Ballroom", mandatory: true, owner: ROSTER[1],
     f: { budget: { req: 1400, appr: 1200 }, headcount: 120, attachment: "banquet-run-of-show.pdf",
          cohost: "Kappa Delta Phi", description: "Seated dinner, awards after." } },
+  /* Owned by the ROLE, not a name — a standing mixer belongs to whoever is
+     Social Chair this term, and both Maya and Thalha hold it right now. */
   { id: 6, stage: "planning", type: "social", title: "Mixer",
-    date: "2026-07-02", location: null, mandatory: false, owner: ROSTER[3],
+    date: "2026-07-02", location: null, mandatory: false, owner: { isRole: true, role: "Social Chair" },
     f: { headcount: 45 } },
   { id: 7, stage: "planning", type: "social", title: "Brotherhood Social w/ KDF — Lakeside Barbecue & Field Games",
     date: "2026-06-27", location: "Lakeside Pavilion", mandatory: false, owner: ROSTER[5],
@@ -2264,9 +2362,9 @@ function cardHTML(e) {
       ${stars}
     </div>
     ${b ? `<div class="ec-block ${b.cls}">
-      ${e.owner ? avatar(e.owner) : `<span class="lead-av none">?</span>`}
+      ${ownerAvatarHTML(e.owner)}
       <span>${esc(b.txt)}</span></div>` : `<div class="ec-block quiet">
-      ${avatar(e.owner)}<span>${e.owner ? esc(e.owner.n) : "No owner"}</span>
+      ${ownerAvatarHTML(e.owner)}<span>${e.owner ? esc(ownerShortLabel(e.owner)) : "No owner"}</span>
       ${e.stage === "confirmed" ? `<span class="ec-pub" title="On the chapter Timeline">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/></svg></span>` : ""}</div>`}
   </div>`;
@@ -2473,7 +2571,7 @@ function attemptMove(id, stage) {
   flashCard(id);
   if (!wasPublic && willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
   else if (wasPublic && !willPublic) toast(`<b>${esc(shortTitle(e.title))}</b> came off the timeline. Officers only again.`);
-  else if (stage === "planning" && e.owner) toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(e.owner.n)}'s now.`);
+  else if (stage === "planning" && e.owner) toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(ownerLabel(e.owner))}'s now.`);
 }
 function flashCard(id) {
   const el = board.querySelector(`.ev-card[data-id="${id}"]`);
@@ -2494,6 +2592,7 @@ function openFix(e, stage) {
   const miss = missingFor(e, stage);
   fixDraft = {};
   miss.forEach(f => { fixDraft[f.key] = f.key === "mandatory" ? e.mandatory : null; });
+  fixOwnerMode = "person";
 
   const kicker = stage === "planning" ? "One step to start planning" : "One step to confirm";
   document.getElementById("fsKicker").textContent = kicker;
@@ -2508,6 +2607,11 @@ function openFix(e, stage) {
   document.getElementById("fsGo").focus();
 }
 
+/* Which grid the owner field is picking from — reset to whatever the
+   current value already is each time the step opens, so re-opening a
+   role-owned event lands on the Role tab instead of defaulting to Person. */
+let fixOwnerMode = "person";
+
 function drawFix() {
   const miss = missingFor(fixEvent, fixStage);
   const body = document.getElementById("fsBody");
@@ -2521,10 +2625,20 @@ function drawFix() {
           <span class="ff-l">${filled ? "Owner set" : "No owner yet"}</span>
         </div>
         <p class="ff-hint">${esc(f.hint)}</p>
-        <div class="owner-grid">
-          ${ROSTER.map((p, i) => `<button class="owner-opt ${val && val.i === p.i ? "on" : ""}" data-owner="${i}">
-            ${avatar(p)}<span>${esc(p.n)}</span><span class="oo-role">${esc(p.role)}</span></button>`).join("")}
+        <div class="owner-kind" role="tablist" aria-label="Owner type">
+          <button role="tab" aria-selected="${fixOwnerMode === "person"}" class="${fixOwnerMode === "person" ? "on" : ""}" data-ownermode="person">Person</button>
+          <button role="tab" aria-selected="${fixOwnerMode === "role"}" class="${fixOwnerMode === "role" ? "on" : ""}" data-ownermode="role">Role</button>
         </div>
+        ${fixOwnerMode === "person" ? `
+        <div class="owner-grid">
+          ${ROSTER.map((p, i) => `<button class="owner-opt ${val && !isRoleOwner(val) && val.i === p.i ? "on" : ""}" data-owner="${i}">
+            ${avatar(p)}<span>${esc(p.n)}</span><span class="oo-role">${esc(p.role)}</span></button>`).join("")}
+        </div>` : `
+        <div class="owner-grid">
+          ${ROLES.map(r => `<button class="owner-opt role-opt ${val && isRoleOwner(val) && val.role === r ? "on" : ""}" data-ownerrole="${esc(r)}">
+            ${ownerAvatarHTML({ isRole: true, role: r })}<span>${esc(r)}</span><span class="oo-count">${ownerHolders({ isRole: true, role: r }).length} now</span></button>`).join("")}
+        </div>
+        <p class="ff-hint">Whoever holds the title is accountable — it follows the role if it changes hands.</p>`}
       </div>`;
     }
     const input = f.kind === "date"
@@ -2539,8 +2653,16 @@ function drawFix() {
     </div>`;
   }).join("");
 
+  body.querySelectorAll("[data-ownermode]").forEach(b => b.addEventListener("click", () => {
+    fixOwnerMode = b.dataset.ownermode;
+    drawFix();
+  }));
   body.querySelectorAll("[data-owner]").forEach(b => b.addEventListener("click", () => {
     fixDraft.owner = ROSTER[Number(b.dataset.owner)];
+    drawFix();
+  }));
+  body.querySelectorAll("[data-ownerrole]").forEach(b => b.addEventListener("click", () => {
+    fixDraft.owner = { isRole: true, role: b.dataset.ownerrole };
     drawFix();
   }));
   body.querySelectorAll("[data-f]").forEach(inp => {
@@ -2577,7 +2699,7 @@ document.getElementById("fsGo").addEventListener("click", () => {
   renderBoard();
   flashCard(e.id);
   if (stage === "confirmed") toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
-  else toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(e.owner.n)}'s now. Still officers-only.`);
+  else toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(ownerLabel(e.owner))}'s now. Still officers-only.`);
 });
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -2649,13 +2771,19 @@ let panelId = null;
 let editKey = null;
 /* Set for one render after a commit, to pulse the row that changed. */
 let justKey = null;
+/* Which grid the Owner editor is showing — Person or Role. Set from the
+   event's current owner each time the row opens (openEditor), then owned
+   entirely by the tab clicks from there — so switching tabs to preview the
+   other kind doesn't get silently overridden back by the value you haven't
+   committed yet. */
+let editOwnerMode = "person";
 
 function fieldRowHTML(e, f, required) {
   const has = hasField(e, f.key);
   let v = "";
   if (f.key === "title")         v = esc(e.title);
   else if (f.key === "category") v = esc(TYPES[e.type].label);
-  else if (f.key === "owner")    v = e.owner ? `${avatar(e.owner)} ${esc(e.owner.n)}` : "";
+  else if (f.key === "owner")    v = e.owner ? `${ownerAvatarHTML(e.owner)} ${esc(ownerLabel(e.owner))}` : "";
   else if (f.key === "date")     v = e.date ? esc(longDate(e.date)) : "";
   else if (f.key === "location") v = e.location ? esc(e.location) : "";
   else if (f.key === "mandatory") v = e.mandatory ? "Required of every member" : "Optional — no attendance taken";
@@ -2734,7 +2862,27 @@ function editorHTML(e, f) {
   const kind = f.kind;
 
   if (kind === "person") {
-    const cur = e.owner;
+    /* Read/write via f.key, not e.owner by name — a chapter's own person
+       field (e.g. "Point of contact") must not read or overwrite the
+       built-in Owner just because both happen to be `kind: "person"`. */
+    const cur = f.key === "owner" ? e.owner : e.f[f.key];
+    /* Only the built-in Owner can be a ROLE — "point of contact" or any
+       chapter-defined person field always names an individual. */
+    if (f.key === "owner") {
+      const mode = editOwnerMode;
+      return `<div class="fld-ed" data-ed="${esc(f.key)}">
+        <div class="owner-kind" role="tablist" aria-label="Owner type" style="margin-top:0">
+          <button role="tab" aria-selected="${mode === "person"}" class="${mode === "person" ? "on" : ""}" data-ownermodeedit="person">Person</button>
+          <button role="tab" aria-selected="${mode === "role"}" class="${mode === "role" ? "on" : ""}" data-ownermodeedit="role">Role</button>
+        </div>
+        <div class="pick" style="margin-top:7px">
+          ${mode === "person" ? ROSTER.map((p, i) => `<button class="pick-opt ${cur && !isRoleOwner(cur) && cur.i === p.i ? "on" : ""}" data-pick="${i}">
+            ${avatar(p)}<span>${esc(p.n)}</span></button>`).join("")
+          : ROLES.map(r => `<button class="pick-opt ${cur && isRoleOwner(cur) && cur.role === r ? "on" : ""}" data-pickrole="${esc(r)}">
+            ${ownerAvatarHTML({ isRole: true, role: r })}<span>${esc(r)}</span></button>`).join("")}
+          ${cur ? `<button class="pick-opt" data-pick="none">Unassign</button>` : ""}
+        </div>${hintRow}</div>`;
+    }
     return `<div class="fld-ed" data-ed="${esc(f.key)}">
       <div class="pick">
         ${ROSTER.map((p, i) => `<button class="pick-opt ${cur && cur.i === p.i ? "on" : ""}" data-pick="${i}">
@@ -3104,6 +3252,10 @@ function closePanel() {
 function openEditor(key, hunt) {
   if (panelId == null) return;
   editKey = key;
+  if (key === "owner") {
+    const ev = EVENTS.find(x => x.id === panelId);
+    editOwnerMode = ev && isRoleOwner(ev.owner) ? "role" : "person";
+  }
   openPanel(panelId);
   const row = panel.querySelector(`.fld[data-row="${CSS.escape(key)}"]`);
   if (!row) return;
@@ -3146,7 +3298,7 @@ function commitField(e, key, val, opts = {}) {
 function announceField(e, key, val) {
   const t = esc(shortTitle(e.title));
   if (key === "owner") {
-    toast(val ? `<b>${t}</b> is ${esc(val.n)}'s now.` : `<b>${t}</b> has no owner.`);
+    toast(val ? `<b>${t}</b> is ${esc(ownerLabel(val))}'s now.` : `<b>${t}</b> has no owner.`);
     return;
   }
   /* A field that was blocking the next lane just stopped blocking it. */
@@ -3245,6 +3397,18 @@ function wirePanelEditing(e) {
     else if (field.kind === "type")  val = raw;
     else                             val = raw === "yes";
     commitField(e, key, val);
+  }));
+  /* The Owner field's Role tab writes a role-owner instead of a roster pick. */
+  ed.querySelectorAll("[data-pickrole]").forEach(b => b.addEventListener("click", () => {
+    commitField(e, key, { isRole: true, role: b.dataset.pickrole });
+  }));
+  /* Person/Role is a display mode, not a value — switching it must not
+     commit or close the editor, only redraw which grid is showing. editKey
+     is already "owner" and untouched, so re-rendering the panel reopens the
+     same editor on the new tab rather than closing it. */
+  ed.querySelectorAll("[data-ownermodeedit]").forEach(b => b.addEventListener("click", () => {
+    editOwnerMode = b.dataset.ownermodeedit;
+    openPanel(panelId);
   }));
 
   /* Clear listens on MOUSEDOWN, not click. Pressing it blurs the input
