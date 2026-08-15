@@ -1565,7 +1565,7 @@
     <div class="fs-head">
       <div class="fs-k">New idea</div>
       <h3 id="niTitle">What's the idea?</h3>
-      <p>Lands in <b>Idea</b>, officers-only — nobody owns it yet and the chapter can't see it. Just enough to hold the thought.</p>
+      <p>Lands in <b>Idea</b> — nobody owns it yet, so it won't publish to the Timeline or calendar. Just enough to hold the thought.</p>
     </div>
     <div class="fs-body">
       <div class="ni-field">
@@ -2655,7 +2655,7 @@ function openFix(e, stage) {
   document.getElementById("fsKicker").textContent = kicker;
   document.getElementById("fsTitle").textContent = e.title;
   document.getElementById("fsSub").innerHTML = stage === "planning"
-    ? `Planning means somebody's on it. Pick <b>who owns this</b> and it moves — nothing else changes, and the chapter still can't see it.`
+    ? `Planning means somebody's on it. Pick <b>who owns this</b> and it moves — nothing else changes, and it still won't publish to the Timeline.`
     : `Confirming publishes it to the chapter Timeline, so it needs <b>${miss.map(f => f.label.toLowerCase()).join("</b> and <b>")}</b>.`;
   document.getElementById("fsCancel").textContent = stage === "planning" ? "Leave as an idea" : "Leave in Planning";
   document.getElementById("fsGo").textContent = stage === "planning" ? "Start planning" : "Confirm & publish";
@@ -2756,7 +2756,7 @@ document.getElementById("fsGo").addEventListener("click", () => {
   renderBoard();
   flashCard(e.id);
   if (stage === "confirmed") toast(`<b>${esc(shortTitle(e.title))}</b> is confirmed — the chapter can see it now.`);
-  else toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(ownerLabel(e.owner))}'s now. Still officers-only.`);
+  else toast(`<b>${esc(shortTitle(e.title))}</b> is ${esc(ownerLabel(e.owner))}'s now. Still not on the Timeline.`);
 });
 
 /* ════════════════════════════════════════════════════════════════════════
