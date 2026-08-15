@@ -3406,6 +3406,27 @@ function closeEditor() {
    not a panel-local act: it can unlock a lane, change the card's blocker
    line, move the glance counts, and put the event on the Timeline. */
 function commitField(e, key, val, opts = {}) {
+  /* Title is the one field with no empty state. Hiding its Clear button was
+     never enough — select-all + delete reaches the same place, and an event
+     with a null title renders the literal word "null" on the board and then
+     throws the first time shortTitle() splits it. The refusal has to live
+     where every editor commits, not on the one control that offered it. */
+  if (key === "title" && (val == null || String(val).trim() === "")) {
+    const row = panel.querySelector(`.fld[data-row="title"]`);
+    if (row) {
+      row.classList.remove("refused");
+      void row.offsetWidth;
+      row.classList.add("refused");
+      clearTimeout(refuseT);
+      refuseT = setTimeout(() => row.classList.remove("refused"), 2600);
+    }
+    /* Put the old value back in the box and keep the editor open, so the
+       rejection reads as "not that" rather than as a dropped keystroke. */
+    const inp = panel.querySelector(`.fld-ed [data-in="title"]`);
+    if (inp) { inp.value = e.title || ""; inp.focus(); inp.select(); }
+    toast("An event needs a name — it's how you find it on the board and in search.");
+    return;
+  }
   const before = fieldValue(e, key);
   const same = JSON.stringify(before ?? null) === JSON.stringify(val ?? null);
   if (!same) {
