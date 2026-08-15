@@ -2391,8 +2391,12 @@ function cardHTML(e) {
   const priv = e.stage === "idea" || e.stage === "planning";
   /* Pips = the required fields for the NEXT gate, not a fixed four. An Idea
      shows the two-field idea set; Planning shows what confirming will need. */
+  /* Empty stars are ☆, not a faint ★. Color alone can't carry the rating:
+     copied text and every screen reader flattened "★★★★<span faint>★</span>"
+     into ★★★★★, so a 3-star event announced itself as a 5-star one. The
+     aria-label says the number outright and the glyphs go decorative. */
   const stars = e.stars
-    ? `<span class="stars">${"★".repeat(e.stars)}<span class="off">${"★".repeat(5 - e.stars)}</span></span>` : "";
+    ? `<span class="stars" role="img" aria-label="Rated ${e.stars} out of 5">${"★".repeat(e.stars)}<span class="off" aria-hidden="true">${"☆".repeat(5 - e.stars)}</span></span>` : "";
   /* The subtitle is the PLACE. The type is already the colored glyph, so
      saying "Program ·" here is the same fact twice. */
   const sub = e.location || (e.f?.cohost ? "w/ " + e.f.cohost : "");
@@ -2784,8 +2788,13 @@ function openWrap(e) {
 }
 function drawWrapStars() {
   const box = document.getElementById("wrStars");
+  /* A radiogroup has exactly one checked option — the RATING, not each lit
+     star. Marking every n <= wrapStars checked reports four selected radios
+     out of five; marking only n === wrapStars is right, and the glyph follows
+     the fill state independently. */
   box.innerHTML = [1, 2, 3, 4, 5].map(n => `<button type="button" class="${n <= wrapStars ? "on" : ""}"
-    data-star="${n}" role="radio" aria-checked="${n === wrapStars}" aria-label="${n} star${n === 1 ? "" : "s"}">★</button>`).join("");
+    data-star="${n}" role="radio" aria-checked="${n === wrapStars}"
+    aria-label="${n} star${n === 1 ? "" : "s"}${n === wrapStars ? " — selected, click again to clear" : ""}">${n <= wrapStars ? "★" : "☆"}</button>`).join("");
   box.querySelectorAll("[data-star]").forEach(b => b.addEventListener("click", () => {
     /* Clicking the star that's already the rating clears it, so a
        misclick has a way back besides picking a different number. */
@@ -3184,7 +3193,7 @@ function composerHTML() {
    as every other frozen field, so this is a record, not another editor. */
 function wrapRecordHTML(e) {
   const stars = e.stars
-    ? `<span class="pw-stars">${"★".repeat(e.stars)}<span class="off">${"★".repeat(5 - e.stars)}</span></span>`
+    ? `<span class="pw-stars" role="img" aria-label="Rated ${e.stars} out of 5">${"★".repeat(e.stars)}<span class="off" aria-hidden="true">${"☆".repeat(5 - e.stars)}</span></span>`
     : `<span class="pw-none">Not rated</span>`;
   const notes = e.f?.reviewNotes
     ? `<p class="pw-notes">${esc(e.f.reviewNotes)}</p>`
