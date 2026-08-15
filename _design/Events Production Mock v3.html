@@ -695,6 +695,16 @@
   .add-btn.ghost svg { stroke: var(--muted); }
   .add-btn.ghost:hover svg { stroke: var(--vio); }
 
+  /* The help button. Square, quiet, and last — it sits with the actions
+     because that's where you look when you don't know what to do next, but
+     it isn't one, so it drops the label and keeps only the glyph. */
+  .help-btn { flex-shrink: 0; width: 32px; height: 32px; display: inline-flex;
+    align-items: center; justify-content: center; align-self: center;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: transparent; border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+    transition: color .12s, border-color .12s; }
+  .help-btn:hover, .help-btn[aria-expanded="true"] { color: var(--vio); border-color: var(--vio); }
+
   .theme-toggle { position: fixed; bottom: 18px; right: 20px; z-index: 90;
     font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
     color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
@@ -978,6 +988,65 @@
   .ni-cat .cdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
   .ni-cat:hover:not(.on) { color: var(--ink-soft); border-color: var(--vio); }
   .ni-cat.on { color: var(--c, var(--ink)); border-color: var(--c, var(--vio)); background: var(--cbg, var(--vio-bg)); }
+
+  /* ── The spotlight — the one overlay that teaches instead of collecting.
+     A touch wider than the fix-steps but still a single reading column: this
+     is prose, so it wants a measure, not the full width of the board it's
+     describing. Outlined in the neutral line color rather than the fix-step's
+     gold, because gold in this mock means "something is blocked and wants a
+     value from you," and nothing here is. */
+  .spotlight { width: min(600px, 100%); max-height: calc(100vh - 48px); overflow: auto;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+    box-shadow: 0 30px 70px -30px rgba(0,0,0,.8); animation: pop .22s cubic-bezier(.2,.8,.2,1); }
+  /* The head's padding is set in full here, NOT just padding-top. The shared
+     rule that gives a head its 20px/22px is scoped `.fixstep .fs-head`, and a
+     spotlight is not a .fixstep — so it never matched, and a lone padding-top
+     left the kicker, title and intro sitting 1px off the dialog's own border
+     while the body and foot below them were correctly inset 22px.
+     Top is 22 rather than the fix-steps' 20 because the uppercase mono kicker
+     inherits the body line-height and its cap-height rides high; theirs is one
+     short word, this one is four. */
+  .spotlight .fs-head { padding: 22px 22px 16px; }
+  .spotlight .fs-head .fs-k { color: var(--vio); line-height: 1.5; }
+  /* The head's prose and the lanes below it are one column, so they share one
+     measure. Capping the intro alone (62ch) left it stopping 220px short of a
+     lane grid that ran the full width — the dialog stopped looking like one
+     shape. Everything wraps at the same right edge instead. */
+  .spotlight .fs-head p { max-width: none; }
+
+  /* Four steps, one line each. The earlier version gave every lane a name
+     row, a rule paragraph, an italic meaning and a visibility pill — four
+     lines apiece, 16 lines of dialog to say what is really four asks in a
+     row. Now the lane name and its ask share one line, so the whole pipeline
+     is four lines you take in at a glance.
+
+     Grid, not flex: a shared name column left-aligns all four asks, which is
+     what makes them scannable as a list rather than four ragged sentences. */
+  .hp-lanes { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; align-items: baseline; }
+  /* The lane is display:contents so its two children land in the grid's own
+     tracks — the dot rides along with the name rather than needing a rail. */
+  .hp-lane { display: contents; }
+  .hp-lane .hl-n { position: relative; padding-left: 15px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--ink-soft); white-space: nowrap; }
+  .hp-lane .hl-n .dot { position: absolute; left: 0; top: .42em; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--c); }
+  /* The ask is the whole point of the row, so it gets the ink. */
+  .hp-lane .hl-rule { font-size: 13px; color: var(--ink); line-height: 1.4; }
+  .hp-lane .hl-rule b { font-weight: 550; }
+
+  /* The one fact the lanes themselves can't carry: what crossing into
+     Confirmed actually does. Kept to a single sentence under a rule. */
+  .hp-tail { margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--line-soft);
+    font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+  .hp-tail b { color: var(--ink-soft); font-weight: 550; }
+
+  /* Narrow: the name stops sharing a line with a rule that now needs the
+     full width, so the two tracks stack. */
+  @media (max-width: 480px) {
+    .hp-lanes { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+    .hp-lane .hl-rule { margin-bottom: 9px; }
+  }
 
   .fs-foot { padding: 14px 22px 18px; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fs-foot .remain { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
@@ -1454,6 +1523,8 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           New event
         </button>
+        <button class="help-btn" id="helpBtn" aria-haspopup="dialog" aria-expanded="false"
+                aria-label="How this board works" title="How this board works  ?">?</button>
       </div>
     </div>
 
@@ -1585,7 +1656,47 @@
   </div>
 </div>
 
-<aside class="panel" id="panel" aria-label="Event details"></aside>
+<!-- The spotlight. The board already teaches its rules on contact — the lane
+     headers name them, the drop cue states the missing field, the fix-step
+     collects it. This is for the first ten seconds, BEFORE any of that fires:
+     a read of the whole pipeline in one screen for someone who's never seen
+     it. So it explains, and it doesn't collect anything — the only button is
+     the one that closes it.
+
+     Every lane row is built from STAGES + REQUIRED at open time rather than
+     written out here, because a help screen that hardcodes the rules is one
+     org-config change away from confidently teaching the wrong ones. -->
+<div class="scrim" id="helpScrim">
+  <!-- tabindex="-1" so focus can land on the dialog itself rather than on a
+       control inside it. This screen is meant to be READ, and it's the one
+       overlay tall enough to scroll: focusing the footer button scrolled a
+       narrow viewport straight past the title. -->
+  <div class="spotlight" id="helpDialog" role="dialog" aria-modal="true" aria-labelledby="hpTitle" tabindex="-1">
+    <div class="fs-head">
+      <div class="fs-k">How this board works</div>
+      <h3 id="hpTitle">Drag right. Each lane asks for one thing.</h3>
+    </div>
+
+    <div class="fs-body">
+      <div class="hp-lanes" id="hpLanes"></div>
+
+      <p class="hp-tail">Everyone can see the whole board. <b>Confirmed</b> is the only lane that also puts the event on the chapter Timeline and calendar — which is why it's the one that asks for a real date and place.</p>
+    </div>
+
+    <div class="fs-foot">
+      <span class="remain" id="hpRemain">Press ? anytime</span>
+      <span class="sp"></span>
+      <button class="btn-primary" id="hpClose">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- A dialog, not a decorative aside: it takes focus on open, returns it to
+     the card on close, and Escape closes it. It is deliberately NOT
+     aria-modal — the board behind it stays live and clickable (you can open
+     another card straight from it), so claiming modality would lie to a
+     screen reader about what's reachable. -->
+<aside class="panel" id="panel" role="dialog" aria-label="Event details" aria-hidden="true" tabindex="-1"></aside>
 
 <div class="toast" id="toast"></div>
 
@@ -1606,11 +1717,19 @@ themeBtn.addEventListener("click", () => setTheme(root.dataset.theme === "dusk" 
 let gArmedUntil = 0;
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
-    /* An open editor is the innermost thing Escape can mean — dismissing
-       the whole panel because someone backed out of one field loses the
-       place they were reading. */
+    /* Escape means the INNERMOST open thing, and only that one — an open
+       editor, else the topmost overlay, else the panel. The old handler ran
+       `closeFix(); closePanel();` unconditionally, so backing out of a
+       fix-step ALSO threw away the sheet you were reading behind it. */
     if (editKey != null) { closeEditor(); return; }
-    closeFix(); closePanel(); return;
+    const top = topOverlay();
+    if (top) { closeOverlay(top); return; }
+    /* The mobile drawer sits over the panel, so it's inner to it. It used to
+       be handled by the sidebar's own Escape branch further down, which this
+       handler's early `return` now shadows — so it has to be named here. */
+    if (sideEl.classList.contains("open")) { closeDrawer(true); return; }
+    if (panel.classList.contains("open")) { closePanel(); return; }
+    return;
   }
   const tag = (e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select") return;
@@ -1618,6 +1737,123 @@ document.addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) themeBtn.click();
 });
 try { if (localStorage.getItem("chaptos-mock-theme") === "ivory") setTheme("ivory"); } catch {}
+
+/* ════════════════════════════════════════════════════════════════════════
+   FOCUS — modality, trapping, and giving focus back
+   ───────────────────────────────────────────────────────────────────────
+   Every overlay here declared `aria-modal="true"` and none of them behaved
+   modally: Tab walked straight out of an open fix-step into the sidebar
+   behind it, and a keyboard user who opened a card with Enter got a panel
+   reachable only by tabbing through the whole page first.
+
+   Three things, kept generic over the overlays rather than registered one
+   by one, so the next overlay added to this file inherits them:
+
+     TRAP     Tab and Shift+Tab cycle within the topmost overlay.
+     INERT    everything behind it stops taking focus AND stops answering
+              the screen reader — the half `aria-modal` never delivered,
+              since nothing was actually hidden from the a11y tree.
+     RETURN   focus goes back to whatever opened it, so Escape doesn't drop
+              the keyboard at the top of the document.
+   ════════════════════════════════════════════════════════════════════════ */
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/* What sits BEHIND every overlay. Listing the backdrop (rather than each
+   overlay's siblings) means a newly added overlay is covered by default,
+   because it simply isn't in this list. */
+const backdropEls = () => [
+  document.getElementById("shell"),
+  document.getElementById("toggle"),
+  document.getElementById("drawerBtn"),
+].filter(Boolean);
+
+/* A stack: the wrap-up step can open over the panel, and the thing beneath
+   must not be un-inerted just because the thing above it closed. */
+const overlayStack = [];
+const topOverlay = () => overlayStack[overlayStack.length - 1] || null;
+
+const visibleFocusable = container => [...container.querySelectorAll(FOCUSABLE)]
+  .filter(el => el.offsetParent !== null || el === document.activeElement);
+
+/* `inert` does the real work here: display:none would collapse the layout
+   under the overlay, and aria-hidden alone leaves everything behind it
+   tabbable. */
+function setBackdropInert(on) {
+  backdropEls().forEach(el => on ? el.setAttribute("inert", "") : el.removeAttribute("inert"));
+}
+
+/* `close` is the overlay's OWN teardown (closeFix, closeHelp(true), …), so
+   Escape and the scrim click run exactly the same path the buttons do —
+   including the aria-expanded flip that closeHelp owns. */
+function openOverlay(el, close, firstFocus, opener) {
+  if (overlayStack.some(o => o.el === el)) return;
+  const below = topOverlay();
+  if (below) below.el.setAttribute("inert", "");
+  else setBackdropInert(true);
+
+  /* `opener` is passed explicitly where the trigger is known, because a
+     mouse click leaves document.activeElement on <body> in Chromium — so
+     inferring it only works for keyboard opens. */
+  const from = opener || document.activeElement;
+  overlayStack.push({ el, close, opener: from && from !== document.body ? from : null });
+  const target = firstFocus || visibleFocusable(el)[0];
+  if (target) {
+    target.focus();
+    if (target.select && target.tagName === "INPUT" && target.type === "text") target.select();
+  }
+}
+
+/* Pops the entry and runs its teardown. Safe to call from the overlay's own
+   close function — `unwinding` keeps that from recursing. */
+let unwinding = false;
+function closeOverlay(entry) {
+  const i = overlayStack.indexOf(entry);
+  if (i < 0) return;
+  overlayStack.splice(i, 1);
+  const below = topOverlay();
+  if (below) below.el.removeAttribute("inert");
+  else setBackdropInert(false);
+
+  if (entry.close && !unwinding) {
+    unwinding = true;
+    try { entry.close(); } finally { unwinding = false; }
+  }
+  /* Restore focus unless something else has legitimately claimed it. That's
+     narrower than "activeElement is <body>": at this point focus is usually
+     still on the control inside the overlay we just hid, which is no longer
+     focusable and would strand the keyboard. So the test is whether focus
+     currently sits on something VISIBLE outside this overlay — a new overlay,
+     or a restore the closer already did (closeHelp does its own). */
+  const back = entry.opener;
+  const a = document.activeElement;
+  const claimed = a && a !== document.body && !entry.el.contains(a) && a.offsetParent !== null;
+  if (!topOverlay() && !claimed && back && document.contains(back) && back.offsetParent !== null) {
+    back.focus();
+  }
+}
+
+/* Let an overlay's own close button unwind the stack without every call site
+   having to know about it. */
+function popOverlay(el) {
+  const entry = overlayStack.find(o => o.el === el);
+  if (entry) closeOverlay(entry);
+}
+
+/* One Tab handler for whichever overlay is on top. */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Tab") return;
+  const top = topOverlay();
+  if (!top) return;
+  const items = visibleFocusable(top.el);
+  if (!items.length) { e.preventDefault(); return; }
+  const first = items[0], last = items[items.length - 1];
+  /* Focus can land outside the overlay when a re-render destroys the node
+     that had it — bring it back to the top rather than to the page. */
+  if (!top.el.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 
 /* ════════════════════════════════════════════════════════════════════════
    SIDEBAR
@@ -2242,24 +2478,26 @@ let EVENTS = [
     f: { budget: { req: 60, appr: 60 }, description: "Raised $180." } },
 ];
 
-/* ── Stage definitions. Each lane states its entry rule AND its meaning. ── */
+/* ── Stage definitions: the lane's id, its name, and what being in it MEANS.
+   Every lane is visible to every member — this board has no officer/member
+   view split, and nothing here should imply one. What actually changes at
+   Confirmed is the chapter Timeline and calendar, which `publishes()` below
+   decides from the stage id.
+
+   The entry RULES aren't listed here anymore. They were, as `rule`/`rule2`/
+   `gated`/`pubs`, back when the lane header printed them; v3 cut the header
+   to name + count and the drop cue, fix-step and help screen all derive from
+   REQUIRED instead. Six fields nothing read is six fields that go quietly
+   wrong the first time a gate moves, so they're gone rather than stale. ──── */
 const STAGES = [
   { id: "idea", label: "Idea",
-    rule: "Title + category", rule2: null,
-    meaning: "Up in the air. Belongs to the chapter.",
-    vis: "private", visLabel: "Officers only" },
+    meaning: "Up in the air. Belongs to the chapter." },
   { id: "planning", label: "Planning",
-    rule: "Needs an owner", rule2: null, gated: true,
-    meaning: "Someone's on it. Belongs to a person.",
-    vis: "private", visLabel: "Officers only" },
+    meaning: "Someone's on it. Belongs to a person." },
   { id: "confirmed", label: "Confirmed",
-    rule: "Needs a date + a location", rule2: "Goes on the timeline", gated: true, pubs: true,
-    meaning: "Locked in. The chapter can plan around it.",
-    vis: "public", visLabel: "Chapter can see" },
+    meaning: "Locked in. The chapter can plan around it." },
   { id: "done", label: "Done",
-    rule: "Wrapped", rule2: null,
-    meaning: "Over. Rated and on the record.",
-    vis: "public", visLabel: "Chapter can see" },
+    meaning: "Over. Rated and on the record." },
 ];
 
 /* ── Field access. One reader for required fields, wherever they live. ─── */
@@ -2690,7 +2928,21 @@ function openFix(e, stage) {
   document.getElementById("fsGo").textContent = stage === "planning" ? "Start planning" : "Confirm & publish";
   drawFix();
   scrim.classList.add("open");
-  document.getElementById("fsGo").focus();
+  /* Focus the first thing that's actually missing, not the Continue button —
+     which is disabled by definition here (this step only opens when a field
+     is absent), so focusing it put the caret on nothing and left the keyboard
+     at the top of the document. The first empty control IS the reason the
+     step opened. */
+  openOverlay(scrim, closeFix, firstGap());
+}
+
+/* The first unfilled control in the step, falling back to Cancel — never the
+   disabled Continue. */
+function firstGap() {
+  const body = document.getElementById("fsBody");
+  return body.querySelector("input:not([disabled]), select:not([disabled])")
+      || body.querySelector(".owner-opt, .owner-kind button")
+      || document.getElementById("fsCancel");
 }
 
 /* Which grid the owner field is picking from — reset to whatever the
@@ -2769,7 +3021,9 @@ function syncFoot() {
   rem.classList.toggle("ready", left === 0);
   document.getElementById("fsGo").disabled = left > 0;
 }
-function closeFix() { scrim.classList.remove("open"); fixEvent = null; fixStage = null; }
+/* popOverlay() is a no-op when this is already being called BY closeOverlay
+   (Escape), so the Cancel button and Escape converge on one path. */
+function closeFix() { scrim.classList.remove("open"); fixEvent = null; fixStage = null; popOverlay(scrim); }
 document.getElementById("fsCancel").addEventListener("click", closeFix);
 scrim.addEventListener("click", ev => { if (ev.target === scrim) closeFix(); });
 document.getElementById("fsGo").addEventListener("click", () => {
@@ -2804,11 +3058,18 @@ function openWrap(e) {
   wrapEvent = e;
   wrapStars = 0;
   document.getElementById("wrTitle").textContent = e.title;
+  /* Cancel names the lane you'd be left in, so it has to come from the event
+     rather than the markup — it read "Leave in Confirmed" on an event that
+     was sitting in Planning. */
+  document.getElementById("wrCancel").textContent =
+    "Leave in " + (STAGES.find(s => s.id === e.stage)?.label || "place");
   document.getElementById("wrNotes").value = "";
   drawWrapStars();
   syncWrapFoot();
   wrapScrim.classList.add("open");
-  document.getElementById("wrCancel").focus();
+  /* The rating is what this step exists to ask for, so it takes focus —
+     Cancel taking it meant the keyboard opened on the way out. */
+  openOverlay(wrapScrim, closeWrap, document.querySelector("#wrStars [data-star]"));
 }
 function drawWrapStars() {
   const box = document.getElementById("wrStars");
@@ -2833,7 +3094,7 @@ function syncWrapFoot() {
   rem.textContent = wrapStars ? `Rated ${wrapStars}/5` : "No rating yet";
   rem.classList.toggle("ready", wrapStars > 0);
 }
-function closeWrap() { wrapScrim.classList.remove("open"); wrapEvent = null; }
+function closeWrap() { wrapScrim.classList.remove("open"); wrapEvent = null; popOverlay(wrapScrim); }
 document.getElementById("wrCancel").addEventListener("click", closeWrap);
 wrapScrim.addEventListener("click", ev => { if (ev.target === wrapScrim) closeWrap(); });
 document.getElementById("wrGo").addEventListener("click", () => {
@@ -2868,7 +3129,7 @@ function openIdea() {
   drawIdeaCats();
   syncIdeaFoot();
   ideaScrim.classList.add("open");
-  niInput.focus();
+  openOverlay(ideaScrim, closeIdea, niInput, document.getElementById("addIdeaBtn"));
 }
 function drawIdeaCats() {
   const box = document.getElementById("niCats");
@@ -2894,7 +3155,7 @@ function syncIdeaFoot() {
 }
 niInput.addEventListener("input", syncIdeaFoot);
 niInput.addEventListener("keydown", ev => { if (ev.key === "Enter" && !document.getElementById("niGo").disabled) document.getElementById("niGo").click(); });
-function closeIdea() { ideaScrim.classList.remove("open"); niType = null; }
+function closeIdea() { ideaScrim.classList.remove("open"); niType = null; popOverlay(ideaScrim); }
 document.getElementById("niCancel").addEventListener("click", closeIdea);
 ideaScrim.addEventListener("click", ev => { if (ev.target === ideaScrim) closeIdea(); });
 document.getElementById("addIdeaBtn").addEventListener("click", openIdea);
@@ -2908,6 +3169,89 @@ document.getElementById("niGo").addEventListener("click", () => {
   renderBoard();
   flashCard(e.id);
   toast(`<b>${esc(shortTitle(title))}</b> is on the slate — an Idea, not on the Timeline yet.`);
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   THE SPOTLIGHT — what the board can't teach on contact.
+
+   Everything else in this mock explains itself at the moment you try
+   something: the lane header states its rule, the drop cue names the
+   missing field, the fix-step collects it. That's the right shape for the
+   second hour and useless for the first minute, when the question isn't
+   "why is this blocked" but "what am I looking at."
+
+   So this is the one surface that reads top-down, and its whole content is
+   derived — the lanes come out of STAGES and REQUIRED, the same tables the
+   board, the pips and the gates read. A help screen with its own copy of
+   the rules is a help screen that goes quietly wrong the first time an org
+   changes one.
+   ════════════════════════════════════════════════════════════════════════ */
+const helpScrim = document.getElementById("helpScrim");
+const helpBtn = document.getElementById("helpBtn");
+
+function drawHelpLanes() {
+  document.getElementById("hpLanes").innerHTML = STAGES.map(s => {
+    const c = STAGE_COLOR[s.id];
+    /* One line per lane, and the line is the ASK — not the ask plus a meaning
+       plus a visibility pill, which is the three-encodings-of-one-idea problem
+       this whole mock was a correction of. The fields come out of REQUIRED so
+       an org that regates one doesn't leave this screen teaching the old rule.
+       "attendance" is a required BOOLEAN answered by a default in the fix-step,
+       so it's excluded — naming it beside date and location reads as a third
+       errand when only two are. */
+    const gates = REQUIRED.filter(f => f.gate === s.id && f.kind !== "bool")
+                          .map(f => f.label.toLowerCase());
+    let ask;
+    if (s.id === "idea")          ask = `A <b>${gates.join("</b> and a <b>")}</b>. That's it.`;
+    else if (s.id === "planning") ask = `An <b>${gates.join("</b> + an <b>")}</b> — one person accountable.`;
+    else if (s.id === "done")     ask = `How it went. Your <b>stars</b> land on the card.`;
+    else                          ask = `A <b>${gates.join("</b> and a <b>")}</b>.`;
+
+    /* The dot lives INSIDE the name, not beside it: .hp-lane is display:contents
+       so it has no box of its own to position against, and as a sibling the dot
+       fell back to the dialog — all four stacked in the header. */
+    return `<div class="hp-lane" style="--c:${c}">
+      <span class="hl-n"><span class="dot"></span>${esc(s.label)}</span>
+      <span class="hl-rule">${ask}</span>
+    </div>`;
+  }).join("");
+}
+
+function openHelp() {
+  drawHelpLanes();            /* re-derived per open, so a theme flip repaints
+                                 the dots in the active palette too */
+  helpScrim.classList.add("open");
+  helpBtn.setAttribute("aria-expanded", "true");
+  /* Registers with the overlay stack (trap + inert + Escape). Focus goes to
+     the dialog BOX, not to "Got it": the stack's default first-focusable is
+     the footer button, and focusing it scrolls a tall dialog on a narrow
+     screen past the heading the whole surface exists to deliver. From the
+     box, Tab reaches the button and Escape still closes. */
+  const dlg = document.getElementById("helpDialog");
+  openOverlay(helpScrim, () => closeHelp(true), dlg);
+  dlg.scrollTop = 0;
+}
+function closeHelp(refocus) {
+  if (!helpScrim.classList.contains("open")) return;
+  helpScrim.classList.remove("open");
+  helpBtn.setAttribute("aria-expanded", "false");
+  /* No-op when closeOverlay is already unwinding this entry — same guard the
+     other three closers rely on. */
+  popOverlay(helpScrim);
+  if (refocus) helpBtn.focus();
+}
+helpBtn.addEventListener("click", () => helpScrim.classList.contains("open") ? closeHelp(true) : openHelp());
+document.getElementById("hpClose").addEventListener("click", () => closeHelp(true));
+helpScrim.addEventListener("click", ev => { if (ev.target === helpScrim) closeHelp(true); });
+
+/* "?" opens it from anywhere on the board — the one key people already try.
+   Bails on inputs so typing a question mark into a title stays a title. */
+document.addEventListener("keydown", ev => {
+  if (ev.key !== "?" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  const tag = (ev.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  ev.preventDefault();
+  helpScrim.classList.contains("open") ? closeHelp(true) : openHelp();
 });
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -2928,6 +3272,10 @@ let justKey = null;
    other kind doesn't get silently overridden back by the value you haven't
    committed yet. */
 let editOwnerMode = "person";
+/* The event id whose card opened the panel, so closing can hand focus back
+   instead of dropping the keyboard at the top of the page. An id and not a
+   node: renderBoard() replaces every card element as you edit. */
+let panelOpener = null;
 
 function fieldRowHTML(e, f, required) {
   const has = hasField(e, f.key);
@@ -3239,6 +3587,9 @@ function wrapRecordHTML(e) {
 function openPanel(id) {
   const e = EVENTS.find(x => x.id === id);
   if (!e) return;
+  /* openPanel() is both "open" and "re-render". Only the first of those
+     should touch focus — see the tail of this function. */
+  const wasOpen = panel.classList.contains("open");
   panelId = id;
   const c = typeColor(e.type);
   const pub = e.stage === "confirmed" || e.stage === "done";
@@ -3397,13 +3748,39 @@ function openPanel(id) {
   wireComposer(id);
 
   board.querySelectorAll(".ev-card").forEach(c2 => c2.classList.toggle("sel", Number(c2.dataset.id) === id));
+
+  /* Focus moves in only on a REAL open, never on the re-render that every
+     commit triggers — openPanel() is the render function as well as the open
+     function, so stealing focus unconditionally would yank the caret out of
+     whatever editor just re-drew itself.
+
+     Opening a card with Enter used to leave focus on <body>, so the sheet
+     that appeared was reachable only by tabbing through the whole page. */
+  if (!wasOpen) {
+    /* Remember the EVENT, not the card node — renderBoard() replaces every
+       card, so a stored element would be detached by the time the panel
+       closes and focus would go nowhere. */
+    panelOpener = id;
+    panel.setAttribute("aria-hidden", "false");
+    panel.querySelector("#pnClose")?.focus();
+  }
 }
 function closePanel() {
+  const wasOpen = panel.classList.contains("open");
   panel.classList.remove("open");
   panelId = null;
   editKey = null;
   newField = null;   /* an unsaved draft doesn't survive the sheet closing */
   board.querySelectorAll(".ev-card").forEach(c => c.classList.remove("sel"));
+  panel.setAttribute("aria-hidden", "true");
+  /* Hand focus back to the card that opened it, so Escape doesn't drop the
+     keyboard at the top of the document. Re-found by id rather than held as
+     a node, since the board re-renders underneath. */
+  if (wasOpen && panelOpener != null) {
+    const card = board.querySelector(`.ev-card[data-id="${panelOpener}"]`);
+    if (card && card.offsetParent !== null) card.focus();
+  }
+  panelOpener = null;
 }
 
 /* ── Opening and closing an editor ────────────────────────────────────── */
