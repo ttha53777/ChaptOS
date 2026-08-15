@@ -1473,9 +1473,9 @@
         <div class="note" id="mUnownedNote">—</div>
       </div>
       <div class="measure">
-        <div class="k">Spent this term</div>
-        <div class="v">$1,240</div>
-        <div class="note">$310 committed, unspent</div>
+        <div class="k">Average stars</div>
+        <div class="v" id="mStars">—</div>
+        <div class="note" id="mStarsNote">—</div>
       </div>
     </div>
 
@@ -2494,6 +2494,19 @@ function renderGlance() {
   document.getElementById("mUnownedNote").textContent = unowned
     ? "nobody's picked them up" : "every idea has someone";
   document.getElementById("mUnownedNote").className = "note" + (unowned ? " warn" : " good");
+
+  /* Average of the wrap-up ratings — only Done events carry stars, and
+     only the ones a chair bothered to rate (0/skipped stars don't count). */
+  const rated = EVENTS.filter(e => e.stage === "done" && e.stars);
+  if (rated.length) {
+    const avg = rated.reduce((sum, e) => sum + e.stars, 0) / rated.length;
+    document.getElementById("mStars").innerHTML = `${avg.toFixed(1)} <small>/ 5</small>`;
+    document.getElementById("mStarsNote").textContent =
+      `${rated.length} event${rated.length === 1 ? "" : "s"} rated`;
+  } else {
+    document.getElementById("mStars").textContent = "—";
+    document.getElementById("mStarsNote").textContent = "nothing rated yet";
+  }
 }
 
 /* ── Timeline strip. Confirmed + Done publish, and both carry a place. ─── */
