@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { ProgrammingTask, Transaction } from "../../data";
+import { useCallback, useEffect, useState } from "react";
+import type { Brother, ProgrammingTask, Transaction } from "../../data";
 import { fmt$, fmtDate } from "../../data";
+import { OwnerAvatar, OwnerPicker, type RoleOption } from "./OwnerPicker";
+import { StarRadioGroup, RATING_LABELS } from "./EventWrapUp";
+import { StageControl } from "./panel/StageControl";
+import type { TypeVisual } from "./typeColor";
 import { Card, Modal } from "../dashboard/primitives";
 import { inputDuskCls } from "../dashboard/styles";
 import { TypeBadge } from "./ProgrammingChips";
@@ -10,15 +14,23 @@ import { AttachmentField } from "./AttachmentField";
 import { TxForm, type TxFormEvent } from "../treasury/TxForm";
 import type { Doc } from "@/app/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
-import { missingFor, needsConfirmFirst } from "@/lib/programming";
 import { ownerLabel } from "@/lib/event-owner";
 import type { EventFieldDef } from "@/lib/event-fields";
-import { STAGE_LABELS, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
+import { FieldTogglePills } from "./panel/FieldTogglePills";
+import { useOrgPath } from "../../hooks/useOrgPath";
+import { useToast } from "../dashboard/Toast";
+
+/** EventFieldDef plus the row id the fields API keys on. */
+type EventFieldRow = EventFieldDef & { id: number };
+import type { ProgrammingStage } from "@/lib/state/programming-stage";
 import { todayStr } from "../../lib/dates";
 
 export function ProgrammingDetailPanel({
   event,
   canManage,
+  brothers,
+  roles,
+  visual,
   onPatch,
   onStage,
   onEdit,
@@ -26,32 +38,36 @@ export function ProgrammingDetailPanel({
 }: {
   event: ProgrammingTask;
   canManage: boolean;
+  brothers: Brother[];
+  roles: RoleOption[];
+  /** Colour + label resolved from the org's event-type row. */
+  visual: TypeVisual;
   onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
   onStage?: (id: number, stage: ProgrammingStage) => Promise<void>;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const orgPath = useOrgPath();
+  const toast = useToast();
+  const [editingOwner, setEditingOwner] = useState(false);
+  // The field a gate sentence just pointed at. Scrolled to and pulsed so the
+  // jump lands somewhere visible rather than silently changing state offscreen.
+  const [huntKey, setHuntKey] = useState<string | null>(null);
   const [resourceDocs, setResourceDocs] = useState<Doc[]>([]);
-  const [notes, setNotes] = useState(event.wrapUpNotes ?? "");
   const [stageLoading, setStageLoading] = useState(false);
   const [linkedTxns, setLinkedTxns] = useState<Transaction[]>([]);
   const [showTxForm, setShowTxForm] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
   // The org's optional field definitions. Fetched rather than passed so the panel
   // works from anywhere it's mounted; the list is small and cached by the browser.
-  const [fieldDefs, setFieldDefs] = useState<EventFieldDef[]>([]);
+  // The API returns the row id alongside the definition; the toggle pills PATCH by it.
+  const [fieldDefs, setFieldDefs] = useState<EventFieldRow[]>([]);
 
   const isPast = event.dueDate != null && event.dueDate < todayStr();
   const isDone = event.stage === "done";
 
-  /**
-   * What this event still needs before it can move up a lane — the FIELDS, not a
-   * prep score. The four booleans this replaced were one org's ops list, and
-   * three of the four were self-attested; "Needs date + location" is checkable.
-   */
-  const nextStage: ProgrammingStage | null =
-    event.stage === "idea" ? "planning" : event.stage === "planning" ? "confirmed" : null;
-  const missing = nextStage ? missingFor(event, nextStage) : [];
+  // What this event still needs to move up a lane now lives in StageControl,
+  // which says it AND links each gap to its editor.
 
   // Published events are frozen: Confirmed sits on everyone's Timeline, so
   // changing the room or the date silently rewrites a plan people already made.
@@ -59,15 +75,21 @@ export function ProgrammingDetailPanel({
   const isPublished = event.stage === "confirmed" || event.stage === "done";
   const canEditFields = canManage && !isPublished;
 
+  // Bring the hunted field into view, then let the pulse expire on its own so a
+  // second jump to the same field re-fires it.
   useEffect(() => {
-    setNotes(event.wrapUpNotes ?? "");
-  }, [event.id, event.wrapUpNotes]);
+    if (!huntKey) return;
+    document.querySelector(`[data-field-key="${huntKey}"]`)?.scrollIntoView({ block: "nearest" });
+    const t = setTimeout(() => setHuntKey(null), 1600);
+    return () => clearTimeout(t);
+  }, [huntKey]);
 
-  useEffect(() => {
-    requestJson<EventFieldDef[]>("/api/events/fields")
+  const loadFields = useCallback(() => {
+    requestJson<EventFieldRow[]>("/api/events/fields")
       .then(setFieldDefs)
       .catch(() => setFieldDefs([]));
   }, []);
+  useEffect(() => { loadFields(); }, [loadFields]);
 
   // Disabled fields are hidden, never deleted — their answers stay on disk and
   // come back if the org switches the field on again (the server sanitizes reads
@@ -104,38 +126,18 @@ export function ProgrammingDetailPanel({
               {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <TypeBadge type={event.type} />
+              <TypeBadge label={visual.label} hex={visual.hex} />
               {event.collab && (
                 <span className="text-[11px] text-[#6b6354]">w/ {event.collab}</span>
               )}
-              {onStage && canManage && (
-                <div className="relative flex items-center">
-                  <select
-                    value={event.stage}
-                    disabled={stageLoading}
-                    onChange={async e => {
-                      setStageLoading(true);
-                      try { await onStage(event.id, e.target.value as ProgrammingStage); }
-                      finally { setStageLoading(false); }
-                    }}
-                    className={`rounded-md border border-[rgba(236,231,221,0.12)] bg-[rgba(236,231,221,0.04)] px-2 py-0.5 text-[11px] font-medium text-[#c9c2b4] focus:border-[#a78bfa]/40 focus:outline-none transition-opacity ${stageLoading ? "opacity-40" : ""}`}
-                  >
-                    {STAGES.map(s => <option key={s} value={s} className="bg-[#0f0d0a]">{STAGE_LABELS[s]}</option>)}
-                  </select>
-                  {stageLoading && (
-                    <svg className="ml-1.5 h-3 w-3 animate-spin text-[#958d7c]" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
-                    </svg>
-                  )}
-                </div>
+              {/* The owner used to be printed here as flat text. It now lives in
+                  the Details list as an editable row, so repeating it in the
+                  header would just be a second, unclickable copy of the same
+                  fact — except when it's MISSING, which the header should say
+                  because that's the gate the board is waiting on. */}
+              {!event.owner && !event.ownerNote && (
+                <span className="text-[11px] text-[#ddb36a]">Unowned</span>
               )}
-              {/* The owner is a field now, so it says who — and for a role owner,
-                  who that is TODAY. A role owner survives the officer turning
-                  over; the parenthetical is just a gloss on who holds it. */}
-              <span className="text-[11px] text-[#958d7c]">
-                {event.owner ? ownerLabel(event.owner) : event.ownerNote ? `${event.ownerNote} (not on the roster)` : "Unowned"}
-              </span>
               <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#6b6354]">
                 {event.calendarEventId != null ? "· The chapter can see this" : "· Confirm to publish it to the chapter"}
               </span>
@@ -152,29 +154,24 @@ export function ProgrammingDetailPanel({
             </div>
           )}
         </div>
-        {nextStage && (
-          <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.015] px-3 py-2.5">
-            {missing.length === 0 ? (
-              <>
-                <p className="text-[12.5px] font-semibold text-[#7ecba3]">
-                  Ready to move to {STAGE_LABELS[nextStage]}
-                </p>
-                <p className="text-[11px] text-[#6b6354]">
-                  {nextStage === "confirmed"
-                    ? "Confirming publishes it to the chapter's timeline."
-                    : "Planning means somebody owns it."}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-[12.5px] font-semibold text-[#ece7dd]">
-                  Needs {missing.map(f => f.label.toLowerCase()).join(" + ")}
-                </p>
-                <p className="text-[11px] text-[#6b6354]">
-                  to move to {STAGE_LABELS[nextStage]}
-                </p>
-              </>
-            )}
+        {/* The lanes, what this one means, and what the next one costs — with
+            the missing fields as buttons straight to their editors. */}
+        {onStage && (
+          <div className="mt-3">
+            <StageControl
+              event={event}
+              canManage={canManage}
+              busy={stageLoading}
+              onStage={async s => {
+                setStageLoading(true);
+                try { await onStage(event.id, s); }
+                finally { setStageLoading(false); }
+              }}
+              onJumpToField={key => {
+                if (key === "owner") { setEditingOwner(true); }
+                setHuntKey(key);
+              }}
+            />
           </div>
         )}
       </div>
@@ -196,38 +193,24 @@ export function ProgrammingDetailPanel({
                 <span className="ml-auto rounded-full bg-[#7ecba3]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#7ecba3]">Done</span>
               </div>
 
-              {/* Star rating */}
+              {/* A RECORD, not a form. The wrap-up step is the only writer:
+                  Done is what the term actually did, and a rating that can be
+                  quietly revised months later is not a record of anything. */}
               <div className="px-4 pt-4 pb-1">
                 <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#6b6354]">How did it go?</p>
                 <div className="flex items-center gap-3">
-                  <StarRatingLarge
-                    value={event.successRating}
-                    disabled={!canManage}
-                    onChange={v => onPatch(event.id, { successRating: v })}
-                  />
-                  {event.successRating != null && (
-                    <span className="text-[12px] text-[#958d7c]">{RATING_LABELS[event.successRating]}</span>
-                  )}
+                  <StarRadioGroup value={event.successRating} disabled size={22} />
+                  <span className="text-[12px] text-[#958d7c]">
+                    {event.successRating != null ? RATING_LABELS[event.successRating] : "Not rated"}
+                  </span>
                 </div>
               </div>
 
               {/* Notes */}
               <div className="px-4 pt-3 pb-4">
                 <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#6b6354]">Notes</p>
-                {canManage ? (
-                  <textarea
-                    className="w-full resize-none rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-[12.5px] text-[#c9c2b4] placeholder:text-[#4a4439] focus:border-[#d9b08b]/40 focus:outline-none transition-colors min-h-[80px]"
-                    value={notes}
-                    onChange={e => setNotes(e.target.value)}
-                    onBlur={() => {
-                      if (notes !== (event.wrapUpNotes ?? "")) {
-                        onPatch(event.id, { wrapUpNotes: notes.trim() || null });
-                      }
-                    }}
-                    placeholder="Debrief, what worked, lessons learned…"
-                  />
-                ) : event.wrapUpNotes ? (
-                  <p className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#c9c2b4]">{event.wrapUpNotes}</p>
+                {event.wrapUpNotes ? (
+                  <p className="whitespace-pre-wrap rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#c9c2b4]">{event.wrapUpNotes}</p>
                 ) : (
                   <p className="text-[12px] italic text-[#4a4439]">No notes recorded.</p>
                 )}
@@ -242,17 +225,54 @@ export function ProgrammingDetailPanel({
             can compare across the term. The per-event free-text checklist this
             replaced was written from scratch each time, so nothing could ever be
             counted or compared. */}
-        {enabledFields.length > 0 && (
+        {/* Renders when the org collects anything OR when the officer can turn
+            something back on. Gating purely on enabledFields would mean an org
+            that switched every field off lost the pills that switch them back —
+            a dead end reachable in two clicks. */}
+        {(enabledFields.length > 0 || (canManage && fieldDefs.length > 0)) && (
           <section className="space-y-2">
             <div className="flex items-baseline justify-between">
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Details</h3>
-              {isPublished && canManage && (
+              {/* Confirmed offers the way out; Done doesn't. Offering "move it
+                  back" on a finished event would be offering to un-happen it. */}
+              {event.stage === "confirmed" && canManage && onStage && (
                 <span className="text-[10.5px] text-[#6b6354]">
-                  Published — move back to Planning to edit
+                  Published —{" "}
+                  <button
+                    type="button"
+                    disabled={stageLoading}
+                    onClick={async () => {
+                      setStageLoading(true);
+                      try { await onStage(event.id, "planning"); }
+                      finally { setStageLoading(false); }
+                    }}
+                    className="text-[#a78bfa] underline-offset-2 hover:underline disabled:opacity-50"
+                  >
+                    move back to Planning
+                  </button>{" "}
+                  to edit
                 </span>
+              )}
+              {isDone && (
+                <span className="text-[10.5px] text-[#6b6354]">Part of the record now</span>
               )}
             </div>
             <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.015]">
+              {/* Owner leads the list because it is what Planning COSTS — the one
+                  required field with an editor, sitting where the gate can point
+                  at it. Note it is NOT gated on isPublished: owner is deliberately
+                  outside the server's frozen set, so an officer handoff on a
+                  Confirmed event doesn't require unpublishing it first. */}
+              <OwnerRow
+                event={event}
+                brothers={brothers}
+                roles={roles}
+                canEdit={canManage}
+                editing={editingOwner}
+                hunted={huntKey === "owner"}
+                onToggle={() => setEditingOwner(v => !v)}
+                onPatch={onPatch}
+              />
               {enabledFields.map((def, i) => (
                 <FieldRow
                   key={def.slug}
@@ -264,7 +284,21 @@ export function ProgrammingDetailPanel({
                   onPatch={onPatch}
                 />
               ))}
+              {enabledFields.length === 0 && (
+                <p className="px-3 py-2.5 text-[12px] italic text-[#4a4439]">
+                  This chapter collects nothing optional. Turn a field on below.
+                </p>
+              )}
             </div>
+            {canManage && fieldDefs.length > 0 && (
+              <FieldTogglePills
+                fields={fieldDefs}
+                settingsHref={orgPath("/settings?section=event-fields")}
+                onChanged={loadFields}
+                onStatus={toast.success}
+                onError={toast.error}
+              />
+            )}
           </section>
         )}
 
@@ -529,6 +563,77 @@ function FieldShell({
   );
 }
 
+/**
+ * The owner row — a required field with a real editor.
+ *
+ * Unowned renders as a gold prompt rather than a grey "Not set": every other
+ * unanswered field is optional, but this one is the gate the board keeps naming,
+ * and it should read as something the page is asking for.
+ */
+function OwnerRow({
+  event, brothers, roles, canEdit, editing, hunted, onToggle, onPatch,
+}: {
+  event: ProgrammingTask;
+  brothers: Brother[];
+  roles: RoleOption[];
+  canEdit: boolean;
+  editing: boolean;
+  hunted?: boolean;
+  onToggle: () => void;
+  onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
+}) {
+  const label = event.owner
+    ? ownerLabel(event.owner)
+    : event.ownerNote
+      // Retired migration data: a pre-v3 free-text owner that matched no roster
+      // row. It is NOT an owner and does not satisfy the gate — say so.
+      ? `${event.ownerNote} (not on the roster)`
+      : null;
+
+  return (
+    <div className={`px-3 py-2.5${hunted ? " ev-hunted" : ""}`} data-field-key="owner">
+      <div className="flex items-center gap-3">
+        <span className="min-w-0 flex-1 text-[12.5px] text-[#958d7c]">Owner</span>
+        <div className="flex shrink-0 items-center gap-2">
+          {label ? (
+            <>
+              <OwnerAvatar owner={event.owner} size={22} />
+              <span className="text-[12.5px] text-[#c9c2b4]">{label}</span>
+            </>
+          ) : (
+            <span className="text-[12px] text-[#ddb36a]">Nobody yet</span>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded={editing}
+              className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-[#a78bfa] hover:bg-[#a78bfa]/10"
+            >
+              {editing ? "Done" : event.owner ? "Change" : "Assign"}
+            </button>
+          )}
+        </div>
+      </div>
+      {editing && canEdit && (
+        <div className="mt-2.5">
+          <OwnerPicker
+            value={event.owner}
+            brothers={brothers}
+            roles={roles}
+            onChange={patch => {
+              // One key only — the service nulls the sibling FK, and the Zod
+              // refine rejects a payload carrying both.
+              void onPatch(event.id, patch as Partial<ProgrammingTask>);
+              onToggle();
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** An unanswered field says so rather than rendering an empty row. */
 function ReadValue({ text }: { text: string | null }) {
   return text
@@ -559,43 +664,4 @@ function TextValue({
   );
 }
 
-const RATING_LABELS: Record<number, string> = {
-  1: "Rough",
-  2: "Okay",
-  3: "Good",
-  4: "Great",
-  5: "Legendary",
-};
-
-/** Large interactive star rating for the wrap-up card. */
-function StarRatingLarge({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: number | null;
-  onChange?: (v: number | null) => void;
-  disabled?: boolean;
-}) {
-  const [hovered, setHovered] = useState<number | null>(null);
-  const display = hovered ?? value;
-  return (
-    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-      {[1, 2, 3, 4, 5].map(n => (
-        <button
-          key={n}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange?.(value === n ? null : n)}
-          onMouseEnter={() => !disabled && setHovered(n)}
-          onMouseLeave={() => setHovered(null)}
-          className={`text-[22px] leading-none transition-all duration-75 ${disabled ? "cursor-default" : "cursor-pointer hover:scale-125"} ${display != null && n <= display ? "text-[#d9b08b]" : "text-[#2e2a24]"}`}
-          aria-label={`${n} star${n > 1 ? "s" : ""}`}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  );
-}
 

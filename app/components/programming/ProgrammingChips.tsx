@@ -8,26 +8,32 @@
  * one org's ops form applied to every org, and self-attested besides.
  */
 
-/** Category → dot color, shared by the badge, board card, and calendar chips. */
-export const TYPE_DOT: Record<string, string> = {
-  Program:             "bg-sky-400",
-  Social:              "bg-violet-400",
-  Fundraiser:          "bg-amber-400",
-  "Community Service": "bg-teal-400",
-};
-
-export function TypeBadge({ type }: { type: string }) {
-  const cls: Record<string, { chip: string; dot: string }> = {
-    Program:             { chip: "bg-sky-500/[0.08] text-sky-300 ring-sky-500/20",      dot: "bg-sky-400" },
-    Social:              { chip: "bg-violet-500/[0.08] text-violet-300 ring-violet-500/20", dot: "bg-violet-400" },
-    Fundraiser:          { chip: "bg-amber-500/[0.08] text-amber-300 ring-amber-500/20",  dot: "bg-amber-400" },
-    "Community Service": { chip: "bg-teal-500/[0.08] text-teal-300 ring-teal-500/20",    dot: "bg-teal-400" },
-  };
-  const c = cls[type] ?? { chip: "bg-white/[0.04] text-slate-400 ring-white/10", dot: "bg-slate-500" };
+/**
+ * A type's dot, coloured from the org's own event-type row.
+ *
+ * The four hardcoded label→class maps this replaced ("Program", "Social", …)
+ * meant any renamed or org-defined type rendered grey. Colour now arrives as an
+ * inline custom property so the palette is the org's, not the platform's.
+ */
+export function TypeDot({ hex, className = "" }: { hex: string; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${c.chip}`}>
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${c.dot}`} />
-      {type}
+    <span
+      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${className}`}
+      style={{ background: hex }}
+    />
+  );
+}
+
+export function TypeBadge({ label, hex }: { label: string; hex: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset"
+      // 14%/30% alpha over the type's own hue keeps every chip legible on dusk
+      // without needing a hand-picked class per type.
+      style={{ background: `${hex}14`, color: hex, boxShadow: `inset 0 0 0 1px ${hex}30` }}
+    >
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: hex }} />
+      {label}
     </span>
   );
 }
