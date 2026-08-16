@@ -12,24 +12,46 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 
 export type ToastVariant = "success" | "error" | "info";
 
+/**
+ * A button carried by the toast itself.
+ *
+ * The point is that the sentence and the thing that acts on it live in the same
+ * place. A refusal ("the date is locked") is only half a message; the other half
+ * is the way out ("Move to Planning"), and sending the user hunting for it
+ * wastes the step they just took.
+ */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   message: string;
   variant: ToastVariant;
   /** ms before auto-dismiss. Errors default to 6s; others default to 3s. */
   duration: number;
+  action?: ToastAction;
 }
 
+type ToastOpts = { duration?: number; action?: ToastAction };
+
 interface ToastContextValue {
-  /** Show a success toast (3s default). */
-  success: (message: string, opts?: { duration?: number }) => void;
-  /** Show an error toast (6s default). */
-  error:   (message: string, opts?: { duration?: number }) => void;
-  /** Show a neutral info toast (3s default). */
-  info:    (message: string, opts?: { duration?: number }) => void;
+  /** Show a success toast (3s default, 7s with an action). */
+  success: (message: string, opts?: ToastOpts) => void;
+  /** Show an error toast (6s default, 7s with an action). */
+  error:   (message: string, opts?: ToastOpts) => void;
+  /** Show a neutral info toast (3s default, 7s with an action). */
+  info:    (message: string, opts?: ToastOpts) => void;
   /** Dismiss a toast by id (rare — usually they expire). */
   dismiss: (id: string) => void;
 }
+
+/**
+ * A toast carrying an action is held longer than one that just confirms: this
+ * one has to be READ and then acted on, and 3s is not enough to do both.
+ */
+const ACTION_DURATION = 7000;
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
@@ -50,9 +72,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const push = useCallback((message: string, variant: ToastVariant, duration: number) => {
+  const push = useCallback((message: string, variant: ToastVariant, duration: number, action?: ToastAction) => {
     const id = newId();
-    setToasts(prev => [...prev, { id, message, variant, duration }]);
+    setToasts(prev => [...prev, { id, message, variant, duration, action }]);
     timers.current[id] = setTimeout(() => dismiss(id), duration);
   }, [dismiss]);
 
@@ -63,9 +85,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ToastContextValue>(() => ({
-    success: (message, opts) => push(message, "success", opts?.duration ?? 3000),
-    error:   (message, opts) => push(message, "error",   opts?.duration ?? 6000),
-    info:    (message, opts) => push(message, "info",    opts?.duration ?? 3000),
+    success: (message, opts) => push(message, "success", opts?.duration ?? (opts?.action ? ACTION_DURATION : 3000), opts?.action),
+    error:   (message, opts) => push(message, "error",   opts?.duration ?? (opts?.action ? ACTION_DURATION : 6000), opts?.action),
+    info:    (message, opts) => push(message, "info",    opts?.duration ?? (opts?.action ? ACTION_DURATION : 3000), opts?.action),
     dismiss,
   }), [push, dismiss]);
 
@@ -124,6 +146,18 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
     >
       <span className="mt-0.5 shrink-0">{ICONS[toast.variant]}</span>
       <p className="flex-1 leading-relaxed">{toast.message}</p>
+      {toast.action && (
+        <button
+          type="button"
+          // Dismiss BEFORE running the handler: the handler usually triggers a
+          // re-render (a demote, a stage move), and a toast still exiting while
+          // its owner re-renders flickers.
+          onClick={() => { onDismiss(toast.id); toast.action!.onClick(); }}
+          className="shrink-0 self-center whitespace-nowrap rounded-lg border border-current/30 px-2 py-1 text-[12px] font-semibold transition-colors hover:bg-current/10"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onDismiss(toast.id)}
