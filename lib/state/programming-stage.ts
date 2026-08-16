@@ -12,6 +12,20 @@ export const STAGE_LABELS: Record<ProgrammingStage, string> = {
   done:      "Done",
 };
 
+/**
+ * What each lane MEANS — one sentence, in the product's own voice.
+ *
+ * Kept beside the labels because the stage control, the help screen and the
+ * board all say the same thing about a lane, and three copies of a sentence is
+ * three chances for them to drift apart the first time an org changes one.
+ */
+export const STAGE_MEANINGS: Record<ProgrammingStage, string> = {
+  idea:      "Up in the air. Belongs to the chapter.",
+  planning:  "Someone's on it. Belongs to a person.",
+  confirmed: "Locked in. The chapter can plan around it.",
+  done:      "Over. Rated and on the record.",
+};
+
 /** Dot/header colors for board columns and cards. */
 export const STAGE_PILL: Record<ProgrammingStage, { dot: string; text: string }> = {
   idea:      { dot: "bg-slate-500",   text: "text-slate-300"   },
@@ -19,8 +33,3 @@ export const STAGE_PILL: Record<ProgrammingStage, { dot: string; text: string }>
   confirmed: { dot: "bg-sky-400",     text: "text-sky-300"     },
   done:      { dot: "bg-emerald-400", text: "text-emerald-300" },
 };
-
-/** Planning+ stages require a backing CalendarEvent (and therefore a date). */
-export function stageRequiresCalendar(stage: ProgrammingStage): boolean {
-  return stage !== "idea";
-}

@@ -11,7 +11,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother } from "../setup/factories";
+import { createOrg, createBrother, createEventType, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
   createEventField,
@@ -52,6 +52,15 @@ function ctxFor(orgId: number, actorId: number, opts?: { permissions?: number; i
 async function seedOrg() {
   const org = await createOrg("Fields Org", "fields-org");
   const admin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+  // The cases that prove answers SURVIVE a rename/disable have to create an
+  // event to answer with, and creating one validates its category against the
+  // org's own types — program/social/fundy are org-owned customs now, not
+  // built-ins. Without these three the whole "answers survive" argument was
+  // failing on "Unknown event type" before it ever reached the assertion.
+  await createSemester({ orgId: org.id, startDate: "2026-01-01", endDate: "2026-12-31" });
+  await createEventType({ orgId: org.id, slug: "program", label: "Program" });
+  await createEventType({ orgId: org.id, slug: "social",  label: "Social" });
+  await createEventType({ orgId: org.id, slug: "fundy",   label: "Fundraiser" });
   return { org, admin };
 }
 
@@ -122,6 +131,24 @@ describe("createEventField", () => {
     for (let i = 0; i < 14; i++) await createEventField(ctx, { label: `Field ${i}`, kind: "text" });
     await expect(createEventField(ctx, { label: "One too many", kind: "text" }))
       .rejects.toThrow(/limit/i);
+  });
+
+  // The settings editor reorders by swapping two rows' displayOrder. Untested
+  // until now, and it is the ONLY thing that decides the reading order of the
+  // sheet every event answers.
+  it("reorders by displayOrder, and listEventFields reads it back", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const a = await createEventField(ctx, { label: "Bus company", kind: "text" });
+    const b = await createEventField(ctx, { label: "Beneficiary", kind: "text" });
+    expect(a.displayOrder).toBeLessThan(b.displayOrder);
+
+    // The swap the up/down buttons perform.
+    await updateEventField(ctx, a.id, { displayOrder: b.displayOrder });
+    await updateEventField(ctx, b.id, { displayOrder: a.displayOrder });
+
+    const listed = (await listEventFields(ctx)).filter(f => !f.builtin).map(f => f.slug);
+    expect(listed).toEqual(["beneficiary", "bus-company"]);
   });
 });
 

@@ -180,12 +180,22 @@ describe("programming tasks", () => {
 
   it("rejects promotion when the date is out of range, leaving no CalendarEvent", async () => {
     const { ctx } = await seedWithSemester();
+    const owner = await createBrother({ orgId: ctx.orgId, name: "Maya Chen" });
     // Seed a programming row directly with an out-of-range date (an Idea can be
     // created in range, but legacy/edge rows may carry an out-of-range date).
+    // `owner` is an FK pair now — the free-text column this used to set was
+    // dropped by the v3 field-model migration.
     const pe = await testPrisma.programmingEvent.create({
-      data: { organizationId: ctx.orgId, title: "Late", date: "2026-09-01", category: "program", stage: "idea", status: "Upcoming", owner: "", collabOrg: "" },
+      data: {
+        organizationId: ctx.orgId, title: "Late", date: "2026-09-01", category: "program",
+        stage: "idea", status: "Upcoming", collabOrg: "", location: "EMU",
+        ownerBrotherId: owner.id,
+      },
     });
-    await expect(setStage(ctx, pe.id, { stage: "planning" })).rejects.toThrow(ValidationError);
+    // CONFIRMED, not planning: the publish boundary moved, so Planning costs an
+    // owner and nothing else — it no longer touches the date at all, and it is
+    // publishing that runs the semester guard.
+    await expect(setStage(ctx, pe.id, { stage: "confirmed" })).rejects.toThrow(ValidationError);
     expect(await testPrisma.calendarEvent.count()).toBe(0);
     const after = await testPrisma.programmingEvent.findUnique({ where: { id: pe.id } });
     expect(after?.stage).toBe("idea");

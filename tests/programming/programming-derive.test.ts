@@ -256,6 +256,41 @@ describe("eventsTermStats", () => {
     expect(stats.avgSuccess).toBe(3);
     expect(stats.spendCents).toBe(1500);
   });
+
+  // "On the slate" answers what's still ahead. A term's worth of Done events
+  // would swamp it by November, at which point it stops measuring anything.
+  it("excludes Done from liveTotal but keeps it in total", () => {
+    const rows = [
+      task({ stage: "idea" }),
+      task({ stage: "planning", owner: person() }),
+      task({ stage: "confirmed", owner: person(), dueDate: "2026-07-01", location: "EMU" }),
+      task({ stage: "done", owner: person(), dueDate: "2026-05-01", location: "EMU" }),
+      task({ stage: "done", owner: person(), dueDate: "2026-05-02", location: "EMU" }),
+    ];
+    const stats = eventsTermStats(rows, TODAY);
+    expect(stats.total).toBe(5);
+    expect(stats.liveTotal).toBe(3);
+  });
+
+  // The measure the owner gate exists to make visible.
+  it("counts unowned IDEAS only — an unowned plan can't exist", () => {
+    const rows = [
+      task({ stage: "idea", owner: null }),
+      task({ stage: "idea", owner: null }),
+      task({ stage: "idea", owner: person() }),
+      // Owned, later lane: must not be counted as an unowned idea.
+      task({ stage: "planning", owner: person() }),
+    ];
+    const stats = eventsTermStats(rows, TODAY);
+    expect(stats.ideaCount).toBe(3);
+    expect(stats.unownedIdeas).toBe(2);
+  });
+
+  it("reports zero unowned ideas when there are no ideas at all", () => {
+    const stats = eventsTermStats([task({ stage: "planning", owner: person() })], TODAY);
+    expect(stats.ideaCount).toBe(0);
+    expect(stats.unownedIdeas).toBe(0);
+  });
 });
 
 describe("nextOnDeckEvent", () => {

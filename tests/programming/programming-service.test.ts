@@ -17,6 +17,8 @@ import {
   updateProgrammingTask,
 } from "@/lib/services/programming-service";
 import { NotFoundError, ValidationError } from "@/lib/errors";
+import { canEnter } from "@/lib/programming";
+import { updateProgrammingTaskInput } from "@/lib/validation/programming";
 import type { RequestContext } from "@/lib/context";
 
 beforeEach(async () => {
@@ -331,6 +333,52 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     expect(rated.spendingCents).toBe(900);
   });
 
+  // The wrap-up modal writes the rating BEFORE the stage move, so that a failed
+  // move leaves the rating rather than losing it. That ordering is only legal
+  // because the wrap-up fields are outside the frozen set — pin the whole
+  // sequence, not just the freeze exemption.
+  it("accepts the wrap-up patch then the move to Done, in that order", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Alumni Dinner", dueDate: "2026-10-04", location: "Chapter House", category: "social",
+    });
+
+    const rated = await updateProgrammingTask(ctx, confirmed.id, {
+      successRating: 5, wrapUpNotes: "Book the caterer earlier next year.",
+    });
+    expect(rated.stage).toBe("confirmed");
+    expect(rated.successRating).toBe(5);
+
+    const done = await setStage(ctx, confirmed.id, { stage: "done" });
+    expect(done.stage).toBe("done");
+    // The record survives the move intact.
+    expect(done.successRating).toBe(5);
+    expect(done.wrapUpNotes).toBe("Book the caterer earlier next year.");
+  });
+
+  // The calendar's drop rule, pinned at the layer that matters: setting a date
+  // must not publish. Auto-promoting here would put the event in front of the
+  // whole chapter as a side effect of a drag aimed at a calendar square.
+  it("setting a date on a Planning event does NOT create a CalendarEvent", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const owner = await seedOwner(org.id, "Maya Chen");
+    const task = await createProgrammingTask(ctx, {
+      title: "Retreat", category: "program", ownerBrotherId: owner.id, location: "Lodge",
+    });
+    await setStage(ctx, task.id, { stage: "planning" });
+
+    const dated = await updateProgrammingTask(ctx, task.id, { dueDate: "2026-09-26" });
+    expect(dated.stage).toBe("planning");
+    expect(dated.dueDate).toBe("2026-09-26");
+    // Complete enough to confirm — but still not confirmed, because nobody said so.
+    expect(canEnter(dated, "confirmed")).toBe(true);
+    expect(
+      (await testPrisma.programmingEvent.findUnique({ where: { id: task.id } }))!.calendarEventId,
+    ).toBeNull();
+  });
+
   it("mirrors an edit to the CalendarEvent after demoting to Planning", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
@@ -407,6 +455,67 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     expect(pe?.ownerRoleId).toBe(role.id);
   });
 
+  // The picker's "Unassign" writes exactly this. Clearing has to actually
+  // re-close the Planning gate, or the board would keep an event in a lane it no
+  // longer qualifies for.
+  it("clearing the owner drops the event back below the Planning gate", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const person = await seedOwner(org.id, "Maya Chen");
+
+    const task = await createProgrammingTask(ctx, {
+      title: "Mixer", category: "social", ownerBrotherId: person.id,
+    });
+    expect(canEnter(task, "planning")).toBe(true);
+
+    const cleared = await updateProgrammingTask(ctx, task.id, { ownerBrotherId: null });
+    expect(cleared.owner).toBeNull();
+    expect(canEnter(cleared, "planning")).toBe(false);
+  });
+
+  // The picker emits ONE key precisely because both together is meaningless —
+  // pinned at the schema so a future caller can't send both and get whichever
+  // the service happens to write last.
+  it("refuses a payload carrying BOTH owner kinds", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const person = await seedOwner(org.id, "Maya Chen");
+    const role = await testPrisma.role.create({
+      data: { organizationId: org.id, name: "Social Chair", rank: 1, permissions: 0 },
+    });
+    const task = await createProgrammingTask(ctx, { title: "Mixer", category: "social" });
+
+    expect(() =>
+      updateProgrammingTaskInput.parse({ ownerBrotherId: person.id, ownerRoleId: role.id }),
+    ).toThrow();
+    // And the create schema agrees, so neither door is open.
+    expect(() =>
+      updateProgrammingTaskInput.parse({ ownerBrotherId: person.id }),
+    ).not.toThrow();
+    expect(task.owner).toBeNull();
+  });
+
+  // Owner is deliberately OUTSIDE the frozen set: an officer handoff on a
+  // published event must not require unpublishing it, which would drop it off
+  // the chapter's timeline just to change who's accountable.
+  it("reassigns the owner of a CONFIRMED event without unpublishing it", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Formal", dueDate: "2026-09-20", location: "Grand Ballroom", category: "social",
+    });
+    const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId;
+    const successor = await seedOwner(org.id, "Robin Vale");
+
+    const handed = await updateProgrammingTask(ctx, confirmed.id, { ownerBrotherId: successor.id });
+    expect(handed.owner).toMatchObject({ kind: "brother", id: successor.id });
+    expect(handed.stage).toBe("confirmed");
+    // Still on the timeline, same mirror row.
+    expect(
+      (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId,
+    ).toBe(calId);
+  });
+
   it("removes the ServiceEvent when type changes away from community service", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
@@ -415,8 +524,22 @@ describe("updateProgrammingTask / deleteProgrammingTask", () => {
     });
     const calId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
 
-    await updateProgrammingTask(ctx, confirmed.id, { category: "program" });
+    // `category` is frozen while the event is published — the chapter has
+    // already been told what this is. Retyping it goes through Planning, which
+    // is the same route the panel offers, and demoting drops the mirror rows.
+    await expect(updateProgrammingTask(ctx, confirmed.id, { category: "program" }))
+      .rejects.toThrow(/back to Planning/i);
+
+    await setStage(ctx, confirmed.id, { stage: "planning" });
     expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: calId } })).toBeNull();
+
+    // Re-confirming under the new type mints a fresh CalendarEvent and, because
+    // it is no longer community service, no ServiceEvent alongside it.
+    await updateProgrammingTask(ctx, confirmed.id, { category: "program" });
+    const reconfirmed = await setStage(ctx, confirmed.id, { stage: "confirmed" });
+    expect(reconfirmed.category).toBe("program");
+    const newCalId = (await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } }))!.calendarEventId!;
+    expect(await testPrisma.serviceEvent.findUnique({ where: { calendarEventId: newCalId } })).toBeNull();
   });
 
   it("deletes the CalendarEvent + ServiceEvent when removing a promoted service event", async () => {

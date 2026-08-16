@@ -440,6 +440,17 @@ export interface EventsTermStats {
   avgSuccess: number | null;
   doneCount: number;
   spendCents: number;
+  /**
+   * What's LIVE — idea + planning + confirmed, excluding Done.
+   *
+   * "On the slate" means what's still ahead of you. A term's worth of finished
+   * events swamps that number by the end of the semester, at which point the
+   * measure stops answering the question anyone was asking it.
+   */
+  liveTotal: number;
+  /** Ideas nobody has picked up — the measure the owner gate makes worth watching. */
+  unownedIdeas: number;
+  ideaCount: number;
 }
 
 /** Glance-strip measures over the whole slate. */
@@ -464,6 +475,10 @@ export function eventsTermStats(tasks: ProgrammingTaskLike[], today: string): Ev
     ? rated.reduce((sum, t) => sum + (t.successRating as number), 0) / rated.length
     : null;
 
+  const unownedIdeas = tasks.filter(
+    t => t.stage === "idea" && !hasRequiredField(t, "owner"),
+  ).length;
+
   return {
     total: tasks.length,
     byStage,
@@ -472,6 +487,9 @@ export function eventsTermStats(tasks: ProgrammingTaskLike[], today: string): Ev
     avgSuccess,
     doneCount: byStage.done,
     spendCents: tasks.reduce((sum, t) => sum + (t.spendingCents ?? 0), 0),
+    liveTotal: byStage.idea + byStage.planning + byStage.confirmed,
+    unownedIdeas,
+    ideaCount: byStage.idea,
   };
 }
 
