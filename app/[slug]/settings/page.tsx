@@ -19,6 +19,7 @@ import { VocabSection } from "./sections/VocabSection";
 import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
+import { EventFieldsSection } from "./sections/EventFieldsSection";
 import { TransactionCategoriesSection } from "./sections/TransactionCategoriesSection";
 import { useChapter } from "../../context/ChapterContext";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
@@ -36,7 +37,7 @@ type SectionId =
   | "index"
   | "general" | "vocabulary"
   | "accounts" | "invitations" | "roles" | "member-fields"
-  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "money-categories" | "workflows"
+  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "money-categories" | "workflows"
   | "activity-log" | "billing";
 
 type Intent = "Identity" | "Membership" | "Operations" | "System";
@@ -123,6 +124,12 @@ const NAV_ITEMS: NavItem[] = [
     blurb: "Rename, recolor and add timeline categories.",
     lede: "The categories your timeline runs on — every event is tagged with one, which sets its color and where it shows up. Built-ins can be renamed and recolored; your own can be added or removed.",
     icon: "M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z",
+  },
+  {
+    id: "event-fields", label: "Event fields", group: "Operations", tint: "t-sage",
+    blurb: "Choose what every event records.",
+    lede: "What the events board asks about each event — the same questions for all of them, which is what makes a budget or a head count something you can compare across the term. The ten built-ins can be renamed; add your own, or stop collecting the ones you don't use.",
+    icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
   },
   {
     id: "money-categories", label: "Money categories", group: "Operations", tint: "t-gold",
@@ -254,6 +261,7 @@ function SettingsPageBody() {
   const canManageRoles    = can("MANAGE_ROLES");
   const canManageSettings = can("MANAGE_SETTINGS");
   const canManageTreasury = can("MANAGE_TREASURY");
+  const canManageEvents = can("MANAGE_EVENTS");
   // Categories only mean something to an org that keeps books here.
   const hasTreasury = isNavVisible("Treasury", currentUser?.org?.enabledWorkflows ?? []);
   const isVisible = useMemo(() => (id: NavItem["id"]) => {
@@ -276,8 +284,13 @@ function SettingsPageBody() {
     // them post the transaction. Gating on settings would let them file money
     // but not name the bucket — a round trip to the president for nothing.
     if (id === "money-categories") return hasTreasury && (isOrgAdmin || canManageTreasury);
+    // Same argument as money-categories, and the same gate the service uses
+    // (requireEvents in event-field-service): the officer who needs "Bus
+    // company" at 11pm already holds MANAGE_EVENTS. Gating on settings would
+    // let them create the event but not the field it needs.
+    if (id === "event-fields") return isOrgAdmin || canManageEvents;
     return true;
-  }, [canManageRoles, canManageSettings, canManageTreasury, hasTreasury, isOrgAdmin]);
+  }, [canManageRoles, canManageSettings, canManageTreasury, canManageEvents, hasTreasury, isOrgAdmin]);
 
   const visibleNavItems = useMemo(() => NAV_ITEMS.filter(n => isVisible(n.id)), [isVisible]);
 
@@ -459,6 +472,7 @@ function SettingsPageBody() {
       case "member-fields":  return <MemberFieldsSection {...props} />;
       case "custom-metrics": return <CustomMetricsSection {...props} />;
       case "event-types":    return <EventTypesSection {...props} />;
+      case "event-fields":   return <EventFieldsSection {...props} />;
       case "money-categories": return <TransactionCategoriesSection {...props} />;
       case "roles":          return <RolesSection {...props} />;
       case "activity-log":   return <ActivityLogSection {...props} />;
