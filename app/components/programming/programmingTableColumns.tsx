@@ -2,7 +2,8 @@
 
 import type { SheetColumn } from "../grid/SheetGrid";
 import { SheetTextCell } from "../grid/SheetGrid";
-import { StarRating, TYPE_DOT } from "./ProgrammingChips";
+import { StarRating } from "./ProgrammingChips";
+import { typeVisual, type TypeVisual } from "./typeColor";
 import { ownerLabel } from "@/lib/event-owner";
 import type { ProgrammingTask } from "../../data";
 import { fmtDate } from "../../data";
@@ -16,11 +17,15 @@ export function programmingTableColumns({
   onPatch,
   onSelect,
   resolveAttachmentUrl,
+  visuals,
 }: {
   onPatch: (id: number, patch: Record<string, unknown>) => void;
   onSelect: (id: number) => void;
   resolveAttachmentUrl: (task: ProgrammingTask) => string | null;
+  /** slug → colour/glyph from the org's own event types. */
+  visuals: Map<string, TypeVisual>;
 }): SheetColumn<ProgrammingTask>[] {
+  const typeHex = (slug: string) => typeVisual(visuals, slug).hex;
   return [
     {
       key: "event",
@@ -31,7 +36,7 @@ export function programmingTableColumns({
       summary: rows => `${rows.length} event${rows.length === 1 ? "" : "s"}`,
       render: (e, canManage) => (
         <span className="flex items-center gap-2">
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${TYPE_DOT[e.type] ?? "bg-slate-500"}`} />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: typeHex(e.category) }} />
           <SheetTextCell
             value={e.title}
             canManage={canManage}

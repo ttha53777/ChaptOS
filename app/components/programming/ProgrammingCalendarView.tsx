@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { ProgrammingTask } from "../../data";
-import { TYPE_DOT } from "./ProgrammingChips";
+import { typeVisual, type TypeVisual } from "./typeColor";
 import { todayStr } from "../../lib/dates";
 
 const MONTH_NAMES = [
@@ -12,23 +12,31 @@ const MONTH_NAMES = [
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const TODAY = todayStr();
 
-// Dusk dot colour class per type (resolves to dusk tokens in events-ledger.css).
-const DUSK_TDOT: Record<string, string> = {
-  Program:             "ev-tdot-program",
-  Social:              "ev-tdot-social",
-  Fundraiser:          "ev-tdot-fundy",
-  "Community Service": "ev-tdot-service",
-};
-const duskDot = (type: string) => DUSK_TDOT[type] ?? "ev-tdot-other";
 
 export function ProgrammingCalendarView({
   tasks,
+  visuals,
   selectedId,
   variant = "default",
+  canManage = false,
+  semesterStart,
+  semesterEnd,
   onSelect,
+  onSetDate,
+  renderRail,
 }: {
   tasks: ProgrammingTask[];
+  /** slug → colour/glyph from the org's own event types. */
+  visuals: Map<string, TypeVisual>;
   selectedId: number | null;
+  canManage?: boolean;
+  /** Active semester bounds; days outside refuse the drop (the server would too). */
+  semesterStart?: string | null;
+  semesterEnd?: string | null;
+  /** Set an event's date from a drop. Never promotes — see the drop rules. */
+  onSetDate?: (id: number, date: string) => void;
+  /** Rendered beside the month (dusk only) — the undated rail shares drag state. */
+  renderRail?: (onDragStart: (id: number) => void) => React.ReactNode;
   /** "dusk" renders the warm-paper calendar for the redesigned events page. */
   variant?: "default" | "dusk";
   onSelect: (id: number) => void;
@@ -57,13 +65,46 @@ export function ProgrammingCalendarView({
   for (let i = 0; i < firstWeekday; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(`${ym}-${String(d).padStart(2, "0")}`);
 
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overDay, setOverDay] = useState<string | null>(null);
+
   function shift(delta: number) {
     const next = new Date(year, month - 1 + delta, 1);
     setYm(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
   }
 
+  const dndOn = canManage && !!onSetDate;
+  const dragTask = dragId != null ? tasks.find(t => t.id === dragId) ?? null : null;
+
+  /**
+   * Whether this day will accept the event currently being dragged.
+   *
+   * A Done event refuses outright — it already happened, and its date is part of
+   * the record rather than a plan to be revised. Out-of-semester days refuse too,
+   * because the server's semester guard would reject the write anyway and a drop
+   * that silently 400s is worse than one that never highlights.
+   */
+  function dayAccepts(day: string): boolean {
+    if (!dndOn || !dragTask) return false;
+    if (dragTask.stage === "done") return false;
+    if (semesterStart && day < semesterStart) return false;
+    if (semesterEnd && day > semesterEnd) return false;
+    return true;
+  }
+
+  function handleDrop(day: string) {
+    const id = dragId;
+    setDragId(null);
+    setOverDay(null);
+    if (id == null || !dayAccepts(day)) return;
+    // Setting a date NEVER promotes. Auto-publishing here would put the event in
+    // front of the whole chapter as a side effect of a drag aimed at a square.
+    onSetDate?.(id, day);
+  }
+
   if (variant === "dusk") {
     return (
+      <div className="ev-cal-wrap">
       <div className="ev-cal">
         <div className="ev-cal-head">
           <p className="mo">{MONTH_NAMES[month - 1]} {year}</p>
@@ -79,8 +120,16 @@ export function ProgrammingCalendarView({
         <div className="ev-cal-grid">
           {cells.map((day, i) => {
             const dayTasks = day ? byDay.get(day) ?? [] : [];
+            const accepts = day ? dayAccepts(day) : false;
+            const isOver = day != null && overDay === day;
             return (
-              <div key={i} className="ev-cal-cell">
+              <div
+                key={i}
+                onDragOver={day && accepts ? e => { e.preventDefault(); setOverDay(day); } : undefined}
+                onDragLeave={() => setOverDay(d => (d === day ? null : d))}
+                onDrop={day && accepts ? () => handleDrop(day) : undefined}
+                className={`ev-cal-cell${isOver && accepts ? " drop" : ""}`}
+              >
                 {day && (
                   <>
                     <div className={`ev-cal-dnum${day === TODAY ? " today" : ""}`}>{Number(day.slice(-2))}</div>
@@ -90,7 +139,8 @@ export function ProgrammingCalendarView({
                           key={t.id}
                           onClick={() => onSelect(t.id)}
                           aria-label={t.title}
-                          className={`ev-cal-dot ${duskDot(t.type)}${selectedId === t.id ? " sel" : ""}`}
+                          className={`ev-cal-dot${selectedId === t.id ? " sel" : ""}`}
+                          style={{ background: typeVisual(visuals, t.category).hex }}
                         />
                       ))}
                     </div>
@@ -98,10 +148,14 @@ export function ProgrammingCalendarView({
                       {dayTasks.map(t => (
                         <button
                           key={t.id}
+                          draggable={dndOn}
+                          onDragStart={dndOn ? () => setDragId(t.id) : undefined}
                           onClick={() => onSelect(t.id)}
-                          className={`ev-cal-chip${selectedId === t.id ? " sel" : ""}`}
+                          className={`ev-cal-chip${selectedId === t.id ? " sel" : ""}${
+                            t.stage === "confirmed" || t.stage === "done" ? "" : " pencil"
+                          }`}
                         >
-                          <span className={`cdot ${duskDot(t.type)}`} />
+                          <span className="cdot" style={{ background: typeVisual(visuals, t.category).hex }} />
                           <span className="ct">{t.title}</span>
                         </button>
                       ))}
@@ -112,6 +166,8 @@ export function ProgrammingCalendarView({
             );
           })}
         </div>
+      </div>
+      {renderRail?.(setDragId)}
       </div>
     );
   }
@@ -150,7 +206,8 @@ export function ProgrammingCalendarView({
                         key={t.id}
                         onClick={() => onSelect(t.id)}
                         aria-label={t.title}
-                        className={`h-2 w-2 rounded-full ${TYPE_DOT[t.type] ?? "bg-slate-500"} ${selectedId === t.id ? "ring-2 ring-white/70" : ""}`}
+                        className={`h-2 w-2 rounded-full ${selectedId === t.id ? "ring-2 ring-white/70" : ""}`}
+                        style={{ background: typeVisual(visuals, t.category).hex }}
                       />
                     ))}
                   </div>
@@ -164,7 +221,7 @@ export function ProgrammingCalendarView({
                           selectedId === t.id ? "bg-indigo-500/20 text-white" : "bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
                         }`}
                       >
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${TYPE_DOT[t.type] ?? "bg-slate-500"}`} />
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: typeVisual(visuals, t.category).hex }} />
                         <span className="truncate">{t.title}</span>
                       </button>
                     ))}

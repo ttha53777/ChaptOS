@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { SheetSection } from "../grid/SheetGrid";
 import { SheetGrid } from "../grid/SheetGrid";
+import type { TypeVisual } from "./typeColor";
 import { programmingTableColumns } from "./programmingTableColumns";
 import type { ProgrammingTask } from "../../data";
 import type { Doc } from "../../[slug]/docs/lib";
@@ -16,6 +17,7 @@ function monthLabel(key: string): string {
 }
 
 export function ProgrammingTable({
+  visuals,
   tasks,
   docs,
   selectedId,
@@ -23,6 +25,7 @@ export function ProgrammingTable({
   onSelect,
   onPatch,
 }: {
+  visuals: Map<string, TypeVisual>;
   tasks: ProgrammingTask[];
   docs: Doc[];
   selectedId: number | null;
@@ -40,7 +43,8 @@ export function ProgrammingTable({
   }, [docs]);
 
   const columns = useMemo(
-    () => programmingTableColumns({ onPatch, onSelect, resolveAttachmentUrl }),
+    () => programmingTableColumns({
+      visuals, onPatch, onSelect, resolveAttachmentUrl }),
     [onPatch, onSelect, resolveAttachmentUrl],
   );
 

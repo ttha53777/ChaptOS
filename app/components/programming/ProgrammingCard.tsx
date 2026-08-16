@@ -3,6 +3,7 @@
 import type { ProgrammingTask } from "../../data";
 import { fmtDate } from "../../data";
 import { TypeBadge, StarRating } from "./ProgrammingChips";
+import type { TypeVisual } from "./typeColor";
 import { missingFor } from "@/lib/programming";
 import { ownerShortLabel } from "@/lib/event-owner";
 import { todayStr } from "../../lib/dates";
@@ -50,14 +51,6 @@ function countdown(dueDate: string | null): { label: string; tone: string } | nu
   return { label: `in ${days}d`, tone: "bg-white/[0.06] text-slate-400" };
 }
 
-// Dusk variant: type → 2-letter glyph + tone class (mirrors _design/Events Redesign.html).
-const DUSK_GLYPH: Record<string, { txt: string; cls: string }> = {
-  Program:             { txt: "PR", cls: "" },
-  Social:              { txt: "SO", cls: "social" },
-  Fundraiser:          { txt: "FU", cls: "fundy" },
-  "Community Service": { txt: "CS", cls: "service" },
-};
-
 /** Dusk countdown: short relative label + tone (no date set / today / soon / far). */
 function duskWhen(dueDate: string | null): { label: string; tone: "" | "soon" | "today" } {
   if (!dueDate) return { label: "No date", tone: "" };
@@ -71,6 +64,7 @@ function duskWhen(dueDate: string | null): { label: string; tone: "" | "soon" | 
 
 export function ProgrammingCard({
   task,
+  visual,
   selected,
   draggable = true,
   isDragging = false,
@@ -80,6 +74,7 @@ export function ProgrammingCard({
   onDragStart,
 }: {
   task: ProgrammingTask;
+  visual: TypeVisual;
   selected: boolean;
   draggable?: boolean;
   isDragging?: boolean;
@@ -93,6 +88,7 @@ export function ProgrammingCard({
     return (
       <DuskCard
         task={task}
+        visual={visual}
         selected={selected}
         draggable={draggable}
         isDragging={isDragging}
@@ -105,6 +101,7 @@ export function ProgrammingCard({
   return (
     <DefaultCard
       task={task}
+      visual={visual}
       selected={selected}
       draggable={draggable}
       isDragging={isDragging}
@@ -117,6 +114,8 @@ export function ProgrammingCard({
 
 type CardProps = {
   task: ProgrammingTask;
+  /** Colour + glyph resolved from the ORG's event-type row, not a label lookup. */
+  visual: TypeVisual;
   selected: boolean;
   draggable: boolean;
   isDragging: boolean;
@@ -127,6 +126,7 @@ type CardProps = {
 
 function DefaultCard({
   task,
+  visual,
   selected,
   draggable,
   isDragging,
@@ -155,7 +155,7 @@ function DefaultCard({
       style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms` }}
     >
       <div className="mb-1.5 flex items-center justify-between gap-1.5">
-        <TypeBadge type={task.type} />
+        <TypeBadge label={visual.label} hex={visual.hex} />
         {cd && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${cd.tone}`}>{cd.label}</span>}
       </div>
       <p className={`line-clamp-2 text-[13px] font-semibold leading-snug ${isDone ? "text-slate-200" : "text-white"}`}>{task.title}</p>
@@ -188,6 +188,7 @@ function DefaultCard({
  *  events-ledger.css; tokens resolve from the .dash.dash-events scope. */
 function DuskCard({
   task,
+  visual,
   selected,
   draggable,
   isDragging,
@@ -196,7 +197,7 @@ function DuskCard({
   onDragStart,
 }: CardProps) {
   const isDone = task.stage === "done";
-  const glyph = DUSK_GLYPH[task.type] ?? { txt: task.type.slice(0, 2).toUpperCase(), cls: "" };
+  const glyph = visual.glyph;
   const when = duskWhen(task.dueDate);
   const blocker = cardBlocker(task);
 
@@ -213,7 +214,7 @@ function DuskCard({
       style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms` }}
     >
       <div className="ec-top">
-        <span className={`ev-glyph ${glyph.cls}`}>{glyph.txt}</span>
+        <span className="ev-glyph" style={{ color: visual.hex, background: `${visual.hex}14` }}>{glyph}</span>
         <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
       </div>
       <div className="ec-t">{task.title}</div>

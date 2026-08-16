@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { STAGES, STAGE_LABELS, STAGE_PILL, type ProgrammingStage } from "@/lib/state/programming-stage";
+import { canEnter, missingFor, needsConfirmFirst } from "@/lib/programming";
 import { ProgrammingCard } from "./ProgrammingCard";
+import { typeVisual, type TypeVisual } from "./typeColor";
 
 export function ProgrammingBoard({
   tasks,
+  visuals,
   selectedId,
   canManage,
   variant = "default",
@@ -14,6 +17,8 @@ export function ProgrammingBoard({
   onMoveStage,
 }: {
   tasks: ProgrammingTask[];
+  /** slug → colour/glyph, built once from the org's event types. */
+  visuals: Map<string, TypeVisual>;
   selectedId: number | null;
   canManage: boolean;
   /** "dusk" renders dusk lanes + prep-ring cards for the redesigned events page. */
@@ -48,7 +53,36 @@ export function ProgrammingBoard({
     if (id == null) return;
     const task = tasks.find(t => t.id === id);
     if (!task || task.stage === stage) return;
+    // The gate itself lives in onMoveStage: a blocked drop opens the step that
+    // unblocks it. The board's job is to SAY what will happen before you let go.
     await onMoveStage(id, stage);
+  }
+
+  /**
+   * What dropping here would mean, said before the drop.
+   *
+   * This is the only place a lane's rule appears, so it names the rule rather
+   * than saying "Drop here" — a cue that only reports where the cursor is tells
+   * you nothing you didn't already know from moving it there.
+   */
+  const dragTask = dragId != null ? tasks.find(t => t.id === dragId) ?? null : null;
+  function dropCue(stage: ProgrammingStage): { text: string; blocked: boolean } | null {
+    if (!dragTask || dragTask.stage === stage) return null;
+    if (needsConfirmFirst(dragTask, stage)) {
+      return { text: "Confirm it first — the chapter has to have seen it", blocked: true };
+    }
+    const forward = STAGES.indexOf(stage) > STAGES.indexOf(dragTask.stage);
+    if (forward && !canEnter(dragTask, stage)) {
+      const miss = missingFor(dragTask, stage).map(f => f.label.toLowerCase()).join(" + ");
+      return { text: `Needs ${miss} — drop to fill in`, blocked: true };
+    }
+    if (stage === "confirmed") return { text: "Drop to confirm — the chapter will see it", blocked: false };
+    // Demoting a published event pulls it back off everyone's calendar. That is
+    // allowed and sometimes correct, but it should never be a surprise.
+    if ((dragTask.stage === "confirmed" || dragTask.stage === "done") && !forward) {
+      return { text: "Drop — comes off the timeline", blocked: false };
+    }
+    return null;
   }
 
   if (variant === "dusk") {
@@ -57,27 +91,32 @@ export function ProgrammingBoard({
         {STAGES.map(stage => {
           const items = byStage[stage];
           const isOver = overStage === stage && canManage;
+          const cue = isOver ? dropCue(stage) : null;
           return (
             <div
               key={stage}
               onDragOver={dndEnabled ? e => { e.preventDefault(); setOverStage(stage); } : undefined}
               onDragLeave={() => setOverStage(s => (s === stage ? null : s))}
               onDrop={dndEnabled ? () => handleDrop(stage) : undefined}
-              className={`ev-lane${isOver ? " drop" : ""}`}
+              className={`ev-lane${isOver ? " drop" : ""}${cue?.blocked ? " gated" : ""}`}
             >
               <div className="ev-lane-head">
                 <span className={`dot ${stage}`} />
                 <span className="lh">{STAGE_LABELS[stage]}</span>
                 <span className="lc">{items.length}</span>
               </div>
-              <p className="ev-lane-sub">
-                {/* The publish boundary is CONFIRMED, not Planning. Planning used
-                    to publish, which is exactly what made Idea→Planning a drag
-                    with no consequence — both lanes said the same thing. */}
-                {stage === "idea"     ? "Backlog · not on the timeline"
-                  : stage === "planning" ? "Owned · not yet public"
-                  : "On the chapter's timeline"}
-              </p>
+              {cue ? (
+                <p className={`ev-lane-cue${cue.blocked ? " gated" : ""}`}>{cue.text}</p>
+              ) : (
+                <p className="ev-lane-sub">
+                  {/* The publish boundary is CONFIRMED, not Planning. Planning used
+                      to publish, which is exactly what made Idea→Planning a drag
+                      with no consequence — both lanes said the same thing. */}
+                  {stage === "idea"     ? "Backlog · not on the timeline"
+                    : stage === "planning" ? "Owned · not yet public"
+                    : "On the chapter's timeline"}
+                </p>
+              )}
               <div className="ev-lane-body">
                 {items.length === 0 ? (
                   <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>
@@ -90,6 +129,7 @@ export function ProgrammingBoard({
                         <ProgrammingCard
                           key={task.id}
                           task={task}
+                          visual={typeVisual(visuals, task.category)}
                           variant="dusk"
                           selected={selectedId === task.id}
                           draggable={dndEnabled}
@@ -157,6 +197,7 @@ export function ProgrammingBoard({
                       <ProgrammingCard
                         key={task.id}
                         task={task}
+                        visual={typeVisual(visuals, task.category)}
                         selected={selectedId === task.id}
                         draggable={dndEnabled}
                         isDragging={dragId === task.id}
