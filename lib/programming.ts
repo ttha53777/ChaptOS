@@ -223,6 +223,14 @@ export interface RequiredField {
   label: string;
   /** The earliest lane that demands this field. */
   gate: ProgrammingStage;
+  /**
+   * Which editor satisfies it. Lets the fix-step build itself from this table
+   * instead of switching on `key`, and lets the help screen drop `bool` — see
+   * `hint` below for why that matters.
+   */
+  kind: "text" | "type" | "person" | "date" | "bool";
+  /** One line on why the lane asks for this. Shown in the fix-step. */
+  hint: string;
 }
 
 /**
@@ -243,12 +251,18 @@ export interface RequiredField {
  * required / optional" as a field the publish decision covers, not so it can block.
  */
 export const REQUIRED_FIELDS: readonly RequiredField[] = [
-  { key: "title",     label: "Title",      gate: "idea"      },
-  { key: "category",  label: "Type",       gate: "idea"      },
-  { key: "owner",     label: "Owner",      gate: "planning"  },
-  { key: "date",      label: "Date",       gate: "confirmed" },
-  { key: "location",  label: "Location",   gate: "confirmed" },
-  { key: "mandatory", label: "Attendance", gate: "confirmed" },
+  { key: "title",     label: "Title",      gate: "idea",      kind: "text",
+    hint: "What to call it. A working title is fine — it can change until it's confirmed." },
+  { key: "category",  label: "Type",       gate: "idea",      kind: "type",
+    hint: "Which kind of event this is. Drives its colour, and which chapter budget it lands against." },
+  { key: "owner",     label: "Owner",      gate: "planning",  kind: "person",
+    hint: "One person or one role accountable. An idea belongs to the chapter; a plan belongs to somebody." },
+  { key: "date",      label: "Date",       gate: "confirmed", kind: "date",
+    hint: "Confirming puts this on everyone's calendar, so it needs a day people can plan around." },
+  { key: "location",  label: "Location",   gate: "confirmed", kind: "text",
+    hint: "Where it happens. \"TBD\" is not a location — that's what Planning is for." },
+  { key: "mandatory", label: "Attendance", gate: "confirmed", kind: "bool",
+    hint: "Whether the chapter is required to be there. Always answered — the default is optional." },
 ] as const;
 
 /** The minimum an event must carry for the gate checks to read it. */

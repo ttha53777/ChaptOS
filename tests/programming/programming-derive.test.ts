@@ -20,6 +20,7 @@ import {
   missingFor,
   needsConfirmFirst,
   nextOnDeckEvent,
+  REQUIRED_FIELDS,
   type ProgrammingTaskDto,
 } from "@/lib/programming";
 import type { OwnerRef } from "@/lib/event-owner";
@@ -56,6 +57,28 @@ function task(over: Partial<ProgrammingTaskDto> = {}): ProgrammingTaskDto {
     ...over,
   };
 }
+
+describe("REQUIRED_FIELDS is the single source the UI builds itself from", () => {
+  // The fix-step picks its editors from `kind` and the help screen filters on
+  // it, so an entry missing either property degrades to a text box or a wrong
+  // sentence rather than failing loudly.
+  it("gives every field a usable kind and a non-empty hint", () => {
+    const kinds = new Set(["text", "type", "person", "date", "bool"]);
+    for (const f of REQUIRED_FIELDS) {
+      expect(kinds.has(f.kind), `${f.key} has kind "${f.kind}"`).toBe(true);
+      expect(f.hint.trim().length, `${f.key} has a hint`).toBeGreaterThan(0);
+    }
+  });
+
+  // The help overlay drops bool fields so Confirmed reads as two errands ("a
+  // date and a location"), not three — attendance is always answered, so
+  // listing it would name a chore that doesn't exist. Pinned because the copy
+  // silently stops matching the rules if a third non-bool field is ever added.
+  it("leaves Confirmed with exactly two fields a human has to go get", () => {
+    const errands = REQUIRED_FIELDS.filter(f => f.gate === "confirmed" && f.kind !== "bool");
+    expect(errands.map(f => f.key)).toEqual(["date", "location"]);
+  });
+});
 
 describe("fieldsFor", () => {
   it("is cumulative down the lanes", () => {
