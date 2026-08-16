@@ -80,6 +80,38 @@ describe("RLS: org-column tables (direct organizationId scoping)", () => {
     expect(await asOrg(a.id, tx => tx.brother.count())).toBe(2);
     expect(await asOrg(b.id, tx => tx.brother.count())).toBe(1);
   });
+
+  // EventFieldDefinition ships with org_isolation and no allow_all (it was
+  // created after the Phase 4 revert), so it is enforcing in production from
+  // day one. It carries an org's field VOCABULARY — the labels every event
+  // answers against — so a leak here would show one chapter another chapter's
+  // internal taxonomy.
+  it("EventFieldDefinition is isolated by organizationId", async () => {
+    const a = await createOrg("Alpha", "alpha");
+    const b = await createOrg("Beta", "beta");
+    await testPrisma.eventFieldDefinition.createMany({
+      data: [
+        { organizationId: a.id, slug: "bus-company", label: "Bus company", kind: "text", displayOrder: 0 },
+        { organizationId: a.id, slug: "chaperone",   label: "Chaperone",   kind: "person", displayOrder: 1 },
+        { organizationId: b.id, slug: "beneficiary", label: "Beneficiary", kind: "text", displayOrder: 0 },
+      ],
+    });
+
+    // Provisioning seeds the ten built-ins per org, so compare the CUSTOM rows:
+    // those are the ones an org actually authored and the ones a leak would
+    // expose.
+    const customFor = async (orgId: number | null) =>
+      (await asOrg(orgId, tx => tx.eventFieldDefinition.findMany()))
+        .filter(r => !r.builtin)
+        .map(r => r.slug)
+        .sort();
+
+    expect(await customFor(a.id)).toEqual(["bus-company", "chaperone"]);
+    expect(await customFor(b.id)).toEqual(["beneficiary"]);
+
+    // With no app.org_id the policy matches nothing at all — built-ins included.
+    expect(await asOrg(null, tx => tx.eventFieldDefinition.findMany())).toEqual([]);
+  });
 });
 
 describe("RLS: relation-scoped join tables (parent subquery)", () => {

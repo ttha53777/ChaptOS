@@ -42,9 +42,13 @@ export async function resetDb(): Promise<void> {
       "Reimbursement",
       "Transaction",
       "ChapterAnnouncement",
-      "ProgrammingChecklistItem",
       "ProgrammingEventDoc",
       "ProgrammingEvent",
+      // The org's optional-field vocabulary. Nothing cascades it away (it hangs
+      // off Organization, truncated last), so leaving it out leaks definitions
+      // between test files and listEventFields returns the seeded ten plus
+      // whatever the previous file created.
+      "EventFieldDefinition",
       "Doc",
       "DocFolder",
       "InstagramTask",
