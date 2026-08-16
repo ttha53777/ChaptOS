@@ -4,11 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
+import { useToast } from "../../components/dashboard/Toast";
 import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
-import { ProgrammingInspector } from "../../components/programming/ProgrammingInspector";
+import { ProgrammingDetailPanel } from "../../components/programming/ProgrammingDetailPanel";
+import type { RoleOption } from "../../components/programming/OwnerPicker";
+import { EventFixStep } from "../../components/programming/EventFixStep";
+import { EventWrapUp } from "../../components/programming/EventWrapUp";
+import { EventsHelp } from "../../components/programming/EventsHelp";
+import { makeTypeVisuals, typeVisual } from "../../components/programming/typeColor";
+import { TimelineStrip } from "../../components/programming/TimelineStrip";
+import { UndatedRail } from "../../components/programming/UndatedRail";
+import { OnDeckHero } from "../../components/programming/OnDeckHero";
+import { attnReason, briefingDigest, whenLabel } from "../../components/programming/eventsCopy";
 import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import type { CalEventType, ProgrammingTask, TaskStatus } from "../../data";
@@ -25,15 +35,11 @@ import {
   eventsTermStats,
   isProgrammingManagedType,
   nextOnDeckEvent,
-  attentionLabel,
-  fieldsFor,
-  hasRequiredField,
   missingFor,
-  type AttentionEntry,
-  type RequiredField,
+  canEnter,
+  needsConfirmFirst,
 } from "@/lib/programming";
-import { ownerLabel } from "@/lib/event-owner";
-import { STAGE_LABELS } from "@/lib/state/programming-stage";
+import { STAGES } from "@/lib/state/programming-stage";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
 import "./events-ledger.css";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -64,7 +70,9 @@ function draftToFormInput(draft: CalendarDraft): FormInput {
 }
 
 export default function ProgrammingPage() {
-  const { currentUser, can, setProgrammingTaskList } = useChapter();
+  // brotherList is in ALWAYS_SECTIONS, so the roster the owner picker needs is
+  // already loaded for every page — no extra fetch.
+  const { currentUser, can, setProgrammingTaskList, brotherList } = useChapter();
   const canManage = can("MANAGE_EVENTS");
   const activeSemester = useActiveSemester();
   const handleSemesterError = useSemesterErrorHandler();
@@ -74,30 +82,48 @@ export default function ProgrammingPage() {
   const [events, setEvents] = useState<ProgrammingTask[]>([]);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState<string | null>(null);
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showError = useCallback((msg: string) => {
-    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-    setPageError(msg);
-    errorTimerRef.current = setTimeout(() => setPageError(null), 5000);
-  }, []);
+  // Errors go to the app-wide toast stack rather than a page-local banner, so a
+  // failure here reads the same as a failure anywhere else in the app.
+  const toast = useToast();
+  const showError = toast.error;
   const [view, setView] = useState<View>("board");
   const [search, setSearch] = useState("");
   // Category-slug filter; "All" is the sentinel. Chips are derived per-org below.
   const [typeFilter, setTypeFilter] = useState<string>("All");
   const [eventTypes, setEventTypes] = useState<CalEventType[]>([]);
+  const [roles, setRoles] = useState<RoleOption[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isClosingDrawer, setIsClosingDrawer] = useState(false);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editTarget, setEditTarget] = useState<ProgrammingTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProgrammingTask | null>(null);
-  const [promotePrompt, setPromotePrompt] = useState<{ id: number; stage: ProgrammingStage } | null>(null);
+  // The blocked-move step: which event, and the lane it was aimed at.
+  const [fixTarget, setFixTarget] = useState<{ event: ProgrammingTask; stage: ProgrammingStage } | null>(null);
+  // The Confirmed → Done wrap-up.
+  const [wrapTarget, setWrapTarget] = useState<ProgrammingTask | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Animate the inspector drawer out before unmounting.
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeDrawer = useCallback(() => {
     setIsClosingDrawer(true);
     closeTimerRef.current = setTimeout(() => { setSelectedId(null); setIsClosingDrawer(false); }, 280);
+  }, []);
+
+  // "?" opens the help overlay from anywhere on the page. Bails on form controls
+  // (a literal "?" typed into search must reach the input) and on modifier
+  // chords, which belong to the browser.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "?" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      e.preventDefault();
+      setHelpOpen(true);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   // Escape key closes the inspector (or modals — Modal component handles its own Escape).
@@ -155,6 +181,15 @@ export default function ProgrammingPage() {
       .catch(() => {});
   }, []);
 
+  // Roles, for the owner picker's Role tab. Fetched here rather than through
+  // ChapterContext because SECTIONS_BY_PAGE.events is deliberately empty — this
+  // page is its own fetcher — and putting roles in ALWAYS_SECTIONS would make
+  // every other page pay for a list only this one reads. GET /api/roles carries
+  // no permission gate, so a plain member sees the same options an officer does.
+  useEffect(() => {
+    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
+  }, []);
+
   const enabledWorkflows = useMemo(
     () => currentUser?.org?.enabledWorkflows ?? [],
     [currentUser?.org?.enabledWorkflows],
@@ -168,6 +203,11 @@ export default function ProgrammingPage() {
       .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
     [eventTypes, enabledWorkflows],
   );
+  // slug → colour/glyph for every type the org defines. Built once here and
+  // passed down, replacing four label-keyed lookup tables that rendered any
+  // renamed or org-defined type grey.
+  const typeVisuals = useMemo(() => makeTypeVisuals(eventTypes), [eventTypes]);
+
   // Filter chips include workflow-off types too — their events still list.
   const typeFilters = useMemo(
     () => eventTypes
@@ -220,18 +260,16 @@ export default function ProgrammingPage() {
     }
   }, [syncEvents, reload, handleSemesterError, showError]);
 
-  /** Move an event to a new stage. Returns false if rejected (e.g. promote without date). */
-  const moveStage = useCallback(async (id: number, stage: ProgrammingStage): Promise<boolean> => {
+  /**
+   * Write a stage change, no questions asked.
+   *
+   * Split out from moveStage so the fix-step and wrap-up modals — which have
+   * ALREADY collected what their gate wanted — can complete the move without
+   * being intercepted by the same check a second time.
+   */
+  const commitStage = useCallback(async (id: number, stage: ProgrammingStage): Promise<boolean> => {
     const target = events.find(e => e.id === id);
     if (!target) return false;
-    // A date is what CONFIRMING costs, not what leaving Idea costs. Planning asks
-    // for an owner and nothing else — "somebody is accountable for this" is worth
-    // recording before a date exists, and demanding one here would pop a modal
-    // the server would not have asked for.
-    if ((stage === "confirmed" || stage === "done") && !target.dueDate) {
-      setPromotePrompt({ id, stage });
-      return false;
-    }
     const prevStage = target.stage;
     syncEvents(prev => prev.map(e => e.id === id ? { ...e, stage } : e));
     try {
@@ -250,6 +288,105 @@ export default function ProgrammingPage() {
       return false;
     }
   }, [events, syncEvents, handleSemesterError, showError]);
+
+  /**
+   * Move an event to a new stage, enforcing the same gates the server does.
+   *
+   * Backward moves are always free — parking something is never a mistake the
+   * product should argue with. Forward moves either succeed, or open the one
+   * step that unblocks them; a bare rejection is never the answer.
+   *
+   * Returns false when the move was intercepted rather than performed.
+   */
+  const moveStage = useCallback(async (id: number, stage: ProgrammingStage): Promise<boolean> => {
+    const target = events.find(e => e.id === id);
+    if (!target) return false;
+
+    const forward = STAGES.indexOf(stage) > STAGES.indexOf(target.stage);
+
+    // Done is the one gate that isn't about fields: an event the chapter never
+    // saw cannot be "over". Offer the missing step instead of just refusing.
+    if (needsConfirmFirst(target, stage)) {
+      toast.info(`“${target.title}” hasn’t been confirmed — the chapter has to have seen it before it can be wrapped.`, {
+        action: { label: "Confirm it", onClick: () => { void moveStageRef.current?.(id, "confirmed"); } },
+      });
+      return false;
+    }
+
+    // A blocked forward move opens the step that fixes it, carrying the event
+    // and the lane it was aimed at.
+    if (forward && !canEnter(target, stage)) {
+      setFixTarget({ event: target, stage });
+      return false;
+    }
+
+    // Done is the only forward move that asks a NEW question rather than
+    // collecting a missing one. Nothing is required, but this is the moment
+    // anybody still remembers how it went.
+    if (stage === "done" && forward) {
+      setWrapTarget(target);
+      return false;
+    }
+
+    return commitStage(id, stage);
+  }, [events, commitStage, toast]);
+
+  // The "Confirm it" toast button re-enters moveStage, so it needs a stable
+  // handle on the latest closure rather than the one captured when it rendered.
+  const moveStageRef = useRef<typeof moveStage | null>(null);
+  useEffect(() => { moveStageRef.current = moveStage; }, [moveStage]);
+
+  /**
+   * A calendar drop sets the date. It NEVER promotes.
+   *
+   * Auto-publishing on a drop would put the event in front of the whole chapter
+   * as a side effect of a drag aimed at a calendar square, so when the new date
+   * happens to complete the Confirmed set we OFFER the promotion instead.
+   *
+   * A published event is a separate case: `dueDate` is frozen while it's on
+   * everyone's timeline, so the only working path is demote-then-set, which is
+   * offered as one button rather than performed silently.
+   */
+  const setDateByDrop = useCallback(async (id: number, date: string) => {
+    const target = events.find(e => e.id === id);
+    if (!target) return;
+
+    if (target.stage === "confirmed" || target.stage === "done") {
+      toast.info(
+        `“${target.title}” is on the chapter's timeline for ${target.dueDate ?? "a set date"}. Moving it takes that back first.`,
+        {
+          action: {
+            label: "Move to Planning",
+            onClick: () => {
+              void (async () => {
+                // Sequential: the demote deletes the CalendarEvent, and the
+                // date write is only legal once it's gone.
+                if (await commitStage(id, "planning")) await patchEvent(id, { dueDate: date });
+              })();
+            },
+          },
+        },
+      );
+      return;
+    }
+
+    await patchEvent(id, { dueDate: date });
+
+    // Would this date have been the last thing it needed?
+    const candidate = { ...target, dueDate: date };
+    if (target.stage === "planning" && canEnter(candidate, "confirmed")) {
+      toast.success(`“${target.title}” is penciled in for ${fmtDate(date)}.`, {
+        action: { label: "Confirm it", onClick: () => { void moveStageRef.current?.(id, "confirmed"); } },
+      });
+      return;
+    }
+    const miss = missingFor(candidate, "confirmed").map(f => f.label.toLowerCase()).join(" + ");
+    toast.success(
+      miss
+        ? `“${target.title}” is penciled in for ${fmtDate(date)} — still needs ${miss}.`
+        : `“${target.title}” is penciled in for ${fmtDate(date)}.`,
+    );
+  }, [events, patchEvent, commitStage, toast]);
 
   const filtered = useMemo(() => {
     let list = [...events];
@@ -383,22 +520,6 @@ export default function ProgrammingPage() {
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="dash dash-events" data-dashboard-theme="dusk">
 
-            {pageError && (
-              <div className="ev-toast" role="alert">
-                <span className="ev-toast-icon">
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-                </span>
-                <span>{pageError}</span>
-                <button onClick={() => setPageError(null)} aria-label="Dismiss">
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            )}
-
             {/* ── Briefing ── */}
             <section className="briefing" aria-label="Events">
               <div>
@@ -414,12 +535,22 @@ export default function ProgrammingPage() {
                     : <p>{briefingDigest(onDeck, attention, today)}</p>}
                 </div>
               </div>
-              {canManage && (
-                <button className="ev-add" onClick={() => setModal("add")}>
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  New event
+              <div className="ev-briefing-actions">
+                <button
+                  className="ev-help-btn"
+                  onClick={() => setHelpOpen(true)}
+                  aria-label="How this board works"
+                  title="How this board works  (?)"
+                >
+                  ?
                 </button>
-              )}
+                {canManage && (
+                  <button className="ev-add" onClick={() => setModal("add")}>
+                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    New event
+                  </button>
+                )}
+              </div>
             </section>
 
             {loading ? (
@@ -434,7 +565,9 @@ export default function ProgrammingPage() {
                 <LedgerStrip>
                   <Measure
                     label="On the slate"
-                    value={String(stats.total)}
+                    // Live only. Done events are the term's history, not its
+                    // slate, and by November they'd swamp the number.
+                    value={String(stats.liveTotal)}
                     note={`${stats.byStage.idea} ideas · ${stats.byStage.planning} planning · ${stats.byStage.confirmed} confirmed`}
                   />
                   <Measure
@@ -452,10 +585,18 @@ export default function ProgrammingPage() {
                     unit={stats.avgSuccess != null ? "/5" : undefined}
                     note={`across ${stats.doneCount} wrapped`}
                   />
+                  {/* Replaced "Spent this term": spend is a treasury question
+                      and the treasury page answers it properly. What this board
+                      is for is noticing the ideas nobody has picked up — the
+                      measure the owner gate exists to make visible. */}
                   <Measure
-                    label="Spent this term"
-                    value={fmt$(stats.spendCents / 100)}
-                    note="across all events"
+                    label="Unowned ideas"
+                    value={String(stats.unownedIdeas)}
+                    unit={` of ${stats.ideaCount}`}
+                    note={stats.unownedIdeas > 0
+                      ? "nobody's picked them up"
+                      : stats.ideaCount > 0 ? "every idea has someone" : "no ideas yet"}
+                    noteWarn={stats.unownedIdeas > 0}
                   />
                 </LedgerStrip>
 
@@ -508,6 +649,7 @@ export default function ProgrammingPage() {
                     ) : view === "board" ? (
                       <ProgrammingBoard
                         tasks={filtered}
+                        visuals={typeVisuals}
                         selectedId={selectedId}
                         canManage={canManage}
                         variant="dusk"
@@ -517,13 +659,29 @@ export default function ProgrammingPage() {
                     ) : view === "calendar" ? (
                       <ProgrammingCalendarView
                         tasks={filtered}
+                        visuals={typeVisuals}
                         selectedId={selectedId}
                         variant="dusk"
+                        canManage={canManage}
+                        semesterStart={activeSemester?.startDate}
+                        semesterEnd={activeSemester?.endDate}
                         onSelect={selectCard}
+                        onSetDate={setDateByDrop}
+                        renderRail={onDragStart => (
+                          <UndatedRail
+                            tasks={filtered}
+                            visuals={typeVisuals}
+                            selectedId={selectedId}
+                            draggable={canManage}
+                            onSelect={selectCard}
+                            onDragStart={onDragStart}
+                          />
+                        )}
                       />
                     ) : (
                       <ProgrammingTable
                         tasks={filtered}
+                        visuals={typeVisuals}
                         docs={docs}
                         selectedId={selectedId}
                         canManage={canManage}
@@ -531,6 +689,10 @@ export default function ProgrammingPage() {
                         onPatch={patchEvent}
                       />
                     )}
+
+                    {/* The other half of the lanes' promise: three of the four
+                        are private, and this is what the chapter actually sees. */}
+                    <TimelineStrip tasks={events} visuals={typeVisuals} onSelect={selectCard} />
                   </div>
 
                   {/* ── Right column: the attention/recap rail (hidden when a card is
@@ -592,9 +754,12 @@ export default function ProgrammingPage() {
                         className={`fixed inset-x-0 bottom-0 top-14 z-50 overflow-hidden rounded-t-2xl border-t border-white/[0.1] transition-[transform,opacity] duration-[280ms] ease-in-out xl:sticky xl:inset-auto xl:bottom-auto xl:top-[37px] xl:mt-[37px] xl:z-auto xl:max-h-[calc(100vh-74px)] xl:overflow-y-auto xl:rounded-none xl:border-0 xl:opacity-100 xl:translate-y-0 ${isClosingDrawer ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}
                       >
                         {selected && (
-                          <ProgrammingInspector
+                          <ProgrammingDetailPanel
                             event={selected}
                             canManage={canManage}
+                            brothers={brotherList}
+                            roles={roles}
+                            visual={typeVisual(typeVisuals, selected.category)}
                             onPatch={patchEvent}
                             onStage={moveStage as unknown as (id: number, stage: ProgrammingStage) => Promise<void>}
                             onEdit={() => openEdit(selected)}
@@ -659,16 +824,45 @@ export default function ProgrammingPage() {
         />
       )}
 
-      {promotePrompt && (
-        <PromoteDateModal
-          minDate={activeSemester?.startDate}
-          maxDate={activeSemester?.endDate}
-          onCancel={() => setPromotePrompt(null)}
-          onConfirm={async (date) => {
-            const { id, stage } = promotePrompt;
-            setPromotePrompt(null);
-            await patchEvent(id, { dueDate: date });
-            await moveStage(id, stage);
+      {/* Opens only when a forward move is blocked, and collects everything the
+          gate is missing — not just a date, which is what the modal this replaced
+          asked for before failing on the server over the location. */}
+      {fixTarget && (
+        <EventFixStep
+          event={fixTarget.event}
+          stage={fixTarget.stage}
+          brothers={brotherList}
+          roles={roles}
+          eventTypes={programmingFormOptions}
+          onCancel={() => setFixTarget(null)}
+          onCommit={async (patch, stage) => {
+            const { event } = fixTarget;
+            setFixTarget(null);
+            // Fields first, then the promotion: the server's gate reads
+            // PERSISTED state, so a parallel move would race its own inputs.
+            await patchEvent(event.id, patch as ApiPatch);
+            // commitStage, not moveStage: the gate that opened this dialog has
+            // just been satisfied, and re-running it would re-open the dialog.
+            await commitStage(event.id, stage);
+          }}
+        />
+      )}
+
+      {helpOpen && <EventsHelp onClose={() => setHelpOpen(false)} />}
+
+      {wrapTarget && (
+        <EventWrapUp
+          event={wrapTarget}
+          onCancel={() => setWrapTarget(null)}
+          onCommit={async patch => {
+            const target = wrapTarget;
+            setWrapTarget(null);
+            // Rating first: successRating and wrapUpNotes are deliberately
+            // outside the server's frozen set, so they land on the still-
+            // Confirmed event. If the stage move then fails, the rating
+            // survives rather than being lost with it.
+            await patchEvent(target.id, patch as ApiPatch);
+            await commitStage(target.id, "done");
           }}
         />
       )}
@@ -676,245 +870,4 @@ export default function ProgrammingPage() {
   );
 }
 
-function PromoteDateModal({ onConfirm, onCancel, minDate, maxDate }: {
-  onConfirm: (date: string) => void;
-  onCancel: () => void;
-  minDate?: string;
-  maxDate?: string;
-}) {
-  const [date, setDate] = useState("");
-  return (
-    <Modal title="Schedule this event" tone="dusk" onClose={onCancel}>
-      <form
-        onSubmit={e => { e.preventDefault(); if (date) onConfirm(date); }}
-        className="space-y-4"
-      >
-        <p className="text-[12px] text-[#958d7c]">Confirming publishes this event to the chapter&apos;s timeline, so it needs a real date. It also needs a location — set that on the event itself.</p>
-        <input
-          type="date"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-          min={minDate}
-          max={maxDate}
-          required
-          className={inputDuskCls}
-        />
-        <button type="submit" disabled={!date} className={btnDuskPrimaryCls}>
-          Schedule &amp; move
-        </button>
-      </form>
-    </Modal>
-  );
-}
-
 // ─── Helpers + on-deck hero ──────────────────────────────────────────────────
-
-/** Days until a date, relative to `today` (negative = past). */
-function daysUntil(dueDate: string, today: string): number {
-  const ms = new Date(dueDate + "T00:00:00Z").getTime() - new Date(today + "T00:00:00Z").getTime();
-  return Math.round(ms / 86_400_000);
-}
-
-/** Compact "when" label for rail rows: Today / Tomorrow / In Nd / a date. */
-function whenLabel(dueDate: string | null, today: string): string {
-  if (!dueDate) return "—";
-  const d = daysUntil(dueDate, today);
-  if (d === 0) return "Today";
-  if (d === 1) return "Tomorrow";
-  if (d > 1 && d <= 30) return `In ${d}d`;
-  return fmtDate(dueDate);
-}
-
-/** Warmer "when" phrasing for the briefing digest: "today" / "tomorrow" / "this
- *  Thursday" / a plain date. */
-function digestWhen(dueDate: string | null, today: string): string {
-  if (!dueDate) return "soon";
-  const d = daysUntil(dueDate, today);
-  if (d === 0) return "it's today";
-  if (d === 1) return "tomorrow";
-  const dow = new Date(dueDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" });
-  if (d <= 7) return `this ${dow}`;
-  if (d <= 14) return `next ${dow}`;
-  return fmtDate(dueDate);
-}
-
-/** The rail's blocker sentence — the gap NAMED, not a count of prep items. */
-function attnReason(entry: AttentionEntry<ProgrammingTask>): string {
-  return attentionLabel(entry);
-}
-
-/** The AI digest sentence under the briefing — derived, not a live model call. */
-function briefingDigest(
-  onDeck: ProgrammingTask | null,
-  attention: AttentionEntry<ProgrammingTask>[],
-  today: string,
-): string {
-  if (!onDeck) {
-    return "Nothing on the calendar yet — promote an idea out of the backlog to get the next event on the books.";
-  }
-  const lead = `${onDeck.title} is up first — ${digestWhen(onDeck.dueDate, today)}.`;
-  const blocker = attention.find(a => a.task.id === onDeck.id);
-  if (blocker) {
-    return `${lead} ${attnReason(blocker)} — that's the one thing standing between you and a clear slate.`;
-  }
-  const others = attention.length;
-  if (others > 0) {
-    return `${lead} It's ready, but ${others} other ${others === 1 ? "event" : "events"} still need someone or a missing detail.`;
-  }
-  return `${lead} Everything on the slate is owned and on track.`;
-}
-
-/**
- * The lane this event is trying to enter next, and what it still owes to get
- * there. Null once an event is Confirmed or Done — those are settled, and the
- * hero has nothing to ask for.
- */
-function heroGate(event: ProgrammingTask): { next: ProgrammingStage; missing: RequiredField[] } | null {
-  const next: ProgrammingStage | null =
-    event.stage === "idea" ? "planning" : event.stage === "planning" ? "confirmed" : null;
-  return next ? { next, missing: missingFor(event, next) } : null;
-}
-
-/** Contextual hero CTA: names the first missing FIELD; all open the inspector. */
-function heroCta(gate: ReturnType<typeof heroGate>): { label: string; icon: "owner" | "date" | "check" } {
-  const first = gate?.missing[0];
-  if (first?.key === "owner")    return { label: "Give it an owner", icon: "owner" };
-  if (first?.key === "date")     return { label: "Set the date", icon: "date" };
-  if (first?.key === "location") return { label: "Set the location", icon: "date" };
-  return { label: "Open event", icon: "check" };
-}
-
-function OnDeckHero({ event, today, onOpen }: { event: ProgrammingTask; today: string; onOpen: () => void }) {
-  const gate = heroGate(event);
-  const cta = heroCta(gate);
-  // Every required field for the lane it's reaching for, answered or not — so
-  // the hero shows the whole bar, not only the gaps. Replaced a four-item prep
-  // meter whose items were the same for every org on the platform.
-  const checks = gate
-    ? fieldsFor(gate.next).map(f => ({ field: f, done: hasRequiredField(event, f.key) }))
-    : [];
-  const done = checks.filter(c => c.done).length;
-  const total = checks.length;
-  const full = total > 0 && done === total;
-  const days = event.dueDate ? daysUntil(event.dueDate, today) : null;
-  const cnt = days != null ? (days === 0 ? "Today" : days === 1 ? "Tomorrow" : `In ${days} days`) : null;
-
-  const whenLine = [
-    event.dueDate ? fmtDate(event.dueDate) : null,
-    event.time ?? null,
-  ].filter(Boolean).join(" · ");
-
-  return (
-    <>
-      <div className="ev-sec">
-        <h2>On deck</h2>
-        <span className="rule" />
-        {cnt && <span className="cnt">{cnt}</span>}
-      </div>
-
-      <div className="ev-hero">
-        <div className="od-top">
-          <span className="pill">Next event</span>
-          <span className="typ">{event.type}</span>
-          <span className="when">{whenLine || "No date"}</span>
-        </div>
-        <h3>{event.title}</h3>
-        <p className="meta">
-          {event.location && <span><b>{event.location}</b></span>}
-          {event.collab && <><span>·</span><span>w/ <b>{event.collab}</b></span></>}
-          {event.owner && <><span>·</span><span>Owner <b>{ownerLabel(event.owner)}</b></span></>}
-          {event.spendingCents > 0 && <><span>·</span><span>Budget <b>{fmt$(event.spendingCents / 100)}</b></span></>}
-        </p>
-
-        {gate && total > 0 && (
-          <div className="ev-prep">
-            <div className="p-head">
-              <span className="p-lbl">To reach {STAGE_LABELS[gate.next]}</span>
-              <span className="p-count"><b>{done}</b> / {total} answered</span>
-              <span className={`p-state ${full ? "ok" : "warn"}`}>{full ? "✓ Ready" : `${total - done} to go`}</span>
-            </div>
-            <div className="ev-pchecks">
-              {checks.map(c => (
-                <div key={c.field.key} className={`ev-pcheck ${c.done ? "done" : "block"}`}>
-                  <div className="pc-ico">
-                    {c.done ? (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-                    )}
-                    <span className="pc-k">{c.field.label}</span>
-                  </div>
-                  <div className="pc-v">{fieldValueLabel(c.field.key, event)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {gate && gate.missing.length > 0 && (
-          <div className="ev-blocker">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><path d="M12 9v4M12 17h.01" /></svg>
-            <p>
-              <b>Needs {gate.missing.map(f => f.label.toLowerCase()).join(" + ")}.</b>{" "}
-              {blockerTail(gate.next, days)}
-            </p>
-          </div>
-        )}
-
-        <div className="actions">
-          <button className="ev-btn-primary" onClick={onOpen}>
-            <CtaIcon icon={cta.icon} />
-            {cta.label}
-          </button>
-          {/* The ghost button is the same destination said plainly, so it only
-              earns its place when the primary is asking for something specific.
-              A settled event's CTA already reads "Open event" — showing it twice
-              is two buttons that do one thing. */}
-          {cta.icon !== "check" && (
-            <button className="ev-btn-ghost" onClick={onOpen}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-              Open event
-            </button>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
-/** The answer itself, where there is one — a date reads better than "Done". */
-function fieldValueLabel(key: RequiredField["key"], event: ProgrammingTask): string {
-  switch (key) {
-    case "title":     return event.title || "Untitled";
-    case "category":  return event.type;
-    case "owner":     return event.owner ? ownerLabel(event.owner) ?? "—" : "Nobody yet";
-    case "date":      return event.dueDate ? fmtDate(event.dueDate) : "Not set";
-    case "location":  return event.location || "Not set";
-    case "mandatory": return event.mandatory ? "Required" : "Optional";
-  }
-}
-
-/**
- * The consequence half of the blocker line. Confirmed is the lane that publishes
- * to the whole chapter, so it is worth saying so — that is the cost the two extra
- * fields are buying.
- */
-function blockerTail(next: ProgrammingStage, days: number | null): string {
-  const window = days != null && days >= 0
-    ? days === 0 ? "It's today" : `It's in ${days} day${days === 1 ? "" : "s"}`
-    : "No date on it yet";
-  return next === "confirmed"
-    ? `${window} — confirming puts it on the whole chapter's timeline.`
-    : `${window} — an event in planning belongs to somebody.`;
-}
-
-function CtaIcon({ icon }: { icon: "owner" | "date" | "check" }) {
-  if (icon === "owner") {
-    // A person, for "give it an owner".
-    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" /></svg>;
-  }
-  if (icon === "date") {
-    return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18M8 3v4M16 3v4" /><rect x="3" y="5" width="18" height="16" rx="2" /></svg>;
-  }
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
-}
