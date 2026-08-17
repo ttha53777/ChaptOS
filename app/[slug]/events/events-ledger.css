@@ -559,32 +559,67 @@ header.dash-toolbar .ev-crumb {
 /* ── Stage control ───────────────────────────────────────────────────────────
    Four lanes plus a sentence saying where you are and what the next one costs.
    A locked step is visibly locked BEFORE it's clicked — the select this replaced
-   listed all four with no hint, so the rules were only learnable by tripping. */
-.ev-stage-row { display: flex; gap: 4px; flex-wrap: wrap; }
+   listed all four with no hint, so the rules were only learnable by tripping.
+
+   Four equal columns, so the walk reads as a track rather than a row of chips:
+   a node per lane, a hairline rail between them, and the lane you're in scaled
+   up inside its own halo. Each step carries its lane's colour on --sc, which is
+   what lets the rail behind a completed step be that lane's colour too. */
+.ev-stage {
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+  --vio: #a78bfa; --gold: #ddb36a;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+.ev-stage-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
 .ev-stage-step {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 9px; border-radius: 7px;
-  border: 1px solid var(--line); background: none; cursor: pointer;
-  font-family: var(--mono); font-size: 9px; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
-  transition: color .15s, border-color .15s, background .15s;
+  position: relative; background: none; border: none; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  min-width: 0; color: var(--faint);
 }
-.ev-stage-step svg { width: 9px; height: 9px; }
-.ev-stage-step:hover:not(:disabled) { color: var(--ink-soft); border-color: rgba(236,231,221,.2); }
-.ev-stage-step.past { color: var(--muted); }
-.ev-stage-step.on { background: var(--vio-bg); border-color: var(--vio); color: var(--vio); cursor: default; }
-.ev-stage-step.locked { color: var(--faint); opacity: .6; }
+/* Drawn from this node's centre to the next one's, so it never overshoots the
+   first or last node the way a single full-width line behind the row would. */
+.ev-stage-step:not(:last-child)::after {
+  content: ""; position: absolute; top: 8px; left: calc(50% + 11px);
+  width: calc(100% - 22px); height: 1.5px; background: var(--line);
+}
+.ev-stage-step.past:not(:last-child)::after { background: var(--sc, var(--vio)); opacity: .5; }
+.ev-stage-node {
+  width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--line);
+  background: #161310; display: grid; place-items: center; flex-shrink: 0; z-index: 1;
+  transition: border-color .14s, background .14s, transform .14s;
+}
+.ev-stage-node svg { width: 9px; height: 9px; opacity: 0; }
+.ev-stage-step.past .ev-stage-node { border-color: var(--sc); background: var(--sc); color: #161310; }
+.ev-stage-step.past .ev-stage-node svg { opacity: 1; }
+.ev-stage-step.on .ev-stage-node {
+  border-color: var(--sc); background: var(--sc); transform: scale(1.22);
+  box-shadow: 0 0 0 3.5px var(--sc-bg);
+}
+.ev-stage-step.locked .ev-stage-node { border-style: dashed; border-color: var(--gold); }
+.ev-stage-lbl {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.ev-stage-step.on .ev-stage-lbl { color: var(--ink); }
+.ev-stage-step.past .ev-stage-lbl { color: var(--muted); }
+.ev-stage-step.locked .ev-stage-lbl { color: var(--gold); }
+.ev-stage-step:not(.on):not(.locked):not(:disabled):hover .ev-stage-node { border-color: var(--vio); }
+.ev-stage-step:not(.on):not(:disabled):hover .ev-stage-lbl { color: var(--ink-soft); }
 .ev-stage-step:disabled { cursor: default; }
+.ev-stage-step:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; border-radius: 6px; }
 .ev-stage-say {
-  margin-top: 8px; font-size: 11.5px; line-height: 1.5; color: var(--muted);
+  margin-top: 12px; font-size: 11.5px; line-height: 1.5; color: var(--muted);
 }
-.ev-stage-say b { color: var(--ink); font-weight: 600; }
+.ev-stage-say b { color: var(--ink-soft); font-weight: 550; }
+/* The one place a gate is stated as a demand, so it carries the gate's colour. */
+.ev-stage-say .lock { color: var(--gold); }
 /* The gap names ARE the buttons — a gate should be one click from the thing
    that satisfies it. */
 .ev-stage-gap {
   border: none; background: none; padding: 0; cursor: pointer;
   font: inherit; color: var(--gold);
-  text-decoration: underline; text-underline-offset: 2px;
+  text-decoration: underline; text-underline-offset: 2px; text-decoration-style: dotted;
 }
 .ev-stage-gap:hover:not(:disabled) { color: var(--ink); }
 .ev-stage-gap:disabled { cursor: default; text-decoration: none; }
