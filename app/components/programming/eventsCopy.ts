@@ -26,6 +26,22 @@ export function whenLabel(dueDate: string | null, today: string): string {
   return fmtDate(dueDate);
 }
 
+/** A card's compact "when": Today / Tomorrow / Nd / a date, plus its urgency. */
+export function cardWhen(dueDate: string | null, today: string): { label: string; tone: "" | "soon" | "today" | "nodate" } {
+  if (!dueDate) return { label: "No date yet", tone: "nodate" };
+  if (dueDate < today) return { label: fmtDate(dueDate), tone: "" };
+  const d = daysUntil(dueDate, today);
+  if (d === 0) return { label: "Today", tone: "today" };
+  if (d === 1) return { label: "Tomorrow", tone: "today" };
+  // Inside a week, the weekday plus the gap beats a date you'd have to count on
+  // a calendar: "Thu · 5d" is both the day you'd say out loud and the distance.
+  if (d <= 7) {
+    const dow = new Date(dueDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short" });
+    return { label: `${dow} · ${d}d`, tone: "soon" };
+  }
+  return { label: fmtDate(dueDate), tone: "" };
+}
+
 /** Warmer "when" phrasing for the briefing digest: "today" / "tomorrow" / "this
  *  Thursday" / a plain date. */
 export function digestWhen(dueDate: string | null, today: string): string {

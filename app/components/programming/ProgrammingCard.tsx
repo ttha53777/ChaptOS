@@ -8,6 +8,7 @@ import type { TypeVisual } from "./typeColor";
 import { missingFor } from "@/lib/programming";
 import { ownerShortLabel } from "@/lib/event-owner";
 import { todayStr } from "../../lib/dates";
+import { cardWhen } from "./eventsCopy";
 
 const TODAY = todayStr();
 
@@ -50,17 +51,6 @@ function countdown(dueDate: string | null): { label: string; tone: string } | nu
   if (days === 1) return { label: "Tomorrow", tone: "bg-red-500/15 text-red-300" };
   if (days <= 7)  return { label: `in ${days}d`, tone: "bg-amber-500/15 text-amber-300" };
   return { label: `in ${days}d`, tone: "bg-white/[0.06] text-slate-400" };
-}
-
-/** Dusk countdown: short relative label + tone (no date set / today / soon / far). */
-function duskWhen(dueDate: string | null): { label: string; tone: "" | "soon" | "today" } {
-  if (!dueDate) return { label: "No date", tone: "" };
-  if (dueDate < TODAY) return { label: fmtDate(dueDate), tone: "" };
-  const days = Math.round((new Date(dueDate + "T00:00:00").getTime() - new Date(TODAY + "T00:00:00").getTime()) / 86_400_000);
-  if (days === 0) return { label: "Today", tone: "today" };
-  if (days === 1) return { label: "Tomorrow", tone: "today" };
-  if (days <= 7) return { label: `${days}d`, tone: "soon" };
-  return { label: fmtDate(dueDate), tone: "" };
 }
 
 export function ProgrammingCard({
@@ -184,9 +174,23 @@ function DefaultCard({
   );
 }
 
-/** Dusk-themed card for the redesigned events pipeline: type glyph, relative date,
- *  and the blocker line (or success stars when done). Styled via .ev-* classes in
- *  events-ledger.css; tokens resolve from the .dash.dash-events scope. */
+/**
+ * Dusk-themed card for the events pipeline. Six lines, not nine.
+ *
+ * The anatomy is a HANDLE for the event, not a summary of it — detail belongs one
+ * click deep in the panel that already exists. So three things a fuller card used
+ * to print separately were collapsed:
+ *
+ *   · TYPE is the coloured LEFT EDGE, not a glyph badge plus the word. A badge
+ *     reading "SO" beside a subtitle reading "Social ·" is one fact drawn twice.
+ *   · WHEN joins the meta row rather than owning a header row opposite the badge,
+ *     which is what forced the title down to the third line.
+ *   · OWNER folds into the status row. One line, two facts: who's on it, and what
+ *     it still needs.
+ *
+ * Styled via .ev-* classes in events-ledger.css; tokens resolve from the
+ * .dash.dash-events scope.
+ */
 function DuskCard({
   task,
   visual,
@@ -198,15 +202,14 @@ function DuskCard({
   onDragStart,
 }: CardProps) {
   const isDone = task.stage === "done";
-  const glyph = visual.glyph;
-  const when = duskWhen(task.dueDate);
+  const when = cardWhen(task.dueDate, TODAY);
   const blocker = cardBlocker(task);
   // Idea and Planning are officer-private: the dashed left rail is the board's
   // standing reminder of which lanes the chapter cannot see.
   const isPrivate = task.stage === "idea" || task.stage === "planning";
 
-  // The subtitle is the PLACE. The type is already carried by the coloured glyph
-  // above, so repeating "Social ·" here prints the same fact twice.
+  // The subtitle is the PLACE. The type is already carried by the coloured edge,
+  // so repeating "Social ·" here prints the same fact twice.
   const sub = task.location || (task.collab ? `w/ ${task.collab}` : "");
 
   return (
@@ -214,31 +217,27 @@ function DuskCard({
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}
       onClick={onClick}
-      className={`ev-card animate-fade-slide-in${isDone ? " ghost" : ""}${isPrivate ? " private" : ""}${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
+      className={`ev-card animate-fade-slide-in${isDone || task.stage === "idea" ? " ghost" : ""}${isPrivate ? " private" : ""}${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
       style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms`, ["--tc" as string]: visual.hex }}
     >
-      <div className="ec-top">
-        <span className="ev-glyph" style={{ color: visual.hex, background: `${visual.hex}14` }}>{glyph}</span>
-        <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
-      </div>
       <div className="ec-t">{task.title}</div>
       <div className="ec-meta">
+        <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
         {sub && <span className="ec-where">{sub}</span>}
         {task.mandatory && <span className="ec-mand" title="Required of every member">Required</span>}
         {isDone && task.successRating != null && <CardStars value={task.successRating} />}
       </div>
-      <div className="ec-foot">
+      {/* The one status row: the owner's avatar, then either what the event still
+          needs or — once nothing is blocking it — who has it. */}
+      <div className={`ec-block ${blocker ? blocker.tone : "quiet"}`}>
         <OwnerAvatar owner={task.owner} size={16} />
-        {isDone ? (
-          <span className="ec-prep">Wrapped</span>
-        ) : blocker ? (
-          // The blocker line replaced a prep ring showing "3/4". A fraction says
-          // how much is left but never what, so it could never be acted on
-          // without opening the card.
-          <span className={`ec-blocker ${blocker.tone}`}>{blocker.text}</span>
-        ) : (
-          <span className="ec-prep">{task.owner ? ownerShortLabel(task.owner) : "No owner"}</span>
-        )}
+        <span>
+          {blocker
+            ? blocker.text
+            : task.owner
+              ? ownerShortLabel(task.owner)
+              : "No owner"}
+        </span>
         {task.stage === "confirmed" && (
           <span className="ec-pub" title="On the chapter Timeline" aria-hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">

@@ -263,32 +263,52 @@ header.dash-toolbar .ev-crumb {
 }
 .dash .ev-done-more:hover { border-color: var(--vio); color: var(--ink-soft); }
 
-/* event card — prep ring instead of a wall of identical tiles */
-.dash .ev-card { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card-2); padding: 11px 12px; cursor: pointer; transition: border-color .12s, transform .12s, opacity .12s; }
+/* ── Event card. Three rows: title, meta, status. ────────────────────────────
+   A kanban card is a HANDLE for the thing, not a summary of it — the detail
+   lives one click deep in the panel. So the type badge, the separate date
+   header, and the standalone owner row all collapsed into the three rows
+   below, taking the card from nine lines to six. */
+.dash .ev-card { border: 1px solid var(--line-soft); border-radius: 10px; background: var(--card-2); padding: 11px 12px; cursor: pointer; transition: border-color .12s, transform .12s, opacity .12s; min-width: 0; }
 .dash .ev-card:hover { border-color: var(--vio); transform: translateY(-1px); }
 .dash .ev-card.sel { border-color: var(--vio); box-shadow: 0 0 0 1px var(--vio-bg); }
 .dash .ev-card.dragging { opacity: .4; transform: scale(.97); }
-.dash .ev-card .ec-top { display: flex; align-items: center; gap: 8px; }
-.dash .ev-glyph { width: 19px; height: 19px; border-radius: 6px; display: grid; place-items: center; flex-shrink: 0; font-family: var(--mono); font-size: 9px; font-weight: 600; color: var(--vio); background: var(--vio-bg); }
-.dash .ev-card .ec-when { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+
+/* Type is the LEFT EDGE, not a glyph plus the word repeated in the subtitle. */
+.dash .ev-card { border-left: 2px solid var(--tc); }
+/* Idea and Planning are off the chapter's timeline. A 2px dashed border draws
+   long uneven ticks that read as a rendering fault, so the dashes are an
+   overlaid gradient rail at a controlled rhythm on the same 2px edge. */
+.dash .ev-card.private { position: relative; border-left-color: transparent; }
+.dash .ev-card.private::before {
+  content: ""; position: absolute; top: -1px; bottom: -1px; left: -2px; width: 2px;
+  background: repeating-linear-gradient(to bottom, var(--tc) 0 5px, transparent 5px 9px);
+  border-radius: 2px; pointer-events: none;
+}
+
+.dash .ev-card .ec-t { font-size: 13px; font-weight: 550; color: var(--ink); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+
+/* One meta row: when · where · required · stars. */
+.dash .ev-card .ec-meta { margin-top: 7px; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; color: var(--faint); }
+.dash .ev-card .ec-when { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; white-space: nowrap; flex-shrink: 0; }
 .dash .ev-card .ec-when.soon { color: var(--gold); }
 .dash .ev-card .ec-when.today { color: var(--rose); }
-.dash .ev-card .ec-t { font-size: 13px; font-weight: 550; color: var(--ink); margin-top: 9px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.dash .ev-card .ec-sub { font-size: 11px; color: var(--faint); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash .ev-card .ec-foot { margin-top: 11px; display: flex; align-items: center; gap: 9px; }
-.dash .ev-card .ec-prep { font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-.dash .ev-card .ec-prep b { color: var(--ink-soft); }
-/* The blocker line — what replaced the prep ring. Sans, not mono: it is a
-   sentence naming the gap ("Needs date + location"), not a measurement. */
-.dash .ev-card .ec-blocker { font-size: 11px; font-weight: 500; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash .ev-card .ec-blocker.gold { color: var(--gold); }
-.dash .ev-card .ec-blocker.rose { color: var(--rose); }
-.dash .ev-card .ec-blocker.ok   { color: var(--ok); }
-.dash .ev-card .stars { margin-left: auto; color: var(--gold); font-size: 11px; letter-spacing: 1px; }
+.dash .ev-card .ec-when.nodate { font-style: italic; }
+.dash .ev-card .ec-where { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dash .ev-card .ec-where::before { content: "· "; }
+.dash .ev-card .stars { margin-left: auto; color: var(--gold); font-size: 10px; letter-spacing: .5px; flex-shrink: 0; }
 /* The unearned half of the rating. Dimmed ☆ — see CardStars on why it is a
    different glyph rather than a faded ★. */
-.dash .ev-card .stars .off { color: var(--faint); }
-.dash .ev-card.ghost { opacity: .62; }
+.dash .ev-card .stars .off { color: var(--faint); opacity: .45; }
+
+/* The one status row: the owner AND what's next, which used to be two lines. */
+.dash .ev-card .ec-block { margin-top: 9px; font-size: 11px; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dash .ev-card .ec-block.gold { color: var(--gold); }
+.dash .ev-card .ec-block.rose { color: var(--rose); }
+.dash .ev-card .ec-block.ok { color: var(--ok); }
+.dash .ev-card .ec-block.quiet { color: var(--muted); }
+.dash .ev-card .ec-block > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dash .ev-card.ghost { opacity: .66; }
+.dash .ev-card.ghost:hover { opacity: 1; }
 .dash .ev-card.ghost:hover { opacity: 1; }
 
 /* The meta row: place, the mandatory flag, and a wrapped event's stars. */
