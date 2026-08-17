@@ -69,7 +69,7 @@ export function StarRadioGroup({
           style={{ fontSize: size }}
           className={`leading-none transition-transform duration-75 ${
             disabled ? "cursor-default" : "cursor-pointer hover:scale-110"
-          } ${display != null && n <= display ? "text-[#d9b08b]" : "text-[#2e2a24]"}`}
+          } ${display != null && n <= display ? "text-[#ddb36a]" : "text-[#3a352d]"}`}
         >
           ★
         </button>
@@ -103,26 +103,26 @@ export function EventWrapUp({
 
   return (
     <Modal tone="dusk" title="Wrap it up" onClose={onCancel} maxWidthClass="max-w-lg">
-      <div className="space-y-4">
-        <p className="text-[12.5px] leading-relaxed text-[#958d7c]">
+      <div className="ev-ov space-y-4">
+        <p className="ev-ov-sub">
           Nothing here is required — but this is the one moment anybody still remembers how it went.
         </p>
-        <p className="truncate text-[13px] text-[#c9c2b4]">
-          <span className="text-[#6b6354]">Event:</span> {event.title}
+        <p className="ev-ov-lead truncate">
+          <span className="k">Event:</span> {event.title}
         </p>
 
         <div className="space-y-2">
-          <label className="block text-[12.5px] font-medium text-[#ece7dd]">How did it go?</label>
+          <label className="ev-ov-lbl block">How did it go?</label>
           <div className="flex items-center gap-3">
             <StarRadioGroup value={stars} onChange={setStars} />
-            <span className="text-[12px] text-[#958d7c]">
+            <span className="ev-ov-sub">
               {stars != null ? RATING_LABELS[stars] : "No rating yet"}
             </span>
           </div>
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="wrapup-notes" className="block text-[12.5px] font-medium text-[#ece7dd]">
+          <label htmlFor="wrapup-notes" className="ev-ov-lbl block">
             Anything worth remembering next time?
           </label>
           <textarea
@@ -134,14 +134,14 @@ export function EventWrapUp({
             placeholder="What worked, what to do differently, who to call again."
             className={`${inputDuskCls} resize-none`}
           />
-          <p className="text-right text-[10.5px] text-[#6b6354]">{notes.length}/{MAX_NOTES}</p>
+          <p className="ev-ov-hint text-right">{notes.length}/{MAX_NOTES}</p>
         </div>
 
         <div className="flex items-center justify-end gap-2 pt-1">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-3 py-2 text-[12.5px] text-[#958d7c] hover:text-[#ece7dd]"
+            className="ev-ov-cancel"
           >
             {/* Names the lane you'd be left in rather than a bare "Cancel" — the
                 event is mid-move, so "back out" has to say back out to WHERE. */}

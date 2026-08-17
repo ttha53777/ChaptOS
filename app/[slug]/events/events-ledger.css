@@ -408,7 +408,13 @@ header.dash-toolbar .ev-crumb {
    The SHAPE carries the person/role distinction: a circle is a face, a rounded
    square is a title. Colour alone would not survive a glance at a dense board,
    and a role rendered as a circular avatar reads as a person who doesn't exist. */
-.dash .ev-av {
+/* Unscoped alongside the picker: the avatar also rides into the fix-step's
+   modal portal, and into the board card's foot. Tokens restated for the portal. */
+.ev-av {
+  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
+  --gold: #ddb36a; --gold-bg: rgba(221,179,106,.10);
+  --faint: #6b6354; --line: rgba(236,231,221,.09);
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; flex-shrink: 0;
   border-radius: 50%;
@@ -416,39 +422,52 @@ header.dash-toolbar .ev-crumb {
   font-family: var(--mono); font-size: 9.5px; font-weight: 600;
   letter-spacing: .02em;
 }
-.dash .ev-av.role { border-radius: 7px; background: var(--gold-bg); color: var(--gold); }
-.dash .ev-av.none {
+.ev-av.role { border-radius: 7px; background: var(--gold-bg); color: var(--gold); }
+.ev-av.none {
   background: none; color: var(--faint);
   border: 1px dashed var(--line); border-color: rgba(236,231,221,.18);
 }
 
-.dash .ev-ownpick { border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); overflow: hidden; }
-.dash .ev-ownpick-tabs { display: flex; align-items: center; gap: 4px; padding: 7px 8px; border-bottom: 1px solid var(--line-soft); }
-.dash .ev-ownpick-tabs button {
+/* Owner avatar + picker.
+   UNSCOPED on purpose. These render in two places: the detail panel, and the
+   fix-step's owner gap — and the fix-step is a Modal, which portals outside the
+   .dash wrapper. While these rules were .dash-scoped the fix-step's picker lost
+   every rule it had and collapsed into an unstyled run of names. Tokens are
+   restated below for the same reason. */
+.ev-ownpick {
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --card-2: #1b1813; --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
+  --rose: #d98ba3; --rose-bg: rgba(217,139,163,.10);
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+.ev-ownpick { border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); overflow: hidden; }
+.ev-ownpick-tabs { display: flex; align-items: center; gap: 4px; padding: 7px 8px; border-bottom: 1px solid var(--line-soft); }
+.ev-ownpick-tabs button {
   border: none; background: none; cursor: pointer;
   padding: 3px 9px; border-radius: 6px;
   font-family: var(--mono); font-size: 9.5px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .09em; color: var(--faint);
 }
-.dash .ev-ownpick-tabs button:hover:not(:disabled) { color: var(--ink-soft); }
-.dash .ev-ownpick-tabs button.on { background: var(--vio-bg); color: var(--vio); }
-.dash .ev-ownpick-tabs button:disabled { opacity: .5; cursor: default; }
-.dash .ev-ownpick-clear { margin-left: auto; color: var(--rose) !important; }
-.dash .ev-ownpick-clear:hover { background: var(--rose-bg); }
+.ev-ownpick-tabs button:hover:not(:disabled) { color: var(--ink-soft); }
+.ev-ownpick-tabs button.on { background: var(--vio-bg); color: var(--vio); }
+.ev-ownpick-tabs button:disabled { opacity: .5; cursor: default; }
+.ev-ownpick-clear { margin-left: auto; color: var(--rose) !important; }
+.ev-ownpick-clear:hover { background: var(--rose-bg); }
 
-.dash .ev-ownpick-grid { max-height: 232px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-.dash .ev-ownpick-opt {
+.ev-ownpick-grid { max-height: 232px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.ev-ownpick-opt {
   display: flex; align-items: center; gap: 9px; width: 100%;
   padding: 6px 8px; border-radius: 8px;
   border: none; background: none; cursor: pointer; text-align: left;
 }
-.dash .ev-ownpick-opt:hover:not(:disabled) { background: rgba(236,231,221,.04); }
-.dash .ev-ownpick-opt.on { background: var(--vio-bg); }
-.dash .ev-ownpick-opt:disabled { opacity: .55; cursor: default; }
-.dash .ev-ownpick-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.dash .ev-ownpick-txt b { font-size: 12.5px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash .ev-ownpick-txt i { font-style: normal; font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash .ev-ownpick-empty { padding: 12px 8px; font-size: 12px; font-style: italic; color: var(--faint); }
+.ev-ownpick-opt:hover:not(:disabled) { background: rgba(236,231,221,.04); }
+.ev-ownpick-opt.on { background: var(--vio-bg); }
+.ev-ownpick-opt:disabled { opacity: .55; cursor: default; }
+.ev-ownpick-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ev-ownpick-txt b { font-size: 12.5px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-ownpick-txt i { font-style: normal; font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-ownpick-empty { padding: 12px 8px; font-size: 12px; font-style: italic; color: var(--faint); }
 
 /* ── Calendar: month + undated rail ──────────────────────────────────────────── */
 .dash .ev-cal-wrap { display: grid; grid-template-columns: minmax(0,1fr) 232px; gap: 20px; align-items: start; }
@@ -613,8 +632,195 @@ header.dash-toolbar .ev-crumb {
   .ev-ni-cat { min-height: 44px; }
 }
 
+/* ── Panel field rows ────────────────────────────────────────────────────────
+   Unscoped: the detail panel mounts inside a portal on mobile and outside the
+   .dash wrapper generally, so .dash-prefixed rules would never match. Tokens are
+   restated for the same reason. */
+.ev-pn-sec, .ev-flds {
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --paper: #0f0d0a; --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
+  --gold: #ddb36a; --gold-bg: rgba(221,179,106,.10);
+  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.10);
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+.ev-pn-sec .ps-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 9px; flex-wrap: wrap; }
+.ev-pn-sec .ps-t { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+.ev-pn-sec .ps-why {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase;
+  border-radius: 999px; padding: 2px 7px;
+}
+.ev-pn-sec .ps-why.gates { color: var(--gold); background: var(--gold-bg); }
+.ev-pn-sec .ps-why.opt { color: var(--faint); background: var(--paper); border: 1px solid var(--line-soft); }
+.ev-pn-sec .ps-n { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ev-pn-sec .ps-n.ready { color: var(--ok); }
+
+/* The row: a state mark, then the label stacked over its value. */
+.ev-fld { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.ev-fld:last-child { border-bottom: none; }
+/* Sits against the value line, not the small label above it. */
+.ev-fld-mark {
+  width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--faint); flex-shrink: 0;
+  display: grid; place-items: center; color: transparent; margin-top: 12px;
+}
+.ev-fld-mark svg { width: 10px; height: 10px; }
+.ev-fld.set .ev-fld-mark { border-color: var(--ok); background: var(--ok); color: var(--paper); }
+/* Gold + dashed is reserved for a field a GATE is waiting on. An unanswered
+   optional field keeps the plain mark — it isn't blocking anything. */
+.ev-fld.miss .ev-fld-mark { border-color: var(--gold); border-style: dashed; }
+.ev-fld-main { min-width: 0; flex: 1; position: relative; border-radius: 7px; margin: -5px -7px; padding: 5px 7px; transition: background .12s; }
+/* Both are spans, so they must be told to stack — inline they collide into one
+   run of "TITLE Spring Banquet". */
+.ev-fld-k { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+/* Inline, not flex — an avatar sits in the text line rather than becoming its
+   own flex item that can break onto a second row. */
+.ev-fld-v { display: block; font-size: 12.5px; color: var(--ink); margin-top: 2px; overflow-wrap: anywhere; line-height: 1.5; }
+.ev-fld-v.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ev-fld-v .ev-av { display: inline-grid; vertical-align: -4px; margin-right: 5px; }
+.ev-fld.miss .ev-fld-v.empty { color: var(--gold); font-style: italic; }
+.ev-fld-v.empty { color: var(--faint); font-style: italic; }
+
+/* The affordance rides the label row, where there is always slack, rather than
+   chasing the end of a value that may wrap to two lines. */
+.ev-fld-pencil { position: absolute; top: 7px; right: 7px; width: 12px; height: 12px; color: var(--faint); opacity: 0; transition: opacity .12s; pointer-events: none; }
+.ev-fld-main.edit { cursor: pointer; }
+.ev-fld-main.edit:hover { background: var(--line-soft); }
+.ev-fld-main.edit:hover .ev-fld-pencil { opacity: 1; }
+/* Frozen rows. Read-only, but still a target — clicking explains why and offers
+   the way back. The cursor is the tell before the click. */
+.ev-fld-main.locked { cursor: not-allowed; }
+.ev-fld-main.locked:hover { background: var(--gold-bg); }
+.ev-fld-main.locked:hover .ev-fld-pencil { opacity: 1; color: var(--gold); }
+
+.ev-fld-ed { margin-top: 8px; }
+.ev-fld-none { font-size: 12px; font-style: italic; color: var(--faint); padding: 4px 0; }
+
+/* Inline editors. Typed, because a date deserves a date input — one text box for
+   everything is how "TBD" ends up in a date column. */
+.ev-fld-in, .ev-fld-ta {
+  width: 100%; margin-top: 3px; background: var(--paper); border: 1px solid var(--line);
+  border-radius: 7px; color: var(--ink); font-family: inherit; font-size: 12.5px;
+  padding: 6px 9px; outline: none; transition: border-color .12s;
+}
+.ev-fld-in.mono { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ev-fld-in:focus, .ev-fld-ta:focus { border-color: var(--vio); }
+.ev-fld-ta { resize: vertical; min-height: 62px; line-height: 1.5; }
+.ev-fld-num { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; }
+.ev-fld-num .pre { font-size: 12.5px; color: var(--faint); }
+.ev-fld-num input {
+  width: 110px; background: var(--paper); border: 1px solid var(--line); border-radius: 7px;
+  color: var(--ink); font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums;
+  padding: 6px 9px; outline: none;
+}
+.ev-fld-num input:focus { border-color: var(--vio); }
+.ev-fld-bool {
+  margin-top: 3px; border-radius: 999px; padding: 3px 11px; cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  color: var(--faint); background: none; border: 1px solid var(--line);
+}
+.ev-fld-bool.on { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-bg); }
+@media (pointer: coarse) {
+  .ev-fld-main { min-height: 44px; }
+}
+
+/* ── Overlay type scale ──────────────────────────────────────────────────────
+   The fix-step, wrap-up and help overlays all mount in a Modal portal outside
+   .dash, so they can't inherit the theme tokens and were each hardcoding the
+   same dusk hexes inline. These are the shared roles, declared once. */
+.ev-ov {
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --paper: #0f0d0a; --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
+  --gold: #ddb36a; --ok: #7fb08a;
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+.ev-ov-sub { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+.ev-ov-lead { font-size: 13px; color: var(--ink-soft); }
+.ev-ov-lead .k { color: var(--faint); }
+.ev-ov-lbl { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.ev-ov-hint { font-size: 11.5px; line-height: 1.55; color: var(--faint); }
+.ev-ov-ok { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ok); }
+.ev-ov-remain { font-size: 11.5px; font-weight: 500; color: var(--gold); }
+.ev-ov-remain.ready { color: var(--ok); }
+.ev-ov-cancel { border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--muted); background: none; border: none; cursor: pointer; }
+.ev-ov-cancel:hover { color: var(--ink); }
+.ev-ov-opt { background: var(--paper); }
+.ev-ov-strong { font-weight: 600; color: var(--muted); }
+.ev-ov-choice {
+  border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+  color: var(--muted); background: none; border: 1px solid var(--line); transition: color .12s, background .12s, border-color .12s;
+}
+.ev-ov-choice:hover { color: var(--ink); }
+.ev-ov-choice.on { color: #c4b5fd; background: var(--vio-bg); border-color: rgba(167,139,250,.30); }
+
+/* ── Panel chrome ────────────────────────────────────────────────────────────
+   Header, spending, and linked transactions. Unscoped like the rest of the
+   panel: it renders in a portal on mobile, outside .dash. */
+.ev-pn-title, .ev-pn-when, .ev-pn-collab, .ev-pn-unowned, .ev-pn-btn,
+.ev-pn-h, .ev-pn-amt, .ev-pn-note, .ev-pn-link, .ev-pn-dollar,
+.ev-pn-tx-t, .ev-pn-tx-m, .ev-pn-tx-amt {
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
+  --gold: #ddb36a; --ok: #7fb08a; --rose: #d98ba3; --rose-bg: rgba(217,139,163,.10);
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+  --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+.ev-pn-title { font-size: 16px; font-weight: 700; color: var(--ink); }
+.ev-pn-when { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.ev-pn-collab { font-size: 11px; color: var(--faint); }
+.ev-pn-unowned { font-size: 11px; color: var(--gold); }
+.ev-pn-btn {
+  border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 500; cursor: pointer;
+  color: var(--ink-soft); background: var(--line-soft); border: 1px solid var(--line);
+  transition: color .12s, background .12s;
+}
+.ev-pn-btn:hover { color: #c4b5fd; background: var(--vio-bg); }
+.ev-pn-btn.danger { color: var(--rose); background: var(--rose-bg); border-color: rgba(217,139,163,.20); }
+.ev-pn-btn.danger:hover { color: var(--rose); background: rgba(217,139,163,.20); }
+.ev-pn-h { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.ev-pn-amt { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ev-pn-note { font-size: 11px; color: var(--faint); }
+.ev-pn-link { font-size: 11px; font-weight: 600; color: var(--vio); background: none; border: none; cursor: pointer; }
+.ev-pn-link:hover { color: #c4b5fd; }
+.ev-pn-dollar { pointer-events: none; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--faint); }
+.ev-pn-tx-t { font-size: 12px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-pn-tx-m { font-size: 10px; color: var(--faint); }
+.ev-pn-tx-amt { margin-left: 12px; flex-shrink: 0; font-family: var(--mono); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ev-pn-tx-amt.in { color: var(--ok); }
+.ev-pn-tx-amt.out { color: var(--rose); }
+.ev-pn-tx-amt.total { font-size: 13px; font-weight: 600; margin-left: 0; }
+
+/* The wrapped record. Green, because Done is a settled state — the gold card
+   this replaced read as an unfinished form asking to be filled in. */
+.ev-pn-wrap {
+  border: 1px solid rgba(127,176,138,.10); background: rgba(127,176,138,.10);
+  border-radius: 11px; padding: 13px 15px;
+}
+.ev-pn-wrap .pw-head { display: flex; align-items: center; gap: 8px; }
+.ev-pn-wrap .pw-k {
+  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+  font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: #7fb08a;
+}
+.ev-pn-wrap .pw-stars { margin-left: auto; color: #ddb36a; font-size: 13px; letter-spacing: 1px; }
+.ev-pn-wrap .pw-stars .off { color: #6b6354; opacity: .45; }
+.ev-pn-wrap .pw-none { margin-left: auto; font-size: 11.5px; color: #6b6354; font-style: italic; }
+.ev-pn-wrap .pw-notes { margin-top: 8px; font-size: 12.5px; color: #c9c2b4; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ev-pn-wrap .pw-nonotes { margin-top: 8px; font-size: 11.5px; color: #6b6354; font-style: italic; }
+
+/* Whether the chapter can see this event, as a pill rather than a sentence. */
+.ev-vis {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+  font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+  border-radius: 999px; padding: 4px 10px 4px 8px; border: 1px solid transparent;
+}
+.ev-vis svg { width: 10px; height: 10px; flex-shrink: 0; }
+.ev-vis.private { color: #6b6354; background: #0f0d0a; border-color: rgba(236,231,221,.05); }
+.ev-vis.public { color: #a78bfa; background: rgba(167,139,250,.10); border-color: rgba(167,139,250,.10); }
+
 /* A frozen field answering a click. Unscoped — the panel mounts outside .dash. */
-.ev-refused { animation: ev-refuse 500ms ease-out; }
+.ev-refused { animation: ev-refuse 500ms cubic-bezier(.36,.07,.19,.97); }
+.ev-refused .ev-fld-main.locked { background: var(--gold-bg); }
 @keyframes ev-refuse {
   0%, 100% { transform: translateX(0); }
   15% { transform: translateX(-5px); }

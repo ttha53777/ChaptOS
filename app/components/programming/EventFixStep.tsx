@@ -135,22 +135,22 @@ export function EventFixStep({
 
   return (
     <Modal tone="dusk" title={copy.kicker} onClose={onCancel} maxWidthClass="max-w-lg">
-      <div className="space-y-3">
-        <p className="text-[12.5px] leading-relaxed text-[#958d7c]">{copy.sub}</p>
-        <p className="truncate text-[13px] text-[#c9c2b4]">
-          <span className="text-[#6b6354]">Event:</span> {event.title}
+      <div className="ev-ov space-y-3">
+        <p className="ev-ov-sub">{copy.sub}</p>
+        <p className="ev-ov-lead truncate">
+          <span className="k">Event:</span> {event.title}
         </p>
 
         <div className="divide-y divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.015]">
           {gaps.map(f => (
             <div key={f.key} className="px-3 py-3">
               <div className="mb-1 flex items-baseline justify-between gap-3">
-                <label className="text-[12.5px] font-medium text-[#ece7dd]">{f.label}</label>
+                <label className="ev-ov-lbl">{f.label}</label>
                 {answered(f, draft, event) && (
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#7fb08a]">Answered</span>
+                  <span className="ev-ov-ok">Answered</span>
                 )}
               </div>
-              <p className="mb-2 text-[11.5px] leading-relaxed text-[#6b6354]">{f.hint}</p>
+              <p className="ev-ov-hint mb-2">{f.hint}</p>
               <GapEditor
                 field={f}
                 event={event}
@@ -166,14 +166,14 @@ export function EventFixStep({
         </div>
 
         <div className="flex items-center justify-between gap-3 pt-1">
-          <span className={`text-[11.5px] font-medium ${left === 0 ? "text-[#7fb08a]" : "text-[#ddb36a]"}`}>
+          <span className={`ev-ov-remain${left === 0 ? " ready" : ""}`}>
             {left === 0 ? "All clear" : `${left} left`}
           </span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-lg px-3 py-2 text-[12.5px] text-[#958d7c] hover:text-[#ece7dd]"
+              className="ev-ov-cancel"
             >
               {copy.cancel}
             </button>
@@ -240,9 +240,9 @@ function GapEditor({
         value={draft.category ?? event.category ?? ""}
         onChange={e => onSet({ category: e.target.value })}
       >
-        <option value="" className="bg-[#0f0d0a]">Pick a type…</option>
+        <option value="" className="ev-ov-opt">Pick a type…</option>
         {eventTypes.map(t => (
-          <option key={t.slug} value={t.slug} className="bg-[#0f0d0a]">{t.label}</option>
+          <option key={t.slug} value={t.slug} className="ev-ov-opt">{t.label}</option>
         ))}
       </select>
     );
@@ -269,11 +269,7 @@ function GapEditor({
             key={String(v)}
             type="button"
             onClick={() => onSet({ mandatory: v })}
-            className={`rounded-lg px-3 py-1.5 text-[12px] font-medium ring-1 ring-inset transition-colors ${
-              on === v
-                ? "bg-[#a78bfa]/15 text-[#c4b5fd] ring-[#a78bfa]/30"
-                : "text-[#958d7c] ring-white/[0.08] hover:text-[#ece7dd]"
-            }`}
+            className={`ev-ov-choice${on === v ? " on" : ""}`}
           >
             {v ? "Required of every member" : "Optional — no attendance taken"}
           </button>

@@ -30,8 +30,8 @@ function costOf(stage: (typeof STAGES)[number]): string | null {
 export function EventsHelp({ onClose }: { onClose: () => void }) {
   return (
     <Modal tone="dusk" title="How this board works" onClose={onClose} maxWidthClass="max-w-lg">
-      <div className="space-y-3">
-        <p className="text-[12.5px] leading-relaxed text-[#958d7c]">
+      <div className="ev-ov space-y-3">
+        <p className="ev-ov-sub">
           Four lanes. Each one costs something to enter and buys something in return.
         </p>
 
@@ -42,10 +42,10 @@ export function EventsHelp({ onClose }: { onClose: () => void }) {
               <div key={s} className="px-3 py-2.5">
                 <div className="flex items-baseline gap-2">
                   <span className={`ev-help-dot ${s}`} aria-hidden />
-                  <span className="text-[12.5px] font-semibold text-[#ece7dd]">{STAGE_LABELS[s]}</span>
-                  <span className="text-[11.5px] text-[#6b6354]">{STAGE_MEANINGS[s]}</span>
+                  <span className="ev-ov-lbl font-semibold">{STAGE_LABELS[s]}</span>
+                  <span className="ev-ov-hint">{STAGE_MEANINGS[s]}</span>
                 </div>
-                <p className="mt-1 pl-4 text-[11.5px] leading-relaxed text-[#958d7c]">
+                <p className="ev-ov-sub mt-1 pl-4">
                   {cost ?? (s === "done"
                     // Done costs no new FIELD — what makes it distinct is the
                     // route it must arrive by.
@@ -57,10 +57,13 @@ export function EventsHelp({ onClose }: { onClose: () => void }) {
           })}
         </div>
 
-        <p className="text-[11.5px] leading-relaxed text-[#6b6354]">
-          Only <b className="font-semibold text-[#958d7c]">Confirmed</b> and{" "}
-          <b className="font-semibold text-[#958d7c]">Done</b> appear on the chapter&apos;s
-          timeline. Ideas and plans stay on this board until somebody confirms them.
+        <p className="ev-ov-hint">
+          {/* Both spaces are explicit {" "}: this vendored Next drops a literal
+              space that follows a closing tag, which ran "Done" into "appear". */}
+          Only <b className="ev-ov-strong">Confirmed</b>{" "}and{" "}
+          <b className="ev-ov-strong">Done</b>{" "}
+          appear on the chapter&apos;s timeline. Ideas and plans stay on this
+          board until somebody confirms them.
         </p>
       </div>
     </Modal>

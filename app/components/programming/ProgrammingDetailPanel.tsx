@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Brother, ProgrammingTask, Transaction } from "../../data";
 import { fmt$, fmtDate } from "../../data";
 import { OwnerAvatar, OwnerPicker, type RoleOption } from "./OwnerPicker";
-import { StarRadioGroup, RATING_LABELS } from "./EventWrapUp";
 import { StageControl } from "./panel/StageControl";
 import type { TypeVisual } from "./typeColor";
 import { Card, Modal } from "../dashboard/primitives";
@@ -15,6 +14,7 @@ import { TxForm, type TxFormEvent } from "../treasury/TxForm";
 import type { Doc } from "@/app/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
 import { ownerLabel } from "@/lib/event-owner";
+import { fieldsFor, hasRequiredField, type RequiredField } from "@/lib/programming";
 import type { EventFieldDef } from "@/lib/event-fields";
 import { FieldTogglePills } from "./panel/FieldTogglePills";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -142,6 +142,21 @@ export function ProgrammingDetailPanel({
   // against the live definitions, so a disabled answer simply doesn't ship).
   const enabledFields = fieldDefs.filter(d => d.enabled);
 
+  /**
+   * Which required fields this panel shows.
+   *
+   * An Idea is only asked for what Planning will cost — printing the date and
+   * location rows on something nobody owns yet turns the required section into a
+   * wall of four "Needed to confirm" lines the officer can do nothing about. Once
+   * it is owned, the full confirm set is what's relevant.
+   */
+  const requiredSet = useMemo(
+    () => fieldsFor(event.stage === "idea" ? "planning" : "confirmed"),
+    [event.stage],
+  );
+  const requiredGot = requiredSet.filter(f => hasRequiredField(event, f.key)).length;
+  const optionalGot = enabledFields.filter(d => hasOptionalAnswer(event, d)).length;
+
   // Fetch Resources docs once for the / picker.
   useEffect(() => {
     requestJson<Doc[]>("/api/docs")
@@ -167,14 +182,14 @@ export function ProgrammingDetailPanel({
       <div className="border-b border-[rgba(236,231,221,0.07)] px-5 py-4 pr-14 xl:pr-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[16px] font-bold text-[#ece7dd]">{event.title}</h2>
-            <p className="mt-1 text-[12px] text-[#958d7c]">
+            <h2 className="ev-pn-title">{event.title}</h2>
+            <p className="ev-pn-when">
               {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <TypeBadge label={visual.label} hex={visual.hex} />
               {event.collab && (
-                <span className="text-[11px] text-[#6b6354]">w/ {event.collab}</span>
+                <span className="ev-pn-collab">w/ {event.collab}</span>
               )}
               {/* The owner used to be printed here as flat text. It now lives in
                   the Details list as an editable row, so repeating it in the
@@ -182,19 +197,32 @@ export function ProgrammingDetailPanel({
                   fact — except when it's MISSING, which the header should say
                   because that's the gate the board is waiting on. */}
               {!event.owner && !event.ownerNote && (
-                <span className="text-[11px] text-[#ddb36a]">Unowned</span>
+                <span className="ev-pn-unowned">Unowned</span>
               )}
-              <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[#6b6354]">
-                {event.calendarEventId != null ? "· The chapter can see this" : "· Confirm to publish it to the chapter"}
+              {/* An eye or a padlock, not a sentence fragment. Whether the
+                  chapter can see this is the fact the whole stage ladder is
+                  about, and it should be readable at a glance. */}
+              <span className={`ev-vis ${event.calendarEventId != null ? "public" : "private"}`}>
+                {event.calendarEventId != null ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="12" cy="12" r="3.2" />
+                    <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
+                  </svg>
+                )}
+                {event.calendarEventId != null ? "On the chapter Timeline" : "Not visible to the Timeline yet"}
               </span>
             </div>
           </div>
           {canManage && (
             <div className="flex shrink-0 gap-1.5">
-              <button onClick={onEdit} className="rounded-md bg-[rgba(236,231,221,0.05)] px-2.5 py-1 text-[11px] font-medium text-[#c9c2b4] ring-1 ring-inset ring-[rgba(236,231,221,0.1)] hover:bg-[#a78bfa]/15 hover:text-[#c4b5fd]">
+              <button onClick={onEdit} className="ev-pn-btn">
                 Edit
               </button>
-              <button onClick={onDelete} className="rounded-md bg-[#d98ba3]/10 px-2.5 py-1 text-[11px] font-medium text-[#d98ba3] ring-1 ring-inset ring-[#d98ba3]/20 hover:bg-[#d98ba3]/20">
+              <button onClick={onDelete} className="ev-pn-btn danger">
                 Delete
               </button>
             </div>
@@ -225,44 +253,28 @@ export function ProgrammingDetailPanel({
       <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
 
         {/* ── Wrap-up card — shown first when event is done ── */}
+        {/* A RECORD, not a form. The wrap-up step is the only writer: Done is
+            what the term actually did, and a rating that can be quietly revised
+            months later is not a record of anything. So this is three lines, not
+            the bordered card it used to be — the card read as something you were
+            being invited to fill in. */}
         {isDone && (
-          <section>
-            <div className="overflow-hidden rounded-xl border border-[#d9b08b]/25 bg-gradient-to-b from-[#d9b08b]/[0.07] to-[#d9b08b]/[0.03]">
-              {/* Header */}
-              <div className="flex items-center gap-2.5 border-b border-[#d9b08b]/15 px-4 py-3">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d9b08b]/15">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 text-[#d9b08b]">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-[12px] font-semibold text-[#d9b08b]">Event wrap-up</h3>
-                <span className="ml-auto rounded-full bg-[#7ecba3]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#7ecba3]">Done</span>
-              </div>
-
-              {/* A RECORD, not a form. The wrap-up step is the only writer:
-                  Done is what the term actually did, and a rating that can be
-                  quietly revised months later is not a record of anything. */}
-              <div className="px-4 pt-4 pb-1">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#6b6354]">How did it go?</p>
-                <div className="flex items-center gap-3">
-                  <StarRadioGroup value={event.successRating} disabled size={22} />
-                  <span className="text-[12px] text-[#958d7c]">
-                    {event.successRating != null ? RATING_LABELS[event.successRating] : "Not rated"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="px-4 pt-3 pb-4">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[#6b6354]">Notes</p>
-                {event.wrapUpNotes ? (
-                  <p className="whitespace-pre-wrap rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#c9c2b4]">{event.wrapUpNotes}</p>
-                ) : (
-                  <p className="text-[12px] italic text-[#4a4439]">No notes recorded.</p>
-                )}
-              </div>
+          <div className="ev-pn-wrap">
+            <div className="pw-head">
+              <span className="pw-k">Wrap-up</span>
+              {event.successRating != null ? (
+                <span className="pw-stars" role="img" aria-label={`Rated ${event.successRating} out of 5`}>
+                  {"★".repeat(event.successRating)}
+                  <span className="off" aria-hidden>{"☆".repeat(5 - event.successRating)}</span>
+                </span>
+              ) : (
+                <span className="pw-none">Not rated</span>
+              )}
             </div>
-          </section>
+            {event.wrapUpNotes
+              ? <p className="pw-notes">{event.wrapUpNotes}</p>
+              : <p className="pw-nonotes">No review notes.</p>}
+          </div>
         )}
 
         {/* ── The org's optional fields ────────────────────────────────────
@@ -275,58 +287,60 @@ export function ProgrammingDetailPanel({
             something back on. Gating purely on enabledFields would mean an org
             that switched every field off lost the pills that switch them back —
             a dead end reachable in two clicks. */}
-        {(enabledFields.length > 0 || (canManage && fieldDefs.length > 0)) && (
-          <section className="space-y-2">
-            <div className="flex items-baseline justify-between">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Details</h3>
-              {/* Confirmed offers the way out; Done doesn't. Offering "move it
-                  back" on a finished event would be offering to un-happen it. */}
-              {event.stage === "confirmed" && canManage && onStage && (
-                <span className="text-[10.5px] text-[#6b6354]">
-                  Published —{" "}
-                  <button
-                    type="button"
-                    disabled={stageLoading}
-                    onClick={async () => {
-                      setStageLoading(true);
-                      try { await onStage(event.id, "planning"); }
-                      finally { setStageLoading(false); }
-                    }}
-                    className="text-[#a78bfa] underline-offset-2 hover:underline disabled:opacity-50"
-                  >
-                    move back to Planning
-                  </button>{" "}
-                  to edit
-                </span>
-              )}
-              {isDone && (
-                <span className="text-[10.5px] text-[#6b6354]">Part of the record now</span>
-              )}
-            </div>
-            <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.015]">
-              {/* Owner leads the list because it is what Planning COSTS — the one
-                  required field with an editor, sitting where the gate can point
-                  at it. Note it is NOT gated on isPublished: owner is deliberately
-                  outside the server's frozen set, so an officer handoff on a
-                  Confirmed event doesn't require unpublishing it first. */}
-              <OwnerRow
+        {/* ── Required ─────────────────────────────────────────────────────
+            Split out from the optional set because "which of these actually
+            gates the board" is the question the panel is asked most, and one
+            undifferentiated list can't answer it. The counter is the same
+            fraction the lane gate is computing, shown where you can act on it. */}
+        <section className="ev-pn-sec">
+          <div className="ps-head">
+            <span className="ps-t">Required</span>
+            <span className="ps-why gates">Gates the board</span>
+            <span className={`ps-n${requiredGot === requiredSet.length ? " ready" : ""}`}>
+              {requiredGot}/{requiredSet.length}
+            </span>
+          </div>
+          <div className="ev-flds">
+            {requiredSet.map(f => (
+              <RequiredRow
+                key={f.key}
+                field={f}
                 event={event}
+                visual={visual}
                 brothers={brothers}
                 roles={roles}
-                canEdit={canManage}
-                editing={editingOwner}
-                hunted={huntKey === "owner"}
-                onToggle={() => setEditingOwner(v => !v)}
+                canManage={canManage}
+                // Owner is deliberately outside the server's frozen set, so an
+                // officer handoff on a Confirmed event doesn't require
+                // unpublishing it first.
+                locked={isPublished && f.key !== "owner"}
+                editingOwner={editingOwner}
+                hunted={huntKey === f.key}
+                refused={refusedKey === f.key}
+                onToggleOwner={() => setEditingOwner(v => !v)}
+                onRefuse={canManage ? () => refuseEdit(f.key, f.label) : undefined}
                 onPatch={onPatch}
               />
-              {enabledFields.map((def, i) => (
+            ))}
+          </div>
+        </section>
+
+        {/* ── Optional ─────────────────────────────────────────────────── */}
+        {(enabledFields.length > 0 || (canManage && fieldDefs.length > 0)) && (
+          <section className="ev-pn-sec">
+            <div className="ps-head">
+              <span className="ps-t">Optional</span>
+              <span className="ps-why opt">Never blocks</span>
+              <span className="ps-n">{optionalGot}/{enabledFields.length}</span>
+            </div>
+            <div className="ev-flds">
+              {enabledFields.map(def => (
                 <FieldRow
                   key={def.slug}
                   def={def}
                   event={event}
                   docs={resourceDocs}
                   canEdit={canEditFields}
-                  divider={i > 0}
                   onPatch={onPatch}
                   // Only a publish freeze is worth answering. A plain member has
                   // no edit affordance to click in the first place, so a refusal
@@ -336,7 +350,7 @@ export function ProgrammingDetailPanel({
                 />
               ))}
               {enabledFields.length === 0 && (
-                <p className="px-3 py-2.5 text-[12px] italic text-[#4a4439]">
+                <p className="ev-fld-none">
                   This chapter collects nothing optional. Turn a field on below.
                 </p>
               )}
@@ -354,10 +368,10 @@ export function ProgrammingDetailPanel({
         )}
 
         <section className="space-y-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Spending</h3>
+          <h3 className="ev-pn-h">Spending</h3>
           {canManage ? (
             <div className="relative max-w-[160px]">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#6b6354]">$</span>
+              <span className="ev-pn-dollar">$</span>
               <input
                 type="number"
                 min={0}
@@ -371,20 +385,20 @@ export function ProgrammingDetailPanel({
               />
             </div>
           ) : (
-            <p className="text-[15px] font-medium tabular-nums text-[#ece7dd]">{fmt$(event.spendingCents / 100)}</p>
+            <p className="ev-pn-amt">{fmt$(event.spendingCents / 100)}</p>
           )}
-          <p className="text-[10.5px] text-[#6b6354]">Manual total — linked transactions are tracked separately below.</p>
+          <p className="ev-pn-note">Manual total — linked transactions are tracked separately below.</p>
         </section>
 
         {/* ── Linked Transactions ─────────────────────────────────────────── */}
         {event.calendarEventId && (
           <section className="space-y-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Linked Transactions</h3>
+              <h3 className="ev-pn-h">Linked Transactions</h3>
               {canManage && !showTxForm && (
                 <button
                   onClick={() => setShowTxForm(true)}
-                  className="text-[11px] font-semibold text-[#a78bfa] hover:text-[#c4b5fd] transition-colors"
+                  className="ev-pn-link"
                 >
                   + Log transaction
                 </button>
@@ -421,27 +435,27 @@ export function ProgrammingDetailPanel({
             )}
 
             {txLoading ? (
-              <p className="text-[12px] text-[#6b6354]">Loading…</p>
+              <p className="ev-pn-note">Loading…</p>
             ) : linkedTxns.length === 0 && !showTxForm ? (
-              <p className="text-[12px] text-[#6b6354]">No transactions linked to this event yet.</p>
+              <p className="ev-pn-note">No transactions linked to this event yet.</p>
             ) : linkedTxns.length > 0 ? (
               <>
                 <div className="space-y-1">
                   {linkedTxns.map(t => (
                     <div key={t.id} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
                       <div className="min-w-0">
-                        <p className="truncate text-[12px] text-[#c9c2b4]">{t.description || t.category}</p>
-                        <p className="text-[10px] text-[#6b6354]">{fmtDate(t.date)} · {t.category}</p>
+                        <p className="ev-pn-tx-t">{t.description || t.category}</p>
+                        <p className="ev-pn-tx-m">{fmtDate(t.date)} · {t.category}</p>
                       </div>
-                      <span className={`ml-3 shrink-0 font-mono text-[12px] font-medium tabular-nums ${t.type === "income" ? "text-[#7ecba3]" : "text-[#d98ba3]"}`}>
+                      <span className={`ev-pn-tx-amt ${t.type === "income" ? "in" : "out"}`}>
                         {t.type === "income" ? "+" : "−"}{fmt$(t.amount)}
                       </span>
                     </div>
                   ))}
                 </div>
                 <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#6b6354]">Total expenses</span>
-                  <span className="font-mono text-[13px] font-semibold tabular-nums text-[#d98ba3]">
+                  <span className="ev-pn-h">Total expenses</span>
+                  <span className="ev-pn-tx-amt out total">
                     {fmt$(linkedTxns.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0))}
                   </span>
                 </div>
@@ -469,7 +483,6 @@ function FieldRow({
   event,
   docs,
   canEdit,
-  divider,
   onPatch,
   onRefuse,
   refused,
@@ -478,48 +491,52 @@ function FieldRow({
   event: ProgrammingTask;
   docs: Doc[];
   canEdit: boolean;
-  divider: boolean;
   onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
   /** Set only when the row is frozen by publishing and the viewer could otherwise edit it. */
   onRefuse?: () => void;
   refused?: boolean;
 }) {
-  const border = divider ? "border-t border-white/[0.05]" : "";
-
+  const has = hasOptionalAnswer(event, def);
   // A frozen row stays a click target so the rule can answer for itself. The
-  // wrapper is what carries the shake, so every branch below gets it for free.
-  const body = (
-    <FieldRowBody def={def} event={event} docs={docs} canEdit={canEdit} border={border} onPatch={onPatch} />
-  );
-  if (!onRefuse) return body;
+  // wrapper carries the mark, the shake and the not-allowed cursor, so every
+  // branch below gets them for free.
   return (
     <div
-      onClick={onRefuse}
-      className={`cursor-not-allowed${refused ? " ev-refused" : ""}`}
+      className={`ev-fld${has ? " set" : ""}${refused ? " ev-refused" : ""}`}
       data-field-key={def.slug}
-      title="Locked while the chapter can see this event"
+      onClick={onRefuse}
+      title={onRefuse ? "Locked while the chapter can see this event" : undefined}
     >
-      {body}
+      {/* Optional fields never render the gold "missing" state — nothing they
+          do blocks anything, and a gold prompt would claim otherwise. */}
+      <FieldMark state={has ? "set" : "empty"} />
+      <div className={`ev-fld-main${onRefuse ? " locked" : ""}`}>
+        <span className="ev-fld-k">{def.label}</span>
+        <FieldRowBody def={def} event={event} docs={docs} canEdit={canEdit} onPatch={onPatch} />
+        {onRefuse && (
+          <svg className="ev-fld-pencil lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
+          </svg>
+        )}
+      </div>
     </div>
   );
 }
 
 function FieldRowBody({
-  def, event, docs, canEdit, border, onPatch,
+  def, event, docs, canEdit, onPatch,
 }: {
   def: EventFieldDef;
   event: ProgrammingTask;
   docs: Doc[];
   canEdit: boolean;
-  border: string;
   onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
 }) {
 
   // Column-backed built-ins first — these never touch fieldValues.
   if (def.slug === "attachment") {
     return (
-      <div className={`px-3 py-2.5 ${border}`}>
-        <p className="mb-2 text-[12.5px] text-[#958d7c]">{def.label}</p>
+      <span className="ev-fld-v">
         <AttachmentField
           attachmentUrl={event.attachmentUrl}
           attachmentDocId={event.attachmentDocId}
@@ -529,35 +546,27 @@ function FieldRowBody({
           onDocPick={id => onPatch(event.id, { attachmentDocId: id, attachmentUrl: null })}
           onClear={() => onPatch(event.id, { attachmentUrl: null, attachmentDocId: null })}
         />
-      </div>
+      </span>
     );
   }
 
   if (def.slug === "description") {
-    return (
-      <FieldShell label={def.label} border={border} stacked>
-        {canEdit ? (
-          <TextValue
-            value={event.description ?? ""}
-            multiline
-            onCommit={v => onPatch(event.id, { description: v || null })}
-          />
-        ) : (
-          <ReadValue text={event.description} />
-        )}
-      </FieldShell>
+    return canEdit ? (
+      <TextValue
+        value={event.description ?? ""}
+        multiline
+        onCommit={v => onPatch(event.id, { description: v || null })}
+      />
+    ) : (
+      <ReadValue text={event.description} />
     );
   }
 
   if (def.slug === "cohost") {
-    return (
-      <FieldShell label={def.label} border={border}>
-        {canEdit ? (
-          <TextValue value={event.collab ?? ""} onCommit={v => onPatch(event.id, { collab: v || null })} />
-        ) : (
-          <ReadValue text={event.collab} />
-        )}
-      </FieldShell>
+    return canEdit ? (
+      <TextValue value={event.collab ?? ""} onCommit={v => onPatch(event.id, { collab: v || null })} />
+    ) : (
+      <ReadValue text={event.collab} />
     );
   }
 
@@ -567,163 +576,210 @@ function FieldRowBody({
     onPatch(event.id, { fieldValues: { ...event.fieldValues, [def.slug]: value } });
 
   if (def.kind === "bool") {
-    return (
-      <FieldShell label={def.label} border={border}>
-        {canEdit ? (
-          <button
-            type="button"
-            onClick={() => commit(!raw)}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset transition-colors ${raw
-              ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30 hover:bg-emerald-500/25"
-              : "bg-white/[0.04] text-[#958d7c] ring-white/10 hover:bg-white/[0.08] hover:text-[#c9c2b4]"}`}
-          >
-            {raw ? "Yes" : "No"}
-          </button>
-        ) : (
-          <ReadValue text={raw ? "Yes" : "No"} />
-        )}
-      </FieldShell>
+    return canEdit ? (
+      <span className="ev-fld-v">
+        <button type="button" onClick={() => commit(!raw)} className={`ev-fld-bool${raw ? " on" : ""}`}>
+          {raw ? "Yes" : "No"}
+        </button>
+      </span>
+    ) : (
+      <ReadValue text={raw ? "Yes" : "No"} />
     );
   }
 
   if (def.kind === "num" || def.kind === "money") {
     const asNumber = typeof raw === "number" ? raw : null;
-    return (
-      <FieldShell label={def.label} border={border}>
-        {canEdit ? (
-          <div className="relative w-[130px]">
-            {def.kind === "money" && (
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[#6b6354]">$</span>
-            )}
-            <input
-              type="number"
-              min={0}
-              step={def.kind === "money" ? 0.01 : 1}
-              defaultValue={asNumber ?? ""}
-              className={`${inputDuskCls} tabular-nums ${def.kind === "money" ? "pl-6" : ""}`}
-              onBlur={e => {
-                const v = e.target.value.trim();
-                const n = v === "" ? null : Number(v);
-                if (n !== asNumber) commit(Number.isFinite(n as number) ? n : null);
-              }}
-            />
-          </div>
-        ) : (
-          <ReadValue text={asNumber == null ? null : def.kind === "money" ? fmt$(asNumber) : String(asNumber)} />
-        )}
-      </FieldShell>
+    return canEdit ? (
+      <span className="ev-fld-v">
+        <span className="ev-fld-num">
+          {def.kind === "money" && <span className="pre">$</span>}
+          <input
+            type="number"
+            min={0}
+            step={def.kind === "money" ? 0.01 : 1}
+            defaultValue={asNumber ?? ""}
+            onBlur={e => {
+              const v = e.target.value.trim();
+              const n = v === "" ? null : Number(v);
+              if (n !== asNumber) commit(Number.isFinite(n as number) ? n : null);
+            }}
+          />
+        </span>
+      </span>
+    ) : (
+      <ReadValue
+        text={asNumber == null ? null : def.kind === "money" ? fmt$(asNumber) : String(asNumber)}
+        mono
+      />
     );
   }
 
   // text / date / person / file all edit as a string; `date` gets a date input.
   const asText = raw == null ? "" : String(raw);
-  return (
-    <FieldShell label={def.label} border={border}>
-      {canEdit ? (
-        <TextValue value={asText} type={def.kind === "date" ? "date" : "text"} onCommit={v => commit(v || null)} />
-      ) : (
-        <ReadValue text={asText || null} />
-      )}
-    </FieldShell>
-  );
-}
-
-/** Label on the left, control on the right — or stacked, for a multiline value. */
-function FieldShell({
-  label, border, stacked, children,
-}: { label: string; border: string; stacked?: boolean; children: React.ReactNode }) {
-  if (stacked) {
-    return (
-      <div className={`px-3 py-2.5 ${border}`}>
-        <p className="mb-2 text-[12.5px] text-[#958d7c]">{label}</p>
-        {children}
-      </div>
-    );
-  }
-  return (
-    <div className={`flex items-center gap-3 px-3 py-2.5 ${border}`}>
-      <span className="min-w-0 flex-1 text-[12.5px] text-[#958d7c]">{label}</span>
-      <div className="flex shrink-0 items-center">{children}</div>
-    </div>
+  return canEdit ? (
+    <TextValue value={asText} type={def.kind === "date" ? "date" : "text"} onCommit={v => commit(v || null)} />
+  ) : (
+    <ReadValue text={asText || null} />
   );
 }
 
 /**
- * The owner row — a required field with a real editor.
+ * Whether an optional field has an answer.
  *
- * Unowned renders as a gold prompt rather than a grey "Not set": every other
- * unanswered field is optional, but this one is the gate the board keeps naming,
- * and it should read as something the page is asking for.
+ * Three of the built-ins are backed by real columns rather than fieldValues (see
+ * COLUMN_BACKED_FIELDS), so a naive fieldValues lookup reports a filled
+ * description as empty and the counter drifts from what the rows show.
  */
-function OwnerRow({
-  event, brothers, roles, canEdit, editing, hunted, onToggle, onPatch,
+function hasOptionalAnswer(event: ProgrammingTask, def: EventFieldDef): boolean {
+  if (def.slug === "description") return Boolean(event.description?.trim());
+  if (def.slug === "cohost") return Boolean(event.collab?.trim());
+  if (def.slug === "attachment") return Boolean(event.attachmentUrl || event.attachmentDocId != null);
+  const v = event.fieldValues?.[def.slug];
+  if (v == null || v === "") return false;
+  // A boolean is answered by existing; `false` is a value, not an empty.
+  return true;
+}
+
+/**
+ * The bullet that opens every field row.
+ *
+ * The value IS the checkmark: a filled mark means the field is answered, a dashed
+ * gold one means a gate is still waiting on it. Optional fields never render the
+ * gold state — nothing they do blocks anything.
+ */
+function FieldMark({ state }: { state: "set" | "miss" | "empty" }) {
+  return (
+    <span className={`ev-fld-mark ${state}`} aria-hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 6L9 17l-5-5" />
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * One of the six gating fields.
+ *
+ * These are columns, not fieldValues, and five of the six are frozen once the
+ * event publishes — so unlike an optional row this one mostly READS, and its job
+ * is to say whether the gate it belongs to is satisfied. Owner is the exception
+ * and carries the picker inline, because assigning one is the single most common
+ * thing this panel is opened to do.
+ */
+function RequiredRow({
+  field, event, visual, brothers, roles, canManage, locked,
+  editingOwner, hunted, refused, onToggleOwner, onRefuse, onPatch,
 }: {
+  field: RequiredField;
   event: ProgrammingTask;
+  visual: TypeVisual;
   brothers: Brother[];
   roles: RoleOption[];
-  canEdit: boolean;
-  editing: boolean;
-  hunted?: boolean;
-  onToggle: () => void;
+  canManage: boolean;
+  locked: boolean;
+  editingOwner: boolean;
+  hunted: boolean;
+  refused: boolean;
+  onToggleOwner: () => void;
+  onRefuse?: () => void;
   onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
 }) {
-  const label = event.owner
-    ? ownerLabel(event.owner)
-    : event.ownerNote
+  const has = hasRequiredField(event, field.key);
+
+  // What the gate is waiting for, named by the lane that wants it — the same
+  // sentence the board's drop cue and the fix-step use. A wrapped event has no
+  // gate left to satisfy, so it says what's true instead: the answer is simply
+  // not on the record. Telling a Done event it "needs an owner to start
+  // planning" names a move that no longer exists.
+  const emptyText = event.stage === "done"
+    ? "Never recorded"
+    : `Needed to ${
+        field.gate === "planning" ? "start planning" : field.gate === "confirmed" ? "confirm" : "save"
+      }`;
+
+  let value: React.ReactNode = null;
+  if (field.key === "title") value = event.title;
+  else if (field.key === "category") value = visual.label;
+  else if (field.key === "date") value = event.dueDate ? fmtDate(event.dueDate) : null;
+  else if (field.key === "location") value = event.location || null;
+  else if (field.key === "mandatory") {
+    value = event.mandatory ? "Required of every member" : "Optional — no attendance taken";
+  } else if (field.key === "owner") {
+    value = event.owner ? (
+      <>
+        <OwnerAvatar owner={event.owner} size={18} />
+        {ownerLabel(event.owner)}
+      </>
+    ) : event.ownerNote ? (
       // Retired migration data: a pre-v3 free-text owner that matched no roster
       // row. It is NOT an owner and does not satisfy the gate — say so.
-      ? `${event.ownerNote} (not on the roster)`
-      : null;
+      `${event.ownerNote} (not on the roster)`
+    ) : null;
+  }
+
+  const isOwner = field.key === "owner";
+  const canEditOwner = isOwner && canManage;
+  // Gold flags a gate that is still waiting. Done has no gate ahead of it, so an
+  // unanswered field there is a gap in the record, not a blocker.
+  const state = has ? "set" : event.stage === "done" ? "empty" : "miss";
 
   return (
-    <div className={`px-3 py-2.5${hunted ? " ev-hunted" : ""}`} data-field-key="owner">
-      <div className="flex items-center gap-3">
-        <span className="min-w-0 flex-1 text-[12.5px] text-[#958d7c]">Owner</span>
-        <div className="flex shrink-0 items-center gap-2">
-          {label ? (
-            <>
-              <OwnerAvatar owner={event.owner} size={22} />
-              <span className="text-[12.5px] text-[#c9c2b4]">{label}</span>
-            </>
-          ) : (
-            <span className="text-[12px] text-[#ddb36a]">Nobody yet</span>
-          )}
-          {canEdit && (
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-expanded={editing}
-              className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-[#a78bfa] hover:bg-[#a78bfa]/10"
-            >
-              {editing ? "Done" : event.owner ? "Change" : "Assign"}
-            </button>
-          )}
-        </div>
+    <div
+      className={`ev-fld ${state}${refused ? " ev-refused" : ""}${hunted ? " ev-hunted" : ""}`}
+      data-field-key={field.key}
+    >
+      <FieldMark state={state} />
+      <div
+        className={`ev-fld-main${locked ? " locked" : canEditOwner ? " edit" : ""}`}
+        onClick={locked ? onRefuse : canEditOwner ? onToggleOwner : undefined}
+        role={locked || canEditOwner ? "button" : undefined}
+        tabIndex={locked || canEditOwner ? 0 : undefined}
+        onKeyDown={
+          locked || canEditOwner
+            ? e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); (locked ? onRefuse : onToggleOwner)?.(); } }
+            : undefined
+        }
+        aria-label={locked ? `${field.label} — locked while ${event.stage}` : canEditOwner ? `Edit ${field.label}` : undefined}
+        title={locked ? "Locked while the chapter can see this event" : undefined}
+      >
+        <span className="ev-fld-k">{field.label}</span>
+        <span className={`ev-fld-v${has ? "" : " empty"}`}>{has ? value : emptyText}</span>
+        {locked ? (
+          <svg className="ev-fld-pencil lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
+          </svg>
+        ) : canEditOwner ? (
+          <svg className="ev-fld-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
+          </svg>
+        ) : null}
+        {/* Inside .ev-fld-main so it lines up under the value rather than
+            beside the mark — the row is a two-column flex. */}
+        {isOwner && editingOwner && canManage && (
+          <div className="ev-fld-ed" onClick={e => e.stopPropagation()}>
+            <OwnerPicker
+              value={event.owner}
+              brothers={brothers}
+              roles={roles}
+              onChange={patch => {
+                // One key only — the service nulls the sibling FK, and the Zod
+                // refine rejects a payload carrying both.
+                void onPatch(event.id, patch as Partial<ProgrammingTask>);
+                onToggleOwner();
+              }}
+            />
+          </div>
+        )}
       </div>
-      {editing && canEdit && (
-        <div className="mt-2.5">
-          <OwnerPicker
-            value={event.owner}
-            brothers={brothers}
-            roles={roles}
-            onChange={patch => {
-              // One key only — the service nulls the sibling FK, and the Zod
-              // refine rejects a payload carrying both.
-              void onPatch(event.id, patch as Partial<ProgrammingTask>);
-              onToggle();
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 }
 
 /** An unanswered field says so rather than rendering an empty row. */
-function ReadValue({ text }: { text: string | null }) {
+function ReadValue({ text, mono }: { text: string | null; mono?: boolean }) {
   return text
-    ? <span className="text-[12.5px] text-[#c9c2b4]">{text}</span>
-    : <span className="text-[12px] italic text-[#4a4439]">Not set</span>;
+    ? <span className={`ev-fld-v${mono ? " mono" : ""}`}>{text}</span>
+    : <span className="ev-fld-v empty">Not set</span>;
 }
 
 /** Commit-on-blur text input, so a field isn't PATCHed on every keystroke. */
@@ -732,20 +788,24 @@ function TextValue({
 }: { value: string; multiline?: boolean; type?: string; onCommit: (v: string) => void }) {
   if (multiline) {
     return (
-      <textarea
-        defaultValue={value}
-        className="min-h-[70px] w-full resize-none rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-[12.5px] text-[#c9c2b4] placeholder:text-[#4a4439] transition-colors focus:border-[#d9b08b]/40 focus:outline-none"
-        onBlur={e => { if (e.target.value !== value) onCommit(e.target.value.trim()); }}
-      />
+      <span className="ev-fld-v">
+        <textarea
+          defaultValue={value}
+          className="ev-fld-ta"
+          onBlur={e => { if (e.target.value !== value) onCommit(e.target.value.trim()); }}
+        />
+      </span>
     );
   }
   return (
-    <input
-      type={type}
-      defaultValue={value}
-      className={`${inputDuskCls} w-[170px]`}
-      onBlur={e => { if (e.target.value !== value) onCommit(e.target.value.trim()); }}
-    />
+    <span className="ev-fld-v">
+      <input
+        type={type}
+        defaultValue={value}
+        className={`ev-fld-in${type === "date" ? " mono" : ""}`}
+        onBlur={e => { if (e.target.value !== value) onCommit(e.target.value.trim()); }}
+      />
+    </span>
   );
 }
 
