@@ -35,6 +35,7 @@ export function Measure({
   unset,
   note,
   noteWarn,
+  noteGood,
   noteAction,
   spark,
   onClick,
@@ -50,6 +51,9 @@ export function Measure({
   unset?: boolean;
   note?: string;
   noteWarn?: boolean;
+  /** Tints the note green — a measure that is at zero because it is CLEAR, not
+   *  because nothing was ever recorded. Ignored when `noteWarn` is also set. */
+  noteGood?: boolean;
   noteAction?: { label: string; onClick: () => void };
   spark?: React.ReactNode;
   onClick?: () => void;
@@ -116,7 +120,7 @@ export function Measure({
         {!unset && unit && <small>{unit}</small>}
       </p>
       {note && (
-        <p className={noteWarn ? "note warn" : "note"}>
+        <p className={noteWarn ? "note warn" : noteGood ? "note good" : "note"}>
           {note}
           {noteAction && (
             <>

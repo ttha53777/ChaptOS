@@ -222,6 +222,9 @@
    and push the whole strip past the viewport. */
 .dash .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; overflow-wrap: anywhere; }
 .dash .measure .note.warn { color: var(--gold); }
+/* A zero that means CLEAR, not unrecorded — so the reader can tell "nobody has
+   picked these up" from "every one of them has someone" without re-reading. */
+.dash .measure .note.good { color: var(--ok); }
 .dash .measure .note-act { font: inherit; color: var(--vio); background: none; border: 0; padding: 0;
   cursor: pointer; white-space: nowrap; }
 .dash .measure .note-act:hover { text-decoration: underline; }

@@ -439,6 +439,15 @@ export interface EventsTermStats {
   next14Unready: number;
   avgSuccess: number | null;
   doneCount: number;
+  /**
+   * How many wrapped events carry a rating — the denominator `avgSuccess` was
+   * actually averaged over.
+   *
+   * Distinct from `doneCount` on purpose: the wrap-up's rating is optional, so a
+   * term with fifteen wrapped events and six ratings would otherwise report the
+   * average as being "across 15 wrapped" and quietly overstate what it measured.
+   */
+  ratedCount: number;
   spendCents: number;
   /**
    * What's LIVE — idea + planning + confirmed, excluding Done.
@@ -486,6 +495,7 @@ export function eventsTermStats(tasks: ProgrammingTaskLike[], today: string): Ev
     next14Unready,
     avgSuccess,
     doneCount: byStage.done,
+    ratedCount: rated.length,
     spendCents: tasks.reduce((sum, t) => sum + (t.spendingCents ?? 0), 0),
     liveTotal: byStage.idea + byStage.planning + byStage.confirmed,
     unownedIdeas,
