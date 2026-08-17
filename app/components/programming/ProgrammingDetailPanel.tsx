@@ -53,6 +53,8 @@ export function ProgrammingDetailPanel({
   // The field a gate sentence just pointed at. Scrolled to and pulsed so the
   // jump lands somewhere visible rather than silently changing state offscreen.
   const [huntKey, setHuntKey] = useState<string | null>(null);
+  // The field a locked click just bounced off, so the row can answer visibly.
+  const [refusedKey, setRefusedKey] = useState<string | null>(null);
   const [resourceDocs, setResourceDocs] = useState<Doc[]>([]);
   const [stageLoading, setStageLoading] = useState(false);
   const [linkedTxns, setLinkedTxns] = useState<Transaction[]>([]);
@@ -83,6 +85,50 @@ export function ProgrammingDetailPanel({
     const t = setTimeout(() => setHuntKey(null), 1600);
     return () => clearTimeout(t);
   }, [huntKey]);
+
+  /**
+   * A click on a field that publishing has frozen.
+   *
+   * Rendering the row merely inert makes the click land on nothing, which reads
+   * as a dead interface rather than as a rule — so the row answers, and the toast
+   * carries the way out instead of leaving it to be discovered. Done has no way
+   * out on purpose: offering to un-finish an event that already happened isn't a
+   * fix, it's a lie about the record.
+   */
+  const refuseEdit = useCallback((key: string, label: string) => {
+    // Clear first so a second click on the SAME row restarts the animation;
+    // React skips the re-render entirely if the key never changes.
+    setRefusedKey(null);
+    requestAnimationFrame(() => setRefusedKey(key));
+    if (isDone) {
+      toast.info(`${label} is part of the record now — a wrapped event can't be edited.`);
+      return;
+    }
+    toast.info(`${label} is locked while the chapter can see this event.`, {
+      action: {
+        label: "Move to Planning",
+        onClick: async () => {
+          if (!onStage) return;
+          setStageLoading(true);
+          try {
+            await onStage(event.id, "planning");
+            // Land the officer on the field they were reaching for, rather than
+            // on an unlocked sheet they now have to re-scan.
+            setHuntKey(key);
+            if (key === "owner") setEditingOwner(true);
+          } finally {
+            setStageLoading(false);
+          }
+        },
+      },
+    });
+  }, [isDone, toast, onStage, event.id]);
+
+  useEffect(() => {
+    if (!refusedKey) return;
+    const t = setTimeout(() => setRefusedKey(null), 2600);
+    return () => clearTimeout(t);
+  }, [refusedKey]);
 
   const loadFields = useCallback(() => {
     requestJson<EventFieldRow[]>("/api/events/fields")
@@ -282,6 +328,11 @@ export function ProgrammingDetailPanel({
                   canEdit={canEditFields}
                   divider={i > 0}
                   onPatch={onPatch}
+                  // Only a publish freeze is worth answering. A plain member has
+                  // no edit affordance to click in the first place, so a refusal
+                  // there would be explaining a rule they never met.
+                  onRefuse={canManage && isPublished ? () => refuseEdit(def.slug, def.label) : undefined}
+                  refused={refusedKey === def.slug}
                 />
               ))}
               {enabledFields.length === 0 && (
@@ -420,6 +471,8 @@ function FieldRow({
   canEdit,
   divider,
   onPatch,
+  onRefuse,
+  refused,
 }: {
   def: EventFieldDef;
   event: ProgrammingTask;
@@ -427,8 +480,40 @@ function FieldRow({
   canEdit: boolean;
   divider: boolean;
   onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
+  /** Set only when the row is frozen by publishing and the viewer could otherwise edit it. */
+  onRefuse?: () => void;
+  refused?: boolean;
 }) {
   const border = divider ? "border-t border-white/[0.05]" : "";
+
+  // A frozen row stays a click target so the rule can answer for itself. The
+  // wrapper is what carries the shake, so every branch below gets it for free.
+  const body = (
+    <FieldRowBody def={def} event={event} docs={docs} canEdit={canEdit} border={border} onPatch={onPatch} />
+  );
+  if (!onRefuse) return body;
+  return (
+    <div
+      onClick={onRefuse}
+      className={`cursor-not-allowed${refused ? " ev-refused" : ""}`}
+      data-field-key={def.slug}
+      title="Locked while the chapter can see this event"
+    >
+      {body}
+    </div>
+  );
+}
+
+function FieldRowBody({
+  def, event, docs, canEdit, border, onPatch,
+}: {
+  def: EventFieldDef;
+  event: ProgrammingTask;
+  docs: Doc[];
+  canEdit: boolean;
+  border: string;
+  onPatch: (id: number, patch: Partial<ProgrammingTask>) => Promise<void>;
+}) {
 
   // Column-backed built-ins first — these never touch fieldValues.
   if (def.slug === "attachment") {

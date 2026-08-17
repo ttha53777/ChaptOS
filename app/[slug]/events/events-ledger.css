@@ -613,6 +613,21 @@ header.dash-toolbar .ev-crumb {
   .ev-ni-cat { min-height: 44px; }
 }
 
+/* A frozen field answering a click. Unscoped — the panel mounts outside .dash. */
+.ev-refused { animation: ev-refuse 500ms ease-out; }
+@keyframes ev-refuse {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-5px); }
+  30% { transform: translateX(5px); }
+  45% { transform: translateX(-3px); }
+  60% { transform: translateX(3px); }
+  80% { transform: translateX(-1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The shake is the whole signal, so replace it rather than dropping it. */
+  .ev-refused { animation: none; background: rgba(221,179,106,.10); border-radius: 8px; }
+}
+
 .ev-hunted { animation: ev-hunt 800ms ease-out 2; border-radius: 8px; }
 @keyframes ev-hunt {
   0%, 100% { background: transparent; }
