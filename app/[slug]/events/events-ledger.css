@@ -265,8 +265,33 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-card .ec-blocker.rose { color: var(--rose); }
 .dash .ev-card .ec-blocker.ok   { color: var(--ok); }
 .dash .ev-card .stars { margin-left: auto; color: var(--gold); font-size: 11px; letter-spacing: 1px; }
+/* The unearned half of the rating. Dimmed ☆ — see CardStars on why it is a
+   different glyph rather than a faded ★. */
+.dash .ev-card .stars .off { color: var(--faint); }
 .dash .ev-card.ghost { opacity: .62; }
 .dash .ev-card.ghost:hover { opacity: 1; }
+
+/* The meta row: place, the mandatory flag, and a wrapped event's stars. */
+.dash .ev-card .ec-meta { margin-top: 4px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.dash .ev-card .ec-where { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .ev-card .ec-mand {
+  flex-shrink: 0; font-family: var(--mono); font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--rose); background: var(--rose-bg); border-radius: 999px; padding: 2px 6px;
+}
+/* Confirmed is the lane that publishes, so the eye rides only on those cards. */
+.dash .ev-card .ec-pub { margin-left: auto; flex-shrink: 0; display: inline-flex; color: var(--vio); }
+.dash .ev-card .ec-pub svg { width: 12px; height: 12px; }
+
+/* Idea and Planning are private to the officers. A real 2px dashed border draws
+   ragged, uneven ticks that read as a rendering fault, so the rail is an overlaid
+   gradient on a transparent border instead. --tc is the event type's colour. */
+.dash .ev-card { position: relative; border-left: 2px solid var(--tc, transparent); }
+.dash .ev-card.private { border-left-color: transparent; }
+.dash .ev-card.private::before {
+  content: ""; position: absolute; left: -2px; top: 0; bottom: 0; width: 2px;
+  background: repeating-linear-gradient(to bottom, var(--tc) 0 5px, transparent 5px 9px);
+  border-radius: 2px;
+}
 
 /* ── Right rail ──────────────────────────────────────────────────────────────── */
 .dash .ev-rail { position: sticky; top: 30px; margin-top: 37px; display: flex; flex-direction: column; gap: 22px; }
@@ -295,7 +320,9 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-recap .r-t { font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash .ev-recap .r-meta { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
 .dash .ev-recap .r-stars { color: var(--gold); font-size: 11px; letter-spacing: 1px; flex-shrink: 0; }
-.dash .ev-recap .r-stars .off { color: var(--line); }
+/* --line is a hairline alpha and renders as "no stars at all" against the card;
+   --faint keeps the unearned half legible as an empty slot. */
+.dash .ev-recap .r-stars .off { color: var(--faint); }
 
 /* ── Calendar view (dusk) ────────────────────────────────────────────────────── */
 .dash .ev-cal { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }

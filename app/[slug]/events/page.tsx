@@ -8,6 +8,7 @@ import { useToast } from "../../components/dashboard/Toast";
 import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
+import { CardStars } from "../../components/programming/ProgrammingCard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
 import { ProgrammingDetailPanel } from "../../components/programming/ProgrammingDetailPanel";
 import type { RoleOption } from "../../components/programming/OwnerPicker";
@@ -730,11 +731,10 @@ export default function ProgrammingPage() {
                                     {task.spendingCents > 0 ? ` · ${fmt$(task.spendingCents / 100)} spent` : ""}
                                   </div>
                                 </div>
-                                <span className="r-stars">
-                                  {task.successRating != null
-                                    ? <>{"★".repeat(task.successRating)}<span className="off">{"★".repeat(5 - task.successRating)}</span></>
-                                    : <span className="off">★★★★★</span>}
-                                </span>
+                                {/* Same glyph + label rules as the board card:
+                                    a dimmed ★ flattens to a full ★ in copied
+                                    text and for screen readers. */}
+                                <CardStars value={task.successRating} className="r-stars" />
                               </button>
                             ))}
                           </div>

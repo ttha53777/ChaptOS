@@ -3,6 +3,7 @@
 import type { ProgrammingTask } from "../../data";
 import { fmtDate } from "../../data";
 import { TypeBadge, StarRating } from "./ProgrammingChips";
+import { OwnerAvatar } from "./OwnerPicker";
 import type { TypeVisual } from "./typeColor";
 import { missingFor } from "@/lib/programming";
 import { ownerShortLabel } from "@/lib/event-owner";
@@ -200,42 +201,73 @@ function DuskCard({
   const glyph = visual.glyph;
   const when = duskWhen(task.dueDate);
   const blocker = cardBlocker(task);
+  // Idea and Planning are officer-private: the dashed left rail is the board's
+  // standing reminder of which lanes the chapter cannot see.
+  const isPrivate = task.stage === "idea" || task.stage === "planning";
 
-  const sub = [task.type, task.location || null, task.collab ? `w/ ${task.collab}` : null]
-    .filter(Boolean)
-    .join(" · ");
+  // The subtitle is the PLACE. The type is already carried by the coloured glyph
+  // above, so repeating "Social ·" here prints the same fact twice.
+  const sub = task.location || (task.collab ? `w/ ${task.collab}` : "");
 
   return (
     <div
       draggable={draggable}
       onDragStart={draggable ? onDragStart : undefined}
       onClick={onClick}
-      className={`ev-card animate-fade-slide-in${isDone ? " ghost" : ""}${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
-      style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms` }}
+      className={`ev-card animate-fade-slide-in${isDone ? " ghost" : ""}${isPrivate ? " private" : ""}${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
+      style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms`, ["--tc" as string]: visual.hex }}
     >
       <div className="ec-top">
         <span className="ev-glyph" style={{ color: visual.hex, background: `${visual.hex}14` }}>{glyph}</span>
         <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
       </div>
       <div className="ec-t">{task.title}</div>
-      {sub && <div className="ec-sub">{sub}</div>}
+      <div className="ec-meta">
+        {sub && <span className="ec-where">{sub}</span>}
+        {task.mandatory && <span className="ec-mand" title="Required of every member">Required</span>}
+        {isDone && task.successRating != null && <CardStars value={task.successRating} />}
+      </div>
       <div className="ec-foot">
+        <OwnerAvatar owner={task.owner} size={16} />
         {isDone ? (
-          <>
-            <span className="ec-prep">Wrapped</span>
-            {task.successRating != null && (
-              <span className="stars">{"★".repeat(task.successRating)}</span>
-            )}
-          </>
+          <span className="ec-prep">Wrapped</span>
         ) : blocker ? (
           // The blocker line replaced a prep ring showing "3/4". A fraction says
           // how much is left but never what, so it could never be acted on
           // without opening the card.
           <span className={`ec-blocker ${blocker.tone}`}>{blocker.text}</span>
-        ) : task.owner ? (
-          <span className="ec-prep">{ownerShortLabel(task.owner)}</span>
-        ) : null}
+        ) : (
+          <span className="ec-prep">{task.owner ? ownerShortLabel(task.owner) : "No owner"}</span>
+        )}
+        {task.stage === "confirmed" && (
+          <span className="ec-pub" title="On the chapter Timeline" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+            </svg>
+          </span>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * A wrapped event's rating.
+ *
+ * The empty half is ☆, NOT a faint ★, and the number is stated in an aria-label
+ * with the glyphs marked decorative. Colour alone can't carry the value: a run of
+ * five ★ where two are merely dimmer flattens to "★★★★★" in both copied text and
+ * every screen reader, so a 3-star event reported itself as a 5-star one.
+ */
+export function CardStars({ value, className = "stars" }: { value: number | null; className?: string }) {
+  if (value == null) {
+    return <span className={className} aria-label="Not rated"><span className="off" aria-hidden>☆☆☆☆☆</span></span>;
+  }
+  return (
+    <span className={className} role="img" aria-label={`Rated ${value} out of 5`}>
+      {"★".repeat(value)}
+      <span className="off" aria-hidden>{"☆".repeat(5 - value)}</span>
+    </span>
   );
 }
