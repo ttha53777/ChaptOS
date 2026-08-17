@@ -15,6 +15,7 @@ import type { RoleOption } from "../../components/programming/OwnerPicker";
 import { EventFixStep } from "../../components/programming/EventFixStep";
 import { EventWrapUp } from "../../components/programming/EventWrapUp";
 import { EventsHelp } from "../../components/programming/EventsHelp";
+import { NewIdeaComposer } from "../../components/programming/NewIdeaComposer";
 import { makeTypeVisuals, typeVisual } from "../../components/programming/typeColor";
 import { TimelineStrip } from "../../components/programming/TimelineStrip";
 import { UndatedRail } from "../../components/programming/UndatedRail";
@@ -95,7 +96,7 @@ export default function ProgrammingPage() {
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isClosingDrawer, setIsClosingDrawer] = useState(false);
-  const [modal, setModal] = useState<"add" | "edit" | null>(null);
+  const [modal, setModal] = useState<"add" | "idea" | "edit" | null>(null);
   const [editTarget, setEditTarget] = useState<ProgrammingTask | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProgrammingTask | null>(null);
   // The blocked-move step: which event, and the lane it was aimed at.
@@ -403,6 +404,17 @@ export default function ProgrammingPage() {
     return list;
   }, [events, search, typeFilter]);
 
+  // Names the filters actually in force, so the empty result is attributable to
+  // something the reader can then clear.
+  const noMatchBits = useMemo(() => {
+    const bits: string[] = [];
+    if (typeFilter !== "All") {
+      bits.push(typeFilters.find(t => t.slug === typeFilter)?.label ?? typeFilter);
+    }
+    if (search.trim()) bits.push(`“${search.trim()}”`);
+    return bits.length ? bits.join(" + ") : "this filter";
+  }, [typeFilter, typeFilters, search]);
+
   const selected = events.find(e => e.id === selectedId) ?? null;
 
   // ── Derived: on-deck hero, glance stats, attention rail, recent recap ──
@@ -437,6 +449,34 @@ export default function ProgrammingPage() {
       setModal(null);
     } catch (err) {
       handleSemesterError(err, showError, "Could not create event.");
+    }
+  }
+
+  /** The two-field path. Everything else an event can carry is left unset — the
+   *  server starts every new task in `idea` regardless, so this needs no stage. */
+  async function handleAddIdea({ title, category }: { title: string; category: string }) {
+    try {
+      const created = await requestJson<ProgrammingTask>("/api/programming", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          category,
+          dueDate: null,
+          location: null,
+          time: null,
+          collab: null,
+          status: "Upcoming" as TaskStatus,
+          mandatory: false,
+          description: null,
+        }),
+      });
+      syncEvents(prev => [...prev, created]);
+      setSelectedId(created.id);
+      setModal(null);
+      toast.success(`“${created.title}” is on the board as an idea.`);
+    } catch (err) {
+      handleSemesterError(err, showError, "Could not add the idea.");
     }
   }
 
@@ -546,10 +586,18 @@ export default function ProgrammingPage() {
                   ?
                 </button>
                 {canManage && (
-                  <button className="ev-add" onClick={() => setModal("add")}>
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                    New event
-                  </button>
+                  <>
+                    {/* The cheap way in. Sits before "New event" because holding a
+                        thought should cost less than scheduling one. */}
+                    <button className="ev-add ghost" onClick={() => setModal("idea")}>
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                      New idea
+                    </button>
+                    <button className="ev-add" onClick={() => setModal("add")}>
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                      New event
+                    </button>
+                  </>
                 )}
               </div>
             </section>
@@ -646,6 +694,20 @@ export default function ProgrammingPage() {
                         </span>
                         <div className="t">No events yet</div>
                         <div className="h">{canManage ? "Add your first event to start the programme." : "Nothing on the slate yet."}</div>
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      // Distinct from the empty state above: the slate isn't
+                      // empty, the filters just don't match it. Without this the
+                      // board renders four blank lanes and reads as data loss.
+                      <div className="ev-nomatch">
+                        <p className="nm-t">No events match.</p>
+                        <p className="nm-s">
+                          Nothing on the slate matches {noMatchBits}. All {events.length}{" "}
+                          {events.length === 1 ? "event is" : "events are"} still there.
+                        </p>
+                        <button className="ev-btn-ghost" onClick={() => { setSearch(""); setTypeFilter("All"); }}>
+                          Clear filters
+                        </button>
                       </div>
                     ) : view === "board" ? (
                       <ProgrammingBoard
@@ -787,6 +849,14 @@ export default function ProgrammingPage() {
             maxDate={activeSemester?.endDate}
           />
         </Modal>
+      )}
+
+      {modal === "idea" && (
+        <NewIdeaComposer
+          categoryOptions={programmingFormOptions}
+          onCancel={() => setModal(null)}
+          onCommit={handleAddIdea}
+        />
       )}
 
       {modal === "edit" && editTarget && (

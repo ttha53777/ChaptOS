@@ -79,6 +79,11 @@ header.dash-toolbar .ev-crumb {
 }
 .dash .ev-add:hover { border-color: var(--vio); }
 .dash .ev-add svg { width: 13px; height: 13px; stroke: var(--vio); }
+/* The lighter of the two entry points — quieter than "New event" so the pair
+   reads as one primary action and one cheap one, not two competing buttons. */
+.dash .ev-add.ghost { color: var(--muted); background: none; border-color: var(--line); }
+.dash .ev-add.ghost:hover { color: var(--ink-soft); border-color: var(--vio); }
+.dash .ev-add.ghost svg { stroke: currentColor; }
 .dash .ev-briefing-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .dash .ev-help-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -204,9 +209,11 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-search input:focus { outline: none; border-color: var(--vio); }
 
 /* ── Board / pipeline lanes ──────────────────────────────────────────────────── */
-.dash .ev-pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+/* stretch, not start: the lanes are capped and scroll internally, so they should
+   read as four equal columns rather than four ragged ones. */
+.dash .ev-pipeline { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
 @media (max-width: 900px) { .dash .ev-pipeline { grid-template-columns: 1fr; } }
-.dash .ev-lane { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; transition: border-color .15s, background .15s; }
+.dash .ev-lane { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; transition: border-color .15s, background .15s; }
 .dash .ev-lane.drop { border-color: var(--vio); background: var(--vio-bg); }
 /* A gated lane still accepts the drop — it opens the step that unblocks it —
    so it reads as "this costs something", not as "refused". */
@@ -229,7 +236,20 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-lane-head .dot.planning { background: var(--gold); }
 .dash .ev-lane-head .dot.confirmed { background: var(--vio); }
 .dash .ev-lane-head .dot.done { background: var(--ok); }
-.dash .ev-lane-body { padding: 10px; display: flex; flex-direction: column; gap: 9px; min-height: 80px; }
+/* Capped so one busy lane doesn't leave a dead column beside it. The soft bottom
+   edge only applies while the lane actually overflows (.scrolls, measured in
+   LaneBody), so a lane that fits doesn't dim its own last card. */
+.dash .ev-lane-body {
+  padding: 10px; display: flex; flex-direction: column; gap: 9px;
+  flex: 1; min-height: 80px; max-height: 78vh; overflow-y: auto; overscroll-behavior: contain;
+}
+.dash .ev-lane-body.scrolls {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent 100%);
+}
+.dash .ev-lane-body::-webkit-scrollbar { width: 5px; }
+.dash .ev-lane-body::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.dash .ev-lane-body::-webkit-scrollbar-track { background: transparent; }
 .dash .ev-lane-body .empty {
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint);
   text-align: center; padding: 16px 6px;
@@ -368,7 +388,17 @@ header.dash-toolbar .ev-crumb {
 @keyframes ev-pulse { 0%,100% { opacity: .5; } 50% { opacity: .8; } }
 
 /* ── Empty state ─────────────────────────────────────────────────────────────── */
-.dash .ev-empty { border: 1px dashed var(--line); border-radius: 12px; padding: 44px 20px; text-align: center; }
+/* The slate has events; the filters just don't match them. Dashed, unlike the
+   solid .ev-empty, because this state is one click from going away. */
+.dash .ev-nomatch {
+  margin-top: 14px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card);
+  padding: 30px 22px; text-align: center;
+}
+.dash .ev-nomatch .nm-t { font-family: var(--serif); font-size: 19px; color: var(--ink); }
+.dash .ev-nomatch .nm-s { font-size: 12.5px; color: var(--muted); margin-top: 7px; }
+.dash .ev-nomatch .ev-btn-ghost { margin-top: 15px; }
+
+.dash .ev-empty {border: 1px dashed var(--line); border-radius: 12px; padding: 44px 20px; text-align: center; }
 .dash .ev-empty .ic { color: var(--faint); display: inline-flex; }
 .dash .ev-empty .ic svg { width: 26px; height: 26px; }
 .dash .ev-empty .t { font-family: var(--serif); font-size: 16px; color: var(--ink); margin-top: 10px; }
@@ -541,6 +571,48 @@ header.dash-toolbar .ev-crumb {
 .ev-stage-gap:disabled { cursor: default; text-decoration: none; }
 
 /* A jumped-to field pulses so the jump lands somewhere the eye can follow. */
+/* ── New-idea composer ───────────────────────────────────────────────────────
+   Unscoped, like .ev-fp and .ev-stage-*: this mounts inside a Modal portal,
+   outside the .dash wrapper, so a .dash-prefixed rule would never match. Tokens
+   are restated because the modal is outside the theming scope too. */
+.ev-ni-sub, .ev-ni-field, .ev-ni-remain, .ev-ni-cancel {
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10); --gold: #ddb36a; --ok: #7fb08a;
+}
+.ev-ni-sub { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+.ev-ni-sub b { color: var(--ink-soft); font-weight: 600; }
+.ev-ni-field { display: block; }
+.ev-ni-lbl {
+  display: block; margin-bottom: 6px;
+  font-family: var(--mono, ui-monospace, Menlo, monospace); font-size: 9px;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+}
+.ev-ni-input {
+  width: 100%; border-radius: 7px; padding: 9px 11px; font-size: 13px;
+  color: var(--ink); background: rgba(236,231,221,.03);
+  border: 1px solid var(--line); outline: none;
+}
+.ev-ni-input::placeholder { color: var(--faint); }
+.ev-ni-input:focus { border-color: var(--vio); }
+.ev-ni-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+.ev-ni-cat {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  border-radius: 999px; padding: 6px 11px; font-size: 11.5px;
+  color: var(--muted); background: none; border: 1px solid var(--line);
+  transition: color .12s, border-color .12s, background .12s;
+}
+.ev-ni-cat .cdot { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
+.ev-ni-cat:hover { color: var(--ink-soft); border-color: var(--c); }
+.ev-ni-cat.on { color: var(--ink); background: var(--cbg); border-color: var(--c); }
+.ev-ni-remain { font-size: 11.5px; font-weight: 500; color: var(--gold); }
+.ev-ni-remain.ready { color: var(--ok); }
+.ev-ni-cancel { border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--muted); background: none; border: none; cursor: pointer; }
+.ev-ni-cancel:hover { color: var(--ink); }
+@media (pointer: coarse) {
+  .ev-ni-cat { min-height: 44px; }
+}
+
 .ev-hunted { animation: ev-hunt 800ms ease-out 2; border-radius: 8px; }
 @keyframes ev-hunt {
   0%, 100% { background: transparent; }

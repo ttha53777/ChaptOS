@@ -1,11 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { STAGES, STAGE_LABELS, STAGE_PILL, type ProgrammingStage } from "@/lib/state/programming-stage";
 import { canEnter, missingFor, needsConfirmFirst } from "@/lib/programming";
 import { ProgrammingCard } from "./ProgrammingCard";
 import { typeVisual, type TypeVisual } from "./typeColor";
+
+/**
+ * A lane's scroll region.
+ *
+ * The lane is capped rather than allowed to grow, so one busy lane can't leave a
+ * dead column beside it — the board stays a comparison of four lanes rather than
+ * one tall list. The bottom fade only makes sense while there IS more below, so
+ * `.scrolls` is measured rather than assumed: a permanent mask dims the last card
+ * of a lane that fits, which reads as clipped content that isn't there.
+ */
+function LaneBody({ children, deps }: { children: React.ReactNode; deps: unknown[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setScrolls(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    // Cards reflow on resize (and on the lane's own content changing height),
+    // so the mask has to be re-decided rather than latched on first paint.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return (
+    <div ref={ref} className={`ev-lane-body${scrolls ? " scrolls" : ""}`}>
+      {children}
+    </div>
+  );
+}
 
 export function ProgrammingBoard({
   tasks,
@@ -117,7 +148,7 @@ export function ProgrammingBoard({
                     : "On the chapter's timeline"}
                 </p>
               )}
-              <div className="ev-lane-body">
+              <LaneBody deps={[items.length, showAllDone]}>
                 {items.length === 0 ? (
                   <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>
                 ) : (() => {
@@ -152,7 +183,7 @@ export function ProgrammingBoard({
                     </>
                   );
                 })()}
-              </div>
+              </LaneBody>
             </div>
           );
         })}
