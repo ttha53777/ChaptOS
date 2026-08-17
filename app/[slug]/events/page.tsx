@@ -8,7 +8,6 @@ import { useToast } from "../../components/dashboard/Toast";
 import { inputDuskCls, btnDuskPrimaryCls } from "../../components/dashboard/styles";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
 import { ProgrammingBoard } from "../../components/programming/ProgrammingBoard";
-import { CardStars } from "../../components/programming/ProgrammingCard";
 import { ProgrammingCalendarView } from "../../components/programming/ProgrammingCalendarView";
 import { ProgrammingDetailPanel } from "../../components/programming/ProgrammingDetailPanel";
 import type { RoleOption } from "../../components/programming/OwnerPicker";
@@ -19,13 +18,10 @@ import { NewIdeaComposer } from "../../components/programming/NewIdeaComposer";
 import { makeTypeVisuals, typeVisual } from "../../components/programming/typeColor";
 import { TimelineStrip } from "../../components/programming/TimelineStrip";
 import { UndatedRail } from "../../components/programming/UndatedRail";
-import { OnDeckHero } from "../../components/programming/OnDeckHero";
-import { attnReason, briefingDigest, whenLabel } from "../../components/programming/eventsCopy";
-import { ProgrammingTable } from "../../components/programming/ProgrammingTable";
+import { statusBits } from "../../components/programming/eventsCopy";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import type { CalEventType, ProgrammingTask, TaskStatus } from "../../data";
-import { fmt$, fmtDate } from "../../data";
-import type { Doc } from "../docs/lib";
+import { fmtDate } from "../../data";
 import { useChapter } from "../../context/ChapterContext";
 import { requestJson } from "../../lib/api";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
@@ -46,7 +42,7 @@ import type { ProgrammingStage } from "@/lib/state/programming-stage";
 import "./events-ledger.css";
 import "../../components/dashboard/dashboard-ledger.css";
 
-type View = "board" | "calendar" | "table";
+type View = "board" | "calendar";
 
 type ApiPatch = Record<string, unknown>;
 
@@ -82,7 +78,6 @@ export default function ProgrammingPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [events, setEvents] = useState<ProgrammingTask[]>([]);
-  const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   // Errors go to the app-wide toast stack rather than a page-local banner, so a
   // failure here reads the same as a failure anywhere else in the app.
@@ -90,8 +85,11 @@ export default function ProgrammingPage() {
   const showError = toast.error;
   const [view, setView] = useState<View>("board");
   const [search, setSearch] = useState("");
-  // Category-slug filter; "All" is the sentinel. Chips are derived per-org below.
-  const [typeFilter, setTypeFilter] = useState<string>("All");
+  // Category-slug filter. A SET, not one slug with an "All" sentinel: "show me
+  // socials and fundraisers" is the question a chapter actually asks of a slate,
+  // and an empty set already means all — so the All chip was a control whose only
+  // job was undoing the single-select limitation next to it.
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
   const [eventTypes, setEventTypes] = useState<CalEventType[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -168,12 +166,6 @@ export default function ProgrammingPage() {
   // updaters run during render).
   const eventsRef = useRef<ProgrammingTask[]>(events);
   useEffect(() => { eventsRef.current = events; }, [events]);
-
-  // Resources docs, used to resolve a doc attachment's URL so the table's
-  // paperclip can open the doc directly.
-  useEffect(() => {
-    requestJson<Doc[]>("/api/docs").then(setDocs).catch(() => setDocs([]));
-  }, []);
 
   // The org's event types drive the form's category options and the filter
   // chips — no fixed subset anymore (social/fundy/program are LPE customs).
@@ -400,7 +392,7 @@ export default function ProgrammingPage() {
         (e.collab ?? "").toLowerCase().includes(q),
       );
     }
-    if (typeFilter !== "All") list = list.filter(e => e.category === typeFilter);
+    if (typeFilter.size) list = list.filter(e => typeFilter.has(e.category));
     return list;
   }, [events, search, typeFilter]);
 
@@ -408,30 +400,48 @@ export default function ProgrammingPage() {
   // something the reader can then clear.
   const noMatchBits = useMemo(() => {
     const bits: string[] = [];
-    if (typeFilter !== "All") {
-      bits.push(typeFilters.find(t => t.slug === typeFilter)?.label ?? typeFilter);
+    if (typeFilter.size) {
+      bits.push(
+        [...typeFilter]
+          .map(slug => typeFilters.find(t => t.slug === slug)?.label ?? slug)
+          .join(" or "),
+      );
     }
     if (search.trim()) bits.push(`“${search.trim()}”`);
     return bits.length ? bits.join(" + ") : "this filter";
   }, [typeFilter, typeFilters, search]);
 
+  /** Toggle a type chip. An empty set means every type, so this never empties to
+   *  a state that shows nothing. */
+  const toggleType = useCallback((slug: string) => {
+    setTypeFilter(prev => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug); else next.add(slug);
+      return next;
+    });
+  }, []);
+
   const selected = events.find(e => e.id === selectedId) ?? null;
 
-  // ── Derived: on-deck hero, glance stats, attention rail, recent recap ──
+  // ── Derived: glance stats and the status line ──
   const today = todayStr();
   const onDeck = useMemo(() => nextOnDeckEvent(events, today), [events, today]);
   const stats = useMemo(() => eventsTermStats(events, today), [events, today]);
-  const attention = useMemo(() => eventsNeedingAttention(events, today).slice(0, 4), [events, today]);
-  const recap = useMemo(
-    () =>
-      events
-        .filter(e => e.stage === "done")
-        .sort((a, b) => (b.dueDate ?? "").localeCompare(a.dueDate ?? ""))
-        .slice(0, 3),
+  // Planning events with nothing left to collect. This is the status line's one
+  // genuinely actionable count — the events a click away from being public.
+  const readyToConfirm = useMemo(
+    () => events.filter(e => e.stage === "planning" && canEnter(e, "confirmed")).length,
     [events],
   );
+  const status = useMemo(
+    () => statusBits(onDeck, readyToConfirm, stats.unownedIdeas, today),
+    [onDeck, readyToConfirm, stats.unownedIdeas, today],
+  );
 
-  const orgName = currentUser?.org?.name ?? "ChaptOS";
+  // The kicker's second half. The active term is the more useful of the two —
+  // the org's name is already at the top of the sidebar — so it leads, and the
+  // org name only stands in when no semester is active.
+  const termLabel = activeSemester?.label ?? currentUser?.org?.name ?? "ChaptOS";
   const dateLabel = new Date(today + "T12:00:00").toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric", year: "numeric",
   });
@@ -539,7 +549,8 @@ export default function ProgrammingPage() {
     }
   }, [searchParams, loading, events, selectCard]);
 
-  const railOpen = selected || isClosingDrawer;
+  // The drawer stays mounted through its slide-out so the animation can run.
+  const panelOpen = selected || isClosingDrawer;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
@@ -566,25 +577,35 @@ export default function ProgrammingPage() {
               <div>
                 <p className="kicker">
                   <span className="today">{dateLabel}</span>
-                  &ensp;·&ensp;Events&ensp;·&ensp;{orgName}
+                  &ensp;·&ensp;{termLabel}
                 </p>
                 <h1 className="greeting">The <em>programme</em>.</h1>
-                <div className="digest">
-                  <span className="ai-chip">AI</span>
-                  {loading
-                    ? <p className="digest-loading">Reading the slate…</p>
-                    : <p>{briefingDigest(onDeck, attention, today)}</p>}
-                </div>
+                {/* Three derived clauses, not a digest paragraph. Each one names a
+                    count the board's gates make actionable, so the line reads as
+                    a short to-do rather than a summary of what you can already
+                    see below it. */}
+                <p className="status-line">
+                  {loading ? (
+                    <span className="status-loading">Reading the slate…</span>
+                  ) : status.lead || status.bits.length ? (
+                    <>
+                      {status.lead && (
+                        <>
+                          <b>{status.lead.title}</b> is next — {status.lead.when}.
+                        </>
+                      )}
+                      {status.bits.map(bit => (
+                        <span key={bit.text} className={bit.tone === "warn" ? "warn" : undefined}>
+                          {" "}{bit.text}
+                        </span>
+                      ))}
+                    </>
+                  ) : (
+                    "Nothing scheduled."
+                  )}
+                </p>
               </div>
               <div className="ev-briefing-actions">
-                <button
-                  className="ev-help-btn"
-                  onClick={() => setHelpOpen(true)}
-                  aria-label="How this board works"
-                  title="How this board works  (?)"
-                >
-                  ?
-                </button>
                 {canManage && (
                   <>
                     {/* The cheap way in. Sits before "New event" because holding a
@@ -599,13 +620,23 @@ export default function ProgrammingPage() {
                     </button>
                   </>
                 )}
+                {/* Last, and glyph-only: it sits with the actions because that's
+                    where you look when you don't know what to do next, but it
+                    isn't one of them. */}
+                <button
+                  className="ev-help-btn"
+                  onClick={() => setHelpOpen(true)}
+                  aria-label="How this board works"
+                  title="How this board works  (?)"
+                >
+                  ?
+                </button>
               </div>
             </section>
 
             {loading ? (
               <>
                 <div className="ev-skel glance" />
-                <div className="ev-sec" style={{ marginTop: 30 }}><h2>Pipeline</h2><span className="rule" /></div>
                 <div className="ev-skel" />
               </>
             ) : (
@@ -628,16 +659,12 @@ export default function ProgrammingPage() {
                       : "all confirmed or ready to be"}
                     noteWarn={stats.next14Unready > 0}
                   />
-                  <Measure
-                    label="Avg success"
-                    value={stats.avgSuccess != null ? stats.avgSuccess.toFixed(1) : "—"}
-                    unit={stats.avgSuccess != null ? "/5" : undefined}
-                    note={`across ${stats.doneCount} wrapped`}
-                  />
                   {/* Replaced "Spent this term": spend is a treasury question
                       and the treasury page answers it properly. What this board
                       is for is noticing the ideas nobody has picked up — the
-                      measure the owner gate exists to make visible. */}
+                      measure the owner gate exists to make visible. Third rather
+                      than last, because it's the one measure here you can act on
+                      today. */}
                   <Measure
                     label="Unowned ideas"
                     value={String(stats.unownedIdeas)}
@@ -646,197 +673,158 @@ export default function ProgrammingPage() {
                       ? "nobody's picked them up"
                       : stats.ideaCount > 0 ? "every idea has someone" : "no ideas yet"}
                     noteWarn={stats.unownedIdeas > 0}
+                    noteGood={stats.unownedIdeas === 0 && stats.ideaCount > 0}
+                  />
+                  {/* Averaged over the events that were RATED, not every wrapped
+                      one — the wrap-up's rating is optional, and counting the
+                      unrated ones in the denominator's label would overstate what
+                      the number is built from. */}
+                  <Measure
+                    label="Average stars"
+                    value={stats.avgSuccess != null ? stats.avgSuccess.toFixed(1) : "—"}
+                    unit={stats.avgSuccess != null ? " / 5" : undefined}
+                    note={stats.ratedCount > 0
+                      ? `${stats.ratedCount} event${stats.ratedCount === 1 ? "" : "s"} rated`
+                      : "nothing rated yet"}
                   />
                 </LedgerStrip>
 
-                <div className="ev-layout">
-                  <div className="min-w-0">
-
-                    {/* ── On-deck hero ── */}
-                    {onDeck && <OnDeckHero event={onDeck} today={today} onOpen={() => selectCard(onDeck.id)} />}
-
-                    {/* ── Pipeline ── */}
-                    <div className="ev-sec">
-                      <h2>Pipeline</h2>
-                      <span className="rule" />
-                      <div className="ev-views">
-                        {(["board", "calendar", "table"] as View[]).map(v => (
-                          <button key={v} className={view === v ? "on" : ""} onClick={() => setView(v)}>{v}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="ev-filters">
-                      <button className={`chip${typeFilter === "All" ? " on" : ""}`} onClick={() => setTypeFilter("All")}>
-                        All
+                {/* ── Toolbar: the two views, the type chips, and search, on one
+                     line. No "Pipeline" heading above it — the board underneath
+                     is the only thing on the page, so naming it spends a row
+                     titling the obvious. ── */}
+                <div className="ev-toolbar">
+                  <div className="ev-views">
+                    {(["board", "calendar"] as View[]).map(v => (
+                      <button key={v} className={view === v ? "on" : ""} onClick={() => setView(v)}>{v}</button>
+                    ))}
+                  </div>
+                  {typeFilters.map(t => {
+                    const on = typeFilter.has(t.slug);
+                    const hex = typeVisual(typeVisuals, t.slug).hex;
+                    return (
+                      <button
+                        key={t.slug}
+                        className={`chip${on ? " on" : ""}`}
+                        aria-pressed={on}
+                        onClick={() => toggleType(t.slug)}
+                        style={on ? { color: hex, borderColor: `${hex}80` } : undefined}
+                      >
+                        <span className="cdot" style={{ background: hex }} />
+                        {t.label}
                       </button>
-                      {typeFilters.map(t => (
-                        <button key={t.slug} className={`chip${typeFilter === t.slug ? " on" : ""}`} onClick={() => setTypeFilter(t.slug)}>
-                          {t.label}
-                        </button>
-                      ))}
-                      <span className="grow" />
-                      <span className="ev-search">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
-                        <input
-                          type="search"
-                          value={search}
-                          onChange={e => setSearch(e.target.value)}
-                          placeholder="Search events…"
-                        />
-                      </span>
-                    </div>
+                    );
+                  })}
+                  <span className="grow" />
+                  <span className="ev-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+                    <input
+                      type="search"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Search events…"
+                    />
+                  </span>
+                </div>
 
-                    {events.length === 0 ? (
-                      <div className="ev-empty">
-                        <span className="ic">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                        </span>
-                        <div className="t">No events yet</div>
-                        <div className="h">{canManage ? "Add your first event to start the programme." : "Nothing on the slate yet."}</div>
-                      </div>
-                    ) : filtered.length === 0 ? (
-                      // Distinct from the empty state above: the slate isn't
-                      // empty, the filters just don't match it. Without this the
-                      // board renders four blank lanes and reads as data loss.
-                      <div className="ev-nomatch">
-                        <p className="nm-t">No events match.</p>
-                        <p className="nm-s">
-                          Nothing on the slate matches {noMatchBits}. All {events.length}{" "}
-                          {events.length === 1 ? "event is" : "events are"} still there.
-                        </p>
-                        <button className="ev-btn-ghost" onClick={() => { setSearch(""); setTypeFilter("All"); }}>
-                          Clear filters
-                        </button>
-                      </div>
-                    ) : view === "board" ? (
-                      <ProgrammingBoard
+                {events.length === 0 ? (
+                  <div className="ev-empty">
+                    <span className="ic">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+                    </span>
+                    <div className="t">No events yet</div>
+                    <div className="h">{canManage ? "Add your first event to start the programme." : "Nothing on the slate yet."}</div>
+                  </div>
+                ) : filtered.length === 0 ? (
+                  // Distinct from the empty state above: the slate isn't empty,
+                  // the filters just don't match it. Without this the board
+                  // renders four blank lanes and reads as data loss.
+                  <div className="ev-nomatch">
+                    <p className="nm-t">No events match.</p>
+                    <p className="nm-s">
+                      Nothing on the slate matches {noMatchBits}. All {events.length}{" "}
+                      {events.length === 1 ? "event is" : "events are"} still there.
+                    </p>
+                    <button className="ev-btn-ghost" onClick={() => { setSearch(""); setTypeFilter(new Set()); }}>
+                      Clear filters
+                    </button>
+                  </div>
+                ) : view === "board" ? (
+                  <ProgrammingBoard
+                    tasks={filtered}
+                    visuals={typeVisuals}
+                    selectedId={selectedId}
+                    canManage={canManage}
+                    variant="dusk"
+                    onSelect={selectCard}
+                    onMoveStage={moveStage}
+                  />
+                ) : (
+                  <ProgrammingCalendarView
+                    tasks={filtered}
+                    visuals={typeVisuals}
+                    selectedId={selectedId}
+                    variant="dusk"
+                    canManage={canManage}
+                    semesterStart={activeSemester?.startDate}
+                    semesterEnd={activeSemester?.endDate}
+                    onSelect={selectCard}
+                    onSetDate={setDateByDrop}
+                    renderRail={onDragStart => (
+                      <UndatedRail
                         tasks={filtered}
                         visuals={typeVisuals}
                         selectedId={selectedId}
-                        canManage={canManage}
-                        variant="dusk"
+                        draggable={canManage}
                         onSelect={selectCard}
-                        onMoveStage={moveStage}
-                      />
-                    ) : view === "calendar" ? (
-                      <ProgrammingCalendarView
-                        tasks={filtered}
-                        visuals={typeVisuals}
-                        selectedId={selectedId}
-                        variant="dusk"
-                        canManage={canManage}
-                        semesterStart={activeSemester?.startDate}
-                        semesterEnd={activeSemester?.endDate}
-                        onSelect={selectCard}
-                        onSetDate={setDateByDrop}
-                        renderRail={onDragStart => (
-                          <UndatedRail
-                            tasks={filtered}
-                            visuals={typeVisuals}
-                            selectedId={selectedId}
-                            draggable={canManage}
-                            onSelect={selectCard}
-                            onDragStart={onDragStart}
-                          />
-                        )}
-                      />
-                    ) : (
-                      <ProgrammingTable
-                        tasks={filtered}
-                        visuals={typeVisuals}
-                        docs={docs}
-                        selectedId={selectedId}
-                        canManage={canManage}
-                        onSelect={selectCard}
-                        onPatch={patchEvent}
+                        onDragStart={onDragStart}
                       />
                     )}
+                  />
+                )}
 
-                    {/* The other half of the lanes' promise: three of the four
-                        are private, and this is what the chapter actually sees. */}
-                    <TimelineStrip tasks={events} visuals={typeVisuals} onSelect={selectCard} />
-                  </div>
-
-                  {/* ── Right column: the attention/recap rail (hidden when a card is
-                       open; the inspector below takes the same slot on desktop). ── */}
-                  {!railOpen && (
-                    <aside className="ev-rail">
-                      <div>
-                        <p className="lbl">Needs attention · before its date</p>
-                        <div className="ev-attn">
-                          {attention.length === 0 ? (
-                            <p className="a-empty">Nothing's waiting on anyone — nice work.</p>
-                          ) : attention.map(entry => (
-                            <button key={entry.task.id} className="a-row" onClick={() => selectCard(entry.task.id)}>
-                              <span className={`a-flag ${entry.tone}`} />
-                              <div className="a-main">
-                                <div className="a-t">{entry.task.title}</div>
-                                <div className={`a-need ${entry.tone}`}>{attnReason(entry)}</div>
-                              </div>
-                              <span className="a-when">{whenLabel(entry.task.dueDate, today)}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {recap.length > 0 && (
-                        <div>
-                          <p className="lbl">Recently wrapped</p>
-                          <div className="ev-recap">
-                            {recap.map(task => (
-                              <button key={task.id} className="r-row" onClick={() => selectCard(task.id)}>
-                                <div className="r-main">
-                                  <div className="r-t">{task.title}</div>
-                                  <div className="r-meta">
-                                    {task.dueDate ? fmtDate(task.dueDate) : "—"}
-                                    {task.spendingCents > 0 ? ` · ${fmt$(task.spendingCents / 100)} spent` : ""}
-                                  </div>
-                                </div>
-                                {/* Same glyph + label rules as the board card:
-                                    a dimmed ★ flattens to a full ★ in copied
-                                    text and for screen readers. */}
-                                <CardStars value={task.successRating} className="r-stars" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </aside>
-                  )}
-
-                  {/* ── Inspector: bottom-sheet on mobile, inline column on desktop.
-                       One element + one panelRef so click-outside works on both. ── */}
-                  {railOpen && (
-                    <>
-                      {/* Mobile-only dimmed backdrop behind the sheet. */}
-                      <div className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-[280ms] xl:hidden ${isClosingDrawer ? "opacity-0" : "opacity-100"}`} />
-                      <div
-                        ref={panelRef}
-                        className={`fixed inset-x-0 bottom-0 top-14 z-50 overflow-hidden rounded-t-2xl border-t border-white/[0.1] transition-[transform,opacity] duration-[280ms] ease-in-out xl:sticky xl:inset-auto xl:bottom-auto xl:top-[37px] xl:mt-[37px] xl:z-auto xl:max-h-[calc(100vh-74px)] xl:overflow-y-auto xl:rounded-none xl:border-0 xl:opacity-100 xl:translate-y-0 ${isClosingDrawer ? "translate-y-full opacity-0" : "translate-y-0 opacity-100"}`}
-                      >
-                        {selected && (
-                          <ProgrammingDetailPanel
-                            event={selected}
-                            canManage={canManage}
-                            brothers={brotherList}
-                            roles={roles}
-                            visual={typeVisual(typeVisuals, selected.category)}
-                            onPatch={patchEvent}
-                            onStage={moveStage as unknown as (id: number, stage: ProgrammingStage) => Promise<void>}
-                            onEdit={() => openEdit(selected)}
-                            onDelete={() => setDeleteTarget(selected)}
-                          />
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* The other half of the lanes' promise: three of the four
+                    are private, and this is what the chapter actually sees. */}
+                <TimelineStrip tasks={events} visuals={typeVisuals} onSelect={selectCard} />
               </>
             )}
           </div>
         </main>
       </div>
+
+      {/* ── Inspector. A fixed right-hand drawer over the board, not a column
+           beside it: with the rail gone the board takes the full width, and a
+           grid slot that only exists while a card is open would reflow all four
+           lanes on every open and close. Deliberately NOT aria-modal — the board
+           behind it stays live and clickable, so you can open another card
+           straight from it, and claiming modality would lie about what's
+           reachable. On mobile it's a bottom sheet with a dimmed backdrop. ── */}
+      {panelOpen && (
+        <>
+          <div className={`ev-panel-scrim${isClosingDrawer ? " closing" : ""}`} aria-hidden />
+          <aside
+            ref={panelRef}
+            className={`ev-panel${isClosingDrawer ? "" : " open"}`}
+            role="dialog"
+            aria-label="Event details"
+          >
+            {selected && (
+              <ProgrammingDetailPanel
+                event={selected}
+                canManage={canManage}
+                brothers={brotherList}
+                roles={roles}
+                visual={typeVisual(typeVisuals, selected.category)}
+                onPatch={patchEvent}
+                onStage={moveStage as unknown as (id: number, stage: ProgrammingStage) => Promise<void>}
+                onEdit={() => openEdit(selected)}
+                onDelete={() => setDeleteTarget(selected)}
+                onClose={closeDrawer}
+              />
+            )}
+          </aside>
+        </>
+      )}
 
       {modal === "add" && (
         <Modal title="New Event" tone="dusk" onClose={() => setModal(null)}>

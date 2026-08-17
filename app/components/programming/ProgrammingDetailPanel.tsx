@@ -6,15 +6,14 @@ import { fmt$, fmtDate } from "../../data";
 import { OwnerAvatar, OwnerPicker, type RoleOption } from "./OwnerPicker";
 import { StageControl } from "./panel/StageControl";
 import type { TypeVisual } from "./typeColor";
-import { Card, Modal } from "../dashboard/primitives";
+import { Card } from "../dashboard/primitives";
 import { inputDuskCls } from "../dashboard/styles";
-import { TypeBadge } from "./ProgrammingChips";
 import { AttachmentField } from "./AttachmentField";
 import { TxForm, type TxFormEvent } from "../treasury/TxForm";
 import type { Doc } from "@/app/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
 import { ownerLabel } from "@/lib/event-owner";
-import { fieldsFor, hasRequiredField, type RequiredField } from "@/lib/programming";
+import { fieldsFor, hasRequiredField, missingFor, type RequiredField } from "@/lib/programming";
 import type { EventFieldDef } from "@/lib/event-fields";
 import { FieldTogglePills } from "./panel/FieldTogglePills";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -22,8 +21,13 @@ import { useToast } from "../dashboard/Toast";
 
 /** EventFieldDef plus the row id the fields API keys on. */
 type EventFieldRow = EventFieldDef & { id: number };
-import type { ProgrammingStage } from "@/lib/state/programming-stage";
+import { STAGE_LABELS, type ProgrammingStage } from "@/lib/state/programming-stage";
 import { todayStr } from "../../lib/dates";
+
+/** The header pill's ink — the same four lane colours the stage control walks. */
+const STAGE_PILL: Record<ProgrammingStage, string> = {
+  idea: "#6b6354", planning: "#ddb36a", confirmed: "#a78bfa", done: "#7fb08a",
+};
 
 export function ProgrammingDetailPanel({
   event,
@@ -35,6 +39,7 @@ export function ProgrammingDetailPanel({
   onStage,
   onEdit,
   onDelete,
+  onClose,
 }: {
   event: ProgrammingTask;
   canManage: boolean;
@@ -46,6 +51,10 @@ export function ProgrammingDetailPanel({
   onStage?: (id: number, stage: ProgrammingStage) => Promise<void>;
   onEdit: () => void;
   onDelete: () => void;
+  /** Dismisses the drawer. Escape and click-outside do the same thing, but a
+   *  drawer with no visible way out reads as stuck — especially on touch, where
+   *  neither of those two is discoverable. */
+  onClose: () => void;
 }) {
   const orgPath = useOrgPath();
   const toast = useToast();
@@ -157,6 +166,12 @@ export function ProgrammingDetailPanel({
   const requiredGot = requiredSet.filter(f => hasRequiredField(event, f.key)).length;
   const optionalGot = enabledFields.filter(d => hasOptionalAnswer(event, d)).length;
 
+  // The lane the footer offers, and what still stands between here and it. Same
+  // boundary the required list is shown for, so the counter above and the gate
+  // below can never disagree about what's missing.
+  const gateTarget: ProgrammingStage = event.stage === "idea" ? "planning" : "confirmed";
+  const gateMissing = missingFor(event, gateTarget);
+
   // Fetch Resources docs once for the / picker.
   useEffect(() => {
     requestJson<Doc[]>("/api/docs")
@@ -178,79 +193,114 @@ export function ProgrammingDetailPanel({
   }, [event.calendarEventId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden rounded-t-2xl border-[rgba(236,231,221,0.1)] !bg-[#0f0d0a] xl:h-auto" style={{ background: "linear-gradient(to bottom,#ece7dd0a 0%,#0f0d0a 45%)" }}>
-      <div className="border-b border-[rgba(236,231,221,0.07)] px-5 py-4 pr-14 xl:pr-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="ev-pn-title">{event.title}</h2>
-            <p className="ev-pn-when">
-              {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <TypeBadge label={visual.label} hex={visual.hex} />
-              {event.collab && (
-                <span className="ev-pn-collab">w/ {event.collab}</span>
-              )}
-              {/* The owner used to be printed here as flat text. It now lives in
-                  the Details list as an editable row, so repeating it in the
-                  header would just be a second, unclickable copy of the same
-                  fact — except when it's MISSING, which the header should say
-                  because that's the gate the board is waiting on. */}
-              {!event.owner && !event.ownerNote && (
-                <span className="ev-pn-unowned">Unowned</span>
-              )}
-              {/* An eye or a padlock, not a sentence fragment. Whether the
-                  chapter can see this is the fact the whole stage ladder is
-                  about, and it should be readable at a glance. */}
-              <span className={`ev-vis ${event.calendarEventId != null ? "public" : "private"}`}>
-                {event.calendarEventId != null ? (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <circle cx="12" cy="12" r="3.2" />
-                    <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
-                  </svg>
-                )}
-                {event.calendarEventId != null ? "On the chapter Timeline" : "Not visible to the Timeline yet"}
-              </span>
-            </div>
+    // The drawer shell owns the rounding, the border and the scrolling now, so
+    // this is a plain surface inside it rather than a card with its own edges.
+    <Card className="flex min-h-full flex-col border-0 !bg-transparent" style={{ background: "linear-gradient(to bottom,#ece7dd0a 0%,#0f0d0a 45%)" }}>
+      <div className="ev-pn-head">
+        {/* Lane and kind come BEFORE the name: both are what you're scanning
+            for as the drawer slides in, and both are one word. */}
+        <div className="ev-pn-top">
+          <span
+            className="ev-pn-stage"
+            style={{ color: STAGE_PILL[event.stage], background: event.stage === "idea" ? "#0f0d0a" : "transparent" }}
+          >
+            {STAGE_LABELS[event.stage]}
+          </span>
+          {/* Sibling to the stage pill, so it takes that pill's mono vocabulary
+              rather than the board card's dotted chip — two pills side by side
+              in two different type systems reads as two unrelated facts. */}
+          <span
+            className="ev-pn-stage"
+            style={{ color: visual.hex, background: `${visual.hex}1f`, borderColor: "transparent" }}
+          >
+            {visual.label}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            {canManage && (
+              <>
+                <button onClick={onEdit} className="ev-pn-btn">
+                  Edit
+                </button>
+                <button onClick={onDelete} className="ev-pn-btn danger">
+                  Delete
+                </button>
+              </>
+            )}
+            {/* Last in the row, and glyph-only. A member with no manage rights
+                still needs a way out, so this sits outside the canManage gate. */}
+            <button onClick={onClose} className="ev-pn-close" aria-label="Close event details">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          {canManage && (
-            <div className="flex shrink-0 gap-1.5">
-              <button onClick={onEdit} className="ev-pn-btn">
-                Edit
-              </button>
-              <button onClick={onDelete} className="ev-pn-btn danger">
-                Delete
-              </button>
-            </div>
-          )}
         </div>
-        {/* The lanes, what this one means, and what the next one costs — with
-            the missing fields as buttons straight to their editors. */}
-        {onStage && (
-          <div className="mt-3">
-            <StageControl
-              event={event}
-              canManage={canManage}
-              busy={stageLoading}
-              onStage={async s => {
-                setStageLoading(true);
-                try { await onStage(event.id, s); }
-                finally { setStageLoading(false); }
-              }}
-              onJumpToField={key => {
-                if (key === "owner") { setEditingOwner(true); }
-                setHuntKey(key);
-              }}
-            />
+
+        <h2 className="ev-pn-title">{event.title}</h2>
+        <p className="ev-pn-when">
+          {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
+          {event.collab ? ` · w/ ${event.collab}` : ""}
+        </p>
+
+        {/* The owner lives in the Required list as an editable row, so repeating
+            it here would be a second, unclickable copy — except when it's
+            MISSING, which is the gate the board is waiting on. The prompt opens
+            that same row rather than throwing a modal over the sheet. */}
+        {!event.owner && !event.ownerNote && (
+          <div className="ev-pn-lead">
+            <span className="pl-k">Unowned</span>
+            <span className="pl-who">
+              {canManage && (
+                <button type="button" onClick={() => { setEditingOwner(true); setHuntKey("owner"); }}>
+                  Give it an owner
+                </button>
+              )}
+            </span>
           </div>
         )}
+
+        {/* An eye or a padlock, not a sentence fragment. Whether the chapter can
+            see this is the fact the whole stage ladder is about. */}
+        <div className="ev-pn-vis">
+          <span className={`ev-vis ${event.calendarEventId != null ? "public" : "private"}`}>
+            {event.calendarEventId != null ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="3.2" />
+                <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
+              </svg>
+            )}
+            {event.calendarEventId != null ? "On the chapter Timeline" : "Not visible to the Timeline yet"}
+          </span>
+        </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+      {/* The lanes, what this one means, and what the next one costs — with the
+          missing fields as buttons straight to their editors. Its own band under
+          the header, matching the sheet's other sections. */}
+      {onStage && (
+        <div className="border-b border-[rgba(236,231,221,0.05)] px-[22px] pb-4 pt-[15px]">
+          <StageControl
+            event={event}
+            canManage={canManage}
+            busy={stageLoading}
+            onStage={async s => {
+              setStageLoading(true);
+              try { await onStage(event.id, s); }
+              finally { setStageLoading(false); }
+            }}
+            onJumpToField={key => {
+              if (key === "owner") { setEditingOwner(true); }
+              setHuntKey(key);
+            }}
+          />
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
 
         {/* ── Wrap-up card — shown first when event is done ── */}
         {/* A RECORD, not a form. The wrap-up step is the only writer: Done is
@@ -259,7 +309,7 @@ export function ProgrammingDetailPanel({
             the bordered card it used to be — the card read as something you were
             being invited to fill in. */}
         {isDone && (
-          <div className="ev-pn-wrap">
+          <div className="ev-pn-wrap mx-[22px] mt-[18px]">
             <div className="pw-head">
               <span className="pw-k">Wrap-up</span>
               {event.successRating != null ? (
@@ -367,7 +417,7 @@ export function ProgrammingDetailPanel({
           </section>
         )}
 
-        <section className="space-y-2">
+        <section className="ev-pn-sec space-y-2">
           <h3 className="ev-pn-h">Spending</h3>
           {canManage ? (
             <div className="relative max-w-[160px]">
@@ -392,7 +442,7 @@ export function ProgrammingDetailPanel({
 
         {/* ── Linked Transactions ─────────────────────────────────────────── */}
         {event.calendarEventId && (
-          <section className="space-y-2">
+          <section className="ev-pn-sec space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="ev-pn-h">Linked Transactions</h3>
               {canManage && !showTxForm && (
@@ -464,8 +514,90 @@ export function ProgrammingDetailPanel({
           </section>
         )}
 
+        {/* ── The gate ────────────────────────────────────────────────────
+            The sheet ends by answering the question it was opened with: can
+            this move yet, and if not, what's still missing. Naming the gap and
+            offering the move in the same place is the point — otherwise the
+            last field you fill and the button that acts on it sit at opposite
+            ends of a scrolling drawer. */}
+        {onStage && canManage && (
+          <div className="ev-pn-foot">
+            {isDone ? (
+              <div className="ev-pn-gatebar ready">
+                <CheckIcon />
+                Wrapped{event.successRating != null ? ` · rated ${event.successRating}/5` : ""}.
+              </div>
+            ) : event.stage === "confirmed" ? (
+              <div className="ev-pn-gatebar ready">
+                <CheckIcon />
+                Confirmed and published to the chapter.
+              </div>
+            ) : gateMissing.length === 0 ? (
+              <>
+                <div className="ev-pn-gatebar ready">
+                  <CheckIcon />
+                  {event.stage === "idea"
+                    ? "Owned — it can move into Planning."
+                    : "Everything's filled — confirming publishes it."}
+                </div>
+                <button
+                  type="button"
+                  className="ev-pn-go"
+                  disabled={stageLoading}
+                  onClick={async () => {
+                    setStageLoading(true);
+                    try { await onStage(event.id, gateTarget); }
+                    finally { setStageLoading(false); }
+                  }}
+                >
+                  {event.stage === "idea" ? "Start planning" : "Confirm & publish"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="ev-pn-gatebar blocked">
+                  <WarnIcon />
+                  Needs {gateMissing.map(f => f.label.toLowerCase()).join(" and ")} to{" "}
+                  {event.stage === "idea" ? "start planning" : "confirm"}.
+                </div>
+                {/* Not the move — the first thing standing in its way. A button
+                    that only ever fails is worse than one that does something. */}
+                <button
+                  type="button"
+                  className="ev-pn-go"
+                  onClick={() => {
+                    const first = gateMissing[0];
+                    if (first.key === "owner") setEditingOwner(true);
+                    setHuntKey(first.key);
+                  }}
+                >
+                  {gateMissing[0].key === "owner"
+                    ? "Add an owner"
+                    : `Add ${gateMissing[0].label.toLowerCase()}`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </Card>
+  );
+}
+
+/** The gate bar's two glyphs — a tick when it's clear, a warning when it isn't. */
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+function WarnIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10.29 3.86 1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </svg>
   );
 }
 
