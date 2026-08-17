@@ -224,8 +224,10 @@ header.dash-toolbar .ev-crumb {
   text-transform: uppercase; color: var(--vio);
 }
 .dash .ev-lane-cue.gated { color: var(--gold); }
-.dash .ev-lane-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 6px; }
-.dash .ev-lane-sub { padding: 0 14px 11px; border-bottom: 1px solid var(--line-soft); font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+/* Name + count only — the sub-line that printed each lane's meaning is gone.
+   The border the sub-line used to carry moves here, since the header is now the
+   lane's whole heading. */
+.dash .ev-lane-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px 10px; border-bottom: 1px solid var(--line-soft); }
 .dash .ev-lane-head .dot { width: 7px; height: 7px; border-radius: 50%; }
 .dash .ev-lane-head .lh { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
 .dash .ev-lane-head .lc {

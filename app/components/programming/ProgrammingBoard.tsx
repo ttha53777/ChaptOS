@@ -131,23 +131,17 @@ export function ProgrammingBoard({
               onDrop={dndEnabled ? () => handleDrop(stage) : undefined}
               className={`ev-lane${isOver ? " drop" : ""}${cue?.blocked ? " gated" : ""}`}
             >
+              {/* Name and count, and nothing else. A lane that permanently prints
+                  its entry rule, its meaning, and its visibility is a paragraph
+                  you read once and then scan past forever — and all three already
+                  appear at the moment they matter: the rule in the drag cue below,
+                  the rest in the panel and the help screen. */}
               <div className="ev-lane-head">
                 <span className={`dot ${stage}`} />
                 <span className="lh">{STAGE_LABELS[stage]}</span>
                 <span className="lc">{items.length}</span>
               </div>
-              {cue ? (
-                <p className={`ev-lane-cue${cue.blocked ? " gated" : ""}`}>{cue.text}</p>
-              ) : (
-                <p className="ev-lane-sub">
-                  {/* The publish boundary is CONFIRMED, not Planning. Planning used
-                      to publish, which is exactly what made Idea→Planning a drag
-                      with no consequence — both lanes said the same thing. */}
-                  {stage === "idea"     ? "Backlog · not on the timeline"
-                    : stage === "planning" ? "Owned · not yet public"
-                    : "On the chapter's timeline"}
-                </p>
-              )}
+              {cue && <p className={`ev-lane-cue${cue.blocked ? " gated" : ""}`}>{cue.text}</p>}
               <LaneBody deps={[items.length, showAllDone]}>
                 {items.length === 0 ? (
                   <p className="empty">{dndEnabled ? "Drop here" : "Nothing here"}</p>
@@ -172,7 +166,7 @@ export function ProgrammingBoard({
                       ))}
                       {hidden > 0 && (
                         <button className="ev-done-more" onClick={() => setShowAllDone(true)}>
-                          +{hidden} more
+                          +{hidden} more wrapped
                         </button>
                       )}
                       {stage === "done" && showAllDone && items.length > DONE_LIMIT && (
