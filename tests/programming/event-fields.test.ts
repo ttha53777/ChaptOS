@@ -195,15 +195,28 @@ describe("updateEventField", () => {
     expect((row!.fieldValues as Record<string, unknown>).headcount).toBe(40);
   });
 
-  it("refuses to disable a builtin", async () => {
-    // Their slugs are what the board and any future report address them by, so a
-    // missing one is a broken surface rather than an empty one.
+  it("disables a BUILTIN, keeping its answers for when it comes back", async () => {
+    // This used to be refused, on the grounds that the board and the gates
+    // addressed these by slug. They don't: the stage gates read REQUIRED_FIELDS
+    // (title, category, owner, date, location, mandatory), which are real columns
+    // sharing no slug with this table. Refusing it forced every chapter to carry
+    // all ten rows forever — the hardcoded-column problem this table replaced.
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);
-    const budget = (await listEventFields(ctx)).find(f => f.slug === "budget")!;
+    const headcount = (await listEventFields(ctx)).find(f => f.slug === "headcount")!;
+    const task = await createProgrammingTask(ctx, { title: "Formal", category: "social" });
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { headcount: 40 } });
 
-    await expect(updateEventField(ctx, budget.id, { enabled: false }))
-      .rejects.toThrow(/built-in/i);
+    const off = await updateEventField(ctx, headcount.id, { enabled: false });
+    expect(off.enabled).toBe(false);
+
+    // Off hides, it does not destroy: the answer is still on disk, so switching
+    // the field back on resurrects it rather than starting from blank.
+    const row = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect((row!.fieldValues as Record<string, unknown>).headcount).toBe(40);
+
+    const back = await updateEventField(ctx, headcount.id, { enabled: true });
+    expect(back.enabled).toBe(true);
   });
 
   it("disables a CUSTOM field, hiding it without losing the answers", async () => {

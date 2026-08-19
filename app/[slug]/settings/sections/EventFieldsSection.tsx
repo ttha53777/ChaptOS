@@ -31,9 +31,11 @@ type EventFieldRow = EventFieldDef & { id: number };
 // owned validation), not a config blob diffed and PATCHed whole.
 //
 // Three kinds of row, and the difference is enforced by the SERVICE, not here:
-//   · BUILTIN — the ten the platform ships. Renameable and reorderable, never
-//     deletable and never disable-able: their slugs are what the board and any
-//     future report address them by. The toggle simply isn't offered.
+//   · BUILTIN — the ten the platform ships. Renameable, reorderable and now
+//     disable-able like anything else; only DELETE is refused, because the slug
+//     is reserved and the row has to survive to hold the place. (Disabling was
+//     refused too, until it turned out nothing downstream needed it: the stage
+//     gates read real columns, not this table.)
 //   · CUSTOM, IN USE — everything, but delete comes back refused with a count.
 //   · CUSTOM, UNUSED — everything.
 //
@@ -205,23 +207,23 @@ export function EventFieldsSection({
                   Rename
                 </button>
 
-                {/* A builtin's toggle isn't offered, because the server refuses
-                    it — showing a control that always fails teaches nothing. */}
-                {!f.builtin && (
-                  <button
-                    type="button" disabled={busy}
-                    className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
-                    onClick={() => void patch(
-                      f,
-                      { enabled: !f.enabled },
-                      f.enabled
-                        ? `${f.label} is no longer collected. Existing answers are kept.`
-                        : `${f.label} is collected on every event again.`,
-                    )}
-                  >
-                    {f.enabled ? "Stop collecting" : "Collect again"}
-                  </button>
-                )}
+                {/* Offered for builtins too. They were exempt while the service
+                    refused to disable them; that rule was unfounded and is gone,
+                    so a chapter that doesn't do dress codes can stop being asked
+                    about dress codes. Delete stays builtin-only. */}
+                <button
+                  type="button" disabled={busy}
+                  className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
+                  onClick={() => void patch(
+                    f,
+                    { enabled: !f.enabled },
+                    f.enabled
+                      ? `${f.label} is no longer collected. Existing answers are kept.`
+                      : `${f.label} is collected on every event again.`,
+                  )}
+                >
+                  {f.enabled ? "Stop collecting" : "Collect again"}
+                </button>
 
                 {!f.builtin && (
                   <button
@@ -235,7 +237,7 @@ export function EventFieldsSection({
               </div>
               <p className="px-4 pb-3 text-[11.5px]" style={{ color: "var(--faint)" }}>
                 {f.builtin
-                  ? "Built in — rename it to suit the chapter. It can't be removed."
+                  ? `${KIND_COPY[f.kind]?.eg} Built in — rename it or stop collecting it, but it can't be deleted outright.`
                   : KIND_COPY[f.kind]?.eg}
               </p>
             </div>

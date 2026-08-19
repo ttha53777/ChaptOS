@@ -129,15 +129,25 @@ export async function updateEventField(
   const existing = await ctx.db.eventFieldDefinition.findFirst({ where: { id } }) as FieldRow | null;
   if (!existing) throw new NotFoundError("Event field");
 
-  // A builtin row renames and reorders freely — an org that calls the budget
-  // "Projected spend" relabels this row and every answer stays filed under
-  // `budget`. It just can't be taken out of circulation: the board and the gates
-  // address these by slug, so a missing one is a broken surface, not an empty one.
-  if (input.enabled === false && existing.builtin) {
-    throw new ValidationError(
-      `"${existing.label}" is a built-in field and can't be turned off. Rename it instead.`,
-    );
-  }
+  // A builtin renames, reorders AND switches off like any other row.
+  //
+  // It used to be refused here, on the stated grounds that "the board and the
+  // gates address these by slug, so a missing one is a broken surface." That was
+  // simply not true of these ten. The stage gates run off REQUIRED_FIELDS in
+  // lib/programming — title, category, owner, date, location, mandatory — which
+  // are real columns and share not one slug with this table. Nothing downstream
+  // reads `budget` or `risk` and expects it to exist.
+  //
+  // The refusal cost real orgs real clarity: a chapter that doesn't do buses or
+  // dress codes was made to carry those rows on every event sheet forever, which
+  // is exactly the hardcoded-column problem this table was built to escape.
+  //
+  // Turning one off is lossless for all ten, by two different mechanisms:
+  // sanitizeFieldValues drops disabled slugs on read while leaving them on disk,
+  // and the three column-backed built-ins (description, attachment, cohost) keep
+  // their columns untouched — disabling only stops rendering the row. Both are
+  // reversible by switching it back on. What a builtin still can't be is
+  // DELETED: its slug is reserved, so the row has to survive to hold the place.
 
   const changedFields: string[] = [];
   const data: Record<string, unknown> = {};
