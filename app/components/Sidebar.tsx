@@ -181,7 +181,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   }, [canManageAttendance, pathname]);
   const orgName = currentUser?.org?.name ?? "Operations";
   const logoUrl = currentUser?.org?.logoUrl ?? null;
-  const { active: activeSemester } = useSemesters(!!currentUser?.org?.slug);
+  const { active: activeSemester, loaded: semestersLoaded } = useSemesters(!!currentUser?.org?.slug);
 
   // Display labels for vocab-driven nav items. Routing keys (NAV_WORKFLOW_MAP,
   // NAV_ICONS, isStandalone checks) remain the original string — only the
@@ -207,11 +207,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     return rest === "" ? "/" : rest;
   })();
 
-  const semesterLabel = activeSemester?.label ?? (() => {
-    const m = new Date().getMonth();
-    const y = new Date().getFullYear();
-    return `${m >= 7 ? "Fall" : "Spring"} ${y}`;
-  })();
+  const semesterLabel = activeSemester?.label ?? (semestersLoaded ? "" : " ");
 
   function goToDashboardSection(label: string) {
     if (subPath !== "/") {
