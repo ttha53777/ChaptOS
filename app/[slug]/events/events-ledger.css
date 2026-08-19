@@ -448,6 +448,8 @@ header.dash-toolbar .ev-crumb {
    is load-bearing rather than decorative. */
 .ev-fp { margin-top: 10px; }
 .ev-fp-pills { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+
+/* One pill, one action: click it to start or stop collecting that field. */
 .ev-fp-pill {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 999px; cursor: pointer;
@@ -458,14 +460,66 @@ header.dash-toolbar .ev-crumb {
 .ev-fp-pill svg { width: 9px; height: 9px; }
 .ev-fp-pill:hover:not(:disabled) { color: #ece7dd; border-color: rgba(236,231,221,.32); }
 .ev-fp-pill.on { border-style: solid; border-color: rgba(167,139,250,.32); background: rgba(167,139,250,.10); color: #a78bfa; }
-.ev-fp-pill.locked { cursor: default; border-style: solid; border-color: rgba(236,231,221,.10); color: #6b6354; }
+/* Built-in: always collected, so there's nothing to toggle. Solid edge, padlock,
+   and the hover lift is withheld — it isn't a target. */
+.ev-fp-pill.locked { border-style: solid; border-color: rgba(236,231,221,.10); color: #6b6354; }
 .ev-fp-pill:disabled { cursor: default; }
+
 .ev-fp-add {
-  padding: 3px 9px; border-radius: 999px; font-size: 11.5px;
-  color: #958d7c; text-decoration: none; border: 1px dashed transparent;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
+  color: #958d7c; background: none; border: 1px dashed transparent;
 }
-.ev-fp-add:hover { color: #a78bfa; border-color: rgba(167,139,250,.32); }
+.ev-fp-add svg { width: 9px; height: 9px; }
+.ev-fp-add:hover:not(:disabled) { color: #a78bfa; border-color: rgba(167,139,250,.32); }
+.ev-fp-add:disabled { cursor: default; opacity: .4; }
 .ev-fp-note { margin-top: 7px; font-size: 11px; line-height: 1.5; color: #6b6354; }
+.ev-fp-note a { color: #958d7c; text-decoration: underline; text-underline-offset: 2px; }
+.ev-fp-note a:hover { color: #a78bfa; }
+
+/* ── The inline composer ──────────────────────────────────────────────────────
+   Opens under the pill row rather than in Settings: the moment you find out you
+   need a field is the moment you're filling one of these sheets in. */
+.ev-fn {
+  margin-top: 10px; padding: 11px 12px; border-radius: 8px;
+  border: 1px solid rgba(167,139,250,.20); background: rgba(167,139,250,.06);
+}
+.ev-fn-k, .ev-fn-sub {
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #958d7c;
+}
+.ev-fn-sub { margin-top: 10px; }
+.ev-fn-input {
+  width: 100%; margin-top: 6px; padding: 5px 8px; border-radius: 5px;
+  background: rgba(0,0,0,.22); border: 1px solid rgba(236,231,221,.16);
+  font-size: 12.5px; color: #ece7dd; outline: none;
+}
+.ev-fn-input:focus { border-color: rgba(167,139,250,.55); }
+.ev-fn-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.ev-fn-kind {
+  padding: 3px 8px; border-radius: 999px; cursor: pointer; font-size: 11px;
+  border: 1px solid rgba(236,231,221,.16); background: none; color: #958d7c;
+}
+.ev-fn-kind:hover:not(:disabled) { color: #ece7dd; border-color: rgba(236,231,221,.32); }
+.ev-fn-kind.on { border-color: rgba(167,139,250,.40); background: rgba(167,139,250,.14); color: #a78bfa; }
+.ev-fn-kind:disabled { cursor: default; opacity: .45; }
+.ev-fn-eg { margin-top: 7px; font-size: 11px; line-height: 1.5; color: #6b6354; }
+.ev-fn-eg b { color: #958d7c; font-weight: 500; }
+.ev-fn-err { margin-top: 6px; font-size: 11px; color: #e8a598; }
+.ev-fn-foot { display: flex; align-items: center; gap: 6px; margin-top: 11px; }
+.ev-fn-sp { flex: 1; }
+.ev-fn-btn {
+  padding: 4px 11px; border-radius: 5px; cursor: pointer; font-size: 11.5px;
+  border: 1px solid rgba(236,231,221,.16); background: none; color: #958d7c;
+}
+.ev-fn-btn:hover:not(:disabled) { color: #ece7dd; border-color: rgba(236,231,221,.32); }
+.ev-fn-btn.go { border-color: rgba(167,139,250,.40); background: rgba(167,139,250,.14); color: #a78bfa; }
+.ev-fn-btn.go:hover:not(:disabled) { background: rgba(167,139,250,.22); color: #c4b5fd; }
+.ev-fn-btn:disabled { cursor: default; opacity: .4; }
+
+/* Touch targets. A 20px-tall pill is a miss on a phone. */
+@media (max-width: 640px) {
+  .ev-fp-pill, .ev-fp-add, .ev-fn-kind { min-height: 34px; }
+}
 
 /* ── Timeline strip — the published half, made visible ───────────────────────── */
 .dash .ev-tl { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 16px; }
