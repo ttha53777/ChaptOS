@@ -15,7 +15,13 @@ import {
   toProgrammingTask,
 } from "@/lib/programming";
 import { isProgrammingStage, STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
-import { mergeFieldValues, sanitizeFieldValues, type EventFieldDef } from "@/lib/event-fields";
+import {
+  fieldsForEvent,
+  mergeFieldValues,
+  sanitizeDetached,
+  sanitizeFieldValues,
+  type EventFieldDef,
+} from "@/lib/event-fields";
 import { loadEventFieldDefs } from "@/lib/event-fields-db";
 import { assertWithinActiveSemester } from "./semester-bounds";
 import type {
@@ -68,6 +74,7 @@ const ROW_SELECT = {
   ownerRoleId:     true,
   ownerNote:       true,
   fieldValues:     true,
+  detachedFields:  true,
   // Nested so ownerLabel resolves a role's current holders without an N+1. The
   // holder list is brotherIds only; their org-local display names come from the
   // one roster read in `nameResolver` (Membership.name, not Brother.name).
@@ -127,13 +134,24 @@ async function responseDeps(ctx: RequestContext, types: ManagedType[]): Promise<
 }
 
 /**
- * Map a row to the DTO, sanitizing its answers against the org's LIVE
- * definitions on the way out. Sanitizing on READ is what makes a disabled field
- * disappear from every response while its answers stay on disk — the mock's
- * "OFF ≠ DELETE" rule, with no extra machinery.
+ * Map a row to the DTO, sanitizing its answers against the fields THIS EVENT
+ * collects on the way out.
+ *
+ * Sanitizing on READ is what makes a switched-off field disappear from every
+ * response while its answers stay on disk — the "OFF ≠ DELETE" rule, with no
+ * extra machinery. The event's own opt-outs narrow that set further, so a field
+ * detached from this one event stops reaching its sheet without touching what
+ * every other event collects.
  */
 function mapRow(row: ProgrammingRow, deps: ResponseDeps) {
-  return toProgrammingTask(row, deps.labelFor, deps.nameFor, sanitizeFieldValues(row.fieldValues, deps.defs));
+  const detached = sanitizeDetached(row.detachedFields, deps.defs);
+  return toProgrammingTask(
+    row,
+    deps.labelFor,
+    deps.nameFor,
+    sanitizeFieldValues(row.fieldValues, fieldsForEvent(deps.defs, detached)),
+    detached,
+  );
 }
 
 /**
@@ -337,9 +355,41 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   // carries only the edited slugs) and sanitized against the LIVE definitions, so
   // an unknown slug is dropped, a value is coerced to its field's kind, and an
   // explicit empty clears the answer.
-  if (input.fieldValues !== undefined) {
-    data.fieldValues = mergeFieldValues(existing.fieldValues, input.fieldValues, deps.defs);
-    changedFields.push("fieldValues");
+  // Which optional fields THIS event collects. Sent whole (the full opt-out set)
+  // rather than as a delta, so the pill row is describing a state and two officers
+  // racing can't interleave into a set neither of them chose.
+  //
+  // Detaching CLEARS that event's answer, which is the one place this model parts
+  // company with the org-level switch: org-off hides and preserves, because it is
+  // reversible bookkeeping about the whole chapter, whereas detaching is a claim
+  // that this field was never part of THIS event. Leaving a hidden answer behind
+  // would resurface it the moment someone reattached — and the UI warns before
+  // doing it, so the loss is chosen rather than discovered.
+  const nextDetached = input.detachedFields !== undefined
+    ? sanitizeDetached(input.detachedFields, deps.defs)
+    : sanitizeDetached(existing.detachedFields, deps.defs);
+
+  if (input.detachedFields !== undefined) {
+    data.detachedFields = nextDetached;
+    changedFields.push("detachedFields");
+  }
+
+  const nowDetached = new Set(nextDetached);
+  const wasDetached = new Set(sanitizeDetached(existing.detachedFields, deps.defs));
+  const newlyDetached = [...nowDetached].filter(s => !wasDetached.has(s));
+
+  if (input.fieldValues !== undefined || newlyDetached.length > 0) {
+    const merged = mergeFieldValues(
+      existing.fieldValues,
+      input.fieldValues ?? {},
+      // Merge against the org's set, not the event's: a slug being cleared for
+      // detachment must still be recognised here, or sanitize would drop it as
+      // unknown and the stored answer would survive the detach.
+      deps.defs,
+    );
+    for (const slug of newlyDetached) delete merged[slug];
+    data.fieldValues = merged;
+    if (!changedFields.includes("fieldValues")) changedFields.push("fieldValues");
   }
 
   const nextCategory = (data.category as string | undefined) ?? existing.category;

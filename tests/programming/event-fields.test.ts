@@ -19,7 +19,11 @@ import {
   listEventFields,
   updateEventField,
 } from "@/lib/services/event-field-service";
-import { updateProgrammingTask, createProgrammingTask } from "@/lib/services/programming-service";
+import {
+  createProgrammingTask,
+  listProgrammingTasks,
+  updateProgrammingTask,
+} from "@/lib/services/programming-service";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ForbiddenError, ValidationError } from "@/lib/errors";
 import type { RequestContext } from "@/lib/context";
@@ -290,5 +294,88 @@ describe("tenancy", () => {
     expect((await listEventFields(otherCtx)).some(f => f.id === mine.id)).toBe(false);
     await expect(updateEventField(otherCtx, mine.id, { label: "Stolen" })).rejects.toThrow();
     await expect(deleteEventField(otherCtx, mine.id)).rejects.toThrow();
+  });
+});
+
+/**
+ * Per-event attachment.
+ *
+ * The org list is a MENU (which fields exist, and what a new event starts with);
+ * each event stores only where it diverges. The properties worth pinning are that
+ * one event's choice never reaches another, that a field switched on for the org
+ * still reaches events that never expressed an opinion, and that detaching an
+ * answered field really does clear it — the one place this parts company with the
+ * org switch's OFF ≠ DELETE promise.
+ */
+describe("per-event field attachment", () => {
+  it("detaching a field on one event leaves every other event alone", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    await createEventField(ctx, { label: "Bus company", kind: "text" });
+
+    const a = await createProgrammingTask(ctx, { title: "Formal", category: "social" });
+    const b = await createProgrammingTask(ctx, { title: "Retreat", category: "social" });
+
+    const afterA = await updateProgrammingTask(ctx, a.id, { detachedFields: ["bus-company"] });
+    expect(afterA.detachedFields).toEqual(["bus-company"]);
+
+    // The whole point: B never opted out, so it still collects the field.
+    const stillB = (await listProgrammingTasks(ctx)).find(t => t.id === b.id)!;
+    expect(stillB.detachedFields).toEqual([]);
+  });
+
+  it("clears the answer when an answered field is detached", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    await createEventField(ctx, { label: "Bus company", kind: "text" });
+    const task = await createProgrammingTask(ctx, { title: "Formal", category: "social" });
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { "bus-company": "Greyhound" } });
+
+    await updateProgrammingTask(ctx, task.id, { detachedFields: ["bus-company"] });
+
+    // Gone from disk, not merely hidden: a detach says the field was never part
+    // of THIS event, so an answer waiting to resurface on reattach would be a lie.
+    const row = await testPrisma.programmingEvent.findUnique({ where: { id: task.id } });
+    expect((row!.fieldValues as Record<string, unknown>)["bus-company"]).toBeUndefined();
+  });
+
+  it("a field switched on for the org reaches events that never opted out", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Formal", category: "social" });
+
+    // Created AFTER the event exists. Storing exceptions rather than a full
+    // attachment set is what makes this work with no backfill.
+    await createEventField(ctx, { label: "Bus company", kind: "text" });
+
+    const after = (await listProgrammingTasks(ctx)).find(t => t.id === task.id)!;
+    expect(after.detachedFields).toEqual([]);
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { "bus-company": "Greyhound" } });
+    const answered = (await listProgrammingTasks(ctx)).find(t => t.id === task.id)!;
+    expect(answered.fieldValues["bus-company"]).toBe("Greyhound");
+  });
+
+  it("drops an opt-out for a field the org doesn't offer", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const task = await createProgrammingTask(ctx, { title: "Formal", category: "social" });
+
+    // A stale slug would otherwise sit in the column forever and silently
+    // suppress the field if the org ever switched it back on.
+    const after = await updateProgrammingTask(ctx, task.id, {
+      detachedFields: ["not-a-real-field"],
+    });
+    expect(after.detachedFields).toEqual([]);
+  });
+
+  it("hides a detached field's answers from the event's DTO", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    await createEventField(ctx, { label: "Bus company", kind: "text" });
+    const task = await createProgrammingTask(ctx, { title: "Formal", category: "social" });
+    await updateProgrammingTask(ctx, task.id, { fieldValues: { "bus-company": "Greyhound" } });
+
+    const after = await updateProgrammingTask(ctx, task.id, { detachedFields: ["bus-company"] });
+    expect(after.fieldValues["bus-company"]).toBeUndefined();
   });
 });

@@ -51,6 +51,7 @@ function task(over: Partial<ProgrammingTaskDto> = {}): ProgrammingTaskDto {
     attachmentUrl: null,
     attachmentDocId: null,
     fieldValues: {},
+    detachedFields: [],
     spendingCents: 0,
     successRating: null,
     wrapUpNotes: null,

@@ -1,32 +1,40 @@
 "use client";
 
 /**
- * Choosing what the chapter collects, from the event you're looking at.
+ * Which optional fields THIS event collects.
  *
- * This is an ORG-level write made from an event-scoped sheet, which is exactly
- * why the footnote below is not optional: without it, toggling "Risk form" here
- * reads as a property of this one event rather than a decision for every event
- * the chapter will ever run.
+ * The scope question is the whole design here. Clicking a pill attaches or
+ * detaches the field for the event in front of you and nothing else — the org's
+ * other events are untouched. Settings owns the menu: which fields exist, and
+ * which a NEW event starts with. This row owns the exceptions.
  *
- * A pill does exactly one thing: click it to start or stop collecting that
- * field. Nothing else is layered onto it — a pill that both toggled and opened
- * an editor made the commonest action ambiguous, and a rename made in passing
- * from an event sheet is a rename nobody else knows happened.
+ * Only the exceptions are stored (ProgrammingEvent.detachedFields), so turning a
+ * new field on for the chapter still reaches every event that never expressed an
+ * opinion, without a backfill.
  *
- * EVERY pill toggles, including the ten built-ins. They used to be padlocked
- * because the service refused to disable them; that refusal turned out to be
- * unfounded (the stage gates read real columns, not this table) and is gone.
- * "Built-in" now means only "can't be deleted", which is a Settings concern —
- * so nothing marks them here, because from this row they behave identically.
+ * A pill does exactly one thing: click it to attach or detach. Nothing else is
+ * layered onto it — a pill that both toggled and opened an editor made the
+ * commonest action ambiguous, and a rename made in passing from an event sheet
+ * is a rename nobody else knows happened.
  *
- * Adding is here, though, and inline: the moment you discover you need a field
- * is the moment you're filling one of these sheets in, and bouncing to Settings
- * loses both the sheet and the thought. Renaming, deleting and reordering stay
- * in Settings, which is what the link in the footnote is for.
+ * DETACHING CLEARS THIS EVENT'S ANSWER, which is where this parts company with
+ * the org-level switch's OFF ≠ DELETE promise. Org-off is reversible bookkeeping
+ * about the whole chapter, so it preserves; detaching is a claim that the field
+ * was never part of this event, and a hidden answer waiting to resurface on
+ * reattach is worse than an honest one. So an answered field warns first — the
+ * loss is chosen, never discovered. Unanswered fields detach silently, because
+ * there is nothing to lose and a confirm on every click is noise.
+ *
+ * Adding is here too, and inline: the moment you discover you need a field is
+ * the moment you're filling one of these sheets in, and bouncing to Settings
+ * loses both the sheet and the thought. A field created here lands on the org
+ * menu and attaches to this event. Renaming, deleting and reordering stay in
+ * Settings, which is what the link in the footnote is for.
  */
 
 import { useState } from "react";
 import { apiErrorMessage, requestJson } from "../../../lib/api";
+import { ConfirmDialog } from "../../dashboard/primitives";
 import {
   FIELD_KINDS,
   MAX_EVENT_FIELDS,
@@ -53,12 +61,22 @@ type Draft = { label: string; kind: FieldKind };
 
 export function FieldTogglePills({
   fields,
+  detached,
+  isAnswered,
+  onSetDetached,
   settingsHref,
   onChanged,
   onStatus,
   onError,
 }: {
+  /** The org's ENABLED fields — the menu this event picks from. */
   fields: Row[];
+  /** Slugs this event has opted out of. */
+  detached: string[];
+  /** Whether detaching would cost an answer, so the click knows to warn. */
+  isAnswered: (def: Row) => boolean;
+  /** Persist the whole opt-out set for this event. */
+  onSetDetached: (next: string[]) => Promise<void>;
   settingsHref: string;
   onChanged: () => void;
   onStatus: (msg: string) => void;
@@ -66,7 +84,9 @@ export function FieldTogglePills({
 }) {
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [confirmDetach, setConfirmDetach] = useState<Row | null>(null);
 
+  const off = new Set(detached);
   const atCeiling = fields.length >= MAX_EVENT_FIELDS;
 
   /** Every write goes through here so one failure path surfaces the API's words. */
@@ -75,7 +95,6 @@ export function FieldTogglePills({
     setBusy(true);
     try {
       await run();
-      onChanged();
       onStatus(ok);
       return true;
     } catch (err) {
@@ -86,20 +105,33 @@ export function FieldTogglePills({
     }
   }
 
-  function toggle(f: Row) {
-    void mutate(
-      () => requestJson(`/api/events/fields/${f.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !f.enabled }),
-      }),
-      f.enabled
-        // The second half of this sentence is the OFF ≠ DELETE promise, and
-        // it has to be said: an officer who thinks turning a field off throws
-        // away a term of answers will never turn one off.
-        ? `${f.label} is no longer collected. Existing answers are kept.`
-        : `${f.label} is collected on every event again.`,
+  /** Write the opt-out set with one slug flipped. Sent whole, never as a delta. */
+  function setAttached(f: Row, attached: boolean) {
+    const next = new Set(off);
+    if (attached) next.delete(f.slug);
+    else next.add(f.slug);
+    return mutate(
+      () => onSetDetached([...next].sort()),
+      attached
+        ? `${f.label} is collected on this event.`
+        // Named as this-event-only, because the same words on an org switch
+        // would mean something much larger and the officer can't see which
+        // scope they just wrote.
+        : `${f.label} is off for this event. Other events keep it.`,
     );
+  }
+
+  function toggle(f: Row) {
+    if (busy) return;
+    const attached = !off.has(f.slug);
+    // Detaching an ANSWERED field destroys that answer, so it asks first.
+    // Attaching, and detaching an empty field, cost nothing and go straight
+    // through — a confirm on every click trains people to dismiss confirms.
+    if (attached && isAnswered(f)) {
+      setConfirmDetach(f);
+      return;
+    }
+    void setAttached(f, !attached);
   }
 
   const label = draft?.label.trim() ?? "";
@@ -110,15 +142,18 @@ export function FieldTogglePills({
 
   async function saveDraft() {
     if (!draft || !label || clash) return;
+    // A new field is created enabled, so it lands on the org menu AND attaches
+    // here without a second write — which is what the officer meant by adding it
+    // from this sheet. Other events pick it up by the same default.
     const ok = await mutate(
       () => requestJson("/api/events/fields", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ label, kind: draft.kind }),
       }),
-      `${label} is now collected on every event.`,
+      `${label} added, and collected on this event.`,
     );
-    if (ok) setDraft(null);
+    if (ok) { setDraft(null); onChanged(); }
   }
 
   return (
@@ -128,23 +163,28 @@ export function FieldTogglePills({
             the sense that it can't be DELETED — which is a Settings concern and
             not something this row has to express. Padlocking them here made a
             chapter that doesn't do dress codes carry a dress-code row forever. */}
-        {fields.map(f => (
-          <button
-            key={f.id}
-            type="button"
-            disabled={busy}
-            aria-pressed={f.enabled}
-            onClick={() => toggle(f)}
-            title={
-              f.enabled
-                ? "Click to stop collecting this field. Answers already given are kept."
-                : "Click to collect this field on every event"
-            }
-            className={`ev-fp-pill${f.enabled ? " on" : ""}`}
-          >
-            {f.label}
-          </button>
-        ))}
+        {fields.map(f => {
+          const attached = !off.has(f.slug);
+          return (
+            <button
+              key={f.id}
+              type="button"
+              disabled={busy}
+              aria-pressed={attached}
+              onClick={() => toggle(f)}
+              title={
+                attached
+                  ? isAnswered(f)
+                    ? `Click to take ${f.label} off this event. Its answer here is cleared.`
+                    : `Click to take ${f.label} off this event`
+                  : `Click to collect ${f.label} on this event`
+              }
+              className={`ev-fp-pill${attached ? " on" : ""}`}
+            >
+              {f.label}
+            </button>
+          );
+        })}
         {!draft && (
           <button
             type="button"
@@ -224,10 +264,31 @@ export function FieldTogglePills({
         </div>
       )}
 
+      {/* The scope sentence, which is the one thing this row must never leave
+          implicit: the pills above look identical to the org-wide switch they
+          replaced, so the note has to say which one you're touching. */}
       <p className="ev-fp-note">
-        Set once for the chapter, not per event — every event gets the same sheet.{" "}
-        <a href={settingsHref}>Rename or remove fields in Settings</a>.
+        This event only — other events keep what they collect.{" "}
+        <a href={settingsHref}>Add, rename or reorder fields in Settings</a>.
       </p>
+
+      {confirmDetach && (
+        <ConfirmDialog
+          tone="dusk"
+          title={`Take “${confirmDetach.label}” off this event?`}
+          message={
+            `${confirmDetach.label} is answered on this event, and that answer is deleted. ` +
+            "Other events keep the field and their own answers."
+          }
+          confirmLabel="Take it off"
+          onConfirm={() => {
+            const target = confirmDetach;
+            setConfirmDetach(null);
+            void setAttached(target, false);
+          }}
+          onCancel={() => setConfirmDetach(null)}
+        />
+      )}
     </div>
   );
 }

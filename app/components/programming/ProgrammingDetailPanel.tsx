@@ -14,7 +14,7 @@ import type { Doc } from "@/app/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
 import { ownerLabel } from "@/lib/event-owner";
 import { fieldsFor, hasRequiredField, missingFor, type RequiredField } from "@/lib/programming";
-import type { EventFieldDef } from "@/lib/event-fields";
+import { fieldsForEvent, type EventFieldDef } from "@/lib/event-fields";
 import { FieldTogglePills } from "./panel/FieldTogglePills";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { useToast } from "../dashboard/Toast";
@@ -146,10 +146,14 @@ export function ProgrammingDetailPanel({
   }, []);
   useEffect(() => { loadFields(); }, [loadFields]);
 
-  // Disabled fields are hidden, never deleted — their answers stay on disk and
-  // come back if the org switches the field on again (the server sanitizes reads
-  // against the live definitions, so a disabled answer simply doesn't ship).
-  const enabledFields = fieldDefs.filter(d => d.enabled);
+  // What THIS event collects: on the org's menu, minus what this event has
+  // detached. Org-off hides everywhere and keeps the answers on disk (the server
+  // sanitizes reads against the live definitions, so they simply don't ship);
+  // a per-event detach is narrower and clears only this event's answer.
+  const enabledFields = useMemo(
+    () => fieldsForEvent(fieldDefs, event.detachedFields) as EventFieldRow[],
+    [fieldDefs, event.detachedFields],
+  );
 
   /**
    * Which required fields this panel shows.
@@ -401,13 +405,19 @@ export function ProgrammingDetailPanel({
               ))}
               {enabledFields.length === 0 && (
                 <p className="ev-fld-none">
-                  This chapter collects nothing optional. Turn a field on below.
+                  Nothing optional on this event. Attach a field below.
                 </p>
               )}
             </div>
             {canManage && fieldDefs.length > 0 && (
               <FieldTogglePills
-                fields={fieldDefs}
+                fields={fieldDefs.filter(d => d.enabled)}
+                detached={event.detachedFields}
+                // Whether detaching this field costs an answer. Drives the
+                // warning, so it has to agree with the row above — same helper
+                // the counter uses, column-backed built-ins included.
+                isAnswered={def => hasOptionalAnswer(event, def)}
+                onSetDetached={next => onPatch(event.id, { detachedFields: next })}
                 settingsHref={orgPath("/settings?section=event-fields")}
                 onChanged={loadFields}
                 onStatus={toast.success}

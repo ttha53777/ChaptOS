@@ -232,6 +232,12 @@ export interface ProgrammingTask {
   attachmentDocId: number | null;
   /** Answers to the org's own optional fields, keyed by EventFieldDefinition.slug. */
   fieldValues: Record<string, string | number | boolean | null>;
+  /**
+   * Optional fields THIS event has opted out of, by slug. The org list says what
+   * a new event starts with; this records where this one diverges, so detaching a
+   * field here leaves every other event's sheet alone.
+   */
+  detachedFields: string[];
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;

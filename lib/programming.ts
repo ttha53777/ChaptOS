@@ -97,6 +97,13 @@ export interface ProgrammingTaskDto {
   attachmentDocId: number | null;
   /** Answers to the org's optional fields, already sanitized against live defs. */
   fieldValues: FieldValues;
+  /**
+   * Slugs THIS event has opted out of, from the org's enabled set. The sheet
+   * subtracts these to get the fields it renders; the pill row needs them to
+   * show which are attached, so they travel on the DTO rather than being
+   * resolved away server-side.
+   */
+  detachedFields: string[];
   spendingCents: number;
   successRating: number | null;
   wrapUpNotes: string | null;
@@ -116,6 +123,7 @@ export function toProgrammingTask(
   labelFor: (slug: string) => string,
   nameFor: (brotherId: number) => string | null,
   values: FieldValues,
+  detachedFields: string[] = [],
 ): ProgrammingTaskDto {
   const { title, collab } = resolveProgrammingDisplay({
     title: row.title,
@@ -139,6 +147,7 @@ export function toProgrammingTask(
     attachmentUrl:   row.attachmentUrl ?? null,
     attachmentDocId: row.attachmentDocId ?? null,
     fieldValues:     values,
+    detachedFields,
     spendingCents:   row.spendingCents ?? 0,
     successRating:   row.successRating ?? null,
     wrapUpNotes:     row.wrapUpNotes ?? null,

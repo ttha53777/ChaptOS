@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DATE_RE } from "@/lib/dates";
+import { MAX_EVENT_FIELDS } from "@/lib/event-fields";
 import { STAGES } from "@/lib/state/programming-stage";
 import { CATEGORY_SLUG_RE } from "./calendar";
 import { httpsUrl } from "./shared";
@@ -59,6 +60,11 @@ export const updateProgrammingTaskInput = z.object({
   // there via sanitizeFieldValues rather than being duplicated — and drifting —
   // here.
   fieldValues:     z.record(z.string(), z.unknown()).optional(),
+  // Which optional fields this ONE event has opted out of. Sent as the whole set
+  // rather than a delta, so the request states a destination instead of a nudge.
+  // Unknown slugs are dropped by the service against the live definitions, for
+  // the same reason fieldValues is unknown-valued here.
+  detachedFields:  z.array(z.string().max(64)).max(MAX_EVENT_FIELDS).optional(),
   spendingCents:   z.number().int().min(0).max(999_999_999).optional(),
   successRating:   z.number().int().min(1).max(5).nullable().optional(),
   wrapUpNotes:     z.string().max(5000).nullable().optional(),

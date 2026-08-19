@@ -894,6 +894,21 @@ model ProgrammingEvent {
   // is what makes disabling a field hide it without destroying the answers.
   fieldValues Json @default("{}")
 
+  // Slugs this ONE event has opted out of, as a JSON string[]. The org list says
+  // which fields exist and which an event starts with; this records only where
+  // this event DIVERGES from that default.
+  //
+  // Storing exceptions rather than a full per-event attachment set is what keeps
+  // the org default meaningful: turn a new field on for the chapter and every
+  // event that never expressed an opinion picks it up, with no backfill. The
+  // inverse (storing "attached" slugs) would freeze all existing events at
+  // whatever the menu looked like the day they were made.
+  //
+  // Empty for the overwhelming majority of rows, which is why it is a JSON column
+  // and not a join table: it is read on every board query alongside fieldValues,
+  // and a table would add a second fetch to serve a mostly-empty set.
+  detachedFields Json @default("[]")
+
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -937,12 +952,14 @@ model EventFieldDefinition {
   // text|num|money|bool|date|person|file. Fixed after create: retyping a field
   // fifteen events have already answered has no safe interpretation.
   kind           String
-  // OFF ≠ DELETE. Disabling hides the row from every response and editor while
-  // the answers stay on disk; re-enabling resurrects them.
+  // Two jobs: whether the field is OFFERED to this org at all, and whether a new
+  // event starts with it attached. Off means it exists but no event collects it.
+  // OFF ≠ DELETE — the answers stay on disk and come back if it is switched on.
+  // An individual event opts out via ProgrammingEvent.detachedFields.
   enabled        Boolean  @default(true)
-  // Reserved: the ten fields the platform ships. Renameable, never deletable and
-  // never disable-able — their slugs are what the board and any future report
-  // address them by.
+  // Reserved: the ten fields the platform ships. Renameable and disable-able like
+  // any other row; only DELETE is refused, because the slug is reserved and the
+  // row has to survive to hold the place.
   builtin        Boolean  @default(false)
   displayOrder   Int      @default(0)
   createdAt      DateTime @default(now())

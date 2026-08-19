@@ -219,3 +219,56 @@ export function mergeFieldValues(
   }
   return sanitizeFieldValues(merged, defs);
 }
+
+/* ── Per-event attachment ──────────────────────────────────────────────────────
+ *
+ * Two scopes decide whether an event collects a field:
+ *
+ *   · the ORG list (EventFieldDefinition.enabled) — does this field exist for the
+ *     chapter at all, and does a NEW event start with it attached;
+ *   · the EVENT's own opt-outs (ProgrammingEvent.detachedFields) — which of those
+ *     this one event has since said no to.
+ *
+ * Only the exceptions are stored. An event that never expressed an opinion about
+ * a field simply follows the org default, which is what lets a chapter switch a
+ * new field on and have it reach the whole board without a backfill.
+ *
+ * A field that is OFF for the org is off everywhere, regardless of what an event
+ * once recorded: the org list is a menu, and you cannot attach what isn't on it.
+ */
+
+/** Read a `detachedFields` JSON column into a slug set, tolerating junk. */
+export function parseDetached(raw: unknown): Set<string> {
+  if (!Array.isArray(raw)) return new Set();
+  return new Set(raw.filter((v): v is string => typeof v === "string"));
+}
+
+/**
+ * The fields THIS event collects: org-enabled, minus its own opt-outs.
+ *
+ * This is the list the event's sheet renders and the only one its answers are
+ * sanitized against.
+ */
+export function fieldsForEvent(
+  defs: readonly EventFieldDef[],
+  detachedRaw: unknown,
+): EventFieldDef[] {
+  const detached = parseDetached(detachedRaw);
+  return defs.filter(d => d.enabled && !detached.has(d.slug));
+}
+
+/**
+ * Normalize a detached set before it is stored.
+ *
+ * Slugs the org doesn't offer are dropped rather than kept: a stale opt-out for a
+ * deleted field would sit in the column forever, and one for a field the org has
+ * switched off would silently suppress it if the org switched it back on. Sorted
+ * so the column doesn't churn on rewrite.
+ */
+export function sanitizeDetached(
+  raw: unknown,
+  defs: readonly EventFieldDef[],
+): string[] {
+  const known = new Set(defs.filter(d => d.enabled).map(d => d.slug));
+  return [...parseDetached(raw)].filter(s => known.has(s)).sort();
+}
