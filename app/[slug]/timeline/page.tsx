@@ -8,7 +8,7 @@ import { isEventTypeVisibleInPicker } from "../../../lib/event-types";
 import { useChapter } from "../../context/ChapterContext";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
-import { requestJson, orgFetch } from "../../lib/api";
+import { requestJson, orgFetch, ApiError } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
 import { useRouter } from "next/navigation";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -805,7 +805,16 @@ export default function TimelinePage() {
   useEffect(() => {
     requestJson<CalendarEvent[]>("/api/calendar")
       .then(data => { setApiEvents(data); setCalendarError(null); })
-      .catch(error => { console.error(error); setCalendarError("Could not load calendar events from the database."); })
+      .catch(error => {
+        // A 401 here means the fetch raced the session cookie on a hard
+        // navigation (see the same case in [slug]/page.tsx's loadCalendar).
+        // ChapterContext's redirect handler covers the real unauth case, so
+        // treating this as an error just spams the console with a false
+        // "database" failure.
+        if (error instanceof ApiError && error.status === 401) return;
+        console.error(error);
+        setCalendarError("Could not load calendar events from the database.");
+      })
       .finally(() => setCalendarLoading(false));
   }, []);
 
