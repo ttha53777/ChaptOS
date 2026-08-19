@@ -56,6 +56,7 @@
 
 import { Prisma } from "@/app/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import * as perf from "@/lib/db/perf-metrics";
 
 // ---------------------------------------------------------------------------
 // RLS session-variable helper (Phase 2)
@@ -110,16 +111,35 @@ const RLS_TX_TIMEOUT_MS = 15_000;
 const RLS_TX_MAX_WAIT_MS = 10_000;
 
 function makeRun(orgId: number, client: P = prisma as P): Run {
-  if (!RLS_WRAP) return fn => fn(client);
+  // Phase 0 instrumentation. `measured` is the identity function unless
+  // PERF_INSTRUMENT=1, so the default path is byte-identical to what it was
+  // before — the flag is the only thing standing between this and production.
+  perf.setWrapped(RLS_WRAP);
+  const measured: <T>(fn: () => Promise<T>) => Promise<T> = perf.active()
+    ? async fn => {
+        const t0 = performance.now();
+        try {
+          const out = await fn();
+          perf.record(performance.now() - t0, true);
+          return out;
+        } catch (e) {
+          perf.record(performance.now() - t0, false);
+          throw e;
+        }
+      }
+    : fn => fn();
+
+  if (!RLS_WRAP) return fn => measured(() => fn(client));
   // orgId is already validated as a positive integer by the db() guard before
   // makeRun is called. Math.trunc makes that guarantee local to this line.
   const setLocal = `SET LOCAL app.org_id = '${Math.trunc(orgId)}'`;
   return fn =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (client as any).$transaction(async (tx: any) => {
-      await tx.$executeRawUnsafe(setLocal);
-      return fn(tx as P);
-    }, { timeout: RLS_TX_TIMEOUT_MS, maxWait: RLS_TX_MAX_WAIT_MS });
+    measured(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (client as any).$transaction(async (tx: any) => {
+        await tx.$executeRawUnsafe(setLocal);
+        return fn(tx as P);
+      }, { timeout: RLS_TX_TIMEOUT_MS, maxWait: RLS_TX_MAX_WAIT_MS }));
 }
 
 /**
@@ -708,6 +728,9 @@ function scopedPartyEvent(orgId: number, run: Run) {
     count:      (args?: Prisma.PartyEventCountArgs)     => run(p => p.partyEvent.count({ ...args, where: org(args?.where) })),
     aggregate:  (args: Omit<Prisma.PartyEventAggregateArgs, "where"> & { where?: W }) =>
       run(p => p.partyEvent.aggregate({ ...args, where: org(args?.where) })),
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedPartyEvent(orgId, f => f(tx as P)),
   };
 }
 
@@ -818,6 +841,10 @@ function scopedPoll(orgId: number, run: Run) {
       return run(p => p.poll.delete({ where: { id } }));
     },
     count:      (args?: Prisma.PollCountArgs)     => run(p => p.poll.count({ ...args, where: org(args?.where) })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedPoll(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -1079,6 +1106,9 @@ function scopedTransaction(orgId: number, run: Run) {
     groupBy:    ((args: any) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       run(p => p.transaction.groupBy({ ...args, where: org(args?.where) }))) as any as typeof prisma.transaction.groupBy,
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedTransaction(orgId, f => f(tx as P)),
   };
 }
 
@@ -1226,6 +1256,10 @@ function scopedOrgMetricDefinition(orgId: number, run: Run) {
       return run(p => p.orgMetricDefinition.delete({ where: { id } }));
     },
     count:      (args?: Prisma.OrgMetricDefinitionCountArgs) => run(p => p.orgMetricDefinition.count({ ...args, where: org(args?.where) })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedOrgMetricDefinition(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -1492,6 +1526,10 @@ function scopedSubscription(orgId: number, run: Run) {
         update: data,
         create: { organizationId: orgId, ...data },
       })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedSubscription(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -1543,6 +1581,10 @@ function scopedReimbursement(orgId: number, run: Run) {
       return run(p => p.reimbursement.delete({ where: { id } }));
     },
     count:      (args?: Prisma.ReimbursementCountArgs)     => run(p => p.reimbursement.count({ ...args, where: org(args?.where) })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedReimbursement(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -1777,6 +1819,10 @@ function scopedOrganization(orgId: number, run: Run) {
       run(p => p.organization.findFirst<T>({ ...(args as object), where: { ...((args as T | undefined)?.where), id: orgId } } as Prisma.SelectSubset<T, Prisma.OrganizationFindFirstArgs>)),
     update: (args: Omit<Prisma.OrganizationUpdateArgs, "where"> & { where?: Prisma.OrganizationWhereUniqueInput }) =>
       run(p => p.organization.update({ ...args, where: { id: orgId } })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedOrganization(orgId, fn => fn(tx as P)),
   };
 }
 

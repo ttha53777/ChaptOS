@@ -10,18 +10,25 @@ export async function GET() {
   const { ctx, error } = await buildContext({ rateLimit: false });
   if (error) return error;
   try {
-    const [parties, transactions, config] = await Promise.all([
-      ctx.db.partyEvent.findMany({
+    // One transaction for all three reads instead of three. Under
+    // RLS_SET_ORG_ID=1 each ctx.db call opens its own (BEGIN + SET LOCAL +
+    // query + COMMIT — ~570ms of fixed overhead apiece), so this Promise.all
+    // overlapped the waiting but still paid the wrapper cost three times and
+    // took three pooler checkouts. The reads are mutually independent, so they
+    // stay in Promise.all inside the shared transaction. `.onTx(tx)` keeps each
+    // one on its scoped delegate, so organizationId injection is unchanged.
+    const [parties, transactions, config] = await ctx.db.$transaction(async tx => Promise.all([
+      ctx.db.partyEvent.onTx(tx).findMany({
         orderBy: { date: "asc" },
         select: { date: true, doorRevenue: true },
       }),
-      ctx.db.transaction.findMany({
+      ctx.db.transaction.onTx(tx).findMany({
         where: { deletedAt: null },
         orderBy: { date: "asc" },
         select: { date: true, type: true, amount: true },
       }),
-      ctx.db.organizationConfig.find(),
-    ]);
+      ctx.db.organizationConfig.onTx(tx).find(),
+    ]));
 
     const openingBalance = config?.openingBalance ?? null;
 

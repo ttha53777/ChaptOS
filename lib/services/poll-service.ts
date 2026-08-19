@@ -64,13 +64,36 @@ export interface PollDTO {
   pendingVoters?: PollPendingVoterDTO[];
 }
 
+/**
+ * The scoped delegates the poll READ path uses, optionally rebound to a shared
+ * transaction.
+ *
+ * Under RLS_SET_ORG_ID=1 every ctx.db call opens its own transaction
+ * (BEGIN + SET LOCAL + query + COMMIT — measured ~570ms of fixed overhead per
+ * call). listPolls issues up to five queries in a strict dependency chain, so
+ * it paid that five times over and none of it could be hidden by Promise.all.
+ *
+ * Passing `tx` rebinds each delegate with `.onTx(tx)` so all five share one
+ * transaction; passing nothing gives the unbatched delegates unchanged, which
+ * is what createPoll/updatePoll still use for their one-off reloads. Going
+ * through `.onTx` rather than the raw tx client keeps the automatic
+ * organizationId injection — see lib/db/tenant.ts:41-47.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Tx = any;
+function readers(ctx: RequestContext, tx?: Tx) {
+  return tx
+    ? { poll: ctx.db.poll.onTx(tx), brotherRole: ctx.db.brotherRole.onTx(tx), member: ctx.db.member.onTx(tx) }
+    : { poll: ctx.db.poll,          brotherRole: ctx.db.brotherRole,          member: ctx.db.member };
+}
+
 // Org-local display name (Membership.name) for each assignee, same fallback
 // rule as the roster. Without this, a member who renamed themselves in this
 // org would still show their stale name on poll assignee chips.
-async function withResolvedAssignees(ctx: RequestContext, dtos: PollDTO[]): Promise<PollDTO[]> {
+async function withResolvedAssignees(ctx: RequestContext, dtos: PollDTO[], tx?: Tx): Promise<PollDTO[]> {
   const brothers = dtos.flatMap(d => d.assignments.map(a => a.brother)).filter((b): b is NonNullable<PollAssignmentDTO["brother"]> => b != null);
   if (brothers.length === 0) return dtos;
-  const nameByBrotherId = await ctx.db.member.resolveNames(brothers);
+  const nameByBrotherId = await readers(ctx, tx).member.resolveNames(brothers);
   return dtos.map(d => ({
     ...d,
     assignments: d.assignments.map(a => a.brother
@@ -88,8 +111,9 @@ async function withResolvedAssignees(ctx: RequestContext, dtos: PollDTO[]): Prom
  * holders, who have not voted yet — on EVERY poll, even ones they didn't assign.
  * All name/holder lookups are batched across the whole `rows` set to avoid N+1.
  */
-async function buildDTOs(ctx: RequestContext, rows: PollRow[]): Promise<PollDTO[]> {
+async function buildDTOs(ctx: RequestContext, rows: PollRow[], tx?: Tx): Promise<PollDTO[]> {
   const iManage = canManage(ctx);
+  const db = readers(ctx, tx);
 
   // Expand every assigned role to its current holders in one query (role targets
   // resolve to holders at read time, mirroring isAssignee), then reuse per poll.
@@ -97,7 +121,7 @@ async function buildDTOs(ctx: RequestContext, rows: PollRow[]): Promise<PollDTO[
     r.assignments.map(a => a.roleId).filter((x): x is number => x != null)))];
   const holdersByRole = new Map<number, number[]>();
   if (allRoleIds.length) {
-    const holders = await ctx.db.brotherRole.findMany({
+    const holders = await db.brotherRole.findMany({
       where: { roleId: { in: allRoleIds } },
       select: { roleId: true, brotherId: true },
     });
@@ -134,7 +158,7 @@ async function buildDTOs(ctx: RequestContext, rows: PollRow[]): Promise<PollDTO[
     if (allPendingIds.size) {
       // listRoster already resolves each member's org-local name, so the
       // separate resolveNames pass is gone.
-      const brothers = await ctx.db.member.listRoster({ where: { brotherId: { in: [...allPendingIds] } } });
+      const brothers = await db.member.listRoster({ where: { brotherId: { in: [...allPendingIds] } } });
       brotherById = new Map(brothers.map(b => [b.id, b]));
       nameById = new Map(brothers.map(b => [b.id, b.name]));
     }
@@ -173,11 +197,11 @@ async function buildDTOs(ctx: RequestContext, rows: PollRow[]): Promise<PollDTO[
     };
   });
 
-  return withResolvedAssignees(ctx, dtos);
+  return withResolvedAssignees(ctx, dtos, tx);
 }
 
-function loadPolls(ctx: RequestContext, where?: { status?: string; ids?: number[] }): Promise<PollRow[]> {
-  return ctx.db.poll.findMany({
+function loadPolls(ctx: RequestContext, where?: { status?: string; ids?: number[] }, tx?: Tx): Promise<PollRow[]> {
+  return readers(ctx, tx).poll.findMany({
     where: {
       ...(where?.status ? { status: where.status } : {}),
       ...(where?.ids ? { id: { in: where.ids } } : {}),
@@ -193,8 +217,8 @@ function canManage(ctx: RequestContext): boolean {
 }
 
 /** The set of role ids the actor currently holds in this org. */
-async function actorRoleIds(ctx: RequestContext): Promise<Set<number>> {
-  const rows = await ctx.db.brotherRole.findMany({
+async function actorRoleIds(ctx: RequestContext, tx?: Tx): Promise<Set<number>> {
+  const rows = await readers(ctx, tx).brotherRole.findMany({
     where: { brotherId: ctx.actorId },
     select: { roleId: true },
   });
@@ -236,10 +260,17 @@ async function resolveAssignees(ctx: RequestContext, brotherIds: number[], roleI
  * member may read; the route does not gate list on MANAGE_POLLS.
  */
 export async function listPolls(ctx: RequestContext, filter?: { mine?: boolean; status?: string }): Promise<PollDTO[]> {
-  const rows = await loadPolls(ctx, { status: filter?.status });
-  if (!filter?.mine) return buildDTOs(ctx, rows);
-  const held = await actorRoleIds(ctx);
-  return buildDTOs(ctx, rows.filter(p => isAssignee(p, ctx.actorId, held)));
+  // One transaction for the whole read. These queries form a strict dependency
+  // chain — the polls decide which roles to expand, the holders decide whose
+  // names to resolve — so there is nothing to parallelize and every step used to
+  // pay the full BEGIN + SET LOCAL + COMMIT round-trip on its own. Sharing one
+  // transaction pays that once for all of them. See `readers` above.
+  return ctx.db.$transaction(async tx => {
+    const rows = await loadPolls(ctx, { status: filter?.status }, tx);
+    if (!filter?.mine) return buildDTOs(ctx, rows, tx);
+    const held = await actorRoleIds(ctx, tx);
+    return buildDTOs(ctx, rows.filter(p => isAssignee(p, ctx.actorId, held)), tx);
+  });
 }
 
 export async function createPoll(ctx: RequestContext, input: CreatePollInput): Promise<PollDTO> {

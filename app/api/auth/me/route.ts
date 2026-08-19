@@ -36,53 +36,81 @@ export async function GET() {
     const roles = user.roleRows.filter(r => r.organizationId === user.orgId);
     const canManageBrothers = elevated || hasPermission(computePermissions(roles), "MANAGE_BROTHERS");
 
-    const [brother, org, perms, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription] = await Promise.all([
-      db(user.orgId).identity.findByBrotherId(user.id),
-      db(user.orgId).organization.findUnique({
-        where: { id: user.orgId },
-        select: {
-          name: true,
-          slug: true,
-          // The org-type registry key (lib/org-types.ts) chosen at creation. The
-          // onboarding AI interview uses it as a starting prior so its questions
-          // and proposal begin from that template instead of cold.
-          orgType: true,
-          // Org profile picture for the sidebar/login badge — null falls back to
-          // the gradient initials badge. Pulled in the same round-trip as name.
-          logoUrl: true,
-          // The sidebar and onboarding picker filter surfaces by the org's
-          // enabled workflows. Pull it in the same round-trip as the org name.
-          config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, onboardingCompletedAt: true } },
-        },
-      }),
-      resolvePermissions(user),
-      db(user.orgId).orgMetricDefinition.count({ where: { deletedAt: null } }),
-      // The Sidebar's Treasury badge is a COUNT of pending reimbursement tickets.
-      // It used to derive that from the full reimbursementList, which forced
-      // /api/reimbursements into the bootstrap fan-out on every page even though
-      // only the treasury page reads the list itself. One count in this
-      // already-parallel batch is far cheaper than a whole extra request.
-      db(user.orgId).reimbursement.count({ where: { status: ReimbursementStatus.Pending } }),
-      // People waiting on an officer to let them in — drives the Brotherhood
-      // count badge in the sidebar. Same argument as the reimbursement count: it
-      // renders on every page, so it rides along here instead of costing a
-      // separate request. Zero for anyone who couldn't act on it anyway.
-      canManageBrothers
-        ? db(user.orgId).joinRequest.count({ where: { status: JoinRequestStatus.Pending } })
-        : 0,
-      // Billing state, for admins only, so a failed card can be surfaced where
-      // people actually look. Until now it rendered on exactly one screen —
-      // Settings → Billing — with no sidebar entry and nothing on the dashboard,
-      // and the app sends no email of any kind, so an org whose card expired
-      // found out by hitting the 402 wall days later.
-      //
-      // One indexed read of a row we already keep current, and deliberately NO
-      // Stripe call: this runs on every page load. The billing page still owns
-      // the authoritative pull (refreshIfStale).
-      elevated
-        ? db(user.orgId).subscription.findFirst({ select: { status: true, billableMembers: true } })
-        : null,
-    ]);
+    // One transaction for the whole bootstrap fan-out, not seven.
+    //
+    // Under RLS_SET_ORG_ID=1 every ctx.db call is its own implicit transaction:
+    // BEGIN + SET LOCAL + query + COMMIT, four wire round-trips to a remote
+    // pooled Postgres for one read (measured ~570ms per wrapped call, against
+    // ~100ms bare). This route fires on EVERY page load and made six such calls,
+    // so it paid that fixed overhead six times over — seconds of pure wrapper
+    // cost before any query did work. `Promise.all` overlapped them, but six
+    // concurrent transactions also means six pooler checkouts per page load,
+    // which is what turns a slow link into contention.
+    //
+    // Sharing one transaction pays the overhead once and gives every read a
+    // single budget. The reads stay in `Promise.all` inside it: they are
+    // mutually independent, and Prisma pipelines them onto the one connection.
+    // `.onTx(tx)` keeps each one going through its scoped delegate, so the
+    // organizationId injection is byte-identical to before — a raw `tx` client
+    // here would make the org filter something a caller could forget.
+    //
+    // resolvePermissions is deliberately NOT in here: it does no I/O (it filters
+    // roleRows that requireUser already loaded), so it needs no transaction.
+    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription } =
+      await db(user.orgId).$transaction(async tx => {
+        const scoped = db(user.orgId);
+        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription] = await Promise.all([
+          scoped.identity.onTx(tx).findByBrotherId(user.id),
+          scoped.organization.onTx(tx).findUnique({
+            where: { id: user.orgId },
+            select: {
+              name: true,
+              slug: true,
+              // The org-type registry key (lib/org-types.ts) chosen at creation. The
+              // onboarding AI interview uses it as a starting prior so its questions
+              // and proposal begin from that template instead of cold.
+              orgType: true,
+              // Org profile picture for the sidebar/login badge — null falls back to
+              // the gradient initials badge. Pulled in the same round-trip as name.
+              logoUrl: true,
+              // The sidebar and onboarding picker filter surfaces by the org's
+              // enabled workflows. Pull it in the same round-trip as the org name.
+              config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, onboardingCompletedAt: true } },
+            },
+          }),
+          scoped.orgMetricDefinition.onTx(tx).count({ where: { deletedAt: null } }),
+          // The Sidebar's Treasury badge is a COUNT of pending reimbursement tickets.
+          // It used to derive that from the full reimbursementList, which forced
+          // /api/reimbursements into the bootstrap fan-out on every page even though
+          // only the treasury page reads the list itself. One count in this
+          // already-parallel batch is far cheaper than a whole extra request.
+          scoped.reimbursement.onTx(tx).count({ where: { status: ReimbursementStatus.Pending } }),
+          // People waiting on an officer to let them in — drives the Brotherhood
+          // count badge in the sidebar. Same argument as the reimbursement count: it
+          // renders on every page, so it rides along here instead of costing a
+          // separate request. Zero for anyone who couldn't act on it anyway — and
+          // still skipped entirely, so joining the shared transaction never adds a
+          // query for a viewer who would only be told zero.
+          canManageBrothers
+            ? scoped.joinRequest.onTx(tx).count({ where: { status: JoinRequestStatus.Pending } })
+            : 0,
+          // Billing state, for admins only, so a failed card can be surfaced where
+          // people actually look. Until now it rendered on exactly one screen —
+          // Settings → Billing — with no sidebar entry and nothing on the dashboard,
+          // and the app sends no email of any kind, so an org whose card expired
+          // found out by hitting the 402 wall days later.
+          //
+          // One indexed read of a row we already keep current, and deliberately NO
+          // Stripe call: this runs on every page load. The billing page still owns
+          // the authoritative pull (refreshIfStale).
+          elevated
+            ? scoped.subscription.onTx(tx).findFirst({ select: { status: true, billableMembers: true } })
+            : null,
+        ]);
+        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription };
+      });
+
+    const perms = await resolvePermissions(user);
 
     // requireUser() already verified the session with Supabase and surfaced the
     // auth user's metadata — no second auth.getUser() network round-trip needed.
