@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Fundraising — "The Drive"
+  ────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+  · This is a NET-NEW page (app/[slug]/fundraising) — there is no existing route.
+    It is drawn in the established "Chapter Ledger" dusk language shared by
+    _design/Treasury + Dashboard + Events + Timeline Redesign: Fraunces serif,
+    warm paper, Geist Mono labels, one violet accent with gold / rose / sage
+    semantics, hairline dividers, shared sidebar, Dusk / Ivory toggle (press T).
+  · Screen shown = ONE OPEN FUNDRAISER (the detail view), because that is where
+    the whole design argument lives. The index of drives is the strip of pills
+    under the briefing; a closed drive's recap is shown as the modal (press C).
+  · The four design decisions from the brief, made visible:
+      1. FOUR NUMBERS, ALWAYS. Goal / Raised / Spent / Net sit in the glance strip
+         and never move. Everything else is detail you scroll to.
+      2. THE BUDGET IS A RUNNING LIST. There is no "budget phase" — the same
+         one-line composer sits at the bottom of the cost list from day one to
+         close. New costs are appended, never "reopened".
+      3. EST → ACTUAL ARE TWO SOFT STATES ON ONE ROW. A line with only an estimate
+         renders in gold with a dotted underline; filling the actual settles it to
+         ink. No separate reconciliation screen. Math uses actual-if-present-else-
+         estimate, so the running net is always live-correct.
+      4. OPTIONAL REVEALS, NOT REQUIRED FIELDS. Tag, receipt, and per-member
+         assignment are icon affordances ON the row — invisible until used. The
+         per-member mode (pledge-style) is an org toggle, shown here OFF with the
+         reveal visible in the composer.
+  · Money-in is manual entry (cash drops, Venmo batches) — most chapters will not
+    wire Stripe for a bake sale — so "Log drop" is the primary income action.
+  · Permission model per the brief: any member ON the drive team can add cost and
+    income lines; only officers can close it out. The close button is the only
+    thing wearing a lock.
+  · Data is illustrative, in the seed vocabulary (Spring '26 / SPR26, Lambda Phi
+    Epsilon Beta Chapter). Today pinned to Sat Jun 13 2026 to match sibling mocks.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Fundraising · The Drive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    --scrim:    rgba(8,7,5,.72);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --scrim:    rgba(38,33,26,.42);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+  button, input { font-family: inherit; }
+
+  .shell { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh; }
+
+  /* ── Sidebar (shared) ──────────────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ───────────────────────────────────────────── */
+  .main { padding: 30px 38px 72px; max-width: 1200px; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 33px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+  .digest { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 640px; }
+  .ai-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    color: var(--vio); border: 1px solid var(--vio-bg); background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+  .digest p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  .head-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .icon-btn:hover { color: var(--ink); border-color: var(--vio); }
+  .icon-btn svg { width: 15px; height: 15px; }
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn:hover { border-color: var(--vio); }
+  .add-btn svg { stroke: var(--vio); width: 13px; height: 13px; }
+
+  .theme-toggle { position: fixed; bottom: 18px; right: 20px; z-index: 60;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── Drive switcher (the index, compressed to pills) ── */
+  .drives { margin-top: 22px; display: flex; gap: 6px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 12px; flex-wrap: wrap; }
+  .drive-pill { display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+  .drive-pill:hover { color: var(--ink-soft); border-color: var(--vio); }
+  .drive-pill.on { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
+  .drive-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .drive-pill .dot.live { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+  .drive-pill .dot.draft { background: var(--gold); }
+  .drive-pill .dot.closed { background: var(--faint); }
+
+  .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+
+  /* ── ONE status card ─────────────────────────────────
+     Reads top-left → right: hero number, the meter under it,
+     the numbers that qualify it, then the pace chart. Facts
+     and actions sit in a quiet footer, out of the way.      */
+  .status { margin-top: 20px; display: grid; grid-template-columns: 1.15fr minmax(0, 1fr); gap: 0; }
+  .status-main { padding: 24px 26px 22px; border-right: 1px solid var(--line-soft); }
+
+  .status-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .status-hero { margin-top: 10px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .status-num { font-family: var(--serif); font-weight: 400; font-size: 54px; line-height: 1;
+    letter-spacing: -.025em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .status-pct { font-family: var(--mono); font-size: 16px; color: var(--vio); font-variant-numeric: tabular-nums; }
+  .therm-chip { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; }
+  .therm-chip.up { color: var(--ok); background: var(--ok-bg); }
+
+  /* the meter — a single ratio against a limit */
+  .meter { margin-top: 18px; }
+  .meter-track { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .meter-fill { display: block; height: 100%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--vio-deep), var(--vio)); }
+  .meter-foot { margin-top: 8px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+  .meter-foot .goal { color: var(--vio); }
+
+  /* the qualifying numbers — present, but clearly secondary */
+  .quals { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line-soft);
+    display: flex; flex-direction: column; gap: 9px; }
+  .qual { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .qual b { font-family: var(--mono); font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .qual b.rose { color: var(--rose); }
+  .qual b.vio { color: var(--vio); }
+  .qual i { font-style: normal; color: var(--line); }
+  .qual em { font-style: normal; font-size: 11px; color: var(--faint); }
+  .qual em.warn { color: var(--gold); }
+
+  /* the chart side */
+  .status-chart { padding: 24px 26px 20px; display: flex; flex-direction: column; }
+  .chart-h { margin-bottom: 4px; }
+  .chart-t { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .chart-m { font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+  .chart-m b { font-family: var(--mono); font-weight: 500; color: var(--ok); font-variant-numeric: tabular-nums; }
+
+  /* drive facts + actions, demoted */
+  .status-foot { grid-column: 1 / -1; border-top: 1px solid var(--line-soft); background: var(--paper-2);
+    padding: 12px 26px; display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  .foot-facts { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .ff { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
+  .ff i { font-style: normal; font-family: var(--mono); font-size: 8.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--faint); }
+  .ff b { font-family: var(--mono); font-size: 10.5px; font-weight: 400; }
+  .ff b.gold { color: var(--gold); }
+  .foot-acts { display: flex; gap: 8px; flex-shrink: 0; }
+  .foot-acts .wide-btn { width: auto; padding: 8px 16px; }
+  .card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
+  .card-h h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+  .card-h .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+
+  /* cumulative raise vs. the pace you'd need — "am I on track", drawn.
+     One series, so no legend box: the title names it and the baseline
+     is direct-labelled. Endpoint is the only labelled point. */
+  .pace-chart { flex: 1; display: flex; align-items: center; margin-top: 6px; }
+  .pace-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .pace-chart .gridline { stroke: var(--line-soft); stroke-width: 1; }
+  .pace-chart .axis { font-family: var(--mono); font-size: 8.5px; fill: var(--faint); letter-spacing: .06em; }
+  .pace-chart .needed { stroke: var(--faint); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; opacity: .75; }
+  .pace-chart .lbl-needed { font-family: var(--mono); font-size: 8.5px; fill: var(--muted); letter-spacing: .08em; }
+  .pace-chart .actual { stroke: var(--vio); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .pace-chart .dot-ring { fill: var(--card); }
+  .pace-chart .lbl-now { font-family: var(--mono); font-size: 10px; fill: var(--ink); font-weight: 500;
+    letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+
+  .team { display: flex; align-items: center; }
+  .team .av { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+    font-family: var(--mono); font-size: 8.5px; font-weight: 600; background: var(--vio-bg); color: var(--vio);
+    border: 1.5px solid var(--card); margin-left: -6px; }
+  .team .av:first-child { margin-left: 0; }
+  .team .more { font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-left: 8px; }
+  .wide-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 10px; cursor: pointer; }
+  .wide-btn:hover { border-color: var(--vio); }
+  .wide-btn svg { width: 13px; height: 13px; stroke: currentColor; }
+  .wide-btn.ghost { color: var(--muted); background: transparent; border-color: var(--line); }
+  .wide-btn.ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  /* ── The running list (costs + income share one grammar) */
+  .lists { margin-top: 18px; display: grid; grid-template-columns: 1.35fr minmax(0, 1fr); gap: 18px; align-items: start; }
+
+  .lh { display: flex; align-items: center; gap: 12px; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .lh h2 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink); }
+  .lh .grow { flex: 1; }
+  .lh .tot { font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .lh .tot.rose { color: var(--rose); }
+  .lh .tot.sage { color: var(--ok); }
+  .lh .cnt { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+
+  .li { display: flex; align-items: center; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); }
+  .li:last-of-type { border-bottom: 0; }
+  .li:hover { background: var(--card-2); }
+  .li:hover .reveal { opacity: 1; }
+  .li .glyph { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+    font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .li .glyph.exp { background: var(--rose-bg); color: var(--rose); }
+  .li .glyph.est { background: var(--gold-bg); color: var(--gold); }
+  .li .glyph.inc { background: var(--ok-bg); color: var(--ok); }
+  .li .body { flex: 1; min-width: 0; }
+  .li .body .t { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+  .li .body .m { font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); margin-top: 2px;
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .li .body .m .tag { color: var(--muted); background: var(--line-soft); border-radius: 999px; padding: 1px 7px; letter-spacing: .1em; text-transform: uppercase; font-size: 8.5px; }
+  .li .body .m .rcpt { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+  .li .body .m .rcpt svg { width: 10px; height: 10px; }
+
+  /* the two soft states, on one row */
+  .amt-cell { flex-shrink: 0; text-align: right; min-width: 108px; }
+  .amt-cell .amt { font-family: var(--mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .amt-cell .amt.rose { color: var(--rose); }
+  .amt-cell .amt.sage { color: var(--ok); }
+  .amt-cell .amt.pending { color: var(--gold); border-bottom: 1px dotted var(--gold); cursor: pointer; }
+  .amt-cell .sub { font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .amt-cell .sub.over { color: var(--rose); }
+  .amt-cell .sub.under { color: var(--ok); }
+  .amt-cell .sub.await { color: var(--gold); letter-spacing: .1em; text-transform: uppercase; font-size: 8.5px; }
+
+  .reveal { flex-shrink: 0; display: flex; gap: 3px; opacity: 0; transition: opacity .14s ease; }
+  .reveal button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px;
+    color: var(--faint); background: transparent; border: 1px solid transparent; cursor: pointer; }
+  .reveal button:hover { color: var(--vio); border-color: var(--line); background: var(--paper-2); }
+  .reveal svg { width: 13px; height: 13px; }
+
+  /* the composer — same one line, every stage of the drive */
+  .composer { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-top: 1px solid var(--line);
+    background: var(--paper-2); }
+  .composer .plus { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--vio); border: 1px dashed var(--vio); }
+  .composer .plus svg { width: 14px; height: 14px; stroke: currentColor; }
+  .composer input { flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink); background: transparent; border: 0; outline: none; padding: 6px 0; }
+  .composer input::placeholder { color: var(--faint); }
+  .composer .money { width: 92px; flex: none; font-family: var(--mono); font-size: 12.5px; text-align: right;
+    border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; background: var(--card); }
+  .composer .money:focus { border-color: var(--vio); }
+  .composer .opt { display: flex; gap: 3px; flex-shrink: 0; }
+  .composer .opt button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px;
+    color: var(--faint); background: transparent; border: 1px solid var(--line); cursor: pointer; }
+  .composer .opt button:hover { color: var(--vio); border-color: var(--vio); }
+  .composer .opt svg { width: 13px; height: 13px; }
+  .composer .go { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 7px; padding: 7px 11px; cursor: pointer; }
+  .composer .go:hover { border-color: var(--vio); }
+  .composer-hint { padding: 8px 18px 12px; font-family: var(--mono); font-size: 9px; letter-spacing: .06em; color: var(--faint);
+    background: var(--paper-2); border-top: 1px solid var(--line-soft); line-height: 1.7; }
+  .composer-hint b { color: var(--muted); font-weight: 500; }
+
+  /* estimate-vs-actual summary footer on the cost card */
+  .recon { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px;
+    border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+  .recon .pair { display: flex; align-items: baseline; gap: 9px; }
+  .recon .k { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .recon .v { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .recon .delta { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 999px; }
+  .recon .delta.under { color: var(--ok); background: var(--ok-bg); }
+
+  /* ── Per-member mode (optional reveal, shown OFF) ────── */
+  .optin { margin-top: 18px; display: flex; align-items: center; gap: 14px; padding: 14px 18px;
+    border: 1px dashed var(--line); border-radius: 12px; background: transparent; }
+  .optin .ic { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+    background: var(--line-soft); color: var(--muted); }
+  .optin .ic svg { width: 15px; height: 15px; }
+  .optin .body { flex: 1; min-width: 0; }
+  .optin .body .t { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+  .optin .body .m { font-size: 11px; color: var(--faint); margin-top: 2px; }
+  .switch { flex-shrink: 0; width: 38px; height: 22px; border-radius: 999px; background: var(--line);
+    border: 0; position: relative; cursor: pointer; transition: background .16s ease; }
+  .switch i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--muted); transition: left .16s ease, background .16s ease; }
+  .switch.on { background: var(--vio-bg); }
+  .switch.on i { left: 19px; background: var(--vio); }
+
+  .secnote { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin: 30px 0 12px; }
+
+  /* ── Close-out recap modal ───────────────────────────── */
+  .scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(3px); z-index: 70;
+    display: grid; place-items: center; padding: 24px; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .recap { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 14px;
+    background: var(--card); box-shadow: var(--shadow); transform: translateY(8px) scale(.99); transition: transform .18s cubic-bezier(.22,1,.36,1); }
+  .scrim.open .recap { transform: none; }
+  .recap-h { padding: 22px 24px 16px; border-bottom: 1px solid var(--line-soft); text-align: center; }
+  .recap-h .k { font-family: var(--mono); font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+  .recap-h h2 { font-family: var(--serif); font-weight: 400; font-size: 25px; color: var(--ink); margin-top: 8px; }
+  .recap-h .m { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); margin-top: 7px; }
+  .recap-net { padding: 22px 24px 18px; text-align: center; border-bottom: 1px solid var(--line-soft); }
+  .recap-net .k { font-family: var(--mono); font-size: 9px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+  .recap-net .v { font-family: var(--serif); font-size: 48px; font-weight: 400; letter-spacing: -.02em; color: var(--ok);
+    margin-top: 6px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .recap-net .m { font-family: var(--mono); font-size: 10.5px; color: var(--ok); background: var(--ok-bg);
+    border-radius: 999px; padding: 3px 11px; display: inline-block; margin-top: 11px; }
+  .recap-lines { padding: 16px 24px; display: flex; flex-direction: column; gap: 10px; }
+  .recap-lines .line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .recap-lines .line .k { font-size: 11.5px; color: var(--muted); }
+  .recap-lines .line .v { font-family: var(--mono); font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .recap-lines .line .v.sage { color: var(--ok); }
+  .recap-lines .line .v.rose { color: var(--rose); }
+  .recap-lines hr { border: 0; border-top: 1px solid var(--line-soft); margin: 2px 0; }
+  .recap-lines .line.total .k { color: var(--ink); font-weight: 600; }
+  .recap-lines .line.total .v { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--vio); }
+  .recap-post { margin: 4px 24px 0; padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--paper-2);
+    display: flex; gap: 11px; align-items: flex-start; }
+  .recap-post .ic { flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
+    background: var(--vio-bg); color: var(--vio); }
+  .recap-post .ic svg { width: 13px; height: 13px; }
+  .recap-post p { font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+  .recap-post p b { color: var(--ink-soft); font-weight: 550; }
+  .recap-acts { padding: 16px 24px 22px; display: flex; gap: 9px; }
+  .recap-acts button { flex: 1; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    border-radius: 8px; padding: 11px; cursor: pointer; }
+  .recap-acts .prim { color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); }
+  .recap-acts .prim:hover { border-color: var(--vio); }
+  .recap-acts .ghost { color: var(--muted); background: transparent; border: 1px solid var(--line); }
+  .recap-acts .ghost:hover { color: var(--ink); border-color: var(--vio); }
+
+  .hint-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 55;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+    background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; box-shadow: var(--shadow); }
+  .hint-bar b { color: var(--vio); font-weight: 500; }
+
+  @media (max-width: 1080px) {
+    .lists { grid-template-columns: 1fr; }
+  }
+  /* mock-only chrome gets out of the way on small screens */
+  @media (max-width: 760px) {
+    .hint-bar { display: none; }
+    .theme-toggle { bottom: 10px; right: 10px; padding: 5px 10px; font-size: 9px; opacity: .8; }
+  }
+  @media (max-width: 980px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { display: none; }
+    .main { padding: 26px 20px 72px; }
+    .status { grid-template-columns: 1fr; }
+    .status-main { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+    .briefing { flex-direction: column; gap: 18px; }
+  }
+  @media (max-width: 560px) {
+    .status-main, .status-chart { padding: 20px; }
+    .status-num { font-size: 44px; }
+    .status-foot { padding: 14px 20px; align-items: flex-start; flex-direction: column; }
+    .foot-acts { width: 100%; }
+    .foot-acts .wide-btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()">Dusk / Ivory · T</button>
+
+<div class="shell">
+
+  <!-- ── Sidebar ──────────────────────────────────────── -->
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Brothers</a>
+      <a href="#">Events</a>
+      <a href="#">Timeline</a>
+      <a href="#">Treasury</a>
+      <a href="#" class="active">Fundraising</a>
+      <a href="#">Documents</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who">
+        <p>Thalha Thabish</p>
+        <p>Treasurer</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ─────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Briefing -->
+    <section class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Sat · Jun 13</span> &ensp;·&ensp; Fundraising &ensp;·&ensp; Spring 2026</p>
+        <h1 class="greeting">Boba for <em>Bidding</em>.</h1>
+        <div class="digest">
+          <span class="ai-chip">AI</span>
+          <p>Pacing ahead with eight days left — but $86 of supplies are still estimates, so tonight's net is a guess until Marcus logs the Costco run.</p>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="icon-btn" title="Export recap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        </button>
+        <button class="add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New drive
+        </button>
+      </div>
+    </section>
+
+    <!-- Drive switcher: the index lives as pills, not a separate page -->
+    <nav class="drives">
+      <button class="drive-pill on"><span class="dot live"></span>Boba for Bidding</button>
+      <button class="drive-pill"><span class="dot draft"></span>Alumni Golf Outing · draft</button>
+      <button class="drive-pill"><span class="dot closed"></span>Spring Car Wash · +$418</button>
+      <button class="drive-pill"><span class="dot closed"></span>Philanthropy 5K · +$1,205</button>
+      <button class="drive-pill" style="border-style:dashed">All drives →</button>
+    </nav>
+
+    <!-- ── ONE status card. Hero number → meter → the numbers
+             that qualify it → the one chart that says something
+             the numbers can't (will we make it?). ──────────── -->
+    <section class="status card">
+
+      <div class="status-main">
+        <!-- the hero: the answer to "how are we doing" -->
+        <p class="status-k">Raised toward the $2,000 goal</p>
+        <div class="status-hero">
+          <span class="status-num">$1,340</span>
+          <span class="status-pct">67%</span>
+          <span class="therm-chip up">+$210 today</span>
+        </div>
+
+        <!-- the meter: a single ratio against a limit -->
+        <div class="meter">
+          <div class="meter-track"><i class="meter-fill" style="width:67%"></i></div>
+          <div class="meter-foot">
+            <span>8 days left · closes Sun Jun 21</span>
+            <span class="goal">$660 to go</span>
+          </div>
+        </div>
+
+        <!-- the numbers that qualify the hero, inline & quiet -->
+        <div class="quals">
+          <span class="qual"><b class="rose">−$312</b> spent<i>·</i><em class="warn">$86 still estimated</em></span>
+          <span class="qual"><b class="vio">$1,028</b> net so far<i>·</i><em>raised minus spent</em></span>
+        </div>
+      </div>
+
+      <!-- the chart: the only thing here the numbers can't say -->
+      <div class="status-chart">
+        <div class="chart-h">
+          <p class="chart-t">Pace</p>
+          <p class="chart-m">Ahead of schedule — on track for <b>$2,684</b></p>
+        </div>
+        <div class="pace-chart">
+          <svg viewBox="0 0 460 150" aria-label="Money raised to date against the pace needed to hit goal">
+            <defs>
+              <linearGradient id="paceFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.22"/>
+                <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line class="gridline" x1="34" y1="16" x2="452" y2="16"/>
+            <line class="gridline" x1="34" y1="60" x2="452" y2="60"/>
+            <line class="gridline" x1="34" y1="104" x2="452" y2="104"/>
+            <text class="axis" x="30" y="20" text-anchor="end">$2k</text>
+            <text class="axis" x="30" y="64" text-anchor="end">$1k</text>
+            <text class="axis" x="30" y="108" text-anchor="end">$0</text>
+
+            <!-- the baseline you're measured against -->
+            <path class="needed" d="M34,104 L452,16"/>
+            <text class="lbl-needed" x="452" y="12" text-anchor="end">needed pace</text>
+
+            <!-- cumulative raised, stopping at today -->
+            <path d="M34,104 L86,99 L138,88 L190,83 L242,66 L294,61 L346,50 L370,45 L370,104 L34,104 Z" fill="url(#paceFill)"/>
+            <path class="actual" d="M34,104 L86,99 L138,88 L190,83 L242,66 L294,61 L346,50 L370,45"/>
+            <circle class="dot-ring" cx="370" cy="45" r="6"/>
+            <circle cx="370" cy="45" r="3.5" fill="#a78bfa"/>
+            <text class="lbl-now" x="362" y="36" text-anchor="end">$1,340</text>
+
+            <text class="axis" x="34" y="126">Jun 2</text>
+            <text class="axis" x="370" y="126" text-anchor="middle">today</text>
+            <text class="axis" x="452" y="126" text-anchor="end">Jun 21</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- drive facts + actions, demoted to a quiet footer strip -->
+      <div class="status-foot">
+        <div class="foot-facts">
+          <span class="ff"><i>Lead</i>Marcus Chen</span>
+          <span class="ff"><i>Team</i>
+            <span class="team"><span class="av">MC</span><span class="av">TT</span><span class="av">JP</span><span class="av">RL</span><span class="more">+3</span></span>
+          </span>
+          <span class="ff"><i>Posts to</i><b class="gold">Treasury · Fundraising</b></span>
+        </div>
+        <div class="foot-acts">
+          <button class="wide-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Log a drop
+          </button>
+          <button class="wide-btn ghost" onclick="openRecap()">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+            Close out
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── The running lists ───────────────────────────── -->
+    <section class="lists">
+
+      <!-- COSTS: the running budget. No phases. Estimates and actuals share a row. -->
+      <div class="card">
+        <div class="lh">
+          <h2>Costs</h2>
+          <span class="cnt">6 lines</span>
+          <span class="grow"></span>
+          <span class="tot rose">−$312</span>
+        </div>
+
+        <div class="li">
+          <span class="glyph exp">✓</span>
+          <div class="body">
+            <p class="t">Boba supplies — tapioca, syrup, cups</p>
+            <p class="m"><span class="tag">Supplies</span> Marcus C · Jun 4
+              <span class="rcpt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16l-3-2-3 2-3-2-3 2z"/></svg>receipt</span>
+            </p>
+          </div>
+          <div class="amt-cell">
+            <p class="amt rose">$148.20</p>
+            <p class="sub under">est $160 · under $11.80</p>
+          </div>
+          <div class="reveal">
+            <button title="Attach receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8"/></svg></button>
+            <button title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="li">
+          <span class="glyph exp">✓</span>
+          <div class="body">
+            <p class="t">Table permit — student union</p>
+            <p class="m"><span class="tag">Venue</span> Priya S · Jun 2
+              <span class="rcpt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16l-3-2-3 2-3-2-3 2z"/></svg>receipt</span>
+            </p>
+          </div>
+          <div class="amt-cell">
+            <p class="amt rose">$40.00</p>
+            <p class="sub">est $40 · exact</p>
+          </div>
+          <div class="reveal">
+            <button title="Attach receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8"/></svg></button>
+            <button title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="li">
+          <span class="glyph exp">✓</span>
+          <div class="body">
+            <p class="t">Printed flyers &amp; table sign</p>
+            <p class="m"><span class="tag">Marketing</span> Jordan P · Jun 3</p>
+          </div>
+          <div class="amt-cell">
+            <p class="amt rose">$38.00</p>
+            <p class="sub over">est $25 · over $13</p>
+          </div>
+          <div class="reveal">
+            <button title="Attach receipt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.5 3.5 0 015 5l-9 9a2 2 0 01-3-3l8-8"/></svg></button>
+            <button title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- the soft state: added mid-planning, estimate only, not yet spent -->
+        <div class="li">
+          <span class="glyph est">~</span>
+          <div class="body">
+            <p class="t">Ice &amp; cooler rental — Sat session</p>
+            <p class="m"><span class="tag">Supplies</span> Added by Rachel L · today</p>
+          </div>
+          <div class="amt-cell">
+            <p class="amt pending">$45.00</p>
+            <p class="sub await">estimate · tap to settle</p>
+          </div>
+          <div class="reveal">
+            <button title="Fill actual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="li">
+          <span class="glyph est">~</span>
+          <div class="body">
+            <p class="t">Second Costco run — cups running low</p>
+            <p class="m"><span class="tag">Supplies</span> Added by Marcus C · today</p>
+          </div>
+          <div class="amt-cell">
+            <p class="amt pending">$41.00</p>
+            <p class="sub await">estimate · tap to settle</p>
+          </div>
+          <div class="reveal">
+            <button title="Fill actual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></button>
+            <button title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="li">
+          <span class="glyph exp">✓</span>
+          <div class="body">
+            <p class="t">Venmo transaction fees</p>
+            <p class="m">Auto · Jun 11</p>
+          </div>
+          <div class="amt-cell">
+            <p class="amt rose">$0.00</p>
+            <p class="sub">no estimate</p>
+          </div>
+          <div class="reveal">
+            <button title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+          </div>
+        </div>
+
+        <!-- THE COMPOSER — identical on day one and day twelve -->
+        <div class="composer">
+          <span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <input placeholder="Add a cost — what did it take?" aria-label="New cost description">
+          <input class="money" placeholder="$0.00" aria-label="Amount">
+          <div class="opt">
+            <button title="Tag it (optional)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg></button>
+            <button title="Attach receipt (optional)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M3 17l5-4 4 3 3-2 6 5"/></svg></button>
+            <button title="Mark as estimate (optional)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h4l3-8 4 16 3-8h2"/></svg></button>
+          </div>
+          <button class="go">Add</button>
+        </div>
+        <div class="recon">
+          <div class="pair"><span class="k">Budgeted</span><span class="v">$332</span></div>
+          <div class="pair"><span class="k">Actual</span><span class="v">$226</span></div>
+          <span class="delta under">$11.80 under</span>
+        </div>
+      </div>
+
+      <!-- INCOME: same grammar, one column narrower -->
+      <div class="card">
+        <div class="lh">
+          <h2>Money in</h2>
+          <span class="cnt">9 drops</span>
+          <span class="grow"></span>
+          <span class="tot sage">+$1,340</span>
+        </div>
+
+        <div class="li">
+          <span class="glyph inc">$</span>
+          <div class="body">
+            <p class="t">Saturday table — cash box</p>
+            <p class="m">Marcus C · today · 4:20 PM</p>
+          </div>
+          <div class="amt-cell" style="min-width:78px">
+            <p class="amt sage">+$210</p>
+          </div>
+        </div>
+        <div class="li">
+          <span class="glyph inc">$</span>
+          <div class="body">
+            <p class="t">Venmo batch — @lpe-beta</p>
+            <p class="m">Auto-imported · Jun 12</p>
+          </div>
+          <div class="amt-cell" style="min-width:78px">
+            <p class="amt sage">+$385</p>
+          </div>
+        </div>
+        <div class="li">
+          <span class="glyph inc">$</span>
+          <div class="body">
+            <p class="t">Alumni match — R. Nguyen '19</p>
+            <p class="m">Priya S · Jun 10</p>
+          </div>
+          <div class="amt-cell" style="min-width:78px">
+            <p class="amt sage">+$250</p>
+          </div>
+        </div>
+        <div class="li">
+          <span class="glyph inc">$</span>
+          <div class="body">
+            <p class="t">Thursday table — cash box</p>
+            <p class="m">Jordan P · Jun 9</p>
+          </div>
+          <div class="amt-cell" style="min-width:78px">
+            <p class="amt sage">+$178</p>
+          </div>
+        </div>
+        <div class="li">
+          <span class="glyph inc">$</span>
+          <div class="body">
+            <p class="t">Pre-orders — sorority block</p>
+            <p class="m">Rachel L · Jun 6</p>
+          </div>
+          <div class="amt-cell" style="min-width:78px">
+            <p class="amt sage">+$317</p>
+          </div>
+        </div>
+
+        <div class="composer">
+          <span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <input placeholder="Log a drop — where'd it come from?" aria-label="New income description">
+          <input class="money" placeholder="$0.00" aria-label="Amount">
+          <button class="go">Log</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── The optional reveal, shown OFF ──────────────── -->
+    <div class="optin">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87"/></svg></span>
+      <div class="body">
+        <p class="t">Per-member goals</p>
+        <p class="m">Give every brother their own share of the goal, for pledge-style drives.</p>
+      </div>
+      <button class="switch" onclick="this.classList.toggle('on')" aria-label="Toggle per-member goals"><i></i></button>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Close-out recap ─────────────────────────────────── -->
+<div class="scrim" id="scrim" onclick="if(event.target===this) closeRecap()">
+  <div class="recap" role="dialog" aria-label="Close out drive">
+    <div class="recap-h">
+      <p class="k">Closing out</p>
+      <h2>Boba for Bidding</h2>
+      <p class="m">Jun 2 → Jun 21 · 19 days · 7 on the team</p>
+    </div>
+
+    <div class="recap-net">
+      <p class="k">Net raised</p>
+      <p class="v">+$1,028</p>
+      <p class="m">51% of the $2,000 goal</p>
+    </div>
+
+    <div class="recap-lines">
+      <div class="line"><span class="k">Money in · 9 drops</span><span class="v sage">+$1,340.00</span></div>
+      <div class="line"><span class="k">Costs · 6 lines</span><span class="v rose">−$312.00</span></div>
+      <div class="line"><span class="k">Budgeted</span><span class="v">$332.00</span></div>
+      <div class="line"><span class="k">Came in under by</span><span class="v sage">$20.00</span></div>
+      <hr>
+      <div class="line total"><span class="k">Net to the chapter</span><span class="v">+$1,028.00</span></div>
+    </div>
+
+    <div class="recap-post">
+      <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13m0 0l-4-4m4 4l4-4M4 21h16"/></svg></span>
+      <p>Closing posts <b>+$1,028</b> to Treasury under <b>Fundraising</b> as one entry, locks these lines from further edits, and files the drive in your history so next spring's chair can see what the boba table actually cost.</p>
+    </div>
+
+    <div class="recap-acts">
+      <button class="ghost" onclick="closeRecap()">Not yet</button>
+      <button class="prim">Close &amp; post</button>
+    </div>
+  </div>
+</div>
+
+<div class="hint-bar">Press <b>T</b> for Ivory &ensp;·&ensp; <b>C</b> for the close-out recap</div>
+
+<script>
+  function toggleTheme() {
+    const r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === 'dusk' ? 'ivory' : 'dusk';
+  }
+  function openRecap()  { document.getElementById('scrim').classList.add('open'); }
+  function closeRecap() { document.getElementById('scrim').classList.remove('open'); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    const k = e.key.toLowerCase();
+    if (k === 't') toggleTheme();
+    if (k === 'c') {
+      const s = document.getElementById('scrim');
+      s.classList.contains('open') ? closeRecap() : openRecap();
+    }
+    if (e.key === 'Escape') closeRecap();
+  });
+
+  // Tapping a pending estimate settles it to an actual — the whole
+  // "two soft states, one row" argument, demonstrated in one interaction.
+  document.querySelectorAll('.amt.pending').forEach((el) => {
+    el.addEventListener('click', () => {
+      const cell = el.closest('.amt-cell');
+      const row  = el.closest('.li');
+      const est  = parseFloat(el.textContent.replace(/[^0-9.]/g, ''));
+      const val  = prompt('What did it actually cost?', est.toFixed(2));
+      if (val === null) return;
+      const actual = parseFloat(val.replace(/[^0-9.]/g, ''));
+      if (isNaN(actual)) return;
+      el.className = 'amt rose';
+      el.textContent = '$' + actual.toFixed(2);
+      const d = actual - est;
+      const sub = cell.querySelector('.sub');
+      sub.className = 'sub ' + (d > 0 ? 'over' : d < 0 ? 'under' : '');
+      sub.textContent = d === 0
+        ? 'est $' + est.toFixed(0) + ' · exact'
+        : 'est $' + est.toFixed(0) + ' · ' + (d > 0 ? 'over $' : 'under $') + Math.abs(d).toFixed(2);
+      row.querySelector('.glyph').className = 'glyph exp';
+      row.querySelector('.glyph').textContent = '✓';
+    });
+  });
+</script>
+</body>
+</html>
