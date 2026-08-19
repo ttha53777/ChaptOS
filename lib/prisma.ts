@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { instrumentPool } from "@/lib/db/perf-metrics";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../app/generated/prisma/client";
 
@@ -72,6 +73,13 @@ if (needsFreshPool) {
     client.query("SET app.org_id = ''").catch(() => undefined);
   });
 }
+
+// Phase 0: count wire statements (BEGIN/COMMIT/SET LOCAL) leaving the driver.
+// Deliberately OUTSIDE the needsFreshPool guard: in dev the pool is cached on
+// globalThis across hot-reloads, so a pool that already exists would never be
+// patched. instrumentPool is idempotent (it marks what it wraps) and is a
+// no-op unless PERF_INSTRUMENT=1, so calling it unconditionally is safe.
+instrumentPool(pool as unknown as { query: (...args: never[]) => unknown });
 
 // Pre-warm connections so the first real request doesn't pay the cold-start
 // penalty. Warm at least 2: OrgLayout (and other hot paths) fire two queries in
