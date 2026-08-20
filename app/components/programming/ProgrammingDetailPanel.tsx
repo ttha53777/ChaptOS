@@ -861,6 +861,11 @@ function RequiredRow({
 
   const isOwner = field.key === "owner";
   const canEditOwner = isOwner && canManage;
+  // date and location are plain columns, so — unlike owner — they edit inline
+  // with the same commit-on-blur TextValue the optional rows use, rather than
+  // a picker that needs an open/close toggle.
+  const isInlineText = field.key === "date" || field.key === "location";
+  const canEditInline = isInlineText && canManage && !locked;
   // Gold flags a gate that is still waiting. Done has no gate ahead of it, so an
   // unanswered field there is a gap in the record, not a blocker.
   const state = has ? "set" : event.stage === "done" ? "empty" : "miss";
@@ -885,7 +890,17 @@ function RequiredRow({
         title={locked ? "Locked while the chapter can see this event" : undefined}
       >
         <span className="ev-fld-k">{field.label}</span>
-        <span className={`ev-fld-v${has ? "" : " empty"}`}>{has ? value : emptyText}</span>
+        {canEditInline ? (
+          <TextValue
+            value={field.key === "date" ? (event.dueDate ?? "") : (event.location ?? "")}
+            type={field.key === "date" ? "date" : "text"}
+            onCommit={v =>
+              onPatch(event.id, field.key === "date" ? { dueDate: v || null } : { location: v })
+            }
+          />
+        ) : (
+          <span className={`ev-fld-v${has ? "" : " empty"}`}>{has ? value : emptyText}</span>
+        )}
         {locked ? (
           <svg className="ev-fld-pencil lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" />
