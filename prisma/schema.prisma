@@ -783,6 +783,16 @@ model CalendarEvent {
   // Used by the Programming page (events workflow). Chapter/Timeline rows keep defaults.
   owner             String                     @default("")
   status            String                     @default("Upcoming")
+  // Live check-in window. Null checkInOpenedAt = never opened (the 99% case).
+  // Open when opened != null && closed == null && now < opened + CHECKIN_WINDOW_MS.
+  // date/time stay the display fields; these are the only computable timestamps
+  // on this model (date is a String, time is free text an officer types), which
+  // is why the window is opened by hand rather than on a schedule.
+  // The *ById columns are plain Ints, not FKs — same as AttendanceExcuse.decidedById.
+  checkInOpenedAt   DateTime?
+  checkInOpenedById Int?
+  checkInClosedAt   DateTime?
+  checkInClosedById Int?
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   programmingEvent  ProgrammingEvent?
@@ -795,6 +805,9 @@ model CalendarEvent {
   @@index([organizationId, category, date])
   // Covers the frequent `where: { mandatory: true }` (+ org) attendance/upcoming queries.
   @@index([organizationId, mandatory, date])
+  // Covers getLiveCheckIn's "does this org have a recently-opened window?" read,
+  // which runs on every dashboard load.
+  @@index([organizationId, checkInOpenedAt])
 }
 
 // Per-org, admin-editable timeline event type (a.k.a. "category"). Defines the
