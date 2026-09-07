@@ -27,6 +27,10 @@ import {
   createDoc, createBudget, createActivityLog, createAnnouncement,
 } from "../setup/factories";
 import { db } from "@/lib/db";
+import { randomUUID } from "node:crypto";
+import { NotFoundError } from "@/lib/errors";
+import { closeCheckIn, getLiveCheckIn, openCheckIn, selfCheckIn } from "@/lib/services/attendance-service";
+import type { RequestContext } from "@/lib/context";
 
 beforeEach(async () => {
   await resetDb();
@@ -35,6 +39,19 @@ beforeEach(async () => {
 afterAll(async () => {
   await testPrisma.$disconnect();
 });
+
+/** A request context for one org — the live check-in block calls services, not
+ *  the db() wrapper directly, because its isolation lives in the service's
+ *  resolve-the-event-first step rather than in a scoped delegate. */
+function ctxFor(orgId: number, actorId: number): RequestContext {
+  return {
+    requestId: randomUUID(), orgId, actorId,
+    actorName: "Tester", actorEmail: null, authUserId: "auth-test",
+    membershipId: null, permissions: 0, maxRank: 0,
+    isOrgAdmin: true, isPlatformAdmin: false,
+    db: db(orgId),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // The roster (ctx.db.member — Membership-backed, keyed by brotherId)
@@ -265,6 +282,86 @@ describe("tenancy: ServiceParticipation", () => {
     await db(orgA.id).serviceParticipation.deleteMany();
     expect(await db(orgA.id).serviceParticipation.count()).toBe(0);
     expect(await db(orgB.id).serviceParticipation.count()).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Live check-in (AttendanceRecord via the CalendarEvent anchor)
+// ---------------------------------------------------------------------------
+// AttendanceRecord has no organizationId column, so isolation comes entirely
+// from resolving the event through the org-scoped ctx.db.calendarEvent BEFORE
+// the raw-tx write. These assert that anchor actually holds.
+describe("tenancy: live check-in", () => {
+  it("cannot self-check-in to another org's event", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aMember = await createBrother({ orgId: orgA.id, name: "A Member" });
+    const bOfficer = await createBrother({ orgId: orgB.id, name: "B Officer" });
+    await createSemester({ orgId: orgA.id, isActive: true });
+    await createSemester({ orgId: orgB.id, isActive: true });
+    const evB = await createCalendarEvent({ orgId: orgB.id, mandatory: true });
+
+    await openCheckIn(ctxFor(orgB.id, bOfficer.id), evB.id);
+
+    // Org A's member naming org B's event id: the event resolves to null through
+    // A's scoped delegate, so this is a 404, not a foreign write.
+    await expect(selfCheckIn(ctxFor(orgA.id, aMember.id), evB.id))
+      .rejects.toBeInstanceOf(NotFoundError);
+    expect(await testPrisma.attendanceRecord.count({ where: { calendarEventId: evB.id } })).toBe(0);
+  });
+
+  it("cannot open or close another org's check-in window", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aOfficer = await createBrother({ orgId: orgA.id, name: "A Officer" });
+    await createSemester({ orgId: orgA.id, isActive: true });
+    await createSemester({ orgId: orgB.id, isActive: true });
+    const evB = await createCalendarEvent({ orgId: orgB.id, mandatory: true });
+
+    await expect(openCheckIn(ctxFor(orgA.id, aOfficer.id), evB.id))
+      .rejects.toBeInstanceOf(NotFoundError);
+
+    const fresh = await testPrisma.calendarEvent.findUnique({ where: { id: evB.id } });
+    expect(fresh?.checkInOpenedAt).toBeNull();
+  });
+
+  it("getLiveCheckIn never returns a foreign org's window", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aMember = await createBrother({ orgId: orgA.id, name: "A Member" });
+    const bOfficer = await createBrother({ orgId: orgB.id, name: "B Officer" });
+    await createSemester({ orgId: orgA.id, isActive: true });
+    await createSemester({ orgId: orgB.id, isActive: true });
+    const evB = await createCalendarEvent({ orgId: orgB.id, mandatory: true });
+
+    await openCheckIn(ctxFor(orgB.id, bOfficer.id), evB.id);
+
+    // B sees its own live window; A sees nothing at all.
+    expect((await getLiveCheckIn(ctxFor(orgB.id, bOfficer.id)))?.event.id).toBe(evB.id);
+    expect(await getLiveCheckIn(ctxFor(orgA.id, aMember.id))).toBeNull();
+  });
+
+  it("closing a window only writes absences for the closing org's roster", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const aMember = await createBrother({ orgId: orgA.id, name: "A Member" });
+    const bOfficer = await createBrother({ orgId: orgB.id, name: "B Officer" });
+    const bMember = await createBrother({ orgId: orgB.id, name: "B Member" });
+    await createSemester({ orgId: orgA.id, isActive: true });
+    await createSemester({ orgId: orgB.id, isActive: true });
+    const evB = await createCalendarEvent({ orgId: orgB.id, mandatory: true });
+
+    const bCtx = ctxFor(orgB.id, bOfficer.id);
+    await openCheckIn(bCtx, evB.id);
+    await closeCheckIn(bCtx, evB.id);
+
+    const rows = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: evB.id } });
+    const brotherIds = new Set(rows.map(r => r.brotherId));
+    expect(brotherIds.has(bOfficer.id)).toBe(true);
+    expect(brotherIds.has(bMember.id)).toBe(true);
+    // Org A's member is not on B's roster and must not be marked absent for
+    // an event in a chapter they don't belong to.
+    expect(brotherIds.has(aMember.id)).toBe(false);
   });
 });
 

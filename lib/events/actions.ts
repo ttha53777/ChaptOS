@@ -54,6 +54,15 @@ export interface EventMetadata {
   "excuse.rejected":    { brotherId: number; brotherName: string; calendarEventId: number; semesterId: number; eventTitle: string; rejectionNote: string | null };
   "attendance.recorded":{ calendarEventId: number; semesterId: number; eventTitle: string; presentCount: number; eligibleCount: number };
   "exemption.changed":  { brotherId: number; semesterId: number };
+  // Live check-in. A member tapping "I'm here" emits with { activity: false }:
+  // one feed row per member is noise, and a per-tap attendance recalc would blow
+  // the 3s handler budget on a real roster. The recalc runs once, on close,
+  // which re-emits "attendance.recorded" rather than adding a second handler.
+  "attendance.self_checked_in": { brotherId: number; calendarEventId: number; semesterId: number; eventTitle: string };
+  "attendance.self_checkin_undone": { brotherId: number; calendarEventId: number; semesterId: number; eventTitle: string };
+  "checkin.opened":     { calendarEventId: number; eventTitle: string };
+  "checkin.closed":     { calendarEventId: number; eventTitle: string; presentCount: number; eligibleCount: number };
+  "checkin.reopened":   { calendarEventId: number; eventTitle: string };
 
   // Transactions / Budget
   "transaction.created":      { type: "income" | "expense"; category: string; amount: number; description: string };
@@ -235,6 +244,8 @@ export type Action = keyof EventMetadata;
 
 const KNOWN_ACTIONS = new Set<Action>([
   "excuse.submitted", "excuse.approved", "excuse.rejected", "attendance.recorded", "exemption.changed",
+  "attendance.self_checked_in", "attendance.self_checkin_undone",
+  "checkin.opened", "checkin.closed", "checkin.reopened",
   "transaction.created", "transaction.updated", "transaction.soft_deleted", "budget.upserted",
   "transaction_category.created", "transaction_category.updated", "transaction_category.hidden", "transaction_category.deleted",
   "treasury.opening_balance.set",

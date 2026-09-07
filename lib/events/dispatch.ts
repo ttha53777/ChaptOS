@@ -102,6 +102,19 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} recorded attendance for ${m.eventTitle}: ${m.presentCount}/${m.eligibleCount} present`;
     case "exemption.changed":
       return `${who} updated the attendance exemption for brother #${m.brotherId}`;
+    // attendance.self_checked_in / .self_checkin_undone are emitted with
+    // { activity: false }, so they never reach the feed — these cases exist so
+    // the OperationalEvent row still reads well anywhere the raw log is shown.
+    case "attendance.self_checked_in":
+      return `${who} checked in to ${m.eventTitle}`;
+    case "attendance.self_checkin_undone":
+      return `${who} undid their check-in for ${m.eventTitle}`;
+    case "checkin.opened":
+      return `${who} opened check-in for ${m.eventTitle}`;
+    case "checkin.closed":
+      return `${who} closed check-in for ${m.eventTitle}: ${m.presentCount}/${m.eligibleCount} present`;
+    case "checkin.reopened":
+      return `${who} reopened check-in for ${m.eventTitle}`;
     case "transaction.created":
       return `${who} added a $${Number(m.amount).toFixed(2)} ${m.type} for ${m.category}: ${m.description}`;
     case "transaction.updated":
