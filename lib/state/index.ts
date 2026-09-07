@@ -27,3 +27,4 @@ export * from "./approval-kind";
 export * from "./subscription-status";
 export * from "./billing-tier";
 export * from "./sales-lead";
+export * from "./checkin-status";
