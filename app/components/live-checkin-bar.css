@@ -1,0 +1,155 @@
+/* ── LiveCheckInBar ─────────────────────────────────────────────────────────
+   The compact check-in prompt that follows a member off the dashboard.
+
+   Bottom-anchored, not top: the top of every org page is already spoken for by
+   the page header, and a top bar would push the whole layout down on arrival —
+   a content jump on a page the member came to read for another reason. The
+   bottom edge is free, and the bar overlays rather than reflows.
+
+   It sits above page content but BELOW the chat widget's own overlay stacking,
+   and leaves the widget's launcher corner clear (see the right inset below). */
+
+.dash .lcb {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  bottom: 22px;
+  /* Centred on the viewport, then capped — a full-width bar on a wide screen
+     reads as chrome, and this is a message. */
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 36px));
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px 11px 16px;
+
+  background: var(--card-2);
+  border: 1px solid rgba(167, 139, 250, .34);
+  border-radius: 13px;
+  box-shadow: 0 2px 0 rgba(0,0,0,.3), 0 22px 48px -26px rgba(0,0,0,.85);
+
+  font-family: var(--sans);
+  animation: lcb-in .34s cubic-bezier(.16,.84,.44,1) both;
+}
+
+@keyframes lcb-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* The live pulse, same language as the full band's .live-dot. */
+.dash .lcb-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--vio);
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(167,139,250,.16);
+  animation: lcb-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes lcb-breathe {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 3px rgba(167,139,250,.16); }
+  50%      { opacity: .72; box-shadow: 0 0 0 5px rgba(167,139,250,.07); }
+}
+
+.dash .lcb-what {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--muted);
+  /* One line, truncated at the title — the bar must not grow to two rows and
+     start covering the page it is floating over. */
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.dash .lcb-what b { color: var(--vio); font-weight: 600; flex-shrink: 0; }
+.dash .lcb-sep    { color: var(--faint); flex-shrink: 0; }
+
+.dash .lcb-title {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid transparent;
+}
+.dash .lcb-title:hover { border-bottom-color: rgba(236,231,221,.3); }
+
+.dash .lcb-btn {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 15px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--vio);
+  background: var(--vio-bg);
+  border: 1px solid rgba(167,139,250,.42);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.dash .lcb-btn svg { width: 14px; height: 14px; }
+.dash .lcb-btn:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+.dash .lcb-btn:active { transform: translateY(1px); }
+.dash .lcb-btn:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
+.dash .lcb-btn:disabled { opacity: .6; cursor: default; transform: none; }
+.dash .lcb-btn:disabled:hover { background: var(--vio-bg); border-color: rgba(167,139,250,.42); color: var(--vio); }
+
+.dash .lcb-x {
+  flex-shrink: 0;
+  display: grid; place-items: center;
+  width: 26px; height: 26px;
+  color: var(--faint);
+  background: none; border: 0; border-radius: 7px;
+  cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.dash .lcb-x svg { width: 13px; height: 13px; }
+.dash .lcb-x:hover { color: var(--ink-soft); background: var(--line-soft); }
+.dash .lcb-x:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+.dash .lcb-err {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--rose);
+}
+
+/* ── closing: the last stretch of the window ─────────────────────────────── */
+/* Gold, matching the full band. The urgency is real — once it expires there is
+   no self-serve way back in. */
+.dash .lcb.closing { border-color: rgba(221,179,106,.4); }
+.dash .lcb.closing .lcb-what b { color: var(--gold); }
+.dash .lcb.closing .lcb-dot {
+  background: var(--gold);
+  box-shadow: 0 0 0 3px rgba(221,179,106,.16);
+  animation-name: lcb-breathe-gold;
+}
+@keyframes lcb-breathe-gold {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 3px rgba(221,179,106,.16); }
+  50%      { opacity: .72; box-shadow: 0 0 0 5px rgba(221,179,106,.07); }
+}
+.dash .lcb.closing .lcb-btn {
+  color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.45);
+}
+.dash .lcb.closing .lcb-btn:hover { background: var(--gold); border-color: var(--gold); color: var(--paper); }
+
+/* ── narrow ─────────────────────────────────────────────────────────────── */
+/* The kicker ("Check-in open") goes: the violet pulse and the button already
+   say it, and the event's own name is the part that can't be inferred. */
+@media (max-width: 560px) {
+  .dash .lcb { bottom: 14px; width: calc(100vw - 24px); gap: 9px; padding: 10px 10px 10px 14px; }
+  .dash .lcb-what b, .dash .lcb-sep { display: none; }
+  .dash .lcb-btn { padding: 8px 13px; }
+  /* An error would otherwise steal the whole row from the title and button. */
+  .dash .lcb-err { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash .lcb { animation: none; }
+  .dash .lcb-dot { animation: none; }
+}

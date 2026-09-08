@@ -4,6 +4,7 @@ import "./globals.css";
 import { ChapterProvider } from "./context/ChapterContext";
 import { ChatWidgetGate } from "./components/ChatWidgetGate";
 import { SemesterGate } from "./components/SemesterGate";
+import { LiveCheckInGate } from "./components/LiveCheckInGate";
 import { ToastProvider } from "./components/dashboard/Toast";
 
 const geistSans = Geist({
@@ -58,7 +59,7 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body suppressHydrationWarning className="min-h-full flex flex-col"><ToastProvider><ChapterProvider>{children}<SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col"><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
     </html>
   );
 }
