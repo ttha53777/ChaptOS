@@ -1030,3 +1030,346 @@ header.dash-toolbar {
 .dash button.week-item:hover { background: rgba(236,231,221,.035); }
 .dash[data-dashboard-theme="ivory"] button.week-item:hover { background: rgba(23,20,16,.03); }
 .dash button.week-item:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Live event check-in — "the live band"
+   Ported from _design/Live Event Check-In.html. The mock's :root/[data-theme]
+   token block is deliberately NOT copied: every token it defined (--vio, --gold,
+   --ok, --card, --line, --shadow …) already exists above with identical values,
+   and the theme attribute here is data-dashboard-theme, not the mock's data-theme.
+
+   An event is happening RIGHT NOW and the member is looking at the dashboard.
+   The band takes the full width below the greeting, above pinned announcements.
+   It earns attention through position, not by blocking the page — and it carries
+   exactly ONE loud signal (the violet accent edge plus a breathing dot), because
+   a second one would just be noise competing with the first.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.dash section.live {
+  position: relative;
+  margin-top: 26px;
+  /* Ordinary card border on three sides. The card does NOT glow, wash, or ring —
+     it is furniture like every other card, and the "now" comes from the accent
+     edge below plus the breathing dot. */
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: live-in .42s cubic-bezier(.2,.7,.3,1) both;
+}
+
+/* The one loud signal, and it costs 3px. An accent edge down the left side reads
+   as "this row is live" from anywhere on the page, without tinting a 1230px card.
+   This is the spent track; .live-rule i is the part still remaining. */
+.dash section.live::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--vio); opacity: .18;
+}
+@keyframes live-in {
+  from { opacity: 0; transform: translateY(-9px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The window rule and the accent edge are THE SAME OBJECT — the one violet mark
+   on the card is also the one that drains. Full at the start of the window, gone
+   when check-in closes. Drains bottom→top so the part that survives longest is
+   level with the kicker naming the state. */
+.dash .live-rule { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.dash .live-rule i { display: block; width: 100%; height: 100%; background: var(--vio);
+  transform-origin: bottom; transition: transform .6s linear; }
+
+.dash .live-body { display: flex; align-items: center; gap: 32px; padding: 20px 24px 20px 26px; }
+
+/* ── left: what and where ──────────────────────────── */
+.dash .live-what { flex: 1 1 auto; min-width: 0; }
+/* All sans. Letterspaced mono caps is the loudest type treatment in the app, and
+   spending it here wastes it on the least important words — the dot already says
+   "live", and the title says what it is. */
+.dash .live-kicker { display: flex; align-items: center; gap: 8px;
+  font-family: var(--sans); font-size: 11.5px; font-weight: 550; letter-spacing: 0;
+  color: var(--vio); }
+.dash .live-kicker .live-elapsed { font-weight: 400; color: var(--muted); }
+.dash .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vio); flex-shrink: 0;
+  animation: breathe 2.4s ease-in-out infinite; }
+/* A slow breath, not a blink. 2.4s reads as "alive"; a 1s flash reads as an
+   alarm, and this is not an emergency — it's a room you should be in. */
+@keyframes breathe {
+  0%, 100% { opacity: 1;  box-shadow: 0 0 0 0 rgba(167,139,250,.42); }
+  50%      { opacity: .6; box-shadow: 0 0 0 5px rgba(167,139,250,0); }
+}
+.dash .live-sep { color: var(--faint); }
+
+.dash .live-title { font-family: var(--serif); font-weight: 500; font-size: 21px; letter-spacing: -.01em;
+  color: var(--ink); margin-top: 7px; }
+.dash .live-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; margin-top: 5px;
+  font-size: 12px; color: var(--muted); }
+.dash .live-meta .dotsep { color: var(--faint); }
+.dash .live-meta b { color: var(--ink-soft); font-weight: 550; }
+/* "Mandatory" is a property of the event, not a warning — a word, not a chip. */
+.dash .live-req { color: var(--ink-soft); font-weight: 550; }
+
+/* ── middle: who's here (the room filling up) ───────── */
+/* ONE representation, not three. The number stays (it's the precise one), the bar
+   becomes a hairline under it, and the face discs are gone — pleasant, but the
+   third telling of one small fact and the widest thing in the column. */
+.dash .live-count { flex-shrink: 0; text-align: right; }
+.dash .live-count .n { font-family: var(--mono); font-size: 20px; font-weight: 500; letter-spacing: -.02em;
+  color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.dash .live-count .n small { font-size: 13px; color: var(--faint); font-weight: 400; }
+.dash .live-count .k { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+/* Sized to the number above it rather than the column, so it reads as that
+   number's underline instead of a second gauge. */
+.dash .live-count .track { display: block; height: 2px; border-radius: 2px; background: var(--line);
+  overflow: hidden; margin-top: 8px; width: 74px; margin-left: auto; }
+.dash .live-count .track i { display: block; height: 100%; border-radius: 2px; background: var(--vio); opacity: .6;
+  transition: width .5s cubic-bezier(.4,0,.2,1); }
+
+/* The slack lands here, so the count and the button stay paired against the right
+   edge instead of the gap opening up between them. */
+.dash .live-gap { margin-left: auto; }
+
+/* ── right: the action ─────────────────────────────── */
+/* One control, not a stack of three. The button alone — which is the whole point
+   of the widget, and now the only thing in its column. */
+.dash .live-act { flex-shrink: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.dash .live-btn { display: flex; align-items: center; justify-content: center; gap: 9px;
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600; letter-spacing: .01em;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.42);
+  border-radius: 9px; padding: 12px 26px; cursor: pointer; white-space: nowrap;
+  transition: transform .12s ease, background .16s ease, border-color .16s ease, color .16s ease; }
+.dash .live-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.dash .live-btn:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+.dash .live-btn:active { transform: translateY(1px); }
+.dash .live-btn:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
+.dash .live-btn:disabled { opacity: .55; cursor: default; transform: none; }
+.dash .live-btn:disabled:hover { background: var(--vio-bg); border-color: rgba(167,139,250,.42); color: var(--vio); }
+/* Officer-only secondary, inline at the end of the event's meta row but set off
+   from it: a wider gap and a real divider instead of another "·", so the row
+   reads as [facts about the event] | [a thing you can do]. */
+.dash .live-alt { font-size: 12px; color: var(--muted); background: transparent; cursor: pointer;
+  font-family: var(--sans); border: 0; border-left: 1px solid var(--line);
+  margin-left: 6px; padding: 0 0 0 14px;
+  text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.dash .live-alt:hover { color: var(--vio); text-decoration-color: var(--vio); }
+.dash .live-alt:disabled { opacity: .5; cursor: default; }
+
+/* ── state: closing (last 5 min) ───────────────────── */
+/* One notch warmer, not a different card. Gold is already the app's "hurry", so
+   switching the rule + dot + button to gold says "the window is closing" in
+   vocabulary the member has already learned. The button turns gold too — the
+   urgency signal and the thing you're being urged to press must agree. */
+.dash section.live.closing::before { background: var(--gold); }
+.dash section.live.closing .live-rule i { background: var(--gold); }
+.dash section.live.closing .live-kicker { color: var(--gold); }
+.dash section.live.closing .live-count .track i { background: var(--gold); }
+.dash section.live.closing .live-dot { background: var(--gold); animation-name: breathe-gold; }
+@keyframes breathe-gold {
+  0%, 100% { opacity: 1;  box-shadow: 0 0 0 0 rgba(221,179,106,.42); }
+  50%      { opacity: .6; box-shadow: 0 0 0 5px rgba(221,179,106,0); }
+}
+.dash section.live.closing .live-btn { color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.45); }
+.dash section.live.closing .live-btn:hover { background: var(--gold); border-color: var(--gold); color: var(--paper); }
+.dash section.live.closing .live-alt:hover { color: var(--gold); }
+
+/* ── state: checked in ─────────────────────────────── */
+/* The card doesn't disappear — disappearing is how a member ends up unsure
+   whether it registered. It becomes a receipt, and keeps counting the room. */
+.dash section.live.done::before { background: var(--ok); }
+.dash section.live.done .live-rule i { background: var(--ok); }
+.dash section.live.done .live-kicker { color: var(--ok); }
+.dash section.live.done .live-count .track i { background: var(--ok); }
+.dash section.live.done .live-dot { background: var(--ok); animation: none; box-shadow: none; }
+/* The receipt sits UNDER the event title, which stays put — checking in must not
+   change the card's identity at the moment you most need to be sure it's the
+   same event. */
+.dash .live-receipt { display: flex; align-items: center; gap: 9px; margin-top: 7px; }
+.dash .live-check { width: 19px; height: 19px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; color: var(--ok); background: var(--ok-bg);
+  border: 1px solid rgba(127,176,138,.35); animation: pop-in .38s cubic-bezier(.2,1.4,.4,1) both; }
+.dash .live-check svg { width: 11px; height: 11px; }
+@keyframes pop-in { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+.dash .live-receipt .r-t { font-size: 12.5px; color: var(--ink-soft); }
+.dash .live-receipt .r-t b { color: var(--ink); font-weight: 600; }
+.dash .live-undo { font-size: 12px; color: var(--faint); background: none; border: 0; cursor: pointer;
+  padding: 0; font-family: var(--sans); }
+.dash .live-undo:hover { color: var(--rose); text-decoration: underline; text-underline-offset: 3px; }
+.dash .live-undo:disabled { opacity: .5; cursor: default; text-decoration: none; }
+/* Checked in, the primary action is spent — so its column holds one quiet
+   outlined control, matching the position and height of the button it replaces
+   so the band doesn't reflow when you check in. */
+.dash section.live.done .live-btn {
+  background: transparent; border-color: var(--line); color: var(--ink-soft); }
+.dash section.live.done .live-btn:hover { filter: none; border-color: rgba(127,176,138,.45); color: var(--ok); }
+
+/* ── state: excused (officer already granted it) ────── */
+/* Reuses the "checked in" receipt treatment wholesale, because from the card's
+   point of view the two are the same: the member is accounted for and there is
+   nothing left to press. The receipt line is what distinguishes them. */
+.dash section.live.excused::before { background: var(--ok); }
+.dash section.live.excused .live-rule i { background: var(--ok); }
+.dash section.live.excused .live-kicker { color: var(--ok); }
+.dash section.live.excused .live-count .track i { background: var(--ok); }
+.dash section.live.excused .live-dot { background: var(--ok); animation: none; box-shadow: none; }
+.dash section.live.excused .live-btn { background: transparent; border-color: var(--line); color: var(--ink-soft); }
+.dash section.live.excused .live-btn:hover { filter: none; border-color: rgba(127,176,138,.45); color: var(--ok); }
+
+/* ── state: excuse pending (filed, not yet reviewed) ── */
+/* NOT a receipt — nothing is decided. The card stays the plain violet "live"
+   card, "I'm here" stays put (rejection means they still need to be here), and
+   the only new thing is a neutral note where the receipt would sit. Muted grey:
+   the app's colour for "no state yet", not sage (approved), not gold (a
+   deadline on the member). */
+.dash .live-check.pending { color: var(--muted); background: var(--line-soft); border-color: var(--line);
+  animation: none; }
+.dash .r-t.r-pending { color: var(--muted); }
+.dash .r-t.r-pending b { color: var(--ink-soft); }
+
+/* ── officer action: close check-in ────────────────── */
+/* Gold, not violet: it doesn't open a surface, it ends the window early, and
+   gold is the app's colour for "this changes the clock". Rides directly after
+   the first .live-alt with no divider of its own — that one already walls the
+   action group off from the facts, and a second border just orphans on wrap. */
+.dash .live-alt.live-close { color: var(--gold); border-left: 0; margin-left: 0; padding-left: 10px;
+  text-decoration-color: rgba(221,179,106,.4); }
+.dash .live-alt.live-close:hover { color: var(--gold); text-decoration-color: var(--gold); filter: brightness(1.08); }
+
+/* A widget-local error line: a failed check-in must be answered where the button
+   is, not in the page-level banner at the top of a scrolled page. */
+.dash .live-err { margin-top: 8px; font-size: 12px; color: var(--rose); }
+
+/* ── the announced status line ──────────────────────── */
+/* Visually hidden, but a real live region. aria-live used to sit on the tally,
+   which a 20s poll re-announced on its own schedule; this says only what
+   changed for THIS member, when they changed it. Not `display:none` — that
+   removes it from the accessibility tree and nothing would be announced. */
+.dash .live-said {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── the officer nudge ──────────────────────────────── */
+/* Gold, and only ever rendered to someone holding MANAGE_ATTENDANCE (the parent
+   gates on onClose/onReopen being defined). It states a consequence a member
+   can do nothing about, so showing it to everyone would be noise that reads as
+   alarm. */
+.dash .live-nudge {
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--gold);
+}
+.dash .live-nudge b { font-weight: 600; color: var(--gold); }
+
+/* ── "Who's here" sheet ─────────────────────────────── */
+/* The roster behind the band's tally. A right-side panel, not a centered modal:
+   the band it came from stays visible at the top-left of the dimmed page, so the
+   sheet reads as an expansion of that card rather than a new place.
+
+   Rendered INSIDE .dash rather than portalled to <body>, which is what lets it
+   inherit --paper/--ink/--vio from .dash[data-dashboard-theme] instead of
+   re-declaring the palette and drifting from it. */
+.dash .wh-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55);
+  backdrop-filter: blur(3px); display: flex; justify-content: flex-end;
+  animation: wh-fade .16s ease-out; }
+@keyframes wh-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.dash .wh-panel { width: min(460px, 100vw); height: 100dvh; background: var(--paper); color: var(--ink);
+  border-left: 1px solid var(--line); box-shadow: -20px 0 80px rgba(0,0,0,.35);
+  display: flex; flex-direction: column; outline: none;
+  animation: wh-slide .2s cubic-bezier(.22,.61,.36,1); }
+@keyframes wh-slide { from { transform: translateX(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.dash .wh-head { padding: 26px 26px 20px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.dash .wh-head h2 { font-family: var(--serif); font-weight: 500; font-size: 27px; letter-spacing: -.01em;
+  color: var(--ink); margin: 10px 0 7px; }
+.dash .wh-sub { color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+.dash .wh-close { float: right; width: 34px; height: 34px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--muted);
+  cursor: pointer; transition: color .12s, border-color .12s; }
+.dash .wh-close svg { width: 15px; height: 15px; }
+.dash .wh-close:hover { color: var(--ink); border-color: var(--line-soft); }
+.dash .wh-close:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+/* Sage, not violet: this line reports a settled fact about the room, and violet
+   is reserved in this band for the thing still asking to be acted on. */
+.dash .wh-summary { margin-top: 18px; color: var(--ok); font-size: 13.5px; }
+
+.dash .wh-tools { padding: 18px 26px 0; flex-shrink: 0; }
+/* Longhand, not `font: 13.5px var(--sans)`: a font SHORTHAND containing a
+   var() cannot be resolved at parse time, so the browser drops the whole
+   declaration and the control silently inherits its size. */
+.dash .wh-search { width: 100%; padding: 11px 13px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; color: var(--ink); font-family: var(--sans); font-size: 13.5px; }
+.dash .wh-search::placeholder { color: var(--faint); }
+.dash .wh-search:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; border-color: transparent; }
+.dash .wh-filters { display: flex; gap: 8px; margin: 14px 0; }
+.dash .wh-filters button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-family: var(--sans); font-size: 12px;
+  transition: color .12s, background .12s, border-color .12s; }
+.dash .wh-filters button:hover { color: var(--ink-soft); }
+.dash .wh-filters button[aria-pressed="true"] { background: var(--vio-bg); border-color: var(--vio); color: var(--vio); }
+.dash .wh-filters button:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+.dash .wh-list { overflow-y: auto; flex: 1; padding: 0 26px; }
+.dash .wh-person { display: flex; align-items: center; gap: 12px; padding: 13px 0;
+  border-bottom: 1px solid var(--line-soft); }
+.dash .wh-person:last-child { border-bottom: 0; }
+.dash .wh-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+  display: grid; place-items: center; font-family: var(--mono); font-size: 10.5px;
+  flex-shrink: 0; overflow: hidden; }
+.dash .wh-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.dash .wh-name { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
+.dash .wh-name small { display: block; color: var(--muted); margin-top: 4px; font-size: 11px; }
+/* Times are mono and tabular so a column of check-in times lines up on the colon
+   — this is a list you scan down, not one line you read. */
+.dash .wh-status { font-family: var(--mono); font-size: 11px; color: var(--ok); flex-shrink: 0;
+  font-variant-numeric: tabular-nums; }
+.dash .wh-status.waiting { color: var(--faint); }
+.dash .wh-status.excused { color: var(--muted); }
+.dash .wh-empty { padding: 30px 0; color: var(--muted); font-size: 13.5px; }
+
+/* The page's own bottom rule is `.dash footer` — a bare element selector, so it
+   also catches this one and renders it as centered uppercase mono. Everything it
+   sets is reset here; this is a caption, not the page's sign-off. */
+.dash .wh-foot { padding: 16px 26px; border-top: 1px solid var(--line); color: var(--muted);
+  font-family: var(--sans); font-size: 11px; letter-spacing: 0; text-transform: none;
+  text-align: left; margin-top: 0; padding-top: 16px; flex-shrink: 0; }
+
+/* Full-bleed on a phone: a 460px panel with a sliver of dimmed page behind it is
+   a desktop gesture, and the sliver is not a usable target. */
+@media (max-width: 520px) {
+  .dash .wh-panel { width: 100vw; border-left: 0; }
+}
+
+/* ── narrow: the band folds into a column ──────────── */
+/* The count and the action stop competing for a row that no longer fits; the
+   button goes full-width because at this size it IS the card.
+   767, not the 780 this used to carry: every other breakpoint in this file is
+   767/1023/1279, so 768-780 put the band in column mode while the page around
+   it was still in its wide layout. */
+@media (max-width: 767px) {
+  .dash .live-body { flex-wrap: wrap; gap: 16px; padding: 18px 18px 18px 20px; }
+  .dash .live-what { flex: 1 1 100%; }
+  .dash .live-gap { display: none; }
+  .dash .live-count { text-align: left; }
+  .dash .live-count .track { margin-left: 0; }
+  .dash .live-act { flex: 1 1 auto; }
+  .dash .live-btn { width: 100%; }
+}
+
+/* Honour a reduced-motion preference: the breathing dot and the entrance are
+   decoration, and the band still reads without them. */
+@media (prefers-reduced-motion: reduce) {
+  .dash section.live { animation: none; }
+  .dash .live-dot { animation: none; }
+  .dash .live-check { animation: none; }
+  .dash .live-rule i, .dash .live-count .track i { transition: none; }
+}

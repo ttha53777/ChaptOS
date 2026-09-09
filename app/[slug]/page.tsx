@@ -22,6 +22,8 @@ import { useFeature } from "../hooks/useFeature";
 import { useTrackedMetrics } from "../hooks/useTrackedMetrics";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { useRollingToday } from "../hooks/useRollingToday";
+import { useSharedLiveCheckIn } from "../context/LiveCheckInContext";
+import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import { trackedCount } from "@/lib/tracked-metrics";
 import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
@@ -54,6 +56,7 @@ import { RosterTable } from "../components/dashboard/ledger/RosterTable";
 import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
 import { WeekItemPeek, type WeekPeekTarget } from "../components/dashboard/ledger/WeekItemPeek";
 import { BallotCard } from "../components/dashboard/ledger/BallotCard";
+import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
@@ -861,7 +864,7 @@ export default function Home() {
   const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
   const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [activeModal,    setActiveModal]    = useState<"deadline" | "task" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | null>(null);
+  const [activeModal,    setActiveModal]    = useState<"deadline" | "task" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | "pick-event-for-checkin" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [calendarLoaded, setCalendarLoaded] = useState(false);
@@ -1740,6 +1743,228 @@ export default function Home() {
     }
   }
 
+  // ── Live event check-in ────────────────────────────────────────────────
+  // The page owns the fetches; the band takes callbacks and holds only its own
+  // busy/error state (the BallotCard contract).
+  // Shared with the global LiveCheckInBar (app/components/LiveCheckInGate.tsx),
+  // which shows the same window on every OTHER org route. One provider, one
+  // poll — mounting the hook again here would double the interval on the one
+  // page where both surfaces exist.
+  const { data: liveCheckIn, refresh: refreshLiveCheckIn, apply: applyLiveCheckIn } = useSharedLiveCheckIn();
+  // The "Open Check-in" chip's own pending state. It matters because the
+  // one-tap path shows no modal: without it the officer taps and watches
+  // nothing happen while the fetch and the open write go through.
+  const [openCheckInBusy, setOpenCheckInBusy] = useState(false);
+
+  async function checkInAction(path: string, method: "POST" | "DELETE", body?: object) {
+    if (!liveCheckIn) return;
+    const next = await requestJson<typeof liveCheckIn>(path, {
+      method,
+      ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
+    });
+    // Every check-in endpoint answers with the fresh window, so apply that answer
+    // directly. This used to call refreshLiveCheckIn() instead, which threw the
+    // response away and paid for a SECOND full read of the same window — two
+    // round-trips before the button stopped saying "Checking in…".
+    applyLiveCheckIn(next ?? null);
+    return next;
+  }
+
+  async function handleSelfCheckIn() {
+    if (!liveCheckIn) return;
+
+    // Optimistic. The tap is the whole interaction, and a member standing in a
+    // doorway should not watch a spinner to learn whether it registered; the
+    // server's own answer reconciles a beat later inside checkInAction.
+    const before = liveCheckIn;
+    applyLiveCheckIn({
+      ...before,
+      presentCount: before.presentCount + 1,
+      me: { ...before.me, checkedIn: true, checkedInAt: new Date().toISOString() },
+    });
+
+    try {
+      await checkInAction(`/api/attendance/${before.event.id}/check-in`, "POST");
+    } catch (e) {
+      // Roll back to what the server last told us and re-throw so the band shows
+      // the error by its own button. Leaving the tick up on a failed write is
+      // worse than a slow one: they walk away believing they are marked present.
+      applyLiveCheckIn(before);
+      void refreshLiveCheckIn();
+      throw e;
+    }
+    addActivity(`Checked in — ${before.event.title}`, "success");
+  }
+
+  async function handleUndoCheckIn() {
+    if (!liveCheckIn) return;
+    const before = liveCheckIn;
+    applyLiveCheckIn({
+      ...before,
+      presentCount: Math.max(0, before.presentCount - 1),
+      me: { ...before.me, checkedIn: false, checkedInAt: null },
+    });
+    try {
+      await checkInAction(`/api/attendance/${before.event.id}/check-in`, "DELETE");
+    } catch (e) {
+      applyLiveCheckIn(before);
+      void refreshLiveCheckIn();
+      throw e;
+    }
+  }
+
+  async function handleCloseCheckIn() {
+    if (!liveCheckIn) return;
+    await checkInAction(`/api/attendance/${liveCheckIn.event.id}/window`, "POST", { action: "close" });
+    // Closing writes the absences and recalcs every ratio, so the roster on
+    // screen is now stale — reload it rather than leaving old percentages up.
+    await refreshChapterData();
+    addActivity(`Check-in closed — ${liveCheckIn.event.title}`, "info");
+  }
+
+  async function handleReopenCheckIn() {
+    if (!liveCheckIn) return;
+    await checkInAction(`/api/attendance/${liveCheckIn.event.id}/window`, "POST", { action: "reopen" });
+    await refreshChapterData();
+  }
+
+  // Opening targets an event that is, by definition, not yet `liveCheckIn` —
+  // unlike close/reopen this can't route through checkInAction, which no-ops
+  // without an already-live window.
+  //
+  // Optimistic, for the same reason self-check-in is: the officer taps this
+  // standing in front of a room that is waiting on them. This used to await the
+  // round-trip with no local state change at all, so the band — the entire
+  // visible result of the tap — appeared only once the server answered.
+  //
+  // A just-opened window is the one case where the optimistic guess is not a
+  // guess: nobody can have checked in yet, so `presentCount` is 0 and `me` is
+  // clear by definition. The only field worth reconciling is `eligibleCount`,
+  // which the server's answer fills in a beat later.
+  async function handleOpenCheckIn(event: CalendarEvent) {
+    const before = liveCheckIn;
+    applyLiveCheckIn({
+      event: {
+        id:        event.id,
+        title:     event.title,
+        date:      event.date,
+        time:      event.time ?? null,
+        location:  event.location ?? null,
+        mandatory: event.mandatory,
+      },
+      state:         "open",
+      openedAt:      new Date().toISOString(),
+      closedAt:      null,
+      closedByName:  null,
+      msRemaining:   CHECKIN_WINDOW_MS,
+      presentCount:  0,
+      // Best local estimate of the denominator until the server answers. The
+      // band renders `0/N`, so a placeholder 0 here would flash "0/0".
+      eligibleCount: attendees.length,
+      me: { checkedIn: false, checkedInAt: null, excuse: null },
+    });
+    addActivity(`Check-in opened — ${event.title}`, "success");
+
+    try {
+      const next = await requestJson<typeof liveCheckIn>(`/api/attendance/${event.id}/window`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "open" }),
+      });
+      // The route answers with the fresh window; apply it rather than paying for
+      // a second read.
+      applyLiveCheckIn(next ?? null);
+    } catch (e) {
+      // Roll back to whatever window was on screen before — usually none. One-tap
+      // open runs with no modal, so leaving a phantom band up on a failed write
+      // would have the officer telling a room to check in to nothing.
+      applyLiveCheckIn(before);
+      setMutationError(apiErrorMessage(e, "Could not open check-in."));
+      await refreshLiveCheckIn();
+    }
+  }
+
+  /**
+   * The events an officer could open a window on, nearest-first.
+   *
+   * The old picker sorted `a.date.localeCompare(b.date)` over every mandatory
+   * event the org has ever held — ascending, so the OLDEST event sat at the top
+   * and tonight's meeting was at the bottom of a scroll. Sorting by distance
+   * from today puts the one they actually want first, with today's events ahead
+   * of everything.
+   */
+  const checkInCandidates = useMemo(() => {
+    const today = Date.parse(`${todayISO}T00:00:00Z`);
+    return calendarList
+      .filter(e => e.mandatory && e.id !== liveCheckIn?.event.id)
+      .map(e => {
+        const at = Date.parse(`${e.date}T00:00:00Z`);
+        const days = Number.isNaN(at) ? Number.MAX_SAFE_INTEGER : Math.round((at - today) / 86_400_000);
+        return { event: e, days };
+      })
+      // Today first, then upcoming by proximity, then past by recency. A window
+      // opened on a past event is a real (if rare) correction, so those stay
+      // reachable — just never ahead of the meeting happening right now.
+      .sort((a, b) => {
+        const rank = (d: number) => (d === 0 ? 0 : d > 0 ? 1 : 2);
+        if (rank(a.days) !== rank(b.days)) return rank(a.days) - rank(b.days);
+        return Math.abs(a.days) - Math.abs(b.days);
+      })
+      .map(x => x.event);
+  }, [calendarList, liveCheckIn?.event.id, todayISO]);
+
+  /**
+   * Open the window in one tap when there is exactly one required event today.
+   *
+   * That is the overwhelmingly common shape of this action — an officer standing
+   * in front of the room at the start of the meeting — and it was costing four
+   * steps and a scroll through the org's entire event history. Anything
+   * ambiguous (no event today, or several) still goes to the picker.
+   *
+   * The calendar list can be stale or unfetched, so a refresh is worth doing —
+   * but NOT in front of the tap. It used to `await orgFetch("/api/calendar")`
+   * before deciding anything, which put a whole calendar read ahead of every
+   * open, including the one-tap case that is the entire point of this function.
+   *
+   * So: decide on what is already in state when that answer is unambiguous, and
+   * let the refresh run behind the open. The only decision the fresher list can
+   * change is an ambiguous one (no event today, or several), and that path ends
+   * in a picker the officer reads anyway — so it is the one that waits.
+   */
+  async function openCheckInPicker() {
+    const todayMandatory = (events: CalendarEvent[]) => events.filter(
+      e => e.mandatory && e.date === todayISO && e.id !== liveCheckIn?.event.id,
+    );
+
+    // Refresh regardless — the picker below and the dashboard's own event rails
+    // both read `calendarList` — but only block on it when we need its answer.
+    const refreshed = orgFetch("/api/calendar")
+      .then(r => (r.ok ? r.json() as Promise<CalendarEvent[]> : null))
+      .then(list => { if (list) setCalendarList(list); return list; })
+      .catch(() => null); // Stale list still drives a usable picker.
+
+    const local = todayMandatory(calendarList);
+    if (local.length === 1) {
+      // Unambiguous from what is already on screen. handleOpenCheckIn is
+      // optimistic, so the band appears on this tick.
+      await handleOpenCheckIn(local[0]);
+      return;
+    }
+
+    setOpenCheckInBusy(true);
+    try {
+      const fresh = await refreshed;
+      const candidates = todayMandatory(fresh ?? calendarList);
+      if (candidates.length === 1) {
+        await handleOpenCheckIn(candidates[0]);
+        return;
+      }
+      setActiveModal("pick-event-for-checkin");
+    } finally {
+      setOpenCheckInBusy(false);
+    }
+  }
+
   function openAttendanceLog(event?: CalendarEvent) {
     if (event) {
       setSelectedEventForAttendance(event);
@@ -1945,6 +2170,8 @@ export default function Home() {
                       : undefined
                   }
                   onLogAttendance={canAttendance ? () => openAttendanceLog() : undefined}
+                  onOpenCheckIn={canAttendance ? () => void openCheckInPicker() : undefined}
+                  openCheckInBusy={openCheckInBusy}
                   onQuickAction={handleQuickAction}
                   quickActionsAdmin={isAdmin || canTreasury || canAttendance}
                   quickActionsCanManageTasks={canTasks}
@@ -1973,6 +2200,23 @@ export default function Home() {
             {/* Self-gating and admin-only: org.billingAlert is null for anyone
                 who can't act on it (computed server-side in /api/auth/me). */}
             <BillingAlert />
+
+            {/* ── Live event check-in ─────────────────────────────────────── */}
+            {/* Full width, directly below the briefing: unmissable by position
+                rather than by blocking the page. Renders nothing at all when no
+                window is open, which is nearly always. Officer actions are
+                passed as undefined without MANAGE_ATTENDANCE, so the affordance
+                is absent rather than present-and-403ing. */}
+            <LiveCheckIn
+              data={liveCheckIn}
+              onCheckIn={handleSelfCheckIn}
+              onUndo={handleUndoCheckIn}
+              onClose={canAttendance ? handleCloseCheckIn : undefined}
+              onReopen={canAttendance ? handleReopenCheckIn : undefined}
+              onTakeAttendance={canAttendance && liveCheckIn
+                ? () => openAttendanceLog(calendarList.find(e => e.id === liveCheckIn.event.id))
+                : undefined}
+            />
 
             {/* ── Pinned announcement ─────────────────────────────────────── */}
             {feature("operations", "announcement") && (
@@ -2244,6 +2488,9 @@ export default function Home() {
           onClose={() => setWeekPeek(null)}
           onOpenEvent={(ev) => { setWeekPeek(null); router.push(orgPath(`/timeline?event=${ev.id}`)); }}
           onOpenTask={(t) => { setWeekPeek(null); router.push(orgPath(`/tasks?task=${t.id}`)); }}
+          onOpenCheckIn={canAttendance && weekPeek.kind === "event" && weekPeek.event.id !== liveCheckIn?.event.id
+            ? (ev) => { setWeekPeek(null); void handleOpenCheckIn(ev); }
+            : undefined}
         />
       )}
       {activeModal === "expense" && isAdmin && (
@@ -2352,6 +2599,31 @@ export default function Home() {
                 <p className="text-[11px] text-[#6b6354]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
               </button>
             ))}
+          </div>
+        </Modal>
+      )}
+      {activeModal === "pick-event-for-checkin" && (
+        <Modal title="Open Check-in" tone="dusk" onClose={closeModal}>
+          <p className="mb-3 text-[12px] text-[#958d7c]">Pick a required event to open live check-in for.</p>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {checkInCandidates.length === 0 && (
+              <p className="text-[12px] text-[#6b6354]">No required events found.</p>
+            )}
+            {checkInCandidates.map(e => {
+              const when = e.date === todayISO ? "Today" : e.date;
+              return (
+                <button key={e.id} onClick={() => { closeModal(); void handleOpenCheckIn(e); }}
+                  className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
+                  <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
+                  <p className="text-[11px] text-[#6b6354]">
+                    {e.date === todayISO
+                      ? <span className="font-medium text-[#a78bfa]">{when}</span>
+                      : when}
+                    {e.time ? ` · ${e.time}` : ""}{e.location ? ` · ${e.location}` : ""}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </Modal>
       )}

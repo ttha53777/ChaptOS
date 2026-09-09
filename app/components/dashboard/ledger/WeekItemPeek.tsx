@@ -73,6 +73,7 @@ export function WeekItemPeek({
   onClose,
   onOpenEvent,
   onOpenTask,
+  onOpenCheckIn,
 }: {
   target: WeekPeekTarget;
   today: string;
@@ -84,6 +85,10 @@ export function WeekItemPeek({
   onOpenEvent: (event: CalendarEvent) => void;
   /** Jump to this deadline on the tasks page. */
   onOpenTask: (task: Task) => void;
+  /** Starts a live check-in window for this event. Omit without
+   *  MANAGE_ATTENDANCE — shown only for mandatory events, same rule as the
+   *  attendance bar above. */
+  onOpenCheckIn?: (event: CalendarEvent) => void;
 }) {
   const isEvent = target.kind === "event";
   const date    = isEvent ? target.event.date : (target.task.dueDate as string);
@@ -217,6 +222,15 @@ export function WeekItemPeek({
 
         <div className="wpeek-actions">
           <button type="button" className="wpeek-ghost" onClick={onClose}>Close</button>
+          {wantsAttendance && onOpenCheckIn && (
+            <button
+              type="button"
+              className="wpeek-ghost"
+              onClick={() => onOpenCheckIn(target.event as CalendarEvent)}
+            >
+              Open check-in
+            </button>
+          )}
           <button
             type="button"
             className="wpeek-primary"

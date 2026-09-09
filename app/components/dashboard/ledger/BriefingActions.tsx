@@ -17,6 +17,8 @@ import { QuickActionsMenu, type QuickActionKey } from "../QuickActionsMenu";
 export function BriefingActions({
   onMyStanding,
   onLogAttendance,
+  onOpenCheckIn,
+  openCheckInBusy,
   onQuickAction,
   quickActionsAdmin,
   quickActionsCanManageTasks,
@@ -30,6 +32,13 @@ export function BriefingActions({
   onMyStanding?: () => void;
   /** Opens the attendance-logging flow (primary action). Omit to hide. */
   onLogAttendance?: () => void;
+  /** Opens a live check-in window for a required event. When exactly one required
+   *  event falls today it opens that one outright, with no picker — so this chip
+   *  can be the whole interaction and needs a pending state of its own. */
+  onOpenCheckIn?: () => void;
+  /** True while that open is in flight. Without it the one-tap path shows the
+   *  officer nothing at all between the tap and the band appearing. */
+  openCheckInBusy?: boolean;
   /** Quick Actions menu select handler. Omit (with quickActionsAdmin) to hide. */
   onQuickAction?: (key: QuickActionKey) => void;
   /** Passed to QuickActionsMenu's `isAdmin` to gate admin-only entries. */
@@ -65,6 +74,16 @@ export function BriefingActions({
             <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
           </svg>
           Log Attendance
+        </button>
+      )}
+
+      {onOpenCheckIn && (
+        <button type="button" className="ba-chip" onClick={onOpenCheckIn} disabled={openCheckInBusy}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+          {openCheckInBusy ? "Opening…" : "Open Check-in"}
         </button>
       )}
 
