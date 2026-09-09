@@ -1,0 +1,6 @@
+ALTER TABLE "CalendarEvent"
+  ADD COLUMN "notesDoc" BYTEA,
+  ADD COLUMN "notesDocSeq" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN "notesContentRevision" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN "notesSummaryRevision" INTEGER,
+  ADD COLUMN "notesProtocolVersion" INTEGER NOT NULL DEFAULT 1;
