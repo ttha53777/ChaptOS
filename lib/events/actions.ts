@@ -92,6 +92,7 @@ export interface EventMetadata {
   "calendar.created":  { title: string; date: string; category: string };
   "calendar.updated":  { title: string; changedFields: string[] };
   "calendar.deleted":  { title: string };
+  "calendar.notes_saved": { title: string; revision: number; seq: number };
   "calendar_event_type.created": { slug: string; label: string };
   "calendar_event_type.updated": { slug: string; label: string; changedFields: string[] };
   "calendar_event_type.hidden":  { slug: string; label: string; hidden: boolean };
@@ -251,7 +252,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "treasury.opening_balance.set",
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
-  "calendar.created", "calendar.updated", "calendar.deleted",
+  "calendar.created", "calendar.updated", "calendar.deleted", "calendar.notes_saved",
   "calendar_event_type.created", "calendar_event_type.updated", "calendar_event_type.hidden", "calendar_event_type.deleted",
   "programming.created", "programming.updated", "programming.stage_changed", "programming.deleted",
   "event_field.created", "event_field.updated", "event_field.deleted",
