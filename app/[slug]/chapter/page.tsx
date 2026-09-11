@@ -104,16 +104,37 @@ function MeetingForm({
 }: {
   initial: MeetingDraft;
   submitLabel: string;
-  onSubmit: (d: MeetingDraft) => void;
+  onSubmit: (d: MeetingDraft) => void | Promise<void>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState<MeetingDraft>(initial);
+  // Guards the double-click: the submit handler is a network round-trip, so
+  // without this a second click fires a second POST and creates a second
+  // meeting. A ref, not just state, because two clicks in the same tick would
+  // both read the pre-render `false`.
+  const submitting = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const set = (k: keyof MeetingDraft) =>
     (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  async function handleSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
+    setIsSubmitting(true);
+    try {
+      await onSubmit(form);
+    } finally {
+      // On success the parent unmounts this form; on failure it stays open so
+      // the officer can retry, which needs the button live again.
+      submitting.current = false;
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <form
-      onSubmit={ev => { ev.preventDefault(); onSubmit(form); }}
+      onSubmit={handleSubmit}
       className="space-y-3"
     >
       <div>
@@ -138,15 +159,17 @@ function MeetingForm({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-[rgba(236,231,221,0.12)] px-4 py-1.5 text-[13px] text-[#958d7c] hover:border-[rgba(236,231,221,0.24)] hover:text-[#ece7dd] transition-colors"
+          disabled={isSubmitting}
+          className="rounded-lg border border-[rgba(236,231,221,0.12)] px-4 py-1.5 text-[13px] text-[#958d7c] hover:border-[rgba(236,231,221,0.24)] hover:text-[#ece7dd] transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="rounded-lg bg-[#7c3aed] px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors"
+          disabled={isSubmitting}
+          className="rounded-lg bg-[#7c3aed] px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitLabel}
+          {isSubmitting ? "Saving…" : submitLabel}
         </button>
       </div>
     </form>
