@@ -1,4 +1,5 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import { guardLegacyNotes } from "@/lib/collaboration/notes-compat";
+import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -409,9 +410,14 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
     // Mirror calendar-relevant fields onto the CalendarEvent if this event is
     // published (Confirmed+). Idea and Planning have no calendar row to mirror to.
     if (updated.calendarEventId != null) {
+      const [calendar] = await tx.$queryRaw<CalendarEvent[]>(Prisma.sql`SELECT * FROM "CalendarEvent" WHERE id = ${updated.calendarEventId} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+      if (!calendar) throw new NotFoundError("Calendar event");
+      guardLegacyNotes(calendar, toCalendarFields(updated));
+      const mirror = toCalendarFields(updated);
+      const notesChanged = (mirror.description ?? "") !== (calendar.description ?? "");
       await tx.calendarEvent.update({
-        where: { id: updated.calendarEventId },
-        data:  toCalendarFields(updated),
+        where: { id: updated.calendarEventId, organizationId: ctx.orgId },
+        data: { ...mirror, ...(notesChanged ? { notesContentRevision: { increment: 1 }, notesUpdatedAt: new Date() } : {}) },
       });
       if (willService) {
         await syncServiceEvent(tx, ctx.orgId, updated.calendarEventId, updated);

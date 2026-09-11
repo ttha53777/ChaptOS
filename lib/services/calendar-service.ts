@@ -1,4 +1,7 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
+import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
+import { collaborativeNotesEnabled } from "@/lib/collaboration/notes-config";
+import { can } from "@/lib/permissions";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
@@ -29,17 +32,23 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
   // payload explicitly. The runtime select matches this shape.
   type CalendarRowWithProgramming = Prisma.CalendarEventGetPayload<{
     include: { programmingEvent: { select: { id: true } } };
+    omit: { notesDoc: true };
   }>;
   const rows = await ctx.db.calendarEvent.findMany({
     where,
+    omit: { notesDoc: true },
     orderBy: [{ date: "desc" }, { id: "desc" }],
     // Pull the owning ProgrammingEvent id (1:1 back-relation) so the Timeline can
     // deep-link a programming-backed event into the Programming page.
     include: { programmingEvent: { select: { id: true } } },
-  }) as CalendarRowWithProgramming[];
+  }) as unknown as CalendarRowWithProgramming[];
+  // Fetch only IDs of initialized documents, never the binary state in list reads.
+  const initialized = new Set((await ctx.db.calendarEvent.findMany({ where: { ...where, notesDoc: { not: null } }, select: { id: true } })).map(row => row.id));
   // Flatten the relation to a scalar so the client DTO stays flat (app/data.ts).
   return rows.map(({ programmingEvent, ...row }) => ({
     ...row,
+    notesInitialized: initialized.has(row.id),
+    notesCollaborationEnabled: collaborativeNotesEnabled(ctx.orgId) && can(ctx, "MANAGE_EVENTS") && row.category === "chapter",
     programmingEventId: programmingEvent?.id ?? null,
   }));
 }
@@ -61,7 +70,7 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
   await emit(ctx, "calendar.created", { type: "CalendarEvent", id: event.id }, {
     title: event.title, date: event.date, category: event.category,
   });
-  return event;
+  return withoutNotesDoc(event);
 }
 
 export async function updateCalendar(ctx: RequestContext, id: number, input: UpdateCalendarInput) {
@@ -91,7 +100,14 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
   if (!existing) throw new NotFoundError("Calendar event");
 
   const event = await ctx.db.$transaction(async (tx) => {
-    const updated = await tx.calendarEvent.update({ where: { id: existing.id }, data });
+    const [locked] = await tx.$queryRaw<CalendarEvent[]>(Prisma.sql`SELECT * FROM "CalendarEvent" WHERE id = ${id} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+    if (!locked) throw new NotFoundError("Calendar event");
+    guardLegacyNotes(locked, input);
+    if (input.description !== undefined) {
+      if ((input.description ?? "") === (locked.description ?? "")) delete data.notesUpdatedAt;
+      else data.notesContentRevision = { increment: 1 };
+    }
+    const updated = await tx.calendarEvent.update({ where: { id: existing.id, organizationId: ctx.orgId }, data });
 
     // Sync linked ServiceEvent. description→notes, others map 1:1.
     const svcData: Record<string, string> = {};
@@ -113,7 +129,7 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
   await emit(ctx, "calendar.updated", { type: "CalendarEvent", id: event.id }, {
     title: event.title, changedFields,
   });
-  return event;
+  return withoutNotesDoc(event);
 }
 
 export async function deleteCalendar(ctx: RequestContext, id: number) {

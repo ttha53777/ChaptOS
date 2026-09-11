@@ -1,4 +1,5 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
+import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError } from "@/lib/errors";
@@ -51,7 +52,7 @@ export async function createServiceEvent(ctx: RequestContext, input: CreateServi
     title: serviceEvent.title, date: serviceEvent.date, calendarEventId: calendarEvent.id,
   });
 
-  return { ...serviceEvent, calendarEvent };
+  return { ...serviceEvent, calendarEvent: withoutNotesDoc(calendarEvent) };
 }
 
 export async function updateServiceEvent(ctx: RequestContext, id: number, input: UpdateServiceEventInput) {
@@ -77,6 +78,14 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
   if (!existing) throw new NotFoundError("Service event");
 
   const event = await ctx.db.$transaction(async (tx) => {
+    let notesChanged = false;
+    // Calendar before service row: use the same lock ordering as notes saves.
+    if (existing.calendarEventId) {
+      const [calendar] = await tx.$queryRaw<CalendarEvent[]>(Prisma.sql`SELECT * FROM "CalendarEvent" WHERE id = ${existing.calendarEventId} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+      if (!calendar) throw new NotFoundError("Calendar event");
+      guardLegacyNotes(calendar, { description: input.notes });
+      notesChanged = input.notes !== undefined && (input.notes ?? "") !== (calendar.description ?? "");
+    }
     const updated = await tx.serviceEvent.update({ where: { id: existing.id }, data });
     if (existing.calendarEventId) {
       const calData: Prisma.CalendarEventUpdateInput = {};
@@ -84,6 +93,7 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
       if (input.date     !== undefined) calData.date        = String(input.date);
       if (input.location !== undefined) calData.location    = String(input.location) || null;
       if (input.notes    !== undefined) calData.description = String(input.notes)    || null;
+      if (notesChanged) { calData.notesContentRevision = { increment: 1 }; calData.notesUpdatedAt = new Date(); }
       if (Object.keys(calData).length > 0) {
         await tx.calendarEvent.update({ where: { id: existing.calendarEventId }, data: calData });
       }

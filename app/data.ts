@@ -271,6 +271,10 @@ export interface CalendarEvent {
   notesSummary?: string | null;
   notesSummaryAt?: string | null;
   notesUpdatedAt?: string | null;
+  notesContentRevision?: number;
+  notesSummaryRevision?: number | null;
+  notesCollaborationEnabled?: boolean;
+  notesInitialized?: boolean;
   /** When this calendar row was created by promoting a programming event, the id of
    *  that ProgrammingEvent — lets the timeline deep-link into the Programming page. */
   programmingEventId?: number | null;
