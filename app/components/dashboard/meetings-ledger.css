@@ -25,14 +25,8 @@
 .dash .sec-label .rule { flex: 1; height: 1px; background: var(--line); }
 .dash .sec-label .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 
-/* ── Layout: ledger + roll-call rail ─────────────────────────────────────────── */
+/* ── Layout: on-deck hero + past-meetings ledger ─────────────────────────────── */
 .dash .mt-layout { margin-top: 4px; display: grid; grid-template-columns: 1fr; gap: 30px; align-items: start; }
-.dash .mt-rail { display: none; }
-@media (min-width: 1024px) {
-  .dash .mt-layout { grid-template-columns: 1fr 318px; }
-  .dash .mt-rail { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 16px; }
-}
-.dash .mt-rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
 
 /* ── On-deck hero (next meeting) ─────────────────────────────────────────────── */
 .dash .ondeck { border: 1px solid var(--vio); border-radius: 14px; background: var(--card-2);
@@ -110,35 +104,5 @@
   .dash .led-stats .tag { display: none; }
 }
 
-/* ── Roll-call rail panel ────────────────────────────────────────────────────── */
-.dash .roster { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
-.dash .roster .r-head { display: flex; align-items: baseline; gap: 8px; padding: 13px 16px 11px; border-bottom: 1px solid var(--line-soft); }
-.dash .roster .r-head .h { font-family: var(--serif); font-size: 15px; color: var(--ink); }
-.dash .roster .r-head .c { margin-left: auto; font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.dash .roster .r-tools { display: flex; flex-direction: column; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
-.dash .roster .r-search { width: 100%; font-size: 12px; color: var(--ink); background: var(--card-2);
-  border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
-.dash .roster .r-search::placeholder { color: var(--faint); }
-.dash .roster .r-bulk { display: flex; gap: 14px; }
-.dash .roster .r-bulk button { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--vio); background: transparent; border: none; cursor: pointer; padding: 0; }
-.dash .roster .r-bulk button:hover { color: var(--ink); }
-.dash .roster .r-list { max-height: 360px; overflow-y: auto; }
-.dash .rmember { display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--line-soft);
-  width: 100%; text-align: left; background: transparent; border-left: none; border-right: none; border-top: none; }
-.dash .roster .r-list .rmember:last-child { border-bottom: none; }
-.dash .rmember .av { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center;
-  font-family: var(--mono); font-size: 9px; font-weight: 600; background: var(--vio-bg); color: var(--vio); }
-.dash .rmember .nm { font-size: 12.5px; color: var(--ink); min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash .rmember .st { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px; flex-shrink: 0; }
-.dash .rmember .st.present { color: var(--ok); background: var(--ok-bg); }
-.dash .rmember .st.excused { color: var(--gold); background: var(--gold-bg); }
-.dash .rmember .st.absent  { color: var(--rose); background: var(--rose-bg); }
-.dash .rmember .st.pending { color: var(--faint); border: 1px dashed var(--line); }
-.dash .rmember.clickable { cursor: pointer; }
-.dash .rmember.clickable:hover { background: var(--card-2); }
-.dash .roster .r-foot { padding: 11px 16px; text-align: center; border-top: 1px solid var(--line-soft); }
-.dash .roster .r-foot button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--vio); background: transparent; border: none; cursor: pointer; }
-.dash .roster .r-foot button:hover { color: var(--ink); }
-.dash .roster .r-locked { padding: 13px 16px; font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); text-align: center; }
+/* Empty-state line inside the ledger list. */
+.dash .r-locked { padding: 13px 16px; font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); text-align: center; }

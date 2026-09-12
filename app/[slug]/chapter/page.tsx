@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, FieldLabel, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../components/dashboard/primitives";
+import { LogAttendanceForm } from "../../components/dashboard/forms";
 import { useToast } from "../../components/dashboard/Toast";
 import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
@@ -63,10 +64,6 @@ function relativeWhen(dateStr: string) {
   return `${Math.abs(diff)} days ago`;
 }
 
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? "").join("");
-}
-
 // One-line preview of a meeting's notes / AI summary for the ledger row.
 function notesPreview(event: CalendarEvent): string {
   const summary = (event.notesSummary ?? "").trim();
@@ -79,15 +76,6 @@ function notesPreview(event: CalendarEvent): string {
     .filter(Boolean)
     .join(" · ");
 }
-
-// ─── Attendance (roll-call) types ─────────────────────────────────────────────
-// Shape returned by GET /api/attendance/[eventId] — same as the timeline page.
-
-type AttendanceDetail = {
-  excused:   { brotherId: number; brotherName: string; reason: string; isRetroactive: boolean }[];
-  unexcused: { brotherId: number; brotherName: string }[];
-  attended:  { brotherId: number; brotherName: string }[];
-};
 
 // Per-event present/eligible counts from GET /api/attendance/summary.
 type AttendanceSummaryRow = { calendarEventId: number; present: number; eligible: number };
@@ -410,189 +398,11 @@ function MeetingDetailOverlay({
   );
 }
 
-// ─── RollCallPanel (rail) ─────────────────────────────────────────────────────
-// Inline roll-call for the next meeting. Loads the event's AttendanceDetail and,
-// for MANAGE_ATTENDANCE holders, lets you toggle each brother Present/Excused and
-// save via POST /api/attendance. Read-only (counts only) for everyone else.
-// The fetch + eligible-compute + POST flow mirrors app/[slug]/timeline/page.tsx.
-
-function RollCallPanel({
-  event,
-  brotherList,
-  canManage,
-  onSaved,
-}: {
-  event: CalendarEvent | null;
-  brotherList: { id: number; name: string }[];
-  canManage: boolean;
-  onSaved: () => void;
-}) {
-  const [detail, setDetail]   = useState<AttendanceDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  // Local present set while marking (only used by managers).
-  const [present, setPresent] = useState<Set<number>>(new Set());
-  const [dirty, setDirty]     = useState(false);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-  const [query, setQuery]     = useState("");
-
-  useEffect(() => {
-    if (!event || !event.mandatory) { setDetail(null); return; }
-    const controller = new AbortController();
-    setDetail(null);
-    setDirty(false);
-    setError(null);
-    setQuery("");
-    setLoading(true);
-    fetch(`/api/attendance/${event.id}`, { signal: controller.signal })
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((data: AttendanceDetail) => {
-        setDetail(data);
-        setPresent(new Set(data.attended.map(a => a.brotherId)));
-      })
-      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load attendance", err); })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [event]);
-
-  const excusedIds = useMemo(() => new Set((detail?.excused ?? []).map(e => e.brotherId)), [detail]);
-  const eligible = useMemo(() => brotherList.filter(b => !excusedIds.has(b.id)), [brotherList, excusedIds]);
-
-  function statusOf(id: number): "present" | "excused" | "pending" {
-    if (excusedIds.has(id)) return "excused";
-    if (present.has(id)) return "present";
-    return "pending";
-  }
-
-  function toggle(id: number) {
-    if (!canManage || excusedIds.has(id)) return;
-    setPresent(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-    setDirty(true);
-  }
-
-  // Bulk mark operates on eligible (non-excused) brothers only. Excused stay out
-  // of the present set regardless — they're dropped from the attendance math.
-  function markAll(value: boolean) {
-    if (!canManage) return;
-    setPresent(value ? new Set(eligible.map(b => b.id)) : new Set());
-    setDirty(true);
-  }
-
-  async function save() {
-    if (!event || saving) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ calendarEventId: event.id, attendedIds: Array.from(present) }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(typeof err?.error === "string" ? err.error : "Could not save attendance.");
-        return;
-      }
-      const updated = await requestJson<AttendanceDetail>(`/api/attendance/${event.id}`);
-      setDetail(updated);
-      setPresent(new Set(updated.attended.map(a => a.brotherId)));
-      setDirty(false);
-      onSaved();
-    } catch {
-      setError("Could not save attendance.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!event) return null;
-
-  const presentCount = present.size;
-  const eligibleCount = eligible.length;
-  // Roster source is brotherList; if it hasn't hydrated yet, fall back to detail.
-  const roster = brotherList.length > 0
-    ? brotherList
-    : [...(detail?.attended ?? []), ...(detail?.unexcused ?? []), ...(detail?.excused ?? [])]
-        .map(b => ({ id: b.brotherId, name: b.brotherName }));
-  const q = query.trim().toLowerCase();
-  const visible = q ? roster.filter(b => b.name.toLowerCase().includes(q)) : roster;
-
-  return (
-    <div className="roster">
-      <div className="r-head">
-        <span className="h">Roll call</span>
-        <span className="c">{loading ? "…" : `${presentCount} / ${eligibleCount} present`}</span>
-      </div>
-
-      {canManage && !loading && roster.length > 0 && (
-        <div className="r-tools">
-          {roster.length > 6 && (
-            <input
-              type="text"
-              className="r-search"
-              placeholder="Search brothers…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
-          )}
-          <div className="r-bulk">
-            <button type="button" onClick={() => markAll(true)}>Mark all present</button>
-            <button type="button" onClick={() => markAll(false)}>Clear all</button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="r-locked">Loading attendance…</div>
-      ) : roster.length === 0 ? (
-        <div className="r-locked">No brothers on the roster yet.</div>
-      ) : visible.length === 0 ? (
-        <div className="r-locked">No brothers match “{query}”.</div>
-      ) : (
-        <div className="r-list">
-          {visible.map(b => {
-            const st = statusOf(b.id);
-            return (
-              <button
-                key={b.id}
-                type="button"
-                className={`rmember${canManage && !excusedIds.has(b.id) ? " clickable" : ""}`}
-                onClick={() => toggle(b.id)}
-                disabled={!canManage || excusedIds.has(b.id)}
-              >
-                <span className="av">{initials(b.name)}</span>
-                <span className="nm">{b.name}</span>
-                <span className={`st ${st}`}>{st === "pending" ? "Pending" : st === "present" ? "Present" : "Excused"}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {error && <div className="r-locked" style={{ color: "var(--rose)", fontStyle: "normal", fontFamily: "var(--sans)" }}>{error}</div>}
-
-      <div className="r-foot">
-        {canManage ? (
-          <button type="button" onClick={save} disabled={!dirty || saving}>
-            {saving ? "Saving…" : dirty ? "Save attendance" : "Saved"}
-          </button>
-        ) : (
-          <span className="r-locked" style={{ padding: 0 }}>Read-only · ask an officer to take roll</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ChapterPage() {
   const toast = useToast();
-  const { currentUser, can, brotherList } = useChapter();
+  const { currentUser, can, brotherList, setBrotherList } = useChapter();
   const v = useVocab();
   const canAttendance = can("MANAGE_ATTENDANCE");
   const [sidebarOpen,   setSidebarOpen]   = useState(false);
@@ -610,6 +420,7 @@ export default function ChapterPage() {
   const [deleteTarget,  setDeleteTarget]  = useState<CalendarEvent | null>(null);
   const [summarizeState, setSummarizeState] = useState<Record<number, "idle" | "running" | "error">>({});
   const [summarizeError, setSummarizeError] = useState<Record<number, string | null>>({});
+  const [attendanceTarget, setAttendanceTarget] = useState<CalendarEvent | null>(null);
 
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const saveResetTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -636,6 +447,19 @@ export default function ChapterPage() {
       .finally(() => setLoading(false));
     loadSummary();
   }, [loadSummary]);
+
+  // Shared with the Dashboard's LogAttendanceForm flow — same endpoint, same
+  // brotherList refresh (attendance can affect dues/threshold-derived fields).
+  async function handleLogAttendance(attendedIds: number[], eventId: number) {
+    const updated = await requestJson<typeof brotherList>("/api/attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
+    });
+    setBrotherList(updated);
+    setAttendanceTarget(null);
+    loadSummary();
+  }
 
   // ── Cleanup pending timers on unmount ────────────────────────────────────────
   useEffect(() => {
@@ -925,7 +749,7 @@ export default function ChapterPage() {
                         event={nextMeeting}
                         summary={summary[nextMeeting.id]}
                         canManage={canAttendance}
-                        onTakeRoll={() => handleOpen(nextMeeting.id)}
+                        onTakeAttendance={() => setAttendanceTarget(nextMeeting)}
                         onOpen={() => handleOpen(nextMeeting.id)}
                       />
                     ) : (
@@ -988,22 +812,6 @@ export default function ChapterPage() {
                     )}
                   </div>
 
-                  {/* RIGHT rail — roll call for the next meeting */}
-                  <aside className="mt-rail">
-                    <div>
-                      <p className="lbl">Roll call{nextMeeting ? ` · ${fmtDate(nextMeeting.date)}` : ""}</p>
-                      {nextMeeting ? (
-                        <RollCallPanel
-                          event={nextMeeting}
-                          brotherList={brotherList}
-                          canManage={canAttendance}
-                          onSaved={loadSummary}
-                        />
-                      ) : (
-                        <div className="roster"><div className="r-locked" style={{ padding: "18px 16px" }}>No upcoming meeting to take roll for.</div></div>
-                      )}
-                    </div>
-                  </aside>
                 </div>
               </>
             )}
@@ -1025,6 +833,14 @@ export default function ChapterPage() {
           onDelete={() => setDeleteTarget(selectedEvent)}
           onSummarize={() => handleSummarize(selectedEvent.id)}
         />
+      )}
+
+      {/* Take attendance modal — same form Live Check-In's "Take attendance"
+          and the Dashboard's pick-event flow open (app/components/dashboard/forms.tsx). */}
+      {attendanceTarget && (
+        <Modal title="Log Attendance" tone="dusk" onClose={() => setAttendanceTarget(null)}>
+          <LogAttendanceForm event={attendanceTarget} bList={brotherList} onSubmit={handleLogAttendance} />
+        </Modal>
       )}
 
       {/* Add modal */}
@@ -1083,13 +899,13 @@ function OnDeckHero({
   event,
   summary,
   canManage,
-  onTakeRoll,
+  onTakeAttendance,
   onOpen,
 }: {
   event: CalendarEvent;
   summary: AttendanceSummaryRow | undefined;
   canManage: boolean;
-  onTakeRoll: () => void;
+  onTakeAttendance: () => void;
   onOpen: () => void;
 }) {
   const dp = dateParts(event.date);
@@ -1111,7 +927,7 @@ function OnDeckHero({
 
       <div className="od-progress">
         <div className="p-head">
-          <span className="p-lbl">{eligible > 0 ? "Attendance marked" : "Roll not taken yet"}</span>
+          <span className="p-lbl">{eligible > 0 ? "Attendance marked" : "Attendance not taken yet"}</span>
           {eligible > 0 && <span className="p-count"><b>{present}</b> / {eligible} present</span>}
         </div>
         {eligible > 0 && (
@@ -1129,9 +945,9 @@ function OnDeckHero({
 
       <div className="actions">
         {canManage && (
-          <button className="btn-primary" onClick={onTakeRoll}>
+          <button className="btn-primary" onClick={onTakeAttendance}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-            Take roll
+            Take attendance
           </button>
         )}
         <button className="btn-ghost" onClick={onOpen}>
