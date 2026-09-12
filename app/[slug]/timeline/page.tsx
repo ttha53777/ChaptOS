@@ -1,5 +1,6 @@
 "use client";
 
+import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useContext } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
@@ -116,13 +117,7 @@ function isMeetingEvent(event: CalendarEvent): boolean {
 }
 
 /** True when the minutes were edited after the summary was generated. */
-function isSummaryStale(event: CalendarEvent): boolean {
-  const summaryAt = event.notesSummaryAt ? new Date(event.notesSummaryAt).getTime() : 0;
-  const updatedAt = event.notesUpdatedAt ? new Date(event.notesUpdatedAt).getTime() : 0;
-  // Same 2s grace as the Chapter page: summarizing bumps both stamps in one
-  // request, so an exact-ish tie is not a real edit.
-  return summaryAt > 0 && updatedAt > summaryAt + 2000;
-}
+function isSummaryStale(event: CalendarEvent): boolean { return notesSummaryStale(event); }
 
 // Tiny renderer for the summarizer's narrow dialect — `**bold**`, "- " bullets,
 // bold-only lines as section headers. Mirrors the Chapter page's SummaryMarkdown,

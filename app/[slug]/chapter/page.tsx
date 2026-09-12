@@ -1,6 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
+import type { NotesEditorHandle } from "@/app/components/meeting-notes/CollaborativeNotesEditor";
+import { NotesCollaborators } from "@/app/components/meeting-notes/NotesCollaborators";
+import type { Collaborator, NotesStatus } from "@/app/lib/collaboration/notes-session";
+import { notesSummaryStale, type NotesSnapshot } from "@/lib/collaboration/notes-protocol";
+import "@/app/components/meeting-notes/notes-editor.css";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, FieldLabel, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../components/dashboard/primitives";
 import { LogAttendanceForm } from "../../components/dashboard/forms";
@@ -13,6 +19,8 @@ import { orgFetch } from "../../lib/api";
 import { daysFromToday, todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/meetings-ledger.css";
+
+const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -226,6 +234,8 @@ function MeetingDetailOverlay({
   onEdit,
   onDelete,
   onSummarize,
+  onNotesSaved,
+  canEditNotes,
 }: {
   event: CalendarEvent;
   notesDraft: string;
@@ -237,7 +247,40 @@ function MeetingDetailOverlay({
   onEdit: () => void;
   onDelete: () => void;
   onSummarize: () => void;
+  onNotesSaved: (value: NotesSnapshot) => void;
+  canEditNotes: boolean;
 }) {
+  const editorRef = useRef<NotesEditorHandle>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [sharedStatus, setSharedStatus] = useState<NotesStatus>({ connection: "Connecting…", saving: "loading" });
+  const [sharedError, setSharedError] = useState<string | null>(null);
+  const shared = !!event.notesCollaborationEnabled;
+  const sharedSave = sharedStatus.saving === "saved" ? "saved" : sharedStatus.saving === "error" ? "error" : "saving";
+  const slug = typeof window === "undefined" ? "" : decodeURIComponent(window.location.pathname.split("/")[1] ?? "");
+  const summarize = async () => {
+    setSharedError(null);
+    try {
+      if (shared) {
+        if (!editorRef.current) throw new Error("Notes are still loading.");
+        await editorRef.current.flush();
+      }
+      onSummarize();
+    }
+    catch (error) { setSharedError(error instanceof Error ? error.message : "Save notes before summarizing."); }
+  };
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = [...(panelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), summary, [contenteditable="true"], textarea, [tabindex="0"]') ?? [])].filter(el => el.offsetParent !== null);
+      const first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", trap);
+    return () => { document.removeEventListener("keydown", trap); previous?.focus(); };
+  }, []);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", handler);
@@ -252,7 +295,7 @@ function MeetingDetailOverlay({
       <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
 
       {/* Panel — stop propagation so clicks inside don't close */}
-      <div className="relative flex w-full max-w-5xl flex-col bg-[#0f0d0a]" onClick={e => e.stopPropagation()}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={event.title} className="relative flex w-full max-w-5xl flex-col bg-[#0f0d0a]" onClick={e => e.stopPropagation()}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(236,231,221,0.08)] bg-[#0f0d0a] px-4 sm:px-6">
@@ -273,12 +316,13 @@ function MeetingDetailOverlay({
             <p className="truncate text-[14px] font-semibold text-[#ece7dd]">{event.title}</p>
           </div>
 
-          <SaveIndicator state={saveState} tone="dusk" />
+          {shared && <NotesCollaborators peers={collaborators} />}
+          <SaveIndicator state={shared ? sharedSave : saveState} tone="dusk" />
 
           <div className="flex items-center gap-1">
             <button
-              onClick={onSummarize}
-              disabled={summarizeState === "running" || !notesDraft.trim()}
+              onClick={summarize}
+              disabled={summarizeState === "running" || (shared ? sharedStatus.saving === "loading" : !notesDraft.trim())}
               title={!notesDraft.trim() ? "Add notes first" : "Generate an AI summary of these notes"}
               aria-label={event.notesSummary ? "Re-summarize notes" : "Summarize notes"}
               className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[#a78bfa] transition-colors hover:bg-[rgba(167,139,250,0.1)] hover:text-[#c4b5fd] disabled:cursor-not-allowed disabled:text-[#6b6354] disabled:hover:bg-transparent sm:py-1.5"
@@ -346,9 +390,7 @@ function MeetingDetailOverlay({
           <div className="mx-auto max-w-4xl px-6 py-8 sm:px-10">
 
             {event.notesSummary && (() => {
-              const summaryAt = event.notesSummaryAt ? new Date(event.notesSummaryAt).getTime() : 0;
-              const updatedAt = event.notesUpdatedAt ? new Date(event.notesUpdatedAt).getTime() : 0;
-              const stale = summaryAt > 0 && updatedAt > summaryAt + 2000;
+              const stale = notesSummaryStale(event);
               return (
                 <div className={`mb-8 rounded-xl border p-4 ${stale ? "border-[rgba(221,179,106,0.3)] bg-[rgba(221,179,106,0.04)]" : "border-[rgba(167,139,250,0.2)] bg-[rgba(167,139,250,0.04)]"}`}>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -374,22 +416,24 @@ function MeetingDetailOverlay({
               );
             })()}
 
-            {summarizeError && (
+            {(summarizeError || sharedError) && (
               <div className="mb-6 rounded-lg border border-[rgba(217,139,163,0.2)] bg-[rgba(217,139,163,0.1)] px-3 py-2 text-[12px] text-[#d98ba3]">
-                {summarizeError}
+                {summarizeError || sharedError}
               </div>
             )}
 
-            <div>
+            {shared ? <CollaborativeNotesEditor key={event.id} ref={editorRef} eventId={event.id} slug={slug} onSaved={onNotesSaved} onState={setSharedStatus} onPeers={setCollaborators} /> : <div>
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#958d7c]">Meeting Minutes</p>
+              {canEditNotes && event.notesInitialized && <p className="mb-3 text-[12px] text-[#958d7c]">Shared editing is paused. These are the last saved minutes.</p>}
               <textarea
                 className={`${inputDuskCls} min-h-[55vh] resize-none font-mono text-[13px] leading-relaxed`}
                 value={notesDraft}
+                readOnly={!canEditNotes || !!event.notesInitialized}
                 onChange={e => onNotesChange(e.target.value)}
                 placeholder="Start typing meeting minutes…"
                 autoFocus
               />
-            </div>
+            </div>}
 
           </div>
         </div>
@@ -483,7 +527,7 @@ export default function ChapterPage() {
         body: JSON.stringify({ description: value }),
       });
       savedValues.current[id] = value;
-      setEvents(prev => prev.map(e => e.id === id ? { ...e, description: value, notesUpdatedAt: updated.notesUpdatedAt ?? e.notesUpdatedAt } : e));
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, description: value, notesUpdatedAt: updated.notesUpdatedAt ?? e.notesUpdatedAt, notesContentRevision: updated.notesContentRevision ?? e.notesContentRevision } : e));
       setSaveState(s => ({ ...s, [id]: "saved" }));
       clearTimeout(saveResetTimers.current[id]);
       saveResetTimers.current[id] = setTimeout(() => setSaveState(s => ({ ...s, [id]: "idle" })), 2000);
@@ -587,7 +631,7 @@ export default function ChapterPage() {
     setSummarizeError(s => ({ ...s, [id]: null }));
     setSummarizeState(s => ({ ...s, [id]: "running" }));
     try {
-      const res = await requestJson<{ id: number; notesSummary: string | null; notesSummaryAt: string | null }>(
+      const res = await requestJson<{ id: number; notesSummary: string | null; notesSummaryAt: string | null; notesSummaryRevision: number | null; notesContentRevision: number }>(
         "/api/ai/summarize-meeting",
         {
           method: "POST",
@@ -595,7 +639,7 @@ export default function ChapterPage() {
           body: JSON.stringify({ id }),
         },
       );
-      setEvents(prev => prev.map(e => e.id === id ? { ...e, notesSummary: res.notesSummary, notesSummaryAt: res.notesSummaryAt } : e));
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, notesSummary: res.notesSummary, notesSummaryAt: res.notesSummaryAt, notesSummaryRevision: res.notesSummaryRevision, notesContentRevision: Math.max(e.notesContentRevision ?? 0, res.notesContentRevision) } : e));
       setSummarizeState(s => ({ ...s, [id]: "idle" }));
       toast.success("Summary generated.");
     } catch (err) {
@@ -822,6 +866,8 @@ export default function ChapterPage() {
       {/* ── Full-screen meeting detail overlay ─────────────────────────────────── */}
       {selectedEvent && (
         <MeetingDetailOverlay
+          key={selectedEvent.id}
+          canEditNotes={can("MANAGE_EVENTS")}
           event={selectedEvent}
           notesDraft={notesDraft[selectedEvent.id] ?? (selectedEvent.description ?? "")}
           saveState={saveState[selectedEvent.id] ?? "idle"}
@@ -832,6 +878,7 @@ export default function ChapterPage() {
           onEdit={() => setEditTarget(selectedEvent)}
           onDelete={() => setDeleteTarget(selectedEvent)}
           onSummarize={() => handleSummarize(selectedEvent.id)}
+          onNotesSaved={value => setEvents(prev => prev.map(e => e.id === value.id ? { ...e, description: value.description, notesInitialized: true, notesUpdatedAt: value.notesUpdatedAt, notesContentRevision: Math.max(e.notesContentRevision ?? 0, value.notesContentRevision) } : e))}
         />
       )}
 

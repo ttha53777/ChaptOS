@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "eval:chat": "tsx scripts/eval-ask-the-chapter.ts",
     "screenshot": "tsx scripts/screenshot.ts",
-    "stripe:setup": "tsx scripts/stripe-setup.ts"
+    "stripe:setup": "tsx scripts/stripe-setup.ts",
+    "test:notes:browser": "tsx scripts/test-collaborative-notes.ts"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.0",
