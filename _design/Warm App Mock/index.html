@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ChaptOS · Warm App Mock</title>
+<!-- Connected signed-in app prototype. Source: app/[slug] and current shared components.
+Warm Paper After Hours tokens from Dashboard Dark Warm Mock.html.
+No loading, login, onboarding or marketing screens. All records are fictional.
+Changes persist only in this browser under chaptos-warm-app-v1. No backend requests. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Inter:wght@400;450;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="theme.css?v=2"><link rel="stylesheet" href="app.css?v=3"><link rel="stylesheet" href="settings.css?v=2"></head>
+<body><div class="dw" id="app"><a class="skip" href="#page">Skip to content</a><aside class="side" id="sidebar" aria-label="Main navigation"></aside><button class="nav-shade" id="nav-shade" aria-label="Close navigation" hidden></button><main class="workspace"><header class="mobile-bar"><button class="btn small" data-action="menu" aria-label="Open navigation">☰</button><b id="mobile-title">Dashboard</b><button class="btn small" data-action="ask">✧ Ask</button></header><div class="page" id="page" tabindex="-1"></div><footer class="app-foot"><span id="foot-org">Lambda Sigma Phi · Fall 2026</span><span>Interactive design mock · <button data-action="reset" class="link">Reset sample data</button></span></footer></main><button class="ask-fab" data-action="ask"><span>✧</span> Ask Chapt <kbd>⌘ K</kbd></button>
+<dialog id="modal" aria-labelledby="modal-title"><div class="modal-head"><div><p class="eyebrow" id="modal-kicker">Lambda Sigma Phi</p><h2 id="modal-title"></h2></div><button class="icon-btn" data-action="close-modal" aria-label="Close dialog">×</button></div><div id="modal-body"></div></dialog>
+<dialog class="drawer" id="drawer" aria-labelledby="drawer-title"><div id="drawer-body"></div></dialog>
+<dialog class="ask-dialog" id="ask-dialog" aria-labelledby="ask-title"><div class="modal-head"><div><p class="eyebrow">Your org, one question away</p><h2 id="ask-title">Ask <em>Chapt</em></h2></div><button class="icon-btn" data-action="close-ask" aria-label="Close assistant">×</button></div><div id="ask-body"></div><form id="ask-form"><input name="question" required aria-label="Ask a question" placeholder="Who still owes dues?" autocomplete="off"><button class="btn primary" aria-label="Send question">↑</button></form><p class="ask-note">Local demonstration · responses use the sample records in this mock.</p></dialog>
+<div id="toast" class="toast" role="status" hidden></div></div>
+<script src="icons.js?v=2"></script><script src="data.js?v=2"></script><script src="core.js?v=2"></script><script src="pages.js?v=2"></script><script src="operations.js?v=2"></script><script src="settings.js?v=4"></script><script src="interactions.js?v=3"></script></body></html>

@@ -1,0 +1,139 @@
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%; color-scheme:dark}
+body{margin:0}
+
+.dw{
+  /* Warm Paper dark palette: charcoal stock, cream ink, muted pastel pigments. */
+  --paper:#1C1B19;
+  --paper-2:#181715;
+  --paper-3:#34312B;
+  --card:#25231F;
+  --ink:#F3EBDD;
+  --ink-2:#C9BEAD;
+  --ink-3:#A99E8F;
+  --line:#3B3730;
+  --line-2:#514A3F;
+
+  --peach:#694537;   --peach-soft:#30241F;  --peach-ink:#F1AD8E;  --peach-bd:#594034;
+  --sky:#3D536D;     --sky-soft:#202831;    --sky-ink:#A6C8F4;    --sky-bd:#3B4C60;
+  --mint:#365C49;    --mint-soft:#202C25;   --mint-ink:#98D9B3;   --mint-bd:#35503F;
+  --butter:#51432B;  --butter-soft:#302A20; --butter-ink:#EAC780; --butter-bd:#554730;
+  --lilac:#534864;   --lilac-soft:#2B2633;  --lilac-ink:#C6B3EC;  --lilac-bd:#4A405B;
+  --rose:#664452;    --rose-soft:#30232A;   --rose-ink:#E8A8C2;   --rose-bd:#593D4B;
+
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px; --r-pill:999px;
+
+  --sh-1:0 1px 2px rgba(0,0,0,.05), 0 3px 10px rgba(0,0,0,.045);
+  --sh-2:0 1px 2px rgba(0,0,0,.05), 0 10px 26px -8px rgba(0,0,0,.14);
+  --sh-3:0 2px 4px rgba(0,0,0,.05), 0 26px 60px -18px rgba(0,0,0,.22);
+
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+
+  /* ---- spatial system (the dashboard's own, warmed up) ---- */
+  --dash-max:1240px;
+  --dash-gutter:clamp(18px,3vw,40px);
+  --rail:346px;
+  --gap:16px;
+  --side-w:246px;
+
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.5;
+  letter-spacing:-.005em;
+  color:var(--ink);
+  background:var(--paper);
+  -webkit-font-smoothing:antialiased;
+}
+
+.dw h1,.dw h2,.dw h3,.dw h4,.dw p,.dw figure,.dw ul,.dw ol{margin:0}
+.dw ul,.dw ol{padding:0; list-style:none}
+.dw img,.dw svg{display:block; max-width:100%}
+.dw button,.dw input{font:inherit; color:inherit}
+.dw .mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.dw .mute{color:var(--ink-3)}
+.dw ::selection{background:var(--butter)}
+.dw *::-webkit-scrollbar{width:10px;height:10px}
+.dw *::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14); border-radius:8px; border:3px solid transparent; background-clip:content-box}
+.dw *::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.26); background-clip:content-box}
+
+/* the paper itself — the landing page's four soft washes, pinned behind the app */
+.dw::before{display:none}
+
+/* ─────────────────────────────────────────────────────────── shell ───────── */
+.dw .shell{position:relative; z-index:1; display:flex; min-height:100vh; align-items:flex-start}
+
+/* ── sidebar ─────────────────────────────────────────────────────────────────
+   Was a dark rail. Now paper-2 with a hairline edge; the active page is a white
+   card with a soft shadow (Notion's "you are here" rather than a violet bar). */
+.dw .side{
+  position:sticky; top:0; flex:none; width:var(--side-w); height:100vh;
+  display:flex; flex-direction:column; gap:2px;
+  padding:16px 12px 12px;
+  background:rgba(24,23,21,.92); backdrop-filter:blur(14px) saturate(1.25);
+  border-right:1.5px solid var(--line);
+  overflow-y:auto;
+}
+.dw .org{
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:9px 10px; margin-bottom:6px;
+  border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card);
+  box-shadow:var(--sh-1); cursor:pointer; text-align:left;
+  transition:transform .16s var(--ease-spring), box-shadow .16s var(--ease-spring);
+}
+.dw .org:hover{transform:translate(-1px,-1px); box-shadow:3px 3px 0 var(--lilac)}
+.dw .org__mk{
+  width:30px;height:30px;flex:none;border-radius:9px; display:grid; place-items:center;
+  background:var(--lilac-soft); border:1.5px solid var(--lilac-bd); color:var(--lilac-ink);
+  font-family:var(--display); font-weight:700; font-size:.82rem; letter-spacing:-.02em;
+}
+.dw .org__n{min-width:0}
+.dw .org__n b{display:block; font-size:.86rem; font-weight:600; letter-spacing:-.015em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.dw .org__n span{display:block; font-size:.7rem; color:var(--ink-3); font-family:var(--mono); letter-spacing:-.01em}
+.dw .org__c{margin-left:auto; flex:none; color:var(--ink-3)}
+
+.dw .nav-h{
+  padding:14px 11px 5px; font-size:.63rem; font-weight:700;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3);
+}
+.dw .nav a{
+  position:relative; display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:11px; text-decoration:none;
+  color:var(--ink-2); font-size:.875rem; font-weight:500; letter-spacing:-.01em;
+  border:1.5px solid transparent;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.dw .nav a svg{width:16px;height:16px;flex:none; color:var(--ink-3); transition:color .15s}
+.dw .nav a:hover{background:rgba(255,255,255,.04); color:var(--ink)}
+.dw .nav a:hover svg{color:var(--ink-2)}
+.dw .nav a.on{
+  background:var(--card); color:var(--ink); font-weight:600;
+  border-color:var(--line); box-shadow:var(--sh-1);
+}
+.dw .nav a.on svg{color:var(--lilac-ink)}
+.dw .nav .badge{
+  margin-left:auto; flex:none; min-width:19px; height:19px; padding:0 5px;
+  display:grid; place-items:center; border-radius:var(--r-pill);
+  background:var(--rose-soft); border:1px solid var(--rose-bd); color:var(--rose-ink);
+  font-size:.66rem; font-weight:700; font-family:var(--mono);
+}
+.dw .side__foot{margin-top:auto; padding-top:10px; border-top:1.5px solid var(--line)}
+.dw .me{
+  display:flex; align-items:center; gap:9px; width:100%; padding:7px 8px;
+  border:0; background:transparent; border-radius:11px; cursor:pointer; text-align:left;
+  transition:background .15s;
+}
+.dw .me:hover{background:rgba(255,255,255,.04)}
+.dw .me__av{
+  width:28px;height:28px;flex:none;border-radius:50%; display:grid; place-items:center;
+  background:var(--mint-soft); border:1.5px solid var(--mint-bd); color:var(--mint-ink);
+  font-size:.72rem; font-weight:700;
+}
+.dw .me__n{min-width:0}
+.dw .me__n b{display:block; font-size:.82rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.dw .me__n span{display:block; font-size:.7rem; color:var(--ink-3)}
+
