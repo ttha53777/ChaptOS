@@ -17,28 +17,41 @@
   1. UNMISSABLE, NOT INTERRUPTING. A modal would be unmissable and hated: it
      blocks the eight other things the dashboard is for, and it fires while
      you're walking into a room. Instead the widget takes the FULL WIDTH at the
-     very top of the pane, above the greeting — the one slot nothing else ever
-     occupies — and pushes the whole page down. You cannot scroll past what is
-     already at the top. It earns attention by POSITION, not by blocking.
+     space below the greeting and AI recap, above pinned announcements.
+     It earns attention through a prominent position in the dashboard flow,
+     without blocking the rest of the page.
   2. ONE LOUD SIGNAL, THEN QUIET. The only new colour is the violet the app
      already uses for "now" (.today-pill, .week-item.today). It gets exactly
-     three amplifiers: a breathing dot, a hairline that fills as the window
-     closes, and a violet-washed card. No red, no siren, no bounce. Loud once,
-     via the existing accent — not a new visual language.
+     two amplifiers: a breathing dot and an accent edge that drains as the
+     window closes. No red, no siren, no bounce. Loud once, via the existing
+     accent — not a new visual language.
   3. THE PRIMARY ACTION IS THE WHOLE POINT. "I'm here" is a single large button,
-     the biggest tap target on the page. Checking in takes one click and no
-     navigation. Everything else on the card (roster count, late window, officer
-     manual entry) is secondary type at rail scale.
-  4. IT REPORTS ITSELF OUT. Post-check-in the card doesn't vanish — it becomes a
+     the biggest tap target on the page, and the ONLY thing in its column.
+     Checking in takes one click and no navigation.
+  4. SAY EACH THING ONCE. The band is three plain zones — what / how many /
+     the button — with no divider between them and no fact told twice. The
+     count is one number with a hairline under it (it used to also carry a
+     progress bar and four face discs, three encodings of one small fact). The
+     late cutoff and "Take attendance" live in the event's own meta row with
+     the time and place, rather than stacking under the button. What's left is
+     one serif title, one number, one button.
+  5. IT REPORTS ITSELF OUT. Post-check-in the card doesn't vanish — it becomes a
      receipt, then a live count that keeps rising as brothers arrive, so an
      officer standing at the door watches the room fill. It retires itself when
      the event ends.
 
-  STATES (toggle bottom-right, or press 1/2/3/4)
-    1 · LIVE          — you haven't checked in. Countdown to the late cutoff.
-    2 · CHECKED IN    — receipt + live arrival count.
-    3 · CLOSING       — inside the last 5 minutes, still not checked in.
-    4 · NO EVENT      — the ordinary dashboard, widget absent (the 99% case).
+  STATES (toggle bottom-right, or press 1–7)
+    1 · LIVE            — you haven't checked in. Countdown to the late cutoff.
+    2 · CHECKED IN      — receipt + live arrival count.
+    3 · CLOSING         — inside the last 5 minutes, still not checked in.
+    4 · EXCUSED         — an officer already granted your excuse; nothing to do.
+    5 · EXCUSE PENDING  — you filed an excuse; still marked absent until reviewed.
+    6 · CLOSED          — an officer ended check-in; final tally frozen.
+    7 · NO EVENT        — the ordinary dashboard, widget absent (the 99% case).
+
+  OFFICER ACTION — "Close check-in" sits in the event's meta row (next to
+  "Take attendance") and, full-weight, in the "Who's here" sheet's footer.
+  Confirming it moves the band to state 6.
 
   Data is the seeded chapter from app/data.ts, same as the base mock.
 -->
@@ -187,7 +200,7 @@
 
   .live {
     position: relative;
-    margin-bottom: 26px;
+    margin-top: 26px;
     /* Ordinary card border on three sides. The card does NOT glow, wash, or
        ring — it is furniture like every other card, and the "now" comes from
        the accent edge below plus the breathing dot. */
@@ -201,7 +214,7 @@
   }
   /* The one loud signal, and it costs 3px. An accent edge down the left side
      reads as "this row is live" at a glance from anywhere on the page, without
-     tinting a 1400px card or firing a glow into the greeting below. It also
+     tinting a 1400px card or firing a glow into the greeting above. It also
      survives the ivory theme, where a violet wash turns to mud.
      This is the spent track; .live-rule i is the part still remaining. */
   .live::before {
@@ -212,12 +225,12 @@
     from { opacity: 0; transform: translateY(-9px); }
     to   { opacity: 1; transform: none; }
   }
-  /* Exit is a height-fold, not a pop, so the greeting slides up rather than
+  /* Exit is a height-fold, not a pop, so the pinned section slides up rather than
      jumping when the event ends. */
   .live.leaving {
     opacity: 0; transform: translateY(-8px); max-height: 0 !important;
-    margin-bottom: -1px; border-width: 0;
-    transition: opacity .3s ease, transform .3s ease, max-height .44s ease, margin-bottom .44s ease;
+    margin-top: -1px; border-width: 0;
+    transition: opacity .3s ease, transform .3s ease, max-height .44s ease, margin-top .44s ease;
   }
 
   /* The window rule and the accent edge are THE SAME OBJECT. A separate bar —
@@ -231,21 +244,21 @@
   .live-rule i { display: block; width: 100%; height: 100%; background: var(--vio);
     transform-origin: bottom; transition: transform .6s linear; }
 
-  .live-body { display: flex; align-items: center; gap: 28px; padding: 18px 22px 18px 24px; }
+  .live-body { display: flex; align-items: center; gap: 32px; padding: 20px 24px 20px 26px; }
 
   /* ── left: what and where ──────────────────────────── */
-  /* Capped, not free-flowing. At 1400px the title and meta filled a third of the
-     available width and the rest was dead space, which is why the count block
-     looked marooned; the cap pulls the whole band back into one group. */
-  .live-what { flex: 1 1 auto; min-width: 0; max-width: 520px; }
+  /* Free-flowing again, and it takes the slack. The count no longer needs to be
+     pulled toward the title, because it is no longer a block — it's one line of
+     type that sits against the button. */
+  .live-what { flex: 1 1 auto; min-width: 0; }
+  /* All sans now. The previous version opened on letterspaced mono caps, which
+     is the loudest type treatment in the app spent on the least important words
+     — the dot already says "live", and the title says what it is. Sentence-case
+     sans lets the serif title be the thing the eye lands on. */
   .live-kicker { display: flex; align-items: center; gap: 8px;
-    font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .18em;
-    text-transform: uppercase; color: var(--vio); }
-  /* Only the state word is uppercase mono. The clause after it drops to the
-     ordinary sans the rest of the app uses for prose — five letterspaced mono
-     runs in one 90px band is what made this card tiring to read. */
-  .live-kicker .live-elapsed { font-family: var(--sans); font-size: 11.5px; font-weight: 400;
-    letter-spacing: 0; text-transform: none; color: var(--muted); }
+    font-family: var(--sans); font-size: 11.5px; font-weight: 550; letter-spacing: 0;
+    color: var(--vio); }
+  .live-kicker .live-elapsed { font-weight: 400; color: var(--muted); }
   .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vio); flex-shrink: 0;
     animation: breathe 2.4s ease-in-out infinite; }
   /* A slow breath, not a blink. 2.4s reads as "alive"; a 1s flash reads as an
@@ -262,70 +275,68 @@
     font-size: 12px; color: var(--muted); }
   .live-meta .dotsep { color: var(--faint); }
   .live-meta b { color: var(--ink-soft); font-weight: 550; }
-  .live-req { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
-    text-transform: uppercase; color: var(--gold); background: var(--gold-bg);
-    border-radius: 4px; padding: 2px 6px; }
+  /* The deadline, in the row of facts about the event rather than floating under
+     the button. Gold only on the time itself — the part that is actually a
+     deadline — so it reads as one warm word in a grey line, not a second alert. */
+  .live-late b { color: var(--gold); font-weight: 600; }
+  /* Was a gold mono chip. "Mandatory" is a property of the event, not a warning,
+     and giving it the app's urgency colour meant the band had a gold alarm
+     sitting next to a violet one at all times. It's a word now. */
+  .live-req { color: var(--ink-soft); font-weight: 550; }
 
   /* ── middle: who's here (the room filling up) ───────── */
-  /* Deliberately quiet — mono numerals at rail scale, one hairline. It answers
-     "am I early or last?" without competing with the button. */
-  /* Left-aligned, not right-aligned. Right-alignment left the number floating
-     with no edge to sit against; against the divider on its left it now shares
-     a start edge with the faces and the bar under it. */
-  .live-count { flex-shrink: 0; min-width: 150px; }
-  .live-count .n { font-family: var(--mono); font-size: 21px; font-weight: 500; letter-spacing: -.02em;
-    color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  /* ONE representation, not three. This block used to carry a 21px number, a
+     progress bar and a row of four face discs — all three encoding the same
+     "23 of 31", which is what made the band feel crowded when the fact it
+     carries is small. The number stays (it's the precise one), the bar becomes
+     a hairline under it, and the faces are gone: pleasant, but the third telling
+     of one fact, and the widest thing in the column. */
+  .live-count { flex-shrink: 0; text-align: right; }
+  .live-count .n { font-family: var(--mono); font-size: 20px; font-weight: 500; letter-spacing: -.02em;
+    color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.15; }
   .live-count .n small { font-size: 13px; color: var(--faint); font-weight: 400; }
-  /* Sentence case, sans. The number is already the loud part; its label does not
-     also need to be letterspaced uppercase. */
-  .live-count .k { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
-  .live-count .track { height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 9px; }
-  .live-count .track i { display: block; height: 100%; border-radius: 2px; background: var(--vio); opacity: .55;
+  .live-count .k { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+  /* Sized to the number above it rather than the column, so it reads as that
+     number's underline instead of a second gauge. */
+  .live-count .track { display: block; height: 2px; border-radius: 2px; background: var(--line);
+    overflow: hidden; margin-top: 8px; width: 74px; margin-left: auto; }
+  .live-count .track i { display: block; height: 100%; border-radius: 2px; background: var(--vio); opacity: .6;
     transition: width .5s cubic-bezier(.4,0,.2,1); }
-  /* Faces of the last few arrivals. Concrete beats abstract: "Bryan and Issac are
-     already there" is the sentence that actually moves someone.
-     Sized to actually hold two mono characters — at 21px with -6px overlap the
-     initials were clipped by the next circle and the row read as noise. 24px,
-     -5px overlap, and the ring drawn as a border so it never eats the glyph. */
-  .live-faces { display: flex; margin-top: 10px; }
-  .live-faces .av { width: 24px; height: 24px; border-radius: 50%; background: var(--card-2); color: var(--ink-soft);
-    display: grid; place-items: center; font-family: var(--mono); font-size: 8.5px; font-weight: 600;
-    letter-spacing: .02em; border: 1.5px solid var(--card); margin-left: -5px; }
-  .live-faces .av:first-child { margin-left: 0; }
-  /* "+19" is a count, not a person — it loses the disc entirely and sits as
-     type on the baseline, which also stops it fighting the initials. */
-  .live-faces .more { align-self: center; margin-left: 8px; font-size: 11.5px; color: var(--faint); }
 
-  /* The slack lands here, between the event and the two right-hand zones, so
-     the count and the button stay paired against the right edge instead of the
-     gap opening up between them. */
-  .live-vrule { width: 1px; align-self: stretch; background: var(--line); flex-shrink: 0; margin-left: auto; }
+  /* The slack lands here, so the count and the button stay paired against the
+     right edge instead of the gap opening up between them. The 1px divider that
+     used to sit here is gone — with the count reduced to two lines of type there
+     are no longer two blocks needing a wall between them, and the band already
+     has an accent edge, a card border and a baseline of dividers below it. */
+  .live-gap { margin-left: auto; }
 
   /* ── right: the action ─────────────────────────────── */
-  .live-act { flex-shrink: 0; display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 178px; }
-  /* Still the biggest tap target on the page, but no longer the brightest thing
-     on it. A tonal violet — the accent at low alpha with a violet border and
-     violet label — instead of a saturated #7c3aed slab in white type. It wins by
-     being the only filled control in the band, not by out-shouting the greeting.
-     Hover is where it commits to the solid fill. */
+  /* One control, not a stack of three. The gold "Late after 7:15 PM" line moved
+     up into the event's meta row, where it belongs with the other facts about
+     the event, and "Take attendance" is now the officer link at the end of that
+     same row. What's left here is the button alone — which is the whole point of
+     the widget, and now the only thing in its column. */
+  .live-act { flex-shrink: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  /* A solid primary action anchors the larger live-event surface. */
   .live-btn { display: flex; align-items: center; justify-content: center; gap: 9px;
     font-family: var(--sans); font-size: 13.5px; font-weight: 600; letter-spacing: .01em;
     color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.42);
-    border-radius: 9px; padding: 12px 20px; cursor: pointer;
+    border-radius: 9px; padding: 12px 26px; cursor: pointer; white-space: nowrap;
     transition: transform .12s ease, background .16s ease, border-color .16s ease, color .16s ease; }
   .live-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
   .live-btn:hover { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
   .live-btn:active { transform: translateY(1px); }
   .live-btn:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
-  /* Sentence-case sans, centred under the button it qualifies. Gold only on the
-     time itself, which is the part that is actually a deadline. */
-  .live-sub { font-size: 11.5px; color: var(--faint); text-align: center; }
-  .live-sub b { color: var(--gold); font-weight: 600; }
-  /* Officer-only secondary. Demoted from an outlined button to a quiet link so
-     the band has exactly one control with a box around it. */
-  .live-alt { font-size: 11.5px; color: var(--muted); background: transparent; border: 0;
-    padding: 2px 0; cursor: pointer; text-align: center; font-family: var(--sans); }
-  .live-alt:hover { color: var(--vio); text-decoration: underline; text-underline-offset: 3px; }
+  /* Officer-only secondary, inline at the end of the event's meta row but set
+     off from it: a wider gap and a real divider instead of another "·", so the
+     row reads as [facts about the event] | [a thing you can do] rather than as
+     six interchangeable items. Underlined at rest — it's the one word in the
+     line that is clickable, and nothing else marks it as such. */
+  .live-alt { font-size: 12px; color: var(--muted); background: transparent; cursor: pointer;
+    font-family: var(--sans); border: 0; border-left: 1px solid var(--line);
+    margin-left: 6px; padding: 0 0 0 14px;
+    text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .live-alt:hover { color: var(--vio); text-decoration-color: var(--vio); }
 
   /* ── state: closing (last 5 min) ───────────────────── */
   /* One notch warmer, not a different card. Gold is already the app's "hurry"
@@ -348,6 +359,7 @@
   .live.closing .live-btn { color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.45); }
   .live.closing .live-btn:hover { background: var(--gold); border-color: var(--gold); color: var(--paper); }
   .live.closing .live-alt:hover { color: var(--gold); }
+  .live.closing .live-late { color: var(--gold); }
 
   /* ── state: checked in ─────────────────────────────── */
   /* The card doesn't disappear — disappearing is how a member ends up unsure
@@ -368,18 +380,95 @@
   @keyframes pop-in { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
   .live-receipt .r-t { font-size: 12.5px; color: var(--ink-soft); }
   .live-receipt .r-t b { color: var(--ink); font-weight: 600; }
-  .live-undo { font-size: 11.5px; color: var(--faint); background: none; border: 0; cursor: pointer;
-    padding: 2px 0; text-align: center; font-family: var(--sans); }
+  .live-undo { font-size: 12px; color: var(--faint); background: none; border: 0; cursor: pointer;
+    padding: 0; font-family: var(--sans); }
   .live-undo:hover { color: var(--rose); text-decoration: underline; text-underline-offset: 3px; }
-  /* Checked-in has no primary action left. Two bare links floating where the
-     button used to be had nothing to sit against, so "See who's here" gets a
-     quiet outlined box — enough to anchor the column, nowhere near the weight
-     of the violet button — and "Undo" stays a link beneath it. */
-  .live.done .live-act { gap: 8px; }
-  .live.done .live-alt {
-    border: 1px solid var(--line); border-radius: 9px; padding: 10px 18px;
-    color: var(--ink-soft); transition: border-color .16s ease, color .16s ease; }
-  .live.done .live-alt:hover { color: var(--ok); border-color: rgba(127,176,138,.45); text-decoration: none; }
+  /* Checked in, the primary action is spent — so its column holds one quiet
+     outlined control, matching the position and height of the button it
+     replaces so the band doesn't reflow when you check in. */
+  .live.done .live-btn {
+    background: transparent; border-color: var(--line); color: var(--ink-soft); }
+  .live.done .live-btn:hover { filter: none; border-color: rgba(127,176,138,.45); color: var(--ok); }
+
+  /* ── state: excused (officer already granted it) ────── */
+  /* Reuses the "checked in" receipt treatment wholesale — sage edge, sage
+     kicker, sage count rule, quiet outlined action — because from the card's
+     point of view the two are the same: the member is accounted for and there
+     is nothing left to press. The receipt line is what distinguishes them. */
+  .live.excused::before { background: var(--ok); }
+  .live.excused .live-rule i { background: var(--ok); }
+  .live.excused .live-kicker { color: var(--ok); }
+  .live.excused .live-count .track i { background: var(--ok); }
+  .live.excused .live-dot { background: var(--ok); animation: none; box-shadow: none; }
+  .live.excused .live-btn { background: transparent; border-color: var(--line); color: var(--ink-soft); }
+  .live.excused .live-btn:hover { filter: none; border-color: rgba(127,176,138,.45); color: var(--ok); }
+  section.live.excused { background: var(--card); border-color: var(--line); }
+  section.live.excused .live-body { min-height: 124px; padding: 22px 28px; }
+  section.live.excused .live-title { font-size: 24px; margin-top: 7px; }
+  section.live.excused .live-btn { min-height: 44px; font-size: 13px; background: transparent; border-color: var(--line); color: var(--ink-soft); }
+
+  /* ── state: excuse pending (filed, not yet reviewed) ── */
+  /* NOT a receipt — nothing is decided. The card stays the plain violet "live"
+     card, "I'm here" stays put (rejection means they still need to be here),
+     and the only new thing is a neutral note where the receipt would sit. The
+     clock badge and note text are muted grey: the app's colour for "no state
+     yet", not sage (approved) and not gold (a deadline on the member). */
+  .live-check.pending { color: var(--muted); background: var(--line-soft); border-color: var(--line);
+    animation: none; }
+  .r-t.r-pending { color: var(--muted); }
+  .r-t.r-pending b { color: var(--ink-soft); }
+  /* The withdraw link is a plain undo, but pending has no rose "you lost
+     something" meaning — hovering it just goes violet like any other link. */
+  #withdrawExcuseBtn:hover { color: var(--vio); text-decoration-color: var(--vio); }
+
+  /* ── officer action: close check-in ────────────────── */
+  /* A second officer link in the event's meta row, next to "Take attendance"
+     and set off the same way. Gold, not violet: it doesn't open a surface, it
+     ends the window early, and gold is the app's colour for "this changes the
+     clock". Underline is gold too so it doesn't read as the same link twice. */
+  /* The second officer action rides directly after "Take attendance" with no
+     divider of its own — the first .live-alt already walls the action group off
+     from the facts, and a second border here just orphans when the row wraps. */
+  .live-alt.live-close { color: var(--gold); border-left: 0; margin-left: 0; padding-left: 10px;
+    text-decoration-color: rgba(221,179,106,.4); }
+  .live-alt.live-close:hover { color: var(--gold); text-decoration-color: var(--gold); filter: brightness(1.08); }
+  .live.closing .live-alt.live-close:hover { color: var(--gold); }
+
+  /* The same action, full-weight, in the attendance sheet's footer — where an
+     officer is already standing watching the room fill and deciding to call it.
+     Sits in the foot that used to be one line of helper text. */
+  .attendance-foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .attendance-foot .foot-note { flex: 1; min-width: 0; }
+  .close-checkin-btn {
+    flex-shrink: 0; font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .01em;
+    color: var(--gold); background: var(--gold-bg); border: 1px solid rgba(221,179,106,.45);
+    border-radius: 8px; padding: 9px 16px; cursor: pointer;
+    transition: background .16s ease, border-color .16s ease, color .16s ease; }
+  .close-checkin-btn:hover { background: var(--gold); border-color: var(--gold); color: var(--paper); }
+  .close-checkin-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .close-checkin-btn[disabled] { opacity: .5; cursor: default; }
+  .close-checkin-btn[disabled]:hover { background: var(--gold-bg); border-color: rgba(221,179,106,.45); color: var(--gold); }
+
+  /* ── state: check-in closed (an officer ended it) ──── */
+  /* Terminal and quiet. The window is over, so the accent drains to nothing,
+     the dot stops breathing, and the whole card settles into faint/muted —
+     the app's "archived, no longer actionable" temperature. Not sage (nobody
+     was marked present by this) and not gold (the hurry is done). The member's
+     button is spent: it says so and can't be pressed. */
+  .live.closed::before { background: var(--faint); opacity: .5; }
+  .live.closed .live-rule i { background: var(--faint); transform: scaleY(0) !important; }
+  .live.closed .live-kicker { color: var(--muted); }
+  .live.closed .live-dot { background: var(--faint); animation: none; box-shadow: none; }
+  .live.closed .live-count .track i { background: var(--faint); opacity: .6; }
+  .live.closed .live-btn {
+    background: transparent; border-color: var(--line); color: var(--faint);
+    cursor: default; pointer-events: none; }
+  section.live.closed { background: var(--card); border-color: var(--line); }
+  section.live.closed .live-body { min-height: 124px; padding: 22px 28px; }
+  section.live.closed .live-title { font-size: 24px; margin-top: 7px; }
+  section.live.closed .live-btn {
+    min-height: 44px; font-size: 13px; background: transparent; border-color: var(--line); color: var(--faint); }
+  section.live.closed .live-btn:hover { filter: none; }
 
   /* Responsive: below ~1080 the three zones stack rather than crushing the
      button, which must never shrink — it's the whole point of the widget. */
@@ -388,19 +477,48 @@
        a countdown and starts reading as a rendering fault. The edge goes solid
        and the remaining time is carried by the kicker text, which has room here. */
     .live-rule i { transform: none !important; }
-    .live-body { flex-wrap: wrap; gap: 18px 22px; align-items: flex-end; }
+    .live-body { flex-wrap: wrap; gap: 18px 24px; align-items: flex-end; }
     .live-what { flex: 1 1 100%; }
-    /* The divider is a vertical separator between two side-by-side zones; once
-       they stack it separates nothing, so it goes rather than becoming a stray
-       1px tick in the gap. */
-    .live-vrule { display: none; }
-    .live-count { flex: 1 1 auto; }
-    .live-act { flex: 0 0 auto; min-width: 190px; }
+    /* Stacked, the count leads the second row and the button ends it. */
+    .live-count { flex: 0 0 auto; text-align: left; order: 1; }
+    .live-count .track { margin-left: 0; }
+    .live-gap { margin-left: auto; order: 2; }
+    .live-act { flex: 0 0 auto; order: 3; }
   }
   @media (max-width: 700px) {
     .live-body { padding: 16px 16px 16px 18px; }
     .live-title { font-size: 19px; }
     .live-act { flex: 1 1 100%; }
+  }
+
+  /* Prominent live-event treatment; scoped to the card, not ledger notes. */
+  section.live {
+    border-color: color-mix(in srgb, var(--vio) 32%, var(--line));
+    background: color-mix(in srgb, var(--vio) 5%, var(--card));
+  }
+  section.live .live-body { min-height: 178px; padding: 30px 32px; gap: 28px; }
+  section.live .live-kicker { font-size: 12px; }
+  section.live .live-title { font-size: 32px; line-height: 1.15; margin-top: 12px; }
+  section.live .live-meta { font-size: 13px; margin-top: 12px; row-gap: 8px; }
+  section.live .live-count .n { font-size: 32px; }
+  section.live .live-count .n small { font-size: 16px; }
+  section.live .live-count .k { margin-top: 5px; font-size: 12px; }
+  section.live .live-count .track { width: 92px; height: 3px; margin-top: 12px; }
+  section.live .live-btn {
+    min-height: 56px; min-width: 170px; padding: 16px 28px;
+    font-size: 16px; color: #fff; background: var(--vio-deep); border-color: var(--vio-deep);
+  }
+  section.live .live-btn svg { width: 20px; height: 20px; }
+  section.live .live-btn:hover { filter: brightness(1.12); }
+  section.live.closing .live-btn { color: var(--paper); background: var(--gold); border-color: var(--gold); }
+  section.live.done { background: var(--card); border-color: var(--line); }
+  section.live.done .live-body { min-height: 124px; padding: 22px 28px; }
+  section.live.done .live-title { font-size: 24px; margin-top: 7px; }
+  section.live.done .live-btn { min-height: 44px; font-size: 13px; background: transparent; border-color: var(--line); color: var(--ink-soft); }
+  @media (max-width: 700px) {
+    section.live .live-body { padding: 24px 20px; gap: 22px; }
+    section.live .live-title { font-size: 28px; }
+    section.live .live-btn { width: 100%; }
   }
 
   /* ── Announcement ────────────────────────────────────── */
@@ -545,6 +663,30 @@
   .mockbar button:hover { color: var(--ink); }
   .mockbar button.on { color: var(--ink); background: var(--card-2); }
   .mockbar .div { width: 1px; background: var(--line); margin: 4px 3px; }
+
+  .attendance-dialog { margin: auto 0 auto auto; width: min(480px, 100vw); height: 100dvh; max-height: 100dvh; max-width: 100vw; border: 0; border-left: 1px solid var(--line); padding: 0; background: var(--paper); color: var(--ink); box-shadow: -20px 0 80px #0003; }
+  .attendance-dialog::backdrop { background: #0008; backdrop-filter: blur(3px); }
+  .attendance-shell { display: flex; flex-direction: column; height: 100%; }
+  .attendance-head { padding: 30px 28px 22px; border-bottom: 1px solid var(--line); }
+  .attendance-head h2 { font: 30px var(--serif); margin: 12px 0 8px; }
+  .attendance-head p { color: var(--muted); font-size: 13px; line-height: 1.6; }
+  .attendance-close { float: right; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font-size: 24px; cursor: pointer; }
+  .attendance-summary { margin-top: 22px; color: var(--ok); font-size: 14px; }
+  .attendance-tools { padding: 20px 28px 0; }
+  .attendance-search { width: 100%; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: 14px var(--sans); }
+  .attendance-filters { display: flex; gap: 8px; margin: 16px 0; }
+  .attendance-filters button { padding: 9px 13px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; font: 12px var(--sans); }
+  .attendance-filters button[aria-pressed="true"] { background: var(--vio-bg); border-color: var(--vio); color: var(--vio); }
+  .attendance-list { overflow-y: auto; flex: 1; padding: 0 28px; }
+  .attendance-person { display: flex; align-items: center; gap: 12px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+  .attendance-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--vio-bg); color: var(--vio); display: grid; place-items: center; font: 11px var(--mono); flex-shrink: 0; }
+  .attendance-name { flex: 1; font-size: 13px; }
+  .attendance-name small { display: block; color: var(--muted); margin-top: 5px; font-size: 11px; }
+  .attendance-status { color: var(--ok); font: 11px var(--mono); }
+  .attendance-status.waiting { color: var(--muted); }
+  .attendance-foot { padding: 18px 28px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+  .attendance-empty { padding: 32px 0; color: var(--muted); font-size: 14px; }
+
 </style>
 </head>
 <body>
@@ -579,95 +721,6 @@
   <!-- ── Main ─────────────────────────────────────────── -->
   <main class="main">
 
-    <!-- ═══ LIVE EVENT CHECK-IN ═══════════════════════════════════════════
-         Above the greeting: the one slot on the page nothing else uses, so it
-         needs no z-index, no overlay, and no dismissal to be seen first. -->
-    <section class="live" id="live">
-      <div class="live-rule"><i id="ruleFill" style="transform:scaleY(.62)"></i></div>
-
-      <!-- state: LIVE / CLOSING — not yet checked in -->
-      <div class="live-body" id="bodyOpen">
-        <div class="live-what">
-          <p class="live-kicker">
-            <span class="live-dot"></span>
-            <span id="kickerWord">Happening now</span>
-            <span class="live-sep">·</span>
-            <span class="live-elapsed" id="elapsed">Started 12 min ago</span>
-          </p>
-          <h2 class="live-title">Chapter Meeting</h2>
-          <p class="live-meta">
-            <span>7:00 – 8:30 PM</span>
-            <span class="dotsep">·</span>
-            <span>Chapter Room, <b>Hodge Hall 214</b></span>
-            <span class="dotsep">·</span>
-            <span class="live-req">Mandatory</span>
-          </p>
-        </div>
-
-        <div class="live-vrule"></div>
-
-        <div class="live-count">
-          <p class="n" id="cntNum">23<small>/31</small></p>
-          <p class="k">here now</p>
-          <span class="track"><i id="cntBar" style="width:74%"></i></span>
-          <div class="live-faces">
-            <span class="av">BL</span><span class="av">IC</span><span class="av">RS</span>
-            <span class="av">DM</span><span class="more" id="moreOpen">+19</span>
-          </div>
-        </div>
-
-        <div class="live-act">
-          <button class="live-btn" id="checkInBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 6 9 17l-5-5"/>
-            </svg>
-            I'm here
-          </button>
-          <p class="live-sub" id="lateSub">Late after <b>7:15 PM</b></p>
-          <button class="live-alt">Take attendance</button>
-        </div>
-      </div>
-
-      <!-- state: CHECKED IN — receipt, and the room keeps filling -->
-      <div class="live-body" id="bodyDone" hidden>
-        <div class="live-what">
-          <p class="live-kicker">
-            <span class="live-dot"></span>
-            <span>You're checked in</span>
-            <span class="live-sep">·</span>
-            <span class="live-elapsed">ends 8:30 PM</span>
-          </p>
-          <h2 class="live-title">Chapter Meeting</h2>
-          <div class="live-receipt">
-            <span class="live-check">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 6 9 17l-5-5"/>
-              </svg>
-            </span>
-            <p class="r-t"><b>Present, on time</b> — 7:12 PM · your attendance is now 91%</p>
-          </div>
-        </div>
-
-        <div class="live-vrule"></div>
-
-        <div class="live-count">
-          <p class="n" id="cntNum2">24<small>/31</small></p>
-          <p class="k">here now</p>
-          <span class="track"><i id="cntBar2" style="width:77%"></i></span>
-          <div class="live-faces">
-            <span class="av" style="background:var(--ok-bg);color:var(--ok);border-color:var(--card)">TT</span>
-            <span class="av">BL</span><span class="av">IC</span><span class="av">RS</span>
-            <span class="more">+20</span>
-          </div>
-        </div>
-
-        <div class="live-act">
-          <button class="live-alt">See who's here</button>
-          <button class="live-undo" id="undoBtn">Undo check-in</button>
-        </div>
-      </div>
-    </section>
-
     <div class="briefing">
       <div>
         <p class="kicker"><span class="today">Tuesday, June 9, 2026</span>&ensp;·&ensp;Week of Jun 8 – 14&ensp;·&ensp;Spring Semester</p>
@@ -699,6 +752,213 @@
         </div>
       </div>
     </div>
+
+    <!-- ═══ LIVE EVENT CHECK-IN ═══════════════════════════════════════════
+         Below the greeting and AI recap, above pinned announcements: the live
+         action stays prominent without interrupting the dashboard introduction. -->
+    <section class="live" id="live">
+      <div class="live-rule"><i id="ruleFill" style="transform:scaleY(.62)"></i></div>
+
+      <!-- state: LIVE / CLOSING — not yet checked in -->
+      <div class="live-body" id="bodyOpen">
+        <div class="live-what">
+          <p class="live-kicker">
+            <span class="live-dot"></span>
+            <span id="kickerWord">Happening now</span>
+            <span class="live-sep">·</span>
+            <span class="live-elapsed" id="elapsed">Started 12 min ago</span>
+          </p>
+          <h2 class="live-title">Chapter Meeting</h2>
+          <p class="live-meta">
+            <span>7:00 – 8:30 PM</span>
+            <span class="dotsep">·</span>
+            <span><b>Hodge Hall 214</b></span>
+            <span class="dotsep">·</span>
+            <span class="live-req">Mandatory</span>
+            <span class="dotsep">·</span>
+            <span class="live-late" id="lateSub">late after <b>7:15 PM</b></span>
+            <button class="live-alt">Take attendance</button>
+            <button class="live-alt live-close" data-close-checkin>Close check-in</button>
+          </p>
+        </div>
+
+        <div class="live-gap"></div>
+
+        <div class="live-count">
+          <p class="n" id="cntNum">23<small>/31</small></p>
+          <p class="k">here now</p>
+          <span class="track"><i id="cntBar" style="width:74%"></i></span>
+        </div>
+
+        <div class="live-act">
+          <button class="live-btn" id="checkInBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5"/>
+            </svg>
+            I'm here
+          </button>
+        </div>
+      </div>
+
+      <!-- state: CHECKED IN — receipt, and the room keeps filling -->
+      <div class="live-body" id="bodyDone" hidden>
+        <div class="live-what">
+          <p class="live-kicker">
+            <span class="live-dot"></span>
+            <span>You're checked in</span>
+            <span class="live-sep">·</span>
+            <span class="live-elapsed">ends 8:30 PM</span>
+          </p>
+          <h2 class="live-title">Chapter Meeting</h2>
+          <div class="live-receipt">
+            <span class="live-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+            </span>
+            <p class="r-t"><b>Present, on time</b> — 7:12 PM · attendance now 91% · <button class="live-undo" id="undoBtn">undo</button></p>
+          </div>
+        </div>
+
+        <div class="live-gap"></div>
+
+        <div class="live-count">
+          <p class="n" id="cntNum2">24<small>/31</small></p>
+          <p class="k">here now</p>
+          <span class="track"><i id="cntBar2" style="width:77%"></i></span>
+        </div>
+
+        <div class="live-act">
+          <button class="live-btn" id="seeHereBtn">See who's here</button>
+        </div>
+      </div>
+
+      <!-- state: EXCUSED — an officer has already granted this member's excuse,
+           so there is nothing for them to do. The card is a receipt like
+           "checked in", but sage means "you're accounted for" not "present":
+           the line says so, and the action is a quiet look at the excuse on
+           file rather than a spent primary button. -->
+      <div class="live-body" id="bodyExcused" hidden>
+        <div class="live-what">
+          <p class="live-kicker">
+            <span class="live-dot"></span>
+            <span>You're excused</span>
+            <span class="live-sep">·</span>
+            <span class="live-elapsed">ends 8:30 PM</span>
+          </p>
+          <h2 class="live-title">Chapter Meeting</h2>
+          <div class="live-receipt">
+            <span class="live-check">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+            </span>
+            <p class="r-t"><b>Excused absence</b> — approved by Bryan Lee · won't count against attendance · <button class="live-undo" id="viewExcuseBtn">view excuse</button></p>
+          </div>
+        </div>
+
+        <div class="live-gap"></div>
+
+        <div class="live-count">
+          <p class="n" id="cntNum3">24<small>/31</small></p>
+          <p class="k">here now</p>
+          <span class="track"><i id="cntBar3" style="width:77%"></i></span>
+        </div>
+
+        <div class="live-act">
+          <button class="live-btn" id="seeHereBtn2">See who's here</button>
+        </div>
+      </div>
+
+      <!-- state: EXCUSE PENDING — the member filed an excuse and no officer has
+           acted on it yet. It is NOT a receipt: nothing is settled, and if the
+           request is rejected they still need to be in the room. So the "I'm
+           here" button stays exactly where it is, and the pending note sits
+           where the receipt would, in the app's neutral muted grey — no sage
+           (nothing approved), no gold (not a deadline on them). The only edge
+           treatment is the plain violet "this is live" rule, unchanged. -->
+      <div class="live-body" id="bodyPending" hidden>
+        <div class="live-what">
+          <p class="live-kicker">
+            <span class="live-dot"></span>
+            <span id="kickerWordP">Happening now</span>
+            <span class="live-sep">·</span>
+            <span class="live-elapsed" id="elapsedP">started 12 min ago</span>
+          </p>
+          <h2 class="live-title">Chapter Meeting</h2>
+          <div class="live-receipt">
+            <span class="live-check pending">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+              </svg>
+            </span>
+            <p class="r-t r-pending"><b>Excuse submitted</b> — awaiting officer review · you'll still be marked absent until it's approved · <button class="live-undo" id="withdrawExcuseBtn">withdraw</button></p>
+          </div>
+          <p class="live-meta">
+            <span>7:00 – 8:30 PM</span>
+            <span class="dotsep">·</span>
+            <span><b>Hodge Hall 214</b></span>
+            <span class="dotsep">·</span>
+            <span class="live-late">late after <b>7:15 PM</b></span>
+            <button class="live-alt">Take attendance</button>
+            <button class="live-alt live-close" data-close-checkin>Close check-in</button>
+          </p>
+        </div>
+
+        <div class="live-gap"></div>
+
+        <div class="live-count">
+          <p class="n" id="cntNum4">23<small>/31</small></p>
+          <p class="k">here now</p>
+          <span class="track"><i id="cntBar4" style="width:74%"></i></span>
+        </div>
+
+        <div class="live-act">
+          <button class="live-btn" id="checkInBtnP">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5"/>
+            </svg>
+            I'm here
+          </button>
+        </div>
+      </div>
+
+      <!-- state: CHECK-IN CLOSED — an officer ended the window (early, or the
+           event wrapped). Terminal: the card is a plain grey receipt, the
+           accent is gone, the member's button is spent and unclickable. The
+           final tally is frozen in place. -->
+      <div class="live-body" id="bodyClosed" hidden>
+        <div class="live-what">
+          <p class="live-kicker">
+            <span class="live-dot"></span>
+            <span>Check-in closed</span>
+            <span class="live-sep">·</span>
+            <span class="live-elapsed" id="closedBy">closed 7:41 PM by Bryan Lee</span>
+          </p>
+          <h2 class="live-title">Chapter Meeting</h2>
+          <p class="live-meta">
+            <span>7:00 – 8:30 PM</span>
+            <span class="dotsep">·</span>
+            <span><b>Hodge Hall 214</b></span>
+            <span class="dotsep">·</span>
+            <span id="closedTally"><b>26 of 31</b> checked in · 5 marked absent</span>
+            <button class="live-alt">View attendance</button>
+          </p>
+        </div>
+
+        <div class="live-gap"></div>
+
+        <div class="live-count">
+          <p class="n" id="cntNum5">26<small>/31</small></p>
+          <p class="k">final</p>
+          <span class="track"><i id="cntBar5" style="width:84%"></i></span>
+        </div>
+
+        <div class="live-act">
+          <button class="live-btn" id="closedBtn" tabindex="-1" aria-disabled="true">Check-in closed</button>
+        </div>
+      </div>
+    </section>
 
     <div class="pinned">
       <span class="pin-tag">PINNED</span>
@@ -986,12 +1246,39 @@
   </main>
 </div>
 
+<dialog class="attendance-dialog" id="attendanceDialog" aria-labelledby="attendanceTitle">
+  <div class="attendance-shell">
+    <header class="attendance-head">
+      <button class="attendance-close" id="closeAttendance" aria-label="Close attendance">×</button>
+      <span class="live-kicker">Happening now</span>
+      <h2 id="attendanceTitle">Who's here</h2>
+      <p>Chapter Meeting · Hodge Hall 214<br>7:00 – 8:30 PM</p>
+      <div class="attendance-summary" id="attendanceSummary" aria-live="polite"></div>
+    </header>
+    <div class="attendance-tools">
+      <input class="attendance-search" id="attendanceSearch" type="search" placeholder="Find a member…" aria-label="Find a member">
+      <div class="attendance-filters" aria-label="Attendance filters">
+        <button data-attendance-filter="here" aria-pressed="true">Here now</button>
+        <button data-attendance-filter="expected" aria-pressed="false">Not here yet</button>
+      </div>
+    </div>
+    <div class="attendance-list" id="attendanceList" role="list" aria-label="Members"></div>
+    <footer class="attendance-foot">
+      <span class="foot-note">Updates as members check in · Times shown in chapter time</span>
+      <button class="close-checkin-btn" id="closeCheckinBtn" data-close-checkin>Close check-in</button>
+    </footer>
+  </div>
+</dialog>
+
 <!-- ── Mock chrome ─────────────────────────────────────── -->
 <div class="mockbar">
   <button data-state="live" class="on">1 · Live</button>
   <button data-state="done">2 · Checked in</button>
   <button data-state="closing">3 · Closing</button>
-  <button data-state="none">4 · No event</button>
+  <button data-state="excused">4 · Excused</button>
+  <button data-state="pending">5 · Excuse pending</button>
+  <button data-state="closed">6 · Closed</button>
+  <button data-state="none">7 · No event</button>
   <div class="div"></div>
   <button id="themeBtn">◐ Ivory</button>
 </div>
@@ -1001,18 +1288,29 @@
   const live  = document.getElementById("live");
   const open  = document.getElementById("bodyOpen");
   const done  = document.getElementById("bodyDone");
+  const excused = document.getElementById("bodyExcused");
+  const pending = document.getElementById("bodyPending");
+  const closed  = document.getElementById("bodyClosed");
   const rule  = document.getElementById("ruleFill");
 
   const liveOnly = () => document.querySelectorAll("[data-live-only]");
   const liveHide = () => document.querySelectorAll("[data-live-hide]");
 
+  let attendanceCount = 23;
+  let attendanceFilter = "here";
   let state = "live";
   let tick = null;
+  // Frozen tally the officer closed check-in at. Seeded so jumping straight to
+  // state 6 from the mockbar shows a sensible number; a real close overwrites it.
+  let closedAt = 26;
 
   const DIGEST = {
     live:    "Chapter Meeting is running now with 23 of 31 checked in. Two deadlines are overdue and three brothers still owe $300 in dues.",
     closing: "Chapter Meeting closes check-in in 4 minutes — 27 of 31 are in. Two deadlines are overdue and three brothers still owe $300.",
     done:    "You're checked in at Chapter Meeting; 24 of 31 have arrived. Two deadlines are overdue and three brothers still owe $300 in dues.",
+    excused: "You're excused from Chapter Meeting, now running with 24 of 31 in. Two deadlines are overdue and three brothers still owe $300 in dues.",
+    pending: "Your excuse for Chapter Meeting is awaiting review — you're marked absent until an officer approves it. 23 of 31 are in.",
+    closed:  "Check-in for Chapter Meeting is closed — 26 of 31 present, 5 marked absent. Two deadlines are overdue and three brothers still owe $300.",
     none:    "Two deadlines are overdue, three brothers still owe $300 in dues, and Summer Kickoff is Saturday night."
   };
 
@@ -1038,15 +1336,18 @@
       return;
     }
 
-    live.classList.remove("closing", "done");
-    open.hidden = (s === "done");
-    done.hidden = (s !== "done");
+    live.classList.remove("closing", "done", "excused", "closed");
+    open.hidden    = (s !== "live" && s !== "closing");
+    done.hidden    = (s !== "done");
+    excused.hidden = (s !== "excused");
+    pending.hidden = (s !== "pending");
+    closed.hidden  = (s !== "closed");
 
     if (s === "live") {
       rule.style.transform = "scaleY(.62)";
       document.getElementById("kickerWord").textContent = "Happening now";
-      document.getElementById("elapsed").textContent = "Started 12 min ago";
-      document.getElementById("lateSub").innerHTML = "Late after <b>7:15 PM</b>";
+      document.getElementById("elapsed").textContent = "started 12 min ago";
+      document.getElementById("lateSub").innerHTML = "late after <b>7:15 PM</b>";
       setCount(23);
     }
     if (s === "closing") {
@@ -1054,7 +1355,7 @@
       rule.style.transform = "scaleY(.09)";
       document.getElementById("kickerWord").textContent = "Check-in closing";
       document.getElementById("elapsed").textContent = "4 min left to be on time";
-      document.getElementById("lateSub").innerHTML = "Marked <b>late</b> after 7:15 PM";
+      document.getElementById("lateSub").innerHTML = "late after <b>7:15 PM</b>";
       setCount(27);
     }
     if (s === "done") {
@@ -1072,17 +1373,49 @@
           ["Jacob Hwang", "Arijit Das", "Nathaniel Baccarey", "Chris Yoon", "Kevin Park"][n - 25] + " checked in to Chapter Meeting";
       }, 2600);
     }
+    if (s === "excused") {
+      // Same receipt shell as "checked in": the member is accounted for and the
+      // room keeps filling under the note. The excuse just doesn't add to it.
+      live.classList.add("excused");
+      rule.style.transform = "scaleY(.62)";
+      setCount(24);
+    }
+    if (s === "pending") {
+      // Still the plain violet live card — nothing is settled. Countdown runs
+      // exactly as in "live", because the member could yet need to walk in.
+      rule.style.transform = "scaleY(.62)";
+      document.getElementById("kickerWordP").textContent = "Happening now";
+      document.getElementById("elapsedP").textContent = "started 12 min ago";
+      setCount(23);
+    }
+    if (s === "closed") {
+      // Terminal. The window is over: the accent drains to nothing, the dot
+      // stops, and the count freezes at whatever it was when the officer
+      // closed it. No more arrivals — the tick stays cleared.
+      live.classList.add("closed");
+      rule.style.transform = "scaleY(0)";
+      setCount(closedAt);
+      document.getElementById("closedTally").innerHTML =
+        `<b>${closedAt} of 31</b> checked in · ${31 - closedAt} marked absent`;
+      // The officer-side rows settle to match: the queue row and recap now
+      // report absences, not a pending count.
+      document.getElementById("missingRow").textContent =
+        (31 - closedAt) + " brothers marked absent";
+      document.getElementById("attNote").textContent = closedAt + " present · closed";
+    }
 
     document.querySelectorAll(".mockbar [data-state]").forEach(b => b.classList.toggle("on", b.dataset.state === s));
   }
 
   function setCount(n) {
+    attendanceCount = n;
+    if (document.getElementById("attendanceDialog").open) renderAttendance();
     const pct = Math.round((n / 31) * 100);
-    ["cntNum", "cntNum2"].forEach(id => {
+    ["cntNum", "cntNum2", "cntNum3", "cntNum4", "cntNum5"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = n + "<small>/31</small>";
     });
-    ["cntBar", "cntBar2"].forEach(id => {
+    ["cntBar", "cntBar2", "cntBar3", "cntBar4", "cntBar5"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.width = pct + "%";
     });
@@ -1093,25 +1426,40 @@
     const missing = 31 - n;
     document.getElementById("missingRow").textContent =
       missing === 1 ? "1 brother not yet checked in" : missing + " brothers not yet checked in";
-    // Both bodies show four faces, so the overflow is the same arithmetic in each.
-    document.querySelectorAll(".live-faces .more").forEach(el => el.textContent = "+" + (n - 4));
   }
 
-  document.getElementById("checkInBtn").addEventListener("click", () => {
-    document.getElementById("selfTick").textContent = "✓";
-    document.getElementById("selfTick").style.color = "var(--ok)";
-    setState("done");
-  });
-  document.getElementById("undoBtn").addEventListener("click", () => {
-    document.getElementById("selfTick").textContent = "—";
-    document.getElementById("selfTick").style.color = "var(--faint)";
-    setState("live");
-  });
+  function markSelfHere(here) {
+    const t = document.getElementById("selfTick");
+    t.textContent = here ? "✓" : "—";
+    t.style.color = here ? "var(--ok)" : "var(--faint)";
+  }
+  document.getElementById("checkInBtn").addEventListener("click", () => { markSelfHere(true); setState("done"); });
+  // Checking in with a pending excuse still works — it just makes the excuse moot.
+  document.getElementById("checkInBtnP").addEventListener("click", () => { markSelfHere(true); setState("done"); });
+  document.getElementById("undoBtn").addEventListener("click", () => { markSelfHere(false); setState("live"); });
+  // Withdrawing a pending excuse drops back to the ordinary "not checked in" card.
+  document.getElementById("withdrawExcuseBtn").addEventListener("click", () => setState("live"));
+  // "view excuse" / the excused-state "see who's here" are inert in the mock.
+  document.getElementById("viewExcuseBtn").addEventListener("click", e => e.preventDefault());
+  document.getElementById("seeHereBtn2").addEventListener("click", () => document.getElementById("seeHereBtn").click());
+
+  // Officer: close check-in. Wired from all three affordances — the two meta-row
+  // links and the button in the "Who's here" sheet's footer. Ends the window
+  // early; confirmed because it locks the tally for everyone.
+  document.querySelectorAll("[data-close-checkin]").forEach(b => b.addEventListener("click", () => {
+    const here = attendanceCount, absent = 31 - here;
+    if (!confirm(`Close check-in for Chapter Meeting now?\n\n${here} of 31 are checked in. The remaining ${absent} will be marked absent and members can no longer check themselves in.`)) return;
+    closedAt = here;
+    document.getElementById("closedBy").textContent = "closed 7:41 PM by Bryan Lee";
+    if (attendanceDialog.open) attendanceDialog.close();
+    setState("closed");
+  }));
 
   document.querySelectorAll(".mockbar [data-state]").forEach(b =>
     b.addEventListener("click", () => setState(b.dataset.state)));
   document.addEventListener("keydown", e => {
-    const map = { "1": "live", "2": "done", "3": "closing", "4": "none" };
+    if (document.getElementById("attendanceDialog").open || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    const map = { "1": "live", "2": "done", "3": "closing", "4": "excused", "5": "pending", "6": "closed", "7": "none" };
     if (map[e.key]) setState(map[e.key]);
     if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) themeBtn.click();
   });
@@ -1122,6 +1470,47 @@
     root.dataset.theme = t;
     themeBtn.textContent = t === "dusk" ? "◐ Ivory" : "◑ Dusk";
   });
+
+
+  // Sample roster for this interactive mock, ordered by arrival.
+  const attendanceNames = ["Bryan Lee", "Dariel Montalvo", "Elvin De La Cruz", "Issac Chen", "Noah Kim", "Ethan Wang", "Andrew Liu", "Daniel Cho", "Ryan Nguyen", "Justin Tran", "Michael Lin", "David Wu", "Alex Zhang", "Eric Huang", "Jason Choi", "Brandon Li", "Steven Pham", "Matthew Wong", "William Han", "Sean Lim", "Anthony Hu", "Brian Yang", "Alan Xu", "Thalha Thabish", "Jacob Hwang", "Arijit Das", "Nathaniel Baccarey", "Chris Yoon", "Kevin Park", "Victor Lam", "Sam Lee"];
+  const attendanceDialog = document.getElementById("attendanceDialog");
+  function renderAttendance() {
+    document.getElementById("attendanceSummary").textContent = `${attendanceCount} of 31 here · ${31 - attendanceCount} still expected`;
+    document.querySelector('[data-attendance-filter="here"]').textContent = `Here now · ${attendanceCount}`;
+    document.querySelector('[data-attendance-filter="expected"]').textContent = `Not here yet · ${31 - attendanceCount}`;
+    const query = document.getElementById("attendanceSearch").value.trim().toLowerCase();
+    const list = document.getElementById("attendanceList");
+    list.replaceChildren();
+    attendanceNames.forEach((name, i) => {
+      const here = i < attendanceCount;
+      if (here !== (attendanceFilter === "here") || !name.toLowerCase().includes(query)) return;
+      const row = document.createElement("div");
+      row.className = "attendance-person";
+      row.setAttribute("role", "listitem");
+      const minute = i < 23 ? String(Math.floor(i / 2)).padStart(2, "0") : "12";
+      row.innerHTML = `<span class="attendance-avatar">${name.split(" ").map(x => x[0]).slice(0,2).join("")}</span><div class="attendance-name">${name}${name === "Thalha Thabish" ? " · You" : ""}<small>${here ? `Checked in at 7:${minute} PM` : "Awaiting check-in"}</small></div><span class="attendance-status ${here ? "" : "waiting"}">${here ? "Present" : "Expected"}</span>`;
+      list.append(row);
+    });
+    if (!list.childElementCount) {
+      const empty = document.createElement("p"); empty.className = "attendance-empty";
+      empty.textContent = query ? "No members match your search." : "Everyone is here."; list.append(empty);
+    }
+  }
+  document.getElementById("seeHereBtn").addEventListener("click", () => {
+    attendanceFilter = "here";
+    document.getElementById("attendanceSearch").value = "";
+    document.querySelectorAll("[data-attendance-filter]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.attendanceFilter === attendanceFilter)));
+    renderAttendance(); attendanceDialog.showModal();
+  });
+  document.getElementById("closeAttendance").addEventListener("click", () => attendanceDialog.close());
+  attendanceDialog.addEventListener("click", e => { if (e.target === attendanceDialog && e.clientX < attendanceDialog.getBoundingClientRect().left) attendanceDialog.close(); });
+  document.getElementById("attendanceSearch").addEventListener("input", renderAttendance);
+  document.querySelectorAll("[data-attendance-filter]").forEach(b => b.addEventListener("click", () => {
+    attendanceFilter = b.dataset.attendanceFilter;
+    document.querySelectorAll("[data-attendance-filter]").forEach(btn => btn.setAttribute("aria-pressed", String(btn === b)));
+    renderAttendance();
+  }));
 
   setState("live");
 </script>
