@@ -36,12 +36,12 @@ export const appPrisma = new PrismaClient({ adapter: new PrismaPg({ connectionSt
 // Keep in sync with the org-scoped models in prisma/schema.prisma. This is the
 // list Phase 3's migration will enforce; the test asserts the shape works.
 const ORG_COLUMN_TABLES = [
-  "ActivityLog", "Brother", "BrotherMetricValue", "BrotherRole", "Budget",
+  "ActivityLog", "AttendanceExemption", "Brother", "BrotherMetricValue", "BrotherRole", "Budget",
   "CalendarEvent", "CalendarEventType", "ChapterAnnouncement", "Doc",
-  "EventFieldDefinition", "InstagramTask", "Membership",
+  "DocFolder", "DuesPayment", "EventFieldDefinition", "InstagramTask", "Membership",
   "JoinRequest",
   "OperationalEvent", "OrgInvite", "OrgMetricDefinition", "OrganizationConfig",
-  "PartyEvent", "ProgrammingEvent",
+  "PartyEvent", "Poll", "PollAssignment", "PollOption", "PollVote", "ProgrammingEvent",
   "ProgrammingEventDoc", "Reimbursement", "Role", "Semester", "ServiceEvent",
   "ServiceParticipation", "Subscription", "Task", "TaskAssignment", "Transaction",
   "TransactionCategory",
