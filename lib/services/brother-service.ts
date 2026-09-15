@@ -1,8 +1,9 @@
+import { lockAdmissions, ADMISSION_TX_OPTIONS } from "@/lib/db/admission-lock";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { assertSeatAvailable } from "@/lib/billing/guard";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
-import { ConflictError, NotFoundError, PaymentRequiredError, type PaymentRequiredDetails } from "@/lib/errors";
+import { ConflictError, NotFoundError, PaymentRequiredError } from "@/lib/errors";
 import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
 import type { UpdateBrotherInput } from "@/lib/validation/brother";
 import {
@@ -10,35 +11,6 @@ import {
   type CustomMemberFieldDef,
   type CustomFieldValues,
 } from "@/lib/custom-member-fields";
-
-/**
- * The seat gate, plus the record that it fired.
- *
- * assertSeatAvailable lives in lib/billing/guard.ts, which takes a ScopedDb
- * rather than a RequestContext — it is shared with the pre-auth invite path, and
- * services may not import services — so it has no way to call emit(). The emit
- * has to happen at a call site that has a context, which is here.
- *
- * Rethrows untouched: the 402 body and every caller behave exactly as before.
- * Unlike most billing events this one is deliberately member-visible (no
- * `activity: false`) — it is the direct consequence of something an admin just
- * tried to do, and it needs to be explicable afterwards. See lib/events/actions.ts.
- */
-async function gateSeat(ctx: RequestContext): Promise<void> {
-  try {
-    await assertSeatAvailable(ctx.db);
-  } catch (e) {
-    if (e instanceof PaymentRequiredError) {
-      const details = e.details as PaymentRequiredDetails;
-      await emit(ctx, "billing.seats_blocked", { type: "Subscription", id: ctx.orgId }, {
-        members:      details.currentMembers,
-        requiredTier: details.requiredTier,
-        action:       details.action,
-      });
-    }
-    throw e;
-  }
-}
 
 /** Fetch the org's current custom field definitions from config (server-side only). */
 async function getFieldDefs(ctx: RequestContext): Promise<CustomMemberFieldDef[]> {
@@ -240,13 +212,6 @@ export async function updateBrother(
   // "archivedAt" in changedFields is what the seat-sync event handler keys on to
   // trigger a recount — see lib/events/handlers/sync-seats.ts.
   if (input.archived !== undefined) {
-    if (input.archived === false) {
-      // Restoring adds a billable seat back, so it goes through the same gate as
-      // adding a new member. Guarded on the member actually being archived today:
-      // a no-op restore of an active member must not be able to 402.
-      const current = await ctx.db.member.findByBrotherId(brotherId);
-      if (current?.archivedAt) await gateSeat(ctx);
-    }
     data.archivedAt = input.archived ? new Date() : null;
     changedFields.push("archivedAt");
   }
@@ -254,7 +219,21 @@ export async function updateBrother(
   // One write, org-scoped. Raises P2025 → 404 when this person is not on THIS
   // org's roster, which is now a real "they aren't a member here" rather than
   // the old "their account happens to have originated elsewhere".
-  const updated = await ctx.db.member.updateByBrotherId(brotherId, data);
+  const updated = await ctx.db.$transaction(async tx => {
+    if (input.archived !== undefined) await lockAdmissions(tx, ctx.orgId);
+    const member = ctx.db.member.onTx(tx);
+    if (input.archived === false) {
+      const current = await member.findByBrotherId(brotherId);
+      if (current?.archivedAt) await assertSeatAvailable({ member, subscription: ctx.db.subscription.onTx(tx) });
+    }
+    return member.updateByBrotherId(brotherId, data);
+  }, ADMISSION_TX_OPTIONS).catch(async e => {
+    if (e instanceof PaymentRequiredError) {
+      const d = e.details as { currentMembers: number; requiredTier: string; action: string };
+      await emit(ctx, "billing.seats_blocked", { type: "Subscription", id: ctx.orgId }, { members: d.currentMembers, requiredTier: d.requiredTier, action: d.action });
+    }
+    throw e;
+  });
   if (!updated) throw new NotFoundError("Brother");
 
   const displayName = await resolveMemberName(ctx, brotherId, updated.name);

@@ -12,14 +12,17 @@
  * flow this replaces — see 20260807000001_drop_accountless_members for why.
  */
 
+import { Prisma } from "@/app/generated/prisma/client";
+import { lockAdmissions, ADMISSION_TX_OPTIONS } from "@/lib/db/admission-lock";
 import type { RequestContext } from "@/lib/context";
 import { prismaPrivileged } from "@/lib/prisma-privileged";
+import { deliverAdmissionEvents } from "@/lib/events/admission-delivery";
 import { emit } from "@/lib/events";
 import { ConflictError, ForbiddenError, NotFoundError, PaymentRequiredError } from "@/lib/errors";
 import { canGrantRank } from "@/lib/permissions";
-import { assertSeatAvailable } from "@/lib/billing/guard";
+import { assertSeatAvailable, checkSeatAvailable } from "@/lib/billing/guard";
 import { JoinRequestStatus } from "@/lib/state";
-import type { ApproveJoinRequestInput } from "@/lib/validation/join-request";
+import type { ApproveJoinRequestInput, JoinRequestPageInput } from "@/lib/validation/join-request";
 
 export interface JoinRequestDto {
   id:        number;
@@ -29,31 +32,6 @@ export interface JoinRequestDto {
   createdAt: string;
   /** The link they came through — "Fall rush" tells an officer a lot. */
   inviteLabel: string | null;
-}
-
-/**
- * Seat gate, with the refusal recorded.
- *
- * Mirrors brother-service's gateSeat: assertSeatAvailable throws
- * PaymentRequiredError, and we emit billing.seats_blocked on the way out so an
- * admin whose queue has quietly stopped admitting people can explain it
- * afterwards. Duplicated rather than shared because cross-importing another
- * service is the thing this codebase forbids, and it is six lines.
- */
-async function gateSeat(ctx: RequestContext): Promise<void> {
-  try {
-    await assertSeatAvailable(ctx.db);
-  } catch (e) {
-    if (e instanceof PaymentRequiredError) {
-      const d = e.details as { currentMembers: number; requiredTier: string; action: string };
-      await emit(ctx, "billing.seats_blocked", { type: "Subscription", id: ctx.orgId }, {
-        members:      d.currentMembers,
-        requiredTier: d.requiredTier,
-        action:       d.action,
-      });
-    }
-    throw e;
-  }
 }
 
 /** Everyone waiting on this org, oldest request first — a queue, not a feed. */
@@ -75,6 +53,31 @@ export async function countPendingRequests(ctx: RequestContext): Promise<number>
   return ctx.db.joinRequest.count({ where: { status: JoinRequestStatus.Pending } });
 }
 
+export async function listPendingRequestPage(ctx: RequestContext, input: JoinRequestPageInput) {
+  const where: Prisma.JoinRequestWhereInput = {
+    status: JoinRequestStatus.Pending,
+    ...(input.inviteId ? { inviteId: input.inviteId } : {}),
+    ...(input.search ? { OR: [{ name: { contains: input.search, mode: "insensitive" } }, { email: { contains: input.search, mode: "insensitive" } }] } : {}),
+  };
+  const cursor = input.afterDate && input.afterId ? { OR: [
+    { createdAt: { gt: new Date(input.afterDate) } },
+    { createdAt: new Date(input.afterDate), id: { gt: input.afterId } },
+  ] } : {};
+  const [rows, total, pendingTotal, seats] = await Promise.all([
+    ctx.db.joinRequest.listPage({ AND: [where, cursor] }, input.take + 1),
+    ctx.db.joinRequest.count({ where }),
+    ctx.db.joinRequest.count({ where: { status: JoinRequestStatus.Pending } }),
+    checkSeatAvailable(ctx.db),
+  ]);
+  const page = rows.slice(0, input.take);
+  const last = page.at(-1);
+  return {
+    rows: page.map(r => ({ id: r.id, name: r.name, email: r.email, avatarUrl: r.avatarUrl, createdAt: r.createdAt.toISOString(), inviteId: r.invite.id, inviteLabel: r.invite.label })),
+    total, pendingTotal, seats,
+    nextCursor: rows.length > input.take && last ? { afterDate: last.createdAt.toISOString(), afterId: last.id } : null,
+  };
+}
+
 /**
  * Admit someone, optionally with a role.
  *
@@ -88,148 +91,87 @@ export async function approveJoinRequest(
   id: number,
   input: ApproveJoinRequestInput,
 ) {
-  const request = await ctx.db.joinRequest.findUnique({ where: { id } });
-  if (!request) throw new NotFoundError("Join request");
-  if (request.status !== JoinRequestStatus.Pending) {
-    throw new ConflictError("This request has already been decided.");
-  }
-
-  // Billable seat: reaching here means a NEW membership in this org.
-  await gateSeat(ctx);
-
-  // Rank guard. Same rule as granting a role on the roster (role-service), so an
-  // officer can't use the approval dialog as a back door to mint a peer.
-  let role: { id: number; name: string; rank: number } | null = null;
-  if (input.roleId !== null) {
-    role = await ctx.db.role.findUnique({
-      where:  { id: input.roleId },
-      select: { id: true, name: true, rank: true },
-    });
-    if (!role) throw new NotFoundError("Role");
-    if (!canGrantRank(ctx.maxRank, role.rank)) {
-      throw new ForbiddenError("Cannot grant a role at or above your own rank");
+  // Bootstrap identity lookup stays outside the app transaction: a privileged
+  // read must not wait for a pool held by submissions waiting on our org lock.
+  const snapshot = await ctx.db.joinRequest.findUnique({ where: { id } });
+  if (!snapshot) throw new NotFoundError("Join request");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = await findIdentityByAuthUserId(snapshot.authUserId);
+    try {
+      const result = await ctx.db.$transaction(async tx => {
+        await lockAdmissions(tx, ctx.orgId);
+        const requests = ctx.db.joinRequest.onTx(tx);
+        const request = await requests.findUnique({ where: { id } });
+        if (!request) throw new NotFoundError("Join request");
+        if (request.status !== JoinRequestStatus.Pending) throw new ConflictError("This request has already been decided.", { code: "JOIN_REQUEST_DECIDED" });
+        const member = ctx.db.member.onTx(tx);
+        await assertSeatAvailable({ member, subscription: ctx.db.subscription.onTx(tx) });
+        const role = input.roleId === null ? null : await tx.role.findFirst({
+          where: { id: input.roleId, organizationId: ctx.orgId }, select: { id: true, name: true, rank: true },
+        });
+        if (input.roleId !== null && !role) throw new NotFoundError("Role");
+        if (role && !canGrantRank(ctx.maxRank, role.rank)) throw new ForbiddenError("Cannot grant a role at or above your own rank");
+        const invite = await ctx.db.orgInvite.onTx(tx).findUnique({ where: { id: request.inviteId } });
+        if (!invite) throw new NotFoundError("Invite");
+        // Existing reservations survive expiry/revoke. Legacy overbooked queues
+        // may be reviewed, but must never admit beyond the actual link cap.
+        const admitted = await tx.inviteRedemption.count({ where: { inviteId: invite.id } });
+        if (invite.maxUses !== null && admitted >= invite.maxUses) {
+          throw new ConflictError("This link's admission limit has been reached. Decline this request and send a replacement link.");
+        }
+        const identity = existing ?? await ctx.db.identity.onTx(tx).create({ data: {
+          name: request.name, authUserId: request.authUserId, email: request.email,
+          avatarUrl: request.avatarUrl, isAdmin: false, isGhost: false,
+        } });
+        const brotherId = identity.id;
+        await member.create({ data: {
+          brotherId, isOrgAdmin: false, name: request.name, role: "Member",
+          attendance: 0, duesOwed: 0, gpa: 0, serviceHours: 0,
+        } });
+        if (role) await ctx.db.brotherRole.onTx(tx).create({ data: { brotherId, roleId: role.id } });
+        await tx.inviteRedemption.upsert({
+          where: { inviteId_brotherId: { inviteId: invite.id, brotherId } },
+          create: { inviteId: invite.id, brotherId }, update: {},
+        });
+        const changed = await requests.decidePending(id, {
+          status: JoinRequestStatus.Approved, decidedAt: new Date(), decidedById: ctx.actorId, brotherId,
+        });
+        if (changed.count !== 1) throw new ConflictError("This request has already been decided.", { code: "JOIN_REQUEST_DECIDED" });
+        const result = { brotherId, name: request.name, roleId: role?.id ?? null, roleName: role?.name ?? null, reused: existing !== null };
+        await emit(ctx, "join_request.approved", { type: "JoinRequest", id }, result, { transaction: tx });
+        return result;
+      }, ADMISSION_TX_OPTIONS);
+      await deliverAdmissionEvents(ctx);
+      return { brotherId: result.brotherId, name: result.name, roleName: result.roleName };
+    } catch (e) {
+      // A different org can mint this account while our transaction is in
+      // flight. Roll back everything, re-read only its id, then retry normally.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 2) continue;
+      if (e instanceof PaymentRequiredError) {
+        const d = e.details as { currentMembers: number; requiredTier: string; action: string };
+        await emit(ctx, "billing.seats_blocked", { type: "Subscription", id: ctx.orgId }, {
+          members: d.currentMembers, requiredTier: d.requiredTier, action: d.action,
+        });
+      }
+      throw e;
     }
   }
-
-  // A Google account maps to one Brother globally (authUserId @unique). Someone
-  // who already belongs to another chapter reuses that identity and gets a
-  // SECOND Membership here — their own roster spot, with its own name, dues and
-  // attendance, invisible to the other org. That is the Phase 2 split doing its
-  // job; before it, this person got access but never appeared on the roster.
-  //
-  // Privileged and cross-org on purpose, the same posture as deleteBrother's
-  // countMemberships: "does this account exist outside my chapter?" is a
-  // question an org-scoped read structurally cannot answer — it would say no for
-  // everyone, and answering no here mints a duplicate identity. Only an id
-  // crosses the boundary; no other org's data is read.
-  const existing = await findIdentityByAuthUserId(request.authUserId);
-  const reused = existing !== null;
-
-  const brotherId = await ctx.db.$transaction(async (tx) => {
-    let bid: number;
-
-    if (existing) {
-      bid = existing.id;
-    } else {
-      const created = await ctx.db.identity.onTx(tx).create({
-        data: {
-          // The account-level canonical NAME, seeded from what they typed. From
-          // here the two drift independently and only the Membership one renders.
-          name:       request.name,
-          authUserId: request.authUserId,
-          email:      request.email,
-          avatarUrl:  request.avatarUrl,
-          isAdmin:    false,
-          isGhost:    false,
-        },
-      });
-      bid = created.id;
-    }
-
-    // The roster spot. Through the scoped delegate, never a hand-written write:
-    // Membership carries organizationId, and omitting it is the money bug the
-    // onTx header in lib/db/tenant.ts exists to prevent.
-    await ctx.db.member.onTx(tx).create({
-      data: {
-        brotherId:  bid,
-        isOrgAdmin: false,
-        name:       request.name,
-        // Membership.role is the free-text office label, and it only renders for
-        // members holding no relational Role rows (roleTitle() in app/data.ts). The
-        // authority the officer just granted lives in the BrotherRole below.
-        role:         "Member",
-        attendance:   0,
-        duesOwed:     0,
-        gpa:          0,
-        serviceHours: 0,
-      },
-    });
-
-    if (role) {
-      await ctx.db.brotherRole.onTx(tx).create({ data: { brotherId: bid, roleId: role.id } });
-    }
-
-    // The redemption is written at APPROVAL, not at request time, so "who got in
-    // through this link" and the maxUses tally both mean people actually admitted.
-    await tx.inviteRedemption.upsert({
-      where:  { inviteId_brotherId: { inviteId: request.inviteId, brotherId: bid } },
-      create: { inviteId: request.inviteId, brotherId: bid },
-      update: {},
-    });
-
-    await ctx.db.joinRequest.onTx(tx).update({
-      where: { id },
-      data:  {
-        status:      JoinRequestStatus.Approved,
-        decidedAt:   new Date(),
-        decidedById: ctx.actorId,
-        brotherId:   bid,
-      },
-    });
-
-    return bid;
-  });
-
-  await emit(ctx, "join_request.approved", { type: "JoinRequest", id }, {
-    name:     request.name,
-    brotherId,
-    roleId:   role?.id ?? null,
-    roleName: role?.name ?? null,
-    reused,
-  });
-
-  return { brotherId, name: request.name, roleName: role?.name ?? null };
+  throw new ConflictError("Admission changed while you were reviewing it. Please refresh.");
 }
 
-/**
- * Decline someone.
- *
- * The row STAYS, as `rejected`. That is what makes the decision stick without a
- * blocklist: re-opening the same link is refused, while a different link an
- * officer chooses to send resets the row to pending. Rejection is per-person,
- * per-link — "you'd need a new link to try again" — and re-clicking can't put
- * them back in the queue. See lib/auth/join-request-submit.ts.
- *
- * Writes nothing else. A declined person never had a Brother, a Membership, or a
- * seat, so there is nothing to undo.
- */
 export async function rejectJoinRequest(ctx: RequestContext, id: number) {
-  const request = await ctx.db.joinRequest.findUnique({ where: { id } });
-  if (!request) throw new NotFoundError("Join request");
-  if (request.status !== JoinRequestStatus.Pending) {
-    throw new ConflictError("This request has already been decided.");
-  }
-
-  await ctx.db.joinRequest.update({
-    where: { id },
-    data:  {
-      status:      JoinRequestStatus.Rejected,
-      decidedAt:   new Date(),
-      decidedById: ctx.actorId,
-    },
-  });
-
-  await emit(ctx, "join_request.rejected", { type: "JoinRequest", id }, { name: request.name });
+  await ctx.db.$transaction(async tx => {
+    await lockAdmissions(tx, ctx.orgId);
+    const requests = ctx.db.joinRequest.onTx(tx);
+    const row = await requests.findUnique({ where: { id } });
+    if (!row) throw new NotFoundError("Join request");
+    const changed = await requests.decidePending(id, {
+      status: JoinRequestStatus.Rejected, decidedAt: new Date(), decidedById: ctx.actorId,
+    });
+    if (changed.count !== 1) throw new ConflictError("This request has already been decided.", { code: "JOIN_REQUEST_DECIDED" });
+    await emit(ctx, "join_request.rejected", { type: "JoinRequest", id }, { name: row.name }, { transaction: tx });
+  }, ADMISSION_TX_OPTIONS);
+  await deliverAdmissionEvents(ctx);
 }
 
 /**

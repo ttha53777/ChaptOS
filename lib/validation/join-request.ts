@@ -14,7 +14,7 @@ export const JOIN_REQUEST_NAME_MAX = 80;
  * to scope by), which is why it's part of the body rather than a header.
  */
 export const submitJoinRequestInput = z.object({
-  token: z.string().min(1, "Missing invite token"),
+  token: z.string().trim().min(1, "Missing invite token").max(256),
   name:  z.string().trim().min(1, "Name is required").max(JOIN_REQUEST_NAME_MAX),
 });
 export type SubmitJoinRequestInput = z.infer<typeof submitJoinRequestInput>;
@@ -35,3 +35,14 @@ export const approveJoinRequestInput = z.object({
   roleId: z.number().int().positive().nullable().default(null),
 });
 export type ApproveJoinRequestInput = z.infer<typeof approveJoinRequestInput>;
+
+export const ownJoinStatusInput = z.object({ slug: z.string().trim().min(1).max(100) });
+
+export const joinRequestPageInput = z.object({
+  take: z.coerce.number().int().min(1).max(50).default(20),
+  inviteId: z.coerce.number().int().positive().optional(),
+  search: z.string().trim().max(80).default(""),
+  afterDate: z.iso.datetime().optional(),
+  afterId: z.coerce.number().int().positive().optional(),
+}).refine(v => Boolean(v.afterDate) === Boolean(v.afterId), "Both cursor fields are required");
+export type JoinRequestPageInput = z.infer<typeof joinRequestPageInput>;

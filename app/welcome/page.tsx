@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { APP_NAME } from "@/lib/domains";
+import { OwnJoinRequests } from "@/app/components/OwnJoinRequests";
 
 // The /welcome route — now a thin fallback.
 //
@@ -27,7 +28,7 @@ export default function WelcomePage() {
   // through to the create form (which carries the same intent forward).
   useEffect(() => {
     const wantsNew = new URLSearchParams(window.location.search).get("new") === "1";
-    if (wantsNew) return; // founding another org on purpose — don't redirect home
+    if (wantsNew || new URLSearchParams(window.location.search).get("requests") === "1") return;
     let cancelled = false;
     (async () => {
       try {
@@ -63,10 +64,11 @@ export default function WelcomePage() {
               Welcome to <em>{APP_NAME}.</em>
             </h1>
             <p className="auth-lede">
-              You&rsquo;re signed in, but not part of an organization yet. Start one below — or head back to join an existing chapter.
+              Check your join requests, start an organization, or return to sign in.
             </p>
 
             <div className="auth-body auth-stack-22">
+              <OwnJoinRequests />
               <Link href="/create" className="auth-tile feature">
                 <div className="auth-tile-row">
                   <span className="auth-tile-num">＋</span>

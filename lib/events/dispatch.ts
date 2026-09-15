@@ -44,22 +44,26 @@ export async function dispatchHandlers<A extends Action>(
   action: A,
   subject: { type: SubjectType; id: number },
   metadata: EventMetadata[A],
+  options: { retryOnFailure?: boolean } = {},
 ): Promise<void> {
   const handlers = registry.get(action);
   if (!handlers || handlers.length === 0) return;
 
+  const failures: unknown[] = [];
   for (const handler of handlers) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([
         handler(ctx, { subject, metadata }),
         new Promise<never>((_, reject) =>
-          setTimeout(
+          timer = setTimeout(
             () => reject(new Error(`Handler timed out after ${HANDLER_TIMEOUT_MS}ms`)),
             HANDLER_TIMEOUT_MS,
           )
         ),
       ]);
     } catch (e) {
+      failures.push(e);
       logError(e, {
         route: "events/dispatch",
         method: "HANDLER",
@@ -73,8 +77,9 @@ export async function dispatchHandlers<A extends Action>(
       });
       // Continue dispatching other handlers; a single handler's failure or
       // timeout does not block the rest or roll back the business write.
-    }
+    } finally { clearTimeout(timer); }
   }
+  if (options.retryOnFailure && failures.length) throw new AggregateError(failures, `Delivery failed for ${action}`);
 }
 
 /**

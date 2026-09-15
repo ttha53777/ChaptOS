@@ -21,6 +21,8 @@
     "eval:chat": "tsx scripts/eval-ask-the-chapter.ts",
     "screenshot": "tsx scripts/screenshot.ts",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
+    "test:invites:browser": "tsx scripts/test-invites-browser.ts",
+    "events:flush-admissions": "tsx scripts/flush-admission-events.ts",
     "test:notes:browser": "tsx scripts/test-collaborative-notes.ts"
   },
   "dependencies": {

@@ -1,19 +1,10 @@
-/**
- * Shared invite-token resolution for the two pre-auth invite paths:
- * GET /api/auth/invite-status (read-only pre-flight) and
- * POST /api/auth/request-join (the write, via lib/auth/join-request-submit).
- *
- * Both need the exact same question answered — "is this token usable, and for
- * which org?" — and they MUST answer it identically, or the join screen tells
- * someone they can ask to join and the submit call then refuses. Keeping the
- * rule in one place is the point of this module.
- *
- * The lookup is global (unscoped `prisma`, not `db(orgId)`) on purpose: the
- * redeemer has no membership anywhere yet, so the token IS the org resolution.
- * Everything downstream of it is scoped by the org the token names.
+/** Token-bound bootstrap lookup, shared by landing, pre-flight, and submission.
+ * The privileged read resolves only public org metadata and link capacity;
+ * callers must separately verify the account's own membership/request.
  */
 
-import { prisma } from "@/lib/prisma"; // lint-modules:ignore (pre-auth: token lookup precedes any org scoping)
+import { prismaPrivileged } from "@/lib/prisma-privileged";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { deriveInviteStatus, InviteStatus } from "@/lib/state";
 
 /** Why a link can't be used. Mirrors InviteStatus minus "active", plus not_found. */
@@ -26,6 +17,8 @@ export interface ResolvedInvite {
   orgName:        string;
   orgLogoUrl:     string | null;
   redemptionCount: number;
+  pendingCount: number;
+  maxUses: number | null;
 }
 
 export type InviteLookup =
@@ -40,14 +33,15 @@ export type InviteLookup =
  * "invite unavailable" that covered every case before. Only `not_found` carries
  * a null invite.
  */
-export async function resolveInviteToken(token: string): Promise<InviteLookup> {
-  if (!token) return { ok: false, reason: "not_found", invite: null };
+export async function resolveInviteToken(token: string, client: Pick<Prisma.TransactionClient, "orgInvite"> = prismaPrivileged): Promise<InviteLookup> {
+  if (!token || token.length > 256) return { ok: false, reason: "not_found", invite: null };
 
-  const row = await prisma.orgInvite.findUnique({
+  // Narrow bootstrap capability: the token resolves an org before a ctx exists.
+  const row = await client.orgInvite.findUnique({
     where: { token },
     select: {
       id: true, expiresAt: true, revokedAt: true, maxUses: true,
-      _count:       { select: { redemptions: true } },
+      _count:       { select: { redemptions: true, joinRequests: { where: { status: "pending" } } } },
       organization: { select: { id: true, slug: true, name: true, logoUrl: true } },
     },
   });
@@ -60,9 +54,11 @@ export async function resolveInviteToken(token: string): Promise<InviteLookup> {
     orgName:         row.organization.name,
     orgLogoUrl:      row.organization.logoUrl,
     redemptionCount: row._count.redemptions,
+    pendingCount: row._count.joinRequests,
+    maxUses: row.maxUses,
   };
 
-  const status = deriveInviteStatus(row, invite.redemptionCount);
+  const status = deriveInviteStatus(row, invite.redemptionCount, new Date(), invite.pendingCount);
   return status === InviteStatus.Active
     ? { ok: true, invite }
     : { ok: false, reason: status, invite };
@@ -79,4 +75,5 @@ export const DEAD_REASON_MESSAGE: Record<InviteDeadReason, string> = {
   revoked:   "This invite link has been turned off.",
   expired:   "This invite link has expired.",
   exhausted: "This invite link has reached its limit.",
+  reserved: "All places on this link are reserved by people waiting for review. Ask an organizer for another link.",
 };

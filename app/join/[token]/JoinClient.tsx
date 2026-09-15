@@ -5,12 +5,11 @@ import { APP_NAME } from "@/lib/domains";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { InviteDeadReason } from "@/lib/auth/invite-lookup";
 
-type JoinState = "guest" | "ready" | "pending" | "rejected" | "already_member";
+import type { JoinState } from "@/lib/auth/join-state";
+import { useJoinPolling, readJoinStatus, JoinPollError } from "@/app/hooks/useJoinPolling";
 
 interface Account { email: string | null; name: string | null; avatarUrl: string | null }
 
-/** How often the waiting screen re-asks whether an officer has decided. */
-const POLL_MS = 10_000;
 
 // Drives the invite flow once the server has resolved the token.
 //
@@ -29,19 +28,19 @@ const POLL_MS = 10_000;
 // Holding this link is not access. Submitting files a request that an officer
 // approves or rejects — nothing is created in the org until they do.
 export function JoinClient({
-  token, valid, reason, orgName, orgLogoUrl, memberCount,
+  token, valid, reason, orgName, orgLogoUrl,
 }: {
   token: string;
   valid: boolean;
   reason: InviteDeadReason | null;
   orgName: string | null;
   orgLogoUrl: string | null;
-  memberCount: number | null;
 }) {
   // null = still checking the session on mount; avoids a flash of the wrong CTA.
   const [state, setState]     = useState<JoinState | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [orgSlug, setOrgSlug] = useState<string | null>(null);
+  const [submittedName, setSubmittedName] = useState<string | null>(null);
   const [name, setName]       = useState("");
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -51,62 +50,32 @@ export function JoinClient({
     valid ? null : { reason },
   );
 
-  /**
-   * Ask the server where this viewer stands. Returns true when the answer was
-   * conclusive, so the poll below knows whether to keep going.
-   *
-   * Runs even when the server called the link dead: someone waiting on an
-   * officer, or already declined, still gets their real state back.
-   */
-  const refresh = useCallback(async (): Promise<JoinState | null> => {
-    try {
-      const res  = await fetch(`/api/auth/invite-status?token=${encodeURIComponent(token)}`);
-      const data = await res.json().catch(() => null);
-      if (data?.valid) {
-        setDead(null);
-        setState(data.state as JoinState);
+  const refresh = useCallback(async (signal: AbortSignal) => {
+    let data;
+    if (state === "pending" && orgSlug) {
+      data = await readJoinStatus(`/api/auth/join-status?slug=${encodeURIComponent(orgSlug)}`, signal);
+    } else {
+      const res = await fetch(`/api/auth/invite-status?token=${encodeURIComponent(token)}`, { signal, cache: "no-store" });
+      data = await res.json();
+      if (signal.aborted) return;
+      if (data?.valid === false) {
+        setDead({ reason: data.reason ?? null });
         setAccount(data.account ?? null);
-        setOrgSlug(data.org?.slug ?? null);
-        if (data.account?.name) setName(n => n || data.account.name);
-        return data.state as JoinState;
+        setState("guest");
+        return;
       }
-      if (data && data.valid === false) {
-        setDead({ reason: (data.reason ?? null) as InviteDeadReason | null });
-        return null;
-      }
-    } catch {
-      // Fall through to the session-only path below.
+      if (!res.ok) throw new JoinPollError("Couldn't check your invite — retrying.", res.status, Number(res.headers.get("Retry-After") ?? 0) * 1000);
     }
-    // Pre-flight unavailable (offline, 500). Degrade to what we can still
-    // determine locally rather than blocking a legitimate request: a session
-    // means "ready", none means "guest". The submit call re-checks everything
-    // server-side anyway, so the worst case is a form we'd have skipped.
-    const { data: userData } = await createClient().auth.getUser();
-    const fallback: JoinState = userData.user ? "ready" : "guest";
-    setState(fallback);
-    return fallback;
-  }, [token]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const s = await refresh();
-      if (cancelled) return;
-      void s;
-    })();
-    return () => { cancelled = true; };
-  }, [refresh]);
-
-  // ── The waiting screen's heartbeat ────────────────────────────────────────
-  // While `pending`, re-ask every POLL_MS until an officer decides. Approval
-  // flips the state to already_member (the Membership now exists), which is what
-  // turns this screen into the dashboard without the person touching anything.
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => {
-    if (state !== "pending") return;
-    pollRef.current = setInterval(() => { void refresh(); }, POLL_MS);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [state, refresh]);
+    if (signal.aborted) return;
+    if (!["guest", "ready", "pending", "rejected", "already_member"].includes(data?.state)) throw new Error("Invalid join status");
+    setDead(null);
+    setState(data.state);
+    setAccount(data.account ?? null);
+    setOrgSlug(data.org?.slug ?? data.orgSlug ?? null);
+    setSubmittedName(data.submittedName ?? null);
+    if (data.account?.name) setName(n => n || data.account.name);
+  }, [token, state, orgSlug]);
+  const poll = useJoinPolling(refresh, state === null || state === "pending");
 
   // Approved while waiting → walk them in. ?toast=welcome greets them on arrival
   // instead of dropping them onto a cold dashboard.
@@ -146,6 +115,7 @@ export function JoinClient({
   }, [token]);
 
   async function submit() {
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -168,6 +138,7 @@ export function JoinClient({
         window.location.assign(`/${data.orgSlug}?toast=welcome`);
         return;
       }
+      setSubmittedName(name.trim());
       setState("pending");
       setBusy(false);
     } catch {
@@ -176,10 +147,18 @@ export function JoinClient({
     }
   }
 
-  if (dead) {
+  const recovery = poll.error ? <div className="auth-notice" role="status">
+    <p>{poll.error}</p>
+    <button className="auth-link vio" disabled={poll.checking || busy} onClick={poll.sessionExpired ? signIn : poll.retry}>
+      {poll.sessionExpired ? "Sign in again" : poll.checking ? "Checking…" : "Check status"}
+    </button>
+  </div> : null;
+
+  if (dead && state !== null) {
     return (
       <Shell>
         <DeadLink reason={dead.reason} orgName={orgName} />
+        {account && <AccountRow account={account} onSwitch={switchAccount} busy={busy} />}
       </Shell>
     );
   }
@@ -188,6 +167,7 @@ export function JoinClient({
     return (
       <Shell>
         <Declined orgName={orgName} />
+        {account && <AccountRow account={account} onSwitch={switchAccount} busy={busy} />}
       </Shell>
     );
   }
@@ -198,11 +178,13 @@ export function JoinClient({
         <AwaitingReview
           orgName={orgName}
           orgLogoUrl={orgLogoUrl}
-          submittedName={name.trim() || account?.name || null}
+          submittedName={submittedName}
           account={account}
           onSwitch={switchAccount}
           busy={busy}
         />
+        {recovery}
+        {!poll.error && <button className="auth-link vio" disabled={poll.checking} onClick={poll.retry}>{poll.checking ? "Checking…" : "Check status"}</button>}
       </Shell>
     );
   }
@@ -219,12 +201,9 @@ export function JoinClient({
           : <>Join <em>{orgName}.</em></>}
       </h1>
       <p className="auth-lede">{lede(state, orgName)}</p>
-      {memberCount != null && memberCount > 0 && state !== "already_member" && (
-        <p className="auth-orgmeta">
-          {memberCount} {memberCount === 1 ? "member" : "members"} already here
-        </p>
-      )}
 
+
+      {recovery}
       <div className="auth-body auth-stack">
         {error && (
           <div className="auth-alert" role="alert">
@@ -270,7 +249,7 @@ export function JoinClient({
               disabled={busy || !name.trim()}
               className="auth-btn-vio"
             >
-              {busy ? "Sending…" : "Ask to join"}
+              {busy ? "Sending…" : "Request to join"}
             </button>
           </>
         )}
@@ -347,6 +326,7 @@ function AwaitingReview({
         </div>
 
         {account && <AccountRow account={account} onSwitch={onSwitch} busy={busy} />}
+        <a className="auth-link vio" href="/welcome?requests=1">View all your join requests</a>
 
         <p className="auth-footnote">
           Nothing has been shared with you yet. If this is taking a while, the
@@ -402,6 +382,10 @@ function DeadLink({ reason, orgName }: { reason: InviteDeadReason | null; orgNam
     revoked: {
       title: "This invite was turned off",
       body: `An organizer switched off this link ${org}. If you think that’s a mistake, ask them for a new one.`,
+    },
+    reserved: {
+      title: "All places are reserved",
+      body: "People waiting for review have reserved the remaining places on this link. Ask an organizer for another link.",
     },
     exhausted: {
       title: "This invite is full",

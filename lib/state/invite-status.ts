@@ -19,6 +19,8 @@ export const InviteStatus = {
   Revoked: "revoked",
   /** Hit its maxUses cap. */
   Exhausted: "exhausted",
+  /** All remaining places are reserved by pending requests. */
+  Reserved: "reserved",
 } as const;
 
 export type InviteStatus = (typeof InviteStatus)[keyof typeof InviteStatus];
@@ -39,9 +41,11 @@ export function deriveInviteStatus(
   invite: { expiresAt: Date | null; revokedAt: Date | null; maxUses: number | null },
   redemptionCount: number,
   now: Date = new Date(),
+  pendingCount = 0,
 ): InviteStatus {
   if (invite.revokedAt) return InviteStatus.Revoked;
-  if (invite.expiresAt && invite.expiresAt < now) return InviteStatus.Expired;
+  if (invite.expiresAt && invite.expiresAt <= now) return InviteStatus.Expired;
   if (invite.maxUses !== null && redemptionCount >= invite.maxUses) return InviteStatus.Exhausted;
+  if (invite.maxUses !== null && redemptionCount + pendingCount >= invite.maxUses) return InviteStatus.Reserved;
   return InviteStatus.Active;
 }

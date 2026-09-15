@@ -1,3 +1,4 @@
+import { lockAdmissions, ADMISSION_TX_OPTIONS } from "@/lib/db/admission-lock";
 import { randomBytes } from "node:crypto";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
@@ -15,6 +16,8 @@ export interface InviteDto {
   revokedAt:       string | null;
   createdAt:       string;
   redemptionCount: number;
+  pendingCount: number;
+  availableUses: number | null;
   createdByName:   string | null;
 }
 
@@ -39,17 +42,20 @@ function toDto(
   invite: InviteRow,
   redemptionCount: number,
   createdByName: string | null,
+  pendingCount = 0,
 ): InviteDto {
   return {
     id:              invite.id,
     token:           invite.token,
     label:           invite.label,
     maxUses:         invite.maxUses,
-    status:          deriveInviteStatus(invite, redemptionCount),
+    status:          deriveInviteStatus(invite, redemptionCount, new Date(), pendingCount),
     expiresAt:       invite.expiresAt ? invite.expiresAt.toISOString() : null,
     revokedAt:       invite.revokedAt ? invite.revokedAt.toISOString() : null,
     createdAt:       invite.createdAt.toISOString(),
     redemptionCount,
+    pendingCount,
+    availableUses: invite.maxUses === null ? null : Math.max(0, invite.maxUses - redemptionCount - pendingCount),
     createdByName,
   };
 }
@@ -105,8 +111,9 @@ export async function listInvites(
   // invites resolve to a null creator name, which toDto already renders as
   // "unknown" — the same shape as a creator whose Brother row is out of scope.
   const creatorIds = [...new Set(invites.map(i => i.createdByBrotherId).filter((id): id is number => id !== null))];
-  const [countByInvite, creators] = await Promise.all([
+  const [countByInvite, pendingByInvite, creators] = await Promise.all([
     ctx.db.orgInvite.redemptionCountByInvite(invites.map(i => i.id)),
+    ctx.db.orgInvite.pendingCountByInvite(invites.map(i => i.id)),
     creatorIds.length > 0
       ? ctx.db.member.listRoster({ where: { brotherId: { in: creatorIds } } })
       : Promise.resolve([]),
@@ -117,11 +124,12 @@ export async function listInvites(
     invite,
     countByInvite.get(invite.id) ?? 0,
     (invite.createdByBrotherId === null ? null : nameById.get(invite.createdByBrotherId)) ?? null,
+    pendingByInvite.get(invite.id) ?? 0,
   ));
 
   // Exhausted links are dead but not revoked or expired, so the SQL filter above
   // can't catch them. Drop them here to keep "active" honest.
-  return opts.includeInactive ? dtos : dtos.filter(d => d.status === InviteStatus.Active);
+  return opts.includeInactive ? dtos : dtos.filter(d => d.status === InviteStatus.Active || d.status === InviteStatus.Reserved);
 }
 
 /**
@@ -164,10 +172,14 @@ export async function listInviteRedemptions(
 
 /** Revoke an invite (idempotent). Throws NotFoundError if it isn't this org's. */
 export async function revokeInvite(ctx: RequestContext, id: number): Promise<void> {
-  const existing = await ctx.db.orgInvite.findUnique({ where: { id } });
-  if (!existing) throw new NotFoundError("Invite");
-  if (existing.revokedAt) return; // already revoked — idempotent
-
-  await ctx.db.orgInvite.update({ where: { id }, data: { revokedAt: new Date() } });
-  await emit(ctx, "invite.revoked", { type: "OrgInvite", id }, {});
+  const changed = await ctx.db.$transaction(async tx => {
+    await lockAdmissions(tx, ctx.orgId);
+    const invites = ctx.db.orgInvite.onTx(tx);
+    const existing = await invites.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError("Invite");
+    if (existing.revokedAt) return false;
+    await invites.update({ where: { id }, data: { revokedAt: new Date() } });
+    return true;
+  }, ADMISSION_TX_OPTIONS);
+  if (changed) await emit(ctx, "invite.revoked", { type: "OrgInvite", id }, {});
 }

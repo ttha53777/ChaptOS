@@ -16,13 +16,15 @@
  * never call emit() directly — that's the service layer's responsibility.
  */
 
-import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { logError } from "@/lib/observability";
 import type { RequestContext } from "@/lib/context";
 import { type Action, type EventMetadata, type SubjectType, defaultActivityType, isKnownAction } from "./actions";
 import { dispatchHandlers, formatActivityMessage } from "./dispatch";
 
 export interface EmitOptions {
+  /** Persist the fact, activity, and delivery intent with the business write. */
+  transaction?: Prisma.TransactionClient;
   /**
    * Override the auto-derived ActivityLog message. Pass when the human-readable
    * verb in the feed differs from what defaultActivityType implies.
@@ -49,6 +51,23 @@ export async function emit<A extends Action>(
   metadata: EventMetadata[A],
   options: EmitOptions = {},
 ): Promise<void> {
+  if (options.transaction) {
+    if (action !== "join_request.approved" && action !== "join_request.rejected") {
+      throw new Error("Transactional delivery is currently supported for admission decisions only");
+    }
+    const tx = options.transaction;
+    await tx.operationalEvent.create({ data: {
+      organizationId: ctx.orgId, requestId: ctx.requestId, actorId: ctx.actorId,
+      action, subjectType: subject.type, subjectId: subject.id, metadata: metadata as object,
+      deliveryPending: true, deliveryAvailableAt: new Date(), deliveryActorName: ctx.actorName,
+    } });
+    if (options.activity !== false) await tx.activityLog.create({ data: {
+      organizationId: ctx.orgId, actorId: ctx.actorId,
+      type: options.activityType ?? defaultActivityType(action),
+      message: options.activityMessage ?? formatActivityMessage(ctx, action, metadata),
+    } });
+    return;
+  }
   if (!isKnownAction(action)) {
     // Defensive: typing should make this impossible, but a string cast could
     // slip through. Log and continue — we'd rather lose an event than break
@@ -58,9 +77,8 @@ export async function emit<A extends Action>(
 
   // 1) Insert the structured event.
   try {
-    await prisma.operationalEvent.create({
+    await ctx.db.operationalEvent.create({
       data: {
-        organizationId: ctx.orgId,
         requestId:      ctx.requestId,
         actorId:        ctx.actorId,
         action,
@@ -83,9 +101,8 @@ export async function emit<A extends Action>(
   if (options.activity !== false) try {
     const type = options.activityType ?? defaultActivityType(action);
     const message = options.activityMessage ?? formatActivityMessage(ctx, action, metadata);
-    await prisma.activityLog.create({
+    await ctx.db.activityLog.create({
       data: {
-        organizationId: ctx.orgId,
         actorId:        ctx.actorId,
         type,
         message,

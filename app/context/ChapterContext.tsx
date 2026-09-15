@@ -183,6 +183,7 @@ interface ChapterContextValue {
    * sidebar profile follow immediately instead of waiting for a reload.
    */
   setSelfNameLocal: (name: string) => void;
+  setPendingJoinRequestCountLocal: (count: number, orgSlug: string) => void;
   hasLoaded: boolean;
 }
 
@@ -416,6 +417,11 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   // A name is org-local (Membership.name), so the active membership entry — the
   // one the org switcher renders — is patched alongside it.
   // Mirrors setNavOrderLocal's targeted setCurrentUser patch.
+  const setPendingJoinRequestCountLocal = useCallback((count: number, orgSlug: string) => {
+    setCurrentUser(prev => prev?.org?.slug === orgSlug
+      ? { ...prev, org: { ...prev.org, pendingJoinRequestCount: count } } : prev);
+  }, []);
+
   const setSelfNameLocal = useCallback((name: string) => {
     setCurrentUser(prev => (prev
       ? {
@@ -698,6 +704,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setDisabledFeaturesLocal,
     setNavOrderLocal,
     setSelfNameLocal,
+    setPendingJoinRequestCountLocal,
   }), [
     currentUser,
     avatarRevision,
@@ -710,6 +717,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     setDisabledFeaturesLocal,
     setNavOrderLocal,
     setSelfNameLocal,
+    setPendingJoinRequestCountLocal,
   ]);
 
   return (

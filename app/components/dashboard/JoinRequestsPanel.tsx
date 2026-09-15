@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useChapter } from "../../context/ChapterContext";
+import { inputDuskCls, btnDuskActionCls, btnDuskGhostCls } from "./styles";
 import { Modal, ConfirmDialog } from "./primitives";
-import { requestJson } from "../../lib/api";
+import { ApiError, apiErrorCode, apiErrorMessage, requestJson } from "../../lib/api";
 import { seatWallFrom, type SeatWall } from "../../lib/seat-wall";
 
 /**
@@ -22,6 +24,7 @@ export interface JoinRequestRow {
   avatarUrl:   string | null;
   createdAt:   string;
   inviteLabel: string | null;
+  inviteId: number;
 }
 
 interface RoleOption {
@@ -42,7 +45,7 @@ function waitedFor(iso: string): string {
 }
 
 export function JoinRequestsPanel({
-  memberWord, maxRank, onApproved, onSeatWall, onError, onStatus,
+  memberWord, maxRank, onApproved, onSeatWall, onStatus,
 }: {
   /** Vocab-aware noun ("member", "brother") for the copy. */
   memberWord: string;
@@ -55,6 +58,20 @@ export function JoinRequestsPanel({
   onError:  (msg: string) => void;
   onStatus: (msg: string) => void;
 }) {
+  const { currentUser, setPendingJoinRequestCountLocal } = useChapter();
+  const orgSlug = currentUser?.org?.slug;
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  const [rolesError, setRolesError] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [inviteFilter, setInviteFilter] = useState(() => typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("inviteId") ?? "");
+  const [nextCursor, setNextCursor] = useState<{ afterDate: string; afterId: number } | null>(null);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [seatAvailable, setSeatAvailable] = useState(true);
+  const generation = useRef(0);
+  const mutation = useRef(false);
   const [rows, setRows]       = useState<JoinRequestRow[]>([]);
   const [loaded, setLoaded]   = useState(false);
   const [roles, setRoles]     = useState<RoleOption[]>([]);
@@ -63,35 +80,54 @@ export function JoinRequestsPanel({
   const [busy, setBusy]       = useState(false);
   const [rejectTarget, setRejectTarget] = useState<JoinRequestRow | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (cursor?: { afterDate: string; afterId: number }) => {
+    const revision = ++generation.current;
+    setLoading(true);
     try {
-      setRows(await requestJson<JoinRequestRow[]>("/api/join-requests"));
+      const qs = new URLSearchParams({ page: "1", search });
+      if (inviteFilter) qs.set("inviteId", inviteFilter);
+      if (cursor) { qs.set("afterDate", cursor.afterDate); qs.set("afterId", String(cursor.afterId)); }
+      const data = await requestJson<{ rows: JoinRequestRow[]; total: number; pendingTotal: number; nextCursor: typeof nextCursor; seats: { allowed: boolean } }>(`/api/join-requests?${qs}`);
+      if (generation.current !== revision) return;
+      setRows(rs => cursor ? [...rs, ...data.rows.filter(r => !rs.some(existing => existing.id === r.id))] : data.rows);
+      setTotal(data.total);
+      setNextCursor(data.nextCursor);
+      setSeatAvailable(data.seats.allowed);
+      if (orgSlug) setPendingJoinRequestCountLocal(data.pendingTotal, orgSlug);
+      setLoadError(null);
     } catch {
-      // Silent: this is an additive band, not roster data. A failure here must
-      // not blank the page an officer came to use.
+      if (generation.current === revision) setLoadError("Couldn't load join requests. Try again.");
     } finally {
-      setLoaded(true);
+      if (generation.current === revision) { setLoaded(true); setLoading(false); }
     }
-  }, []);
+  }, [search, inviteFilter, orgSlug, setPendingJoinRequestCountLocal]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  // Roles for the approve picker. /api/roles returns `rank` to every caller, so
-  // the list can be narrowed to what this officer may actually grant before it
-  // is ever shown — the server re-checks the same rule (canGrantRank) on submit,
-  // this just avoids offering a choice that would 403.
   useEffect(() => {
-    if (!review || roles.length > 0) return;
-    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
-  }, [review, roles.length]);
+    const timer = setTimeout(() => void refresh(), 250);
+    const onFocus = () => { if (!mutation.current) void refresh(); };
+    window.addEventListener("focus", onFocus);
+    return () => { clearTimeout(timer); generation.current++; window.removeEventListener("focus", onFocus); };
+  }, [refresh]);
+
+  const loadRoles = useCallback(async () => {
+    setRolesLoading(true);
+    setRolesError(false);
+    try { setRoles(await requestJson<RoleOption[]>("/api/roles")); }
+    catch { setRolesError(true); }
+    finally { setRolesLoading(false); }
+  }, []);
+  useEffect(() => { if (review) void loadRoles(); }, [review, loadRoles]);
 
   function openReview(row: JoinRequestRow) {
+    setDecisionError(null);
     setReview(row);
     setRoleId(null);
   }
 
   async function approve() {
-    if (!review) return;
+    if (!review || mutation.current) return;
+    mutation.current = true;
+    setDecisionError(null);
     setBusy(true);
     try {
       await requestJson(`/api/join-requests/${review.id}/approve`, {
@@ -103,32 +139,50 @@ export function JoinRequestsPanel({
       setRows(rs => rs.filter(r => r.id !== review.id));
       setReview(null);
       onApproved();
+      void refresh();
     } catch (e) {
       // 402 → the org has outgrown its plan. That isn't an error to retry, it's
       // a state with one specific way out, so it goes to the page's seat wall
       // rather than the generic error band.
       const wall = seatWallFrom(e);
       if (wall) { onSeatWall(wall); setReview(null); }
-      else onError(e instanceof Error ? e.message : "Couldn't approve this request");
+      else if (e instanceof ApiError && e.status === 409) {
+        if (apiErrorCode(e) === "JOIN_REQUEST_DECIDED") {
+          setReview(null);
+          onStatus("Already reviewed by another officer. The queue has been refreshed.");
+        } else setDecisionError(apiErrorMessage(e, "Couldn't approve this request. Refresh the queue."));
+        void refresh();
+      } else setDecisionError(apiErrorMessage(e, "Couldn't approve this request. Try again."));
     } finally {
+      mutation.current = false;
       setBusy(false);
     }
   }
 
   async function reject(row: JoinRequestRow) {
+    if (mutation.current) return;
+    mutation.current = true;
+    setBusy(true);
+    setDecisionError(null);
     setRejectTarget(null);
     try {
       await requestJson(`/api/join-requests/${row.id}/reject`, { method: "POST" });
       onStatus(`Declined ${row.name}'s request.`);
       setRows(rs => rs.filter(r => r.id !== row.id));
       setReview(null);
+      void refresh();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Couldn't decline this request");
-    }
+      if (apiErrorCode(e) === "JOIN_REQUEST_DECIDED") {
+        setReview(null);
+        onStatus("Already reviewed by another officer. The queue has been refreshed.");
+      } else setDecisionError(apiErrorMessage(e, "Couldn't decline this request. Try again."));
+      if (e instanceof ApiError && e.status === 409) void refresh();
+    } finally { mutation.current = false; setBusy(false); }
   }
 
   // Nothing waiting → nothing to say.
-  if (!loaded || rows.length === 0) return null;
+  if (!loaded) return <p className="jr-note" role="status">Loading join requests…</p>;
+  if (!loadError && rows.length === 0 && !search && !inviteFilter && !review) return null;
 
   // Strictly below, matching canGrantRank server-side: a Treasurer must not be
   // able to mint another Treasurer through the approval dialog.
@@ -136,17 +190,25 @@ export function JoinRequestsPanel({
 
   return (
     <>
-      <section className="jr-band" aria-label={`${rows.length} people waiting to join`}>
+      <section id="join-requests" className="jr-band" aria-label={`${total} people waiting to join`}>
         <div className="jr-head">
           <span className="jr-dot" aria-hidden />
           <h2 className="jr-title">
-            {rows.length === 1
+            {total === 1
               ? `1 person is waiting to join`
-              : `${rows.length} people are waiting to join`}
+              : `${total} people are waiting to join`}
           </h2>
           <span className="jr-sub">They can&rsquo;t see anything until you approve them.</span>
         </div>
 
+        <div className="jr-tools">
+          <input className={inputDuskCls} aria-label="Search join requests" placeholder="Search name or email" value={search} onChange={e => setSearch(e.target.value)} />
+          {inviteFilter && <button className={btnDuskGhostCls} onClick={() => setInviteFilter("")}>Show all invite links</button>}
+          <button className={btnDuskGhostCls} disabled={loading} onClick={() => void refresh()}>{loading ? "Refreshing…" : "Refresh"}</button>
+        </div>
+        {loadError && <div role="alert" className="jr-error">{loadError} <button onClick={() => void refresh()}>Retry</button></div>}
+        {!loadError && rows.length === 0 && <p className="jr-note">No requests match this filter.</p>}
+        {!seatAvailable && total > 0 && <p className="jr-note">Adding another member needs a billing update. You can still review requests.</p>}
         <ul className="jr-list">
           {rows.map(row => (
             <li key={row.id} className="jr-row">
@@ -164,17 +226,19 @@ export function JoinRequestsPanel({
                 <span className="jr-when">{waitedFor(row.createdAt)}</span>
               </span>
 
-              <button className="btn primary jr-review" onClick={() => openReview(row)}>
+              <button className="btn primary jr-review" disabled={busy} onClick={() => openReview(row)}>
                 Review
               </button>
             </li>
           ))}
         </ul>
+        {nextCursor && <button className={btnDuskGhostCls} disabled={loading} onClick={() => void refresh(nextCursor)}>Load more requests</button>}
       </section>
 
       {review && (
-        <Modal title={`Add ${review.name}?`} tone="dusk" onClose={() => (busy ? undefined : setReview(null))}>
-          <div className="space-y-4">
+        <Modal title={`Approve ${review.name}?`} tone="dusk" onClose={() => (busy ? undefined : setReview(null))}>
+          <div className="space-y-4 jr-review-dialog">
+            {decisionError && <div role="alert" className="jr-error">{decisionError}</div>}
             <div className="jr-modal-id">
               {review.avatarUrl
                 ? <img className="jr-av" src={review.avatarUrl} alt="" />
@@ -192,10 +256,11 @@ export function JoinRequestsPanel({
             </p>
 
             <div>
-              <label className="auth-label" htmlFor="jr-role">Role</label>
+              <label className="jr-label" htmlFor="jr-role">Role</label>
               <select
                 id="jr-role"
-                className="sc-select"
+                disabled={busy || rolesLoading || rolesError}
+                className={inputDuskCls}
                 value={roleId ?? ""}
                 onChange={(e) => setRoleId(e.target.value === "" ? null : Number(e.target.value))}
                 style={{ width: "100%" }}
@@ -205,6 +270,8 @@ export function JoinRequestsPanel({
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
+              {rolesLoading && <p role="status" className="jr-note">Loading roles…</p>}
+              {rolesError && <p role="alert" className="jr-note">Couldn't load roles. <button className="auth-link vio" onClick={() => void loadRoles()}>Retry</button> You can still approve without a role.</p>}
               <p className="text-[12px] leading-relaxed text-[#958d7c]" style={{ marginTop: 8 }}>
                 A role carries real permissions. You can only hand out roles ranked
                 below your own, and you can change this later from the roster.
@@ -213,17 +280,17 @@ export function JoinRequestsPanel({
 
             <div className="flex items-center justify-between gap-3 pt-1">
               <button
-                className="sc-btn sc-btn-danger"
+                className={`${btnDuskGhostCls} text-rose-300`}
                 disabled={busy}
                 onClick={() => setRejectTarget(review)}
               >
                 Decline
               </button>
               <div className="flex items-center gap-2">
-                <button className="sc-btn sc-btn-ghost" disabled={busy} onClick={() => setReview(null)}>
+                <button className={btnDuskGhostCls} disabled={busy} onClick={() => setReview(null)}>
                   Cancel
                 </button>
-                <button className="sc-btn sc-btn-primary" disabled={busy} onClick={approve}>
+                <button className={btnDuskActionCls} disabled={busy} onClick={approve}>
                   {busy ? "Adding…" : "Approve"}
                 </button>
               </div>

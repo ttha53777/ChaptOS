@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useOrgPath } from "../../../hooks/useOrgPath";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
@@ -19,6 +21,8 @@ interface InviteRow {
   revokedAt: string | null;
   createdAt: string;
   redemptionCount: number;
+  pendingCount: number;
+  availableUses: number | null;
   createdByName: string | null;
 }
 
@@ -40,7 +44,8 @@ const STATUS_PILL: Record<InviteStatus, { label: string; cls: string }> = {
   active:    { label: "Active",    cls: "sc-pill-ok" },
   expired:   { label: "Expired",   cls: "sc-pill-muted" },
   revoked:   { label: "Revoked",   cls: "sc-pill-rose" },
-  exhausted: { label: "Full",      cls: "sc-pill-gold" },
+  exhausted: { label: "Admission limit reached", cls: "sc-pill-gold" },
+  reserved: { label: "All places reserved", cls: "sc-pill-gold" },
 };
 
 function joinUrl(token: string): string {
@@ -79,6 +84,11 @@ export function InvitationsSection({
   onError: (msg: string) => void;
 }) {
   const { can } = useChapter();
+  const orgPath = useOrgPath();
+  const [fresh, setFresh] = useState<InviteRow | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const createRef = useRef<HTMLDivElement>(null);
+  const refreshRevision = useRef(0);
   const v = useVocab();
   const canManage = can("MANAGE_SETTINGS");
   const memberWord = v("Member", true).toLowerCase();
@@ -109,27 +119,35 @@ export function InvitationsSection({
   const rowRefs = useRef<Map<number, HTMLLIElement>>(new Map());
 
   const refresh = useCallback(async (opts: { includeInactive: boolean }) => {
+    const revision = ++refreshRevision.current;
     setLoading(true);
     try {
       const qs = opts.includeInactive ? "?include=all" : "";
-      setInvites(await requestJson<InviteRow[]>(`/api/invites${qs}`));
+      const rows = await requestJson<InviteRow[]>(`/api/invites${qs}`);
+      if (revision === refreshRevision.current) setInvites(rows);
     } catch (e) {
       onError(e instanceof Error ? e.message : "Failed to load invites");
     } finally {
-      setLoading(false);
+      if (revision === refreshRevision.current) setLoading(false);
     }
   }, [onError]);
 
-  useEffect(() => { void refresh({ includeInactive: showInactive }); }, [refresh, showInactive]);
+  useEffect(() => {
+    const reload = () => void refresh({ includeInactive: showInactive });
+    reload();
+    window.addEventListener("focus", reload);
+    return () => { refreshRevision.current++; window.removeEventListener("focus", reload); };
+  }, [refresh, showInactive]);
 
   // Defense-in-depth: the tab is already hidden when the user lacks the
   // permission, but render nothing if it's somehow reached.
   if (!canManage) return null;
 
   async function handleCreate() {
+    if (creating) return;
     const cap = capOn ? Number(maxUses) : undefined;
-    if (capOn && (!Number.isInteger(cap) || (cap ?? 0) < 1)) {
-      onError("Max uses must be a whole number of 1 or more");
+    if (capOn && (!Number.isInteger(cap) || (cap ?? 0) < 1 || (cap ?? 0) > 500)) {
+      onError("Maximum uses must be a whole number from 1 to 500");
       return;
     }
     setCreating(true);
@@ -139,14 +157,11 @@ export function InvitationsSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ expiry, label: label.trim() || undefined, maxUses: cap }),
       });
+      setFresh(created);
       onStatus("Invite link created");
       setLabel("");
       await refresh({ includeInactive: showInactive });
       setFlashId(created.id);
-      // After the list re-renders with the new row.
-      requestAnimationFrame(() => {
-        scrollIntoViewSafe(rowRefs.current.get(created.id), { block: "nearest", behavior: "smooth" });
-      });
       setTimeout(() => setFlashId(f => (f === created.id ? null : f)), 2200);
     } catch (e) {
       onError(e instanceof Error ? e.message : "Failed to create invite");
@@ -169,6 +184,7 @@ export function InvitationsSection({
     setRevokeTarget(null);
     try {
       await requestJson(`/api/invites/${row.id}`, { method: "DELETE" });
+      setFresh(f => f?.id === row.id ? null : f);
       onStatus("Invite link revoked");
       await refresh({ includeInactive: showInactive });
     } catch (e) {
@@ -177,7 +193,7 @@ export function InvitationsSection({
   }
 
   async function toggleJoins(row: InviteRow) {
-    if (openJoins === row.id) { setOpenJoins(null); return; }
+    if (openJoins === row.id && joins[row.id] !== "error") { setOpenJoins(null); return; }
     setOpenJoins(row.id);
     if (joins[row.id] && joins[row.id] !== "error") return; // already loaded
     setJoins(j => ({ ...j, [row.id]: "loading" }));
@@ -187,6 +203,23 @@ export function InvitationsSection({
     } catch {
       setJoins(j => ({ ...j, [row.id]: "error" }));
     }
+  }
+
+  async function share(row: InviteRow) {
+    setSharing(true);
+    try { await navigator.share({ title: "Request to join", url: joinUrl(row.token) }); }
+    catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) onError("Couldn't share this link. You can copy it instead."); }
+    finally { setSharing(false); }
+  }
+  function prepareReplacement(row: InviteRow) {
+    setLabel(row.label ?? "");
+    setCapOn(row.maxUses !== null);
+    setMaxUses(String(row.maxUses ?? 25));
+    setExpiry("7d");
+    setFresh(null);
+    scrollIntoViewSafe(createRef.current, { block: "start", behavior: "smooth" });
+    createRef.current?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+    onStatus("Review the settings below to create a new link. The old link stays inactive.");
   }
 
   const capWarning = expiry === "never" && !capOn;
@@ -200,8 +233,20 @@ export function InvitationsSection({
         expire, fill up, or you revoke them.
       </p>
 
+      {can("MANAGE_BROTHERS") && <Link className="sc-btn sc-btn-ghost self-start" href={orgPath("/brothers#join-requests")}>Review join requests</Link>}
+      {fresh && <div className="sc-card" style={{ padding: 16 }} role="status">
+        <h3 className="sc-grp-label">Your invite link is ready</h3>
+        <p className="sc-note">Share this link. Each person signs in and asks to join before an officer approves them.</p>
+        <label className="auth-label" htmlFor="fresh-invite-url">Invite link</label>
+        <input id="fresh-invite-url" className="sc-input" style={{ width: "100%" }} readOnly value={joinUrl(fresh.token)} onFocus={e => e.target.select()} />
+        <div className="flex flex-wrap gap-2" style={{ marginTop: 12 }}>
+          <button className="sc-btn sc-btn-primary" onClick={() => copyLink(fresh)}>{copiedId === fresh.id ? "Copied" : "Copy link"}</button>
+          {typeof navigator !== "undefined" && typeof navigator.share === "function" && <button className="sc-btn sc-btn-ghost" disabled={sharing} onClick={() => share(fresh)}>Share…</button>}
+          <button className="sc-btn sc-btn-ghost" onClick={() => setFresh(null)}>Done</button>
+        </div>
+      </div>}
       {/* ── Generate form ── */}
-      <div className="sc-card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+      <div ref={createRef} className="sc-card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium" style={{ color: "var(--ink-soft)" }}>
@@ -261,7 +306,7 @@ export function InvitationsSection({
         )}
 
         <button onClick={handleCreate} disabled={creating} className="sc-btn sc-btn-primary self-start">
-          {creating ? "Generating…" : "Generate link"}
+          {creating ? "Creating…" : "Create invite link"}
         </button>
       </div>
 
@@ -278,7 +323,7 @@ export function InvitationsSection({
               onChange={(e) => { setShowInactive(e.target.checked); setOpenJoins(null); }}
             />
             <span aria-hidden className="sc-box" style={{ marginTop: 0 }}><CheckGlyph /></span>
-            <span className="sc-note">Show expired &amp; revoked</span>
+            <span className="sc-note">Show inactive links</span>
           </label>
         </div>
 
@@ -292,7 +337,7 @@ export function InvitationsSection({
         ) : (
           <ul className="flex flex-col gap-2">
             {invites.map(row => {
-              const dead = row.status !== "active";
+              const dead = row.status !== "active" && row.status !== "reserved";
               const pill = STATUS_PILL[row.status];
               return (
                 <li
@@ -301,13 +346,12 @@ export function InvitationsSection({
                   className={`sc-card sc-invite-row${flashId === row.id ? " flash" : ""}${dead ? " dead" : ""}`}
                 >
                   <div className="flex items-center gap-2">
-                    {dead
+                    {row.status !== "active"
                       ? <span className={`sc-pill ${pill.cls}`}>{pill.label}</span>
                       : <span className="sc-pill sc-pill-vio">Active</span>}
                     <span className="ml-auto sc-note">
-                      {row.maxUses != null
-                        ? `${row.redemptionCount} / ${row.maxUses} used`
-                        : `${row.redemptionCount} ${row.redemptionCount === 1 ? "join" : "joins"}`}
+                      {row.redemptionCount} admitted · {row.pendingCount} waiting
+                      {row.availableUses !== null && <> · {row.availableUses} places available</>}
                     </span>
                   </div>
 
@@ -317,7 +361,7 @@ export function InvitationsSection({
 
                   {row.maxUses != null && (
                     <div className="sc-meter" aria-hidden>
-                      <i style={{ width: `${Math.min(100, (row.redemptionCount / row.maxUses) * 100)}%` }} />
+                      <i style={{ width: `${Math.min(100, ((row.redemptionCount + row.pendingCount) / row.maxUses) * 100)}%` }} />
                     </div>
                   )}
 
@@ -344,6 +388,7 @@ export function InvitationsSection({
                         {joinUrl(row.token)}
                       </code>
                       <button
+                        disabled={row.status === "reserved"}
                         onClick={() => copyLink(row)}
                         className="sc-btn sc-btn-ghost shrink-0"
                         aria-live="polite"
@@ -356,6 +401,8 @@ export function InvitationsSection({
                     </div>
                   )}
 
+                  {row.pendingCount > 0 && can("MANAGE_BROTHERS") && <Link className="sc-btn sc-btn-ghost sc-btn-sm" href={orgPath(`/brothers?inviteId=${row.id}#join-requests`)}>Review {row.pendingCount} waiting</Link>}
+                  {dead && <button className="sc-btn sc-btn-ghost sc-btn-sm" onClick={() => prepareReplacement(row)}>Create replacement link</button>}
                   {row.redemptionCount > 0 && (
                     <div>
                       <button
@@ -366,7 +413,8 @@ export function InvitationsSection({
                         {openJoins === row.id ? "Hide joins" : "View joins"}
                       </button>
                       {openJoins === row.id && (
-                        <JoinList state={joins[row.id]} />
+                        <><JoinList state={joins[row.id]} />
+                        {joins[row.id] === "error" && <button className="sc-btn sc-btn-ghost" onClick={() => { setOpenJoins(null); void toggleJoins({ ...row }); }}>Retry</button>}</>
                       )}
                     </div>
                   )}
@@ -380,11 +428,7 @@ export function InvitationsSection({
       {revokeTarget && (
         <ConfirmDialog
           title="Revoke this invite link?"
-          message={
-            revokeTarget.redemptionCount > 0
-              ? `${revokeTarget.redemptionCount} ${revokeTarget.redemptionCount === 1 ? "person has" : "people have"} already joined — they keep their access. The link will stop working immediately.`
-              : "The link will stop working immediately. This cannot be undone."
-          }
+          message={`New requests will stop immediately. ${revokeTarget.pendingCount} pending requests will remain reviewable, and ${revokeTarget.redemptionCount} admitted people keep their access. This cannot be undone.`}
           confirmLabel="Revoke"
           tone="dusk"
           onConfirm={() => doRevoke(revokeTarget)}

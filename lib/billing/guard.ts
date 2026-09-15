@@ -42,7 +42,7 @@ import { BillingTier } from "@/lib/state/billing-tier";
 import { countBillableMembers } from "./seats";
 import { SELF_SERVE_MAX, tierForCount } from "./tiers";
 
-type ScopedDb = ReturnType<typeof db>;
+type ScopedDb = Pick<ReturnType<typeof db>, "member" | "subscription">;
 
 /** Message shown to someone who isn't a member of the org yet (invite/claim). */
 export const AT_CAPACITY_PUBLIC_MESSAGE =

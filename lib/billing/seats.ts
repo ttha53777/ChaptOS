@@ -33,7 +33,7 @@
 
 import type { db } from "@/lib/db";
 
-type ScopedDb = ReturnType<typeof db>;
+type ScopedDb = Pick<ReturnType<typeof db>, "member">;
 
 /**
  * Billable headcount for the org `scoped` is bound to.

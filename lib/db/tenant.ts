@@ -1157,6 +1157,13 @@ function scopedBudget(orgId: number, run: Run) {
   };
 }
 
+function scopedOperationalEvent(orgId: number, run: Run) {
+  return {
+    create: (args: { data: Omit<Prisma.OperationalEventUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.operationalEvent.create({ data: { ...args.data, organizationId: orgId } })),
+  };
+}
+
 function scopedActivityLog(orgId: number, run: Run) {
   type W = Prisma.ActivityLogWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1434,6 +1441,7 @@ function scopedOrgInvite(orgId: number, run: Run) {
   }
 
   return {
+    onTx: (tx: Prisma.TransactionClient) => scopedOrgInvite(orgId, fn => fn(tx as P)),
     findMany:   (args?: Prisma.OrgInviteFindManyArgs)  => run(p => p.orgInvite.findMany({ ...args, where: org(args?.where) })),
     findFirst:  (args?: Prisma.OrgInviteFindFirstArgs) => run(p => p.orgInvite.findFirst({ ...args, where: org(args?.where) })),
     findUnique: (args: Prisma.OrgInviteFindUniqueArgs) => run(p => p.orgInvite.findFirst({ ...args, where: org(args.where as W) })),
@@ -1449,7 +1457,15 @@ function scopedOrgInvite(orgId: number, run: Run) {
       if (inviteIds.length === 0) return new Map();
       const rows = await run(p => p.inviteRedemption.groupBy({
         by: ["inviteId"],
-        where: { inviteId: { in: inviteIds } },
+        where: { inviteId: { in: inviteIds }, invite: { organizationId: orgId } },
+        _count: { inviteId: true },
+      }));
+      return new Map(rows.map((r: { inviteId: number; _count: { inviteId: number } }) => [r.inviteId, r._count.inviteId]));
+    },
+    pendingCountByInvite: async (inviteIds: number[]): Promise<Map<number, number>> => {
+      if (inviteIds.length === 0) return new Map();
+      const rows = await run(p => p.joinRequest.groupBy({
+        by: ["inviteId"], where: { organizationId: orgId, inviteId: { in: inviteIds }, status: "pending" },
         _count: { inviteId: true },
       }));
       return new Map(rows.map((r: { inviteId: number; _count: { inviteId: number } }) => [r.inviteId, r._count.inviteId]));
@@ -1653,6 +1669,12 @@ function scopedJoinRequest(orgId: number, run: Run) {
       const id = await verify(args.where);
       return run(p => p.joinRequest.update({ ...args, where: { id } }));
     },
+    decidePending: (id: number, data: { status: string; decidedAt: Date; decidedById: number; brotherId?: number }) =>
+      run(p => p.joinRequest.updateMany({ where: { id, organizationId: orgId, status: "pending" }, data })),
+    listPage: (where: Prisma.JoinRequestWhereInput, take: number) => run(p => p.joinRequest.findMany({
+      where: org(where), take, orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      include: { invite: { select: { id: true, label: true } } },
+    })),
     count:      (args?: Prisma.JoinRequestCountArgs)     => run(p => p.joinRequest.count({ ...args, where: org(args?.where) })),
     /** The same delegate bound to a transaction client — see member.onTx. */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1885,6 +1907,7 @@ export function db(orgId: number) {
     salesLead:           scopedSalesLead(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
+    operationalEvent:    scopedOperationalEvent(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),
 
     brotherRole:          scopedBrotherRole(orgId, run),
@@ -1959,6 +1982,11 @@ export function _dbWithClient(orgId: number, client: P) {
   // Always use the SET LOCAL path so the test exercises the Phase 2 mechanism.
   const run = _makeRunForTest(orgId, client);
   return {
+    $transaction: ((fn: (tx: Prisma.TransactionClient) => Promise<unknown>, opts?: Parameters<typeof prisma.$transaction>[1]) =>
+      client.$transaction(async (tx: Prisma.TransactionClient) => {
+        await tx.$executeRaw`SELECT set_config('app.org_id', ${String(orgId)}, true)`;
+        return fn(tx);
+      }, opts)) as typeof prisma.$transaction,
     orgId,
     // The roster (Membership-backed, keyed by brotherId) and the shared
     // identity row. There is deliberately no `brother` delegate: scoping a
@@ -1993,6 +2021,7 @@ export function _dbWithClient(orgId: number, client: P) {
     salesLead:           scopedSalesLead(orgId, run),
     budget:              scopedBudget(orgId, run),
     activityLog:         scopedActivityLog(orgId, run),
+    operationalEvent:    scopedOperationalEvent(orgId, run),
     chapterAnnouncement: scopedChapterAnnouncement(orgId, run),
     brotherRole:          scopedBrotherRole(orgId, run),
     orgInvite:            scopedOrgInvite(orgId, run),

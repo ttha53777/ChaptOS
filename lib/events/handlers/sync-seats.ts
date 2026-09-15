@@ -1,21 +1,6 @@
-/**
- * Seat sync — keep the billable headcount (and Stripe's copy of it) in step with
- * the roster.
- *
- * Runs as an event subscriber rather than inline in brother-service for two
- * reasons: services may not call other services, and a Stripe round-trip must
- * never sit in the critical path of adding a member. dispatchHandlers isolates
- * failures, so the worst a Stripe outage can do here is leave a
- * `seatSyncPendingAt` flag for one of the reconcile paths to pick up — it can
- * never fail the roster write that triggered it.
- *
- * ── What is NOT here ─────────────────────────────────────────────────────────
- *
- * Invite redemption and account claim also add billable people, but those two
- * paths are pre-auth bootstrap routes that write their OperationalEvent rows
- * directly (they have no RequestContext, so they cannot call emit()). No emit
- * means no dispatch, which means no handler. They call reconcileSeats themselves
- * — see app/api/auth/redeem-invite/route.ts and app/api/auth/claim/route.ts.
+/** Membership events reconcile billable seats. Admission decisions are persisted
+ * with an outbox and retry when reconciliation fails; other events retain the
+ * existing best-effort dispatch and billing-page reconciliation behavior.
  */
 
 import { on } from "../dispatch";
@@ -29,7 +14,7 @@ import type { RequestContext } from "@/lib/context/request-context";
  * Both emits are { activity: false }: a band change and a failed sync are
  * billing telemetry, not something that belongs in the members' activity feed.
  */
-async function sync(ctx: RequestContext): Promise<void> {
+async function sync(ctx: RequestContext, retryOnFailure = false): Promise<void> {
   const result = await reconcileSeats(ctx.db);
 
   if (result.tier !== result.previousTier) {
@@ -48,6 +33,7 @@ async function sync(ctx: RequestContext): Promise<void> {
       members: result.members,
       reason:  result.error ?? "unknown",
     }, { activity: false });
+    if (retryOnFailure) throw new Error("Seat sync remains pending");
   }
 }
 
@@ -55,15 +41,9 @@ on("brother.added", async (ctx) => {
   await sync(ctx);
 });
 
-// Approving a join request is the only way a roster GAINS a member now, so this
-// is the seat-relevant event. Worth noting what it replaces: /api/auth/redeem-invite
-// ran pre-auth with no ctx, so it got no handler dispatch and had to call
-// reconcileSeats itself — awaited, with a long comment about serverless
-// instances freezing after the response and losing the seatSyncPendingAt flag
-// the whole self-healing design hangs off. Approval runs with a real ctx, so
-// that hazard is gone with the route.
+// Required follow-up: report a failed sync to the durable admission worker.
 on("join_request.approved", async (ctx) => {
-  await sync(ctx);
+  await sync(ctx, true);
 });
 
 on("brother.removed", async (ctx) => {
