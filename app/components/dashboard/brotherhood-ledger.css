@@ -204,3 +204,17 @@
   .dash .jr-meta { display: none; }
   .dash .jr-row { gap: 9px; }
 }
+
+/* Invite review controls stay reachable on narrow rosters. */
+.dash .jr-tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; }
+.dash .jr-tools input { flex: 1 1 180px; min-width: 0; }
+.dash .jr-note { font-size: 12px; color: var(--muted); margin: 8px 0; line-height: 1.5; }
+.dash .jr-error { font-size: 13px; color: var(--rose); padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.dash .jr-error button { margin-left: 8px; text-decoration: underline; }
+.dash .jr-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+@media (max-width: 480px) {
+  .dash .jr-row { flex-wrap: wrap; }
+  .dash .jr-who { min-width: 0; }
+  .dash .jr-mail { overflow-wrap: anywhere; }
+  .dash .jr-meta { display: flex; flex-wrap: wrap; }
+}

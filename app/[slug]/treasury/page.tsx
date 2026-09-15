@@ -29,6 +29,8 @@ import {
 import { useTransactionCategories } from "../../hooks/useTransactionCategories";
 import { netBalance } from "../../../lib/treasury-balance";
 import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
+import { TreasuryLocked } from "../../components/treasury/TreasuryLocked";
+import { GhostBalanceChart, GhostDonut } from "../../components/treasury/TreasuryGhosts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -165,6 +167,38 @@ function topCategoriesWithOther(
     ...sorted.slice(0, maxSlices).map(slice),
     { name: "Other", value: round2(otherVal), color: null },
   ];
+}
+
+/**
+ * The Balance measure's sparkline, plotted from the running balance the hero
+ * chart already uses. It replaces a hardcoded rising polyline that was bound to
+ * nothing: it drew money going up for a chapter whose balance was falling, and
+ * for one whose ledger was empty.
+ *
+ * Returns null rather than a flat line when there is nothing (or only one point)
+ * to draw. A single entry has no direction, and a horizontal stroke reads as a
+ * measured "holding steady" — the same claim in the other direction.
+ *
+ * The viewBox is the 48x20 the stylesheet already positions; y is inverted so a
+ * rising balance rises, and a completely flat series pins to the middle instead
+ * of dividing by a zero span.
+ */
+function sparkPoints(data: { balance: number }[]): string | null {
+  if (data.length < 2) return null;
+
+  const W = 48, H = 20, PAD = 2;
+  const vals = data.map(d => d.balance);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min;
+
+  return vals
+    .map((v, i) => {
+      const x = (i / (vals.length - 1)) * W;
+      const y = span === 0 ? H / 2 : PAD + (1 - (v - min) / span) * (H - PAD * 2);
+      return `${round2(x)},${round2(y)}`;
+    })
+    .join(" ");
 }
 
 // ─── Reimbursements View ──────────────────────────────────────────────────────
@@ -618,7 +652,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, avatarRevision, can } = useChapter();
+  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, loadedSections, avatarRevision, can } = useChapter();
   const v = useVocab();
   const catalog = useTransactionCategories();
   const selfId = currentUser?.id ?? null;
@@ -764,6 +798,54 @@ export default function TreasuryPage() {
     const sliced = runningData.filter(d => d.date >= cutoffStr);
     return sliced.length > 0 ? sliced : runningData;
   }, [runningData, chartRange]);
+
+  // Plotted from the same series the hero chart draws, so the thumbnail in the
+  // glance strip and the full chart can never disagree about which way the money
+  // went. null when there is nothing to plot — see sparkPoints.
+  const balanceSpark = useMemo(() => sparkPoints(filteredRunningData), [filteredRunningData]);
+
+  // ── Has anyone opened the books? ─────────────────────────────────────────────
+  //
+  // `openingBalance` is null until a treasurer answers, and 0 is a legitimate
+  // ANSWER ("we're starting from nothing") — so this tests `!= null`, never
+  // falsiness. It's the same signal the dashboard treats as proof the books are
+  // open independent of transaction count.
+  //
+  // Gated on the treasury section having actually LANDED. `treasuryData` is null
+  // both before the fetch and never — an unset verdict computed during the load
+  // would wall a chapter with $40k in the account behind "the books aren't open
+  // yet" for as long as the request takes.
+  const treasuryLoaded    = loadedSections.has("treasury");
+  const hasOpeningBalance = treasuryData?.openingBalance != null;
+  const booksUnopened     = treasuryLoaded && !hasOpeningBalance;
+
+  // A member who can't open the books and has nothing to look at. Whoever CAN
+  // open them keeps the full page for now — the welcome flow that replaces it
+  // for them is the next piece of this work.
+  const lockedForMember = booksUnopened && !canTreasury;
+
+  // ── The second kind of nothing ───────────────────────────────────────────────
+  //
+  // The books ARE open — a human typed a balance — but nothing has moved. This is
+  // the state the page could not previously tell apart from "broke": it printed a
+  // real $0 income, $0 expenses and a rising sparkline, which reads as a chapter
+  // that lost its money rather than one that hasn't started.
+  //
+  // Party door revenue counts as movement even though it isn't a Transaction —
+  // it's money in the balance, so a chapter that logged a party and nothing else
+  // is started, not unstarted.
+  const hasEntries = activeTxns.length > 0 || filteredParties.length > 0;
+
+  // Deliberately NOT gated on canTreasury: an officer and a member both see the
+  // real opening balance and honest em-dashes. Only the banner's call to action
+  // is permission-gated, below.
+  const statedUnstarted = treasuryLoaded && hasOpeningBalance && !hasEntries;
+
+  // Dues are assigned on the roster, not in the ledger, so they're unset on their
+  // own schedule — a chapter can assign dues before logging a single transaction,
+  // and `$0 outstanding` would otherwise claim "all settled" when the truth is
+  // nobody has been billed yet.
+  const duesUnassigned = brotherList.length > 0 && brotherList.every(b => b.duesOwed === 0);
 
   // Donut data
   const donutData = useMemo(
@@ -1101,17 +1183,48 @@ export default function TreasuryPage() {
             {/* ── Briefing ── */}
             <section className="briefing" aria-label="Treasury">
               <div>
+                {/* The locked state makes no claim about a term — nothing has been
+                    recorded in any of them — so it drops the semester rather than
+                    stamping the page with one. (`semester` also defaults to the
+                    hardcoded CURRENT_SEMESTER, which disagrees with the org's real
+                    active term until a transaction exists to widen the list.) */}
                 <p className="kicker">
                   <span className="today">{dateLabel}</span>
-                  &ensp;·&ensp;{v("Treasury")}&ensp;·&ensp;{semester}
+                  &ensp;·&ensp;{v("Treasury")}
+                  {!lockedForMember && <>&ensp;·&ensp;{semester}</>}
                 </p>
                 <h1 className="greeting">The <em>ledger</em>.</h1>
-                <div className="digest">
-                  <span className="ai-chip">AI</span>
-                  <p>{digest}</p>
-                </div>
+                {/* The digest is composed from live figures and badged AI, which
+                    reads as a summary of something that was analysed. With no
+                    entries there is nothing to analyse: on unopened books it says
+                    "$0 in the books", and on stated-but-unstarted it just recites
+                    the opening balance back. Withheld until money has moved. */}
+                {/* The briefing sits ABOVE the skeleton block, so without the
+                    treasuryLoaded guard this line renders "$0 in the books" for the
+                    whole fetch on every navigation into the page — the one place
+                    the $0 cockpit was still reachable. */}
+                {treasuryLoaded && !lockedForMember && !statedUnstarted && (
+                  <div className="digest">
+                    <span className="ai-chip">AI</span>
+                    <p>{digest}</p>
+                  </div>
+                )}
+                {/* Same shape as the digest, but a plain state chip rather than the
+                    AI badge — this line is a fact about the ledger, not a reading
+                    of one. Reuses .digest so the type and rhythm stay identical. */}
+                {statedUnstarted && (
+                  <div className="digest">
+                    <span className="tr-state-chip">No entries</span>
+                    <p>
+                      Books opened at {fmt$(Math.round(balance))}. Nothing has moved yet
+                      {canTreasury ? " — the first transaction you log starts the line." : "."}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="tr-head-actions">
+              {/* Every head action either edits the books or exports them. With no
+                  books and no permission, all of them are dead controls. */}
+              {!lockedForMember && <div className="tr-head-actions">
                 {semesters.map(s => (
                   <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill${semester === s ? " on" : ""}`}>
                     {s}
@@ -1135,8 +1248,12 @@ export default function TreasuryPage() {
                     New txn
                   </button>
                 )}
-              </div>
+              </div>}
             </section>
+
+            {lockedForMember ? (
+              <TreasuryLocked treasuryLabel={v("Treasury")} />
+            ) : (<>
 
             {/* ── Tab nav (kept) ── */}
             <nav className="tr-tabs">
@@ -1161,31 +1278,73 @@ export default function TreasuryPage() {
               </>
             ) : (<>
 
+            {/* ── First-entry banner ──────────────────────────────────────────
+                The books are open and nothing has moved. No praise and no
+                confetti — an empty ledger isn't an achievement — the banner just
+                names the next action. Only shown on Overview, where the empty
+                instruments it explains actually live. */}
+            {statedUnstarted && navTab === "Overview" && (
+              <div className="tr-first-entry">
+                <span className="bglyph">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                </span>
+                <div className="btxt">
+                  <h4>{canTreasury ? "Log your first transaction" : "Nothing logged yet"}</h4>
+                  <p>
+                    {canTreasury
+                      ? `${v("Dues")} collected, a venue deposit, a fundraiser payout — anything that has already moved this term. Two or three entries is enough for the charts and the breakdown to become useful.`
+                      : `The books are open, but no money has been recorded yet. Once your ${v("Treasury").toLowerCase()} officer logs the first transaction, the charts and breakdown below fill in.`}
+                  </p>
+                </div>
+                {canTreasury && (
+                  <div className="bact">
+                    <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
+                      <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                      New txn
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── At-a-glance strip (the addition) ── */}
             <div className="tr-glance">
               <LedgerStrip>
+                {/* Balance is REAL even here — a human typed it, so it reads in full
+                    ink with no projection (1.3x of a number nothing has moved is an
+                    invention, not a forecast). */}
                 <Measure
                   label="Balance"
                   value={fmt$(Math.round(balance))}
-                  note={`projected ${fmt$(Math.round(projected))} · ${semester}`}
-                  spark={<svg className="spark" width="48" height="20" viewBox="0 0 48 20"><polyline points="0,16 8,15 16,12 24,13 32,8 40,6 48,3" /></svg>}
+                  note={statedUnstarted ? `opening balance · ${semester}` : `projected ${fmt$(Math.round(projected))} · ${semester}`}
+                  spark={balanceSpark ? <svg className="spark" width="48" height="20" viewBox="0 0 48 20" aria-hidden="true"><polyline points={balanceSpark} /></svg> : undefined}
                 />
                 <Measure
                   label="Income"
-                  value={fmt$(Math.round(totalIncome))}
-                  note={`${incomeTxns.length} ${incomeTxns.length === 1 ? "transaction" : "transactions"}`}
+                  value={statedUnstarted ? "—" : fmt$(Math.round(totalIncome))}
+                  unset={statedUnstarted}
+                  note={statedUnstarted ? "no deposits logged" : `${incomeTxns.length} ${incomeTxns.length === 1 ? "transaction" : "transactions"}`}
                 />
                 <Measure
                   label="Expenses"
-                  value={fmt$(Math.round(totalExpenses))}
-                  note={scheduledDrain > 0 ? `${fmt$(Math.round(scheduledDrain))} scheduled` : `${expenseTxns.length} ${expenseTxns.length === 1 ? "transaction" : "transactions"}`}
-                  noteWarn={scheduledDrain > 0}
+                  value={statedUnstarted ? "—" : fmt$(Math.round(totalExpenses))}
+                  unset={statedUnstarted}
+                  note={statedUnstarted
+                    ? "no expenses logged"
+                    : scheduledDrain > 0 ? `${fmt$(Math.round(scheduledDrain))} scheduled` : `${expenseTxns.length} ${expenseTxns.length === 1 ? "transaction" : "transactions"}`}
+                  noteWarn={!statedUnstarted && scheduledDrain > 0}
                 />
+                {/* "all settled" is a verdict, and it's wrong when nobody was billed.
+                    Tracks assignment rather than statedUnstarted so it stays honest on
+                    a chapter that logged expenses before setting dues. */}
                 <Measure
                   label="Dues outstanding"
-                  value={fmt$(Math.round(duesTotal))}
-                  note={owingCount > 0 ? `${owingCount} ${owingCount === 1 ? "brother" : "brothers"} owing` : "all settled"}
-                  noteWarn={owingCount > 0}
+                  value={duesUnassigned ? "—" : fmt$(Math.round(duesTotal))}
+                  unset={duesUnassigned}
+                  note={duesUnassigned
+                    ? `${brotherList.length} ${v("Member", brotherList.length !== 1).toLowerCase()} · none assigned`
+                    : owingCount > 0 ? `${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owing` : "all settled"}
+                  noteWarn={!duesUnassigned && owingCount > 0}
                 />
               </LedgerStrip>
             </div>
@@ -1212,38 +1371,48 @@ export default function TreasuryPage() {
                         −{fmt$(Math.round(scheduledDrain))} scheduled → {fmt$(Math.round(balance - scheduledDrain))} projected
                       </span>
                     )}
-                    <p className="tr-bal-meta">{semester} · Projected <b>{fmt$(Math.round(projected))}</b></p>
+                    {/* Projection is balance × 1.3. Against a stated-but-unmoved
+                        balance that's arithmetic on no evidence, so it's withheld
+                        rather than dressed up as a forecast. */}
+                    <p className="tr-bal-meta">{statedUnstarted ? `${semester} · opening balance` : <>{semester} · Projected <b>{fmt$(Math.round(projected))}</b></>}</p>
                   </div>
-                  {/* Range selector */}
-                  <div className="tr-ranges">
-                    {(["2W","1M","3M","YTD","ALL"] as const).map(r => (
-                      <button key={r} onClick={() => setChartRange(r)} className={chartRange === r ? "on" : ""}>{r}</button>
-                    ))}
-                  </div>
+                  {/* Range selector — every range slices the same empty series, so
+                      the control would do nothing visible. */}
+                  {!statedUnstarted && (
+                    <div className="tr-ranges">
+                      {(["2W","1M","3M","YTD","ALL"] as const).map(r => (
+                        <button key={r} onClick={() => setChartRange(r)} className={chartRange === r ? "on" : ""}>{r}</button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* KPI mini-row */}
                 <div className="tr-kpi">
                   <div>
                     <p className="k">Income</p>
-                    <p className="v sage">{fmt$(Math.round(totalIncome))}</p>
-                    <p className="m">{incomeTxns.length} txns</p>
+                    <p className={statedUnstarted ? "v unset" : "v sage"}>{statedUnstarted ? "—" : fmt$(Math.round(totalIncome))}</p>
+                    <p className="m">{statedUnstarted ? "nothing in" : `${incomeTxns.length} txns`}</p>
                   </div>
                   <div>
                     <p className="k">Expenses</p>
-                    <p className="v rose">{fmt$(Math.round(totalExpenses))}</p>
-                    <p className="m">{expenseTxns.length} txns</p>
+                    <p className={statedUnstarted ? "v unset" : "v rose"}>{statedUnstarted ? "—" : fmt$(Math.round(totalExpenses))}</p>
+                    <p className="m">{statedUnstarted ? "nothing out" : `${expenseTxns.length} txns`}</p>
                   </div>
                 </div>
 
                 {/* Area + Biweekly charts */}
-                <div className="tr-chart">
-                  <TreasuryAreaChart
-                    data={filteredRunningData}
-                    biweeklyData={biweeklyData}
-                    semester={semester}
-                  />
-                </div>
+                {statedUnstarted ? (
+                  <GhostBalanceChart balanceLabel={fmt$(Math.round(balance))} />
+                ) : (
+                  <div className="tr-chart">
+                    <TreasuryAreaChart
+                      data={filteredRunningData}
+                      biweeklyData={biweeklyData}
+                      semester={semester}
+                    />
+                  </div>
+                )}
               </FinanceCard>
 
               {/* ── Category Donut Card ────────────────────────────────────── */}
@@ -1260,7 +1429,9 @@ export default function TreasuryPage() {
                 </div>
 
                 {/* Donut chart */}
-                {donutData.length === 0 ? (
+                {statedUnstarted ? (
+                  <GhostDonut categoryCount={catalog.options(donutMode).length} />
+                ) : donutData.length === 0 ? (
                   <div className="tr-empty">No {donutMode} data</div>
                 ) : (
                   <>
@@ -1323,11 +1494,20 @@ export default function TreasuryPage() {
               {/* ── Brothers with Dues ───────────────────────────────────── */}
               <FinanceCard>
                 <div className="card-h">
-                  <h2>Brothers with Dues</h2>
-                  <span className="sub">{owingCount} owing · {fmt$(duesTotal)}</span>
+                  <h2>{v("Member", true)} with {v("Dues")}</h2>
+                  <span className="sub">{duesUnassigned ? "none assigned" : <>{owingCount} owing · {fmt$(duesTotal)}</>}</span>
                 </div>
+                {/* "No brothers yet" was wrong on any roster whose members simply
+                    owe nothing — it reported an empty ROSTER when the truth is an
+                    empty dues ledger. */}
                 {brothersOwing.length === 0 ? (
-                  <div className="tr-empty-stack"><p>No brothers yet</p></div>
+                  <div className="tr-empty-stack">
+                    <p>{brotherList.length === 0
+                      ? `No ${v("Member", true).toLowerCase()} on the roster yet`
+                      : duesUnassigned
+                        ? `No ${v("Dues").toLowerCase()} assigned yet`
+                        : `All ${v("Dues").toLowerCase()} settled`}</p>
+                  </div>
                 ) : (
                   <div className="max-h-[280px] overflow-y-auto">
                     {brothersOwing.map(b => (
@@ -1411,13 +1591,16 @@ export default function TreasuryPage() {
                   <h2>Reports</h2>
                   <span className="sub">{semester}</span>
                 </div>
+                {/* Same rule as the glance strip: the three summed lines and the
+                    projection are em-dashes until something has moved. Net Balance
+                    stays real — it's the stated opening balance, not a sum. */}
                 <div className="tr-rep">
-                  <div className="line"><span className="k">Total Income</span><span className="v sage">{fmt$(Math.round(totalIncome))}</span></div>
-                  <div className="line"><span className="k">Total Expenses</span><span className="v rose">{fmt$(Math.round(totalExpenses))}</span></div>
-                  <div className="line"><span className="k">Door Revenue</span><span className="v party">{fmt$(Math.round(totalDoorRev))}</span></div>
+                  <div className="line"><span className="k">Total Income</span><span className={statedUnstarted ? "v unset" : "v sage"}>{statedUnstarted ? "—" : fmt$(Math.round(totalIncome))}</span></div>
+                  <div className="line"><span className="k">Total Expenses</span><span className={statedUnstarted ? "v unset" : "v rose"}>{statedUnstarted ? "—" : fmt$(Math.round(totalExpenses))}</span></div>
+                  <div className="line"><span className="k">Door Revenue</span><span className={statedUnstarted ? "v unset" : "v party"}>{statedUnstarted ? "—" : fmt$(Math.round(totalDoorRev))}</span></div>
                   <hr />
-                  <div className="line total"><span className="k">Net Balance</span><span className={`v${balance < 0 ? " rose" : ""}`}>{fmt$(Math.round(balance))}</span></div>
-                  <div className="line"><span className="k">Projected</span><span className="v">{fmt$(Math.round(projected))}</span></div>
+                  <div className="line total"><span className="k">{statedUnstarted ? "Opening Balance" : "Net Balance"}</span><span className={`v${balance < 0 ? " rose" : ""}`}>{fmt$(Math.round(balance))}</span></div>
+                  <div className="line"><span className="k">Projected</span><span className={statedUnstarted ? "v unset" : "v"}>{statedUnstarted ? "—" : fmt$(Math.round(projected))}</span></div>
                   <div className="line"><span className="k">Party Events</span><span className="v">{partyList.length}</span></div>
                   {canTreasury && (
                     <button className="tr-exp-btn" onClick={handleExport}>
@@ -1467,8 +1650,10 @@ export default function TreasuryPage() {
                     </button>
                   )}
                 </span>
-                <span className={`tr-log-total ${txTab === "expense" ? "rose" : txTab === "income" ? "sage" : tabTotals.all >= 0 ? "sage" : "rose"}`}>
-                  {txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}
+                {/* "+$0" over an empty table is a sum of nothing presented as a
+                    result. The em-dash says the same thing without the arithmetic. */}
+                <span className={`tr-log-total ${statedUnstarted ? "unset" : txTab === "expense" ? "rose" : txTab === "income" ? "sage" : tabTotals.all >= 0 ? "sage" : "rose"}`}>
+                  {statedUnstarted ? "—" : <>{txTab === "all" && tabTotals.all >= 0 && "+"}{fmt$(Math.round(tabTotals[txTab]))}</>}
                 </span>
               </div>
 
@@ -1532,7 +1717,7 @@ export default function TreasuryPage() {
                 <FinanceCard className="overflow-hidden" style={{ marginTop: 18 }}>
                   <div className="tr-log-h">
                     <h2>Party Events</h2>
-                    <span className="sub">Door revenue · {sortedParties.length} events · {fmt$(Math.round(totalDoorRev))} total</span>
+                    <span className="sub">{sortedParties.length === 0 ? "Door revenue" : <>Door revenue · {sortedParties.length} events · {fmt$(Math.round(totalDoorRev))} total</>}</span>
                     <span className="tr-grow" />
                     {canTreasury && <button className="tr-card-act" onClick={() => setPartyModal({ kind: "addParty" })}>+ Add Event</button>}
                   </div>
@@ -1619,6 +1804,8 @@ export default function TreasuryPage() {
                 onAction={handleReimbursementAction}
               />
             )}
+
+            </>)}
 
             </>)}
 

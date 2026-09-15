@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Treasury — First Entry (welcome / day-one state)
+  ─────────────────────────────────────────────────────────────────────────────
+  ASSUMPTIONS / REASONING
+
+  WHAT THE USER SEES TODAY (app/[slug]/treasury/page.tsx)
+  · The page renders its full instrument panel regardless of whether the books
+    have anything in them. On a brand-new org that means:
+      – a glance strip reading $0 / $0 / $0 / $0, where the Balance measure
+        carries a HARDCODED RISING SPARKLINE (page.tsx:1173) — a decorative
+        polyline that is not bound to data, so a chapter with no books gets a
+        picture of money going up;
+      – a 46px "$0" hero balance over an empty area chart;
+      – "No expense data" inside the donut card;
+      – "No brothers yet" in Brothers-with-Dues;
+      – "No transactions for this semester" in the log.
+    Five separate flavors of nothing, arranged like a cockpit. It reads as a
+    chapter that LOST its money rather than one that hasn't started.
+
+  THE THESIS
+  · Day one is not an empty dashboard — it is ONE QUESTION with instruments
+    behind it. The codebase already agrees on which question:
+    app/[slug]/page.tsx:1322 treats `treasuryData?.openingBalance != null` as
+    proof the books are open, explicitly independent of transaction count
+    ("An org that stated an opening balance has a real number to show even with
+    no transactions yet — that is the point of asking"). So the welcome state's
+    job is to collect the opening balance, and everything else is consequence.
+  · Therefore the instruments are not shown-but-zeroed and not hidden-entirely.
+    They are shown UNCHARGED: real cards, real labels, dimmed values, each one
+    captioned with the specific thing that will fill it. The panel is a promise
+    of the page, not a broken copy of it.
+
+  THREE KINDS OF NOTHING (inherited from _design/Dashboard Empty States.html,
+  whose "Unset / day-one" kind SHIPPED 2026-08-07)
+    01 UNSET      — no opening balance, no entries. This mock, Scene A/B.
+    02 UNSTARTED  — balance stated, still no transactions. Scene C.
+    03 ALL CLEAR  — real data. The existing page; out of scope.
+  Only 03 earns praise. 01 and 02 orient; they never congratulate.
+
+  PERMISSION SPLIT (decided in _design/Treasury Setup Gate.html, per memory
+  treasury-setup-gate-mock: "hard wall for everyone, non-officers get a locked
+  'books aren't open yet' state rather than an empty ledger")
+  · MANAGE_TREASURY → the setup card, Scene A/B.
+  · everyone else   → Scene D, a quiet locked state that names who can open them.
+    A member must never see a form they cannot submit, and must never see $0 and
+    conclude the chapter is broke.
+
+  THE HONESTY RULE
+  · Nothing in the uncharged panel prints a number that could be mistaken for a
+    measurement. No $0 balances, no 0%, no equal-arc donut (the trap called out
+    in the Setup Gate memo — with no amounts the arcs are necessarily equal and
+    the ring gets misread as a spend breakdown). Placeholders are em-dashes and
+    ghost geometry, never zeroes. The one real number on the page after setup is
+    the opening balance, because the treasurer typed it.
+  · The AI digest line is REPLACED, not zeroed. An "AI" chip summarizing an empty
+    ledger is the page's least trustworthy pixel. On day one it states the state.
+
+  SCOPE / STATUS
+  · EXPLORATION ONLY. Nothing here is wired. The opening-balance field is the
+    one piece with an existing server-side counterpart (`openingBalance` is
+    already read by the treasury API and the dashboard). The category streams
+    referenced in Scene B are the separate Setup Gate proposal and are shown
+    here only as the optional second step, collapsed by default.
+  · Vocabulary goes through v() in the real app (Treasury/Dues/Brothers are
+    org-configurable); this mock hardcodes the fraternity vocabulary the sibling
+    mocks use. Today pinned to Sat Jun 13 2026 to match them.
+  · Chrome (sidebar, briefing, tabs, glance strip, card shells) is copied token-
+    for-token from _design/Treasury Redesign.html / treasury-ledger.css so the
+    welcome state can be diffed against the loaded page it precedes.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Treasury · First Entry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Geist:wght@300..700&family=Geist+Mono:wght@300..600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+  }
+  [data-theme="dusk"] {
+    --paper:    #0f0d0a;
+    --paper-2:  #14120e;
+    --card:     #161310;
+    --card-2:   #1b1813;
+    --ink:      #ece7dd;
+    --ink-soft: #c9c2b4;
+    --muted:    #958d7c;
+    --faint:    #6b6354;
+    --line:     rgba(236,231,221,.09);
+    --line-soft:rgba(236,231,221,.05);
+    --vio:      #a78bfa;
+    --vio-deep: #7c3aed;
+    --vio-bg:   rgba(167,139,250,.10);
+    --gold:     #ddb36a;
+    --gold-bg:  rgba(221,179,106,.10);
+    --rose:     #d98ba3;
+    --rose-bg:  rgba(217,139,163,.10);
+    --ok:       #7fb08a;
+    --ok-bg:    rgba(127,176,138,.10);
+    --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+    --ghost:    rgba(236,231,221,.055);
+  }
+  [data-theme="ivory"] {
+    --paper:    #f2ede3;
+    --paper-2:  #ece6d9;
+    --card:     #faf7f0;
+    --card-2:   #f4f0e6;
+    --ink:      #171410;
+    --ink-soft: #3d382f;
+    --muted:    #6f675a;
+    --faint:    #9a917f;
+    --line:     rgba(23,20,16,.13);
+    --line-soft:rgba(23,20,16,.07);
+    --vio:      #6d28d9;
+    --vio-deep: #5b21b6;
+    --vio-bg:   rgba(109,40,217,.08);
+    --gold:     #9a7224;
+    --gold-bg:  rgba(154,114,36,.10);
+    --rose:     #b34f72;
+    --rose-bg:  rgba(179,79,114,.09);
+    --ok:       #3f7a50;
+    --ok-bg:    rgba(63,122,80,.10);
+    --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+    --ghost:    rgba(23,20,16,.05);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--paper); color: var(--ink); font-family: var(--sans); }
+  body { font-size: 13.5px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--vio-bg); }
+
+  .shell { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100vh; }
+
+  /* ── Sidebar (shared, copied from Treasury Redesign) ─────────────────────── */
+  .side {
+    border-right: 1px solid var(--line);
+    background: var(--paper-2);
+    padding: 26px 0 20px;
+    display: flex; flex-direction: column; gap: 26px;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .wordmark { padding: 0 24px; }
+  .wordmark .product {
+    font-family: var(--serif); font-style: italic; font-weight: 600;
+    font-size: 19px; letter-spacing: .01em; color: var(--ink);
+  }
+  .wordmark .org {
+    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); line-height: 1.7;
+  }
+  .nav { display: flex; flex-direction: column; gap: 1px; padding: 0 12px; }
+  .nav a {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 7px; text-decoration: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .nav a:hover { color: var(--ink-soft); background: var(--line-soft); }
+  .nav a.active { color: var(--ink); background: var(--card-2); }
+  .nav a.active::before { content: ""; width: 3px; height: 14px; border-radius: 2px; background: var(--vio); margin-left: -6px; }
+  .side .spacer { flex: 1; }
+  .user { margin: 0 12px; padding: 12px; border-top: 1px solid var(--line-soft); display: flex; gap: 10px; align-items: center; }
+  .user .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 10px; font-weight: 600; }
+  .user .who p:first-child { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .user .who p:last-child { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 1px; }
+
+  /* ── Main ───────────────────────────────────────────────────────────────── */
+  .main { padding: 30px 38px 64px; max-width: 1200px; min-width: 0; }
+
+  .briefing { display: flex; justify-content: space-between; gap: 36px; align-items: flex-start; }
+  .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
+  .kicker .today { color: var(--vio); }
+  h1.greeting { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -.01em; margin-top: 8px; color: var(--ink); }
+  h1.greeting em { font-style: italic; color: var(--vio); }
+
+  /* The digest is REPLACED on day one, not zeroed — no AI chip over an empty
+     ledger. A plain state line in the same slot, same rhythm. */
+  .daynote { margin-top: 12px; display: flex; gap: 9px; align-items: baseline; max-width: 580px; }
+  .daynote .state-chip {
+    flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--muted); background: var(--ghost);
+    border: 1px solid var(--line-soft); border-radius: 4px; padding: 3px 6px;
+  }
+  .daynote p { font-size: 13.5px; color: var(--ink-soft); font-style: italic; font-family: var(--serif); font-weight: 350; }
+
+  .head-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+  .sem-pill { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .sem-pill.on { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
+  .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .icon-btn svg { width: 15px; height: 15px; }
+  .add-btn { flex-shrink: 0; display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; }
+  .add-btn svg { stroke: var(--vio); width: 13px; height: 13px; }
+
+  /* Disabled affordances: present so the page's shape is legible, visibly
+     inert so nothing invites a dead click. */
+  .is-inert { opacity: .38; pointer-events: none; }
+
+  /* ── Tabs ───────────────────────────────────────────────────────────────── */
+  .tabs { margin-top: 22px; display: flex; gap: 4px; border-bottom: 1px solid var(--line);
+    overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: 0 0 auto; }
+  .tabs button { position: relative; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: none; border: 0; padding: 11px 12px; cursor: pointer; }
+  .tabs button.on { color: var(--ink); }
+  .tabs button.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--vio); }
+  .tabs button.dim { color: var(--faint); }
+
+  /* ── The setup card — the one live thing on the page ─────────────────────── */
+  .setup {
+    min-width: 0;
+    margin-top: 26px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+    box-shadow: var(--shadow); overflow: hidden;
+    display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  }
+  .setup-body { padding: 30px 32px 28px; border-right: 1px solid var(--line-soft); }
+  .setup-eyebrow { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--vio); }
+  .setup h2 { font-family: var(--serif); font-weight: 400; font-size: 25px; letter-spacing: -.01em; color: var(--ink); margin-top: 11px; line-height: 1.22; }
+  .setup h2 em { font-style: italic; color: var(--vio); }
+  .setup .lede { margin-top: 12px; font-size: 13.5px; line-height: 1.6; color: var(--ink-soft); max-width: 52ch; text-wrap: pretty; }
+  .setup .lede b { color: var(--ink); font-weight: 500; }
+
+  .field { margin-top: 24px; max-width: 340px; }
+  .field label { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .money { margin-top: 9px; display: flex; align-items: stretch;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); overflow: hidden;
+    transition: border-color .15s, box-shadow .15s; }
+  .money:focus-within { border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+  .money .sigil { display: grid; place-items: center; width: 42px; border-right: 1px solid var(--line-soft);
+    background: var(--card-2); font-family: var(--serif); font-size: 19px; color: var(--muted); }
+  .money input { flex: 1; border: 0; outline: 0; background: transparent; padding: 13px 14px;
+    font-family: var(--mono); font-size: 21px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink); }
+  .money input::placeholder { color: var(--faint); }
+  .field .hint { margin-top: 9px; font-size: 12px; line-height: 1.5; color: var(--faint); max-width: 44ch; text-wrap: pretty; }
+  .field .hint a { color: var(--vio); text-decoration: none; border-bottom: 1px solid var(--vio-bg); }
+
+  .setup-actions { margin-top: 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: #14120e; background: var(--vio); border: 1px solid var(--vio); border-radius: 9px; padding: 11px 18px;
+    transition: filter .15s, transform .12s; }
+  [data-theme="ivory"] .btn-primary { color: #faf7f0; }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:active { transform: translateY(1px); }
+  .btn-quiet { cursor: pointer; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); background: none; border: 0; border-bottom: 1px solid var(--line); padding: 4px 1px; }
+  .btn-quiet:hover { color: var(--ink-soft); border-color: var(--muted); }
+
+  /* Optional second step, collapsed. Streams are the separate Setup Gate
+     proposal — offered here, never blocking. */
+  .more { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line-soft); }
+  .more summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 9px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .more summary::-webkit-details-marker { display: none; }
+  .more summary .caret { transition: transform .18s; color: var(--faint); }
+  .more[open] summary .caret { transform: rotate(90deg); }
+  .more summary:hover { color: var(--ink-soft); }
+  .more .inner { margin-top: 15px; font-size: 12.5px; line-height: 1.6; color: var(--faint); max-width: 48ch; }
+  .streams { margin-top: 13px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .stream { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--ink-soft);
+    background: var(--card-2); border: 1px solid var(--line-soft); border-radius: 999px; padding: 5px 11px; }
+  .stream.pinned { color: var(--vio); background: var(--vio-bg); border-color: var(--vio-bg); }
+  .stream.add { color: var(--muted); border-style: dashed; cursor: pointer; }
+
+  /* ── Setup aside: what filling this in turns on ──────────────────────────── */
+  .setup-aside { padding: 30px 30px 28px; background: var(--paper-2); }
+  .aside-h { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .unlocks { margin-top: 17px; display: flex; flex-direction: column; gap: 3px; }
+  .unlock { display: flex; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+  .unlock:last-child { border-bottom: 0; }
+  .unlock .dot { flex-shrink: 0; margin-top: 5px; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ghost); border: 1px solid var(--line); }
+  .unlock .t { font-size: 12.8px; color: var(--ink-soft); font-weight: 500; }
+  .unlock .m { margin-top: 3px; font-size: 11.5px; line-height: 1.5; color: var(--faint); }
+
+  /* ── Simplified welcome (Scene A) ────────────────────────────────────────
+     One question, centered, no card chrome. The furniture that used to sit
+     beside it (the "what this turns on" list, the streams step) is either gone
+     or demoted below the fold — a first-time user should see a greeting, a
+     field and a button, and nothing they have to decide about. */
+  .welcome { max-width: 560px; margin: 0 auto; padding: 72px 0 96px; text-align: center; }
+  .welcome .hello { font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--vio); }
+  .welcome h1 { margin-top: 20px; font-family: var(--serif); font-weight: 400;
+    font-size: 40px; line-height: 1.18; letter-spacing: -.015em; color: var(--ink); text-wrap: balance; }
+  .welcome h1 em { font-style: italic; color: var(--vio); }
+  .welcome .sub { margin: 16px auto 0; font-size: 14.5px; line-height: 1.65;
+    color: var(--muted); max-width: 42ch; text-wrap: pretty; }
+
+  .welcome .ask { margin-top: 40px; }
+  .welcome .ask label { display: block; font-family: var(--mono); font-size: 9.5px;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .welcome .money { margin: 13px auto 0; max-width: 260px; padding-left: 4px; }
+  .welcome .money .sigil { width: auto; padding: 0 2px 0 14px; border-right: 0;
+    background: transparent; font-size: 21px; color: var(--muted); }
+  .welcome .money input { text-align: left; padding: 15px 14px 15px 6px; font-size: 22px; }
+  /* Focus tints the prefix too, so the two read as one control. */
+  .welcome .money:focus-within .sigil { color: var(--vio); }
+  .welcome .go { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 15px; }
+  .welcome .go .btn-primary { padding: 13px 26px; font-size: 10.5px; }
+  .welcome .skip { font-size: 12.5px; color: var(--faint); }
+  .welcome .skip a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .welcome .skip a:hover { color: var(--ink-soft); border-color: var(--muted); }
+
+  /* The reassurance that used to be a four-item list is now one quiet line. */
+  .welcome .after { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line-soft);
+    font-size: 12.5px; line-height: 1.7; color: var(--faint); text-wrap: pretty; }
+  .welcome .after b { color: var(--muted); font-weight: 500; }
+
+  /* ── Category setup (Scene B) ────────────────────────────────────────────
+     Backed by a REAL shipped table (TransactionCategory, 2026-08-08), so this
+     mock obeys its rules rather than inventing any:
+       · `slug` is what the ledger already stores and is IMMUTABLE — so editing
+         a category renames its `label` only, and the row keeps resolving every
+         past transaction. The UI must never imply the stored key changed.
+       · `builtin` = RESERVED, not "seeded". Only income/Dues and
+         expense/Reimbursement are reserved: renameable, never deletable,
+         never hideable — the app itself writes to those slugs.
+       · `hidden` archives a category off the picker while it still resolves
+         history. That is the correct verb for a category with transactions;
+         delete is only for one that never got used.
+       · Colors come from the per-book palettes (INCOME_PALETTE starts green,
+         EXPENSE_PALETTE starts clay) so two new streams never collide. */
+  .cats { max-width: 760px; margin: 0 auto; padding: 60px 0 96px; }
+  .cats .top { text-align: center; }
+  .cats .step { font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--vio); }
+  .cats h1 { margin-top: 18px; font-family: var(--serif); font-weight: 400;
+    font-size: 34px; line-height: 1.2; letter-spacing: -.015em; color: var(--ink); text-wrap: balance; }
+  .cats h1 em { font-style: italic; color: var(--vio); }
+  .cats .sub { margin: 14px auto 0; font-size: 14px; line-height: 1.65;
+    color: var(--muted); max-width: 52ch; text-wrap: pretty; }
+
+  .books { margin-top: 38px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px; align-items: stretch; }
+  .book { border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; }
+  .book > header { display: flex; align-items: baseline; justify-content: space-between;
+    padding: 14px 17px 12px; border-bottom: 1px solid var(--line-soft); }
+  .book > header h2 { font-family: var(--serif); font-weight: 500; font-size: 16px; color: var(--ink); }
+  .book > header .n { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--faint); }
+  .rows { flex: 1; padding: 8px 9px 9px; display: flex; flex-direction: column; gap: 1px; }
+  .rows .add-row { margin-top: auto; }
+
+  .cat { display: flex; align-items: center; gap: 10px; padding: 8px 8px; border-radius: 8px;
+    transition: background .13s; }
+  .cat:hover { background: var(--card-2); }
+  .cat .grip { color: var(--faint); opacity: .32; cursor: grab; flex-shrink: 0; transition: opacity .13s; }
+  .cat:hover .grip, .cat:focus-within .grip { opacity: 1; }
+  .cat .grip svg { width: 11px; height: 11px; display: block; }
+  .cat .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .cat .nm { font-size: 13px; color: var(--ink-soft); min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .cat .lock { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--faint); border: 1px solid var(--line-soft); border-radius: 4px; padding: 2px 5px; flex-shrink: 0; }
+  .cat .sp { flex: 1; }
+  .cat .acts { display: flex; gap: 2px; flex-shrink: 0; }
+  .cat .acts button { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 6px;
+    color: var(--faint); background: none; border: 0; cursor: pointer; transition: color .12s, background .12s; }
+  .cat:hover .acts button { color: var(--muted); }
+  .cat .acts button:hover { color: var(--ink); background: var(--line-soft); }
+  .cat .acts button.kill:hover { color: var(--rose); background: var(--rose-bg); }
+  .cat .acts button svg { width: 12px; height: 12px; }
+  .cat .acts button[disabled] { opacity: .3; cursor: not-allowed; }
+
+  /* Inline add — a row that becomes a field, so adding feels like typing the
+     next line of a list rather than opening a dialog. */
+  .add-row { display: flex; align-items: center; gap: 10px; margin: 3px 8px 0;
+    padding: 9px 0 0; border-top: 1px dashed var(--line-soft); }
+  .add-row .dot-pick { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; cursor: pointer; }
+  .add-row input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    font-family: var(--sans); font-size: 13px; color: var(--ink); padding: 3px 0; }
+  .add-row input::placeholder { color: var(--faint); }
+  .add-row .enter { font-family: var(--mono); font-size: 8.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--faint); border: 1px solid var(--line-soft);
+    border-radius: 4px; padding: 2px 6px; flex-shrink: 0; }
+
+  .cats .foot { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .cats .foot .btn-primary { padding: 13px 26px; font-size: 10.5px; }
+  .cats .foot .skip { font-size: 12.5px; color: var(--faint); }
+  .cats .foot .skip a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+  .cats .foot .skip a:hover { color: var(--ink-soft); border-color: var(--muted); }
+  .cats .note { margin: 26px auto 0; padding-top: 18px; border-top: 1px solid var(--line-soft);
+    font-size: 12.3px; line-height: 1.65; color: var(--faint); text-align: center;
+    max-width: 60ch; text-wrap: pretty; }
+  .cats .note b { color: var(--muted); font-weight: 500; }
+
+  @media (max-width: 760px) { .books { grid-template-columns: minmax(0, 1fr); } }
+
+  /* ── Uncharged instrument panel ──────────────────────────────────────────── */
+  .panel-note { margin-top: 34px; display: flex; align-items: center; gap: 12px; }
+  .panel-note .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+  .panel-note .rule { flex: 1; height: 1px; background: var(--line-soft); }
+
+  .glance { margin-top: 15px; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+  .measure { padding: 16px 18px 14px; border-right: 1px solid var(--line-soft); position: relative; }
+  .measure:last-child { border-right: none; }
+  .measure .k { font-family: var(--mono); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  /* Em-dash, never $0 — a zero is a measurement claim. */
+  .measure .v { font-family: var(--mono); font-size: 23px; font-weight: 500; letter-spacing: -.02em;
+    color: var(--faint); margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .measure .note { font-size: 11px; color: var(--faint); margin-top: 3px; overflow-wrap: anywhere; }
+  .measure .note em { font-style: normal; color: var(--muted); }
+
+  .hero { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+  .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
+  .card-h h3 { font-family: var(--serif); font-weight: 500; font-size: 16.5px; color: var(--ink-soft); }
+  .card-h .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--faint); }
+
+  .ghost-stage { flex: 1; position: relative; display: grid; place-items: center; padding: 26px 20px 30px; min-height: 236px; }
+  .ghost-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ghost-cap { position: relative; text-align: center; max-width: 30ch; }
+  .ring-stack { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .ring-stack .ring { position: relative; width: 116px; height: 116px; flex-shrink: 0; }
+  /* Caption drops clear of the flat line so neither sits on the other. */
+  .ghost-cap-low { align-self: end; margin-bottom: 4px; }
+  .ghost-stage:has(.ghost-cap-low) { align-items: end; }
+  .ghost-cap .t { font-family: var(--serif); font-size: 14.5px; color: var(--ink-soft); }
+  .ghost-cap .m { margin-top: 6px; font-size: 11.8px; line-height: 1.55; color: var(--faint); }
+
+  .lower { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .mini-stage { padding: 22px 18px 24px; display: flex; flex-direction: column; gap: 11px; flex: 1; }
+  .ghost-row { display: flex; align-items: center; gap: 11px; }
+  .ghost-row .pip { width: 26px; height: 26px; border-radius: 50%; background: var(--ghost); flex-shrink: 0; }
+  .ghost-row .bars { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .ghost-row .bar { height: 7px; border-radius: 3px; background: var(--ghost); }
+  .mini-cap { margin-top: auto; padding-top: 13px; border-top: 1px solid var(--line-soft); font-size: 11.8px; line-height: 1.55; color: var(--faint); }
+  .mini-cap b { color: var(--muted); font-weight: 500; }
+
+  /* ── Scene chrome (mock-only) ────────────────────────────────────────────── */
+  .scene-bar { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 11px 38px; background: var(--paper-2); border-bottom: 1px solid var(--line); }
+  .scene-bar .sb-t { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-right: 4px; }
+  .scene-bar button { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; cursor: pointer; }
+  .scene-bar button:hover { color: var(--ink-soft); border-color: var(--muted); }
+  .scene-bar button.on { color: var(--vio); border-color: var(--vio-bg); background: var(--vio-bg); }
+  .scene-bar .sb-sp { flex: 1; }
+  .scene { display: none; }
+  .scene.on { display: block; }
+  .rationale { margin: 30px 38px 0; max-width: 1124px; border: 1px solid var(--line-soft); border-left: 2px solid var(--vio-bg);
+    border-radius: 0 10px 10px 0; background: var(--paper-2); padding: 15px 20px; }
+  .rationale p { font-size: 12.2px; line-height: 1.65; color: var(--faint); }
+  .rationale p + p { margin-top: 8px; }
+  .rationale b { color: var(--ink-soft); font-weight: 500; }
+  .rationale code { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* ── Scene C: stated-but-unstarted ───────────────────────────────────────── */
+  .real-num { color: var(--ink) !important; }
+  .banner { margin-top: 26px; display: flex; align-items: flex-start; gap: 13px;
+    border: 1px solid var(--line); border-left: 2px solid var(--vio); border-radius: 0 12px 12px 0;
+    background: var(--card); box-shadow: var(--shadow); padding: 17px 20px; }
+  .banner .bglyph { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--vio-bg);
+    display: grid; place-items: center; color: var(--vio); }
+  .banner .bglyph svg { width: 15px; height: 15px; }
+  .banner .btxt h4 { font-family: var(--serif); font-size: 15.5px; font-weight: 500; color: var(--ink); }
+  .banner .btxt p { margin-top: 5px; font-size: 12.5px; line-height: 1.6; color: var(--faint); max-width: 62ch; }
+  .banner .bact { margin-left: auto; flex-shrink: 0; align-self: center; }
+
+  /* ── Scene D: member lock ────────────────────────────────────────────────── */
+  .locked { margin-top: 30px; border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+    box-shadow: var(--shadow); padding: 54px 40px 58px; text-align: center; }
+  .locked .lglyph { width: 46px; height: 46px; margin: 0 auto; border-radius: 12px; background: var(--card-2);
+    border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); }
+  .locked .lglyph svg { width: 20px; height: 20px; }
+  .locked h2 { margin-top: 20px; font-family: var(--serif); font-weight: 400; font-size: 24px; color: var(--ink); }
+  .locked p { margin: 11px auto 0; font-size: 13px; line-height: 1.65; color: var(--faint); max-width: 48ch; }
+  .locked .who-can { margin-top: 22px; display: inline-flex; align-items: center; gap: 10px;
+    border: 1px solid var(--line-soft); border-radius: 999px; background: var(--paper-2); padding: 7px 15px 7px 8px; }
+  .locked .who-can .av { width: 24px; height: 24px; border-radius: 50%; background: var(--vio-bg); color: var(--vio);
+    display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; }
+  .locked .who-can span { font-size: 12.3px; color: var(--ink-soft); }
+  .locked .who-can b { font-weight: 500; color: var(--ink); }
+
+  @media (max-width: 1080px) {
+    .setup { grid-template-columns: minmax(0, 1fr); }
+    .setup-body { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+    .hero, .lower { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); }
+    .side { display: none; }
+    .main { padding: 24px 18px 48px; }
+    .scene-bar, .rationale { padding-left: 18px; padding-right: 18px; margin-left: 0; margin-right: 0; }
+    .glance { grid-auto-flow: row; }
+    .measure { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+    .briefing { flex-direction: column; gap: 18px; }
+    .welcome { padding: 44px 0 64px; }
+    .welcome h1 { font-size: 31px; }
+    .tabs button { padding: 11px 9px; font-size: 10px; }
+    .scene-bar { padding: 10px 14px; }
+    .scene-bar button { padding: 5px 10px; font-size: 9.5px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="scene-bar">
+  <span class="sb-t">Scene</span>
+  <button class="on" data-scene="a">A · Unset (officer)</button>
+  <button data-scene="b">B · Mid-entry</button>
+  <button data-scene="c">C · Stated, unstarted</button>
+  <button data-scene="d">D · Member lock</button>
+  <button data-scene="today">Today (for contrast)</button>
+  <span class="sb-sp"></span>
+  <button id="themeBtn">Dusk / Ivory · T</button>
+</div>
+
+<!-- ═══ SCENE A — UNSET, OFFICER ═══════════════════════════════════════════ -->
+<section class="scene on" id="scene-a">
+<div class="rationale">
+  <p><b>Scene A · the first frame.</b> A greeting, one question, one button. Nothing else — no tabs to a page that has no content, no four-item feature list, no zeroed instruments. A first-time user should have exactly one thing to do and no decisions to make.</p>
+  <p>The question is the <b>opening balance</b> because <code>app/[slug]/page.tsx:1322</code> already treats a set <code>openingBalance</code> as proof the books are open, independent of transaction count — and because it's the only number a new treasurer reliably knows: whatever is in the account right now. Everything the old version explained up front ("what this turns on", naming category streams) either waits until after, or is one quiet line at the bottom.</p>
+</div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Brothers</a>
+      <a href="#">Events</a>
+      <a href="#">Timeline</a>
+      <a href="#" class="active">Treasury</a>
+      <a href="#">Documents</a>
+      <a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who"><p>Thalha Thabish</p><p>Treasurer</p></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="welcome">
+      <p class="hello">Treasury &ensp;·&ensp; Spring 2026</p>
+      <h1>Let's open the <em>books</em>.</h1>
+      <p class="sub">Start with what's in the chapter account today. Everything after this is just logging what comes in and what goes out.</p>
+
+      <div class="ask">
+        <label for="ob">Opening balance</label>
+        <div class="money">
+          <span class="sigil">$</span>
+          <input id="ob" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        </div>
+        <div class="go">
+          <button class="btn-primary" data-scene-jump="b">
+            Open the books
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+          </button>
+          <p class="skip">Not sure? <a href="#" data-scene-jump="b">Start from zero</a> — you can fix it later.</p>
+        </div>
+      </div>
+
+      <p class="after">Next you'll name your income and expense categories — then you can log transactions, assign <b>dues</b>, approve <b>reimbursements</b>, and export a semester report for the transition binder.</p>
+    </div>
+  </main>
+</div>
+</section>
+
+<!-- ═══ SCENE B — MID-ENTRY ════════════════════════════════════════════════ -->
+<section class="scene" id="scene-b">
+<div class="rationale">
+  <p><b>Scene B · name the money.</b> The second (and last) step: what the chapter's income and expenses are actually called. Two books side by side, one row per category, and an inline add that behaves like typing the next line of a list — no dialog, no color-picker ceremony. Reorder by dragging; the order is the picker order and the donut's legend order.</p>
+  <p>This is backed by a <b>real shipped table</b> — <code>TransactionCategory</code>, 2026-08-08 — so the mock obeys its rules instead of inventing new ones. <code>slug</code> is the string the ledger already stores and is <b>immutable</b>, so the pencil renames the <code>label</code> only and every past transaction keeps resolving. <code>builtin</code> means <b>reserved</b>, not "seeded": only <code>Dues</code> and <code>Reimbursement</code> carry it, because the app writes to those slugs itself — renameable, never deletable. And a used category is <b>archived</b> (<code>hidden</code>), not deleted, so its history still resolves; delete is only offered for one that never got used.</p>
+  <p>Seeds shown are the real <code>DEFAULT_CATEGORY_SEEDS</code> with dusk hexes from the per-book palettes (income starts green, expenses start clay) so two new streams never land the same dot.</p>
+</div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a><a href="#">Brothers</a><a href="#">Events</a>
+      <a href="#">Timeline</a><a href="#" class="active">Treasury</a>
+      <a href="#">Documents</a><a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who"><p>Thalha Thabish</p><p>Treasurer</p></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="cats">
+      <div class="top">
+        <p class="step">Step 2 of 2</p>
+        <h1>What does your money <em>get called</em>?</h1>
+        <p class="sub">Every transaction files under one of these. We've started you off with a few — rename them to match how your chapter actually talks, and add your own.</p>
+      </div>
+
+      <div class="books">
+        <section class="book">
+          <header><h2>Money in</h2><span class="n">3 categories</span></header>
+          <div class="rows">
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#86b988"></span><span class="nm">Dues</span><span class="lock">Reserved</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="" title="Reserved — can't be deleted" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#5fbdb0"></span><span class="nm">Fundraiser</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="kill" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#7dc4e8"></span><span class="nm">Donations</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="kill" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+            <div class="add-row">
+              <span class="dot-pick" style="background:#7c9fd4" title="Next color"></span>
+              <input placeholder="Add an income category…" aria-label="Add an income category">
+              <span class="enter">↵</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="book">
+          <header><h2>Money out</h2><span class="n">4 categories</span></header>
+          <div class="rows">
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#e0796b"></span><span class="nm">Events</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="kill" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#ddb36a"></span><span class="nm">Equipment</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="kill" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#d98ba3"></span><span class="nm">Operations</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="kill" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+          <div class="cat"><span class="grip"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span><span class="dot" style="background:#c98bd9"></span><span class="nm">Reimbursement</span><span class="lock">Reserved</span><span class="sp"></span><div class="acts"><button title="Rename"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button><button title="Archive"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg></button><button class="" title="Reserved — can't be deleted" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M10 7V5.5A1.5 1.5 0 0111.5 4h1A1.5 1.5 0 0114 5.5V7m-7 0l.8 12.1A1.5 1.5 0 009.3 20.5h5.4a1.5 1.5 0 001.5-1.4L17 7"/></svg></button></div></div>
+            <div class="add-row">
+              <span class="dot-pick" style="background:#a78bfa" title="Next color"></span>
+              <input placeholder="Add an expense category…" aria-label="Add an expense category">
+              <span class="enter">↵</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="foot">
+        <button class="btn-primary" data-scene-jump="c">
+          Done — take me to the ledger
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+        </button>
+        <p class="skip">Happy with these? <a href="#" data-scene-jump="c">Skip — the defaults are fine</a></p>
+      </div>
+
+      <p class="note">You can rename, reorder, archive or add categories any time from <b>Settings → Treasury</b>. <b>Dues</b> and <b>Reimbursement</b> can be renamed but not removed — the app posts to them automatically.</p>
+    </div>
+  </main>
+</div>
+</section>
+
+<!-- ═══ SCENE C — STATED BUT UNSTARTED ═════════════════════════════════════ -->
+<section class="scene" id="scene-c">
+<div class="rationale">
+  <p><b>Scene C · the second kind of nothing.</b> The books are open — there is a real balance, typed by a human — but no transactions exist yet. This is the state the current page can't distinguish from "broke", and it's the one a chapter sits in for days.</p>
+  <p>Balance is now a <b>real number in full ink</b>; Income and Expenses stay em-dashes, because nothing has moved. No praise, no confetti — the banner just names the next action. Note the tabs are live now and <code>New txn</code> is enabled.</p>
+</div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a><a href="#">Brothers</a><a href="#">Events</a>
+      <a href="#">Timeline</a><a href="#" class="active">Treasury</a>
+      <a href="#">Documents</a><a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who"><p>Thalha Thabish</p><p>Treasurer</p></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Sat · Jun 13</span> &ensp;·&ensp; Treasury &ensp;·&ensp; Spring 2026</p>
+        <h1 class="greeting">The <em>ledger</em>.</h1>
+        <div class="daynote">
+          <span class="state-chip">No entries</span>
+          <p>Books opened at $3,240.00. Nothing has moved yet — the first transaction you log starts the line.</p>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="sem-pill on">SPR26</button>
+        <button class="icon-btn" title="Export CSV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        </button>
+        <button class="add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New txn
+        </button>
+      </div>
+    </section>
+
+    <nav class="tabs">
+      <button class="on">Overview</button>
+      <button>Transactions</button>
+      <button>Reports</button>
+      <button>Reimbursements</button>
+    </nav>
+
+    <div class="banner">
+      <span class="bglyph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      <div class="btxt">
+        <h4>Log your first transaction</h4>
+        <p>Dues collected, a venue deposit, a fundraiser payout — anything that has already moved this term. Two or three entries is enough for the charts and the breakdown to become useful.</p>
+      </div>
+      <div class="bact"><button class="btn-primary">New txn</button></div>
+    </div>
+
+    <div class="glance">
+      <div class="measure">
+        <p class="k">Balance</p>
+        <p class="v real-num">$3,240.00</p>
+        <p class="note">opening balance · SPR26</p>
+      </div>
+      <div class="measure"><p class="k">Income</p><p class="v">—</p><p class="note">no deposits logged</p></div>
+      <div class="measure"><p class="k">Expenses</p><p class="v">—</p><p class="note">no expenses logged</p></div>
+      <div class="measure">
+        <p class="k">Dues outstanding</p>
+        <p class="v">—</p>
+        <p class="note"><em>18 brothers</em> · none assigned</p>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="card">
+        <div class="card-h"><h3>Balance over time</h3><span class="sub">SPR26</span></div>
+        <div class="ghost-stage">
+          <!-- One real anchor point at the opening balance, and a dashed flat
+               line forward. Honest: the balance HAS been this since it was
+               stated, and no direction is implied. -->
+          <svg viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
+            <line x1="0" y1="150" x2="400" y2="150" stroke="var(--line-soft)" stroke-width="1" stroke-dasharray="3 6"/>
+            <line x1="0" y1="50" x2="400" y2="50" stroke="var(--line-soft)" stroke-width="1" stroke-dasharray="3 6"/>
+            <line x1="26" y1="100" x2="392" y2="100" stroke="var(--vio)" stroke-width="1.5" stroke-dasharray="2 7" opacity=".55"/>
+          </svg>
+          <svg class="anchor-dot" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden="true">
+            <ellipse cx="26" cy="100" rx="2.2" ry="4.4" fill="var(--vio)"/>
+          </svg>
+          <div class="ghost-cap ghost-cap-low">
+            <p class="t">$3,240.00 and holding.</p>
+            <p class="m">The line stays flat until the first entry — it isn't drawing a trend yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3>Breakdown</h3><span class="sub">Expenses</span></div>
+        <div class="ghost-stage">
+          <div class="ring-stack">
+            <svg class="ring" viewBox="0 0 140 140" aria-hidden="true">
+              <circle cx="70" cy="70" r="52" fill="none" stroke="var(--line)" stroke-width="1.25"/>
+              <circle cx="70" cy="70" r="37" fill="none" stroke="var(--line)" stroke-width="1.25"/>
+            </svg>
+            <div class="ghost-cap">
+              <p class="t">No slices yet.</p>
+              <p class="m">Nine streams are set up and waiting — the first expense fills one in.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</section>
+
+<!-- ═══ SCENE D — MEMBER LOCK ══════════════════════════════════════════════ -->
+<section class="scene" id="scene-d">
+<div class="rationale">
+  <p><b>Scene D · the other 17 people.</b> A member without <code>MANAGE_TREASURY</code> who clicks Treasury on day one. They must not see a form they can't submit, and — more importantly — must not see <code>$0</code> and conclude the chapter is broke.</p>
+  <p>So: no instruments at all, a plain statement of the state, and the name of the person who can change it. Naming the treasurer turns a dead end into a nudge that happens over text message rather than in the product.</p>
+</div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a><a href="#">Brothers</a><a href="#">Events</a>
+      <a href="#">Timeline</a><a href="#" class="active">Treasury</a>
+      <a href="#">Documents</a><a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar" style="background:var(--ghost);color:var(--muted)">MR</div>
+      <div class="who"><p>Marcus Reyes</p><p>Member</p></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Sat · Jun 13</span> &ensp;·&ensp; Treasury &ensp;·&ensp; Spring 2026</p>
+        <h1 class="greeting">The <em>ledger</em>.</h1>
+      </div>
+    </section>
+
+    <div class="locked">
+      <span class="lglyph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10" width="16" height="11" rx="2.4"/><path d="M8 10V7a4 4 0 018 0v3"/>
+        </svg>
+      </span>
+      <h2>The books aren't open yet.</h2>
+      <p>Your chapter hasn't started recording finances in ChaptOS. Once the treasurer opens the books, your dues balance and the chapter's ledger show up here.</p>
+      <div class="who-can">
+        <span class="av">TT</span>
+        <span><b>Thalha Thabish</b> · Treasurer can open them</span>
+      </div>
+    </div>
+  </main>
+</div>
+</section>
+
+<!-- ═══ TODAY — FOR CONTRAST ═══════════════════════════════════════════════ -->
+<section class="scene" id="scene-today">
+<div class="rationale">
+  <p><b>What ships today</b>, reconstructed from <code>app/[slug]/treasury/page.tsx</code> for side-by-side comparison. Five zeroes and four different phrasings of nothing, arranged like a cockpit — plus the hardcoded rising sparkline on the Balance measure (<code>page.tsx:1173</code>), which draws money going up for a chapter that has none.</p>
+</div>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">
+      <div class="product">ChaptOS</div>
+      <div class="org">Lambda Phi Epsilon<br>Beta Chapter</div>
+    </div>
+    <nav class="nav">
+      <a href="#">Dashboard</a><a href="#">Brothers</a><a href="#">Events</a>
+      <a href="#">Timeline</a><a href="#" class="active">Treasury</a>
+      <a href="#">Documents</a><a href="#">Settings</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="user">
+      <div class="avatar">TT</div>
+      <div class="who"><p>Thalha Thabish</p><p>Treasurer</p></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section class="briefing">
+      <div>
+        <p class="kicker"><span class="today">Sat · Jun 13</span> &ensp;·&ensp; Treasury &ensp;·&ensp; Spring 2026</p>
+        <h1 class="greeting">The <em>ledger</em>.</h1>
+        <div class="daynote">
+          <span class="state-chip" style="color:var(--vio);background:var(--vio-bg);border-color:var(--vio-bg)">AI</span>
+          <p>$0 in the books. No transactions this semester.</p>
+        </div>
+      </div>
+      <div class="head-actions">
+        <button class="sem-pill on">SPR26</button>
+        <button class="add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New txn
+        </button>
+      </div>
+    </section>
+
+    <nav class="tabs">
+      <button class="on">Overview</button><button>Transactions</button>
+      <button>Reports</button><button>Reimbursements</button>
+    </nav>
+
+    <div class="glance" style="margin-top:22px">
+      <div class="measure">
+        <p class="k">Balance</p>
+        <p class="v" style="color:var(--ink)">$0</p>
+        <p class="note">projected $0 · SPR26</p>
+        <svg style="position:absolute;right:14px;top:16px;opacity:.8" width="48" height="20" viewBox="0 0 48 20">
+          <polyline points="0,16 8,15 16,12 24,13 32,8 40,6 48,3" fill="none" stroke="var(--vio)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="measure"><p class="k">Income</p><p class="v" style="color:var(--ink)">$0</p><p class="note">0 transactions</p></div>
+      <div class="measure"><p class="k">Expenses</p><p class="v" style="color:var(--ink)">$0</p><p class="note">0 transactions</p></div>
+      <div class="measure"><p class="k">Dues outstanding</p><p class="v" style="color:var(--ink)">$0</p><p class="note">all settled</p></div>
+    </div>
+
+    <div class="hero">
+      <div class="card">
+        <div class="card-h"><h3 style="color:var(--ink)">Treasury Balance</h3><span class="sub">2W 1M 3M YTD ALL</span></div>
+        <div style="padding:20px 22px 8px">
+          <p style="font-family:var(--serif);font-size:46px;line-height:1;color:var(--ink)">$0</p>
+          <p style="margin-top:9px;font-size:12px;color:var(--faint)">SPR26 · Projected <b style="color:var(--ink-soft);font-weight:500">$0</b></p>
+        </div>
+        <div style="margin:14px 22px 4px;display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line-soft);border-radius:10px;background:var(--paper-2)">
+          <div style="padding:11px 16px">
+            <p style="font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Income</p>
+            <p style="font-family:var(--mono);font-size:17px;color:var(--ok);margin-top:5px">$0</p>
+            <p style="font-size:11px;color:var(--faint);margin-top:2px">0 txns</p>
+          </div>
+          <div style="padding:11px 16px;border-left:1px solid var(--line-soft)">
+            <p style="font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Expenses</p>
+            <p style="font-family:var(--mono);font-size:17px;color:var(--rose);margin-top:5px">$0</p>
+            <p style="font-size:11px;color:var(--faint);margin-top:2px">0 txns</p>
+          </div>
+        </div>
+        <div style="height:150px;margin:16px 22px 22px;border:1px solid var(--line-soft);border-radius:8px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h3 style="color:var(--ink)">Breakdown</h3><span class="sub">Expenses</span></div>
+        <div style="flex:1;display:grid;place-items:center;min-height:236px;font-size:12.5px;color:var(--faint)">No expense data</div>
+      </div>
+    </div>
+
+    <div class="lower">
+      <div class="card">
+        <div class="card-h"><h3 style="color:var(--ink)">Brothers with Dues</h3><span class="sub">0 owing · $0</span></div>
+        <div style="padding:42px 18px;text-align:center;font-size:12.5px;color:var(--faint)">No brothers yet</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3 style="color:var(--ink)">Upcoming</h3><span class="sub">Events &amp; txns</span></div>
+        <div style="padding:42px 18px;text-align:center;font-size:12.5px;color:var(--faint)">No upcoming treasury items</div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3 style="color:var(--ink)">Transaction Log</h3><span class="sub">All</span></div>
+        <div style="padding:42px 18px;text-align:center;font-size:12.5px;color:var(--faint)">No transactions for this semester</div>
+      </div>
+    </div>
+  </main>
+</div>
+</section>
+
+<script>
+  var scenes = { a: "scene-a", b: "scene-b", c: "scene-c", d: "scene-d", today: "scene-today" };
+  function show(key) {
+    Object.keys(scenes).forEach(function (k) {
+      document.getElementById(scenes[k]).classList.toggle("on", k === key);
+    });
+    document.querySelectorAll(".scene-bar button[data-scene]").forEach(function (b) {
+      b.classList.toggle("on", b.dataset.scene === key);
+    });
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll(".scene-bar button[data-scene]").forEach(function (b) {
+    b.addEventListener("click", function () { show(b.dataset.scene); });
+  });
+  document.querySelectorAll("[data-scene-jump]").forEach(function (el) {
+    el.addEventListener("click", function (e) { e.preventDefault(); show(el.dataset.sceneJump); });
+  });
+  document.getElementById("themeBtn").addEventListener("click", function () {
+    var r = document.documentElement;
+    r.dataset.theme = r.dataset.theme === "dusk" ? "ivory" : "dusk";
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "t" || e.key === "T") {
+      var r = document.documentElement;
+      r.dataset.theme = r.dataset.theme === "dusk" ? "ivory" : "dusk";
+    }
+    var map = { "1": "a", "2": "b", "3": "c", "4": "d", "5": "today" };
+    if (map[e.key]) show(map[e.key]);
+  });
+</script>
+</body>
+</html>

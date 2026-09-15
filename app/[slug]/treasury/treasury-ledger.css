@@ -447,6 +447,100 @@ header.dash-toolbar .tr-crumb {
   cursor: pointer; text-decoration: underline; text-underline-offset: 3px; transition: color .14s; padding: 0; }
 .dash .tr-reimb-archive-toggle:hover { color: var(--ink); }
 
+/* ── First entry — books open, nothing logged ─────────────────────────────────
+   The state the page previously could not tell apart from "broke". Everything
+   here substitutes geometry that makes no measurement claim for instruments that
+   would otherwise read $0. A zero is an assertion about money someone counted;
+   these are visibly uncharged instead. */
+
+/* The banner names the next action. No praise and no celebration — an empty
+   ledger is not an achievement, it's a to-do. */
+.dash .tr-first-entry { margin-top: 22px; display: flex; align-items: flex-start; gap: 13px;
+  border: 1px solid var(--line); border-left: 2px solid var(--vio); border-radius: 0 12px 12px 0;
+  background: var(--card); box-shadow: var(--shadow); padding: 17px 20px; }
+.dash .tr-first-entry .bglyph { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
+  background: var(--vio-bg); display: grid; place-items: center; color: var(--vio); }
+.dash .tr-first-entry .bglyph svg { width: 15px; height: 15px; }
+.dash .tr-first-entry .btxt h4 { font-family: var(--serif); font-size: 15.5px; font-weight: 500; color: var(--ink); }
+.dash .tr-first-entry .btxt p { margin-top: 5px; font-size: 12.5px; line-height: 1.6; color: var(--faint);
+  max-width: 62ch; text-wrap: pretty; }
+.dash .tr-first-entry .bact { margin-left: auto; flex-shrink: 0; align-self: center; }
+
+/* The state chip that stands in for the AI badge on an unstarted ledger. Same
+   metrics as .ai-chip, in neutral ink: this line states a fact about the books
+   rather than reporting an analysis of them. */
+.dash .tr-state-chip { flex-shrink: 0; font-family: var(--mono); font-size: 8.5px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--muted); background: var(--card-2);
+  border: 1px solid var(--line-soft); border-radius: 4px; padding: 2px 5px; transform: translateY(-1px); }
+
+/* Every uncharged reading on the page takes the same tint, matching
+   .measure .v.unset in dashboard-ledger.css, so an absence reads identically
+   whichever instrument it appears in. */
+.dash .tr-kpi .v.unset,
+.dash .tr-rep .v.unset,
+.dash .tr-log-total.unset { color: var(--faint); }
+
+/* Shared stage for both uncharged instruments. */
+.dash .tr-ghost-stage { flex: 1; position: relative; display: grid; place-items: center;
+  padding: 26px 20px 30px; min-height: 236px; }
+/* Direct children only: the flat-line backdrop and its anchor fill the stage.
+   Scoped with `>` because the ring SVG is nested inside .tr-ring-stack and must
+   keep its own 116px box — a descendant selector stretches it to the full card. */
+.dash .tr-ghost-stage > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dash .tr-ghost-cap { position: relative; text-align: center; max-width: 30ch; }
+.dash .tr-ghost-cap .t { font-family: var(--serif); font-size: 14.5px; color: var(--ink-soft); }
+.dash .tr-ghost-cap .m { margin-top: 6px; font-size: 11.8px; line-height: 1.55; color: var(--faint); }
+
+/* The caption drops clear of the flat line so neither sits on top of the other,
+   and carries the card's own background so the dashed gridline behind it breaks
+   around the text instead of striking through it. */
+.dash .tr-ghost-stage-low { align-items: end; }
+.dash .tr-ghost-stage-low .tr-ghost-cap { align-self: end; margin-bottom: 4px;
+  background: var(--card); padding: 6px 14px; border-radius: 8px; }
+
+/* The anchor point sits where the flat line begins — 26/400 across the stage,
+   vertically centred on the line at 100/200. Positioned in real pixels rather
+   than drawn inside the stretched viewBox, which would deform it into an
+   ellipse at any card width but one. */
+.dash .tr-anchor-dot { position: absolute; left: 6.5%; top: 50%; width: 5px; height: 5px;
+  margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--vio); }
+
+.dash .tr-ring-stack { position: relative; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.dash .tr-ring-stack .tr-ring { position: relative; width: 116px; height: 116px; flex-shrink: 0; }
+
+@media (max-width: 620px) {
+  .dash .tr-first-entry { flex-wrap: wrap; }
+  .dash .tr-first-entry .bact { margin-left: 0; width: 100%; }
+  .dash .tr-first-entry .bact .tr-add { width: 100%; justify-content: center; }
+}
+
+/* ── Member lock — the books aren't open yet ──────────────────────────────────
+   Shown to a viewer WITHOUT MANAGE_TREASURY when no opening balance has been
+   set. Deliberately carries no instruments: the alternative is a cockpit of
+   $0s, and a member who reads "$0.00 balance" concludes the chapter is broke
+   rather than that nobody has started the books. Naming who can open them turns
+   a dead end into a nudge that happens over text rather than in the product. */
+/* Capped and centred rather than full-bleed: the card holds one sentence, and
+   the page runs to 1800px on an ultrawide, where a stretched panel around 48ch
+   of centred text reads as a layout that failed to load. */
+.dash .tr-locked { margin: 30px auto 0; max-width: 760px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--card); box-shadow: var(--shadow); padding: 54px 40px 58px; text-align: center; }
+.dash .tr-locked .lglyph { width: 46px; height: 46px; margin: 0 auto; border-radius: 12px;
+  background: var(--card-2); border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); }
+.dash .tr-locked .lglyph svg { width: 20px; height: 20px; }
+.dash .tr-locked h2 { margin-top: 20px; font-family: var(--serif); font-weight: 400; font-size: 24px; color: var(--ink); }
+.dash .tr-locked p { margin: 11px auto 0; font-size: 13px; line-height: 1.65; color: var(--faint); max-width: 48ch; }
+.dash .tr-locked .who-can { margin-top: 22px; display: inline-flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line-soft); border-radius: 999px; background: var(--paper-2); padding: 7px 15px 7px 8px; }
+.dash .tr-locked .who-can .av { width: 24px; height: 24px; border-radius: 50%; background: var(--vio-bg);
+  color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; }
+.dash .tr-locked .who-can span { font-size: 12.3px; color: var(--ink-soft); }
+.dash .tr-locked .who-can b { font-weight: 500; color: var(--ink); }
+
+@media (max-width: 560px) {
+  .dash .tr-locked { padding: 40px 20px 44px; }
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 @media (max-width: 980px) {
   .dash .tr-hero, .dash .tr-lower { grid-template-columns: 1fr; }
