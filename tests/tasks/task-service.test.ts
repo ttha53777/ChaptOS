@@ -14,7 +14,6 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
-import { prisma } from "@/lib/prisma";
 import { createTaskInput } from "@/lib/validation/task";
 import {
   createTask,
@@ -421,7 +420,7 @@ describe("emit is best-effort (post-commit)", () => {
     const { org, admin, adminCtx } = await seedOrg();
     // emit() runs after the transaction commits and swallows its own errors, so a
     // failing telemetry insert must not surface or undo the created task.
-    const spy = vi.spyOn(prisma.operationalEvent, "create").mockRejectedValueOnce(new Error("boom"));
+    const spy = vi.spyOn(adminCtx.db.operationalEvent, "create").mockRejectedValueOnce(new Error("boom"));
 
     const t = await createTask(adminCtx, { title: "Survives", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] });
     expect(t.id).toBeGreaterThan(0);

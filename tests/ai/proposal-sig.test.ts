@@ -71,7 +71,9 @@ describe("sign + verify", () => {
     const bumped = JSON.parse(JSON.stringify(b)) as { payload: { amount: number } };
     bumped.payload.amount = 9999;
     expect(verifyProposalBlob(bumped as unknown as Record<string, unknown>, sig)).toBe(false);
-    expect(verifyProposalBlob(b, `${sig!.slice(0, -1)}0`)).toBe(false);
+    // Always change the nibble; a real signature already ends in 0 about 1/16
+    // of the time, which made the previous test randomly verify the original.
+    expect(verifyProposalBlob(b, `${sig!.slice(0, -1)}${sig!.endsWith("0") ? "1" : "0"}`)).toBe(false);
     expect(verifyProposalBlob(b, "")).toBe(false);
     expect(verifyProposalBlob(b, "not-hex")).toBe(false);
   });
