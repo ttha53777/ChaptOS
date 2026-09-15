@@ -23,6 +23,7 @@
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../app/generated/prisma/client";
+import { readFileSync } from "node:fs";
 
 const APP_DATABASE_URL =
   process.env.TEST_APP_DATABASE_URL ??
@@ -120,10 +121,12 @@ export async function applyEnforcingRls(): Promise<void> {
   await testExec(`DROP POLICY IF EXISTS allow_all ON "Organization";`);
   await testExec(`DROP POLICY IF EXISTS org_isolation ON "Organization";`);
   await testExec(`CREATE POLICY org_isolation ON "Organization" USING ("id" = ${orgVar});`);
+  await testExec(readFileSync(new URL("../../prisma/migrations/20260914000000_shared_identity_roster_read/migration.sql", import.meta.url), "utf8"));
 }
 
 /** Remove enforcing RLS (restore permissive allow_all). Idempotent. */
 export async function dropEnforcingRls(): Promise<void> {
+  await testExec('DROP POLICY IF EXISTS roster_identity_read ON "Brother";');
   const all = [...ORG_COLUMN_TABLES, ...RELATION_SCOPED.map(r => r.table), "Organization"];
   for (const tbl of all) {
     await testExec(`DROP POLICY IF EXISTS org_isolation ON "${tbl}";`);
