@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { prisma } from "@/lib/prisma";
+import { prismaPrivileged } from "@/lib/prisma-privileged";
 import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
 
 export async function GET(request: NextRequest) {
@@ -61,7 +61,10 @@ export async function GET(request: NextRequest) {
     return redirectTo(buildUrl(origin, "/login", orgSlug, "error=auth"));
   }
 
-  const brother = await prisma.brother.findUnique({
+  // Auth bootstrap has no org context yet. Scope the privileged lookup to
+  // the verified account, then gate access
+  // using its memberships. The ordinary RLS client can hide this identity.
+  const brother = await prismaPrivileged.brother.findUnique({
     where: { authUserId: data.user.id },
     select: {
       id: true,
@@ -85,7 +88,7 @@ export async function GET(request: NextRequest) {
     // Resolve which org to land in, in priority order:
     //   1. ?org= deep-link hint, if they're a member of it.
     //   2. The active_org_id cookie, if it still points at one of their orgs.
-    //   3. Their home org (Brother.organization).
+    //   3. Their origin org, only if they still have a membership there.
     //   4. First membership (covers a multi-org founder whose home org row
     //      lives elsewhere — see the multi-org founding work).
     const bySlug = orgSlug ? brother.memberships.find(m => m.organization.slug === orgSlug) : null;
@@ -93,9 +96,7 @@ export async function GET(request: NextRequest) {
     const byCookie = Number.isInteger(cookieOrgId)
       ? brother.memberships.find(m => m.organizationId === cookieOrgId)
       : null;
-    const home = brother.organization
-      ? { organizationId: brother.organization.id, organization: { slug: brother.organization.slug } }
-      : null;
+    const home = brother.memberships.find(m => m.organizationId === brother.organization?.id);
     const target = bySlug || byCookie || home || brother.memberships[0] || null;
 
     // Pre-set the active_org cookie to the org we're routing them into, so the
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
     if (safeNext && target && safeNext.startsWith(`/${target.organization.slug}`)) {
       return redirectTo(`${origin}${safeNext}`);
     }
-    const dest = target ? `/${target.organization.slug}?toast=welcome` : "/?toast=welcome";
+    const dest = target ? `/${target.organization.slug}?toast=welcome` : "/welcome";
     return redirectTo(`${origin}${dest}`);
   }
 

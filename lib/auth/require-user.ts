@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
-import { prisma } from "@/lib/prisma";
+import { prismaPrivileged } from "@/lib/prisma-privileged";
 import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@/lib/auth/dev-bypass";
 
 function withTimeout(ms: number): typeof fetch {
@@ -169,7 +169,10 @@ export async function requireUser(opts?: { orgSlug?: string }) {
     userMetadata = undefined;
   }
 
-  const brother = await prisma.brother.findUnique({
+  // Auth bootstrap has no org context yet. Scope the privileged lookup to
+  // the verified account (or the signed dev impersonation), then gate access
+  // using its memberships. The ordinary RLS client can hide this identity.
+  const brother = await prismaPrivileged.brother.findUnique({
     where: bypassBrotherId === null ? { authUserId } : { id: bypassBrotherId },
     select: {
       id: true,

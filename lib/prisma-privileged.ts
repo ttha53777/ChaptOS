@@ -16,6 +16,10 @@
  *   precisely because tenant context doesn't exist yet.
  *
  * Scope of use:
+ *   app/auth/callback + lib/auth/require-user
+ *                               verified-account lookup before an org is known;
+ *                               reads are keyed by authenticated user ID and
+ *                               downstream access is membership-gated.
  *   lib/services/org-service.ts   provisioning + teardown (the original caller)
  *   instrumentation.ts            boot-time cross-org role-permission sweep
  *   app/api/admin/**             platform-admin cross-tenant reads. No active
