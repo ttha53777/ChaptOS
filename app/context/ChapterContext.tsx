@@ -7,7 +7,7 @@ import {
 } from "../data";
 import { AVATAR_CHANGED_EVENT, parseAvatarFromMetadata } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
-import { hasDevImpersonationCookie } from "@/lib/auth/dev-bypass";
+import { hasDevImpersonationCookie } from "@/lib/auth/dev-bypass-client";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
