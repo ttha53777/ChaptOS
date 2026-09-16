@@ -516,6 +516,7 @@ cp .env.example .env.local
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | Runtime Postgres connection. Use the Supabase **pooled** URL (PgBouncer, port 6543). |
 | `DIRECT_URL` | Recommended | A **direct** session connection (port 5432) used by Prisma CLI commands (`migrate`, `db seed`). Migrations hang over the pooled URL because PgBouncer doesn't support DDL/advisory locks. `prisma.config.ts` falls back to `DATABASE_URL` if unset. |
+| `PRIVILEGED_DATABASE_URL` | Optional | Runtime transaction-pool URL (port 6543) using the privileged/BYPASSRLS role. Supabase URLs are derived from `DIRECT_URL` automatically; set this explicitly for other providers. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server-only. Enables admin reads of auth metadata. Never expose to the client. |

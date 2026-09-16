@@ -46,6 +46,7 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
+import { privilegedRuntimeUrl } from "@/lib/db/privileged-runtime-url";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -55,9 +56,9 @@ declare global {
 }
 
 function build(): PrismaClient {
-  const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+  const connectionString = privilegedRuntimeUrl();
   if (!connectionString) {
-    throw new Error("prisma-privileged: neither DIRECT_URL nor DATABASE_URL is set");
+    throw new Error("prisma-privileged: no privileged database URL is set");
   }
   const pool = new Pool({
     connectionString,
