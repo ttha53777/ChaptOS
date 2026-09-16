@@ -64,16 +64,26 @@ export async function GET(request: NextRequest) {
   // Auth bootstrap has no org context yet. Scope the privileged lookup to
   // the verified account, then gate access
   // using its memberships. The ordinary RLS client can hide this identity.
-  const brother = await prismaPrivileged.brother.findUnique({
-    where: { authUserId: data.user.id },
-    select: {
-      id: true,
-      organization: { select: { id: true, slug: true } },
-      memberships: {
-        select: { organizationId: true, organization: { select: { slug: true } } },
+  let brother;
+  try {
+    brother = await prismaPrivileged.brother.findUnique({
+      where: { authUserId: data.user.id },
+      select: {
+        id: true,
+        organization: { select: { id: true, slug: true } },
+        memberships: {
+          select: { organizationId: true, organization: { select: { slug: true } } },
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    // A database/configuration failure during auth bootstrap must not escape as
+    // Vercel's opaque 500 page. Keep the freshly-issued Supabase cookies on the
+    // response and send the user back to the app's recoverable error surface.
+    // Log only operational error metadata; never log the OAuth code or session.
+    console.error("auth callback identity lookup failed", error);
+    return redirectTo(buildUrl(origin, "/login", orgSlug, "error=server"));
+  }
 
   if (brother) {
     // "Start a new chapter": a linked user founding ANOTHER org. A Google

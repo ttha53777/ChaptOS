@@ -54,6 +54,18 @@ describe("sign-in bootstrap", () => {
     expect(res.headers.get("location")).toBe("https://chaptos.com/login?error=auth");
     expect(mocks.findUnique).not.toHaveBeenCalled();
   });
+  it("turns bootstrap database failures into a recoverable redirect", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.findUnique.mockRejectedValueOnce(new Error("database unavailable"));
+
+    const res = await GET(new NextRequest("https://chaptos.com/auth/callback?code=valid"));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://chaptos.com/login?error=server");
+    expect(res.cookies.get("session")?.value).toBe("verified");
+    expect(spy).toHaveBeenCalledWith("auth callback identity lookup failed", expect.any(Error));
+    spy.mockRestore();
+  });
   it("keeps an account with no identity on welcome without creating membership", async () => {
     mocks.findUnique.mockResolvedValue(null);
     const res = await GET(new NextRequest("https://chaptos.com/auth/callback?code=valid"));
