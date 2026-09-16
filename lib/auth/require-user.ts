@@ -18,6 +18,31 @@ export const ACTIVE_ORG_COOKIE = "active_org_id";
  */
 export const ORG_SLUG_HEADER = "x-org-slug";
 
+/**
+ * The identity lookup itself failed — the database was unreachable, or the
+ * privileged client is misconfigured.
+ *
+ * This is deliberately NOT folded into requireUser's `null` return. `null`
+ * means "no session, or no Brother row", and every caller reads it as *this
+ * person has no way in*: the org guard renders NeedsInvite, the APIs answer
+ * 401. Returning null on an outage would therefore tell a paying member their
+ * membership had evaporated, and an officer that their chapter was gone —
+ * a far more alarming lie than an error page, and one that invites them to
+ * "fix" it by filing a duplicate join request.
+ *
+ * So the outage gets its own type. Callers that can show a retry surface
+ * catch it; anything that doesn't catch it still crashes into the error
+ * boundary, which is the honest outcome — "something broke, try again" —
+ * rather than a confident falsehood about who the user is.
+ */
+export class IdentityLookupError extends Error {
+  constructor(cause: unknown) {
+    super("identity lookup failed");
+    this.name = "IdentityLookupError";
+    this.cause = cause;
+  }
+}
+
 export interface MembershipSummary {
   id:             number;
   organizationId: number;
@@ -172,41 +197,52 @@ export async function requireUser(opts?: { orgSlug?: string }) {
   // Auth bootstrap has no org context yet. Scope the privileged lookup to
   // the verified account (or the signed dev impersonation), then gate access
   // using its memberships. The ordinary RLS client can hide this identity.
-  const brother = await prismaPrivileged.brother.findUnique({
-    where: bypassBrotherId === null ? { authUserId } : { id: bypassBrotherId },
-    select: {
-      id: true,
-      name: true,
-      isAdmin: true,
-      organizationId: true,
-      platformAdmin: { select: { id: true } },
-      memberships: {
-        select: {
-          id: true,
-          organizationId: true,
-          isOrgAdmin: true,
-          // The per-org display name (null → fall back to Brother.name) and the
-          // per-org office title. Both are roster fields, so they live on the
-          // Membership, not the Brother. Selected here so resolving the session's
-          // effective identity for the active org costs zero extra queries — this
-          // query already loads every membership.
-          name: true,
-          role: true,
-          organization: { select: { name: true, slug: true } },
+  // Wrapped because a throw here is indistinguishable, to every caller, from
+  // the user having no identity at all — see IdentityLookupError. The session
+  // is already verified at this point, so a failure is infrastructure, not
+  // authorization, and must not be reported as the latter.
+  let brother;
+  try {
+    brother = await prismaPrivileged.brother.findUnique({
+      where: bypassBrotherId === null ? { authUserId } : { id: bypassBrotherId },
+      select: {
+        id: true,
+        name: true,
+        isAdmin: true,
+        organizationId: true,
+        platformAdmin: { select: { id: true } },
+        memberships: {
+          select: {
+            id: true,
+            organizationId: true,
+            isOrgAdmin: true,
+            // The per-org display name (null → fall back to Brother.name) and the
+            // per-org office title. Both are roster fields, so they live on the
+            // Membership, not the Brother. Selected here so resolving the session's
+            // effective identity for the active org costs zero extra queries — this
+            // query already loads every membership.
+            name: true,
+            role: true,
+            organization: { select: { name: true, slug: true } },
+          },
         },
-      },
-      // Role assignments across ALL orgs, fetched in the same round-trip so
-      // buildContext / resolvePermissions don't need a second sequential query
-      // per request. Callers filter by role.organizationId for the active org.
-      roles: {
-        select: {
-          role: {
-            select: { id: true, name: true, color: true, rank: true, permissions: true, organizationId: true },
+        // Role assignments across ALL orgs, fetched in the same round-trip so
+        // buildContext / resolvePermissions don't need a second sequential query
+        // per request. Callers filter by role.organizationId for the active org.
+        roles: {
+          select: {
+            role: {
+              select: { id: true, name: true, color: true, rank: true, permissions: true, organizationId: true },
+            },
           },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    // Log operational metadata only — never the session or the account id.
+    console.error("identity lookup failed", error);
+    throw new IdentityLookupError(error);
+  }
   if (!brother) return null;
 
   const isPlatformAdmin = brother.isAdmin || !!brother.platformAdmin;

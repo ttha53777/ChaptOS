@@ -21,7 +21,7 @@ vi.mock("@supabase/ssr", () => ({
   } }),
 }));
 import { GET } from "@/app/auth/callback/route";
-import { requireUser } from "@/lib/auth/require-user";
+import { requireUser, IdentityLookupError } from "@/lib/auth/require-user";
 
 const account = { id: "verified-account", email: "member@example.com" };
 const membership = { id: 12, organizationId: 2, isOrgAdmin: false, name: "Member", role: "Member", organization: { slug: "beta", name: "Beta" } };
@@ -54,6 +54,23 @@ describe("sign-in bootstrap", () => {
     expect(res.headers.get("location")).toBe("https://chaptos.com/login?error=auth");
     expect(mocks.findUnique).not.toHaveBeenCalled();
   });
+  it("surfaces an identity-lookup outage instead of reporting no membership", async () => {
+    // Regression guard: returning null here would make every caller treat a
+    // database outage as "this account has no way in" — the org guard renders
+    // the needs-an-invite page and the APIs answer 401, telling a valid member
+    // their chapter is gone. The outage must stay distinguishable from absence.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.findUnique.mockRejectedValueOnce(new Error("database unavailable"));
+
+    await expect(requireUser()).rejects.toBeInstanceOf(IdentityLookupError);
+    spy.mockRestore();
+  });
+
+  it("still reports a genuinely unlinked account as null", async () => {
+    mocks.findUnique.mockResolvedValueOnce(null);
+    expect(await requireUser()).toBeNull();
+  });
+
   it("turns bootstrap database failures into a recoverable redirect", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.findUnique.mockRejectedValueOnce(new Error("database unavailable"));

@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { instrumentPool } from "@/lib/db/perf-metrics";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Prisma, PrismaClient } from "../app/generated/prisma/client";
+import { runtimeDatabaseUrl } from "@/lib/db/runtime-url";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -17,7 +18,7 @@ declare global {
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
 const PRISMA_SCHEMA_REVISION = "admission-delivery-20260914";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
-const POOL_REVISION = "pool-prewarm-2-20260612";
+const POOL_REVISION = "serverless-transaction-pool-20260916";
 
 function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean {
   return !!client
@@ -57,10 +58,12 @@ if (globalThis._pgPool && needsFreshPool) {
   globalThis._prisma = undefined;
 }
 const pool = globalThis._pgPool ?? new Pool({
-  connectionString:        process.env.DATABASE_URL!,
+  // Be defensive about a production env accidentally receiving Supabase's
+  // session-pool URL. Runtime traffic must use transaction mode (6543).
+  connectionString:        runtimeDatabaseUrl(process.env.DATABASE_URL)!,
   connectionTimeoutMillis: 20_000,  // Supabase pooler cold-starts can take 10s+
   idleTimeoutMillis:       30_000,  // release idle connections promptly on Vercel
-  max:                     10,      // stay under Supabase free-tier connection limit
+  max:                     2,       // bounded per Vercel isolate; Supavisor multiplexes these
 });
 
 // Initialize app.org_id to '' on every new physical connection so the Phase
@@ -81,18 +84,22 @@ if (needsFreshPool) {
 // no-op unless PERF_INSTRUMENT=1, so calling it unconditionally is safe.
 instrumentPool(pool as unknown as { query: (...args: never[]) => unknown });
 
-// Pre-warm connections so the first real request doesn't pay the cold-start
-// penalty. Warm at least 2: OrgLayout (and other hot paths) fire two queries in
+// In development, pre-warm connections so the first real request doesn't pay
+// the cold-start penalty. Warm 2: OrgLayout (and other hot paths) fire queries in
 // parallel — org-config alongside auth — and if the pool has only one physical
 // connection at that moment, both land on the same pg client. pg then emits a
 // "client.query() while already executing a query" deprecation warning (it
 // serializes them correctly today, but the pattern throws in pg@9). Two warm
-// clients let each parallel query check out its own connection.
-if (needsFreshPool) {
+// clients let each parallel query check out its own connection. Do not pre-warm
+// on Vercel: eagerly opening connections in every isolate amplifies bursts.
+if (needsFreshPool && process.env.NODE_ENV !== "production") {
   void Promise.all([
     pool.query("SELECT 1").catch(() => undefined),
     pool.query("SELECT 1").catch(() => undefined),
   ]);
+}
+
+if (needsFreshPool) {
   // Drain the pool on graceful shutdown so in-flight queries finish cleanly
   process.once("SIGTERM", () => { pool.end().catch(() => undefined); });
 }

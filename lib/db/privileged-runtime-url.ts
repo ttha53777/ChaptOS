@@ -1,3 +1,5 @@
+import { runtimeDatabaseUrl } from "@/lib/db/runtime-url";
+
 /**
  * Resolve the privileged connection used by the running application.
  *
@@ -16,19 +18,34 @@ export function privilegedRuntimeUrl(env: DatabaseEnv = process.env): string | u
   if (env.PRIVILEGED_DATABASE_URL) return env.PRIVILEGED_DATABASE_URL;
 
   const direct = env.DIRECT_URL;
-  if (direct) {
-    try {
-      const url = new URL(direct);
-      if (url.hostname.endsWith(".pooler.supabase.com") && url.port === "5432") {
-        url.port = "6543";
-        return url.toString();
-      }
-    } catch {
-      // Let pg report a useful connection-string error below instead of
-      // replacing it with a URL parsing failure here.
-    }
-    return direct;
-  }
+  if (direct) return runtimeDatabaseUrl(direct);
 
-  return env.DATABASE_URL;
+  return runtimeDatabaseUrl(env.DATABASE_URL);
+}
+
+/**
+ * Is the resolved privileged URL actually the ordinary application role?
+ *
+ * The fallback chain above ends at DATABASE_URL, which on every correctly
+ * configured deployment is the NOBYPASSRLS application role. That fallback is
+ * a trap: forgetting DIRECT_URL in production doesn't fail at boot, it hands
+ * the "privileged" client a role that RLS still applies to. Every caller then
+ * runs without an app.org_id — so the enforcing org_isolation policies match
+ * nothing, and the bootstrap reads return *empty* rather than erroring.
+ *
+ * Empty is the worst possible answer here. requireUser reads "no Brother" and
+ * signs the user out of an org they belong to; the org guard shows a member
+ * the needs-an-invite page. The database is healthy, the query "succeeds", and
+ * the app quietly denies everyone.
+ *
+ * Detecting the role by name is deliberately a heuristic — we compare the
+ * resolved privileged URL against DATABASE_URL rather than asking Postgres,
+ * because this runs at module load where an await would be a new failure mode.
+ * It catches the real misconfiguration (privileged silently == app role) and
+ * stays quiet whenever the two genuinely differ.
+ */
+export function privilegedUrlIsAppRole(env: DatabaseEnv = process.env): boolean {
+  if (env.PRIVILEGED_DATABASE_URL) return false;
+  if (env.DIRECT_URL) return false;
+  return !!env.DATABASE_URL;
 }

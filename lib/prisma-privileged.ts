@@ -1,5 +1,10 @@
 /**
- * Privileged Prisma client backed by DIRECT_URL (postgres superuser).
+ * Privileged Prisma client backed by a BYPASSRLS role.
+ *
+ * The connection string is resolved by privilegedRuntimeUrl(): the explicit
+ * PRIVILEGED_DATABASE_URL if set, else DIRECT_URL, normalized to Supabase's
+ * transaction pool (6543) for runtime traffic. DIRECT_URL itself still names
+ * the session pool (5432) because Prisma migrations need session semantics.
  *
  * Why this exists:
  *   The normal `prisma` client in lib/prisma.ts connects as the figurints_app
@@ -46,7 +51,7 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
-import { privilegedRuntimeUrl } from "@/lib/db/privileged-runtime-url";
+import { privilegedRuntimeUrl, privilegedUrlIsAppRole } from "@/lib/db/privileged-runtime-url";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -59,6 +64,23 @@ function build(): PrismaClient {
   const connectionString = privilegedRuntimeUrl();
   if (!connectionString) {
     throw new Error("prisma-privileged: no privileged database URL is set");
+  }
+  // Refuse to start in production on the app role. Under enforcing RLS this
+  // client would not error — it would return empty result sets for every
+  // bootstrap read, which the auth path cannot distinguish from "this account
+  // has no identity". A member would be shown the needs-an-invite page and an
+  // officer would lose their chapter, with nothing in the logs to explain it.
+  //
+  // Failing here is strictly better: it is loud, immediate, and names the fix.
+  // Dev/test keep the fallback, where a single-role local Postgres is normal
+  // and RLS bypass is not what is being exercised.
+  if (process.env.NODE_ENV === "production" && privilegedUrlIsAppRole()) {
+    throw new Error(
+      "prisma-privileged: refusing to run as the application role. " +
+      "Set DIRECT_URL (or PRIVILEGED_DATABASE_URL) to a BYPASSRLS role — " +
+      "without it every auth-bootstrap read returns empty under enforcing RLS " +
+      "and signs valid members out of their org."
+    );
   }
   const pool = new Pool({
     connectionString,
