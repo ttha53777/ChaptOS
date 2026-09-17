@@ -28,3 +28,5 @@ export * from "./subscription-status";
 export * from "./billing-tier";
 export * from "./sales-lead";
 export * from "./checkin-status";
+
+export * from "./billing-mode";

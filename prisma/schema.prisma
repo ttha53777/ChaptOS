@@ -1411,14 +1411,19 @@ model Subscription {
   // SubscriptionStatus (lib/state/subscription-status.ts) — CHECK-constrained.
   status String @default("free")
   // BillingTier (lib/state/billing-tier.ts) — CHECK-constrained. Derived from
-  // billableMembers, stored so the platform-admin list can filter without
+  // usage in automatic mode or selectedPlan, stored so admin lists can filter without
   // recomputing a headcount per org.
   tier   String @default("free")
+  // Explicit plan choice survives roster changes. Existing rows stay automatic.
+  billingMode String @default("automatic")
+  selectedPlan String?
+  scheduledPlan String?
+  planChangeAt DateTime?
 
   // Last computed billable headcount (lib/billing/seats.ts).
   billableMembers   Int       @default(0)
   // What Stripe currently believes the quantity is, or null when we have never
-  // pushed. billableMembers != syncedQuantity means a push is owed.
+  // pushed. In selected mode this is purchased capacity, not member count.
   syncedQuantity    Int?
   // Set when a seat push is owed, cleared on a successful push. The seat-sync
   // handler writes the local count FIRST and only then calls Stripe, because
