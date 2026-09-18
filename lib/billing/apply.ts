@@ -28,6 +28,10 @@
  *   subscription.current_period_end → subscription.items.data[i].current_period_end
  */
 
+import { db } from "@/lib/db";
+import { withBillingLock } from "./lock";
+import { BillingMode, isSelectedPlan } from "@/lib/state/billing-mode";
+import { stripe } from "@/lib/stripe";
 import type Stripe from "stripe";
 import { logError } from "@/lib/observability";
 import { prismaPrivileged } from "@/lib/prisma-privileged";
@@ -44,7 +48,7 @@ import { tierForCount } from "./tiers";
  */
 export async function applySubscription(
   sub: Stripe.Subscription,
-  opts: { activated?: boolean; canceled?: boolean } = {},
+  opts: { activated?: boolean; canceled?: boolean; refresh?: boolean } = {},
 ): Promise<void> {
   const orgId = await resolveOrgId(sub.metadata, idOf(sub.customer));
   if (!orgId) {
@@ -58,6 +62,15 @@ export async function applySubscription(
     return;
   }
 
+  return withBillingLock(db(orgId), async () => {
+    // Webhook/pull snapshots may have been fetched before a concurrent plan
+    // change. Read again under the shared writer lock before applying them.
+    const latest = opts.refresh ? await stripe().subscriptions.retrieve(sub.id) : sub;
+    await applyLocked(latest, orgId, opts);
+  });
+}
+
+async function applyLocked(sub: Stripe.Subscription, orgId: number, opts: { activated?: boolean; canceled?: boolean }) {
   const item = sub.items.data[0];
   const quantity = item?.quantity ?? 0;
   const status = opts.canceled ? SubscriptionStatus.Canceled : mapStatus(sub.status);
@@ -65,8 +78,11 @@ export async function applySubscription(
 
   const previous = await prismaPrivileged.subscription.findUnique({
     where:  { organizationId: orgId },
-    select: { status: true, tier: true },
+    select: { status: true, tier: true, stripeSubscriptionId: true },
   });
+
+  // A delayed deletion for a replaced subscription must not cancel the new one.
+  if (status === SubscriptionStatus.Canceled && previous?.stripeSubscriptionId && previous.stripeSubscriptionId !== sub.id) return;
 
   // A cancelled subscription is a DEAD handle, and holding onto it breaks two
   // things in opposite directions:
@@ -83,7 +99,23 @@ export async function applySubscription(
   // stripeCustomerId deliberately SURVIVES: it's what refreshFromStripe's
   // fallback looks the subscription up by, and what stops a resubscribe from
   // minting a second Customer for the same org.
-  const dead = status === SubscriptionStatus.Canceled;
+  const dead = status === SubscriptionStatus.Canceled || sub.status === "incomplete_expired";
+  const billingMode = !dead && sub.metadata.billingMode === BillingMode.Selected
+    ? BillingMode.Selected : BillingMode.Automatic;
+  const selectedPlan = billingMode === BillingMode.Selected && isSelectedPlan(tier) ? tier : null;
+  if (billingMode === BillingMode.Selected && !selectedPlan) {
+    throw new Error("Selected subscription has no valid paid plan");
+  }
+  // Read future phases from Stripe so a lost response/webhook cannot hide an
+  // already-scheduled downgrade. Phase metadata controls the mode at renewal.
+  const scheduleId = !dead ? idOf(sub.schedule) : null;
+  const schedule = scheduleId ? await stripe().subscriptionSchedules.retrieve(scheduleId) : null;
+  const future = schedule?.phases.find(p => p.start_date >= (item?.current_period_end ?? Infinity));
+  const futureTier = future ? tierForCount(future.items[0]?.quantity ?? 0).id : null;
+  const scheduledPlan = isSelectedPlan(futureTier) ? futureTier : null;
+  const actualMembers = await prismaPrivileged.membership.count({
+    where: { organizationId: orgId, archivedAt: null, brother: { is: { isGhost: false } } },
+  });
 
   const data = {
     stripeCustomerId:     idOf(sub.customer),
@@ -92,6 +124,11 @@ export async function applySubscription(
     stripePriceId:        dead ? null : (item?.price?.id ?? null),
     status,
     tier,
+    billingMode,
+    selectedPlan,
+    scheduledPlan,
+    planChangeAt: scheduledPlan && future ? new Date(future.start_date * 1000) : null,
+    billableMembers: actualMembers,
     syncedQuantity:       dead ? null : quantity,
     // current_period_end lives on the ITEM in Stripe 22.x, not the subscription.
     // Cleared on cancel so the billing page doesn't render "renews <date>" for a
@@ -108,7 +145,7 @@ export async function applySubscription(
   await prismaPrivileged.subscription.upsert({
     where:  { organizationId: orgId },
     update: data,
-    create: { organizationId: orgId, billableMembers: quantity, ...data },
+    create: { organizationId: orgId, ...data },
   });
 
   // ── Audit trail ───────────────────────────────────────────────────────────
@@ -117,7 +154,7 @@ export async function applySubscription(
   // matches writes no events at all.
   if (opts.activated || (previous?.status !== status && status === SubscriptionStatus.Active)) {
     await recordEvent(orgId, "billing.subscription_activated", orgId, {
-      tier, priceCents: tierForCount(quantity).priceCents, members: quantity,
+      tier, priceCents: tierForCount(quantity).priceCents, members: actualMembers,
       stripeSubscriptionId: sub.id,
     });
   }
@@ -128,7 +165,7 @@ export async function applySubscription(
   }
   if (previous && previous.tier !== tier) {
     await recordEvent(orgId, "billing.tier_changed", orgId, {
-      fromTier: previous.tier, toTier: tier, members: quantity,
+      fromTier: previous.tier, toTier: tier, members: actualMembers,
       priceCents: tierForCount(quantity).priceCents,
     });
   }

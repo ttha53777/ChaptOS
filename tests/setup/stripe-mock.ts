@@ -35,7 +35,9 @@ import { vi } from "vitest";
 import type Stripe from "stripe";
 
 export const stripeMock = {
+  subscriptionSchedules: { create: vi.fn(), retrieve: vi.fn(), update: vi.fn(), release: vi.fn() },
   subscriptions: {
+    update: vi.fn(),
     retrieve: vi.fn(),
     list:     vi.fn(),
     cancel:   vi.fn(),
@@ -93,8 +95,10 @@ export function resetStripeMock(): void {
   }
   // Sensible defaults so a test only has to state what it cares about.
   stripeMock.subscriptions.list.mockResolvedValue({ data: [] });
+  stripeMock.subscriptions.retrieve.mockResolvedValue(fakeSubscription());
   stripeMock.subscriptionItems.update.mockResolvedValue({});
   stripeMock.subscriptions.cancel.mockResolvedValue({});
+  stripeMock.subscriptionSchedules.release.mockResolvedValue({});
   stripeMock.customers.create.mockResolvedValue({ id: "cus_test" });
   stripeMock.checkout.sessions.create.mockResolvedValue({ url: "https://checkout.stripe.test/s" });
   stripeMock.billingPortal.sessions.create.mockResolvedValue({ url: "https://portal.stripe.test/s" });
@@ -119,18 +123,22 @@ export function fakeSubscription(opts: {
   organizationId?: number;
   currentPeriodEnd?: number;
   cancelAtPeriodEnd?: boolean;
+  billingMode?: string;
+  schedule?: string;
 } = {}): Stripe.Subscription {
   return {
     id:       opts.id ?? "sub_test",
     customer: opts.customer ?? "cus_test",
     status:   opts.status ?? "active",
     cancel_at_period_end: opts.cancelAtPeriodEnd ?? false,
-    metadata: opts.organizationId ? { organizationId: String(opts.organizationId) } : {},
+    metadata: { ...(opts.organizationId ? { organizationId: String(opts.organizationId) } : {}), ...(opts.billingMode ? { billingMode: opts.billingMode } : {}) },
+    schedule: opts.schedule ?? null,
     items: {
       data: [{
         id:       opts.itemId ?? "si_test",
         quantity: opts.quantity ?? 1,
         price:    { id: opts.priceId ?? "price_test" },
+        current_period_start: (opts.currentPeriodEnd ?? Math.floor(Date.now() / 1000) + 86_400) - 2_592_000,
         current_period_end: opts.currentPeriodEnd ?? Math.floor(Date.now() / 1000) + 86_400,
       }],
     },

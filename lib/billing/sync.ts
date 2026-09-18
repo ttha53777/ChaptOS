@@ -42,6 +42,9 @@
  * saving lands on the next invoice. Nobody gets a surprise credit-then-recharge.
  */
 
+import { withBillingLock } from "./lock";
+import { BillingMode } from "@/lib/state/billing-mode";
+import { subscriptionBand } from "./plans";
 import type Stripe from "stripe";
 import type { db } from "@/lib/db";
 import { stripe, stripeEnabled } from "@/lib/stripe";
@@ -77,18 +80,25 @@ export interface SeatSyncResult {
  * failed roster write. Local state is authoritative and self-healing.
  */
 export async function reconcileSeats(scoped: ScopedDb): Promise<SeatSyncResult> {
+  return withBillingLock(scoped, () => reconcileSeatsLocked(scoped));
+}
+
+async function reconcileSeatsLocked(scoped: ScopedDb): Promise<SeatSyncResult> {
   const members = await countBillableMembers(scoped);
-  const band = tierForCount(members);
 
   const existing = await scoped.subscription.findFirst({
     select: {
-      status: true, tier: true, syncedQuantity: true,
+      status: true, tier: true, syncedQuantity: true, billingMode: true, selectedPlan: true,
       stripeSubscriptionId: true, stripeItemId: true,
     },
   });
 
+  const band = subscriptionBand(members, existing);
+  // Stripe owns selected-plan quantities, including scheduled downgrades. Roster
+  // changes only update usage; they must never undo a purchase or phase change.
+  const selected = existing?.billingMode === BillingMode.Selected;
   const previousTier = existing?.tier ?? "free";
-  const canPush = Boolean(existing?.stripeItemId) && stripeEnabled();
+  const canPush = !selected && Boolean(existing?.stripeItemId) && stripeEnabled();
   const needsPush = canPush && existing?.syncedQuantity !== members;
 
   // ── 1. Local write. Fast, always succeeds, never waits on the network. ─────
@@ -106,6 +116,16 @@ export async function reconcileSeats(scoped: ScopedDb): Promise<SeatSyncResult> 
 
   // ── 2. Stripe. Best-effort. ───────────────────────────────────────────────
   try {
+    // A plan change may have succeeded at Stripe while its response or local
+    // write failed. Never push stale automatic quantities over that purchase.
+    if (existing?.stripeSubscriptionId) {
+      const live = await stripe().subscriptions.retrieve(existing.stripeSubscriptionId);
+      if (live.metadata.billingMode === BillingMode.Selected) {
+        await applySubscription(live);
+        await scoped.subscription.upsert({ seatSyncPendingAt: null });
+        return { members, tier: tierForCount(live.items.data[0]?.quantity ?? 0).id, previousTier, pushed: false, pending: false };
+      }
+    }
     // No idempotency key on purpose: this is a set-to-value operation, so a
     // retry is semantically harmless, whereas a key derived from the quantity
     // would wrongly dedupe a legitimate 5 → 6 → 5 sequence against Stripe's
@@ -212,6 +232,10 @@ export async function findLiveSubscription(customerId: string): Promise<Stripe.S
  * @returns true if Stripe returned a subscription and we applied it.
  */
 export async function refreshFromStripe(scoped: ScopedDb): Promise<boolean> {
+  return withBillingLock(scoped, () => refreshFromStripeLocked(scoped));
+}
+
+async function refreshFromStripeLocked(scoped: ScopedDb): Promise<boolean> {
   if (!stripeEnabled()) return false;
 
   const existing = await scoped.subscription.findFirst({

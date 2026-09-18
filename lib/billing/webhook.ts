@@ -133,14 +133,14 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       // A completed session with no subscription is a one-off payment, which
       // this product doesn't sell. Nothing to do.
       if (!subId) return;
-      await applySubscription(await stripe().subscriptions.retrieve(subId), { activated: true });
+      await applySubscription(await stripe().subscriptions.retrieve(subId), { activated: true, refresh: true });
       return;
     }
 
     case "customer.subscription.created":
     case "customer.subscription.updated": {
       const sub = event.data.object as Stripe.Subscription;
-      await applySubscription(await stripe().subscriptions.retrieve(sub.id));
+      await applySubscription(await stripe().subscriptions.retrieve(sub.id), { refresh: true });
       return;
     }
 
@@ -157,7 +157,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       if (!subId) return;
       // invoice.paid is the authoritative "they actually paid" signal, but the
       // subscription object is where status and period end live.
-      await applySubscription(await stripe().subscriptions.retrieve(subId));
+      await applySubscription(await stripe().subscriptions.retrieve(subId), { refresh: true });
       return;
     }
 
@@ -180,7 +180,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       const orgId = await resolveOrgId(invoice.parent?.subscription_details?.metadata ?? null, idOf(invoice.customer));
 
       const subId = subscriptionIdFromInvoice(invoice);
-      if (subId) await applySubscription(await stripe().subscriptions.retrieve(subId));
+      if (subId) await applySubscription(await stripe().subscriptions.retrieve(subId), { refresh: true });
 
       if (!orgId) return;
       await recordEvent(orgId, "billing.payment_failed", orgId, {
@@ -201,7 +201,7 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       const orgId = await resolveOrgId(invoice.parent?.subscription_details?.metadata ?? null, idOf(invoice.customer));
 
       const subId = subscriptionIdFromInvoice(invoice);
-      if (subId) await applySubscription(await stripe().subscriptions.retrieve(subId));
+      if (subId) await applySubscription(await stripe().subscriptions.retrieve(subId), { refresh: true });
 
       if (!orgId) return;
       await recordEvent(orgId, "billing.payment_action_required", orgId, {
