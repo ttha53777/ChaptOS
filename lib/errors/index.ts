@@ -96,7 +96,7 @@ export class RateLimitedError extends DomainError {
  *     limit:          number   the largest count the org can reach as things stand
  *     requiredTier:   "standard" | "pro" | "custom"
  *     priceCents:     number | null   null above the self-serve ceiling
- *     action:         "checkout" | "quote" }
+ *     action:         "checkout" | "upgrade" | "quote" }
  *
  * `action` is the fork: "checkout" means a card would fix it, "quote" means the
  * org is past the self-serve ceiling and needs a human.
@@ -106,7 +106,7 @@ export interface PaymentRequiredDetails {
   limit: number;
   requiredTier: string;
   priceCents: number | null;
-  action: "checkout" | "quote";
+  action: "checkout" | "upgrade" | "quote";
 }
 
 export class PaymentRequiredError extends DomainError {

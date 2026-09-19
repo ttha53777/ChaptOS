@@ -112,6 +112,21 @@ describe("admission state and concurrency", () => {
     expect(await testPrisma.membership.findMany({ where: { brother: { authUserId: account.authUserId } }, orderBy: { organizationId: "asc" }, select: { name: true } })).toEqual([{ name: "Rob" }, { name: "Robert" }]);
   });
 
+  it("concurrent approvals cannot overfill a selected Standard plan", async () => {
+    const { org, ctx, invite } = await setup();
+    for (let i = 0; i < 48; i++) await createBrother({ orgId: org.id });
+    await testPrisma.subscription.create({ data: {
+      organizationId: org.id, status: "active", billingMode: "selected", selectedPlan: "standard", tier: "standard",
+    } });
+    const a = await ask(invite.token, "One"), b = await ask(invite.token, "Two");
+    const results = await Promise.allSettled([
+      approveJoinRequest(ctx, a.id, { roleId: null }), approveJoinRequest(ctx, b.id, { roleId: null }),
+    ]);
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    expect(await ctx.db.member.count()).toBe(50);
+    expect(await testPrisma.joinRequest.count({ where: { organizationId: org.id, status: "pending" } })).toBe(1);
+  });
+
   it("expiry/revoke preserve pending review, and decline releases a reservation", async () => {
     const { ctx, invite } = await setup("alpha", 1);
     const request = await ask(invite.token);

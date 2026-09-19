@@ -23,7 +23,8 @@
  *   band is custom (>120)           → block, action "quote". Applies even to a
  *                                     paying org: past the ceiling we want a
  *                                     conversation, not a bigger invoice.
- *   subscription in good standing   → allow. The volume-tiered price reprices
+ *   selected plan in good standing → allow up to its purchased capacity.
+ *   automatic in good standing      → allow. The volume-tiered price reprices
  *                                     itself and proration settles the
  *                                     difference; crossing 50→51 is not an event
  *                                     that needs permission.
@@ -38,6 +39,8 @@
 import type { db } from "@/lib/db";
 import { PaymentRequiredError } from "@/lib/errors";
 import { isInGoodStanding } from "@/lib/state/subscription-status";
+import { BillingMode } from "@/lib/state/billing-mode";
+import { subscriptionBand } from "./plans";
 import { BillingTier } from "@/lib/state/billing-tier";
 import { countBillableMembers } from "./seats";
 import { SELF_SERVE_MAX, tierForCount } from "./tiers";
@@ -54,7 +57,7 @@ export interface SeatCheck {
   limit: number;
   requiredTier: string;
   priceCents: number | null;
-  action: "checkout" | "quote" | null;
+  action: "checkout" | "upgrade" | "quote" | null;
 }
 
 /**
@@ -67,7 +70,7 @@ export interface SeatCheck {
 export async function checkSeatAvailable(scoped: ScopedDb): Promise<SeatCheck> {
   const [currentMembers, sub] = await Promise.all([
     countBillableMembers(scoped),
-    scoped.subscription.findFirst({ select: { status: true } }),
+    scoped.subscription.findFirst({ select: { status: true, billingMode: true, selectedPlan: true } }),
   ]);
 
   const next = currentMembers + 1;
@@ -87,7 +90,13 @@ export async function checkSeatAvailable(scoped: ScopedDb): Promise<SeatCheck> {
     };
   }
 
-  // A working payment method covers any band change below the ceiling.
+  if (isInGoodStanding(status) && sub?.billingMode === BillingMode.Selected) {
+    const limit = subscriptionBand(currentMembers, sub).upTo ?? 4;
+    return { allowed: next <= limit, currentMembers, limit, requiredTier: band.id,
+      priceCents: band.priceCents, action: next <= limit ? null : "upgrade" };
+  }
+
+  // Automatic subscriptions cover band changes below the ceiling.
   if (isInGoodStanding(status)) {
     return { allowed: true, currentMembers, limit: SELF_SERVE_MAX, requiredTier: band.id, priceCents: band.priceCents, action: null };
   }
@@ -111,6 +120,8 @@ export async function assertSeatAvailable(scoped: ScopedDb, publicMessage = fals
 
   const detail = check.action === "quote"
     ? `This organization is above ${SELF_SERVE_MAX} members, which is past self-serve. Request a quote to keep growing.`
+    : check.action === "upgrade"
+      ? `Your selected plan includes ${check.limit} members. Choose a larger plan in Billing to approve another member.`
     : `Adding another member puts this organization on the ${check.requiredTier} plan. Add a payment method to continue.`;
 
   throw new PaymentRequiredError(publicMessage ? AT_CAPACITY_PUBLIC_MESSAGE : detail, {
