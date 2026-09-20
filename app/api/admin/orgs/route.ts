@@ -14,6 +14,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { db } from "@/lib/db"; // lint-modules:ignore (platform-admin repair lever; no active org, so no buildContext)
 import { NotFoundError, ValidationError, toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import { subscriptionBand } from "@/lib/billing/plans";
 import { SELF_SERVE_MAX, formatPrice, tierForCount } from "@/lib/billing/tiers";
 import { reconcileSeats, refreshFromStripe } from "@/lib/billing/sync";
 
@@ -101,7 +102,7 @@ export async function GET() {
         createdByBrotherId: true,
         subscription: {
           select: {
-            status: true, tier: true, billableMembers: true,
+            status: true, tier: true, billableMembers: true, billingMode: true, selectedPlan: true,
             currentPeriodEnd: true, cancelAtPeriodEnd: true, seatSyncPendingAt: true,
           },
         },
@@ -123,7 +124,7 @@ export async function GET() {
     return Response.json({
       orgs: rows.map(r => {
         const members = r.subscription?.billableMembers ?? 0;
-        const band = tierForCount(members);
+        const band = subscriptionBand(members, r.subscription);
         return {
           id:          r.id,
           name:        r.name,

@@ -218,7 +218,8 @@ export interface EventMetadata {
   // would be both noise and an embarrassment. The two exceptions are
   // seats_blocked and quote_requested, which are the direct consequence of
   // something an admin just tried to do and need to be explicable afterwards.
-  "billing.checkout_started":      { tier: string; priceCents: number | null; members: number };
+  "billing.plan_changed": { action: string; plan?: string };
+  "billing.checkout_started":      { tier: string; priceCents: number | null; members: number; billingMode?: string };
   "billing.subscription_activated":{ tier: string; priceCents: number | null; members: number; stripeSubscriptionId: string };
   "billing.tier_changed":          { fromTier: string; toTier: string; members: number; priceCents: number | null };
   "billing.payment_failed":        { stripeInvoiceId: string | null; amountDueCents: number | null };
@@ -275,7 +276,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "dues.paid", "dues.adjusted", "dues.payment_voided", "dues.payment_attributed",
   "dues_payment.submitted", "dues_payment.rejected",
   "assistant.proposal_approved", "assistant.feedback",
-  "billing.checkout_started", "billing.subscription_activated", "billing.tier_changed",
+  "billing.plan_changed", "billing.checkout_started", "billing.subscription_activated", "billing.tier_changed",
   "billing.payment_failed", "billing.payment_action_required", "billing.dispute_opened",
   "billing.subscription_canceled", "billing.seats_blocked",
   "billing.quote_requested", "billing.seat_sync_failed",

@@ -11,6 +11,11 @@
  * new MANAGE_BILLING permission bit — see assertCanManageBilling.
  */
 
+import type Stripe from "stripe";
+import { applySubscription, idOf } from "@/lib/billing/apply";
+import { withBillingLock } from "@/lib/billing/lock";
+import { BillingMode } from "@/lib/state/billing-mode";
+import { selectedBand, subscriptionBand } from "@/lib/billing/plans";
 import type { RequestContext } from "@/lib/context/request-context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -24,7 +29,7 @@ import { checkSeatAvailable } from "@/lib/billing/guard";
 import { countBillableMembers } from "@/lib/billing/seats";
 import { findLiveSubscription, flushPendingSeatSync, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
 import { BILLING_BANDS, SELF_SERVE_MAX, formatPrice, formatRange, tierForCount } from "@/lib/billing/tiers";
-import type { OpenPortalInput, RequestQuoteInput, StartCheckoutInput } from "@/lib/validation/billing";
+import type { ChangePlanInput, OpenPortalInput, RequestQuoteInput, StartCheckoutInput } from "@/lib/validation/billing";
 
 /**
  * Number of orgs one person must administer before we offer a group plan.
@@ -51,6 +56,12 @@ function assertCanManageBilling(ctx: RequestContext): void {
 
 export interface BillingSummary {
   members: number;
+  billingMode: string;
+  selectedPlan: string | null;
+  capacity: number;
+  scheduledPlan: string | null;
+  planChangeAt: string | null;
+  hasSubscription: boolean;
   tier: string;
   tierLabel: string;
   priceCents: number | null;
@@ -61,7 +72,7 @@ export interface BillingSummary {
   /** Can the org add one more member as things stand? */
   canAddMember: boolean;
   /** What clearing that block would take, when it is blocked. */
-  blockedBy: "checkout" | "quote" | null;
+  blockedBy: "checkout" | "upgrade" | "quote" | null;
   /** Largest headcount reachable without talking to a human. */
   selfServeMax: number;
   /** This person administers enough orgs that a group plan is worth offering. */
@@ -96,17 +107,23 @@ export async function getBillingSummary(ctx: RequestContext): Promise<BillingSum
 
   const [sub, members, seat, adminOrgCount] = await Promise.all([
     ctx.db.subscription.findFirst({
-      select: { status: true, tier: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
+      select: { status: true, tier: true, currentPeriodEnd: true, cancelAtPeriodEnd: true, billingMode: true, selectedPlan: true, scheduledPlan: true, planChangeAt: true, stripeSubscriptionId: true },
     }),
     countBillableMembers(ctx.db),
     checkSeatAvailable(ctx.db),
     countAdministeredOrgs(ctx.actorId),
   ]);
 
-  const band = tierForCount(members);
+  const band = subscriptionBand(members, sub);
 
   return {
     members,
+    billingMode: sub?.billingMode ?? BillingMode.Automatic,
+    selectedPlan: sub?.selectedPlan ?? null,
+    capacity: sub?.billingMode === BillingMode.Selected ? band.upTo ?? 4 : (sub?.status === SubscriptionStatus.Active || sub?.status === SubscriptionStatus.Trialing ? SELF_SERVE_MAX : 4),
+    scheduledPlan: sub?.scheduledPlan ?? null,
+    planChangeAt: sub?.planChangeAt?.toISOString() ?? null,
+    hasSubscription: Boolean(sub?.stripeSubscriptionId),
     tier:              band.id,
     tierLabel:         band.label,
     priceCents:        band.priceCents,
@@ -155,10 +172,10 @@ async function countAdministeredOrgs(brotherId: number): Promise<number> {
 }
 
 /**
- * Start a Stripe Checkout session for the org's current headcount.
+ * Start checkout at actual headcount (automatic) or the selected capacity.
  *
- * The quantity is read from the roster, never from the client — a caller cannot
- * ask to be billed for fewer people than they have.
+ * Amounts and quantities are derived server-side. A selected plan must cover
+ * the existing roster; its entitlement is only applied from Stripe confirmation.
  */
 export async function startCheckout(
   ctx: RequestContext,
@@ -169,7 +186,11 @@ export async function startCheckout(
   if (!stripeEnabled()) throw new ValidationError("Billing is not configured on this deployment");
 
   const members = await countBillableMembers(ctx.db);
-  const band = tierForCount(members);
+  const band = input.plan ? selectedBand(input.plan) : tierForCount(members);
+  if (input.plan && members > band.upTo!) {
+    throw new ValidationError("Choose a plan that covers your current active members.");
+  }
+  const quantity = input.plan ? band.upTo! : Math.max(1, members);
 
   if (band.priceCents === null) {
     throw new ValidationError(
@@ -211,12 +232,12 @@ export async function startCheckout(
   const session = await stripe().checkout.sessions.create({
     mode:     "subscription",
     customer: customerId,
-    line_items: [{ price: stripePriceId(), quantity: members }],
+    line_items: [{ price: stripePriceId(), quantity }],
     // Metadata on the SUBSCRIPTION (not just the session) is what lets every
     // later webhook — renewals, failures, cancellations — resolve the org
     // without a lookup table.
     subscription_data: {
-      metadata: { organizationId: String(ctx.orgId), orgSlug: org.slug },
+      metadata: { organizationId: String(ctx.orgId), orgSlug: org.slug, ...(input.plan ? { billingMode: BillingMode.Selected } : {}) },
     },
     metadata: { organizationId: String(ctx.orgId), orgSlug: org.slug },
     success_url: `${origin}${back}?checkout=success`,
@@ -233,11 +254,11 @@ export async function startCheckout(
   await ctx.db.subscription.upsert({
     stripeCustomerId: customerId,
     billableMembers:  members,
-    tier:             band.id,
+    tier:             tierForCount(members).id,
   });
 
   await emit(ctx, "billing.checkout_started", { type: "Subscription", id: ctx.orgId }, {
-    tier: band.id, priceCents: band.priceCents, members,
+    tier: band.id, priceCents: band.priceCents, members, billingMode: input.plan ? BillingMode.Selected : BillingMode.Automatic,
   }, { activity: false });
 
   return { url: session.url };
@@ -384,4 +405,113 @@ export async function syncSeats(ctx: RequestContext): Promise<SeatSyncResult> {
   assertCanManageBilling(ctx);
   await refreshFromStripe(ctx.db);
   return reconcileSeats(ctx.db);
+}
+
+
+/** Explicit plan changes never create a second subscription. */
+export async function changePlan(ctx: RequestContext, input: ChangePlanInput): Promise<{ scheduled: boolean }> {
+  assertCanManageBilling(ctx);
+  if (!stripeEnabled()) throw new ValidationError("Billing is not configured on this deployment");
+  return withBillingLock(ctx.db, async () => {
+    const local = await ctx.db.subscription.findFirst();
+    if (!local?.stripeSubscriptionId) throw new ValidationError("Start a subscription first.");
+    const sub = await stripe().subscriptions.retrieve(local.stripeSubscriptionId);
+    if (sub.status === "canceled" || sub.status === "incomplete_expired") {
+      await applySubscription(sub);
+      throw new ValidationError("This subscription has ended. Start a new subscription.");
+    }
+    const item = sub.items.data[0];
+    if (!item || sub.items.data.length !== 1 || item.price.id !== stripePriceId()) {
+      throw new ValidationError("This subscription needs a custom plan change. Contact support.");
+    }
+    const scheduleId = idOf(sub.schedule);
+    // Only replace schedules created by this flow. Never silently erase an
+    // externally negotiated contract, discount schedule, or custom agreement.
+    const schedule = scheduleId ? await stripe().subscriptionSchedules.retrieve(scheduleId) : null;
+    if (schedule && schedule.metadata?.managedBy !== "selected-plans") {
+      throw new ValidationError("This subscription has a custom schedule. Contact support to change it.");
+    }
+    const release = async () => {
+      if (scheduleId) await stripe().subscriptionSchedules.release(scheduleId);
+    };
+    if (input.action === "cancel_change") {
+      await release();
+    } else if (input.action === "cancel" || input.action === "resume") {
+      await release();
+      await stripe().subscriptions.update(sub.id, { cancel_at_period_end: input.action === "cancel" });
+    } else {
+      if (sub.status !== "active") throw new ValidationError("Resolve your payment or trial in Manage billing before changing plans.");
+      if (sub.cancel_at_period_end) throw new ValidationError("Resume your subscription before choosing a plan.");
+      const target = selectedBand(input.plan);
+      const members = await countBillableMembers(ctx.db);
+      const current = tierForCount(item.quantity ?? 0);
+      const downgrade = target.priceCents! < (current.priceCents ?? Infinity);
+      if (!downgrade && members > target.upTo!) {
+        throw new ValidationError("Choose a plan that covers your current active members.");
+      }
+      if (downgrade) {
+        // Downgrades keep the purchased capacity until renewal. An over-capacity
+        // roster is retained at renewal, with further admissions blocked.
+        if (sub.metadata.billingMode !== BillingMode.Selected) {
+          throw new ValidationError("Choose a plan covering your current members before scheduling a smaller plan.");
+        }
+        const managed = schedule ?? await stripe().subscriptionSchedules.create({ from_subscription: sub.id });
+        const phase: Stripe.SubscriptionScheduleUpdateParams.Phase = {
+          start_date: managed.current_phase?.start_date ?? item.current_period_start,
+          end_date: item.current_period_end,
+          items: [{ price: item.price.id, quantity: item.quantity ?? 1 }],
+          metadata: { ...sub.metadata, billingMode: BillingMode.Selected },
+          proration_behavior: "none",
+          // Preserve payment and tax settings across phases.
+          ...(sub.default_payment_method ? { default_payment_method: idOf(sub.default_payment_method)! } : {}),
+          default_tax_rates: sub.default_tax_rates?.map(t => t.id) ?? [],
+          discounts: sub.discounts?.map(d => ({ discount: idOf(d)! })) ?? [],
+          automatic_tax: { enabled: sub.automatic_tax?.enabled ?? false },
+        };
+        try {
+          await stripe().subscriptionSchedules.update(managed.id, {
+            end_behavior: "release",
+            metadata: { managedBy: "selected-plans", organizationId: String(ctx.orgId) },
+            proration_behavior: "none",
+            phases: [phase, {
+              ...phase, start_date: item.current_period_end, end_date: undefined,
+              duration: { interval: "month", interval_count: 1 },
+              items: [{ price: item.price.id, quantity: target.upTo! }],
+            }],
+          });
+        } catch (error) {
+          // Creating from_subscription attaches immediately. If configuring the
+          // future phase fails, undo that new attachment so retry remains usable.
+          if (!schedule) await stripe().subscriptionSchedules.release(managed.id).catch(e => {
+            logError(e, { route: "billing/change-plan", extra: { scheduleId: managed.id } });
+          });
+          throw error;
+        }
+      } else {
+        if (schedule) throw new ValidationError("Cancel the scheduled plan change before choosing another plan.");
+        // Stripe rejects the entire change if payment cannot complete. A failed
+        // card or authentication requirement must not grant unpaid capacity.
+        try {
+          await stripe().subscriptions.update(sub.id, {
+            items: [{ id: item.id, quantity: target.upTo! }],
+            metadata: { ...sub.metadata, billingMode: BillingMode.Selected },
+            proration_behavior: "always_invoice",
+            payment_behavior: "error_if_incomplete",
+          });
+        } catch (error) {
+          if ((error as { type?: string }).type === "StripeCardError") {
+            throw new ValidationError("Payment could not complete. Update your payment method in Manage billing, then try again. Your plan has not changed.");
+          }
+          throw error;
+        }
+      }
+    }
+    // Always pull the final state. A client redirect never grants capacity.
+    await applySubscription(await stripe().subscriptions.retrieve(sub.id));
+    await emit(ctx, "billing.plan_changed", { type: "Subscription", id: ctx.orgId }, {
+      action: input.action, ...("plan" in input ? { plan: input.plan } : {}),
+    }, { activity: false });
+    const updated = await ctx.db.subscription.findFirst();
+    return { scheduled: Boolean(updated?.scheduledPlan) };
+  });
 }

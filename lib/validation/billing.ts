@@ -5,9 +5,7 @@ import { SALES_LEAD_KINDS } from "@/lib/state/sales-lead";
  * Platform billing inputs. Nothing here touches the dues/treasury books — see
  * lib/validation/dues.ts for money moving inside an org.
  *
- * Note there is no "amount" or "tier" anywhere in this file. Price is never a
- * client input: it is derived server-side from the org's headcount by
- * lib/billing/tiers.ts, so a caller cannot ask to be put on a cheaper plan.
+ * Plan identifiers are validated; amounts and capacities are always server-derived.
  */
 
 // Control characters and backslashes, the usual tricks for smuggling an
@@ -29,7 +27,10 @@ const returnPath = z.string()
   .refine(s => s.startsWith("/") && !s.startsWith("//"), "must be a same-origin path")
   .refine(s => !hasForbiddenChars(s), "invalid characters in path");
 
+export const selectedPlanInput = z.enum(["standard", "pro"]);
+
 export const startCheckoutInput = z.object({
+  plan: selectedPlanInput.optional(),
   returnPath: returnPath.optional(),
 });
 export type StartCheckoutInput = z.infer<typeof startCheckoutInput>;
@@ -48,3 +49,11 @@ export const requestQuoteInput = z.object({
   message: z.string().trim().max(2000).optional(),
 });
 export type RequestQuoteInput = z.infer<typeof requestQuoteInput>;
+
+export const changePlanInput = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("select"), plan: selectedPlanInput }),
+  z.object({ action: z.literal("cancel_change") }),
+  z.object({ action: z.literal("cancel") }),
+  z.object({ action: z.literal("resume") }),
+]);
+export type ChangePlanInput = z.infer<typeof changePlanInput>;
