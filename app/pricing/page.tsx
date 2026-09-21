@@ -210,16 +210,17 @@ export default function PricingPage() {
               <div className="pr__q">
                 <h4>Do we get charged the moment we add a card?</h4>
                 <p>
-                  No. Billing follows your headcount, so if you add a card while there are still
-                  {" "}{FREE_BAND.upTo} of you, it sits there at {formatPrice(FREE_BAND.priceCents)}.
-                  You start paying the month you cross into the next band.
+                  With automatic billing, adding a card remains free through {FREE_BAND.upTo} members.
+                  You can also choose a paid plan ahead of time in Billing: payment starts today,
+                  and its capacity is ready before your next members join.
                 </p>
               </div>
               <div className="pr__q">
                 <h4>What if we shrink?</h4>
                 <p>
-                  The price follows you back down. Seniors graduate, your headcount drops, and the
-                  next invoice reflects the smaller number — you don&apos;t have to ask.
+                  With automatic billing, the next invoice follows your lower member count.
+                  A selected plan keeps its price and capacity until you change it. You can
+                  schedule a smaller selected plan for your next renewal.
                 </p>
               </div>
               <div className="pr__q">

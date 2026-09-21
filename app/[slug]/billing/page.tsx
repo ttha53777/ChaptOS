@@ -12,17 +12,8 @@
  * platform subscription, not the chapter's own money. Nothing here reads a
  * Transaction or a DuesPayment.
  *
- * ── The conversion flow, which is less obvious than it looks ─────────────────
- *
- * The seat guard blocks on `current + 1`, but Checkout bills at the CURRENT
- * headcount. So an org sitting at 4 members is blocked from adding a 5th, goes
- * to Checkout at quantity 4 — which is $0 under the free band — and only starts
- * paying once the 5th member lands and the seat sync pushes the new quantity.
- *
- * The consequence for this page: the "add a payment method" button has to be
- * offered WHILE THE ORG IS STILL FREE. Gating it behind "already paying" would
- * make the wall unclearable. The copy says plainly that nothing is charged
- * until the fifth person.
+ * Automatic billing follows headcount. Selected plans reserve capacity and
+ * start billing immediately, even while the roster is inside the free band.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -35,6 +26,9 @@ import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { ApiError, apiErrorMessage, requestJson } from "../../lib/api";
 import type { BillingSummary, QuoteResult } from "@/lib/services/billing-service";
+import { BillingMode, type SelectedPlan } from "@/lib/state/billing-mode";
+import { selectedBand } from "@/lib/billing/plans";
+import type { ChangePlanInput } from "@/lib/validation/billing";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { SalesLeadKind } from "@/lib/state/sales-lead";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -91,7 +85,9 @@ export default function BillingPage() {
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"checkout" | "portal" | "sync" | null>(null);
+  const [busy, setBusy] = useState<"checkout" | "portal" | "sync" | "plan" | null>(null);
+  const [planChoice, setPlanChoice] = useState<SelectedPlan | null>(null);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
   const [quoteKind, setQuoteKind] = useState<"quote" | "multi_org" | null>(null);
   const [returned, setReturned] = useState<"success" | "cancelled" | null>(null);
 
@@ -140,23 +136,40 @@ export default function BillingPage() {
     setReturned(param);
     window.history.replaceState({}, "", window.location.pathname);
     if (param !== "success") return;
-    const t = setTimeout(() => { void load(); }, 2500);
+    const t = setTimeout(() => { void requestJson("/api/billing/sync", { method: "POST" }).then(load).catch(() => load()); }, 2500);
     return () => clearTimeout(t);
   }, [load]);
 
   // Redirect out to a Stripe-hosted page. Both endpoints answer 201 { url }.
-  async function goToStripe(kind: "checkout" | "portal") {
+  async function goToStripe(kind: "checkout" | "portal", plan?: SelectedPlan) {
     setBusy(kind);
     try {
       const { url } = await requestJson<{ url: string }>(`/api/billing/${kind}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(plan ? { plan } : {}),
       });
       window.location.href = url;
     } catch (err) {
       setBusy(null);
       toast.error(apiErrorMessage(err, "Couldn't reach Stripe. Try again in a moment."));
+    }
+  }
+
+  async function updatePlan(input: ChangePlanInput) {
+    setBusy("plan");
+    try {
+      const result = await requestJson<{ scheduled: boolean }>("/api/billing/plan", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+      });
+      setPlanChoice(null);
+      setCancelConfirm(false);
+      await load();
+      toast.success(result.scheduled ? "Plan change scheduled for renewal." : "Billing updated.");
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't change the plan. Recheck billing before retrying."));
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -241,14 +254,14 @@ export default function BillingPage() {
   }
 
   const s = summary;
-  const band = s.bands.find(b => b.id === s.tier);
   // "Is there something to MANAGE?" — not "have they ever paid?". A cancelled
   // subscription is gone from Stripe's side, so sending someone to the portal
   // shows them an empty page, while the thing they actually want (start again)
   // sits behind the branch this flag used to hide. Cancelled orgs get the
   // Subscribe path back.
   const cancelled = s.status === SubscriptionStatus.Canceled;
-  const hasSubscription = s.status !== SubscriptionStatus.Free && !cancelled;
+  const hasSubscription = s.hasSubscription;
+  const selected = s.billingMode === BillingMode.Selected;
   const inTrouble = s.status === SubscriptionStatus.PastDue || s.status === SubscriptionStatus.Unpaid;
   const overCeiling = s.members > s.selfServeMax || s.blockedBy === "quote";
 
@@ -259,13 +272,13 @@ export default function BillingPage() {
       {/* ── Stripe return leg ── */}
       {returned === "success" && (
         <div className="bl-note bl-note-ok" role="status">
-          <b>Payment method saved.</b> Stripe is confirming it now — this page will catch up in a
-          few seconds. Nothing else is needed from you.
+          <b>Checkout returned.</b> We&rsquo;re checking your subscription with Stripe. Paid capacity
+          becomes available once payment is confirmed.
         </div>
       )}
       {returned === "cancelled" && (
         <div className="bl-note bl-note-muted" role="status">
-          <b>Checkout cancelled.</b> Nothing was charged and nothing changed.
+          <b>Checkout cancelled.</b> Your existing billing settings remain in place.
         </div>
       )}
 
@@ -298,7 +311,9 @@ export default function BillingPage() {
           <b>You&rsquo;ve reached the limit for this plan.</b>{" "}
           {overCeiling
             ? "Past 120 members we price it per-org rather than off a table — that takes a short conversation."
-            : "Adding one more person needs a payment method on file. Nothing you already have is affected."}
+            : s.blockedBy === "upgrade"
+              ? "Choose a larger plan below to approve more members. Your existing members keep access."
+              : "Choose a plan now or set up automatic billing below to approve more members."}
         </div>
       )}
 
@@ -307,7 +322,7 @@ export default function BillingPage() {
         <div className="bl-measure">
           <p className="k">Plan</p>
           <p className="v">{s.tierLabel}</p>
-          <p className="note">{band?.range ?? "—"}</p>
+          <p className="note">{selected ? "Selected plan · fixed capacity" : "Automatic · follows member count"}</p>
         </div>
         <div className="bl-measure">
           <p className="k">Monthly</p>
@@ -325,7 +340,7 @@ export default function BillingPage() {
         </div>
         <div className="bl-measure">
           <p className="k">People counted</p>
-          <p className="v">{s.members}</p>
+          <p className="v">{s.members}{selected && <span className="bl-capacity"> / {s.capacity}</span>}</p>
           <p className="note">
             <button className="bl-linkish" onClick={() => void recount()} disabled={busy === "sync"}>
               {busy === "sync" ? "rechecking…" : "recheck"}
@@ -343,6 +358,42 @@ export default function BillingPage() {
         </div>
       </section>
 
+      {s.scheduledPlan && (
+        <div className="bl-note bl-note-gold" role="status">
+          <b>{s.bands.find(b => b.id === s.scheduledPlan)?.label} starts {fmtDate(s.planChangeAt)}.</b>{" "}
+          Your current capacity remains available until then. Existing members stay if you exceed the new limit;
+          further approvals will wait until there is room.
+          <button className="bl-linkish" disabled={busy !== null} onClick={() => void updatePlan({ action: "cancel_change" })}>
+            Cancel scheduled change
+          </button>
+        </div>
+      )}
+      {s.billingEnabled && s.members <= s.selfServeMax && (
+        <section className="bl-plans" aria-label="Choose a plan now">
+          <h2 className="bl-h3">Choose a plan now</h2>
+          <p className="bl-lede">Get capacity ready before your next members join. Pay monthly, even with fewer than five members. Your plan stays the same as the roster changes.</p>
+          <div className="bl-plan-grid">
+            {(["standard", "pro"] as const).map(plan => {
+              const option = selectedBand(plan);
+              const current = selected && s.selectedPlan === plan && hasSubscription;
+              const downgrade = hasSubscription && option.priceCents! < (s.priceCents ?? 0);
+              const tooSmall = s.members > option.upTo! && !(selected && downgrade);
+              return <article className={`bl-plan${current ? " is-current" : ""}`} key={plan}>
+                <h3>{option.label}{current && <span className="bl-you">your plan</span>}</h3>
+                <p className="bl-plan-price">{s.bands.find(b => b.id === plan)?.priceLabel}<span>/month</span></p>
+                <p>Up to {option.upTo} active members</p>
+                <p className="bl-fine">{downgrade ? "Starts at your next renewal. Existing members keep access." : "Monthly subscription. No automatic plan upgrades."}</p>
+                <button className={btnDuskActionCls}
+                  disabled={busy !== null || current || tooSmall || inTrouble || s.cancelAtPeriodEnd || Boolean(s.scheduledPlan)}
+                  onClick={() => setPlanChoice(plan)}>
+                  {current ? "Current plan" : tooSmall ? "Below your member count" : downgrade ? `Switch to ${option.label}` : `Choose ${option.label}`}
+                </button>
+              </article>;
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ── Actions ── */}
       <section className="bl-actions" aria-label="Billing actions">
         {!s.billingEnabled ? (
@@ -353,7 +404,7 @@ export default function BillingPage() {
               no card to add. Member limits still apply.
             </p>
           </div>
-        ) : overCeiling ? (
+        ) : overCeiling && !hasSubscription ? (
           <div className="bl-act">
             <div className="t">
               <h3>Let&rsquo;s talk</h3>
@@ -382,7 +433,7 @@ export default function BillingPage() {
         ) : (
           <div className="bl-act">
             <div className="t">
-              <h3>Add a payment method</h3>
+              <h3>Or use automatic billing</h3>
               {/* Two genuinely different situations, and conflating them would be
                   a lie in one of them. An org still inside the free band pays
                   nothing on checkout (Stripe bills quantity × the $0 tier), so
@@ -410,6 +461,24 @@ export default function BillingPage() {
           </div>
         )}
 
+        {hasSubscription && overCeiling && s.billingEnabled && (
+          <div className="bl-act bl-act-soft">
+            <div className="t"><h3>Need more than {s.selfServeMax} members?</h3><p>Request a custom quote for more capacity.</p></div>
+            <button className={btnDuskGhostCls} onClick={() => setQuoteKind(SalesLeadKind.Quote)}>Request a quote</button>
+          </div>
+        )}
+        {hasSubscription && s.billingEnabled && (
+          <div className="bl-act bl-act-soft">
+            <div className="t"><h3>{s.cancelAtPeriodEnd ? "Keep your subscription" : "Cancel at renewal"}</h3>
+              <p>{s.cancelAtPeriodEnd ? "Resume to keep your current billing after this period." : "Paid capacity remains until the end of this period. Your members and records stay."}</p>
+            </div>
+            <button className={btnDuskGhostCls} disabled={busy !== null}
+              onClick={() => s.cancelAtPeriodEnd ? void updatePlan({ action: "resume" }) : setCancelConfirm(true)}>
+              {s.cancelAtPeriodEnd ? "Resume subscription" : "Cancel subscription"}
+            </button>
+          </div>
+        )}
+
         {s.groupPlanEligible && (
           <div className="bl-act bl-act-soft">
             <div className="t">
@@ -430,8 +499,8 @@ export default function BillingPage() {
       <section className="bl-bands" aria-label="Price bands">
         <h3 className="bl-h3">How the price works</h3>
         <p className="bl-lede">
-          One price per organization, by how many people are on it. Every feature is included at
-          every price — there is nothing behind a higher tier.
+          Automatic billing follows your active member count. Selected plans keep the capacity you
+          purchase until you change plans. Every plan includes every feature.
         </p>
         <table className="bl-table">
           <thead>
@@ -451,11 +520,45 @@ export default function BillingPage() {
           </tbody>
         </table>
         <p className="bl-fine">
-          Counted: everyone on the roster plus anyone with a membership here, each person once.
-          Placeholder records don&rsquo;t count.{" "}
+          Counted: active roster members. Archived members and support accounts don&rsquo;t count.{" "}
           <a href="/pricing">More on pricing</a> · <a href="/help/member-limit">what happens at the limit</a>
         </p>
       </section>
+
+      {planChoice && (
+        <Modal title={`Choose ${selectedBand(planChoice).label}`} tone="dusk" onClose={() => { if (!busy) setPlanChoice(null); }} maxWidthClass="max-w-lg">
+          <div className="bl-plan-confirm">
+            <p><b>{s.bands.find(b => b.id === planChoice)?.priceLabel}/month</b> for up to {selectedBand(planChoice).upTo} active members.</p>
+            <p>{!hasSubscription
+              ? "Your first monthly payment is due in Stripe Checkout today. The subscription renews monthly until you cancel."
+              : selectedBand(planChoice).priceCents! < (s.priceCents ?? 0)
+                ? `The lower price and capacity start at renewal on ${fmtDate(s.currentPeriodEnd)}. No mid-cycle refund. If you exceed the new capacity, existing members stay and further approvals are blocked.`
+                : "This change takes effect after payment. Stripe charges any prorated difference to your saved payment method now. The plan renews monthly until you cancel."}</p>
+            <p>Removing members won&rsquo;t lower this selected plan. You control future plan changes.</p>
+            <div className="bl-confirm-actions">
+              <button className={btnDuskGhostCls} disabled={busy !== null} onClick={() => setPlanChoice(null)}>Go back</button>
+              <button className={btnDuskActionCls} disabled={busy !== null}
+                onClick={() => hasSubscription ? void updatePlan({ action: "select", plan: planChoice }) : void goToStripe("checkout", planChoice)}>
+                {busy ? "Working…" : hasSubscription ? "Confirm plan change" : "Continue to payment"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {cancelConfirm && (
+        <Modal title="Cancel at renewal?" tone="dusk" onClose={() => { if (!busy) setCancelConfirm(false); }} maxWidthClass="max-w-lg">
+          <div className="bl-plan-confirm">
+            <p>Your subscription ends on {fmtDate(s.currentPeriodEnd)}. This replaces any scheduled plan change.</p>
+            <p>Your members and records stay. After that date, approving members above the free allowance requires a subscription.</p>
+            <div className="bl-confirm-actions">
+              <button className={btnDuskGhostCls} disabled={busy !== null} onClick={() => setCancelConfirm(false)}>Keep subscription</button>
+              <button className={btnDuskActionCls} disabled={busy !== null} onClick={() => void updatePlan({ action: "cancel" })}>
+                {busy ? "Working…" : "Confirm cancellation"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {quoteKind && (
         <QuoteModal

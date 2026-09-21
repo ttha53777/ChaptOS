@@ -473,7 +473,7 @@ export default function BrothersPage() {
                     {isOrgAdmin
                       ? seatWall.action === "quote"
                         ? "Past this size we price per organization, which takes a short conversation."
-                        : "Adding a payment method clears it."
+                        : seatWall.action === "upgrade" ? "Choose a larger plan to approve more members." : "Choose a plan or set up automatic billing to continue."
                       : "An org admin can clear this from Settings → Billing."}
                   </p>
                 </div>
@@ -533,6 +533,7 @@ export default function BrothersPage() {
                 )}
               </div>
               <div className="head-actions">
+                {isOrgAdmin && <a className="btn" href={orgPath("/billing")}>Upgrade early</a>}
                 <button className="btn" onClick={handleExport} title="Export CSV">
                   <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Export

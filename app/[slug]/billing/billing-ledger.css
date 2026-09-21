@@ -232,3 +232,18 @@ header.dash-toolbar .bl-crumb {
 @media (max-width: 460px) {
   .dash .bl-summary { grid-template-columns: minmax(0, 1fr); }
 }
+
+.dash .bl-plans { margin: 26px 0; }
+.dash .bl-plan-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 18px; }
+.dash .bl-plan { border: 1px solid var(--line); border-radius: 12px; padding: 22px; background: var(--card); }
+.dash .bl-plan.is-current { border-color: var(--gold); }
+.dash .bl-plan h3 { font-family: var(--serif); font-size: 22px; color: var(--ink); }
+.dash .bl-plan p { color: var(--ink-soft); margin: 12px 0; }
+.dash .bl-plan .bl-plan-price { font-size: 32px; color: var(--ink); }
+.dash .bl-plan-price span, .dash .bl-capacity { font-size: 14px; color: var(--muted); }
+.dash .bl-plan button { margin-top: 6px; }
+.dash .bl-note .bl-linkish { margin-left: 10px; }
+.bl-plan-confirm { color: #c9c2b4; font-size: 14px; line-height: 1.65; }
+.bl-plan-confirm p + p { margin-top: 14px; }
+.bl-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+@media (max-width: 600px) { .dash .bl-plan-grid { grid-template-columns: 1fr; } }

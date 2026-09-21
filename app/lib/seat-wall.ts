@@ -26,7 +26,7 @@ export interface SeatWall {
   /** The server's own message — already written for a human, so prefer it. */
   message: string;
   /** "checkout" means a card fixes it; "quote" means it needs a conversation. */
-  action: "checkout" | "quote" | null;
+  action: "checkout" | "upgrade" | "quote" | null;
   currentMembers: number | null;
   requiredTier: string | null;
   /** "$25" / "Custom", via the single pricing source of truth. */
@@ -54,7 +54,7 @@ export function seatWallFrom(err: unknown): SeatWall | null {
 
   return {
     message: serverMessage ?? "This organization is at its member limit.",
-    action: action === "checkout" || action === "quote" ? action : null,
+    action: action === "checkout" || action === "upgrade" || action === "quote" ? action : null,
     currentMembers: typeof currentMembers === "number" ? currentMembers : null,
     requiredTier: typeof requiredTier === "string" ? requiredTier : null,
     // priceCents is legitimately null above the self-serve ceiling, which

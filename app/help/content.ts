@@ -947,9 +947,10 @@ export const ARTICLES: Article[] = [
         ["121+ people",    "Quoted — talk to us"],
       ] },
       { k: "p", t:
-        "The band you land in is worked out from your live headcount, so it moves on its own. Add " +
-        "people and it goes up at the boundary; graduate a class and it comes back down. Nobody has " +
-        "to remember to tell us." },
+        "With automatic billing, the price follows your active member count. You can also choose " +
+        "Standard ($25/month, up to 50 members) or Pro ($65/month, up to 120) in Billing before " +
+        "your roster grows. Selected plans start charging immediately and stay at the chosen price " +
+        "until you change them. Downgrades take effect at renewal." },
       { k: "h", t: "Every feature is on every plan" },
       { k: "p", t:
         "This is worth stating plainly because most software doesn't work this way: there is no " +
@@ -977,7 +978,7 @@ export const ARTICLES: Article[] = [
       { k: "h", t: "What stops" },
       { k: "list", tone: "no", items: [
         "Adding a new member to the roster.",
-        "A new person redeeming an invite link.",
+        "Approving a join request that would exceed your capacity. People can still submit requests.",
         "Un-archiving someone who was archived.",
       ] },
       { k: "h", t: "What doesn't" },
@@ -993,8 +994,8 @@ export const ARTICLES: Article[] = [
       { k: "h", t: "Clearing it" },
       { k: "steps", items: [
         "An org admin opens Settings → Billing.",
-        "Add a payment method. You're not charged for doing this while you're still within the free band — the card just sits there.",
-        "Add the person. Billing catches up with the new headcount on its own.",
+        "Choose and pay for a plan now, or add a card for automatic billing. Automatic billing remains free through four members; a selected paid plan starts charging today.",
+        "After payment is confirmed, approve the pending join request. A selected plan stops further approvals at its capacity until you explicitly upgrade.",
       ] },
       { k: "note", tone: "warn", h: "Only an org admin can clear it", t:
         "Billing is org-admin authority, not a permission you can hand out — it belongs to whoever " +
