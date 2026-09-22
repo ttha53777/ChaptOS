@@ -6,11 +6,11 @@
 // a hand-built HTML/CSS vignette (no screenshots), so the page stays sharp at
 // every DPI and ships zero image bytes.
 //
-// The whole tree is server-rendered static markup carrying the mock's data-*
-// hooks; LandingMotion is the only page-wide client component and drives every
-// animation off them. sections/Setup.tsx is the one interactive section with
-// real React state. Everything is scoped under .lp — see landing.css.
+// CSS selects the server-rendered mobile or desktop story before hydration.
+// Desktop keeps its data-* motion hooks under .lp; the mobile layout uses
+// .mlp and small client islands. Both layouts retain real links without JS.
 import "./landing.css";
+import { MobileLandingPage } from "./MobileLandingPage";
 
 import { DoodleSprite } from "./DoodleSprite";
 import { LandingMotion } from "./LandingMotion";
@@ -49,36 +49,39 @@ const NO_JS_CSS = `
 
 export function LandingPage() {
   return (
-    <div className={`lp ${landingFontClass}`}>
-      <noscript>
-        <style>{NO_JS_CSS}</style>
-      </noscript>
+    <>
+      <MobileLandingPage />
+      <div className={`landing-desktop lp ${landingFontClass}`}>
+        <noscript>
+          <style>{NO_JS_CSS}</style>
+        </noscript>
 
-      <DoodleSprite />
+        <DoodleSprite />
 
-      <div className="progress" aria-hidden="true">
-        <i data-progress />
+        <div className="progress" aria-hidden="true">
+          <i data-progress />
+        </div>
+
+        <Nav />
+
+        <main id="top">
+          <Hero />
+          <Pain />
+          <AskScene />
+          <AskPayoff />
+          <DayDial />
+          <DayPayoff />
+          <Modules />
+          <Setup />
+          <Trust />
+          <Price />
+          <Cta />
+        </main>
+
+        <Footer />
+
+        <LandingMotion />
       </div>
-
-      <Nav />
-
-      <main id="top">
-        <Hero />
-        <Pain />
-        <AskScene />
-        <AskPayoff />
-        <DayDial />
-        <DayPayoff />
-        <Modules />
-        <Setup />
-        <Trust />
-        <Price />
-        <Cta />
-      </main>
-
-      <Footer />
-
-      <LandingMotion />
-    </div>
+    </>
   );
 }

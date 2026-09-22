@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 /* ============================================================================
    Motion + interaction for the landing page.
@@ -39,7 +39,20 @@ type Dispose = () => void;
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
 export function LandingMotion() {
+  const [desktop, setDesktop] = useState(false);
+
   useEffect(() => {
+    const media = matchMedia("(min-width: 768px)");
+    const sync = () => setDesktop(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    // Hidden desktop content must not run scroll, typing, or animation loops.
+    // Crossing the layout boundary disposes/restarts all engines below.
+    if (!desktop) return;
     const root = document.querySelector<HTMLElement>(".lp");
     if (!root) return;
 
@@ -675,7 +688,7 @@ export function LandingMotion() {
       rafIds.forEach(cancelAnimationFrame);
       rafIds.clear();
     };
-  }, []);
+  }, [desktop]);
 
   return null;
 }
