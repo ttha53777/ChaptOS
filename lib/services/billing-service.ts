@@ -232,6 +232,7 @@ export async function startCheckout(
   const session = await stripe().checkout.sessions.create({
     mode:     "subscription",
     customer: customerId,
+    allow_promotion_codes: true,
     line_items: [{ price: stripePriceId(), quantity }],
     // Metadata on the SUBSCRIPTION (not just the session) is what lets every
     // later webhook — renewals, failures, cancellations — resolve the org
