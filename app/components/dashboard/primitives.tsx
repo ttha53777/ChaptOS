@@ -159,12 +159,12 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
         aria-labelledby={titleRendered ? titleId : undefined}
         aria-label={titleRendered ? undefined : (ariaLabel ?? title)}
         tabIndex={-1}
-        className={`card-premium-elevated relative w-full ${maxWidthClass} rounded-2xl border outline-none ${
+        className={`card-premium-elevated relative flex max-h-[calc(100dvh-2rem)] w-full flex-col ${maxWidthClass} rounded-2xl border outline-none ${
           dusk ? "border-[rgba(236,231,221,0.1)] bg-[#0f0d0a]" : "border-white/[0.08] bg-[#10121a]"
         }`}
       >
         {!hideHeader && (title || dismissable) && (
-          <div className={`flex items-center justify-between border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
+          <div className={`flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
             <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
             {dismissable && (
               <button type="button" onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
@@ -182,7 +182,7 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
             </svg>
           </button>
         )}
-        <div ref={bodyRef} className="p-6">{children}</div>
+        <div ref={bodyRef} className="min-h-0 overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );
