@@ -56,7 +56,8 @@
 }
 
 /* ── Briefing ────────────────────────────────────────────────────────────────── */
-.dash .dx-briefing { position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; }
+.dash .dx-briefing { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 20px 32px; }
+.dash .dx-briefing > div:first-of-type { flex: 1 1 280px; min-width: 0; }
 /* Mobile-only menu — keep display in CSS (not Tailwind) so it can't lose to .dx-menu-mob { display: grid }. */
 .dash .dx-menu-mob { display: none; }
 @media (max-width: 1023px) {
@@ -89,7 +90,7 @@
 .dash .dx-add svg { width: 13px; height: 13px; stroke: var(--vio); }
 
 /* Header action group (New folder + Add doc). */
-.dash .dx-actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+.dash .dx-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .dash .dx-add.ghost { color: var(--ink-soft); background: none; border-color: var(--line); }
 .dash .dx-add.ghost svg { stroke: var(--ink-soft); }
 .dash .dx-add.ghost:hover { color: var(--ink); border-color: var(--vio); }
@@ -190,7 +191,7 @@
   transition: transform .16s ease, color .12s; }
 .dash .dx-sec-head:hover .chev { color: var(--vio); }
 .dash .dx-section.closed .chev { transform: rotate(-90deg); }
-.dash .dx-sec-head .name { font-family: var(--serif); font-weight: 500; font-size: 17px; letter-spacing: -.005em; color: var(--ink); }
+.dash .dx-sec-head .name { min-width: 0; overflow-wrap: anywhere; font-family: var(--serif); font-weight: 500; font-size: 17px; letter-spacing: -.005em; color: var(--ink); }
 .dash .dx-sec-head .ct { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--faint); }
 .dash .dx-sec-head .pin { align-self: center; display: grid; place-items: center; width: 18px; height: 18px;
   border-radius: 5px; color: var(--vio); background: var(--vio-bg); }
@@ -238,7 +239,7 @@
 .dash .dx-row.k-form  .fav { background: var(--vio-bg); }
 .dash .dx-row.k-drive .fav { background: var(--gold-bg); }
 .dash .dx-row .what { min-width: 0; flex: 1; display: flex; align-items: baseline; gap: 9px; }
-.dash .dx-row .t { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.dash .dx-row .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
 .dash .dx-row .d { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .dash .dx-row .d.none { font-style: italic; font-family: var(--serif); color: var(--faint); }
 .dash .dx-row .host { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; letter-spacing: .04em; color: var(--faint); }
@@ -258,6 +259,12 @@
 .dash .dx-row .dx-menu-btn svg { width: 15px; height: 15px; }
 .dash .dx-row .dx-menu { top: 38px; right: 10px; }
 @media (max-width: 900px) { .dash .dx-row .host, .dash .dx-row .added { display: none; } }
+@media (max-width: 640px) {
+  .dash .dx-sec-head { flex-wrap: wrap; }
+  .dash .dx-row .what { flex-direction: column; align-items: stretch; gap: 3px; }
+  .dash .dx-row .t { white-space: normal; overflow-wrap: anywhere; }
+  .dash .dx-row .open { display: none; }
+}
 
 /* Every row in a section filtered out (or nothing filed here at all). */
 .dash .dx-none-match { padding: 16px 14px; font-size: 12px; color: var(--faint);

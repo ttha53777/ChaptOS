@@ -22,14 +22,15 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── Page header — editorial, not a toolbar ──────────────────────────────────── */
-.dash .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; }
+.dash .pagehead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px 28px; }
+.dash .pagehead > div:first-child { flex: 1 1 320px; min-width: 0; }
 .dash .pagehead .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
 .dash .pagehead h1 { font-family: var(--serif); font-weight: 400; font-size: 31px; letter-spacing: -.01em; margin-top: 7px; color: var(--ink); }
 .dash .pagehead h1 em { font-style: italic; color: var(--vio); }
 .dash .pagehead .summary { margin-top: 9px; max-width: 540px; font-family: var(--serif); font-weight: 350; font-style: italic; font-size: 13.5px; color: var(--ink-soft); }
 .dash .pagehead .summary b { font-style: normal; font-weight: 550; color: var(--gold); }
 
-.dash .head-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.dash .head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .dash .btn { display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; border-radius: 8px; padding: 8px 13px; border: 1px solid var(--line); background: transparent; color: var(--muted); transition: color .15s, border-color .15s, background .15s; }
 .dash .btn:hover { color: var(--ink); border-color: var(--vio); }
 .dash .btn.primary { background: var(--vio-bg); border-color: transparent; color: var(--vio); }
@@ -48,7 +49,7 @@
 .dash .seg .s-good  { background: var(--ok); }
 .dash .seg .s-watch { background: var(--gold); }
 .dash .seg .s-risk  { background: var(--rose); }
-.dash .seg-legend { display: flex; gap: 22px; margin-top: 12px; }
+.dash .seg-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 12px; }
 .dash .seg-legend button { display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; font-family: var(--sans); padding: 0; }
 .dash .seg-legend .dot { width: 8px; height: 8px; border-radius: 50%; }
 .dash .seg-legend .lbl { font-size: 11.5px; color: var(--muted); }
@@ -57,7 +58,9 @@
 
 /* ── Roster controls — header chips already styled in dashboard-ledger; add the
       inline search field and a flex wrapper for tools. ───────────────────────── */
-.dash .roster-tools { display: flex; align-items: center; gap: 10px; }
+.dash .roster .card-h { flex-wrap: wrap; gap: 12px; }
+.dash .roster-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
+.dash .roster-tools .filters { flex-wrap: wrap; }
 .dash .search { position: relative; }
 .dash .search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; stroke: var(--faint); stroke-width: 2; fill: none; }
 .dash .search input { font-family: var(--sans); font-size: 12px; color: var(--ink); background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 6px 28px; width: 180px; outline: none; }

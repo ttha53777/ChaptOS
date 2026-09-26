@@ -183,6 +183,10 @@ header.dash-toolbar .pty-crumb {
 .dash .pty-row .mini.danger:hover { color: var(--rose); border-color: var(--rose); }
 
 @media (max-width: 640px) {
+  .dash .pty-needs { flex-wrap: wrap; gap: 14px; }
+  .dash .pty-needs .nd-body { flex-basis: calc(100% - 56px); }
+  .dash .pty-needs .pty-do { width: 100%; justify-content: center; }
+  .dash .pty-sec { flex-wrap: wrap; gap: 8px 14px; }
   .dash .pty-row .drawer-inner { padding-left: 0; gap: 18px; }
 }
 

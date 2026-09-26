@@ -755,6 +755,7 @@
   .dash .rt .card-h, .dash .rt-foot { padding-left: 16px; padding-right: 16px; }
   .dash .rt .ba-search { flex: 1 1 100%; }
   .dash .rt .ba-search input { width: 100%; }
+  .dash .rt .row-skel .skel.nm { flex-shrink: 1; min-width: 0; }
 
   /* The briefing action chips wrap; give them room and a touch-friendly tap. */
   .dash .brief-actions { gap: 7px; }
