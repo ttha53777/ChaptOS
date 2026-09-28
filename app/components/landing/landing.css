@@ -1225,6 +1225,9 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 @media (max-width: 560px){
   .lp{font-size:16px}
   .lp .wrap,.lp .wrap--narrow{width:calc(100% - 32px)}
+  .lp .nav__in{gap:12px; justify-content:space-between}
+  .lp .nav__cta{gap:6px}
+  .lp .nav__cta .btn{padding-inline:10px}
   .lp .hero__actions .btn{width:100%}
   .lp .ladder{grid-template-columns:minmax(0,1fr)}
   /* one column of centred copy is too narrow to have anything drifting behind
