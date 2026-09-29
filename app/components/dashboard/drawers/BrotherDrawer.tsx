@@ -1,5 +1,6 @@
 "use client";
 
+import "../drawer-ledger.css";
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import type { Brother } from "../../../data";
 import { fmt$, getBrotherStatus, roleTitle } from "../../../data";
