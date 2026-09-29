@@ -30,3 +30,4 @@ export * from "./sales-lead";
 export * from "./checkin-status";
 
 export * from "./billing-mode";
+export * from "./calendar-feed";

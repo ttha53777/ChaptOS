@@ -47,6 +47,7 @@ type View = "board" | "calendar";
 type ApiPatch = Record<string, unknown>;
 
 type FormInput = {
+  schedule?: CalendarDraft["schedule"];
   title: string; dueDate: string | null; location: string | null; time?: string | null;
   collab?: string | null; category: string; status: TaskStatus; mandatory: boolean;
   description: string | null;
@@ -55,6 +56,7 @@ type FormInput = {
 /** Map the shared CalendarEventForm draft to the programming API input shape. */
 function draftToFormInput(draft: CalendarDraft): FormInput {
   return {
+    schedule: draft.schedule,
     title:     draft.title,
     dueDate:   draft.date || null,
     location:  draft.location ?? null,
@@ -500,6 +502,7 @@ export default function ProgrammingPage() {
       dueDate: input.dueDate,
       location: input.location,
       time: input.time,
+      schedule: input.schedule,
       collab: input.collab,
       category: input.category,
       mandatory: input.mandatory,
@@ -853,6 +856,7 @@ export default function ProgrammingPage() {
             submitLabel="Save Changes"
             initialEvent={{
               id: editTarget.id,
+              schedule: editTarget.schedule,
               title: editTarget.title,
               date: editTarget.dueDate ?? "",
               time: editTarget.time ?? undefined,

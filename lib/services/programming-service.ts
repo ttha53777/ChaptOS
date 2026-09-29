@@ -1,3 +1,4 @@
+import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
 import { guardLegacyNotes } from "@/lib/collaboration/notes-compat";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
@@ -71,6 +72,8 @@ const ROW_SELECT = {
   successRating:   true,
   wrapUpNotes:     true,
   calendarEventId: true,
+  schedule: true,
+  reservedCalendarEventId: true,
   ownerBrotherId:  true,
   ownerRoleId:     true,
   ownerNote:       true,
@@ -264,6 +267,7 @@ async function assertOwnerInOrg(
 }
 
 export async function createProgrammingTask(ctx: RequestContext, input: CreateProgrammingTaskInput) {
+  if (input.schedule) input = { ...input, dueDate: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   const types = await managedTypes(ctx);
   requireManagedCategory(types, input.category);
   await assertOwnerInOrg(ctx, input.ownerBrotherId, input.ownerRoleId);
@@ -273,7 +277,7 @@ export async function createProgrammingTask(ctx: RequestContext, input: CreatePr
   // Always starts in Idea: a ProgrammingEvent with no CalendarEvent.
   const data = fromProgrammingInput(input);
   const created = await ctx.db.programmingEvent.create({
-    data: data as Omit<Prisma.ProgrammingEventUncheckedCreateInput, "organizationId">,
+    data: { ...data, schedule: input.schedule ?? Prisma.DbNull } as Omit<Prisma.ProgrammingEventUncheckedCreateInput, "organizationId">,
     select: ROW_SELECT,
   }) as unknown as ProgrammingRow;
   await emit(ctx, "programming.created", { type: "ProgrammingEvent", id: created.id }, {
@@ -296,9 +300,10 @@ export async function createProgrammingTask(ctx: RequestContext, input: CreatePr
  * Wrap-up fields are deliberately NOT frozen — successRating, wrapUpNotes and
  * spendingCents are what a Done event exists to collect.
  */
-const FROZEN_WHEN_PUBLISHED = ["title", "dueDate", "location", "time", "category", "mandatory", "collab"] as const;
+const FROZEN_WHEN_PUBLISHED = ["title", "dueDate", "location", "time", "category", "mandatory", "collab", "schedule"] as const;
 
 export async function updateProgrammingTask(ctx: RequestContext, id: number, input: UpdateProgrammingTaskInput) {
+  if (input.schedule) input = { ...input, dueDate: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   const { row: existing, types } = await requireProgrammingEvent(ctx, id);
 
   if (stageIsPublished(existing.stage)) {
@@ -329,6 +334,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
     changedFields.push("date");
   }
   if (input.location !== undefined)     { data.location = input.location?.trim() || null; changedFields.push("location"); }
+  if (input.schedule !== undefined) { data.schedule = input.schedule ?? Prisma.DbNull; changedFields.push("schedule"); }
   if (input.time !== undefined)         { data.time = input.time?.trim() || null; changedFields.push("time"); }
   // Setting one owner clears the other: an event is owned by a person OR a role,
   // and leaving the old FK behind would leave two owners on the row for
@@ -417,7 +423,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
       const notesChanged = (mirror.description ?? "") !== (calendar.description ?? "");
       await tx.calendarEvent.update({
         where: { id: updated.calendarEventId, organizationId: ctx.orgId },
-        data: { ...mirror, ...(notesChanged ? { notesContentRevision: { increment: 1 }, notesUpdatedAt: new Date() } : {}) },
+        data: { ...mirror, schedule: updated.schedule ?? Prisma.DbNull, ...(notesChanged ? { notesContentRevision: { increment: 1 }, notesUpdatedAt: new Date() } : {}) },
       });
       if (willService) {
         await syncServiceEvent(tx, ctx.orgId, updated.calendarEventId, updated);
@@ -510,19 +516,18 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   try {
     await ctx.db.$transaction(async (tx) => {
       if (promoting) {
+        // Claim before creating the mirror. Re-confirmation must reuse its
+        // reserved canonical ID; concurrent confirms cannot both INSERT it.
+        const [current] = await tx.$queryRaw<{ calendarEventId: number | null; reservedCalendarEventId: number | null }[]>(Prisma.sql`SELECT "calendarEventId", "reservedCalendarEventId" FROM "ProgrammingEvent" WHERE id = ${id} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+        if (!current) throw new NotFoundError("Programming event");
+        if (current.calendarEventId !== null) { lostRace = true; throw RACE_LOST; }
         const ce = await tx.calendarEvent.create({
-          data: { organizationId: ctx.orgId, ...toCalendarFields(pe) },
+          data: { id: current.reservedCalendarEventId ?? undefined, organizationId: ctx.orgId, ...toCalendarFields(pe), schedule: pe.schedule ?? Prisma.DbNull },
         });
-        // CLAIM the transition, don't assume it. `promoting` was decided from a
-        // read taken before this transaction opened, so two confirms of the same
-        // event both see calendarEventId == null and both reach this point. The
-        // `calendarEventId: null` guard makes the link a one-shot claim: the
-        // loser matches 0 rows and throws out, rolling back its CalendarEvent
-        // rather than overwriting the link and orphaning the winner's row on the
-        // Timeline with nothing able to edit or delete it.
+        // Retain the scoped conditional claim as a final invariant check.
         const claimed = await tx.programmingEvent.updateMany({
           where: { id, organizationId: ctx.orgId, calendarEventId: null },
-          data:  { stage: next, calendarEventId: ce.id },
+          data:  { stage: next, calendarEventId: ce.id, reservedCalendarEventId: ce.id },
         });
         if (claimed.count === 0) { lostRace = true; throw RACE_LOST; }
         if (isServiceCategory(pe.category)) {

@@ -1,3 +1,4 @@
+import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
 import { collaborativeNotesEnabled } from "@/lib/collaboration/notes-config";
@@ -55,12 +56,14 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
 }
 
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
+  if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   await assertCategoryUsable(ctx, input.category, "create");
   await assertWithinActiveSemester(ctx, input.date);
   const { event, partyEventId } = await ctx.db.$transaction(async tx => {
     const event = await tx.calendarEvent.create({
       data: {
         organizationId: ctx.orgId,
+        schedule: input.schedule ?? Prisma.DbNull,
         title:       input.title,
         date:        input.date,
         time:        input.time ?? null,
@@ -83,6 +86,7 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
 }
 
 export async function updateCalendar(ctx: RequestContext, id: number, input: UpdateCalendarInput) {
+  if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   if (input.category != null) await assertCategoryUsable(ctx, input.category, "update");
   // Only re-validate when the date is actually being moved to a concrete value;
   // clearing it (null) or leaving it untouched (undefined) skips the bound check
@@ -95,7 +99,7 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
     const v = input[k];
     if (v === undefined) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (data as any)[k] = v;
+    (data as any)[k] = k === "schedule" && v === null ? Prisma.DbNull : v;
     changedFields.push(k);
   }
   if (input.description !== undefined) {

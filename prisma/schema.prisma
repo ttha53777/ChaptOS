@@ -28,6 +28,10 @@ model Organization {
   // initials badge in the sidebar/login). Set via /api/orgs/logo. Lives on the
   // hot row, not OrganizationConfig, because the sidebar reads it in the same
   // /api/auth/me round-trip as name/slug.
+  timeZone           String? // Officer-confirmed IANA zone; never inferred from server time.
+  calendarSubscription CalendarSubscription?
+  calendarFeedItems CalendarFeedItem[]
+  calendarFeedWork CalendarFeedWork?
   logoUrl            String?
   createdByBrotherId Int?
   createdAt          DateTime @default(now())
@@ -768,6 +772,7 @@ model PartyEvent {
 }
 
 model CalendarEvent {
+  schedule          Json? // Validated Schedule: all-day dates or UTC instants + source IANA zone.
   id                Int                        @id @default(autoincrement())
   organizationId    Int
   title             String
@@ -871,8 +876,13 @@ model CalendarEventType {
 // / itineraryNotNeeded) were one fraternity's ops list hardcoded for every org,
 // and every one of them was self-attested. A date and a location are facts.
 model ProgrammingEvent {
+  schedule          Json? // Validated Schedule: all-day dates or UTC instants + source IANA zone.
   id                 Int      @id @default(autoincrement())
   organizationId     Int
+  // Reserved after first publication, even while the mirror row is absent.
+  // No FK: demotion deletes CalendarEvent; re-confirmation recreates THIS id,
+  // preserving the canonical feed identity without retaining an unpublished row.
+  reservedCalendarEventId Int? @unique
   calendarEventId    Int?     @unique
   // Owning planning fields. A CalendarEvent is created only once the event
   // reaches "confirmed"; until then these live here alone.
@@ -1528,4 +1538,49 @@ model SalesLead {
 
   @@index([organizationId])
   @@index([status, createdAt])
+}
+
+// Shared bearer credential. Null credentials are disabled, unprovisioned rows.
+model CalendarSubscription {
+  id Int @id @default(autoincrement())
+  organizationId Int @unique
+  publicId String @unique @default(uuid())
+  tokenDigest String?
+  tokenCiphertext String?
+  enabled Boolean @default(false)
+  generation Int @default(0)
+  validatedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model CalendarFeedItem {
+  id Int @id @default(autoincrement())
+  organizationId Int
+  sourceType String
+  sourceId Int
+  uid String @unique @default(uuid())
+  published Json?
+  contentHash String?
+  revision Int @default(0)
+  changedAt DateTime @default(now())
+  cancelledAt DateTime?
+  retainUntil DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, sourceType, sourceId])
+}
+
+// One lockable durable work slot per org. Triggers enqueue in the source transaction.
+// Failed workers leave version > appliedVersion; retry reads current source state.
+model CalendarFeedWork {
+  id Int @id @default(autoincrement())
+  organizationId Int @unique
+  version Int @default(1)
+  appliedVersion Int @default(0)
+  enqueuedAt DateTime @default(now())
+  processedAt DateTime?
+  failedAt DateTime?
+  failures Int @default(0)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }

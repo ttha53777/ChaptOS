@@ -118,7 +118,19 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
     changedFields.push("completed");
   }
 
-  const p = await ctx.db.partyEvent.update({ where: { id }, data });
+  const target = await ctx.db.partyEvent.findUnique({ where: { id }, select: { attendanceEventId: true } });
+  if (!target) throw new NotFoundError("Party event");
+  // Canonical schedule and ledger commit together. A post-commit handler cannot
+  // be the only path: a restart there would leave the durable feed stale.
+  const p = await ctx.db.$transaction(async tx => {
+    if (target.attendanceEventId && (input.name !== undefined || input.date !== undefined)) {
+      await tx.calendarEvent.update({ where: { id: target.attendanceEventId, organizationId: ctx.orgId }, data: {
+        ...(input.name !== undefined ? { title: input.name } : {}),
+        ...(input.date !== undefined ? { date: input.date } : {}),
+      } });
+    }
+    return tx.partyEvent.update({ where: { id, organizationId: ctx.orgId }, data });
+  });
   await emit(ctx, "party.updated", { type: "PartyEvent", id: p.id }, { name: p.name, changedFields }, { activity: !completing });
   if (completing) {
     await emit(ctx, "party.completed", { type: "PartyEvent", id: p.id }, { name: p.name, date: p.date });

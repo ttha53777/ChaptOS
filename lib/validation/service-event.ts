@@ -1,9 +1,10 @@
+import { scheduleSchema, dateSchema } from "@/lib/calendar-feed/schedule";
 import { z } from "zod";
-import { DATE_RE } from "@/lib/dates";
 
 export const createServiceEventInput = z.object({
+  schedule: scheduleSchema.nullable().optional(),
   title:     z.string().trim().min(1),
-  date:      z.string().regex(DATE_RE),
+  date:      dateSchema,
   time:      z.string().optional(),
   location:  z.string().optional(),
   // accept either name from clients (notes for service page, description for calendar)
@@ -15,7 +16,7 @@ export type CreateServiceEventInput = z.infer<typeof createServiceEventInput>;
 
 export const updateServiceEventInput = z.object({
   title:    z.string().min(1).optional(),
-  date:     z.string().regex(DATE_RE).optional(),
+  date:     dateSchema.optional(),
   location: z.string().optional(),
   notes:    z.string().optional(),
 });

@@ -1,5 +1,5 @@
+import { scheduleSchema, dateSchema } from "@/lib/calendar-feed/schedule";
 import { z } from "zod";
-import { DATE_RE } from "@/lib/dates";
 import { MAX_EVENT_FIELDS } from "@/lib/event-fields";
 import { STAGES } from "@/lib/state/programming-stage";
 import { CATEGORY_SLUG_RE } from "./calendar";
@@ -27,8 +27,9 @@ const oneOwnerMessage = { message: "An event is owned by a person or a role, not
 // New events start in the Idea stage, where most fields are optional —
 // they only become required when promoting (handled by the gates in setStage).
 export const createProgrammingTaskInput = z.object({
+  schedule: scheduleSchema.nullable().optional(),
   title:    z.string().trim().min(1).max(200),
-  dueDate:  z.string().regex(DATE_RE).nullable().optional(),
+  dueDate:  dateSchema.nullable().optional(),
   location: z.string().trim().max(200).nullable().optional(),
   time:     z.string().trim().max(50).nullable().optional(),
   collab:   z.string().trim().max(200).nullable().optional(),
@@ -41,8 +42,9 @@ export const createProgrammingTaskInput = z.object({
 export type CreateProgrammingTaskInput = z.infer<typeof createProgrammingTaskInput>;
 
 export const updateProgrammingTaskInput = z.object({
+  schedule: scheduleSchema.nullable().optional(),
   title:           z.string().trim().min(1).max(200).optional(),
-  dueDate:         z.string().regex(DATE_RE).nullable().optional(),
+  dueDate:         dateSchema.nullable().optional(),
   location:        z.string().trim().max(200).nullable().optional(),
   time:            z.string().trim().max(50).nullable().optional(),
   collab:          z.string().trim().max(200).nullable().optional(),

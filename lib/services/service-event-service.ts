@@ -1,3 +1,4 @@
+import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
 import type { RequestContext } from "@/lib/context";
@@ -11,6 +12,7 @@ export async function listServiceEvents(ctx: RequestContext) {
 }
 
 export async function createServiceEvent(ctx: RequestContext, input: CreateServiceEventInput) {
+  if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) ?? undefined };
   // Guard before the transaction so neither the CalendarEvent nor the
   // ServiceEvent row is written when the date is out of the active semester.
   await assertWithinActiveSemester(ctx, input.date);
@@ -26,6 +28,7 @@ export async function createServiceEvent(ctx: RequestContext, input: CreateServi
     const calendarEvent = await tx.calendarEvent.create({
       data: {
         organizationId: orgId,
+        schedule: input.schedule ?? Prisma.DbNull,
         title:       titleStr,
         date:        input.date,
         time:        timeStr || null,

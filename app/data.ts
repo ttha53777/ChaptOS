@@ -203,6 +203,7 @@ export interface InstagramTask {
 }
 
 export interface ProgrammingTask {
+  schedule?: import("@/lib/calendar-feed/schedule").Schedule | null;
   id: number;
   title: string;
   dueDate: string | null;
@@ -262,6 +263,7 @@ export interface PartyEvent {
 }
 
 export interface CalendarEvent {
+  schedule?: import("@/lib/calendar-feed/schedule").Schedule | null;
   id: number;
   /** The party ledger attached to this calendar event. */
   partyEventId?: number | null;

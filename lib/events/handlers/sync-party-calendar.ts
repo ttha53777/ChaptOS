@@ -12,15 +12,4 @@ on("calendar.updated", async (ctx, { subject }) => {
   });
 });
 
-on("party.updated", async (ctx, { subject, metadata }) => {
-  if (!metadata.changedFields.some(field => field === "name" || field === "date")) return;
-  const party = await ctx.db.partyEvent.findUnique({ where: { id: subject.id } });
-  if (!party?.attendanceEventId) return;
-  await ctx.db.calendarEvent.update({
-    where: { id: party.attendanceEventId },
-    data: {
-      ...(metadata.changedFields.includes("name") ? { title: party.name } : {}),
-      ...(metadata.changedFields.includes("date") ? { date: party.date } : {}),
-    },
-  });
-});
+// Party → calendar scheduling now commits atomically in updateParty.

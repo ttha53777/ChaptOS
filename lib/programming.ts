@@ -1,3 +1,4 @@
+import type { Schedule } from "@/lib/calendar-feed/schedule";
 import type { TaskStatus } from "@/app/data";
 import type { FieldValues } from "@/lib/event-fields";
 import { resolveOwner, type OwnerRef, type OwnerRow } from "@/lib/event-owner";
@@ -49,6 +50,7 @@ export function resolveProgrammingDisplay(row: { title: string; collabOrg?: stri
 
 /** A ProgrammingEvent row (now the owning record) as selected by the service. */
 export interface ProgrammingTaskRow extends OwnerRow {
+  schedule?: unknown;
   id: number;
   title: string;
   date: string | null;
@@ -71,6 +73,7 @@ export interface ProgrammingTaskRow extends OwnerRow {
 }
 
 export interface ProgrammingTaskDto {
+  schedule?: Schedule | null;
   id: number;
   title: string;
   dueDate: string | null;
@@ -132,6 +135,7 @@ export function toProgrammingTask(
   return {
     id:              row.id,
     title,
+    schedule: row.schedule as Schedule | null,
     dueDate:         row.date,
     location:        row.location ?? "",
     time:            row.time ?? null,
