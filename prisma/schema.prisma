@@ -1550,6 +1550,8 @@ model CalendarSubscription {
   enabled Boolean @default(false)
   generation Int @default(0)
   validatedAt DateTime?
+  // An admin asked for a readiness check; the worker settles it after a full projection.
+  validationRequestedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

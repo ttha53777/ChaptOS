@@ -8,6 +8,7 @@ async function main() {
   const { createCredential } = await import("../lib/calendar-feed/credentials");
   const { auditCalendarFeed } = await import("../lib/calendar-feed/audit");
   const { refreshCalendarFeed } = await import("../lib/calendar-feed/worker");
+  const { feedReadiness } = await import("../lib/calendar-feed/validation");
   const { legacySchedule, scheduleSchema, validDate, validZone } = await import("../lib/calendar-feed/schedule");
   const args = process.argv.slice(2);
   const command = args[0] ?? "audit";
@@ -59,9 +60,13 @@ async function main() {
         }
         const issues = await auditCalendarFeed(scoped);
         if (command === "validate") {
-          if (!org?.timeZone || !validZone(org.timeZone) || !subscription.tokenCiphertext || issues.some(i => i.blocking)) throw new Error("Confirm zone, provision credentials, and resolve blocking audit items first");
+          // Same path as Settings → "Check publication": request, then a full
+          // projection that settles the request.
+          if ((await feedReadiness(scoped)).problem) throw new Error("Confirm zone, provision credentials, and resolve blocking audit items first");
+          await scoped.calendarSubscription.update({ validationRequestedAt: new Date() });
+          await scoped.calendarFeedWork.enqueue();
           await refreshCalendarFeed(orgId, true);
-          await scoped.calendarSubscription.update({ validatedAt: new Date() });
+          if (!(await scoped.calendarSubscription.find())?.validatedAt) throw new Error("Validation did not pass");
         }
         console.log(JSON.stringify({ orgId, command, issues }));
       } catch {

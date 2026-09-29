@@ -5,5 +5,6 @@ export const manageCalendarFeedInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("enable") }),
   z.object({ action: z.literal("disable") }),
   z.object({ action: z.literal("rotate") }),
+  z.object({ action: z.literal("validate") }),
   z.object({ action: z.literal("timeZone"), timeZone: zoneSchema }),
 ]);

@@ -11,7 +11,8 @@ import { refreshCalendarFeed } from "@/lib/calendar-feed/worker";
 import { getCalendarSubscription, manageCalendarSubscription } from "@/lib/services/calendar-subscription-service";
 import { createProgrammingTask, setStage, updateProgrammingTask } from "@/lib/services/programming-service";
 import { createCalendar, updateCalendar } from "@/lib/services/calendar-service";
-import { createServiceEvent } from "@/lib/services/service-event-service";
+import { createServiceEvent, updateServiceEvent } from "@/lib/services/service-event-service";
+import { createParty, updateParty } from "@/lib/services/party-service";
 import { GET, HEAD } from "@/app/api/calendar/feeds/[publicId]/[secret]/route";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
@@ -244,5 +245,115 @@ describe("durable projection", () => {
       const own = await asOrg(first.org.id, tx => tx.calendarFeedItem.findMany());
       expect(own).toHaveLength(1);
     } finally { await dropEnforcingRls(); }
+  });
+});
+
+describe("v2: times survive date changes", () => {
+  const ny = (start: string, end: string) => ({ kind: "timed" as const, start, end, timeZone: "America/New_York" });
+  async function linkedSchedule(id: number | null) {
+    return (await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: id! } })).schedule;
+  }
+  it("moves a timed event to the same local time across a DST change, in every editor", async () => {
+    const f = await fixture();
+    await createSemester({ orgId: f.org.id, startDate: "2026-01-01", endDate: "2027-12-31" });
+    // 7–9pm EST on Mar 10 2027; Mar 20 is EDT, so 7pm is 23:00Z not 00:00Z.
+    const winter = ny("2027-03-11T00:00:00Z", "2027-03-11T02:00:00Z");
+    const summer = ny("2027-03-20T23:00:00Z", "2027-03-21T01:00:00Z");
+
+    const calendar = await createCalendar(f.ctx, { title: "Chapter", date: "2027-03-10", category: "chapter", mandatory: true, schedule: winter });
+    const moved = await updateCalendar(f.ctx, calendar.id, { date: "2027-03-20" });
+    expect(moved.schedule).toEqual(summer); expect(moved.time).toBe("19:00");
+
+    const party = await createParty(f.ctx, { name: "Formal", date: "2027-03-10", schedule: winter, doorRevenue: 0, attendance: 0, expenses: 0 });
+    expect(party.schedule).toEqual(winter);
+    const partyMoved = await updateParty(f.ctx, party.id, { date: "2027-03-20", theme: "Gold" });
+    expect(await linkedSchedule(party.attendanceEventId)).toEqual(summer);
+    expect(partyMoved.schedule).toEqual(summer);
+    // Re-saving the same date (the edit form always sends it) changes nothing.
+    await updateParty(f.ctx, party.id, { date: "2027-03-20", name: "Spring Formal" });
+    expect(await linkedSchedule(party.attendanceEventId)).toEqual(summer);
+
+    const service = await createServiceEvent(f.ctx, { title: "Cleanup", date: "2027-03-10", schedule: winter });
+    const serviceMoved = await updateServiceEvent(f.ctx, service.id, { date: "2027-03-20" });
+    expect(serviceMoved.schedule).toEqual(summer);
+    const allDay = await updateServiceEvent(f.ctx, service.id, { schedule: { kind: "allDay", start: "2027-03-21", end: "2027-03-22" } });
+    expect(allDay.schedule).toEqual({ kind: "allDay", start: "2027-03-21", end: "2027-03-22" });
+    expect(allDay.date).toBe("2027-03-21"); expect(allDay.time).toBeNull();
+
+    const idea = await createProgrammingTask(f.ctx, { title: "Speaker", category: "service", schedule: winter, ownerBrotherId: f.ctx.actorId });
+    await updateProgrammingTask(f.ctx, idea.id, { dueDate: "2027-03-20" });
+    expect((await testPrisma.programmingEvent.findUniqueOrThrow({ where: { id: idea.id } })).schedule).toEqual(summer);
+  });
+  it("refuses a date move onto a skipped DST hour instead of guessing a time", async () => {
+    const f = await fixture();
+    await createSemester({ orgId: f.org.id, startDate: "2026-01-01", endDate: "2027-12-31" });
+    // 2:30am on Mar 7 2027 exists; on Mar 14 2027 (spring forward) it doesn't.
+    const early = await createCalendar(f.ctx, { title: "Late night", date: "2027-03-07", category: "chapter", mandatory: false, schedule: ny("2027-03-07T07:30:00Z", "2027-03-07T08:30:00Z") });
+    await expect(updateCalendar(f.ctx, early.id, { date: "2027-03-14" })).rejects.toThrow(/daylight-saving/);
+    expect((await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: early.id } })).date).toBe("2027-03-07");
+  });
+  it("party and service lists carry the linked entry's timing for their editors", async () => {
+    const f = await fixture();
+    await createSemester({ orgId: f.org.id, startDate: "2026-01-01", endDate: "2027-12-31" });
+    const schedule = ny("2027-03-11T00:00:00Z", "2027-03-11T02:00:00Z");
+    await createParty(f.ctx, { name: "Formal", date: "2027-03-10", schedule, doorRevenue: 0, attendance: 0, expenses: 0 });
+    const { listParties } = await import("@/lib/services/party-service");
+    expect((await listParties(f.ctx)).map(p => p.schedule)).toEqual([schedule]);
+  });
+});
+
+describe("v2: admins run readiness from Settings", () => {
+  async function unprovisioned() {
+    const org = await createOrg("fresh", "fresh");
+    const member = await createBrother({ orgId: org.id });
+    await refreshCalendarFeed(org.id, true);
+    return { org, ctx: { ...context(org.id), actorId: member.id } };
+  }
+  it("provisions, checks via the worker, enables, and survives a time-zone change", async () => {
+    const { org, ctx } = await unprovisioned();
+    await expect(manageCalendarSubscription(ctx, { action: "validate" })).rejects.toThrow(/time zone/);
+    await manageCalendarSubscription(ctx, { action: "timeZone", timeZone: "America/New_York" });
+    const before = await getCalendarSubscription(ctx);
+    expect(before).toMatchObject({ problem: null, validating: false, validated: false, configured: true });
+
+    await manageCalendarSubscription(ctx, { action: "validate" });
+    const requested = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+    expect(requested.tokenCiphertext).not.toBeNull();       // link created by the check itself
+    expect(requested.validationRequestedAt).not.toBeNull();
+    expect(requested.validatedAt).toBeNull();                // never inside the request
+    expect((await getCalendarSubscription(ctx)).validating).toBe(true);
+    await expect(manageCalendarSubscription(ctx, { action: "enable" })).rejects.toThrow(/publication check/);
+
+    await refreshCalendarFeed(org.id);                       // the worker settles the request
+    const settled = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+    expect(settled.validatedAt).not.toBeNull(); expect(settled.validationRequestedAt).toBeNull();
+
+    await manageCalendarSubscription(ctx, { action: "enable" });
+    await manageCalendarSubscription(ctx, { action: "timeZone", timeZone: "America/Chicago" });
+    const after = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+    expect(after.enabled).toBe(true); expect(after.validatedAt).toEqual(settled.validatedAt);
+    const url = (await getCalendarSubscription(ctx)).url!;
+    const [publicId, secret] = url.split("/").slice(-2);
+    expect((await GET(new Request(url), { params: Promise.resolve({ publicId, secret }) })).status).toBe(200);
+  });
+  it("fails a check when blocking data appears before the worker runs", async () => {
+    const { org, ctx } = await unprovisioned();
+    await manageCalendarSubscription(ctx, { action: "timeZone", timeZone: "America/New_York" });
+    await manageCalendarSubscription(ctx, { action: "validate" });
+    await testPrisma.calendarEvent.create({ data: { organizationId: org.id, title: "Old dues deadline", date: "2027-01-05", category: "deadline", mandatory: false } });
+    await refreshCalendarFeed(org.id);
+    const row = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+    expect(row.validatedAt).toBeNull(); expect(row.validationRequestedAt).toBeNull();
+    const view = await getCalendarSubscription(ctx);
+    expect(view.problem).toMatch(/blocking/);
+    expect(view.issues?.find(i => i.kind === "legacy-deadline")?.title).toBe("Old dues deadline");
+    await expect(manageCalendarSubscription(ctx, { action: "validate" })).rejects.toThrow(/blocking/);
+  });
+  it("keeps admin-only readiness out of member responses and member hands off admin actions", async () => {
+    const { ctx } = await unprovisioned();
+    const memberCtx = { ...ctx, isOrgAdmin: false };
+    const view = await getCalendarSubscription(memberCtx);
+    expect(view).not.toHaveProperty("issues"); expect(view).not.toHaveProperty("problem");
+    await expect(manageCalendarSubscription(memberCtx, { action: "validate" })).rejects.toThrow();
   });
 });

@@ -1,6 +1,7 @@
 import { Prisma } from "@/app/generated/prisma/client";
 import { feedOrigin } from "./config";
 import { db } from "@/lib/db";
+import { settleRequestedValidation } from "./validation";
 import { calendarProjection, taskProjection, contentHash, cancellationRetention, type PublishedItem } from "./projection";
 
 /** Same lock order for every worker. Read current rows AFTER locking work;
@@ -8,10 +9,14 @@ import { calendarProjection, taskProjection, contentHash, cancellationRetention,
  * Thus retries/out-of-order wakeups cannot overwrite a newer projection. */
 export async function refreshCalendarFeed(orgId: number, reconcile = false): Promise<void> {
   const scoped = db(orgId);
+  let validationRequestedAt: Date | null = null;
   try {
     await scoped.$transaction(async tx => {
       const [work] = await tx.$queryRaw<{ version: number; appliedVersion: number }[]>(Prisma.sql`SELECT version, "appliedVersion" FROM "CalendarFeedWork" WHERE "organizationId" = ${orgId} FOR UPDATE`);
       if (!work || (!reconcile && work.version === work.appliedVersion)) return;
+      // Read after the lock: a request committed before this point is covered by
+      // the full projection below (requesting also enqueues, so it can't be skipped).
+      validationRequestedAt = (await tx.calendarSubscription.findUnique({ where: { organizationId: orgId }, select: { validationRequestedAt: true } }))?.validationRequestedAt ?? null;
       const [calendar, tasks, previous] = await Promise.all([
         tx.calendarEvent.findMany({ where: { organizationId: orgId }, select: { id: true, title: true, date: true, time: true, location: true, category: true, schedule: true, programmingEvent: { select: { stage: true, organizationId: true } } } }),
         tx.task.findMany({ where: { organizationId: orgId }, select: { id: true, title: true, dueDate: true, status: true } }),
@@ -52,4 +57,5 @@ export async function refreshCalendarFeed(orgId: number, reconcile = false): Pro
     await scoped.$transaction(tx => tx.calendarFeedWork.updateMany({ where: { organizationId: orgId }, data: { failedAt: new Date(), failures: { increment: 1 } } })).catch(() => {});
     throw error;
   }
+  if (validationRequestedAt) await settleRequestedValidation(orgId, validationRequestedAt);
 }

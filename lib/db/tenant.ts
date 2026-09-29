@@ -1856,13 +1856,25 @@ function scopedCalendarSubscription(orgId: number, run: Run) {
   return {
     find: () => run(p => p.calendarSubscription.findUnique({ where: { organizationId: orgId } })),
     update: (data: Prisma.CalendarSubscriptionUpdateManyMutationInput) => run(p => p.calendarSubscription.updateMany({ where: { organizationId: orgId }, data })),
+    // Settle one specific validation request; a newer request (different
+    // timestamp) is left for the worker pass that projected after it.
+    settleValidation: (requestedAt: Date, validated: boolean) => run(p => p.calendarSubscription.updateMany({
+      where: { organizationId: orgId, validationRequestedAt: requestedAt },
+      data: { validationRequestedAt: null, ...(validated ? { validatedAt: new Date() } : {}) },
+    })),
   };
 }
 function scopedCalendarFeedItem(orgId: number, run: Run) {
   return { list: () => run(p => p.calendarFeedItem.findMany({ where: { organizationId: orgId }, orderBy: { uid: "asc" } })) };
 }
 function scopedCalendarFeedWork(orgId: number, run: Run) {
-  return { find: () => run(p => p.calendarFeedWork.findUnique({ where: { organizationId: orgId } })) };
+  return {
+    find: () => run(p => p.calendarFeedWork.findUnique({ where: { organizationId: orgId } })),
+    // Same bump as the source-table triggers: the worker will run a projection.
+    enqueue: () => run(p => p.$executeRaw`UPDATE "CalendarFeedWork" SET version = version + 1,
+      "enqueuedAt" = CASE WHEN version = "appliedVersion" THEN CURRENT_TIMESTAMP ELSE "enqueuedAt" END
+      WHERE "organizationId" = ${orgId}`),
+  };
 }
 
 export function db(orgId: number) {
