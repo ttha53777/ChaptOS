@@ -41,6 +41,6 @@ export const wrapUpPartyInput = z.object({
   expenses:    z.coerce.number().nonnegative(),
   notes:       z.string().optional(),
   attendedIds: z.array(z.number().int().positive()).optional(),
-  mandatory:   z.boolean().optional().default(false),
+  mandatory:   z.boolean().optional(),
 });
 export type WrapUpPartyInput = z.infer<typeof wrapUpPartyInput>;

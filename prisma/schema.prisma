@@ -756,9 +756,9 @@ model PartyEvent {
   completed      Boolean   @default(false)
   completedAt    DateTime?
 
-  // Optional backing calendar event that holds this party's member roll. Created
-  // lazily on wrap-up when attendance is first recorded; attendance flows through
-  // the shared AttendanceRecord system keyed to this event. Null until rolled.
+  // Calendar entry for scheduling and attendance. Created with the party.
+  // Historical field name retained to preserve existing attendance links.
+  // Nullable for legacy records; migration backfills existing parties.
   attendanceEventId Int?           @unique
   attendanceEvent   CalendarEvent? @relation("PartyAttendance", fields: [attendanceEventId], references: [id], onDelete: SetNull)
 

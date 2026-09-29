@@ -96,7 +96,7 @@ const blueprintInput = z.object({
   // Deliberately NARROWER than createEventTypeInput: `creatable`, `hidden`,
   // `mandatoryDefault` and the BUILT-INS' `workflowId` are never accepted from a
   // client. Those are behavior, not presentation — provisionOrg reads them from
-  // the registry, so a hand-rolled payload can't make `party` creatable or
+  // the registry, so a hand-rolled payload can't make `deadline` creatable or
   // un-gate `deadline`. What a founder may set is what the step actually edits:
   // a built-in's label/color, and the full custom list.
   //
@@ -291,4 +291,3 @@ export const deleteOrgInput = z.object({
 export const leaveOrgInput = z.object({
   confirmSlug: z.string().trim().min(1, "Confirmation is required"),
 });
-

@@ -7,3 +7,4 @@
 import "./recalc-attendance";
 import "./recalc-service-hours";
 import "./sync-seats";
+import "./sync-party-calendar";

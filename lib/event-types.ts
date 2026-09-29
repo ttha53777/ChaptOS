@@ -33,7 +33,7 @@ export interface BuiltinEventType {
   workflowId: WorkflowId | null;
   /** Pre-checks the "required attendance" toggle in the form. */
   mandatoryDefault: boolean;
-  /** false = managed from another surface (party/deadline are synthesized). */
+  /** false = managed from another surface (deadlines are synthesized from tasks). */
   creatable: boolean;
 }
 
@@ -52,7 +52,7 @@ export interface BuiltinEventType {
  */
 export const BUILTIN_EVENT_TYPES: readonly BuiltinEventType[] = [
   { slug: "chapter",  label: "Chapter",           color: "#3f6ea3", colorDark: "#8fb0d6", workflowId: "meetings", mandatoryDefault: true,  creatable: true  },
-  { slug: "party",    label: "Party",             color: "#b34f72", colorDark: "#d98ba3", workflowId: "parties",  mandatoryDefault: false, creatable: false },
+  { slug: "party",    label: "Party",             color: "#b34f72", colorDark: "#d98ba3", workflowId: "parties",  mandatoryDefault: false, creatable: true },
   { slug: "deadline", label: "Deadline",          color: "#c14a37", colorDark: "#e0796b", workflowId: "tasks",    mandatoryDefault: false, creatable: false },
   { slug: "service",  label: "Community Service", color: "#2f8579", colorDark: "#5fbdb0", workflowId: "service",  mandatoryDefault: false, creatable: true  },
 ] as const;

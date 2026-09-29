@@ -1,14 +1,20 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { logError } from "@/lib/observability";
 import { ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
 import type { CreatePartyInput, UpdatePartyInput, WrapUpPartyInput } from "@/lib/validation/party";
+import { assertWithinActiveSemester } from "./semester-bounds";
 
 export async function listParties(ctx: RequestContext) {
-  return ctx.db.partyEvent.findMany({ orderBy: { id: "asc" } });
+  const parties = await ctx.db.partyEvent.findMany({ orderBy: { id: "asc" } });
+  const events = await ctx.db.calendarEvent.findMany({
+    where: { id: { in: parties.flatMap(p => p.attendanceEventId == null ? [] : [p.attendanceEventId]) } },
+    select: { id: true, mandatory: true },
+  });
+  const mandatory = new Map(events.map(event => [event.id, event.mandatory]));
+  return parties.map(party => ({ ...party, mandatory: mandatory.get(party.attendanceEventId ?? -1) ?? false }));
 }
 
 export type PartyAttendanceRow = { partyId: number; present: number; eligible: number };
@@ -66,25 +72,35 @@ export async function summarizePartyAttendance(ctx: RequestContext): Promise<Par
 }
 
 export async function createParty(ctx: RequestContext, input: CreatePartyInput) {
-  const p = await ctx.db.partyEvent.create({
-    data: {
-      name:        input.name,
-      date:        input.date,
-      partyType:   input.partyType === "Closed" ? "Closed" : "Open",
-      theme:       input.theme     ?? "",
-      collabOrg:   input.collabOrg ?? "",
-      doorRevenue: input.doorRevenue,
-      attendance:  input.attendance,
-      expenses:    input.expenses,
-      notes:       input.notes ?? "",
-      completed:   false,
-    },
+  await assertWithinActiveSemester(ctx, input.date);
+  const p = await ctx.db.$transaction(async tx => {
+    const event = await tx.calendarEvent.create({ data: {
+      organizationId: ctx.orgId, title: input.name, date: input.date,
+      category: "party", mandatory: false,
+    } });
+    return tx.partyEvent.create({
+      data: {
+        organizationId: ctx.orgId,
+        attendanceEventId: event.id,
+        name:        input.name,
+        date:        input.date,
+        partyType:   input.partyType === "Closed" ? "Closed" : "Open",
+        theme:       input.theme     ?? "",
+        collabOrg:   input.collabOrg ?? "",
+        doorRevenue: input.doorRevenue,
+        attendance:  input.attendance,
+        expenses:    input.expenses,
+        notes:       input.notes ?? "",
+        completed:   false,
+      },
+    });
   });
   await emit(ctx, "party.created", { type: "PartyEvent", id: p.id }, { name: p.name, date: p.date });
   return p;
 }
 
 export async function updateParty(ctx: RequestContext, id: number, input: UpdatePartyInput) {
+  if (input.date != null) await assertWithinActiveSemester(ctx, input.date);
   const data: Prisma.PartyEventUpdateInput = {};
   const changedFields: string[] = [];
   const completing = input.completed === true;
@@ -103,10 +119,9 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
   }
 
   const p = await ctx.db.partyEvent.update({ where: { id }, data });
+  await emit(ctx, "party.updated", { type: "PartyEvent", id: p.id }, { name: p.name, changedFields }, { activity: !completing });
   if (completing) {
     await emit(ctx, "party.completed", { type: "PartyEvent", id: p.id }, { name: p.name, date: p.date });
-  } else {
-    await emit(ctx, "party.updated", { type: "PartyEvent", id: p.id }, { name: p.name, changedFields });
   }
   return p;
 }
@@ -114,22 +129,24 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
 export async function deleteParty(ctx: RequestContext, id: number) {
   const target = await ctx.db.partyEvent.findUnique({ where: { id }, select: { name: true, attendanceEventId: true } });
   if (!target) throw new NotFoundError("Party event");
-  await ctx.db.partyEvent.delete({ where: { id } });
-  // Clean up the backing attendance event (and its records cascade via FK) if one
-  // was created. SetNull already detached the party side; remove the orphan event.
-  if (target.attendanceEventId != null) {
-    // Best-effort cleanup: the backing event may already be gone (SetNull detached
-    // the party side). Stay non-throwing so the party delete still succeeds, but
-    // surface a genuine DB failure through the structured pipeline rather than
-    // swallowing it silently.
-    await ctx.db.calendarEvent.delete({ where: { id: target.attendanceEventId } }).catch(e => {
-      logError(e, {
-        route: "lib/services/party-service",
-        userId: ctx.actorId,
-        requestId: ctx.requestId,
-        extra: { fn: "deleteParty", partyId: id, attendanceEventId: target.attendanceEventId },
+  await ctx.db.$transaction(async tx => {
+    if (target.attendanceEventId != null) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "CalendarEvent" WHERE id = ${target.attendanceEventId} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+      const where = { calendarEventId: target.attendanceEventId, calendarEvent: { organizationId: ctx.orgId } };
+      await tx.attendanceRecord.deleteMany({ where });
+      await tx.attendanceExcuse.deleteMany({ where });
+      await tx.programmingEvent.updateMany({
+        where: { calendarEventId: target.attendanceEventId, organizationId: ctx.orgId },
+        data: { stage: "idea", calendarEventId: null },
       });
-    });
+    }
+    await tx.partyEvent.delete({ where: { id, organizationId: ctx.orgId } });
+    if (target.attendanceEventId != null) {
+      await tx.calendarEvent.deleteMany({ where: { id: target.attendanceEventId, organizationId: ctx.orgId } });
+    }
+  });
+  if (target.attendanceEventId != null) {
+    await emit(ctx, "calendar.deleted", { type: "CalendarEvent", id: target.attendanceEventId }, { title: target.name });
   }
   await emit(ctx, "party.deleted", { type: "PartyEvent", id }, { name: target.name });
 }
@@ -137,8 +154,8 @@ export async function deleteParty(ctx: RequestContext, id: number) {
 /**
  * Wrap up a party: set its money fields + completed, and (optionally) record
  * member roll in the same call. Roll flows through the shared AttendanceRecord
- * system via a backing CalendarEvent created lazily the first time a party is
- * rolled. `mandatory` decides whether that roll counts toward the chapter-wide
+ * system via its linked CalendarEvent (created lazily only for legacy rows).
+ * `mandatory` decides whether that roll counts toward the chapter-wide
  * attendance % (lib/attendance.ts counts mandatory events only).
  *
  * Roll requires an active semester — when attendedIds is provided but there is
@@ -172,8 +189,8 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
   });
 
   // 2. Roll (optional).
+  let eventId = party.attendanceEventId;
   if (takingRoll && semester) {
-    let eventId = party.attendanceEventId;
     if (eventId == null) {
       const event = await ctx.db.calendarEvent.create({
         data: {
@@ -188,7 +205,9 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
       await ctx.db.partyEvent.update({ where: { id }, data: { attendanceEventId: eventId } });
     } else {
       // Existing backing event: keep its mandatory flag in sync with the toggle.
-      await ctx.db.calendarEvent.update({ where: { id: eventId }, data: { mandatory: input.mandatory ?? false } });
+      if (input.mandatory !== undefined) {
+        await ctx.db.calendarEvent.update({ where: { id: eventId }, data: { mandatory: input.mandatory } });
+      }
     }
     await recordPartyRoll(ctx, eventId, semester.id, input.attendedIds ?? []);
     await emit(ctx, "attendance.recorded", { type: "CalendarEvent", id: eventId }, {
@@ -201,7 +220,8 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
   }
 
   await emit(ctx, "party.completed", { type: "PartyEvent", id: updated.id }, { name: updated.name, date: updated.date });
-  return updated;
+  const event = eventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: eventId }, select: { mandatory: true } });
+  return { ...updated, attendanceEventId: eventId, mandatory: event?.mandatory ?? false };
 }
 
 /**

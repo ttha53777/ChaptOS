@@ -224,7 +224,7 @@ describe("provisionOrg: event types from the blueprint", () => {
 
   it("never takes behavior fields for a built-in from the payload", async () => {
     // The trust boundary: a founder owns how a type LOOKS, provisioning owns how
-    // it BEHAVES. Renaming `party` must not make it creatable from the timeline,
+    // it BEHAVES. Renaming `party` must not change its creation behavior,
     // and nothing may un-gate `deadline`.
     const out = await provisionOrg(
       {

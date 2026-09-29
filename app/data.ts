@@ -29,7 +29,7 @@ export interface CalEventType {
   colorDark: string | null;   // dark ("dusk") hex; falls back to color
   workflowId: string | null;  // gates picker visibility; null = always available
   builtin: boolean;
-  creatable: boolean;         // false = managed elsewhere (party, deadline)
+  creatable: boolean;         // false = managed elsewhere (deadline)
   hidden: boolean;
   mandatoryDefault: boolean;
   displayOrder: number;
@@ -246,6 +246,8 @@ export interface ProgrammingTask {
 
 export interface PartyEvent {
   id: number;
+  attendanceEventId?: number | null;
+  mandatory?: boolean;
   name: string;
   date: string;
   partyType: "Open" | "Closed";
@@ -261,6 +263,8 @@ export interface PartyEvent {
 
 export interface CalendarEvent {
   id: number;
+  /** The party ledger attached to this calendar event. */
+  partyEventId?: number | null;
   title: string;
   date: string;
   time?: string;
