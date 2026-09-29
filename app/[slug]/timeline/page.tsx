@@ -1,5 +1,5 @@
 "use client";
-import { CalendarSubscription } from "../../components/timeline/CalendarSubscription";
+import { AddToCalendarButton, AddToCalendarDialog, type Provider } from "../../components/timeline/CalendarSubscription";
 
 import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useContext } from "react";
@@ -1243,6 +1243,26 @@ export default function TimelinePage() {
     else main.scrollTop = top;
   }
 
+  // ── Deep link: /timeline?subscribe=google|apple|1 opens calendar setup ─────
+  // The Google flow sends phone users here on a computer. One dialog serves both
+  // toolbar buttons (only one is visible per breakpoint). The param is dropped on
+  // close so a reload doesn't reopen it.
+  const subscribeParam = searchParams.get("subscribe");
+  const [subscribeOpen, setSubscribeOpen] = useState<{ provider?: Provider } | null>(null);
+  const didSubscribeLink = useRef(false);
+  useEffect(() => {
+    if (!subscribeParam || didSubscribeLink.current) return;
+    didSubscribeLink.current = true;
+    setSubscribeOpen({ provider: subscribeParam === "google" || subscribeParam === "apple" ? subscribeParam : undefined });
+  }, [subscribeParam]);
+  function closeSubscribe() {
+    setSubscribeOpen(null);
+    if (!subscribeParam) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("subscribe");
+    router.replace(`${window.location.pathname}${params.size ? `?${params}` : ""}`, { scroll: false });
+  }
+
   // ── Deep link: /timeline?event=<id> opens straight onto that row ──────────
   // The dashboard's This Week peek hands off here, so the row it named has to be
   // selected AND visible. Runs once per id: after that the rail is the user's to
@@ -1374,6 +1394,7 @@ export default function TimelinePage() {
     <EventTypesContext.Provider value={typeMap}>
     <div className="flex h-screen overflow-hidden bg-[#07090f]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Timeline" onNavClick={() => {}} />
+      {subscribeOpen && <AddToCalendarDialog provider={subscribeOpen.provider} onClose={closeSubscribe} />}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
@@ -1391,7 +1412,7 @@ export default function TimelinePage() {
             <p className="tb-org hidden text-[11px] leading-tight text-[#958d7c] sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
-          <CalendarSubscription />
+          <AddToCalendarButton onClick={() => setSubscribeOpen({})} />
           <p className="tb-date hidden text-[11px] text-[#958d7c] xl:block shrink-0">{dateShort}</p>
 
           <button
@@ -1451,7 +1472,7 @@ export default function TimelinePage() {
               </div>
               {/* Desktop add actions (the topbar that used to carry them is hidden at lg+). */}
               <div className="tl-add-actions">
-                <CalendarSubscription />
+                <AddToCalendarButton onClick={() => setSubscribeOpen({})} />
                 <button className="tl-add-btn ghost" onClick={() => router.push(orgPath("/tasks?new=1"))}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   Add Deadline

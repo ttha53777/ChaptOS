@@ -5,6 +5,7 @@ import { emit } from "@/lib/events";
 import { createCredential, decryptCredential } from "@/lib/calendar-feed/credentials";
 import { feedOrigin, feedRolloutAllowed } from "@/lib/calendar-feed/config";
 import { feedReadiness } from "@/lib/calendar-feed/validation";
+import { upcomingPreview } from "@/lib/calendar-feed/preview";
 import type { manageCalendarFeedInput } from "@/lib/validation/calendar-feed";
 
 // Deployment prerequisites stay with operators; this only reports whether they're met.
@@ -14,12 +15,15 @@ function serverConfigured(): boolean {
 }
 
 export async function getCalendarSubscription(ctx: RequestContext) {
-  const [subscription, organization, work] = await Promise.all([ctx.db.calendarSubscription.find(), ctx.db.organization.findFirst({ select: { timeZone: true } }), ctx.db.calendarFeedWork.find()]);
+  const [subscription, organization, work] = await Promise.all([ctx.db.calendarSubscription.find(), ctx.db.organization.findFirst({ select: { name: true, timeZone: true } }), ctx.db.calendarFeedWork.find()]);
   const admin = ctx.isOrgAdmin || ctx.isPlatformAdmin;
   const allowed = feedRolloutAllowed(ctx.orgId);
   const url = allowed && subscription?.enabled && subscription.tokenCiphertext
     ? `${feedOrigin()}/api/calendar/feeds/${subscription.publicId}/${decryptCredential(subscription.publicId, subscription.tokenCiphertext)}.ics` : null;
-  const base = { enabled: subscription?.enabled ?? false, available: allowed, url, timeZone: organization?.timeZone ?? null, admin, validated: Boolean(subscription?.validatedAt) };
+  const timeZone = organization?.timeZone ?? null;
+  // Only preview what a subscriber can actually fetch right now.
+  const preview = url ? upcomingPreview(await ctx.db.calendarFeedItem.list(), timeZone) : [];
+  const base = { enabled: subscription?.enabled ?? false, available: allowed, url, orgName: organization?.name ?? "", preview, timeZone, admin, validated: Boolean(subscription?.validatedAt) };
   if (!admin) return base;
   const readiness = await feedReadiness(ctx.db);
   return {

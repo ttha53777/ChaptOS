@@ -1,18 +1,20 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Modal } from "../dashboard/primitives";
 import { requestJson, apiErrorMessage } from "../../lib/api";
 import "./calendar-event-form.css";
 import type { ScheduleIssue } from "@/lib/calendar-feed/audit";
-import { validZone } from "@/lib/calendar-feed/schedule";
+import { validZone, type Schedule } from "@/lib/calendar-feed/schedule";
 import { ScheduleFields, initialSchedule, parseLegacyTime, scheduleFromValue, type ScheduleValue } from "./ScheduleFields";
 
 type Health = { pending: boolean; failedAt: string | null; processedAt: string | null; failures: number };
+type PreviewEntry = { title: string; location: string; schedule: Schedule; deadline: boolean; timeUnconfirmed: boolean };
 type Subscription = {
-  enabled: boolean; available: boolean; url: string | null; timeZone: string | null; admin: boolean; validated: boolean;
+  enabled: boolean; available: boolean; url: string | null; orgName: string; preview: PreviewEntry[]; timeZone: string | null; admin: boolean; validated: boolean;
   // Admin-only below.
   issues?: ScheduleIssue[]; validating?: boolean; configured?: boolean; problem?: string | null; health?: Health;
 };
+export type Provider = "google" | "apple";
 
 const deviceZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ""; } };
 function allZones(): string[] {
@@ -25,23 +27,43 @@ function ago(iso: string | null) {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
   return minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : minutes < 1440 ? `${Math.round(minutes / 60)} h ago` : new Date(iso).toLocaleDateString();
 }
+function useSlug() {
+  const [slug, setSlug] = useState("");
+  useEffect(() => { setSlug(window.location.pathname.split("/")[1] ?? ""); }, []);
+  return slug;
+}
 
 const buttonClass = "rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 disabled:opacity-50";
 const primaryClass = "rounded-lg bg-[#7c3aed] px-3 py-2 text-sm font-semibold text-white hover:bg-[#6d28d9] disabled:opacity-50";
 
-export function CalendarSubscription({ settings = false }: { settings?: boolean }) {
-  const [open, setOpen] = useState(settings);
+function useSubscription(active: boolean) {
   const [data, setData] = useState<Subscription | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  async function load() {
+  const load = useCallback(async () => {
     try { setData(await requestJson<Subscription>("/api/calendar/subscription")); }
     catch (e) { setError(apiErrorMessage(e, "Could not load calendar subscription")); }
-  }
-  useEffect(() => { if (open) void load(); }, [open]);
+  }, []);
+  useEffect(() => { if (active) void load(); }, [active, load]);
+  return { data, error, setError, load };
+}
+
+/** Settings → Calendar subscription: the admin checklist. Members set up from the timeline. */
+export function CalendarSubscription({ settings = false }: { settings?: boolean }) {
+  const [open, setOpen] = useState(false);
+  if (!settings) return <><AddToCalendarButton onClick={() => setOpen(true)} />{open && <AddToCalendarDialog onClose={() => setOpen(false)} />}</>;
+  return <CalendarSettings />;
+}
+
+export function AddToCalendarButton({ onClick }: { onClick: () => void }) {
+  return <button className="tl-add-btn ghost" onClick={onClick}>Add to my calendar</button>;
+}
+
+function CalendarSettings() {
+  const { data, error, setError, load } = useSubscription(true);
+  const [busy, setBusy] = useState(false);
+  const slug = useSlug();
   async function change(action: string, extra: Record<string, unknown> = {}) {
-    setBusy(true); setError(""); setCopied(false);
+    setBusy(true); setError("");
     try {
       await requestJson("/api/calendar/subscription", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...extra }) });
       await load();
@@ -49,31 +71,192 @@ export function CalendarSubscription({ settings = false }: { settings?: boolean 
     } catch (e) { setError(apiErrorMessage(e, "Could not update calendar subscription")); return false; }
     finally { setBusy(false); }
   }
+  return (
+    <section className="space-y-3"><h3 className="sc-h">Calendar subscription</h3>
+      <div className="cef-root space-y-4 text-sm">
+        <p>Members can subscribe once to see the organization&apos;s events and deadlines in Google or Apple Calendar. Edit them in ChaptOS.</p>
+        {error && <p role="alert" className="text-red-400">{error}</p>}
+        {!data && !error && <p role="status">Loading subscription…</p>}
+        {data?.url && <p>Members add it from <a className="underline" href={slug ? `/${slug}/timeline?subscribe=1` : "#"}>Timeline → Add to my calendar</a>.</p>}
+        {data?.admin && <AdminReadiness data={data} busy={busy} change={change} reload={load} />}
+      </div>
+    </section>
+  );
+}
 
-  const member = data && <>
-    {data.url ? <>
-      <label className="block">Private subscription URL<input aria-label="Private subscription URL" className="cef-input mt-1" readOnly value={data.url} onFocus={e => e.currentTarget.select()} /></label>
-      <button className={buttonClass} onClick={async () => { try { await navigator.clipboard.writeText(data.url!); setCopied(true); } catch { setError("Select the URL above and copy it manually."); } }}>{copied ? "Copied" : "Copy URL"}</button>
-      <a className="ml-3 underline" href={data.url.replace(/^https:/, "webcal:")} referrerPolicy="no-referrer">Open in Apple Calendar</a>
-    </> : <p>{!data.available ? "Calendar subscriptions aren't available for your organization yet." : "Calendar subscription is off. An organization admin can turn it on in Settings."}</p>}
-    <ul className="list-disc space-y-2 pl-5">
-      <li><strong>Google Calendar:</strong> on the web, choose Other calendars → + → From URL, then paste the HTTPS URL.</li>
-      <li><strong>Apple Calendar:</strong> on Mac, File → New Calendar Subscription. On iPhone, open Calendar → Calendars → Add Calendar → Add Subscription Calendar.</li>
-      <li><strong>Outlook:</strong> on the web, Add calendar → Subscribe from web. In classic Outlook for Windows, Add Calendar → From Internet.</li>
-    </ul>
-    <p>Updates follow your calendar provider’s refresh schedule and may take time. Importing a downloaded file creates a snapshot, not a subscription.</p>
-    <p>Anyone with this URL can read the published schedule without signing in. Removing a member does not revoke their copy. Rotating the URL stops future fetches from the old URL; it cannot erase downloaded events.</p>
+// ── Member: guided setup ────────────────────────────────────────────────────
+// Pick a provider, see only its steps. Nothing here can observe whether the
+// provider actually subscribed, so "I've added it" is the member's word only.
+
+export function detectDevice(ua: string, touchPoints: number) {
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1);
+  const apple = ios || /Macintosh/.test(ua);
+  return { provider: (apple ? "apple" : "google") as Provider, apple, mobile: ios || /Android|Mobile/.test(ua) };
+}
+
+const addedKey = (slug: string) => `chaptos:calendar-added:${slug}`;
+function readAdded(slug: string): { provider: Provider; at: string } | null {
+  try { const raw = localStorage.getItem(addedKey(slug)); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+
+export function AddToCalendarDialog({ provider: requested, onClose }: { provider?: Provider; onClose: () => void }) {
+  const { data, error } = useSubscription(true);
+  return (
+    <Modal tone="dusk" title="Add to my calendar" maxWidthClass="max-w-xl" onClose={onClose}>
+      <div className="cef-root space-y-5 text-sm">
+        {error && <p role="alert" className="text-red-400">{error}</p>}
+        {!data && !error && <p role="status">Loading…</p>}
+        {data && !data.url && <p>{!data.available ? "Calendar subscriptions aren't available for your organization yet." : "Calendar subscriptions are off. An organization admin can turn them on in Settings."}</p>}
+        {data?.url && <GuidedSetup data={data} url={data.url} requested={requested} />}
+      </div>
+    </Modal>
+  );
+}
+
+function GuidedSetup({ data, url, requested }: { data: Subscription; url: string; requested?: Provider }) {
+  const slug = useSlug();
+  const [device, setDevice] = useState<ReturnType<typeof detectDevice> | null>(null);
+  const [provider, setProvider] = useState<Provider | null>(requested ?? null);
+  const [added, setAdded] = useState<{ provider: Provider; at: string } | null>(null);
+  useEffect(() => {
+    // After mount: the dialog's markup must not depend on the server's guess.
+    const found = detectDevice(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+    setDevice(found);
+    setProvider(p => p ?? found.provider);
+  }, []);
+  useEffect(() => { if (slug) setAdded(readAdded(slug)); }, [slug]);
+  function markAdded() {
+    if (!provider) return;
+    const value = { provider, at: new Date().toISOString() };
+    try { localStorage.setItem(addedKey(slug), JSON.stringify(value)); } catch { /* still confirm on screen */ }
+    setAdded(value);
+  }
+  const name = provider === "apple" ? "Apple Calendar" : "Google Calendar";
+
+  return <>
+    <Preview data={data} />
+    <fieldset className="space-y-2">
+      <legend className="mb-2 font-semibold">Which calendar do you use?</legend>
+      <div className="grid grid-cols-2 gap-2">
+        {(["google", "apple"] as const).map(p => (
+          <label key={p} className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 px-3 py-2 has-[:checked]:border-[#a78bfa] has-[:checked]:bg-[#a78bfa]/10 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#a78bfa]">
+            <input type="radio" name="calendar-provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />
+            {p === "google" ? "Google Calendar" : "Apple Calendar"}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+
+    {provider === "google" && device && <GoogleSteps url={url} mobile={device.mobile} />}
+    {provider === "apple" && device && <AppleSteps url={url} apple={device.apple} />}
+
+    {provider && <div className="space-y-2 border-t border-white/10 pt-4">
+      {added?.provider === provider
+        ? <p role="status">You marked this as added{added.at ? ` on ${new Date(added.at).toLocaleDateString()}` : ""}. New and changed events appear when {name} next refreshes{provider === "google" ? ", which can take up to a day" : ""}. If it isn&apos;t showing, go through the steps again.</p>
+        : <button className={buttonClass} onClick={markAdded}>I&apos;ve added it</button>}
+    </div>}
+
+    <details>
+      <summary>About this link</summary>
+      <div className="mt-2 space-y-2">
+        <p>Your calendar app checks for updates on its own schedule, so changes aren&apos;t instant. Downloading and importing a file instead creates a one-time copy that never updates.</p>
+        <p>The link works without signing in. Removing a member does not revoke their copy. If an admin replaces the link, the old one stops updating, but events already downloaded stay in people&apos;s calendars.</p>
+      </div>
+    </details>
   </>;
+}
 
-  const content = <div className="cef-root space-y-4 text-sm">
-    <p>Subscribe once to show the organization’s events and dated tasks in your calendar. Edit them in ChaptOS.</p>
-    {error && <p role="alert" className="text-red-400">{error}</p>}
-    {!data && !error && <p role="status">Loading subscription…</p>}
-    {member}
-    {settings && data?.admin && <AdminReadiness data={data} busy={busy} change={change} reload={load} />}
-  </div>;
-  if (settings) return <section className="space-y-3"><h3 className="sc-h">Calendar subscription</h3>{content}</section>;
-  return <><button className="tl-add-btn ghost" onClick={() => setOpen(true)}>Subscribe</button>{open && <Modal tone="dusk" title="Subscribe to calendar" maxWidthClass="max-w-xl" onClose={() => { setOpen(false); setData(null); setCopied(false); }}>{content}</Modal>}</>;
+const dayFormat: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" };
+function when(entry: PreviewEntry): string {
+  const s = entry.schedule;
+  if (s.kind === "allDay") {
+    const day = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, dayFormat);
+    const last = new Date(new Date(`${s.end}T12:00:00Z`).getTime() - 86400_000).toISOString().slice(0, 10);
+    if (entry.deadline) return `Due ${day(s.start)}`;
+    return `${day(s.start)}${last !== s.start ? ` – ${day(last)}` : ""} · ${entry.timeUnconfirmed ? "time to be confirmed" : "all day"}`;
+  }
+  // Calendar apps show times in the device's zone; so does the preview.
+  const start = new Date(s.start);
+  return `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function Preview({ data }: { data: Subscription }) {
+  return (
+    <section aria-label="What you'll get" className="space-y-3">
+      <p>{data.orgName ? <strong>{data.orgName}</strong> : "Your organization"}&apos;s events and deadlines, kept up to date in your own calendar. Edit them in ChaptOS.</p>
+      <div>
+        <p className="cef-hint">Coming up</p>
+        {data.preview.length ? <ul className="mt-1 space-y-1">{data.preview.map((entry, i) => (
+          <li key={i} className="flex flex-wrap justify-between gap-x-3"><span className="min-w-0 break-words">{entry.title}</span><span className="opacity-70">{when(entry)}</span></li>
+        ))}</ul> : <p className="mt-1">Nothing scheduled yet. New events appear as they&apos;re added.</p>}
+      </div>
+      <p className="cef-hint">Included: event titles, times, places and categories, and task due dates. Not included: notes, who&apos;s attending or assigned, or anything about dues and money.</p>
+    </section>
+  );
+}
+
+function CopyField({ label, value, note }: { label: string; value: string; note?: ReactNode }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [state, setState] = useState<"" | "copied" | "failed">("");
+  async function copy() {
+    try { await navigator.clipboard.writeText(value); setState("copied"); }
+    catch { setState("failed"); input.current?.focus(); input.current?.select(); }
+  }
+  return (
+    <div className="space-y-1">
+      <label className="block">{label}
+        <span className="mt-1 flex gap-2">
+          <input ref={input} className="cef-input min-w-0 flex-1" readOnly value={value} onFocus={e => e.currentTarget.select()} />
+          <button type="button" className={buttonClass} onClick={() => void copy()}>{state === "copied" ? "Copied" : "Copy"}</button>
+        </span>
+      </label>
+      {state === "failed" && <p role="alert" className="cef-hint sched-warn">Couldn&apos;t copy automatically. The link is selected; copy it with Ctrl+C (⌘C on a Mac).</p>}
+      {state === "copied" && <span role="status" className="sr-only">Copied</span>}
+      {note && <p className="cef-hint">{note}</p>}
+    </div>
+  );
+}
+
+const privacyNote = "Anyone with this link can see your organization's published schedule. Keep it private.";
+
+function GoogleSteps({ url, mobile }: { url: string; mobile: boolean }) {
+  const [computer, setComputer] = useState(!mobile);
+  // Only rendered after the client-side fetch, so window is always there.
+  const handoff = `${window.location.origin}/${window.location.pathname.split("/")[1]}/timeline?subscribe=google`;
+  if (!computer) return (
+    <div className="space-y-3">
+      <p><strong>Google Calendar only adds subscriptions in a computer browser.</strong> Open this page on a computer and sign in to finish there. It will appear in the Google Calendar app on your phone afterwards.</p>
+      {/* Setup page, never the feed: this is safe to send to yourself. */}
+      <CopyField label="Link to open on your computer" value={handoff} />
+      <button type="button" className="sched-link" onClick={() => setComputer(true)}>I&apos;m on a computer, show the steps</button>
+    </div>
+  );
+  return (
+    <ol className="list-decimal space-y-3 pl-5">
+      <li><CopyField label="Copy your organization's calendar link" value={url} note={privacyNote} /></li>
+      <li>Open <a className="underline" href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener noreferrer">Google Calendar&apos;s &ldquo;From URL&rdquo; page</a>. (In Google Calendar: Other calendars → + → From URL.)</li>
+      <li>Paste the link into <em>URL of calendar</em> and choose <em>Add calendar</em>.</li>
+      <li className="opacity-80">Google checks for changes a few times a day, so updates can take up to a day to appear. To see it on your phone, open the Google Calendar app&apos;s settings and make sure the calendar is synced.</li>
+    </ol>
+  );
+}
+
+function AppleSteps({ url, apple }: { url: string; apple: boolean }) {
+  return (
+    <div className="space-y-3">
+      {!apple && <p>Open this on your iPhone, iPad or Mac to add it to Apple Calendar.</p>}
+      <p><a className={`${primaryClass} inline-block no-underline`} href={url.replace(/^https:/, "webcal:")} referrerPolicy="no-referrer">Open in Apple Calendar</a></p>
+      <p>Calendar asks you to confirm the subscription. Choose <strong>iCloud</strong> as the location (on a Mac) or account (on iPhone) to see it on all your Apple devices.</p>
+      <details>
+        <summary>If the button doesn&apos;t open Calendar</summary>
+        <div className="mt-2 space-y-3">
+          <CopyField label="Copy your organization's calendar link" value={url} note={privacyNote} />
+          <p><strong>Mac:</strong> in Calendar, choose File → New Calendar Subscription, paste the link, then Subscribe.</p>
+          <p><strong>iPhone or iPad:</strong> in Calendar, tap Calendars → Add Calendar → Add Subscription Calendar, paste the link, then Subscribe.</p>
+        </div>
+      </details>
+    </div>
+  );
 }
 
 // ── Admin: readiness checklist ──────────────────────────────────────────────
@@ -99,8 +282,7 @@ function AdminReadiness({ data, busy, change, reload }: {
   const [rotate, setRotate] = useState(false);
   const [checkResult, setCheckResult] = useState<"" | "failed">("");
   const zones = useMemo(allZones, []);
-  const [slug, setSlug] = useState("");
-  useEffect(() => { setSlug(window.location.pathname.split("/")[1] ?? ""); }, []);
+  const slug = useSlug();
   const href = (path: string) => slug ? `/${slug}${path}` : path;
 
   // Poll while the worker settles a requested check; report a failed one.

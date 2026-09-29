@@ -13,7 +13,7 @@ async function main() {
   const root = process.cwd();
   await writeFile(join(temp, "api.ts"), `
 export const apiErrorMessage=(e,fallback)=>e.message||fallback;
-let state={enabled:true,available:true,url:'https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics',timeZone:'America/New_York',admin:true,validated:true,validating:false,configured:true,problem:null,issues:[{kind:'time-unconfirmed',source:'calendar',id:7,title:'Chapter meeting',issue:'x',blocking:false,date:'2026-10-05',time:'7-9pm'}],health:{pending:false,failedAt:null,processedAt:'2026-09-29',failures:0}};
+let state={enabled:true,available:true,url:'https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics',orgName:'Alpha Test',preview:[{title:'Chapter meeting',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'timed',start:'2026-10-06T23:00:00Z',end:'2026-10-07T01:00:00Z',timeZone:'America/New_York'}},{title:'Deadline: Dues',location:'',deadline:true,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-08',end:'2026-10-09'}},{title:'Retreat',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-10',end:'2026-10-12'}}],timeZone:'America/New_York',admin:true,validated:true,validating:false,configured:true,problem:null,issues:[{kind:'time-unconfirmed',source:'calendar',id:7,title:'Chapter meeting',issue:'x',blocking:false,date:'2026-10-05',time:'7-9pm'}],health:{pending:false,failedAt:null,processedAt:'2026-09-29',failures:0}};
 export async function requestJson(url,opts){
  if(opts?.method==='PATCH'){ const body=JSON.parse(opts.body);window.actions.push(body.action);if(body.action==='disable')state={...state,enabled:false,url:null};if(body.action==='rotate')state={...state,url:'https://example.invalid/replacement.ics'};return {ok:true}; }
  return {...state};
@@ -32,18 +32,69 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 900, height: 1100 } });
+  const page = await browser.newPage({ viewport: { width: 900, height: 1100 }, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36" });
+  // Simulate a clipboard the browser refuses, to exercise the manual-copy fallback.
+  await page.addInitScript('Object.defineProperty(navigator, "clipboard", { value: { writeText: function () { return Promise.reject(new Error("denied")); } } });');
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   try {
     await page.goto(`http://127.0.0.1:${(server.address() as { port: number }).port}`);
-    await page.getByRole("button", { name: "Subscribe", exact: true }).click();
+    // Desktop (Windows): Google is preselected and only its steps show.
+    const trigger = page.getByRole("button", { name: "Add to my calendar", exact: true });
+    await trigger.click();
     const dialog = page.getByRole("dialog");
-    await dialog.waitFor();
-    assert.match(await dialog.innerText(), /refresh schedule/);
+    await dialog.getByText("URL of calendar").waitFor();
+    const text = await dialog.innerText();
+    assert.match(text, /Alpha Test/);
+    assert.match(text, /Chapter meeting[\s\S]*Deadline: Dues[\s\S]*Retreat/);
+    assert.match(text, /Due Thu, Oct 8/);
+    assert.match(text, /Sat, Oct 10 – Sun, Oct 11/);
+    assert.match(text, /Not included: notes/);
+    assert.equal(await dialog.getByRole("radio", { name: "Google Calendar" }).isChecked(), true);
+    assert.match(text, /From URL/);
+    assert.doesNotMatch(text, /iCloud/);
+    assert.match(text, /Anyone with this link can see your organization's published schedule\. Keep it private\./);
+    // Clipboard refused: say so and leave the link selected for a manual copy.
+    await dialog.getByRole("button", { name: "Copy", exact: true }).click();
+    assert.match(await dialog.getByRole("alert").innerText(), /Couldn't copy automatically/);
+    assert.equal(await page.evaluate(() => { const el = document.activeElement as HTMLInputElement; return el.value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0); }), "https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics");
+    // Keyboard: arrow keys move between providers.
+    await dialog.getByRole("radio", { name: "Google Calendar" }).focus();
+    await page.keyboard.press("ArrowRight");
+    assert.equal(await dialog.getByRole("radio", { name: "Apple Calendar" }).isChecked(), true);
+    assert.match(await dialog.getByRole("link", { name: "Open in Apple Calendar" }).getAttribute("href") ?? "", /^webcal:\/\/example\.invalid\//);
+    assert.match(await dialog.innerText(), /iCloud/);
+    assert.match(await dialog.innerText(), /Open this on your iPhone, iPad or Mac/);
+    assert.doesNotMatch(await dialog.innerText(), /From URL/);
+    // Self-reported only; never claims a connection.
+    await dialog.getByRole("button", { name: "I've added it" }).click();
+    assert.match(await dialog.innerText(), /You marked this as added/);
+    assert.doesNotMatch(await dialog.innerText(), /Connected/i);
+    await dialog.getByText("About this link").click();
     assert.match(await dialog.innerText(), /Removing a member does not revoke/);
-    assert.match(await dialog.getByRole("link", { name: "Open in Apple Calendar" }).getAttribute("href") ?? "", /^webcal:/);
     await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
+
+    // iPhone: Apple preselected; Google hands off to a computer without the feed secret.
+    const phone = await browser.newPage({ viewport: { width: 375, height: 740 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
+    phone.on("pageerror", error => errors.push(error.message));
+    await phone.goto(page.url().replace(/\/$/, "") + "/alpha");
+    await phone.getByRole("button", { name: "Add to my calendar", exact: true }).first().click();
+    const sheet = phone.getByRole("dialog");
+    await sheet.getByText("Choose iCloud", { exact: false }).waitFor();
+    assert.equal(await sheet.getByRole("radio", { name: "Apple Calendar" }).isChecked(), true);
+    assert.doesNotMatch(await sheet.innerText(), /Open this on your iPhone/);
+    await sheet.getByRole("radio", { name: "Google Calendar" }).check();
+    assert.match(await sheet.innerText(), /only adds subscriptions in a computer browser/);
+    const handoff = await sheet.getByLabel("Link to open on your computer").inputValue();
+    assert.match(handoff, /^http:\/\/127\.0\.0\.1:\d+\/alpha\/timeline\?subscribe=google$/);
+    assert.doesNotMatch(handoff, /token|feeds/);
+    assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    await sheet.getByRole("button", { name: /I'm on a computer/ }).click();
+    assert.match(await sheet.innerText(), /URL of calendar/);
+    await phone.close();
+
     // Readiness checklist: every step done in this state, check can be re-run.
     await page.getByRole("button", { name: "Run the check again" }).click();
     await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("validate"));
@@ -83,7 +134,7 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     assert.deepEqual(errors, []);
-    console.log("Calendar browser checks passed: dialog, privacy copy, webcal, readiness check, rotation confirmation, disable, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport.");
+    console.log("Calendar browser checks passed: provider chooser (UA preselect, keyboard switch), preview, privacy note, clipboard fallback, self-reported confirmation, focus restoration, iPhone Google handoff without secret, webcal, readiness check, rotation confirmation, disable, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport.");
   } finally { await browser.close(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(temp, { recursive: true, force: true }); }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

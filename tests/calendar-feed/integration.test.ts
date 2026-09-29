@@ -27,6 +27,9 @@ beforeEach(async () => {
   process.env.RLS_SET_ORG_ID = "1";
 });
 afterAll(async () => { await testPrisma.$disconnect(); await appPrisma.$disconnect(); });
+// Admin fields are absent from member responses, so the inferred type is a union.
+type AdminView = Awaited<ReturnType<typeof getCalendarSubscription>> & { validating?: boolean; problem?: string | null; issues?: { kind: string; title: string }[] };
+const adminView = async (ctx: RequestContext) => (await getCalendarSubscription(ctx)) as AdminView;
 function context(orgId: number): RequestContext {
   return { requestId: randomUUID(), orgId, actorId: 1, actorName: "Test", actorEmail: null, authUserId: "auth-test", membershipId: null, permissions: 0, maxRank: 0, isOrgAdmin: true, isPlatformAdmin: false, db: db(orgId) };
 }
@@ -321,7 +324,7 @@ describe("v2: admins run readiness from Settings", () => {
     expect(requested.tokenCiphertext).not.toBeNull();       // link created by the check itself
     expect(requested.validationRequestedAt).not.toBeNull();
     expect(requested.validatedAt).toBeNull();                // never inside the request
-    expect((await getCalendarSubscription(ctx)).validating).toBe(true);
+    expect((await adminView(ctx)).validating).toBe(true);
     await expect(manageCalendarSubscription(ctx, { action: "enable" })).rejects.toThrow(/publication check/);
 
     await refreshCalendarFeed(org.id);                       // the worker settles the request
@@ -344,7 +347,7 @@ describe("v2: admins run readiness from Settings", () => {
     await refreshCalendarFeed(org.id);
     const row = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
     expect(row.validatedAt).toBeNull(); expect(row.validationRequestedAt).toBeNull();
-    const view = await getCalendarSubscription(ctx);
+    const view = await adminView(ctx);
     expect(view.problem).toMatch(/blocking/);
     expect(view.issues?.find(i => i.kind === "legacy-deadline")?.title).toBe("Old dues deadline");
     await expect(manageCalendarSubscription(ctx, { action: "validate" })).rejects.toThrow(/blocking/);
@@ -355,5 +358,21 @@ describe("v2: admins run readiness from Settings", () => {
     const view = await getCalendarSubscription(memberCtx);
     expect(view).not.toHaveProperty("issues"); expect(view).not.toHaveProperty("problem");
     await expect(manageCalendarSubscription(memberCtx, { action: "validate" })).rejects.toThrow();
+  });
+});
+
+describe("v2: member setup preview", () => {
+  it("previews the next published entries, without notes, only when the link is live", async () => {
+    const f = await fixture();
+    await testPrisma.calendarEvent.create({ data: { organizationId: f.org.id, title: "Past social", date: "2020-01-01", category: "chapter", mandatory: false } });
+    await testPrisma.task.create({ data: { organizationId: f.org.id, title: "Submit roster", dueDate: "2026-12-15", status: "open" } });
+    await refreshCalendarFeed(f.org.id);
+    const member = { ...f.ctx, isOrgAdmin: false };
+    const view = await getCalendarSubscription(member);
+    expect(view.orgName).toBe("one");
+    expect(view.preview.map(p => [p.title, p.deadline])).toEqual([["Deadline: Submit roster", true], ["one event", false]]);
+    expect(JSON.stringify(view.preview)).not.toContain("SECRET");
+    await testPrisma.calendarSubscription.update({ where: { organizationId: f.org.id }, data: { enabled: false } });
+    expect((await getCalendarSubscription(member)).preview).toEqual([]);
   });
 });

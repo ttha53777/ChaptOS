@@ -1,7 +1,7 @@
 # Calendar subscriptions v2
 
-Proposed September 29, 2026. **1.1 and 1.2 implemented September 30, 2026**
-(see "Status" at the end); the rest is still a plan.
+Proposed September 29, 2026. **1.1 and 1.2 implemented September 30, 2026;
+1.3 implemented September 29, 2026** (see "Status" at the end); the rest is still a plan.
 Builds on `docs/calendar-subscriptions-plan.md` (v1 design) and
 `docs/calendar-subscriptions-rollout.md` (v1 deployment). Supersedes the earlier
 v2 "ease of use" draft, keeping its setup/troubleshooting ideas.
@@ -291,3 +291,33 @@ Not done in 1.1/1.2: a searchable *city-name* index (the picker searches IANA
 IDs such as `America/Chicago`); converting legacy free-text times in bulk; and
 verification against a real dev database and running worker (checked here with
 integration tests, the component browser test, and screenshots only).
+
+**1.3 Guided setup — implemented.** The timeline button is now **Add to my
+calendar** and opens one dialog (shared by the mobile and desktop toolbars). It
+starts with a preview: the org name, the next three entries read from
+`CalendarFeedItem` (`lib/calendar-feed/preview.ts`, same published rows and
+cutoffs as the feed; returned only while the link is live), and what is and isn't
+included. Then a Google/Apple choice, preselected from the user agent, showing
+only that provider's steps:
+- *Google:* copy link (with the privacy line), a link to Google's "From URL" page,
+  paste. On a phone it says Google needs a computer browser and offers a copyable
+  `/[slug]/timeline?subscribe=google` link instead (no secret; sign-in keeps
+  `?next=`), plus "I'm on a computer" in case the guess is wrong. No email
+  option: the app has no transactional email.
+- *Apple:* `webcal://` button first, the iCloud note, and Mac / iPhone fallback
+  steps behind a disclosure.
+- "I've added it" is stored per browser in `localStorage` and only ever says
+  "You marked this as added". The dialog never claims a connection.
+The copy button falls back to selecting the link with a manual-copy message when
+the clipboard is refused. Focus returns to the trigger on close. The
+`?subscribe=` param is dropped on close. Settings no longer repeats member steps;
+it points to the timeline. Outlook instructions were removed (deferred above).
+
+Not done in 1.3: the unassisted-completion usability study (needs real people);
+"provider chosen" and "self-reported completion" metrics, because the app has no
+client analytics pipeline yet. Checked with the integration and preview tests and
+the component browser test (chooser, keyboard, clipboard failure, focus, iPhone
+handoff, 375px width). The real-app timeline was checked only for the button and
+the `?subscribe=` open/close, because the running dev server predates the
+calendar migrations and its stale Prisma client returns 500 for the subscription
+API.
