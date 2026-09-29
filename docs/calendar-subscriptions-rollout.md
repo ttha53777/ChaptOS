@@ -45,15 +45,17 @@ abuse protection as well for distributed traffic. Do not use member write limits
 
 ## Migration, backfill and validation
 
-Apply `20260929000001_calendar_subscriptions` using the normal deployment migration
-process. It adds RLS-protected subscription/projection/work tables, structured JSON
+Apply `20260929000001_calendar_subscriptions` and
+`20260930000001_calendar_feed_validation_request` using the normal deployment
+migration process. It adds RLS-protected subscription/projection/work tables, structured JSON
 schedules, an officer-confirmed org time zone, and transactional queue triggers.
 The triggers must ship with the tables: a schema-only `db push` is insufficient.
 
 1. In Settings → General → Calendar subscription, an officer confirms the IANA
-   time zone. No server/browser default is silently assigned. Changing it pauses
-   the subscription and requires revalidation; existing timed events retain their
-   source zone and absolute instants.
+   time zone. No server/browser default is silently assigned. It is only the
+   default for newly entered times: every published timed event carries its own
+   zone and absolute instants, so changing it later neither pauses nor
+   re-validates the subscription (v2; v1 paused the feed).
 2. Run `npm run calendar:feeds -- provision --org=ID`.
 3. Run `npm run calendar:feeds -- audit --org=ID` and review the result.
 4. Run `npm run calendar:feeds -- backfill --org=ID`. Date-only calendar entries
@@ -66,10 +68,14 @@ The triggers must ship with the tables: a schema-only `db push` is insufficient.
    delete or recategorize the legacy row after confirming its data. Do not synthesize
    party entries or blindly link a similarly named event. Invalid dates are reported
    and excluded; uncertain times publish all-day with the fixed confirmation notice.
-6. Run `npm run calendar:feeds -- validate --org=ID`. This requires a zone,
-   provisioned credential, no blocking audit items, and a successful full projection.
-   The command records data validation; it does not enable the feed or assert
-   provider compatibility.
+6. Validate. Admins do this themselves in Settings ("Check publication"): it
+   creates the credential if missing (when `CALENDAR_FEED_KEY` is configured),
+   records `CalendarSubscription.validationRequestedAt` and enqueues work; the
+   worker's next full projection settles the request, setting `validatedAt` only
+   if the zone is set and nothing blocks. Nothing heavy runs in the request, so
+   a running worker is required. `npm run calendar:feeds -- validate --org=ID`
+   runs the same path synchronously. Validation does not enable the feed or
+   assert provider compatibility.
 7. Start the worker, verify log redaction, configure the pilot allowlist, and use
    Settings to enable the pilot org. Enable/disable/regenerate are admin-only;
    membership-gated retrieval gives all members the same shared URL.
