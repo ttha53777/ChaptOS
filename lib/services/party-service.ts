@@ -5,16 +5,28 @@ import { NotFoundError, ValidationError } from "@/lib/errors";
 import { ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
 import type { CreatePartyInput, UpdatePartyInput, WrapUpPartyInput } from "@/lib/validation/party";
+import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { assertWithinActiveSemester } from "./semester-bounds";
+
+// Every party DTO carries its calendar entry's timing. An editor that received a
+// party without it would reopen a timed party as all-day and wipe the time on save.
+async function linkedTiming(ctx: RequestContext, calendarEventId: number | null) {
+  const event = calendarEventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: calendarEventId }, select: { schedule: true, time: true } });
+  return { schedule: event?.schedule ?? null, time: event?.time ?? null };
+}
 
 export async function listParties(ctx: RequestContext) {
   const parties = await ctx.db.partyEvent.findMany({ orderBy: { id: "asc" } });
   const events = await ctx.db.calendarEvent.findMany({
     where: { id: { in: parties.flatMap(p => p.attendanceEventId == null ? [] : [p.attendanceEventId]) } },
-    select: { id: true, mandatory: true },
+    select: { id: true, mandatory: true, schedule: true, time: true },
   });
-  const mandatory = new Map(events.map(event => [event.id, event.mandatory]));
-  return parties.map(party => ({ ...party, mandatory: mandatory.get(party.attendanceEventId ?? -1) ?? false }));
+  const byId = new Map(events.map(event => [event.id, event]));
+  return parties.map(party => {
+    const event = byId.get(party.attendanceEventId ?? -1);
+    return { ...party, mandatory: event?.mandatory ?? false, schedule: event?.schedule ?? null, time: event?.time ?? null };
+  });
 }
 
 export type PartyAttendanceRow = { partyId: number; present: number; eligible: number };
@@ -72,10 +84,13 @@ export async function summarizePartyAttendance(ctx: RequestContext): Promise<Par
 }
 
 export async function createParty(ctx: RequestContext, input: CreatePartyInput) {
+  if (input.schedule) input = { ...input, date: scheduleDate(input.schedule) };
   await assertWithinActiveSemester(ctx, input.date);
   const p = await ctx.db.$transaction(async tx => {
     const event = await tx.calendarEvent.create({ data: {
       organizationId: ctx.orgId, title: input.name, date: input.date,
+      time: input.schedule ? scheduleTime(input.schedule) : null,
+      schedule: input.schedule ?? Prisma.DbNull,
       category: "party", mandatory: false,
     } });
     return tx.partyEvent.create({
@@ -96,10 +111,11 @@ export async function createParty(ctx: RequestContext, input: CreatePartyInput) 
     });
   });
   await emit(ctx, "party.created", { type: "PartyEvent", id: p.id }, { name: p.name, date: p.date });
-  return p;
+  return { ...p, ...await linkedTiming(ctx, p.attendanceEventId) };
 }
 
 export async function updateParty(ctx: RequestContext, id: number, input: UpdatePartyInput) {
+  if (input.schedule) input = { ...input, date: scheduleDate(input.schedule) };
   if (input.date != null) await assertWithinActiveSemester(ctx, input.date);
   const data: Prisma.PartyEventUpdateInput = {};
   const changedFields: string[] = [];
@@ -108,6 +124,7 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
   for (const k of Object.keys(input) as (keyof UpdatePartyInput)[]) {
     if (input[k] === undefined) continue;
     if (k === "completed") continue; // handled separately below
+    if (k === "schedule") continue;  // lives on the linked calendar entry
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (data as any)[k] = input[k];
     changedFields.push(k);
@@ -123,10 +140,19 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
   // Canonical schedule and ledger commit together. A post-commit handler cannot
   // be the only path: a restart there would leave the durable feed stale.
   const p = await ctx.db.$transaction(async tx => {
-    if (target.attendanceEventId && (input.name !== undefined || input.date !== undefined)) {
+    if (target.attendanceEventId && (input.name !== undefined || input.date !== undefined || input.schedule !== undefined)) {
+      // An explicit schedule wins; a bare date change keeps the event's times.
+      let timing: { schedule: Prisma.InputJsonValue | typeof Prisma.DbNull; time: string | null } | undefined;
+      if (input.schedule !== undefined) {
+        timing = { schedule: input.schedule ?? Prisma.DbNull, time: input.schedule ? scheduleTime(input.schedule) : null };
+      } else if (input.date !== undefined) {
+        const calendar = await tx.calendarEvent.findFirst({ where: { id: target.attendanceEventId, organizationId: ctx.orgId }, select: { schedule: true } });
+        timing = followDateChange(calendar?.schedule, input.date);
+      }
       await tx.calendarEvent.update({ where: { id: target.attendanceEventId, organizationId: ctx.orgId }, data: {
         ...(input.name !== undefined ? { title: input.name } : {}),
         ...(input.date !== undefined ? { date: input.date } : {}),
+        ...timing,
       } });
     }
     return tx.partyEvent.update({ where: { id, organizationId: ctx.orgId }, data });
@@ -135,7 +161,7 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
   if (completing) {
     await emit(ctx, "party.completed", { type: "PartyEvent", id: p.id }, { name: p.name, date: p.date });
   }
-  return p;
+  return { ...p, ...await linkedTiming(ctx, p.attendanceEventId) };
 }
 
 export async function deleteParty(ctx: RequestContext, id: number) {
@@ -233,7 +259,7 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
 
   await emit(ctx, "party.completed", { type: "PartyEvent", id: updated.id }, { name: updated.name, date: updated.date });
   const event = eventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: eventId }, select: { mandatory: true } });
-  return { ...updated, attendanceEventId: eventId, mandatory: event?.mandatory ?? false };
+  return { ...updated, attendanceEventId: eventId, mandatory: event?.mandatory ?? false, ...await linkedTiming(ctx, eventId) };
 }
 
 /**

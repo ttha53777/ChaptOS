@@ -247,6 +247,9 @@ export interface ProgrammingTask {
 
 export interface PartyEvent {
   id: number;
+  /** From the linked calendar entry: structured start/end, else legacy free text. */
+  schedule?: import("@/lib/calendar-feed/schedule").Schedule | null;
+  time?: string | null;
   attendanceEventId?: number | null;
   mandatory?: boolean;
   name: string;

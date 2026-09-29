@@ -1,4 +1,5 @@
 import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
 import type { RequestContext } from "@/lib/context";
@@ -8,7 +9,17 @@ import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateServiceEventInput, UpdateServiceEventInput } from "@/lib/validation/service-event";
 
 export async function listServiceEvents(ctx: RequestContext) {
-  return ctx.db.serviceEvent.findMany({ orderBy: { date: "asc" } });
+  const events = await ctx.db.serviceEvent.findMany({ orderBy: { date: "asc" } });
+  // The start/end lives on the linked calendar entry; editors need it to prefill.
+  const calendar = await ctx.db.calendarEvent.findMany({
+    where: { id: { in: events.flatMap(e => e.calendarEventId == null ? [] : [e.calendarEventId]) } },
+    select: { id: true, schedule: true, time: true },
+  });
+  const byId = new Map(calendar.map(row => [row.id, row]));
+  return events.map(event => {
+    const linked = byId.get(event.calendarEventId ?? -1);
+    return { ...event, schedule: linked?.schedule ?? null, time: linked?.time ?? null };
+  });
 }
 
 export async function createServiceEvent(ctx: RequestContext, input: CreateServiceEventInput) {
@@ -55,10 +66,11 @@ export async function createServiceEvent(ctx: RequestContext, input: CreateServi
     title: serviceEvent.title, date: serviceEvent.date, calendarEventId: calendarEvent.id,
   });
 
-  return { ...serviceEvent, calendarEvent: withoutNotesDoc(calendarEvent) };
+  return { ...serviceEvent, calendarEvent: withoutNotesDoc(calendarEvent), schedule: calendarEvent.schedule, time: calendarEvent.time };
 }
 
 export async function updateServiceEvent(ctx: RequestContext, id: number, input: UpdateServiceEventInput) {
+  if (input.schedule) input = { ...input, date: scheduleDate(input.schedule) };
   // Only re-validate when the date is actually changing; this update also mirrors
   // the date onto the linked CalendarEvent, so the same bound applies there.
   if (input.date !== undefined) await assertWithinActiveSemester(ctx, input.date);
@@ -67,6 +79,7 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
   const changedFields: string[] = [];
   for (const k of Object.keys(input) as (keyof UpdateServiceEventInput)[]) {
     if (input[k] === undefined) continue;
+    if (k === "schedule") continue; // lives on the linked calendar entry
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (data as any)[k] = input[k];
     changedFields.push(k);
@@ -82,9 +95,10 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
 
   const event = await ctx.db.$transaction(async (tx) => {
     let notesChanged = false;
+    let calendar: CalendarEvent | undefined;
     // Calendar before service row: use the same lock ordering as notes saves.
     if (existing.calendarEventId) {
-      const [calendar] = await tx.$queryRaw<CalendarEvent[]>(Prisma.sql`SELECT * FROM "CalendarEvent" WHERE id = ${existing.calendarEventId} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+      [calendar] = await tx.$queryRaw<CalendarEvent[]>(Prisma.sql`SELECT * FROM "CalendarEvent" WHERE id = ${existing.calendarEventId} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
       if (!calendar) throw new NotFoundError("Calendar event");
       guardLegacyNotes(calendar, { description: input.notes });
       notesChanged = input.notes !== undefined && (input.notes ?? "") !== (calendar.description ?? "");
@@ -94,6 +108,11 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
       const calData: Prisma.CalendarEventUpdateInput = {};
       if (input.title    !== undefined) calData.title       = String(input.title);
       if (input.date     !== undefined) calData.date        = String(input.date);
+      // An explicit schedule wins; a bare date change keeps the event's times.
+      const timing = input.schedule !== undefined
+        ? { schedule: input.schedule, time: input.schedule ? scheduleTime(input.schedule) : null }
+        : input.date !== undefined ? followDateChange(calendar?.schedule, input.date) : undefined;
+      if (timing) { calData.schedule = timing.schedule ?? Prisma.DbNull; calData.time = timing.time; }
       if (input.location !== undefined) calData.location    = String(input.location) || null;
       if (input.notes    !== undefined) calData.description = String(input.notes)    || null;
       if (notesChanged) { calData.notesContentRevision = { increment: 1 }; calData.notesUpdatedAt = new Date(); }
@@ -107,7 +126,8 @@ export async function updateServiceEvent(ctx: RequestContext, id: number, input:
   await emit(ctx, "service_event.updated", { type: "ServiceEvent", id: event.id }, {
     title: event.title, changedFields,
   });
-  return event;
+  const linked = existing.calendarEventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: existing.calendarEventId }, select: { schedule: true, time: true } });
+  return { ...event, schedule: linked?.schedule ?? null, time: linked?.time ?? null };
 }
 
 export async function deleteServiceEvent(ctx: RequestContext, id: number) {

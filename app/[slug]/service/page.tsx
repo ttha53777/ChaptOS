@@ -12,6 +12,8 @@ import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { Brother, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
+import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
+import { scheduleDate, type Schedule } from "@/lib/calendar-feed/schedule";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./service-ledger.css";
 
@@ -24,6 +26,9 @@ interface ServiceEvent {
   location: string;
   notes: string;
   createdAt: string;
+  /** From the linked calendar entry: structured start/end, else legacy free text. */
+  schedule?: Schedule | null;
+  time?: string | null;
 }
 
 interface Participation {
@@ -63,6 +68,8 @@ export default function ServicePage() {
   const [eventModal,   setEventModal]   = useState<"add" | "edit" | null>(null);
   const [editingEvent, setEditingEvent] = useState<ServiceEvent | null>(null);
   const [eventForm,    setEventForm]    = useState(EMPTY_FORM);
+  const [when,         setWhen]         = useState<ScheduleValue>(() => initialSchedule(null, { date: "", isNew: true }));
+  const [whenError,    setWhenError]    = useState("");
 
   // "Log hours" picker (a service event id + a working set of per-member hours).
   const [logFor,    setLogFor]    = useState<ServiceEvent | null>(null);
@@ -126,23 +133,32 @@ export default function ServicePage() {
   function openAddEvent() {
     setEditingEvent(null);
     setEventForm(EMPTY_FORM);
+    setWhen(initialSchedule(null, { date: "", isNew: true }));
+    setWhenError("");
     setEventModal("add");
   }
   function openEditEvent(e: ServiceEvent) {
     setEditingEvent(e);
     setEventForm({ title: e.title, date: e.date, location: e.location, notes: e.notes });
+    setWhen(initialSchedule(e.schedule, { date: e.date, time: e.time, isNew: false }));
+    setWhenError("");
     setEventModal("edit");
   }
 
   async function handleSaveEvent() {
-    if (!eventForm.title || !eventForm.date) return;
+    if (!eventForm.title) return;
+    const result = scheduleFromValue(when);
+    if ("error" in result) { setWhenError(result.error); return; }
+    // A legacy free-text time is left as written until someone sets real times.
+    const timing = result.schedule ? { date: scheduleDate(result.schedule), schedule: result.schedule } : { date: when.date };
+    const body = { ...eventForm, ...timing };
     if (eventModal === "add") {
       setEventModal(null);
       try {
         const saved = await requestJson<ServiceEvent>("/api/service-events", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(eventForm),
+          body: JSON.stringify(body),
         });
         setServiceEvents(prev => [...prev, saved].sort((a, b) => b.date.localeCompare(a.date)));
         toast.success(`Added "${saved.title}".`);
@@ -151,7 +167,7 @@ export default function ServicePage() {
       }
     } else if (eventModal === "edit" && editingEvent) {
       const snapshot = editingEvent;
-      const updated = { ...snapshot, ...eventForm };
+      const updated = { ...snapshot, ...body };
       setServiceEvents(list => list.map(e => e.id === snapshot.id ? updated : e).sort((a, b) => b.date.localeCompare(a.date)));
       setEventModal(null);
       setEditingEvent(null);
@@ -159,7 +175,7 @@ export default function ServicePage() {
         await requestJson<ServiceEvent>(`/api/service-events/${snapshot.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(eventForm),
+          body: JSON.stringify(body),
         });
         toast.success("Service event updated.");
       } catch (err) {
@@ -523,11 +539,11 @@ export default function ServicePage() {
                 onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="Beach cleanup, food bank, …" />
             </div>
-            <div>
-              <FieldLabel tone="dusk">Date</FieldLabel>
-              <input type="date" className="svc-input" value={eventForm.date}
-                min={activeSemester?.startDate} max={activeSemester?.endDate}
-                onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))} />
+            <div className="cef-root">
+              <FieldLabel tone="dusk">When</FieldLabel>
+              <ScheduleFields value={when} onChange={setWhen} legacyReadOnly
+                minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+              {whenError && <p role="alert" className="cef-hint sched-warn mt-1">{whenError}</p>}
             </div>
             <div>
               <FieldLabel tone="dusk">Location</FieldLabel>
@@ -543,7 +559,7 @@ export default function ServicePage() {
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => setEventModal(null)} className="svc-btn ghost">Cancel</button>
-              <button onClick={handleSaveEvent} disabled={!eventForm.title || !eventForm.date} className="svc-btn primary">
+              <button onClick={handleSaveEvent} disabled={!eventForm.title} className="svc-btn primary">
                 {eventModal === "add" ? "Log event" : "Save changes"}
               </button>
             </div>

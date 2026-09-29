@@ -1,4 +1,5 @@
 import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
 import { collaborativeNotesEnabled } from "@/lib/collaboration/notes-config";
@@ -122,6 +123,10 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
       throw new ValidationError("This event has a party ledger. Keep the Party category to preserve its records.");
     }
     guardLegacyNotes(locked, input);
+    if (input.date != null && input.schedule === undefined && input.time === undefined) {
+      const followed = followDateChange(locked.schedule, input.date);
+      if (followed) { data.schedule = followed.schedule; data.time = followed.time; }
+    }
     if (input.description !== undefined) {
       if ((input.description ?? "") === (locked.description ?? "")) delete data.notesUpdatedAt;
       else data.notesContentRevision = { increment: 1 };

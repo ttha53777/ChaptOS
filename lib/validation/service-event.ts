@@ -17,6 +17,7 @@ export type CreateServiceEventInput = z.infer<typeof createServiceEventInput>;
 export const updateServiceEventInput = z.object({
   title:    z.string().min(1).optional(),
   date:     dateSchema.optional(),
+  schedule: scheduleSchema.nullable().optional(),
   location: z.string().optional(),
   notes:    z.string().optional(),
 });

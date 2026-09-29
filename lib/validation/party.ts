@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { PARTY_TYPES } from "@/lib/state";
 import { DATE_RE } from "@/lib/dates";
+import { scheduleSchema } from "@/lib/calendar-feed/schedule";
 
 export const createPartyInput = z.object({
   name:        z.string().trim().min(1),
   date:        z.string().regex(DATE_RE),
+  // Start/end for the linked calendar entry; `date` is derived from it when present.
+  schedule:    scheduleSchema.nullable().optional(),
   partyType:   z.enum(PARTY_TYPES as readonly [string, ...string[]]).optional(),
   theme:       z.string().optional(),
   collabOrg:   z.string().optional(),
@@ -18,6 +21,7 @@ export type CreatePartyInput = z.infer<typeof createPartyInput>;
 export const updatePartyInput = z.object({
   name:        z.string().min(1).optional(),
   date:        z.string().regex(DATE_RE).optional(),
+  schedule:    scheduleSchema.nullable().optional(),
   partyType:   z.enum(PARTY_TYPES as readonly [string, ...string[]]).optional(),
   theme:       z.string().optional(),
   collabOrg:   z.string().optional(),

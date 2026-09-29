@@ -10,6 +10,8 @@ import { useChapter } from "../../context/ChapterContext";
 import { PartyEvent, Brother, fmt$, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
 import { todayStr, daysFromToday } from "../../lib/dates";
+import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
+import { scheduleDate, type Schedule } from "@/lib/calendar-feed/schedule";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./parties-ledger.css";
 
@@ -47,28 +49,51 @@ type WrapUpSubmit = {
   mandatory?: boolean;
 };
 
+// The party's date comes from its schedule. A legacy free-text time is left as
+// written (no schedule sent) until someone sets a real start and end.
+type PartyWhen = { date: string; schedule?: Schedule };
+function partyWhen(value: ScheduleValue): PartyWhen | { error: string } {
+  const result = scheduleFromValue(value);
+  if ("error" in result) return result;
+  return result.schedule ? { date: scheduleDate(result.schedule), schedule: result.schedule } : { date: value.date };
+}
+
+function PartyWhenField({ value, onChange, error }: { value: ScheduleValue; onChange: (v: ScheduleValue) => void; error: string }) {
+  return (
+    <div className="cef-root">
+      <FieldLabel tone="dusk">When *</FieldLabel>
+      <ScheduleFields value={value} onChange={onChange} legacyReadOnly />
+      {error && <p role="alert" className="cef-hint sched-warn mt-1">{error}</p>}
+    </div>
+  );
+}
+
 // ─── Add party form ───────────────────────────────────────────────────────────
 
 function AddPartyForm({ onSubmit, onClose }: {
-  onSubmit: (data: typeof ADD_FORM_EMPTY) => void;
+  onSubmit: (data: typeof ADD_FORM_EMPTY & PartyWhen) => void;
   onClose: () => void;
 }) {
   const [form, setForm] = useState(ADD_FORM_EMPTY);
+  const [when, setWhen] = useState(() => initialSchedule(null, { date: ADD_FORM_EMPTY.date, isNew: true }));
+  const [whenError, setWhenError] = useState("");
   const set = (k: keyof typeof ADD_FORM_EMPTY) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(f => ({ ...f, [k]: e.target.value }));
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="space-y-3">
+    <form onSubmit={e => {
+      e.preventDefault();
+      const timing = partyWhen(when);
+      if ("error" in timing) { setWhenError(timing.error); return; }
+      onSubmit({ ...form, ...timing });
+    }} className="space-y-3">
       <div>
         <FieldLabel tone="dusk">Party name *</FieldLabel>
         <input className={inputDuskCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
       </div>
+      <PartyWhenField value={when} onChange={setWhen} error={whenError} />
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Date *</FieldLabel>
-          <input type="date" className={inputDuskCls} required value={form.date} onChange={set("date")} />
-        </div>
         <div>
           <FieldLabel tone="dusk">Party type</FieldLabel>
           <select className={inputDuskCls} value={form.partyType} onChange={e => setForm(f => ({ ...f, partyType: e.target.value as "Open" | "Closed" }))}>
@@ -107,22 +132,25 @@ function EditPartyForm({ party, onSubmit, onClose }: {
   onClose: () => void;
 }) {
   const [name,      setName]      = useState(party.name);
-  const [date,      setDate]      = useState(party.date);
+  const [when,      setWhen]      = useState(() => initialSchedule(party.schedule, { date: party.date, time: party.time, isNew: false }));
+  const [whenError, setWhenError] = useState("");
   const [partyType, setPartyType] = useState<"Open" | "Closed">(party.partyType);
   const [theme,     setTheme]     = useState(party.theme);
   const [collabOrg, setCollabOrg] = useState(party.collabOrg);
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSubmit({ name, date, partyType, theme, collabOrg }); }} className="space-y-3">
+    <form onSubmit={e => {
+      e.preventDefault();
+      const timing = partyWhen(when);
+      if ("error" in timing) { setWhenError(timing.error); return; }
+      onSubmit({ name, ...timing, partyType, theme, collabOrg });
+    }} className="space-y-3">
       <div>
         <FieldLabel tone="dusk">Party name *</FieldLabel>
         <input className={inputDuskCls} required value={name} onChange={e => setName(e.target.value)} />
       </div>
+      <PartyWhenField value={when} onChange={setWhen} error={whenError} />
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Date *</FieldLabel>
-          <input type="date" className={inputDuskCls} required value={date} onChange={e => setDate(e.target.value)} />
-        </div>
         <div>
           <FieldLabel tone="dusk">Party type</FieldLabel>
           <select className={inputDuskCls} value={partyType} onChange={e => setPartyType(e.target.value as "Open" | "Closed")}>
@@ -460,10 +488,10 @@ export default function PartiesPage() {
 
   // ── mutations ─────────────────────────────────────────────────────────────────
 
-  function handleAdd(form: typeof ADD_FORM_EMPTY) {
+  function handleAdd(form: typeof ADD_FORM_EMPTY & PartyWhen) {
     const tempId = Date.now();
     const entry: PartyEvent = {
-      id: tempId, name: form.name, date: form.date, partyType: form.partyType,
+      id: tempId, name: form.name, date: form.date, schedule: form.schedule ?? null, partyType: form.partyType,
       theme: form.theme, collabOrg: form.collabOrg,
       doorRevenue: 0, attendance: 0, expenses: 0, notes: "",
       completed: false, completedAt: null,
@@ -475,7 +503,7 @@ export default function PartiesPage() {
       requestJson<PartyEvent>("/api/parties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name, date: form.date, partyType: form.partyType, theme: form.theme, collabOrg: form.collabOrg }),
+        body: JSON.stringify({ name: form.name, date: form.date, schedule: form.schedule, partyType: form.partyType, theme: form.theme, collabOrg: form.collabOrg }),
       }),
       "Could not save party. Changes reverted.",
       () => { setPartyList(prev => prev.filter(p => p.id !== tempId)); setExpandedId(null); },

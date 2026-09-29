@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Temporal } from "@js-temporal/polyfill";
-import { scheduleSchema, scheduleDate, scheduleTime, wallTimeToInstant, nextDate, type Schedule } from "@/lib/calendar-feed/schedule";
-import { requestJson } from "../../lib/api";
+import React, { useState } from "react";
+import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { ScheduleFields, initialSchedule, scheduleFromValue } from "./ScheduleFields";
 import type { CalendarEvent } from "../../data";
 import { toDateStr } from "../../lib/dates";
 import "./calendar-event-form.css";
@@ -60,19 +59,8 @@ export function CalendarEventForm({
   const today = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const defaultDate = minDate && today < minDate ? minDate : maxDate && today > maxDate ? maxDate : today;
   const [title, setTitle] = useState(initialEvent?.title ?? "");
-  const [date, setDate] = useState(initialEvent?.date ?? defaultDate);
-  const [time, setTime] = useState(initialEvent?.time ?? "");
-  const saved = initialEvent?.schedule;
-  const [mode, setMode] = useState<"legacy" | "allDay" | "timed">(saved?.kind ?? (initialEvent?.time ? "legacy" : "allDay"));
-  const [zone, setZone] = useState(saved?.kind === "timed" ? saved.timeZone : "");
-  const localTime = (value: string, tz: string) => Temporal.Instant.from(value).toZonedDateTimeISO(tz).toPlainDateTime().toString({ smallestUnit: "minute" });
-  const [startLocal, setStartLocal] = useState(saved?.kind === "timed" ? localTime(saved.start, saved.timeZone) : "");
-  const [endLocal, setEndLocal] = useState(saved?.kind === "timed" ? localTime(saved.end, saved.timeZone) : "");
-  const [endDate, setEndDate] = useState(saved?.kind === "allDay" ? saved.end : "");
-  const [startOffset, setStartOffset] = useState(saved?.kind === "timed" ? Temporal.Instant.from(saved.start).toZonedDateTimeISO(saved.timeZone).offset : "");
-  const [endOffset, setEndOffset] = useState(saved?.kind === "timed" ? Temporal.Instant.from(saved.end).toZonedDateTimeISO(saved.timeZone).offset : "");
+  const [when, setWhen] = useState(() => initialSchedule(initialEvent?.schedule, { date: initialEvent?.date ?? defaultDate, time: initialEvent?.time, isNew: !initialEvent }));
   const [scheduleError, setScheduleError] = useState("");
-  useEffect(() => { if (!saved) void requestJson<{ timeZone: string | null }>("/api/calendar/subscription").then(v => setZone(v.timeZone ?? "")).catch(() => {}); }, [saved]);
   const initialCategory = initialEvent?.category ?? defaultCategory ?? categoryOptions[0]?.slug ?? "";
   const [category, setCategory] = useState<string>(initialCategory);
   const [mandatory, setMandatory] = useState(
@@ -91,17 +79,15 @@ export function CalendarEventForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    let schedule: Schedule | undefined;
-    try {
-      if (mode === "allDay") schedule = scheduleSchema.parse({ kind: "allDay", start: date, end: endDate || nextDate(date) });
-      if (mode === "timed") schedule = scheduleSchema.parse({ kind: "timed", start: wallTimeToInstant(startLocal, zone, startOffset || undefined), end: wallTimeToInstant(endLocal, zone, endOffset || undefined), timeZone: zone });
-      setScheduleError("");
-    } catch { setScheduleError("Check the dates, time zone and end time. A repeated daylight-saving time requires an explicit UTC offset; a skipped time cannot be scheduled."); return; }
+    const result = scheduleFromValue(when);
+    if ("error" in result) { setScheduleError(result.error); return; }
+    setScheduleError("");
+    const { schedule } = result;
     onSubmit({
-      schedule: schedule ?? null,
+      schedule,
       title: title.trim(),
-      date: schedule ? scheduleDate(schedule) : date,
-      time: schedule ? scheduleTime(schedule) ?? undefined : optionalValue(time),
+      date: schedule ? scheduleDate(schedule) : when.date,
+      time: schedule ? scheduleTime(schedule) ?? undefined : optionalValue(when.legacyTime),
       category,
       mandatory,
       location: optionalValue(location),
@@ -130,33 +116,12 @@ export function CalendarEventForm({
           />
         </div>
 
-        {/* When — date grows, optional time sits beside it */}
-        {mode !== "timed" && <div className="cef-when">
-          <div className="cef-field">
-            <label className="cef-label" htmlFor="event-date">Date</label>
-            <input id="event-date" type="date" className="cef-input" value={date} onChange={e => setDate(e.target.value)} min={minDate} max={maxDate} required />
-          </div>
-          {mode === "legacy" && <div className="cef-field">
-            <label className="cef-label" htmlFor="event-time">Time<span className="opt">opt</span></label>
-            <input id="event-time" className="cef-input" value={time} onChange={e => setTime(e.target.value)} placeholder="7:00 PM" />
-          </div>}
-        </div>}
-
+        {/* When — a real start/end is what subscribed calendars can show */}
         <div className="cef-field">
-          <label className="cef-label" htmlFor="schedule-kind">Schedule</label>
-          <select id="schedule-kind" className="cef-input" value={mode} onChange={e => setMode(e.target.value as typeof mode)}>
-            {initialEvent?.time && <option value="legacy">Keep legacy time (subscription shows all-day)</option>}
-            <option value="allDay">All-day</option><option value="timed">Timed event</option>
-          </select>
+          <span className="cef-label">When</span>
+          <ScheduleFields value={when} onChange={setWhen} minDate={minDate} maxDate={maxDate} />
         </div>
-        {mode === "allDay" && <div className="cef-field"><label className="cef-label" htmlFor="schedule-end-date">End date (exclusive; optional for one day)</label><input id="schedule-end-date" className="cef-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>}
-        {mode === "timed" && <>
-          <div className="cef-field"><label className="cef-label" htmlFor="schedule-zone">IANA time zone</label><input id="schedule-zone" className="cef-input" value={zone} onChange={e => setZone(e.target.value)} placeholder="America/New_York" required /></div>
-          <div className="cef-field"><label className="cef-label" htmlFor="schedule-start">Starts</label><input id="schedule-start" className="cef-input" type="datetime-local" value={startLocal} onChange={e => { setStartLocal(e.target.value); setStartOffset(""); }} required /></div>
-          <div className="cef-field"><label className="cef-label" htmlFor="schedule-end">Ends</label><input id="schedule-end" className="cef-input" type="datetime-local" value={endLocal} onChange={e => { setEndLocal(e.target.value); setEndOffset(""); }} required /></div>
-          <details><summary>Repeated daylight-saving times</summary><p className="cef-hint">If a local time occurs twice, specify its UTC offset, such as -04:00 or -05:00.</p><label>Start offset<input className="cef-input" value={startOffset} onChange={e => setStartOffset(e.target.value)} placeholder="±HH:MM" /></label><label>End offset<input className="cef-input" value={endOffset} onChange={e => setEndOffset(e.target.value)} placeholder="±HH:MM" /></label></details>
-        </>}
-        {scheduleError && <p role="alert">{scheduleError}</p>}
+        {scheduleError && <p role="alert" className="cef-hint sched-warn">{scheduleError}</p>}
 
         {/* Category — color-coded chips matching the timeline node dots */}
         <div className="cef-field">

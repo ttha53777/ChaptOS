@@ -1,4 +1,5 @@
 import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { guardLegacyNotes } from "@/lib/collaboration/notes-compat";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
@@ -316,6 +317,11 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   }
 
   await assertOwnerInOrg(ctx, input.ownerBrotherId, input.ownerRoleId);
+  // A bare date change (e.g. dragging an idea onto a day) keeps its start/end.
+  if (input.dueDate != null && input.schedule === undefined && input.time === undefined) {
+    const followed = followDateChange(existing.schedule, input.dueDate);
+    if (followed) input = { ...input, schedule: followed.schedule, time: followed.time };
+  }
 
   const data: Prisma.ProgrammingEventUncheckedUpdateInput = {};
   const changedFields: string[] = [];
