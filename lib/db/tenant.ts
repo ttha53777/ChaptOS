@@ -1852,6 +1852,19 @@ function scopedOrganization(orgId: number, run: Run) {
 // Main export
 // ---------------------------------------------------------------------------
 
+function scopedCalendarSubscription(orgId: number, run: Run) {
+  return {
+    find: () => run(p => p.calendarSubscription.findUnique({ where: { organizationId: orgId } })),
+    update: (data: Prisma.CalendarSubscriptionUpdateManyMutationInput) => run(p => p.calendarSubscription.updateMany({ where: { organizationId: orgId }, data })),
+  };
+}
+function scopedCalendarFeedItem(orgId: number, run: Run) {
+  return { list: () => run(p => p.calendarFeedItem.findMany({ where: { organizationId: orgId }, orderBy: { uid: "asc" } })) };
+}
+function scopedCalendarFeedWork(orgId: number, run: Run) {
+  return { find: () => run(p => p.calendarFeedWork.findUnique({ where: { organizationId: orgId } })) };
+}
+
 export function db(orgId: number) {
   // Hard gate at the single chokepoint: orgId must be a positive integer. Every
   // scoped delegate injects this value into WHERE/data, and $transaction
@@ -1873,6 +1886,9 @@ export function db(orgId: number) {
     // client inside $transaction (where org injection is manual) can reference it
     // without threading a separate orgId param alongside the scoped accessor.
     orgId,
+    calendarSubscription: scopedCalendarSubscription(orgId, run),
+    calendarFeedItem: scopedCalendarFeedItem(orgId, run),
+    calendarFeedWork: scopedCalendarFeedWork(orgId, run),
 
     // The roster (Membership-backed, keyed by brotherId) and the shared
     // identity row. There is deliberately no `brother` delegate: scoping a
@@ -1988,6 +2004,9 @@ export function _dbWithClient(orgId: number, client: P) {
         return fn(tx);
       }, opts)) as typeof prisma.$transaction,
     orgId,
+    calendarSubscription: scopedCalendarSubscription(orgId, run),
+    calendarFeedItem: scopedCalendarFeedItem(orgId, run),
+    calendarFeedWork: scopedCalendarFeedWork(orgId, run),
     // The roster (Membership-backed, keyed by brotherId) and the shared
     // identity row. There is deliberately no `brother` delegate: scoping a
     // roster read by Brother.organizationId is what made a multi-org member
