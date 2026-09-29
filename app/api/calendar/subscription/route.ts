@@ -7,8 +7,9 @@ export async function GET(request: Request) {
   if (error) return error;
   try {
     // ?summary=1: just "is it live", for the dashboard invite. Never the URL.
-    const { summary } = calendarSubscriptionQuery.parse(Object.fromEntries(new URL(request.url).searchParams));
-    return Response.json(summary ? await calendarFeedLive(ctx) : await getCalendarSubscription(ctx), { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+    // ?view=member: the setup dialog's fields only, skipping the admin audit.
+    const { summary, view } = calendarSubscriptionQuery.parse(Object.fromEntries(new URL(request.url).searchParams));
+    return Response.json(summary ? await calendarFeedLive(ctx) : await getCalendarSubscription(ctx, { memberView: view === "member" }), { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
   }
   catch (e) { return toResponse(e); }
 }

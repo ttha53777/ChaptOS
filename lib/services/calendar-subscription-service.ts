@@ -37,7 +37,8 @@ export async function calendarFeedLive(ctx: RequestContext) {
   return { live: Boolean(feedRolloutAllowed(ctx.orgId) && subscription?.enabled && subscription.tokenCiphertext) };
 }
 
-export async function getCalendarSubscription(ctx: RequestContext) {
+/** `memberView` skips the admin-only readiness audit (the slow part) even for admins. */
+export async function getCalendarSubscription(ctx: RequestContext, { memberView = false }: { memberView?: boolean } = {}) {
   const [subscription, organization, work] = await Promise.all([ctx.db.calendarSubscription.find(), ctx.db.organization.findFirst({ select: { name: true, timeZone: true } }), ctx.db.calendarFeedWork.find()]);
   const admin = ctx.isOrgAdmin || ctx.isPlatformAdmin;
   const allowed = feedRolloutAllowed(ctx.orgId);
@@ -47,7 +48,7 @@ export async function getCalendarSubscription(ctx: RequestContext) {
   // Only preview what a subscriber can actually fetch right now.
   const preview = url ? upcomingPreview(await ctx.db.calendarFeedItem.list(), timeZone) : [];
   const base = { enabled: subscription?.enabled ?? false, available: allowed, url, orgName: organization?.name ?? "", preview, timeZone, admin, validated: Boolean(subscription?.validatedAt), status: memberStatus(work), generation: subscription?.generation ?? 0 };
-  if (!admin) return base;
+  if (!admin || memberView) return base;
   const readiness = await feedReadiness(ctx.db);
   return {
     ...base,

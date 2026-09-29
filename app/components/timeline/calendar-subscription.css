@@ -9,7 +9,7 @@
 .cef-root { --ok: #7fb08a; --ok-bg: rgba(127,176,138,.10); }
 
 /* ── Dialog copy & buttons (mirrors ev-btn / tl-add-btn in timeline-ledger.css) ── */
-.cal-flow { display: flex; flex-direction: column; gap: 22px; font-size: 13px; line-height: 1.55; color: var(--ink-soft); }
+.cal-flow { display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.55; color: var(--ink-soft); }
 .cal-flow strong { color: var(--ink); font-weight: 600; }
 .cal-flow em { font-style: normal; color: var(--ink); }
 .cal-sec { display: flex; flex-direction: column; gap: 9px; }
@@ -24,62 +24,46 @@
 }
 .cal-btn:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
 .cal-btn:disabled { opacity: .4; cursor: default; }
-.cal-btn-primary {
-  display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
-  font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 9px;
-  padding: 10px 16px; cursor: pointer; transition: border-color .12s, background .12s, color .12s;
-}
-.cal-btn-primary:hover { border-color: var(--vio); color: var(--ink); background: color-mix(in srgb, var(--vio) 16%, transparent); }
-.cal-btn svg, .cal-btn-primary svg { width: 13px; height: 13px; flex-shrink: 0; }
+.cal-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
 
-/* ── "Coming up" preview — ledger rows: sans title, mono date ─────────────────── */
-.cal-preview { border: 1px solid var(--line); border-radius: 11px; background: var(--card); overflow: hidden; }
-.cal-preview li {
-  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 14px;
-  padding: 9px 13px; border-bottom: 1px solid var(--line-soft);
+/* ── Member dialog: pick a calendar, press one button ───────────────────────── */
+.cal-lede { font-size: 13.5px; color: var(--ink-soft); }
+.cal-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cal-tile {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 9px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 18px 10px 14px;
+  font-size: 12.5px; font-weight: 600; color: var(--ink-soft); text-align: center;
+  transition: border-color .12s, background .12s, color .12s, transform .12s;
 }
-.cal-preview li:last-child { border-bottom: 0; }
-.cal-preview .t { min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 12.5px; }
-.cal-preview .d { font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em; color: var(--muted); font-variant-numeric: tabular-nums; }
-.cal-preview-empty { padding: 12px 13px; font-family: var(--serif); font-style: italic; font-size: 12.5px; color: var(--faint); }
+.cal-tile:hover { border-color: var(--muted); }
+.cal-tile input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cal-tile .glyph { width: 36px; height: 36px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); opacity: .7; transition: opacity .12s; }
+.cal-tile:has(input:checked) { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
+.cal-tile:has(input:checked) .glyph { opacity: 1; }
+.cal-tile:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--vio-bg); border-color: var(--vio); }
 
-/* ── Provider picker — radio cards (same shape as .cef-toggle / .sc-choice) ──── */
-.cal-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.cal-choice {
-  position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer;
-  border: 1px solid var(--line); border-radius: 11px; background: var(--card); padding: 11px 13px;
-  font-size: 12.5px; font-weight: 600; color: var(--ink-soft); transition: border-color .12s, background .12s, color .12s;
+.cal-go { display: flex; flex-direction: column; gap: 10px; }
+.cal-cta {
+  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; box-sizing: border-box; text-decoration: none;
+  font-family: var(--sans); font-size: 14px; font-weight: 600; color: #fff;
+  background: var(--vio-deep); border: 1px solid transparent; border-radius: 12px; padding: 13px 18px;
+  cursor: pointer; transition: background .12s, opacity .12s;
 }
-.cal-choice:hover { border-color: var(--muted); }
-.cal-choice input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.cal-choice .ring { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--faint); flex-shrink: 0; display: grid; place-items: center; }
-.cal-choice:has(input:checked) { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
-.cal-choice:has(input:checked) .ring { border-color: var(--vio); }
-.cal-choice:has(input:checked) .ring::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--vio); }
-.cal-choice:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--vio-bg); border-color: var(--vio); }
-
-/* ── Numbered steps — mono numerals on a hairline spine ────────────────────── */
-.cal-steps { list-style: none; margin: 0; padding: 0; counter-reset: cal-step; display: flex; flex-direction: column; }
-.cal-steps > li { counter-increment: cal-step; position: relative; padding: 0 0 18px 34px; }
-.cal-steps > li:last-child { padding-bottom: 0; }
-.cal-steps > li::before {
-  content: counter(cal-step); position: absolute; left: 0; top: 0;
-  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
-  font-family: var(--mono); font-size: 10px; color: var(--vio); background: var(--vio-bg); border: 1px solid rgba(167,139,250,.25);
-}
-.cal-steps > li:not(:last-child)::after { content: ""; position: absolute; left: 11px; top: 26px; bottom: 4px; width: 1px; background: var(--line); }
-.cal-steps > li.aside::before { content: "i"; font-style: italic; font-family: var(--serif); color: var(--muted); background: var(--card-2); border-color: var(--line); }
+.cal-cta:hover { background: color-mix(in srgb, var(--vio-deep) 85%, white); }
+.cal-cta:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
+.cal-cta[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+.cal-cta svg { width: 15px; height: 15px; }
+.cal-hint { text-align: center; font-size: 12.5px; color: var(--muted); }
+.cal-go > .cal-hint:first-child { text-align: left; color: var(--ink-soft); }
+.cal-added { display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-soft); }
+.cal-added .tick { flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); }
+.cal-added .tick svg { width: 11px; height: 11px; }
+.cal-trouble { border-top: 1px solid var(--line-soft); padding-top: 14px; }
+.cal-trouble .cal-details-body { gap: 12px; }
 
 /* ── Copy field ─────────────────────────────────────────────────────────────── */
 .cal-copy { display: flex; gap: 8px; margin-top: 7px; }
 .cal-copy .cef-input { min-width: 0; flex: 1; font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
-
-/* ── Confirmation footer ───────────────────────────────────────────────────── */
-.cal-foot { border-top: 1px solid var(--line-soft); padding-top: 16px; }
-.cal-added { display: flex; gap: 10px; align-items: flex-start; }
-.cal-added .tick { flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-bg); color: var(--ok); }
-.cal-added .tick svg { width: 11px; height: 11px; }
 
 /* ── Disclosure — shared by dialog and settings ────────────────────────────── */
 .cal-details > summary {
@@ -101,10 +85,6 @@
 .cal-pub.current .dot { background: var(--ok); }
 .cal-pub.publishing .dot, .cal-pub.retrying .dot { background: #ddb36a; }
 .cal-alert { border: 1px solid rgba(221,179,106,.3); background: rgba(221,179,106,.08); border-radius: 11px; padding: 11px 13px; color: var(--ink-soft); }
-.cal-why { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; list-style: none; padding: 0; }
-.cal-why li { padding-left: 12px; border-left: 2px solid var(--line); }
-.cal-why li.hit { border-left-color: #ddb36a; }
-.cal-why strong { color: var(--ink); font-weight: 600; }
 
 /* ── Settings checklist — step marker inside an .sc-row ────────────────────── */
 .dash .set-section .cal-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -126,7 +106,6 @@
 .dash .set-section .cal-zone { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .cal-sec.tight { gap: 6px; }
 .cal-list { margin-top: 10px; }
-@media (max-width: 420px) { .cal-choices { grid-template-columns: 1fr; } }
 
 /* ── Settings: "Tell your members" — the message as it will read in the chat ── */
 .dash .set-section .cal-tell { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; }

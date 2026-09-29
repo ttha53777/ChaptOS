@@ -43,11 +43,42 @@ export const CalendarIcon = () => (
 );
 export const Tick = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>;
 
+// The dialog opens from the last answer this page saw and refreshes behind it,
+// so it never sits on "Loading…". Buttons that open it warm this on mount.
+// Keyed by org slug: a client-side switch to another chapter must not reuse the link.
+const orgKey = () => typeof window === "undefined" ? "" : window.location.pathname.split("/")[1] ?? "";
+let memberCache: { org: string; data: Subscription } | null = null;
+let memberInflight: Promise<Subscription> | null = null;
+const cached = () => memberCache?.org === orgKey() ? memberCache.data : null;
+export function prefetchSubscription(): Promise<Subscription> {
+  const org = orgKey();
+  memberInflight ??= requestJson<Subscription>("/api/calendar/subscription?view=member")
+    .then(r => { memberCache = { org, data: r }; return r; })
+    .finally(() => { memberInflight = null; });
+  return memberInflight;
+}
+
+function useMemberSubscription() {
+  const [data, setData] = useState<Subscription | null>(cached);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    prefetchSubscription().then(r => { if (live) setData(r); })
+      .catch(e => { if (live && !cached()) setError(apiErrorMessage(e, "Could not load calendar subscription")); });
+    return () => { live = false; };
+  }, []);
+  return { data, error };
+}
+
 function useSubscription(active: boolean) {
   const [data, setData] = useState<Subscription | null>(null);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
-    try { setData(await requestJson<Subscription>("/api/calendar/subscription")); }
+    try {
+      const next = await requestJson<Subscription>("/api/calendar/subscription");
+      memberCache = { org: orgKey(), data: next };
+      setData(next);
+    }
     catch (e) { setError(apiErrorMessage(e, "Could not load calendar subscription")); }
   }, []);
   useEffect(() => { if (active) void load(); }, [active, load]);
@@ -64,6 +95,7 @@ export function CalendarSubscription({ settings = false }: { settings?: boolean 
 /** `briefing` sits with Add Deadline/Add Event inside `.dash`; `toolbar` is the
  *  mobile header (outside `.dash`), which styles its buttons inline. */
 export function AddToCalendarButton({ onClick, variant = "briefing" }: { onClick: () => void; variant?: "briefing" | "toolbar" }) {
+  useEffect(() => { void prefetchSubscription().catch(() => {}); }, []);
   if (variant === "toolbar") return (
     <button onClick={onClick} aria-label="Add to my calendar"
       className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-[#958d7c]">
@@ -117,30 +149,33 @@ export function readAdded(slug: string): Added | null {
 }
 
 export function AddToCalendarDialog({ provider: requested, onClose }: { provider?: Provider; onClose: () => void }) {
-  const { data, error } = useSubscription(true);
+  const { data, error } = useMemberSubscription();
   const slug = useSlug();
   const [hadAdded, setHadAdded] = useState(false);
   useEffect(() => { if (slug) setHadAdded(readAdded(slug) !== null); }, [slug]);
+  // Cold open: draw the real layout straight away and fill the link in when it lands.
+  const loading = !data && !error;
   return (
-    <Modal tone="dusk" title="Add to my calendar" maxWidthClass="max-w-xl" onClose={onClose}>
+    <Modal tone="dusk" title="Add to my calendar" maxWidthClass="max-w-md" onClose={onClose}>
       <div className="cef-root cal-flow">
         {error && <p role="alert" className="cal-err">{error}</p>}
-        {!data && !error && <p role="status" className="cal-muted">Loading…</p>}
         {data && !data.url && <p>{!data.available ? "Calendar subscriptions aren't available for your organization yet."
           : hadAdded ? "Your organization has paused calendar updates. Events already in your calendar stay there but won't change until an admin turns updates back on. You don't need to add the calendar again."
           : data.admin ? <>Calendar subscriptions are off. <a className="sched-link" href={slug ? `/${slug}/settings?section=calendar` : "#"}>Turn them on in Settings</a>; it takes one click.</>
           : "Calendar subscriptions are off. An organization admin can turn them on in Settings."}</p>}
-        {data?.url && <GuidedSetup data={data} url={data.url} requested={requested} />}
+        {(loading || data?.url) && <GuidedSetup data={data} requested={requested} />}
       </div>
     </Modal>
   );
 }
 
-function GuidedSetup({ data, url, requested }: { data: Subscription; url: string; requested?: Provider }) {
+/** Pick your calendar, press one button. Everything else is behind "Having trouble?". */
+function GuidedSetup({ data, requested }: { data: Subscription | null; requested?: Provider }) {
   const slug = useSlug();
   const [device, setDevice] = useState<ReturnType<typeof detectDevice> | null>(null);
   const [provider, setProvider] = useState<Provider | null>(requested ?? null);
   const [added, setAdded] = useState<Added | null>(null);
+  const [onComputer, setOnComputer] = useState(false);
   useEffect(() => {
     // After mount: the dialog's markup must not depend on the server's guess.
     const found = detectDevice(navigator.userAgent, navigator.maxTouchPoints ?? 0);
@@ -148,83 +183,81 @@ function GuidedSetup({ data, url, requested }: { data: Subscription; url: string
     setProvider(p => p ?? found.provider);
   }, []);
   useEffect(() => { if (slug) setAdded(readAdded(slug)); }, [slug]);
+  const url = data?.url ?? null;
+  const generation = data?.generation ?? 0;
+  // Nothing can observe the provider's side, so pressing the button is the record.
   function markAdded() {
-    if (!provider) return;
-    const value: Added = { provider, at: new Date().toISOString(), generation: data.generation };
+    if (!provider || !url) return;
+    const value: Added = { provider, at: new Date().toISOString(), generation };
     try { localStorage.setItem(addedKey(slug), JSON.stringify(value)); } catch { /* still confirm on screen */ }
     setAdded(value);
   }
-  const name = provider === "apple" ? "Apple Calendar" : "Google Calendar";
   // The member added a link that an admin has since replaced: the old calendar
-  // has stopped updating and the steps below add the new one.
-  const replaced = added?.generation != null && added.generation !== data.generation;
+  // has stopped updating and the button adds the new one.
+  const replaced = data != null && added?.generation != null && added.generation !== generation;
+  const done = added?.provider === provider && !replaced;
+  const orgName = data?.orgName;
+  const googleOnPhone = provider === "google" && device?.mobile && !onComputer;
 
   return <>
-    {replaced && <p role="status" className="cal-alert"><strong>Your organization replaced this calendar link</strong> after you added it on {new Date(added!.at).toLocaleDateString()}. The calendar you added has stopped updating. Add the new link below, then remove the old calendar so events don&apos;t show twice.</p>}
-    <Preview data={data} />
-    <fieldset className="cal-sec">
-      <legend className="cef-label mb-[9px]">Which calendar do you use?</legend>
-      <div className="cal-choices">
-        {(["google", "apple"] as const).map(p => (
-          <label key={p} className="cal-choice">
-            <input type="radio" name="calendar-provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />
-            <span className="ring" aria-hidden />
-            {p === "google" ? "Google Calendar" : "Apple Calendar"}
-          </label>
-        ))}
-      </div>
-    </fieldset>
+    <p className="cal-lede"><strong>{orgName || "Your organization"}</strong>&apos;s events and deadlines in your own calendar, updated automatically.</p>
+    {replaced && <p role="status" className="cal-alert"><strong>This calendar link was replaced</strong> after you added it on {new Date(added!.at).toLocaleDateString()}. Add it again below, then remove the old one so events don&apos;t show twice.</p>}
 
-    {provider === "google" && device && <GoogleSteps url={url} mobile={device.mobile} />}
-    {provider === "apple" && device && <AppleSteps url={url} apple={device.apple} />}
+    <div role="radiogroup" aria-label="Your calendar" className="cal-pick">
+      {(["google", "apple"] as const).map(p => (
+        <label key={p} className="cal-tile">
+          <input type="radio" name="calendar-provider" value={p} checked={provider === p} onChange={() => setProvider(p)} />
+          {p === "google" ? <GoogleGlyph /> : <AppleGlyph />}
+          <span>{p === "google" ? "Google Calendar" : "Apple Calendar"}</span>
+        </label>
+      ))}
+    </div>
 
-    {provider && <div className="cal-foot">
-      {added?.provider === provider && !replaced
-        ? <p role="status" className="cal-added"><span className="tick"><Tick /></span><span>You marked this as added{added.at ? ` on ${new Date(added.at).toLocaleDateString()}` : ""}. New and changed events appear when {name} next refreshes{provider === "google" ? ", which can take up to a day" : ""}. If it isn&apos;t showing, go through the steps again.</span></p>
-        : <button className="cal-btn" onClick={markAdded}>I&apos;ve added it</button>}
-    </div>}
+    {googleOnPhone ? <GoogleHandoff onComputer={() => setOnComputer(true)} />
+      : <div className="cal-go">
+        {provider === "apple"
+          ? <a className="cal-cta" aria-disabled={!url} href={url ? url.replace(/^https:/, "webcal:") : undefined} referrerPolicy="no-referrer" onClick={markAdded}><CalendarIcon />Open in Apple Calendar</a>
+          // The feed secret travels in this link's query string, so it lands in this
+          // browser's history. Google receives it anyway once the member subscribes.
+          : <a className="cal-cta" aria-disabled={!url} href={url ? googleAddUrl(url) : undefined} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" onClick={markAdded}><CalendarIcon />Add to Google Calendar</a>}
+        {done
+          ? <p role="status" className="cal-added"><span className="tick"><Tick /></span>Added{added?.at ? ` ${new Date(added.at).toLocaleDateString()}` : ""}. New events show up {provider === "google" ? "within a day" : "on the next refresh"}.</p>
+          : <p className="cal-hint">{provider === "apple"
+            ? device && !device.apple ? "Open this page on your iPhone, iPad or Mac, then tap the button." : <>Choose <strong>Subscribe</strong>, and pick iCloud to see it on all your devices.</>
+            : <>Google Calendar opens in a new tab. Just choose <strong>Add</strong>.</>}</p>}
+      </div>}
 
-    <Troubleshooting status={data.status} provider={provider} replaced={replaced} />
-
-    <details className="cal-details">
-      <summary>About this link</summary>
-      <div className="cal-details-body">
-        <p>Your calendar app checks for updates on its own schedule, so changes aren&apos;t instant. Downloading and importing a file instead creates a one-time copy that never updates.</p>
-        <p>The link works without signing in. Removing a member does not revoke their copy. If an admin replaces the link, the old one stops updating, but events already downloaded stay in people&apos;s calendars.</p>
-      </div>
-    </details>
+    {url && provider && <Trouble url={url} provider={provider} status={data!.status} />}
   </>;
 }
 
-const dayFormat: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" };
-function when(entry: PreviewEntry): string {
-  const s = entry.schedule;
-  if (s.kind === "allDay") {
-    const day = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, dayFormat);
-    const last = new Date(new Date(`${s.end}T12:00:00Z`).getTime() - 86400_000).toISOString().slice(0, 10);
-    if (entry.deadline) return `Due ${day(s.start)}`;
-    return `${day(s.start)}${last !== s.start ? ` – ${day(last)}` : ""} · ${entry.timeUnconfirmed ? "time to be confirmed" : "all day"}`;
-  }
-  // Calendar apps show times in the device's zone; so does the preview.
-  const start = new Date(s.start);
-  return `${start.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · ${start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+function GoogleHandoff({ onComputer }: { onComputer: () => void }) {
+  // Setup page, never the feed: this is safe to send to yourself.
+  const handoff = `${window.location.origin}/${window.location.pathname.split("/")[1]}/timeline?subscribe=google`;
+  return (
+    <div className="cal-go">
+      <p className="cal-hint">Google only adds calendars from a computer. Open this link there. It then syncs to the app on your phone.</p>
+      <CopyField label="Link to open on your computer" value={handoff} />
+      <button type="button" className="sched-link self-start" onClick={onComputer}>I&apos;m on a computer</button>
+    </div>
+  );
 }
 
-function Preview({ data }: { data: Subscription }) {
+/** Everything a member only needs when the button didn't do it. */
+function Trouble({ url, provider, status }: { url: string; provider: Provider; status: MemberStatus }) {
   return (
-    <section aria-label="What you'll get" className="cal-sec">
-      <p>{data.orgName ? <strong>{data.orgName}</strong> : "Your organization"}&apos;s events and deadlines, kept up to date in your own calendar. Edit them in ChaptOS.</p>
-      <div className="cal-sec">
-        <p className="cef-label">Coming up</p>
-        <div className="cal-preview">
-          {data.preview.length ? <ul>{data.preview.map((entry, i) => (
-            <li key={i}><span className="t">{entry.title}</span><span className="d">{when(entry)}</span></li>
-          ))}</ul> : <p className="cal-preview-empty">Nothing scheduled yet. New events appear as they&apos;re added.</p>}
-        </div>
-        <PublishStatus status={data.status} />
+    <details className="cal-details cal-trouble">
+      <summary>Having trouble?</summary>
+      <div className="cal-details-body">
+        <CopyField label="Or add it by link" value={url} />
+        <p className="cal-muted">{provider === "google"
+          ? <>In Google Calendar: Other calendars → + → <a className="sched-link" href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener noreferrer">From URL</a>, paste, Add calendar.</>
+          : <>Mac: File → New Calendar Subscription. iPhone: Calendars → Add Calendar → Add Subscription Calendar. Paste, then Subscribe.</>}
+          {" "}Keep this link private: anyone with it can see the schedule.</p>
+        <p className="cal-muted"><strong>Events not showing?</strong> {provider === "google" ? "Google can take up to a day to refresh." : "Apple Calendar refreshes on its own schedule."} If they landed in your main calendar, you imported a one-time copy; delete them and use the button instead.</p>
+        <PublishStatus status={status} />
       </div>
-      <p className="cef-hint">Included: event titles, times, places and categories, and task due dates. Not included: notes, who&apos;s attending or assigned, or anything about dues and money.</p>
-    </section>
+    </details>
   );
 }
 
@@ -237,40 +270,7 @@ function PublishStatus({ status }: { status: MemberStatus }) {
   return <p className={`cal-pub ${status.state}`}><span className="dot" aria-hidden />{text}</p>;
 }
 
-/** "Calendar not updating?": the four causes, most likely first given what we know. */
-function Troubleshooting({ status, provider, replaced }: { status: MemberStatus; provider: Provider | null; replaced: boolean }) {
-  const behind = status.state !== "current";
-  return (
-    <details className="cal-details" open={behind || replaced ? true : undefined}>
-      <summary>Calendar not updating?</summary>
-      <ul className="cal-why">
-        <li className={behind ? "hit" : ""}>
-          <strong>ChaptOS is still publishing.</strong>{" "}
-          {status.state === "current" ? `No: the latest changes were published ${ago(status.updatedAt)}.`
-            : status.state === "unknown" ? "Nothing has been published yet, so there's nothing for your calendar to show."
-            : status.state === "retrying" ? "An update hit a problem and is being retried automatically. Your calendar keeps showing the last published version until it goes through."
-            : "Recent changes are being published now. Your calendar picks them up on its next refresh."}
-        </li>
-        <li>
-          <strong>Your calendar app hasn&apos;t refreshed yet.</strong>{" "}
-          {provider === "apple"
-            ? "Apple Calendar checks on its own schedule. On a Mac, select the calendar and open Get Info to set how often it refreshes."
-            : "Google Calendar checks a few times a day, so a change can take up to a day to appear. There's no way to make it refresh sooner."}
-        </li>
-        <li className={replaced ? "hit" : ""}>
-          <strong>Your organization paused or replaced the link.</strong>{" "}
-          {replaced ? "Yes: the link you added was replaced. Add the new one above." : "If an admin replaced the link, the old calendar stops updating. Add it again from this page and remove the old one."}
-        </li>
-        <li>
-          <strong>You imported a file instead of subscribing.</strong>{" "}
-          If the events went into your main calendar rather than a separate calendar named after your organization, you imported a one-time copy that never updates. Delete those events and follow the steps above.
-        </li>
-      </ul>
-    </details>
-  );
-}
-
-function CopyField({ label, value, note }: { label: string; value: string; note?: ReactNode }) {
+function CopyField({ label, value }: { label: string; value: string }) {
   const input = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<"" | "copied" | "failed">("");
   async function copy() {
@@ -287,41 +287,6 @@ function CopyField({ label, value, note }: { label: string; value: string; note?
       </label>
       {state === "failed" && <p role="alert" className="cef-hint sched-warn">Couldn&apos;t copy automatically. The link is selected; copy it with Ctrl+C (⌘C on a Mac).</p>}
       {state === "copied" && <span role="status" className="sr-only">Copied</span>}
-      {note && <p className="cef-hint">{note}</p>}
-    </div>
-  );
-}
-
-const privacyNote = "Anyone with this link can see your organization's published schedule. Keep it private.";
-
-function GoogleSteps({ url, mobile }: { url: string; mobile: boolean }) {
-  const [computer, setComputer] = useState(!mobile);
-  // Only rendered after the client-side fetch, so window is always there.
-  const handoff = `${window.location.origin}/${window.location.pathname.split("/")[1]}/timeline?subscribe=google`;
-  if (!computer) return (
-    <div className="cal-sec">
-      <p><strong>Google Calendar only adds subscriptions in a computer browser.</strong> Open this page on a computer and sign in to finish there. It will appear in the Google Calendar app on your phone afterwards.</p>
-      {/* Setup page, never the feed: this is safe to send to yourself. */}
-      <CopyField label="Link to open on your computer" value={handoff} />
-      <button type="button" className="sched-link" onClick={() => setComputer(true)}>I&apos;m on a computer, show the steps</button>
-    </div>
-  );
-  return (
-    <div className="cal-sec">
-      {/* The feed secret travels in this link's query string, so it lands in this
-          browser's history. Google receives it anyway once the member subscribes;
-          personal links (v3 B1) limit the damage because one can be rotated alone. */}
-      <p><a className="cal-btn-primary" href={googleAddUrl(url)} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"><CalendarIcon />Add to Google Calendar</a></p>
-      <p>Google Calendar opens with the link filled in. Check you&apos;re signed in to the Google account you use, then choose <em>Add</em>.</p>
-      <p className="cal-muted">Google checks for changes a few times a day, so updates can take up to a day to appear. To see it on your phone, open the Google Calendar app&apos;s settings and make sure the calendar is synced.</p>
-      <details className="cal-details">
-        <summary>If the button doesn&apos;t work</summary>
-        <div className="cal-details-body"><ol className="cal-steps">
-          <li><CopyField label="Copy your organization's calendar link" value={url} note={privacyNote} /></li>
-          <li>Open <a className="sched-link" href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener noreferrer">Google Calendar&apos;s &ldquo;From URL&rdquo; page</a>. (In Google Calendar: Other calendars → + → From URL.)</li>
-          <li>Paste the link into <em>URL of calendar</em> and choose <em>Add calendar</em>.</li>
-        </ol></div>
-      </details>
     </div>
   );
 }
@@ -330,23 +295,21 @@ function GoogleSteps({ url, mobile }: { url: string; mobile: boolean }) {
 export const googleAddUrl = (url: string) =>
   `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(url.replace(/^https?:/, "webcal:"))}`;
 
-function AppleSteps({ url, apple }: { url: string; apple: boolean }) {
-  return (
-    <div className="cal-sec">
-      {!apple && <p>Open this on your iPhone, iPad or Mac to add it to Apple Calendar.</p>}
-      <p><a className="cal-btn-primary" href={url.replace(/^https:/, "webcal:")} referrerPolicy="no-referrer"><CalendarIcon />Open in Apple Calendar</a></p>
-      <p>Calendar asks you to confirm the subscription. Choose <strong>iCloud</strong> as the location (on a Mac) or account (on iPhone) to see it on all your Apple devices.</p>
-      <details className="cal-details">
-        <summary>If the button doesn&apos;t open Calendar</summary>
-        <div className="cal-details-body">
-          <CopyField label="Copy your organization's calendar link" value={url} note={privacyNote} />
-          <p><strong>Mac:</strong> in Calendar, choose File → New Calendar Subscription, paste the link, then Subscribe.</p>
-          <p><strong>iPhone or iPad:</strong> in Calendar, tap Calendars → Add Calendar → Add Subscription Calendar, paste the link, then Subscribe.</p>
-        </div>
-      </details>
-    </div>
-  );
-}
+/** Generic page-a-day tiles, tinted so the two choices read apart at a glance. */
+const GoogleGlyph = () => (
+  <svg className="glyph" viewBox="0 0 28 28" aria-hidden>
+    <rect x="2" y="3" width="24" height="23" rx="5" fill="#fff" />
+    <path d="M2 8a5 5 0 0 1 5-5h14a5 5 0 0 1 5 5v2H2z" fill="#4285f4" />
+    <text x="14" y="22.5" textAnchor="middle" fontSize="11" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#4285f4">31</text>
+  </svg>
+);
+const AppleGlyph = () => (
+  <svg className="glyph" viewBox="0 0 28 28" aria-hidden>
+    <rect x="2" y="3" width="24" height="23" rx="5" fill="#fff" />
+    <text x="14" y="10.5" textAnchor="middle" fontSize="5.5" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#ef4444" letterSpacing=".4">TUE</text>
+    <text x="14" y="22.5" textAnchor="middle" fontSize="11" fontWeight="500" fontFamily="system-ui, sans-serif" fill="#1c1917">14</text>
+  </svg>
+);
 
 // ── Admin: turn it on ───────────────────────────────────────────────────────
 // One button. It saves the time zone (prefilled from this device when the org

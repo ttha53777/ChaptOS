@@ -12,4 +12,4 @@ export const manageCalendarFeedInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("link"), source: z.literal("service"), id: z.number().int().positive() }),
 ]);
 export const exportCalendarEventInput = z.object({ to: z.enum(["google", "ics"]), org: z.string().max(64).optional() });
-export const calendarSubscriptionQuery = z.object({ summary: z.literal("1").optional() });
+export const calendarSubscriptionQuery = z.object({ summary: z.literal("1").optional(), view: z.literal("member").optional() });

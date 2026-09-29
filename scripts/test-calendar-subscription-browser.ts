@@ -59,38 +59,33 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
   page.on("pageerror", error => errors.push(error.message));
   try {
     await page.goto(`http://127.0.0.1:${(server.address() as { port: number }).port}/alpha`);
-    // Desktop (Windows): Google is preselected and only its steps show.
+    // Desktop (Windows): Google is preselected; one big button, everything else folded away.
     const trigger = page.getByRole("button", { name: "Add to my calendar", exact: true });
     await trigger.click();
     const dialog = page.getByRole("dialog");
     const google = dialog.getByRole("link", { name: "Add to Google Calendar" });
     await google.waitFor();
+    await page.waitForFunction(() => document.querySelector(".cal-cta")?.getAttribute("href")?.startsWith("https://calendar.google.com"));
     // One-click Google: the add-by-URL screen, prefilled with the webcal form of the feed.
     const googleHref = new URL(await google.getAttribute("href") ?? "");
     assert.equal(googleHref.origin + googleHref.pathname, "https://calendar.google.com/calendar/r");
     assert.equal(googleHref.searchParams.get("cid"), "webcal://example.invalid/api/calendar/feeds/test/disposable-test-token.ics");
     assert.equal(await google.getAttribute("target"), "_blank");
     assert.equal(await google.getAttribute("referrerpolicy"), "no-referrer");
-    // The copy-and-paste steps are the fallback, closed by default.
-    assert.equal(await dialog.getByText("URL of calendar").isVisible(), false);
-    await dialog.getByText("If the button doesn't work").click();
-    await dialog.getByText("URL of calendar").waitFor();
+    if (process.env.A3_SHOTS) await dialog.screenshot({ path: join(process.env.A3_SHOTS, "dialog-900.png") });
     const text = await dialog.innerText();
     assert.match(text, /Alpha Test/);
-    assert.match(text, /Chapter meeting[\s\S]*Deadline: Dues[\s\S]*Retreat/);
-    assert.match(text, /Due Thu, Oct 8/);
-    assert.match(text, /Sat, Oct 10 – Sun, Oct 11/);
-    assert.match(text, /Not included: notes/);
-    // Publishing status, and the troubleshooting panel stays shut while current.
-    assert.match(text, /Calendar updated by ChaptOS · 3 min ago/);
-    assert.equal(await dialog.locator("details", { hasText: "Calendar not updating?" }).evaluate(el => (el as HTMLDetailsElement).open), false);
-    await dialog.getByText("Calendar not updating?").click();
-    assert.match(await dialog.innerText(), /No: the latest changes were published 3 min ago/);
-    assert.match(await dialog.innerText(), /imported a one-time copy/);
     assert.equal(await dialog.getByRole("radio", { name: "Google Calendar" }).isChecked(), true);
-    assert.match(text, /From URL/);
     assert.doesNotMatch(text, /iCloud/);
-    assert.match(text, /Anyone with this link can see your organization's published schedule\. Keep it private\./);
+    // The copy-and-paste fallback, troubleshooting and status sit behind one closed disclosure.
+    assert.equal(await dialog.getByText("Or add it by link").isVisible(), false);
+    await dialog.getByText("Having trouble?").click();
+    await dialog.getByText("Or add it by link").waitFor();
+    const trouble = await dialog.innerText();
+    assert.match(trouble, /From URL/);
+    assert.match(trouble, /Keep this link private/);
+    assert.match(trouble, /one-time copy/);
+    assert.match(trouble, /Calendar updated by ChaptOS · 3 min ago/);
     // Clipboard refused: say so and leave the link selected for a manual copy.
     await dialog.getByRole("button", { name: "Copy", exact: true }).click();
     assert.match(await dialog.getByRole("alert").innerText(), /Couldn't copy automatically/);
@@ -99,19 +94,23 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
     await dialog.getByRole("radio", { name: "Google Calendar" }).focus();
     await page.keyboard.press("ArrowRight");
     assert.equal(await dialog.getByRole("radio", { name: "Apple Calendar" }).isChecked(), true);
-    assert.match(await dialog.getByRole("link", { name: "Open in Apple Calendar" }).getAttribute("href") ?? "", /^webcal:\/\/example\.invalid\//);
-    assert.match(await dialog.innerText(), /iCloud/);
-    assert.match(await dialog.innerText(), /Open this on your iPhone, iPad or Mac/);
+    const apple = dialog.getByRole("link", { name: "Open in Apple Calendar" });
+    assert.match(await apple.getAttribute("href") ?? "", /^webcal:\/\/example\.invalid\//);
+    assert.match(await dialog.innerText(), /Open this page on your iPhone, iPad or Mac/);
     assert.doesNotMatch(await dialog.innerText(), /From URL/);
-    // Self-reported only; never claims a connection.
-    await dialog.getByRole("button", { name: "I've added it" }).click();
-    assert.match(await dialog.innerText(), /You marked this as added/);
+    // Pressing the button is the (self-reported) record; never claims a connection.
+    await apple.evaluate(el => el.addEventListener("click", e => e.preventDefault()));
+    await apple.click();
+    assert.match(await dialog.innerText(), /Added/);
     assert.doesNotMatch(await dialog.innerText(), /Connected/i);
-    await dialog.getByText("About this link").click();
-    assert.match(await dialog.innerText(), /Removing a member does not revoke/);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
     assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
+    // Reopening is instant: the cached answer renders the live button on first paint.
+    await trigger.click();
+    assert.match(await dialog.locator(".cal-cta").getAttribute("href") ?? "", /^(webcal|https):/);
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
 
     // iPhone: Apple preselected; Google hands off to a computer without the feed secret.
     const phone = await browser.newPage({ viewport: { width: 375, height: 740 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
@@ -119,11 +118,12 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
     await phone.goto(page.url());
     await phone.getByRole("button", { name: "Add to my calendar", exact: true }).first().click();
     const sheet = phone.getByRole("dialog");
-    await sheet.getByText("Choose iCloud", { exact: false }).waitFor();
+    await sheet.getByText("pick iCloud", { exact: false }).waitFor();
+    if (process.env.A3_SHOTS) await phone.screenshot({ path: join(process.env.A3_SHOTS, "dialog-375.png") });
     assert.equal(await sheet.getByRole("radio", { name: "Apple Calendar" }).isChecked(), true);
-    assert.doesNotMatch(await sheet.innerText(), /Open this on your iPhone/);
+    assert.doesNotMatch(await sheet.innerText(), /Open this page on your iPhone/);
     await sheet.getByRole("radio", { name: "Google Calendar" }).check();
-    assert.match(await sheet.innerText(), /only adds subscriptions in a computer browser/);
+    assert.match(await sheet.innerText(), /Google only adds calendars from a computer/);
     const handoff = await sheet.getByLabel("Link to open on your computer").inputValue();
     assert.match(handoff, /^http:\/\/127\.0\.0\.1:\d+\/alpha\/timeline\?subscribe=google$/);
     assert.doesNotMatch(handoff, /token|feeds/);
@@ -131,6 +131,7 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
     assert.equal(await sheet.getByRole("link", { name: "Add to Google Calendar" }).count(), 0);
     await sheet.getByRole("button", { name: /I'm on a computer/ }).click();
     await sheet.getByRole("link", { name: "Add to Google Calendar" }).waitFor();
+    await phone.close();
     await phone.close();
 
     // Live: no setup steps left, just the zone and the Advanced controls.
@@ -144,10 +145,11 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
     await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("rotate"));
     // The member who added the old link is told it was replaced, and can re-add.
     await trigger.click();
-    await dialog.getByText("replaced this calendar link").waitFor();
-    assert.match(await dialog.innerText(), /Yes: the link you added was replaced/);
-    await dialog.getByRole("button", { name: "I've added it" }).click();
-    assert.doesNotMatch(await dialog.innerText(), /replaced this calendar link/);
+    await dialog.getByText("This calendar link was replaced").waitFor();
+    const readd = dialog.locator(".cal-cta");
+    await readd.evaluate(el => el.addEventListener("click", e => e.preventDefault()));
+    await readd.click();
+    assert.doesNotMatch(await dialog.innerText(), /This calendar link was replaced/);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
     await page.getByRole("button", { name: "Turn off for members" }).click();
@@ -222,7 +224,12 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
         // Marking it added from the card's dialog retires the card.
         await invite.getByRole("button", { name: "Add to my calendar" }).click();
         const sheet = a3.getByRole("dialog");
-        await sheet.getByRole("button", { name: "I've added it" }).click();
+        // Android: Google starts on the computer handoff.
+        await sheet.getByRole("button", { name: /I'm on a computer/ }).click();
+        const cta = sheet.getByRole("link", { name: "Add to Google Calendar" });
+        await a3.waitForFunction(() => document.querySelector(".cal-cta")?.getAttribute("aria-disabled") === "false");
+        await cta.evaluate(el => el.addEventListener("click", e => e.preventDefault()));
+        await cta.click();
         await a3.keyboard.press("Escape");
         await invite.waitFor({ state: "detached" });
       }
@@ -267,7 +274,7 @@ createRoot(document.getElementById('root')).render(location.search==='?setup'
     }
 
     assert.deepEqual(errors, []);
-    console.log("Calendar browser checks passed: publishing status + troubleshooting, replaced-link and paused notices, provider chooser (UA preselect, keyboard switch), preview, privacy note, clipboard fallback, self-reported confirmation, focus restoration, one-click Google + copy fallback, iPhone Google handoff without secret, webcal, one-click turn-on with device zone + in-place fixes at 900 and 375px, rotation confirmation, turn off, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport; A3 dashboard invite (dismiss, added, feed off), event-sheet one-off links, admin message without secret at 900 and 375px.");
+    console.log("Calendar browser checks passed: one-button dialog with folded troubleshooting + publishing status, cached instant reopen, replaced-link and paused notices, provider chooser (UA preselect, keyboard switch), privacy note, clipboard fallback, press-to-record confirmation, focus restoration, one-click Google + copy fallback, iPhone Google handoff without secret, webcal, one-click turn-on with device zone + in-place fixes at 900 and 375px, rotation confirmation, turn off, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport; A3 dashboard invite (dismiss, added, feed off), event-sheet one-off links, admin message without secret at 900 and 375px.");
   } finally { await browser.close(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(temp, { recursive: true, force: true }); }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

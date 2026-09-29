@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { requestJson } from "../../lib/api";
-import { AddToCalendarDialog, CalendarIcon, readAdded } from "./CalendarSubscription";
+import { AddToCalendarDialog, CalendarIcon, prefetchSubscription, readAdded } from "./CalendarSubscription";
 import "./calendar-invite.css";
 
 /** The org segment of the current URL (`/<slug>/…`). */
@@ -39,6 +39,7 @@ export function CalendarInviteCard() {
     setEligible(Boolean(s) && !readAdded(s) && !readDismissed(s));
   }, []);
   const live = useCalendarLive(eligible);
+  useEffect(() => { if (live) void prefetchSubscription().catch(() => {}); }, [live]);
   if (!eligible || !live) return null;
 
   function dismiss() {
