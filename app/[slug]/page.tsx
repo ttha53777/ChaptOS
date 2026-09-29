@@ -1427,7 +1427,8 @@ export default function Home() {
       // full of optional socials, rehearsals or practices is still a week with
       // an agenda — filtering to `mandatory` made those weeks read as empty and
       // suppressed the digest entirely.
-      eventsThisWeek:  calendarList.filter(e => inWeek(e.date)),
+      // Linked parties have their own digest section; count each event once.
+      eventsThisWeek:  calendarList.filter(e => inWeek(e.date) && !e.partyEventId),
       partiesThisWeek: partyList.filter(p => inWeek(p.date)),
       atRiskCount:     statusCounts["At Risk"],
       // Not "this week", but the most useful thing to say when this week is

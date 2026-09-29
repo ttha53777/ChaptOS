@@ -31,10 +31,10 @@ const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const _now = new Date();
 const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getDate() };
 
-// Live deadlines/parties/IG posts are folded into the calendar timeline with
+// Live deadlines/IG posts are folded into the calendar timeline with
 // offset ids so they don't collide with real CalendarEvent ids. Subtract the base
 // to get back to the source Deadline.id (used to mark a deadline complete from the
-// rail). Parties use 20000; Instagram posts use 30000 and render as deadline rows.
+// rail). Instagram posts use 30000 and render as deadline rows.
 const DEADLINE_ID_BASE = 10000;
 const IG_ID_BASE = 30000;
 /** The source Deadline.id behind a timeline event, or null if it isn't a live deadline row. */
@@ -342,6 +342,7 @@ function EventDetail({
   onEdit,
   onDelete,
   onOpenProgramming,
+  onOpenParty,
   linkedPosts,
   onOpenInstagram,
   brotherList,
@@ -359,6 +360,7 @@ function EventDetail({
   onDelete: () => void;
   /** Present only for programming-backed events — jumps to the Programming page. */
   onOpenProgramming?: () => void;
+  onOpenParty?: () => void;
   /** Instagram posts that promote this event (reverse of InstagramTask.calendarEventId). */
   linkedPosts?: { id: number; title: string; type: string; dueDate: string }[];
   /** Jump to the Instagram page. */
@@ -540,6 +542,11 @@ function EventDetail({
       {isMeeting && <MeetingNotes event={event} />}
 
       {/* Programming-backed events live in the Programming pipeline — jump there. */}
+      {onOpenParty && (
+        <button className="ev-prog-link" onClick={onOpenParty}>
+          Open in Parties →
+        </button>
+      )}
       {onOpenProgramming && (
         <button className="ev-prog-link" onClick={onOpenProgramming}>
           Open in Programming
@@ -856,7 +863,7 @@ function TimelineTodo({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { currentUser, taskList, setTaskList, igTaskList, setIgTaskList, partyList, brotherList, setBrotherList, avatarRevision, can } = useChapter();
+  const { currentUser, taskList, setTaskList, igTaskList, setIgTaskList, refreshChapterData, brotherList, setBrotherList, avatarRevision, can } = useChapter();
   const router  = useRouter();
   const searchParams = useSearchParams();
   const orgPath = useOrgPath();
@@ -929,7 +936,7 @@ export default function TimelinePage() {
   const enabledWorkflows = currentUser?.org?.enabledWorkflows ?? [];
   const typeMap = useMemo(() => new Map(eventTypes.map(t => [t.slug, t])), [eventTypes]);
   // Types shown in the legend: not hidden and (no workflow or its workflow is on).
-  // Includes non-creatable types (party/deadline) since those still appear on the spine.
+  // Includes non-creatable types (deadline) since those still appear on the spine.
   const legendTypes = useMemo(
     () => eventTypes
       .filter(t => !t.hidden && (t.workflowId == null || enabledWorkflows.includes(t.workflowId)))
@@ -947,6 +954,10 @@ export default function TimelinePage() {
   // When editing, keep the event's own category selectable even if it's now
   // hidden or its workflow was turned off (so its chip still shows).
   const editCategoryOptions = useMemo<CategoryOption[]>(() => {
+    if (selectedEvent?.partyEventId != null) {
+      const t = typeMap.get("party");
+      return [{ slug: "party", label: t?.label ?? "Party", color: t?.colorDark ?? t?.color, mandatoryDefault: false }];
+    }
     if (!selectedEvent || categoryOptions.some(o => o.slug === selectedEvent.category)) return categoryOptions;
     const t = typeMap.get(selectedEvent.category);
     return t
@@ -1046,14 +1057,6 @@ export default function TimelinePage() {
           mandatory:   false,
           description: `${taskAssigneeLabel(d)} · ${d.status === "done" ? "Done" : "Open"}`,
         })),
-      ...partyList.map(p => ({
-        id:          20000 + p.id,
-        title:       p.name,
-        date:        p.date,
-        category:    "party",
-        mandatory:   false,
-        description: p.notes,
-      })),
       // Instagram posts are dated tasks tracked on the Instagram page; fold them
       // into the timeline as deadline rows so they read as a due-by item here too.
       ...igTaskList.map(t => ({
@@ -1067,16 +1070,14 @@ export default function TimelinePage() {
     ];
 
     const liveDeadlineTitles = new Set([...taskList.map(d => d.title), ...igTaskList.map(t => t.title)]);
-    const livePartyTitles    = new Set(partyList.map(p => p.name));
 
     const deduped = apiEvents.filter(e => {
       if (e.category === "deadline") return !liveDeadlineTitles.has(e.title);
-      if (e.category === "party")    return !livePartyTitles.has(e.title);
       return true;
     });
 
     return [...deduped, ...live];
-  }, [apiEvents, taskList, partyList, igTaskList]);
+  }, [apiEvents, taskList, igTaskList]);
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
   const monthGroups = useMemo(() => buildMonthGroups(filtered), [filtered]);
@@ -1084,7 +1085,7 @@ export default function TimelinePage() {
     () => Object.fromEntries(LAYERS.map(l => [l.id, filterByLayer(allEvents, l.id).length])),
     [allEvents],
   );
-  const selectedEventCanEdit = selectedEvent ? apiEventIds.has(selectedEvent.id) : false;
+  const selectedEventCanEdit = selectedEvent ? canManageEvents && apiEventIds.has(selectedEvent.id) : false;
 
   // The source Task behind the selected row, if it's a live dated task.
   const selectedDeadline = useMemo(() => {
@@ -1310,7 +1311,7 @@ export default function TimelinePage() {
         });
 
     promise
-      .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); })
+      .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.filter(e => e.id !== tempId));
@@ -1333,7 +1334,7 @@ export default function TimelinePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     })
-      .then(saved => { setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e)); setSelectedEvent(saved); })
+      .then(saved => { setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.map(e => e.id === previous.id ? previous : e));
@@ -1354,6 +1355,7 @@ export default function TimelinePage() {
     setSelectedEvent(null);
     setCalendarError(null);
     requestJson<void>(`/api/calendar/${previous.id}`, { method: "DELETE" })
+      .then(() => { void refreshChapterData(); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => [...prev, previous].sort((a, b) => a.id - b.id));
@@ -1712,10 +1714,13 @@ export default function TimelinePage() {
                     event={selectedEvent}
                     onClose={() => setSelectedEvent(null)}
                     canEdit={selectedEventCanEdit}
-                    canDelete={selectedEventCanEdit && isAdmin}
+                    canDelete={selectedEventCanEdit && (!selectedEvent.partyEventId || can("MANAGE_PARTIES"))}
                     canLogAttendance={isAdmin}
                     onEdit={() => setActiveModal("edit")}
                     onDelete={handleDeleteEvent}
+                    onOpenParty={selectedEvent.partyEventId != null
+                      ? () => router.push(orgPath(`/parties?open=${selectedEvent.partyEventId}`))
+                      : undefined}
                     onOpenProgramming={
                       selectedEvent.programmingEventId != null
                         ? () => router.push(orgPath(`/events?open=${selectedEvent.programmingEventId}`))
@@ -1820,7 +1825,7 @@ export default function TimelinePage() {
         <ConfirmDialog
           tone="dusk"
           title="Delete Event"
-          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDeleteEvent.title}</span>? Its attendance records and excuse requests will also be removed. This cannot be undone.</>}
+          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDeleteEvent.title}</span>? Its attendance records and excuse requests will also be removed.{confirmDeleteEvent.partyEventId ? " This also deletes its party ledger and financial totals." : ""} This cannot be undone.</>}
           onCancel={() => setConfirmDeleteEvent(null)}
           onConfirm={() => { executeDeleteEvent(confirmDeleteEvent); setConfirmDeleteEvent(null); }}
         />

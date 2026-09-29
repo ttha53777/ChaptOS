@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useOrgPath } from "../../hooks/useOrgPath";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, FieldLabel, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputDuskCls } from "../../components/dashboard/styles";
@@ -166,7 +168,7 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
   const [form, setForm] = useState(WRAP_FORM_EMPTY);
   // Roster defaults to ALL PRESENT — tap to un-check no-shows.
   const [present, setPresent] = useState<Set<number>>(() => new Set(brothers.map(b => b.id)));
-  const [mandatory, setMandatory] = useState(false);
+  const [mandatory, setMandatory] = useState(party.mandatory ?? false);
 
   const set = (k: keyof typeof WRAP_FORM_EMPTY) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -270,7 +272,7 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
 
 // ─── Ledger row ───────────────────────────────────────────────────────────────
 
-function LedgerRow({ party, attendance, expanded, onToggle, onWrapUp, onEdit, onDelete, canParties }: {
+function LedgerRow({ party, attendance, expanded, onToggle, onWrapUp, onEdit, onDelete, onOpenTimeline, canParties }: {
   party: PartyEvent;
   attendance?: { present: number; eligible: number };
   expanded: boolean;
@@ -278,6 +280,7 @@ function LedgerRow({ party, attendance, expanded, onToggle, onWrapUp, onEdit, on
   onWrapUp: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onOpenTimeline: () => void;
   canParties: boolean;
 }) {
   const p = profit(party);
@@ -341,6 +344,11 @@ function LedgerRow({ party, attendance, expanded, onToggle, onWrapUp, onEdit, on
               : due ? "Happened already — no figures recorded yet."
               : "No notes."}
           </div>
+          {party.attendanceEventId != null && (
+            <div className="dactions">
+              <button type="button" className="mini" onClick={onOpenTimeline}>Open in Timeline →</button>
+            </div>
+          )}
           {canParties && (
             <div className="dactions">
               {due && <button type="button" className="mini" onClick={onWrapUp}>Wrap up</button>}
@@ -359,6 +367,11 @@ function LedgerRow({ party, attendance, expanded, onToggle, onWrapUp, onEdit, on
 type AttendanceRow = { partyId: number; present: number; eligible: number };
 
 export default function PartiesPage() {
+  const router = useRouter();
+  const orgPath = useOrgPath();
+  const searchParams = useSearchParams();
+  const deepLinkedId = searchParams.get("open");
+  const openedLink = useRef<string | null>(null);
   const { currentUser, partyList, setPartyList, brotherList, isLoading, can } = useChapter();
   const canParties = can("MANAGE_PARTIES");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -368,6 +381,17 @@ export default function PartiesPage() {
   const [wrapUpId,    setWrapUpId]    = useState<number | null>(null);
   const [pageError,      setPageError]      = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isLoading || !deepLinkedId || openedLink.current === deepLinkedId) return;
+    const party = partyList.find(p => String(p.id) === deepLinkedId);
+    if (!party) return;
+    openedLink.current = deepLinkedId;
+    setExpandedId(party.id);
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-id="${party.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [deepLinkedId, partyList, isLoading]);
 
   // Per-party member roll, fetched separately so the parties list shape stays put.
   const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
@@ -669,6 +693,7 @@ export default function PartiesPage() {
                         onWrapUp={() => openWrapUp(p.id)}
                         onEdit={() => openEdit(p.id)}
                         onDelete={() => setConfirmDeleteId(p.id)}
+                        onOpenTimeline={() => router.push(orgPath(`/timeline?event=${p.attendanceEventId}`))}
                         canParties={canParties}
                       />
                     ))}
@@ -708,7 +733,7 @@ export default function PartiesPage() {
         return party ? (
           <ConfirmDialog
             title="Delete Party"
-            message={<>Delete <span className="font-semibold text-[#ece7dd]">{party.name}</span>? This cannot be undone.</>}
+            message={<>Delete <span className="font-semibold text-[#ece7dd]">{party.name}</span>? Its timeline entry, financial totals, attendance records, and excuses will also be removed. This cannot be undone.</>}
             onCancel={() => setConfirmDeleteId(null)}
             onConfirm={() => { handleDelete(confirmDeleteId); setConfirmDeleteId(null); }}
             tone="dusk"

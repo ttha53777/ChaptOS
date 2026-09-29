@@ -143,7 +143,7 @@ export function CalendarEventForm({
               );
             })}
           </div>
-          <p className="cef-hint">Deadlines and parties are managed from their dashboard lists.</p>
+          <p className="cef-hint">{category === "party" ? "Party details and wrap-up are available on the Parties page." : "Dated tasks appear here as deadlines."}</p>
         </div>
 
         {/* Required attendance */}
