@@ -29,7 +29,7 @@ The additive schema migration must precede deployment of this code, even with th
 
 ## Configuration
 
-`COLLABORATIVE_NOTES_ORG_IDS` is a comma-separated allowlist of numeric organization IDs. An unset or empty value disables collaborative endpoints. Initialization is restricted to chapter meetings and officers with `MANAGE_EVENTS`.
+`COLLABORATIVE_NOTES_ORG_IDS` accepts `*` to enable every current and future organization, or a comma-separated allowlist of numeric organization IDs for a limited rollout. An unset or empty value disables collaborative endpoints. Initialization is restricted to chapter meetings and officers with `MANAGE_EVENTS`; the wildcard does not change permissions or organization isolation. For all-org live collaboration, set this to `*` and `COLLABORATIVE_NOTES_REALTIME=1`, then redeploy with this version of the code. To exclude an organization when using `*`, replace the wildcard with an explicit allowlist of the organizations that should retain access.
 
 `COLLABORATIVE_NOTES_REALTIME=1` enables Broadcast for newly opened sessions. Leave it unset until private-channel authorization has been verified. Without Broadcast, the editor still merges through HTTP, but remote changes appear through saves and the 30-second reconciliation interval; the UI labels live updates unavailable.
 
