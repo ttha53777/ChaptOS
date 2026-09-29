@@ -1,4 +1,5 @@
 "use client";
+import { CalendarSubscription } from "../../../components/timeline/CalendarSubscription";
 
 import React, { useCallback, useRef } from "react";
 import Link from "next/link";
@@ -161,6 +162,7 @@ export function GeneralSection({
   return (
     <>
       <div className="sc-stack">
+        <CalendarSubscription settings />
         {/* Org icon — the one thing on this page most people come to change. */}
         <div>
           <h3 className="sc-h">Organization icon</h3>

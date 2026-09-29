@@ -1,4 +1,5 @@
 "use client";
+import { CalendarSubscription } from "../../components/timeline/CalendarSubscription";
 
 import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useContext } from "react";
@@ -1390,6 +1391,7 @@ export default function TimelinePage() {
             <p className="tb-org hidden text-[11px] leading-tight text-[#958d7c] sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
+          <CalendarSubscription />
           <p className="tb-date hidden text-[11px] text-[#958d7c] xl:block shrink-0">{dateShort}</p>
 
           <button
@@ -1449,6 +1451,7 @@ export default function TimelinePage() {
               </div>
               {/* Desktop add actions (the topbar that used to carry them is hidden at lg+). */}
               <div className="tl-add-actions">
+                <CalendarSubscription />
                 <button className="tl-add-btn ghost" onClick={() => router.push(orgPath("/tasks?new=1"))}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   Add Deadline

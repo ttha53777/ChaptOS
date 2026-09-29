@@ -1,3 +1,4 @@
+import { createCredential } from "@/lib/calendar-feed/credentials";
 /**
  * Self-serve organization provisioning.
  *
@@ -346,6 +347,13 @@ export async function provisionOrg(
         },
         select: { id: true, slug: true },
       });
+
+      // The migration provisions an inert row; initialize its encrypted bearer
+      // credential when the deployment has configured the feed key.
+      if (process.env.CALENDAR_FEED_KEY) {
+        const feed = await tx.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+        await tx.calendarSubscription.update({ where: { organizationId: org.id }, data: { ...createCredential(feed.publicId), generation: 1 } });
+      }
 
       // 2. OrganizationConfig — from the resolved blueprint (template fallback).
       // onboardingCompletedAt is stamped NOW: setup happens pre-creation in the
