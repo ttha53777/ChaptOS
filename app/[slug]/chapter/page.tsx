@@ -26,9 +26,7 @@ const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-
 
 type HttpError = Error & { status: number };
 
-// Local wrapper kept (instead of lib/api's requestJson) because callers need
-// err.status for the 409 attendance-conflict message. Routed through orgFetch
-// so requests carry the x-org-slug header.
+// Org-scoped JSON requests with HTTP status and server error details.
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await orgFetch(url, init);
   if (!res.ok) {
@@ -670,10 +668,7 @@ export default function ChapterPage() {
       delete savedValues.current[id];
       toast.success(`Meeting "${titleAtDelete}" deleted.`);
     } catch (err) {
-      const is409 = err instanceof Error && (err as HttpError).status === 409;
-      const message = is409
-        ? "This meeting has attendance records and cannot be deleted."
-        : "Failed to delete meeting.";
+      const message = err instanceof Error ? err.message : "Failed to delete meeting.";
       setDeleteError(message);
       toast.error(message);
     }
@@ -927,8 +922,7 @@ export default function ChapterPage() {
           message={
             <>
               Delete <span className="font-semibold text-[#ece7dd]">&ldquo;{deleteTarget.title}&rdquo;</span>?
-              {" "}This will permanently remove the meeting and its minutes.
-              If attendance was recorded for this event, deletion will be blocked.
+              {" "}This will permanently remove the meeting, its minutes, attendance records, and excuse requests.
             </>
           }
           confirmLabel="Delete"

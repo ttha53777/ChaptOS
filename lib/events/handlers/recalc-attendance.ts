@@ -31,3 +31,10 @@ on("exemption.changed", async (ctx, { metadata }) => {
   // the exempt sentinel), so a single-brother recalc is enough.
   await recalcBrotherAttendance(ctx.db, metadata.brotherId, metadata.semesterId);
 });
+
+// Deleting an event removes its attendance and excuses. Membership stores the
+// active semester's ratio, so deleting historical events must not replace it.
+on("calendar.deleted", async (ctx) => {
+  const semester = await ctx.db.semester.findFirst({ where: { isActive: true } });
+  if (semester) await recalcAllBrothersInSemester(ctx.db, semester.id);
+});

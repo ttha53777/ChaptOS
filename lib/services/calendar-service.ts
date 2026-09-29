@@ -139,7 +139,18 @@ export async function deleteCalendar(ctx: RequestContext, id: number) {
   });
   if (!target) throw new NotFoundError("Calendar event");
 
-  await ctx.db.$transaction(async (tx) => {
+  const deletedServices = await ctx.db.$transaction(async (tx) => {
+    // Lock the parent before removing children so concurrent attendance writes
+    // cannot insert a new FK reference between cleanup and deletion.
+    const [locked] = await tx.$queryRaw<{ id: number }[]>(Prisma.sql`SELECT id FROM "CalendarEvent" WHERE id = ${id} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+    if (!locked) throw new NotFoundError("Calendar event");
+    const attendanceWhere = { calendarEventId: id, calendarEvent: { organizationId: ctx.orgId } };
+    await tx.attendanceRecord.deleteMany({ where: attendanceWhere });
+    await tx.attendanceExcuse.deleteMany({ where: attendanceWhere });
+    const services = await tx.serviceEvent.findMany({
+      where: { calendarEventId: id, organizationId: ctx.orgId },
+      select: { id: true, title: true },
+    });
     // Explicit organizationId: tx client is raw, no scoped wrapper.
     await tx.serviceEvent.deleteMany({ where: { calendarEventId: id, organizationId: ctx.orgId } });
     // A programming event backed by this calendar entry falls back to Idea
@@ -149,8 +160,12 @@ export async function deleteCalendar(ctx: RequestContext, id: number) {
       where: { calendarEventId: id, organizationId: ctx.orgId },
       data:  { stage: "idea", calendarEventId: null },
     });
-    await tx.calendarEvent.delete({ where: { id } });
+    await tx.calendarEvent.delete({ where: { id, organizationId: ctx.orgId } });
+    return services;
   });
 
   await emit(ctx, "calendar.deleted", { type: "CalendarEvent", id }, { title: target.title });
+  for (const service of deletedServices) {
+    await emit(ctx, "service_event.deleted", { type: "ServiceEvent", id: service.id }, { title: service.title });
+  }
 }

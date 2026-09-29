@@ -1820,7 +1820,7 @@ export default function TimelinePage() {
         <ConfirmDialog
           tone="dusk"
           title="Delete Event"
-          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDeleteEvent.title}</span>? This cannot be undone.</>}
+          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDeleteEvent.title}</span>? Its attendance records and excuse requests will also be removed. This cannot be undone.</>}
           onCancel={() => setConfirmDeleteEvent(null)}
           onConfirm={() => { executeDeleteEvent(confirmDeleteEvent); setConfirmDeleteEvent(null); }}
         />
