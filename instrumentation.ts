@@ -42,6 +42,11 @@ export async function register() {
         // dashboards; sampling traces would cost quota and tell us nothing we
         // don't already get from logTiming's structured lines.
         tracesSampleRate: 0,
+        // Bearer credentials appear in subscription paths. Drop the complete
+        // event, including breadcrumbs/context, rather than partially redacting.
+        beforeSend(event) {
+          return JSON.stringify(event).includes("/api/calendar/feeds/") ? null : event;
+        },
         environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
       });
     } catch (e) {

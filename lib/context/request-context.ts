@@ -1,3 +1,4 @@
+import { buildFeedContext, type FeedContext } from "@/lib/auth/calendar-feed";
 /**
  * RequestContext — one object created per request, threaded into services.
  *
@@ -68,7 +69,11 @@ export type BuildContextResult =
  *   if (error) return error;
  *   // ctx.db.transaction.create(...)
  */
-export async function buildContext(opts: BuildContextOpts = {}): Promise<BuildContextResult> {
+type FeedContextOpts = { mode: "calendarFeed"; credentials: unknown };
+export function buildContext(opts: FeedContextOpts): Promise<{ ctx: FeedContext; error?: undefined } | { ctx?: undefined; error: Response }>;
+export function buildContext(opts?: BuildContextOpts): Promise<BuildContextResult>;
+export async function buildContext(opts: BuildContextOpts | FeedContextOpts = {}): Promise<BuildContextResult | { ctx: FeedContext; error?: undefined }> {
+  if ("mode" in opts) return buildFeedContext(opts.credentials);
   const user = await requireUser();
   if (!user) {
     return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
