@@ -16,6 +16,8 @@
  * starts it via the workflow file.
  */
 
+import { readFileSync } from "node:fs";
+import { Pool } from "pg";
 import { execSync } from "node:child_process";
 
 const TEST_DATABASE_URL =
@@ -53,6 +55,12 @@ export default async function setup() {
       env: ENV,
       stdio: "pipe",
     });
+    // db push cannot install triggers/RLS. Apply the non-schema portion of the
+    // calendar migration so durable delivery is exercised in service tests too.
+    const sql = readFileSync(new URL("../../prisma/migrations/20260929000001_calendar_subscriptions/migration.sql", import.meta.url), "utf8");
+    const pool = new Pool({ connectionString: TEST_DATABASE_URL });
+    try { await pool.query(sql.slice(sql.indexOf("-- No permissive policy"))); }
+    finally { await pool.end(); }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(

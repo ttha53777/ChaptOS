@@ -1,0 +1,248 @@
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+const session = vi.hoisted(() => ({ user: null as unknown }));
+vi.mock("@/lib/auth/require-user", () => ({ requireUser: vi.fn(async () => session.user) }));
+import { requireUser } from "@/lib/auth/require-user";
+import { db, } from "@/lib/db";
+import { buildContext, type RequestContext } from "@/lib/context";
+import { buildFeedContext } from "@/lib/auth/calendar-feed";
+import { createCredential, decryptCredential } from "@/lib/calendar-feed/credentials";
+import { refreshCalendarFeed } from "@/lib/calendar-feed/worker";
+import { getCalendarSubscription, manageCalendarSubscription } from "@/lib/services/calendar-subscription-service";
+import { createProgrammingTask, setStage, updateProgrammingTask } from "@/lib/services/programming-service";
+import { createCalendar, updateCalendar } from "@/lib/services/calendar-service";
+import { createServiceEvent } from "@/lib/services/service-event-service";
+import { GET, HEAD } from "@/app/api/calendar/feeds/[publicId]/[secret]/route";
+import { testPrisma, resetDb } from "../setup/prisma";
+import { createOrg, createBrother, createSemester } from "../setup/factories";
+import { appPrisma, applyEnforcingRls, dropEnforcingRls, asOrg } from "../setup/rls";
+
+beforeEach(async () => {
+  await resetDb(); session.user = null; vi.mocked(requireUser).mockClear();
+  process.env.CALENDAR_FEED_KEY = "b".repeat(64);
+  process.env.CALENDAR_FEED_ORIGIN = "https://example.com";
+  process.env.CALENDAR_FEED_ORGS = "*";
+  process.env.CALENDAR_FEED_PATH_REDACTION_VERIFIED = "1";
+  process.env.RLS_SET_ORG_ID = "1";
+});
+afterAll(async () => { await testPrisma.$disconnect(); await appPrisma.$disconnect(); });
+function context(orgId: number): RequestContext {
+  return { requestId: randomUUID(), orgId, actorId: 1, actorName: "Test", actorEmail: null, authUserId: "auth-test", membershipId: null, permissions: 0, maxRank: 0, isOrgAdmin: true, isPlatformAdmin: false, db: db(orgId) };
+}
+async function fixture(slug = "one") {
+  const org = await createOrg(slug, slug);
+  const member = await createBrother({ orgId: org.id });
+  const event = await testPrisma.calendarEvent.create({ data: { organizationId: org.id, title: `${slug} event`, date: "2027-01-01", category: "chapter", mandatory: true, description: "SECRET NOTES", notesSummary: "SECRET SUMMARY" } });
+  const feed = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+  const credential = createCredential(feed.publicId);
+  await testPrisma.organization.update({ where: { id: org.id }, data: { timeZone: "America/New_York" } });
+  await testPrisma.calendarSubscription.update({ where: { organizationId: org.id }, data: { ...credential, enabled: true, generation: 1, validatedAt: new Date() } });
+  await refreshCalendarFeed(org.id);
+  const token = decryptCredential(feed.publicId, credential.tokenCiphertext);
+  const params = { publicId: feed.publicId, secret: `${token}.ics` };
+  const request = (headers?: HeadersInit) => new Request(`https://example.com/api/calendar/feeds/${params.publicId}/${params.secret}`, { headers });
+  return { org, event, params, request, ctx: { ...context(org.id), actorId: member.id } };
+}
+describe("anonymous feed and credentials", () => {
+  it("polls without session, supports HEAD/304, and does not change UID/revision/stamps", async () => {
+    const f = await fixture();
+    const before = await db(f.org.id).calendarFeedItem.list();
+    const response = await GET(f.request(), { params: Promise.resolve(f.params) });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/calendar");
+    const body = await response.text();
+    expect(body).toContain("one event"); expect(body).not.toContain("SECRET");
+    expect(vi.mocked(requireUser)).not.toHaveBeenCalled();
+    expect((await GET(f.request({ "if-none-match": response.headers.get("etag")! }), { params: Promise.resolve(f.params) })).status).toBe(304);
+    const head = await HEAD(new Request(f.request(), { method: "HEAD" }), { params: Promise.resolve(f.params) });
+    expect(head.status).toBe(200); expect(await head.text()).toBe("");
+    expect(await db(f.org.id).calendarFeedItem.list()).toEqual(before);
+  });
+  it("validates rotated/disabled/forged credentials before conditional requests", async () => {
+    const f = await fixture(); const other = await fixture("two");
+    const response = await GET(f.request(), { params: Promise.resolve(f.params) });
+    const etag = response.headers.get("etag")!;
+    const forged = await GET(f.request({ "if-none-match": etag }), { params: Promise.resolve({ ...f.params, publicId: other.params.publicId }) });
+    expect(forged.status).toBe(404);
+    await manageCalendarSubscription(f.ctx, { action: "rotate" });
+    expect((await GET(f.request({ "if-none-match": etag }), { params: Promise.resolve(f.params) })).status).toBe(404);
+    const retrieved = await getCalendarSubscription(f.ctx);
+    const secret = retrieved.url!.split("/").pop()!;
+    const params = { ...f.params, secret };
+    expect((await GET(f.request(), { params: Promise.resolve(params) })).status).toBe(200);
+    await manageCalendarSubscription(f.ctx, { action: "disable" });
+    expect((await HEAD(f.request({ "if-none-match": etag }), { params: Promise.resolve(params) })).status).toBe(404);
+    expect((await GET(f.request(), { params: Promise.resolve({ ...params, publicId: randomUUID() }) })).status).toBe(404);
+  });
+  it("keeps tenants separate and gates URL retrieval on membership, including multi-org users", async () => {
+    const first = await fixture(); const second = await fixture("two");
+    const body = await (await GET(first.request(), { params: Promise.resolve(first.params) })).text();
+    expect(body).not.toContain("two event");
+    session.user = { id: 1, orgId: second.org.id, name: "Multi", email: null, authUserId: "multi", memberships: [{ id: 1, organizationId: first.org.id, isOrgAdmin: false }], roleRows: [], isPlatformAdmin: false };
+    expect((await buildContext({ rateLimit: false })).error?.status).toBe(403);
+    (session.user as { memberships: unknown[] }).memberships.push({ id: 2, organizationId: second.org.id, isOrgAdmin: false });
+    const member = await buildContext({ rateLimit: false });
+    expect(member.error).toBeUndefined();
+    expect((await getCalendarSubscription(member.ctx!)).url).toContain(second.params.publicId);
+    await expect(manageCalendarSubscription(member.ctx!, { action: "disable" })).rejects.toMatchObject({ status: 403 });
+    const feedCtx = await buildFeedContext(first.params);
+    expect(feedCtx.ctx).not.toHaveProperty("actorId");
+    expect(Object.keys(feedCtx.ctx!.db)).toEqual(["read"]);
+  });
+  it("returns 503 on pending/failed work, never an empty successful calendar", async () => {
+    const f = await fixture();
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "new" } });
+    expect((await GET(f.request(), { params: Promise.resolve(f.params) })).status).toBe(503);
+    await refreshCalendarFeed(f.org.id);
+    expect((await GET(f.request(), { params: Promise.resolve(f.params) })).status).toBe(200);
+    await testPrisma.calendarFeedWork.update({ where: { organizationId: f.org.id }, data: { failedAt: new Date() } });
+    expect((await GET(f.request(), { params: Promise.resolve(f.params) })).status).toBe(503);
+  });
+});
+describe("durable projection", () => {
+  it("allocates one canonical item for linked service/party rows and never copies notes", async () => {
+    const f = await fixture();
+    await testPrisma.serviceEvent.create({ data: { organizationId: f.org.id, calendarEventId: f.event.id, title: "Private service details", date: "2027-01-01", notes: "SECRET" } });
+    await testPrisma.partyEvent.create({ data: { organizationId: f.org.id, attendanceEventId: f.event.id, name: "Private party", date: "2027-01-01" } });
+    await refreshCalendarFeed(f.org.id);
+    const rows = await db(f.org.id).calendarFeedItem.list();
+    expect(rows).toHaveLength(1);
+    expect(JSON.stringify(rows)).not.toMatch(/Private|SECRET/);
+  });
+  it("keeps UID stable on edits, increments only published changes, and cancels deletions", async () => {
+    const f = await fixture(); const [before] = await db(f.org.id).calendarFeedItem.list();
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { description: "private new note" } });
+    await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedItem.list())[0]).toEqual(before);
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "Renamed", date: "2027-02-02" } });
+    await Promise.all([refreshCalendarFeed(f.org.id), refreshCalendarFeed(f.org.id)]);
+    const [after] = await db(f.org.id).calendarFeedItem.list();
+    expect(after.uid).toBe(before.uid); expect(after.revision).toBe(before.revision + 1);
+    await testPrisma.calendarEvent.delete({ where: { id: f.event.id } });
+    await refreshCalendarFeed(f.org.id);
+    const [deleted] = await db(f.org.id).calendarFeedItem.list();
+    expect(deleted.uid).toBe(before.uid); expect(deleted.revision).toBe(after.revision + 1);
+    expect(deleted.cancelledAt).not.toBeNull();
+    expect((await (await GET(f.request(), { params: Promise.resolve(f.params) })).text())).toContain("STATUS:CANCELLED");
+  });
+  it("handles done, undated and deleted deadlines without erasing their identities", async () => {
+    const f = await fixture();
+    const task = await testPrisma.task.create({ data: { organizationId: f.org.id, title: "Submit", dueDate: "2027-02-01" } });
+    await refreshCalendarFeed(f.org.id);
+    const identity = (await db(f.org.id).calendarFeedItem.list()).find(r => r.sourceType === "task")!;
+    await testPrisma.task.update({ where: { id: task.id }, data: { status: "done" } });
+    await refreshCalendarFeed(f.org.id);
+    expect((await (await GET(f.request(), { params: Promise.resolve(f.params) })).text())).toContain("[Done] Submit");
+    await testPrisma.task.update({ where: { id: task.id }, data: { dueDate: null } });
+    await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedItem.list()).find(r => r.uid === identity.uid)?.cancelledAt).not.toBeNull();
+    await testPrisma.task.delete({ where: { id: task.id } }); await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedItem.list()).find(r => r.uid === identity.uid)).toBeDefined();
+  });
+  it("cancels a programming stage rollback and catches committed work after a restart", async () => {
+    const f = await fixture();
+    const pe = await testPrisma.programmingEvent.create({ data: { organizationId: f.org.id, calendarEventId: f.event.id, title: "Program", date: "2027-01-01", category: "service", stage: "confirmed" } });
+    await refreshCalendarFeed(f.org.id);
+    await testPrisma.programmingEvent.update({ where: { id: pe.id }, data: { stage: "planning" } });
+    const work = await db(f.org.id).calendarFeedWork.find();
+    expect(work!.version).toBeGreaterThan(work!.appliedVersion);
+    // No emit was run at all. A fresh worker recovers the committed trigger work.
+    await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedItem.list())[0].cancelledAt).not.toBeNull();
+    await testPrisma.programmingEvent.update({ where: { id: pe.id }, data: { stage: "confirmed" } });
+    await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedItem.list())[0].cancelledAt).toBeNull();
+  });
+  it("rolls back durable work with source writes and invalidates structured schedules for legacy reschedules", async () => {
+    const f = await fixture(); const before = await db(f.org.id).calendarFeedWork.find();
+    await expect(testPrisma.$transaction(async tx => { await tx.calendarEvent.update({ where: { id: f.event.id }, data: { title: "rollback" } }); throw new Error("rollback"); })).rejects.toThrow("rollback");
+    expect(await db(f.org.id).calendarFeedWork.find()).toEqual(before);
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { schedule: { kind: "allDay", start: "2027-01-01", end: "2027-01-02" } } });
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { date: "2027-01-03" } });
+    expect((await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: f.event.id } })).schedule).toBeNull();
+  });
+  it("preserves the canonical UID across programming demotion, reschedule and concurrent re-confirmation", async () => {
+    const f = await fixture();
+    await createSemester({ orgId: f.org.id, startDate: "2026-01-01", endDate: "2027-12-31" });
+    const draft = await createProgrammingTask(f.ctx, { title: "Project", category: "service", dueDate: "2027-02-01", location: "Park", ownerBrotherId: f.ctx.actorId });
+    const confirmed = await setStage(f.ctx, draft.id, { stage: "confirmed" });
+    await refreshCalendarFeed(f.org.id);
+    const old = (await db(f.org.id).calendarFeedItem.list()).find(row => row.sourceId === confirmed.calendarEventId)!;
+    await setStage(f.ctx, draft.id, { stage: "planning" });
+    await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedItem.list()).find(row => row.uid === old.uid)!.cancelledAt).not.toBeNull();
+    await updateProgrammingTask(f.ctx, draft.id, { dueDate: "2027-02-02", title: "Moved project" });
+    const results = await Promise.all([setStage(f.ctx, draft.id, { stage: "confirmed" }), setStage(f.ctx, draft.id, { stage: "confirmed" })]);
+    expect(results.every(row => row.calendarEventId === confirmed.calendarEventId)).toBe(true);
+    await refreshCalendarFeed(f.org.id);
+    const rows = await db(f.org.id).calendarFeedItem.list();
+    expect(rows.filter(row => row.uid === old.uid)).toHaveLength(1);
+    const revived = rows.find(row => row.uid === old.uid)!;
+    expect(revived.cancelledAt).toBeNull(); expect(revived.revision).toBe(old.revision + 2);
+    expect(revived.published).toMatchObject({ title: "Moved project", schedule: { start: "2027-02-02" } });
+  });
+  it("retries failed durable work without losing identity or publishing empty content", async () => {
+    const f = await fixture();
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "Retry me" } });
+    await testPrisma.$executeRawUnsafe(`CREATE FUNCTION calendar_test_fail() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'simulated worker failure'; END $$`);
+    await testPrisma.$executeRawUnsafe(`CREATE TRIGGER calendar_test_fail BEFORE UPDATE ON "CalendarFeedItem" FOR EACH ROW EXECUTE FUNCTION calendar_test_fail()`);
+    try {
+      await expect(refreshCalendarFeed(f.org.id)).rejects.toThrow();
+      const failed = await db(f.org.id).calendarFeedWork.find();
+      expect(failed!.version).toBeGreaterThan(failed!.appliedVersion);
+      expect(failed!.failures).toBe(1);
+      expect(failed!.failedAt).not.toBeNull();
+      expect((await GET(f.request(), { params: Promise.resolve(f.params) })).status).toBe(503);
+    } finally {
+      await testPrisma.$executeRawUnsafe(`DROP TRIGGER calendar_test_fail ON "CalendarFeedItem"`);
+      await testPrisma.$executeRawUnsafe(`DROP FUNCTION calendar_test_fail()`);
+    }
+    await refreshCalendarFeed(f.org.id);
+    expect((await db(f.org.id).calendarFeedWork.find())!.failedAt).toBeNull();
+    expect(await (await GET(f.request(), { params: Promise.resolve(f.params) })).text()).toContain("Retry me");
+  });
+  it("ignores out-of-order wakeups and reconciles an unqueued drift without resetting revision", async () => {
+    const f = await fixture();
+    const delayedWakeup = () => refreshCalendarFeed(f.org.id);
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "older" } });
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "newest" } });
+    await refreshCalendarFeed(f.org.id);
+    const [newest] = await db(f.org.id).calendarFeedItem.list();
+    await delayedWakeup();
+    expect((await db(f.org.id).calendarFeedItem.list())[0]).toEqual(newest);
+    // Simulate an operator repairing the source with trigger delivery disabled.
+    await testPrisma.$executeRawUnsafe(`ALTER TABLE "CalendarEvent" DISABLE TRIGGER calendar_feed_enqueue`);
+    try { await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "repair" } }); }
+    finally { await testPrisma.$executeRawUnsafe(`ALTER TABLE "CalendarEvent" ENABLE TRIGGER calendar_feed_enqueue`); }
+    await refreshCalendarFeed(f.org.id, true);
+    const [repaired] = await db(f.org.id).calendarFeedItem.list();
+    expect(repaired.uid).toBe(newest.uid); expect(repaired.revision).toBe(newest.revision + 1);
+    expect(repaired.published).toMatchObject({ title: "repair" });
+  });
+  it("preserves structured instants through calendar and service editors and updates legacy display fields", async () => {
+    const f = await fixture();
+    await createSemester({ orgId: f.org.id, startDate: "2026-01-01", endDate: "2027-12-31" });
+    const schedule = { kind: "timed" as const, start: "2027-01-02T04:00:00Z", end: "2027-01-02T06:00:00Z", timeZone: "America/New_York" };
+    const calendar = await createCalendar(f.ctx, { title: "Overnight", date: "2027-01-02", category: "chapter", mandatory: true, schedule });
+    expect(calendar.date).toBe("2027-01-01"); expect(calendar.time).toBe("23:00"); expect(calendar.schedule).toEqual(schedule);
+    const updated = await updateCalendar(f.ctx, calendar.id, { title: "Rename only" });
+    expect(updated.schedule).toEqual(schedule);
+    const service = await createServiceEvent(f.ctx, { title: "Service", date: "2027-01-02", schedule });
+    expect(service.calendarEvent.schedule).toEqual(schedule);
+    expect(service.date).toBe("2027-01-01");
+    await refreshCalendarFeed(f.org.id);
+    expect(await (await GET(f.request(), { params: Promise.resolve(f.params) })).text()).toContain("DTSTART:20270102T040000Z");
+  });
+  it("enforces RLS on credentials, items and work using the actual NOBYPASSRLS role", async () => {
+    const first = await fixture(); const second = await fixture("two");
+    await applyEnforcingRls();
+    try {
+      expect(await asOrg(first.org.id, tx => tx.calendarSubscription.findMany({ where: { organizationId: second.org.id } }))).toEqual([]);
+      expect(await asOrg(first.org.id, tx => tx.calendarFeedItem.findMany({ where: { organizationId: second.org.id } }))).toEqual([]);
+      expect(await asOrg(null, tx => tx.calendarFeedWork.findMany())).toEqual([]);
+      await expect(asOrg(first.org.id, tx => tx.calendarFeedItem.create({ data: { organizationId: second.org.id, sourceType: "task", sourceId: 900 } }))).rejects.toThrow();
+      const own = await asOrg(first.org.id, tx => tx.calendarFeedItem.findMany());
+      expect(own).toHaveLength(1);
+    } finally { await dropEnforcingRls(); }
+  });
+});

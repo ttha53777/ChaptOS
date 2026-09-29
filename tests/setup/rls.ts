@@ -37,6 +37,7 @@ export const appPrisma = new PrismaClient({ adapter: new PrismaPg({ connectionSt
 // list Phase 3's migration will enforce; the test asserts the shape works.
 const ORG_COLUMN_TABLES = [
   "ActivityLog", "AttendanceExemption", "Brother", "BrotherMetricValue", "BrotherRole", "Budget",
+  "CalendarSubscription", "CalendarFeedItem", "CalendarFeedWork",
   "CalendarEvent", "CalendarEventType", "ChapterAnnouncement", "Doc",
   "DocFolder", "DuesPayment", "EventFieldDefinition", "InstagramTask", "Membership",
   "JoinRequest",
