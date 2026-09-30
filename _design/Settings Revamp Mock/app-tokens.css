@@ -1,0 +1,65 @@
+/* Huashu design foundation: reuse the actual application token source.
+   settings-ledger.css supplies the .set-page palette. Aliases below bridge
+   prototype names to those tokens without maintaining a second palette. */
+.set-page {
+  --font-fraunces: "Fraunces";
+  --font-geist-sans: "Geist";
+  --font-geist-mono: "Geist Mono";
+  --display: var(--serif);
+  --body: var(--sans);
+  --mono: var(--font-geist-mono), ui-monospace, monospace;
+  --paper-3: var(--card-2);
+  --card-raised: var(--card-2);
+  --ink-2: var(--ink-soft);
+  --ink-3: var(--muted);
+  --ink-4: var(--faint);
+  --violet: var(--vio);
+  --violet-soft: var(--vio-bg);
+  --violet-line: rgba(167,139,250,.25);
+  --sage: var(--ok);
+  --sage-soft: var(--ok-bg);
+  --gold-soft: var(--gold-bg);
+  --rose-soft: var(--rose-bg);
+  font-family: var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+.settings-card, .directory-entries {
+  border-radius: 12px;
+  border-color: var(--line);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.setting-row { padding: 13px 16px; gap: 16px; border-bottom-color: var(--line-soft); }
+.directory-entry { border-bottom-color: var(--line-soft); }
+.card-head, .card-foot { border-color: var(--line-soft); }
+.card-head h3 { font-family: var(--serif); font-weight: 500; }
+.button { border-radius: 9px; padding: 8px 14px; font-size: 12px; font-weight: 600; }
+.button.primary { background: var(--vio); color: #1a1206; border-color: var(--vio); }
+.button.primary:hover { background: #b9a0fb; border-color: #b9a0fb; }
+.button.quiet { background: var(--card); color: var(--ink-soft); border-color: var(--line); }
+.button.quiet:hover { background: var(--card-2); color: var(--ink); }
+.button.danger { background: var(--rose-bg); color: var(--rose); border-color: rgba(217,139,163,.25); }
+.button:disabled { opacity: .35; }
+.input, .select, .textarea {
+  border-radius: 9px; border-color: var(--line); background: var(--paper-2);
+  color: var(--ink); padding: 8px 11px; font-size: 12.5px;
+}
+.input:focus, .select:focus, .textarea:focus {
+  border-color: rgba(167,139,250,.5); box-shadow: 0 0 0 3px var(--vio-bg);
+}
+.chip { border-radius: 999px; font-size: 9px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.avatar, .user-orb { background: var(--vio-bg); color: var(--vio); }
+.toast { background: var(--card); color: var(--ok); border-color: var(--ok-bg); }
+/* Match the app's checkbox treatment for workflow visibility. */
+.toggle { width: 24px; height: 24px; }
+.toggle span { inset: 3px; border-radius: 6px; background: var(--paper-2); border: 1.5px solid var(--line); }
+.toggle span::after { display: none; }
+.toggle input:checked + span { background: var(--vio); border-color: var(--vio); }
+.toggle input:checked + span::after {
+  display: block; content: ""; left: 5px; top: 2px; width: 4px; height: 8px;
+  border: solid #1a1206; border-width: 0 2px 2px 0; border-radius: 0;
+  background: transparent; transform: rotate(45deg);
+}
+@media (max-width: 560px) { .input, .select, .textarea { font-size: 16px; } }

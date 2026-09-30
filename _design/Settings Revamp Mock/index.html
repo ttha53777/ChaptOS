@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Figurints · Settings revamp mock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../../app/[slug]/settings/settings-ledger.css">
+  <link rel="stylesheet" href="app-tokens.css">
+</head>
+<body class="set-page">
+  <!--
+    ASSUMPTIONS
+    - This is a desktop-first officer/admin workflow, but the mock remains usable at 390px.
+    - The existing warm dusk visual system is a product asset worth preserving.
+    - The core UX issue is information architecture: groups are currently navigable while individual
+      sections are buried. This mock makes every section a stable destination.
+    - Lambda Phi Epsilon data is sample content taken from the existing repository screenshots.
+
+    DESIGN REASONING
+    - The global app rail stays visible so Settings no longer feels like a modal dead end.
+    - Search works as navigation, not as a destructive filter; the query remains when a result opens.
+    - Summary lines expose saved state before entering a section, reducing needless clicks.
+    - A single sticky save tray replaces mixed auto-save/manual-save patterns in the visual prototype.
+    - Destructive actions live in one explicitly named Administration section.
+  -->
+
+  <div class="prototype-note" role="note">
+    <span>Interactive UX mock</span>
+    <p>Explore every section, search settings, edit fields, and test the mobile drawer.</p>
+    <button type="button" data-dismiss-note aria-label="Dismiss prototype note">Dismiss</button>
+  </div>
+
+  <div class="app-shell">
+    <aside class="app-rail" aria-label="Main app">
+      <a class="brand-mark" href="#/overview" aria-label="Figurints home">F</a>
+      <nav class="app-rail-nav">
+        <a href="#/overview" data-tip="Dashboard" aria-label="Dashboard"><span>DA</span></a>
+        <a href="#/overview" data-tip="Timeline" aria-label="Timeline"><span>TL</span></a>
+        <a href="#/overview" data-tip="Members" aria-label="Members"><span>MB</span></a>
+        <a href="#/overview" data-tip="Treasury" aria-label="Treasury"><span>TR</span></a>
+      </nav>
+      <a class="app-rail-settings is-active" href="#/overview" data-tip="Settings" aria-label="Settings"><span>ST</span></a>
+      <button class="user-orb" type="button" aria-label="Open user menu">TT</button>
+    </aside>
+
+    <aside class="settings-nav" id="settings-nav" aria-label="Settings navigation">
+      <div class="settings-nav-head">
+        <button class="mobile-close" type="button" data-close-nav aria-label="Close settings navigation">×</button>
+        <p class="eyebrow">Lambda Phi Epsilon</p>
+        <div class="settings-title-row">
+          <h1>Settings</h1>
+          <span class="org-monogram" aria-hidden="true">ΛΦ</span>
+        </div>
+        <button class="nav-search-trigger" type="button" data-focus-search>
+          <span aria-hidden="true">⌕</span>
+          <span>Find a setting</span>
+          <kbd>⌘ K</kbd>
+        </button>
+      </div>
+      <nav class="section-list" id="section-list"></nav>
+      <div class="settings-nav-foot">
+        <a href="#/administration"><span class="status-dot"></span> Workspace healthy</a>
+        <p>42 members · Spring 2026</p>
+      </div>
+    </aside>
+
+    <button class="nav-scrim" type="button" data-close-nav aria-label="Close navigation"></button>
+
+    <main class="workspace">
+      <header class="workspace-topbar">
+        <button class="mobile-menu" type="button" data-open-nav aria-label="Open settings navigation">☰</button>
+        <div class="crumbs" aria-label="Breadcrumb">
+          <a href="#/overview">Settings</a>
+          <span>/</span>
+          <strong id="crumb-current">Overview</strong>
+        </div>
+        <div class="topbar-actions">
+          <button class="topbar-search" type="button" data-focus-search aria-label="Search settings">⌕</button>
+          <span class="sync-state"><i></i> All changes saved</span>
+          <button class="avatar" type="button" aria-label="Open account menu">TT</button>
+        </div>
+      </header>
+
+      <section class="content-scroll" id="content-scroll">
+        <div class="content-frame" id="content-frame"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="search-dialog" id="search-dialog">
+    <form method="dialog" class="search-shell">
+      <div class="search-input-wrap">
+        <span aria-hidden="true">⌕</span>
+        <input id="global-search" type="search" placeholder="Search settings and actions…" autocomplete="off">
+        <kbd>Esc</kbd>
+      </div>
+      <div class="search-results" id="search-results"></div>
+      <footer>
+        <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+        <span><kbd>↵</kbd> open</span>
+        <span>Search stays open between sections</span>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="confirm-dialog" id="confirm-dialog">
+    <div class="confirm-card">
+      <p class="eyebrow danger-copy">Confirm change</p>
+      <h2 id="confirm-title">Discard unsaved changes?</h2>
+      <p id="confirm-copy">Your edits on this page will be lost.</p>
+      <div class="dialog-actions">
+        <button type="button" class="button quiet" data-cancel-confirm>Keep editing</button>
+        <button type="button" class="button danger" data-accept-confirm>Discard changes</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div class="save-tray" id="save-tray" aria-live="polite">
+    <span><i></i><strong>Unsaved changes</strong><small id="save-context">General</small></span>
+    <div>
+      <button type="button" class="button quiet" data-discard>Discard</button>
+      <button type="button" class="button primary" data-save>Save changes</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
