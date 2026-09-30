@@ -18,6 +18,7 @@ import { fieldsForEvent, type EventFieldDef } from "@/lib/event-fields";
 import { FieldTogglePills } from "./panel/FieldTogglePills";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { useToast } from "../dashboard/Toast";
+import { formatEventTime } from "@/lib/event-time";
 
 /** EventFieldDef plus the row id the fields API keys on. */
 type EventFieldRow = EventFieldDef & { id: number };
@@ -242,7 +243,7 @@ export function ProgrammingDetailPanel({
 
         <h2 className="ev-pn-title">{event.title}</h2>
         <p className="ev-pn-when">
-          {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{event.time ? ` · ${event.time}` : ""}{event.location ? ` · ${event.location}` : ""}
+          {event.dueDate ? fmtDate(event.dueDate) : "No date set"}{formatEventTime(event.time, event.schedule) ? ` · ${formatEventTime(event.time, event.schedule)}` : ""}{event.location ? ` · ${event.location}` : ""}
           {event.collab ? ` · w/ ${event.collab}` : ""}
         </p>
 

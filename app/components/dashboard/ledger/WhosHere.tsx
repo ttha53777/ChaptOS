@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { requestJson } from "@/app/lib/api";
 import type { LiveAttendee, LiveCheckIn as LiveCheckInData, LiveRoster } from "@/lib/services/attendance-service";
 import { apiErrorMessage } from "../../../lib/api";
+import { formatEventTime } from "@/lib/event-time";
 
 // No "use client" directive: ledger/* components inherit client-ness from
 // app/[slug]/page.tsx, which is itself "use client".
@@ -174,7 +175,7 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
           <p className="wh-sub">
             {live.event.title}
             {live.event.location ? ` · ${live.event.location}` : ""}
-            {live.event.time ? <><br />{live.event.time}</> : null}
+            {formatEventTime(live.event.time, live.event.schedule) ? <><br />{formatEventTime(live.event.time, live.event.schedule)}</> : null}
           </p>
           <p className="wh-summary" role="status" aria-live="polite">
             {roster === null

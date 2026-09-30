@@ -21,6 +21,7 @@ import { runTool } from "@/lib/ai-tools";
 import type { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
 import { fmtUsd } from "@/lib/money";
+import { formatEventTime } from "@/lib/event-time";
 
 export interface FastPathResult {
   /** The complete answer text, streamed as a single SSE `text` event. */
@@ -202,9 +203,9 @@ const INTENTS: Intent[] = [
     format: result => {
       if (isEmptyEnvelope(result)) return "Nothing on the calendar this week.";
       if (isErrorResult(result) || !Array.isArray(result)) return null;
-      const rows = result as Array<{ title: string; date: string; time?: string | null; category?: string }>;
+      const rows = result as Array<{ title: string; date: string; time?: string | null; schedule?: unknown; category?: string }>;
       if (rows.length === 0) return "Nothing on the calendar this week.";
-      const lines = rows.map(e => `- **${e.title}** — ${e.date}${e.time ? ` ${e.time}` : ""}${e.category ? ` (${e.category})` : ""}`);
+      const lines = rows.map(e => `- **${e.title}** — ${e.date}${formatEventTime(e.time, e.schedule) ? ` ${formatEventTime(e.time, e.schedule)}` : ""}${e.category ? ` (${e.category})` : ""}`);
       return [`This week (calendar):`, ...lines].join("\n");
     },
   },

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Modal } from "../primitives";
 import { orgFetch } from "../../../lib/api";
 import { taskAssigneeLabel, type CalEventType, type CalendarEvent, type Task } from "../../../data";
+import { formatEventTime } from "@/lib/event-time";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DOW    = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
@@ -160,8 +161,8 @@ export function WeekItemPeek({
 
         {/* Facts. Each row is a question the dashboard row couldn't answer. */}
         <dl className="wpeek-facts">
-          {isEvent && target.event.time && (
-            <div className="wpeek-fact"><dt>Time</dt><dd>{target.event.time}</dd></div>
+          {isEvent && formatEventTime(target.event.time, target.event.schedule) && (
+            <div className="wpeek-fact"><dt>Time</dt><dd>{formatEventTime(target.event.time, target.event.schedule)}</dd></div>
           )}
           {isEvent && target.event.location && (
             <div className="wpeek-fact"><dt>Where</dt><dd>{target.event.location}</dd></div>

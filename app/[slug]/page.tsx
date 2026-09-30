@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
+import { compareEvents, formatEventTime } from "@/lib/event-time";
 
 const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTrendChart"), {
   ssr: false,
@@ -586,7 +587,7 @@ function WidgetDetailDrawer({
           { label: "Instagram", tone: "rose", count: igDue.length,
             rows: igDue.map(t => ({ key: `i${t.id}`, title: t.title, meta: `${fmtDate(t.dueDate)} · ${t.type}` })) },
           { label: "Events", tone: "info", count: eventsThisWeek.length,
-            rows: eventsThisWeek.map(e => ({ key: `e${e.id}`, title: e.title, meta: e.time ? `${fmtDate(e.date)} · ${e.time}` : fmtDate(e.date) })) },
+            rows: eventsThisWeek.map(e => ({ key: `e${e.id}`, title: e.title, meta: formatEventTime(e.time, e.schedule) ? `${fmtDate(e.date)} · ${formatEventTime(e.time, e.schedule)}` : fmtDate(e.date) })) },
           { label: "Parties", tone: "vio", count: partiesThisWeek.length,
             rows: partiesThisWeek.map(p => ({ key: `p${p.id}`, title: p.name, meta: fmtDate(p.date) })) },
         ];
@@ -1851,6 +1852,7 @@ export default function Home() {
         title:     event.title,
         date:      event.date,
         time:      event.time ?? null,
+        schedule:  event.schedule ?? null,
         location:  event.location ?? null,
         mandatory: event.mandatory,
       },
@@ -1910,7 +1912,8 @@ export default function Home() {
       .sort((a, b) => {
         const rank = (d: number) => (d === 0 ? 0 : d > 0 ? 1 : 2);
         if (rank(a.days) !== rank(b.days)) return rank(a.days) - rank(b.days);
-        return Math.abs(a.days) - Math.abs(b.days);
+        // Same day: by start time, so the 9am event isn't listed under the 7pm one.
+        return Math.abs(a.days) - Math.abs(b.days) || compareEvents(a.event, b.event);
       })
       .map(x => x.event);
   }, [calendarList, liveCheckIn?.event.id, todayISO]);
@@ -2560,7 +2563,7 @@ export default function Home() {
             {calendarList.filter(e => e.mandatory).length === 0 && (
               <p className="text-[12px] text-[#6b6354]">No required events found.</p>
             )}
-            {calendarList.filter(e => e.mandatory).sort((a, b) => a.date.localeCompare(b.date)).map(e => (
+            {calendarList.filter(e => e.mandatory).sort(compareEvents).map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("excuse"); }}
                 className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
                 <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
@@ -2599,7 +2602,7 @@ export default function Home() {
             {calendarList.filter(e => e.mandatory).length === 0 && (
               <p className="text-[12px] text-[#6b6354]">No required events found.</p>
             )}
-            {calendarList.filter(e => e.mandatory).sort((a, b) => a.date.localeCompare(b.date)).map(e => (
+            {calendarList.filter(e => e.mandatory).sort(compareEvents).map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("attendance"); }}
                 className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
                 <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
@@ -2626,7 +2629,7 @@ export default function Home() {
                     {e.date === todayISO
                       ? <span className="font-medium text-[#a78bfa]">{when}</span>
                       : when}
-                    {e.time ? ` · ${e.time}` : ""}{e.location ? ` · ${e.location}` : ""}
+                    {formatEventTime(e.time, e.schedule) ? ` · ${formatEventTime(e.time, e.schedule)}` : ""}{e.location ? ` · ${e.location}` : ""}
                   </p>
                 </button>
               );

@@ -2,6 +2,7 @@ import React from "react";
 import { fmtRange, taskAssigneeLabel, type CalendarEvent, type Task } from "../../../data";
 import { SectionError } from "./SectionError";
 import type { WeekPeekTarget } from "./WeekItemPeek";
+import { compareEvents, formatEventTime } from "@/lib/event-time";
 
 const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 function weekday(iso: string): string {
@@ -76,7 +77,7 @@ export function ThisWeek({
     ...events.map((e): WeekItem => ({
       date: e.date,
       title: e.title,
-      meta: [e.time, e.location, e.mandatory ? "mandatory" : null].filter(Boolean).join(" · "),
+      meta: [formatEventTime(e.time, e.schedule), e.location, e.mandatory ? "mandatory" : null].filter(Boolean).join(" · "),
       kind: "event",
       today: e.date === today,
       target: { kind: "event", event: e },
@@ -91,7 +92,8 @@ export function ThisWeek({
         today: d.dueDate === today,
         target: { kind: "deadline", task: d },
       })),
-  ].sort((a, b) => a.date.localeCompare(b.date));
+  // Same day: all-day items (deadlines) first, then events by start time.
+  ].sort((a, b) => compareEvents(a.target.kind === "event" ? a.target.event : a, b.target.kind === "event" ? b.target.event : b));
 
   return (
     <section

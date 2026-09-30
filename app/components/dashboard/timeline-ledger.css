@@ -167,7 +167,7 @@
 .dash .tl-excuse .rej input { flex: 1; }
 .dash .tl-excuse button:disabled { opacity: .5; cursor: default; }
 
-/* ── Collapsed past-month bar ────────────────────────────────────────────────── */
+/* ── Collapsed bars: "Earlier" (the finished past) and far-off upcoming months ── */
 .dash .past-bar { display: flex; align-items: center; gap: 12px; padding: 11px 16px; margin-bottom: 10px;
   border: 1px dashed var(--line); border-radius: 10px; background: none; cursor: pointer; width: 100%; text-align: left; }
 .dash .past-bar:hover { background: var(--card); border-style: solid; }
@@ -175,6 +175,10 @@
 .dash .past-bar .pc { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint); }
 .dash .past-bar .show { margin-left: auto; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 .dash .past-bar:hover .show { color: var(--vio); }
+/* Upcoming months are ahead of you, not archive — solid, full-ink label. */
+.dash .past-bar.ahead { border-style: solid; border-color: var(--line-soft); margin-top: 6px; }
+.dash .past-bar.ahead .pm { font-style: normal; color: var(--ink-soft); }
+.dash .past-bar.ahead .pc { color: var(--muted); }
 
 /* ── Month header ────────────────────────────────────────────────────────────── */
 .dash .tl-month { display: flex; align-items: baseline; gap: 14px; margin: 26px 0 14px; width: 100%; background: none; border: 0; cursor: pointer; text-align: left; }
@@ -185,6 +189,9 @@
 .dash .tl-month .cnt { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .dash .tl-month.now .cnt { color: var(--vio); }
 .dash .tl-month .chev { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+/* Past months inside the opened "Earlier" section — labels, not toggles. */
+.dash .tl-month.static { cursor: default; }
+.dash .tl-month.static h2 { color: var(--muted); }
 
 /* ── The spine ───────────────────────────────────────────────────────────────── */
 .dash .spine { position: relative; }
@@ -214,6 +221,7 @@
   color: var(--gold); background: var(--gold-bg); border-radius: 4px; padding: 2px 5px; }
 .dash .overdue { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
   color: var(--rose); background: var(--rose-bg); border-radius: 4px; padding: 2px 5px; }
+.dash .tl-card .m .done { color: var(--ok); font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
 
 /* past events recede */
 .dash .tl-row.past .tl-date .dnum { color: var(--faint); }
@@ -240,13 +248,6 @@
 .dash .tl-end button { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
   background: none; border: 0; cursor: pointer; margin-left: 4px; }
 .dash .tl-end button:hover { color: var(--vio); }
-
-/* Top variant — when months are newest-first, this note heads the spine rather
-   than closing it. Self-contained banner, no dangling spine dot. */
-.dash .tl-end--top { padding: 10px 14px; margin-bottom: 16px; border: 1px solid var(--line-soft);
-  border-radius: 10px; background: var(--card); }
-.dash .tl-end--top .e-dot { margin-left: 0; }
-.dash .tl-end--top button { margin-left: auto; }
 
 /* ── Rail: Up next / Then / Legend / Jump ────────────────────────────────────── */
 .dash .upnext { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 16px 18px 17px; cursor: pointer; }

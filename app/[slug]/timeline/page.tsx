@@ -1,9 +1,11 @@
 "use client";
 import { AddToCalendarButton, AddToCalendarDialog, type Provider } from "../../components/timeline/CalendarSubscription";
 import { AddThisEvent, useCalendarLive } from "../../components/timeline/CalendarInvite";
+import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
+import { useNow } from "../../hooks/useNow";
 
 import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
-import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useContext } from "react";
+import React, { useState, useMemo, useEffect, useRef, useContext } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { CalendarEvent, CalEventType, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, taskAssigneeLabel } from "../../data";
@@ -230,41 +232,68 @@ interface MonthGroup {
   events: CalendarEvent[];
 }
 
-function buildMonthGroups(events: CalendarEvent[]): MonthGroup[] {
-  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date));
-
-  const map: Record<string, MonthGroup> = {};
+/** Buckets already-sorted events into months, oldest first. `fileDate` picks the
+ *  date an event files under (defaults to its own). */
+function groupByMonth(sorted: CalendarEvent[], fileDate: (e: CalendarEvent) => string = e => e.date): MonthGroup[] {
+  const groups: MonthGroup[] = [];
   for (const e of sorted) {
-    const [yr, mo] = e.date.split("-").map(Number);
+    const [yr, mo] = fileDate(e).split("-").map(Number);
     const key = `${yr}-${pad(mo)}`;
-    if (!map[key]) {
-      map[key] = {
+    let group = groups[groups.length - 1];
+    if (!group || group.id !== key) {
+      group = {
         id: key,
         monthLabel: MONTH_NAMES[mo - 1],
         year: yr,
         isCurrentMonth: yr === TODAY.year && mo === TODAY.month + 1,
         events: [],
       };
+      groups.push(group);
     }
-    map[key].events.push(e);
+    group.events.push(e);
   }
+  return groups;
+}
 
-  // Current month pinned to the top; every other month stacked most-recent
-  // first below it (e.g. a Jan–May term, viewed in March, reads March, then
-  // May → April, then Feb → Jan). Events inside each month stay chronological
-  // so the today marker and first-future-row logic still line up.
-  return Object.values(map).sort((a, b) => {
-    if (a.isCurrentMonth !== b.isCurrentMonth) return a.isCurrentMonth ? -1 : 1;
-    return b.id.localeCompare(a.id);
-  });
+/** Upcoming months whose first event is further out than this start collapsed. */
+const OPEN_HORIZON_DAYS = 42;
+
+interface TimelineSections {
+  /** Finished events, by month — shown only when the "Earlier" bar is opened. */
+  past: MonthGroup[];
+  pastCount: number;
+  /** Everything not yet over, soonest first — read straight down from Today. */
+  upcoming: MonthGroup[];
+  /** Upcoming months that start collapsed (beyond the horizon, and never the first). */
+  defaultCollapsed: Set<string>;
+}
+
+/**
+ * One reading direction, split at now: the finished past folds into a single
+ * bar above the Today marker, everything still ahead runs soonest-first below
+ * it. Split on "is it over", not on the date, so a 9am meeting has moved above
+ * the line by the afternoon, and a multi-day event that began last month but
+ * is still running files under this month rather than a past one.
+ */
+function buildTimeline(events: CalendarEvent[], now: Date, todayStr: string): TimelineSections {
+  const sorted = [...events].sort(compareEvents);
+  const past     = sorted.filter(e => isEventOver(e, now));
+  const upcoming = sorted.filter(e => !isEventOver(e, now));
+  const upcomingGroups = groupByMonth(upcoming, e => (e.date < todayStr ? todayStr : e.date));
+  const defaultCollapsed = new Set(
+    upcomingGroups
+      .filter((g, i) => i > 0 && daysFromToday(g.events[0].date) > OPEN_HORIZON_DAYS)
+      .map(g => g.id),
+  );
+  return { past: groupByMonth(past), pastCount: past.length, upcoming: upcomingGroups, defaultCollapsed };
 }
 
 // ─── TodayMarker ──────────────────────────────────────────────────────────────
 
-function TodayMarker() {
+function TodayMarker({ markerRef }: { markerRef?: React.Ref<HTMLDivElement> }) {
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   return (
-    <div className="today-marker">
+    <div className="today-marker" ref={markerRef}>
       <span className="pill">Today · {fmtDow(todayStr)} {fmtDate(todayStr)}</span>
       <span className="line" />
     </div>
@@ -274,22 +303,27 @@ function TodayMarker() {
 // ─── TimelineRow ──────────────────────────────────────────────────────────────
 
 function TimelineRow({
-  event, isToday, isPast, selected, onSelect, rowRef,
+  event, isToday, isPast, done, selected, onSelect,
 }: {
   event: CalendarEvent;
   isToday: boolean;
   isPast: boolean;
+  /** For task/post rows: whether it's been completed. Undefined for plain events. */
+  done?: boolean;
   selected: boolean;
   onSelect: (e: CalendarEvent) => void;
-  rowRef?: (el: HTMLDivElement | null) => void;
 }) {
   const types = useEventTypes();
   const [, , d] = event.date.split("-").map(Number);
-  const stateCls = isToday ? "today" : isPast ? "past" : "future";
+  // An unfinished task past its due date is the one row in the past that still
+  // needs someone, so it keeps full weight instead of receding with the rest.
+  const overdue  = isPast && done === false;
+  const stateCls = isToday ? "today" : isPast && !overdue ? "past" : "future";
+  // Still running but dated before today (a multi-day event, or one past midnight).
+  const when = !isPast && daysFromToday(event.date) < 0 ? "Ongoing" : relWhen(event.date);
 
   return (
     <div
-      ref={rowRef}
       /* Scroll target for the ?event= deep link (see the effect in the page). */
       data-event-id={event.id}
       className={`tl-row ${stateCls}${selected ? " selected" : ""}`}
@@ -311,11 +345,13 @@ function TimelineRow({
             <div className="m">
               <span className="cat">{catLabelOf(types, event.category)}</span>
               {event.mandatory && <span className="req">Required</span>}
-              {event.time && <span>{event.time}</span>}
+              {overdue && <span className="overdue">Overdue</span>}
+              {done && <span className="done">✓ Done</span>}
+              {formatEventTime(event.time, event.schedule) && <span>{formatEventTime(event.time, event.schedule)}</span>}
               {event.location && <span>{event.location}</span>}
             </div>
           </div>
-          <span className="when">{relWhen(event.date)}</span>
+          <span className="when">{when}</span>
           <svg className="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
           </svg>
@@ -383,8 +419,9 @@ function EventDetail({
   const isDeadline = event.category === "deadline";
   const isMeeting  = isMeetingEvent(event);
   const isComplete = deadlineStatus === "done";
-  const todayStr   = toDateStr(TODAY.year, TODAY.month, TODAY.day);
-  const isPast     = event.date < todayStr;
+  // Finished, not just dated before today: a 9am meeting is past by the afternoon.
+  const now        = useNow();
+  const isPast     = isEventOver(event, now);
   const [, mo, d]  = event.date.split("-").map(Number);
   const types      = useEventTypes();
 
@@ -534,9 +571,9 @@ function EventDetail({
       {/* Meta. A meeting's description is its minutes, which get their own block
           below (summarized when the user asked for a summary) rather than being
           crammed into a one-line meta row. */}
-      {(event.time || event.location || (event.description && !isMeeting) || isDeadline) && (
+      {(formatEventTime(event.time, event.schedule) || event.location || (event.description && !isMeeting) || isDeadline) && (
         <div className="ev-meta">
-          {event.time && <div className="ev-meta-row"><span className="lab">Time</span>{event.time}</div>}
+          {formatEventTime(event.time, event.schedule) && <div className="ev-meta-row"><span className="lab">Time</span>{formatEventTime(event.time, event.schedule)}</div>}
           {event.location && <div className="ev-meta-row"><span className="lab">Where</span>{event.location}</div>}
           {event.description && !isMeeting && <div className="ev-meta-row">{event.description}</div>}
           {isDeadline && !isComplete && (
@@ -789,7 +826,7 @@ function GlanceDetail({
               <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
               <div className="what">
                 <p className="t">{ev.title}</p>
-                <p className="s">{catLabelOf(types, ev.category)}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
+                <p className="s">{catLabelOf(types, ev.category)}{ev.mandatory ? " · Required" : formatEventTime(ev.time, ev.schedule) ? ` · ${formatEventTime(ev.time, ev.schedule)}` : ""}</p>
               </div>
             </button>
           ))}
@@ -892,7 +929,9 @@ export default function TimelinePage() {
   const [glanceFocus,     setGlanceFocus]     = useState<GlanceMetric | null>(null);
   const [apiEvents,       setApiEvents]       = useState<CalendarEvent[]>([]);
   const [eventTypes,      setEventTypes]      = useState<CalEventType[]>([]);
-  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set());
+  // Upcoming months the user has flipped away from their default open/closed state.
+  const [toggledMonths, setToggledMonths] = useState<Set<string>>(new Set());
+  const [pastOpen, setPastOpen] = useState(false);
   const [activeModal,     setActiveModal]     = useState<"create" | "edit" | null>(null);
   const [calendarLoading,      setCalendarLoading]      = useState(true);
   const [calendarError,        setCalendarError]        = useState<string | null>(null);
@@ -908,7 +947,6 @@ export default function TimelinePage() {
 
   const mainRef          = useRef<HTMLDivElement | null>(null);
   const todayRef         = useRef<HTMLDivElement | null>(null);
-  const currentMonthRef  = useRef<HTMLDivElement | null>(null);
   const reviewRef        = useRef<HTMLDivElement | null>(null);
 
   // True when the today anchor is off-screen — drives whether "Jump to today"
@@ -1090,7 +1128,6 @@ export default function TimelinePage() {
   }, [apiEvents, taskList, igTaskList]);
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
-  const monthGroups = useMemo(() => buildMonthGroups(filtered), [filtered]);
   const layerCounts = useMemo(
     () => Object.fromEntries(LAYERS.map(l => [l.id, filterByLayer(allEvents, l.id).length])),
     [allEvents],
@@ -1125,35 +1162,46 @@ export default function TimelinePage() {
 
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const monthPrefix = todayStr.slice(0, 7);
+  const now = useNow();
 
-  // The first event on or after today — the chronological "now" anchor.
-  const todayAnchorId = useMemo(() => {
-    const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
-    const upcoming = sorted.find(e => e.date >= todayStr);
-    return upcoming ? upcoming.id : sorted.length > 0 ? sorted[sorted.length - 1].id : null;
-  }, [filtered, todayStr]);
+  const timeline = useMemo(() => buildTimeline(filtered, now, todayStr), [filtered, now, todayStr]);
+  const hasEvents = timeline.pastCount > 0 || timeline.upcoming.length > 0;
+  const isMonthCollapsed = (id: string) => timeline.defaultCollapsed.has(id) !== toggledMonths.has(id);
+
+  // Completion for the task and Instagram rows folded into the timeline, keyed by
+  // their timeline id. Plain calendar events have no entry.
+  const doneById = useMemo(() => {
+    const m = new Map<number, boolean>();
+    for (const d of taskList) if (d.dueDate != null) m.set(DEADLINE_ID_BASE + d.id, d.status === "done");
+    for (const t of igTaskList) m.set(IG_ID_BASE + t.id, t.status === "posted");
+    return m;
+  }, [taskList, igTaskList]);
+  const overduePast = useMemo(
+    () => timeline.past.reduce((n, g) => n + g.events.filter(e => doneById.get(e.id) === false).length, 0),
+    [timeline, doneById],
+  );
 
   // ── Rail + glance derivations (global — independent of the active filter) ──
   const { start: weekStart, end: weekEnd } = useMemo(() => isoWeekBounds(new Date()), []);
   const upcoming = useMemo(
-    () => allEvents.filter(e => e.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)),
-    [allEvents, todayStr],
+    () => allEvents.filter(e => !isEventOver(e, now)).sort(compareEvents),
+    [allEvents, now],
   );
   const upNext   = upcoming[0] ?? null;
   const thenList = upcoming.slice(1, 3);
   const lastEvent = useMemo(
-    () => (allEvents.length ? [...allEvents].sort((a, b) => a.date.localeCompare(b.date))[allEvents.length - 1] : null),
+    () => (allEvents.length ? [...allEvents].sort(compareEvents)[allEvents.length - 1] : null),
     [allEvents],
   );
 
   // Per-metric event lists — counts are derived from .length so the glance
   // numbers and the rail breakdowns can never drift apart.
   const weekEvents = useMemo(
-    () => allEvents.filter(e => e.date >= weekStart && e.date <= weekEnd).sort((a, b) => a.date.localeCompare(b.date)),
+    () => allEvents.filter(e => e.date >= weekStart && e.date <= weekEnd).sort(compareEvents),
     [allEvents, weekStart, weekEnd],
   );
   const requiredEvents = useMemo(
-    () => allEvents.filter(e => e.mandatory && e.date.startsWith(monthPrefix)).sort((a, b) => a.date.localeCompare(b.date)),
+    () => allEvents.filter(e => e.mandatory && e.date.startsWith(monthPrefix)).sort(compareEvents),
     [allEvents, monthPrefix],
   );
   const deadlineEvents = useMemo(
@@ -1201,7 +1249,7 @@ export default function TimelinePage() {
     const clauses: string[] = [];
     if (upNext) {
       const diff = daysFromToday(upNext.date);
-      const t = upNext.time ? ` at ${upNext.time}` : "";
+      const t = formatEventTime(upNext.time, upNext.schedule) ? ` at ${formatEventTime(upNext.time, upNext.schedule)}` : "";
       if (diff === 0)       clauses.push(`${upNext.title} is today${t}`);
       else if (diff === 1)  clauses.push(`${upNext.title} is tomorrow${t}`);
       else                  clauses.push(`next up is ${upNext.title} on ${fmtDate(upNext.date)}`);
@@ -1220,9 +1268,9 @@ export default function TimelinePage() {
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
-  // Scroll-spy: show "Jump to today" only when the today anchor is off-screen,
-  // and point the arrow toward it. Re-attaches whenever the anchor row remounts
-  // (filter change, month collapse) — todayRef is set imperatively in the row.
+  // Scroll-spy: show "Jump to today" only when the Today marker is off-screen,
+  // and point the arrow toward it. Re-attaches whenever the marker remounts
+  // (the list emptying and refilling under a filter).
   useEffect(() => {
     const main = mainRef.current;
     const target = todayRef.current;
@@ -1238,13 +1286,13 @@ export default function TimelinePage() {
     );
     obs.observe(target);
     return () => obs.disconnect();
-  }, [todayAnchorId, monthGroups, collapsedMonths]);
+  }, [hasEvents]);
 
   // Jump-to-today helper for the rail button. No auto-scroll on load — the
   // timeline opens at the top of the page (briefing first).
   function scrollToToday(smooth = false) {
     const main = mainRef.current;
-    const target = todayRef.current ?? currentMonthRef.current;
+    const target = todayRef.current;
     if (!main || !target) return;
     const delta = target.getBoundingClientRect().top - main.getBoundingClientRect().top;
     const top = main.scrollTop + delta - 96; // breathing room so "Today" sits just below the toolbar
@@ -1291,33 +1339,24 @@ export default function TimelinePage() {
     didDeepLink.current = deepLinkedId;
     if (!match) { setDeepLinkMissing(true); return; }
     setSelectedEvent(match);
-    // The initial collapse hides every month but the current one, and a week can
-    // straddle a month boundary — so open the target's month before scrolling.
-    const groupId = match.date.slice(0, 7);
-    setCollapsedMonths(prev => {
-      if (!prev.has(groupId)) return prev;
-      const next = new Set(prev);
-      next.delete(groupId);
-      return next;
-    });
+    // Finished events sit behind the "Earlier" bar and far-off months start
+    // collapsed — open whichever one holds the target before scrolling.
+    if (timeline.past.some(g => g.events.includes(match))) {
+      setPastOpen(true);
+    } else {
+      const group = timeline.upcoming.find(g => g.events.includes(match));
+      if (group && isMonthCollapsed(group.id)) toggleMonth(group.id);
+    }
     // Two frames: one for the month to expand, one for the row to lay out.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       document.querySelector(`[data-event-id="${match.id}"]`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deepLinkedId, calendarLoading, calendarError, allEvents]);
 
-  // ── Collapse every month except the current one, once after events load ──
-  const didInitCollapse = useRef(false);
-  useLayoutEffect(() => {
-    if (didInitCollapse.current || calendarLoading || monthGroups.length === 0) return;
-    didInitCollapse.current = true;
-    setCollapsedMonths(new Set(monthGroups.filter(g => !g.isCurrentMonth).map(g => g.id)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [calendarLoading, monthGroups]);
-
   function toggleMonth(id: string) {
-    setCollapsedMonths(prev => {
+    setToggledMonths(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -1672,13 +1711,13 @@ export default function TimelinePage() {
 
               {/* Spine */}
               <div>
-                {calendarLoading && monthGroups.length === 0 ? (
+                {calendarLoading && !hasEvents ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {[...Array(5)].map((_, i) => (
                       <div key={i} style={{ height: 56, borderRadius: 10, border: "1px solid var(--line-soft)", background: "var(--card)", opacity: 0.5 }} />
                     ))}
                   </div>
-                ) : monthGroups.length === 0 ? (
+                ) : !hasEvents ? (
                   <div style={{ textAlign: "center", padding: "72px 0", color: "var(--faint)" }}>
                     <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 16, color: "var(--muted)" }}>No events on this filter.</p>
                     {activeLayer !== "all" && (
@@ -1687,71 +1726,93 @@ export default function TimelinePage() {
                   </div>
                 ) : (
                   <>
-                  {/* Future tail — months are newest-first, so the "nothing past X"
-                      note sits at the top, with the most-recent events. */}
-                  {lastEvent && (
-                    <div className="tl-end tl-end--top">
-                      <span className="e-dot" />
-                      <p>Nothing scheduled past {fmtDate(lastEvent.date)}.</p>
-                      <button onClick={() => setActiveModal("create")}>Add event →</button>
-                    </div>
+                  {/* Past: one bar, oldest-first inside when opened, so the whole
+                      spine reads top-to-bottom in time and Today stays the seam. */}
+                  {timeline.pastCount > 0 && (
+                    <button className="past-bar" onClick={() => setPastOpen(o => !o)} aria-expanded={pastOpen}>
+                      <span className="pm">Earlier</span>
+                      <span className="pc">{timeline.pastCount} event{timeline.pastCount === 1 ? "" : "s"}</span>
+                      {overduePast > 0 && <span className="overdue">{overduePast} overdue</span>}
+                      <span className="show">{pastOpen ? "Hide ▴" : "Show ▾"}</span>
+                    </button>
                   )}
-                  {monthGroups.map(group => {
-                    const isCollapsed = collapsedMonths.has(group.id);
+                  {pastOpen && timeline.past.map(group => (
+                    <div key={`past-${group.id}`}>
+                      <div className="tl-month static">
+                        <h2>{group.monthLabel}<span className="yr">{group.year}</span></h2>
+                        <span className="rule" />
+                        <span className="cnt">{group.events.length} event{group.events.length === 1 ? "" : "s"}</span>
+                      </div>
+                      <div className="spine">
+                        {group.events.map(e => (
+                          <TimelineRow
+                            key={e.id}
+                            event={e}
+                            isToday={false}
+                            isPast
+                            done={doneById.get(e.id)}
+                            selected={selectedEvent?.id === e.id}
+                            onSelect={setSelectedEvent}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
 
-                    if (isCollapsed) {
+                  <TodayMarker markerRef={todayRef} />
+
+                  {/* Upcoming: soonest first. The next few weeks are open; months
+                      further out fold into a bar until asked for. */}
+                  {timeline.upcoming.map(group => {
+                    const count    = group.events.length;
+                    const required = group.events.filter(e => e.mandatory).length;
+
+                    if (isMonthCollapsed(group.id)) {
                       return (
-                        <button key={group.id} className="past-bar" onClick={() => toggleMonth(group.id)}>
+                        <button key={group.id} className="past-bar ahead" onClick={() => toggleMonth(group.id)}>
                           <span className="pm">{group.monthLabel} {group.year}</span>
-                          <span className="pc">{group.events.length} event{group.events.length === 1 ? "" : "s"} hidden</span>
+                          <span className="pc">{count} upcoming{required > 0 ? ` · ${required} required` : ""}</span>
                           <span className="show">Show ▾</span>
                         </button>
                       );
                     }
 
-                    // Today marker placement inside the current month.
-                    let todayMarkerIndex = -1;
-                    if (group.isCurrentMonth) {
-                      const firstFutureIdx = group.events.findIndex(e => e.date >= todayStr);
-                      if (firstFutureIdx > 0) todayMarkerIndex = firstFutureIdx;
-                    }
-                    const noFutureInMonth = group.isCurrentMonth && !group.events.some(e => e.date >= todayStr);
-
                     return (
-                      <div key={group.id} ref={group.isCurrentMonth ? (el => { currentMonthRef.current = el; }) : undefined}>
+                      <div key={group.id}>
                         <button className={`tl-month${group.isCurrentMonth ? " now" : ""}`} onClick={() => toggleMonth(group.id)}>
                           <h2>{group.monthLabel}<span className="yr">{group.year}</span></h2>
                           <span className="rule" />
                           <span className="cnt">
-                            {group.events.length} event{group.events.length === 1 ? "" : "s"}
-                            {group.isCurrentMonth && requiredThisMonth > 0 ? ` · ${requiredThisMonth} required` : ""}
+                            {count} {group.isCurrentMonth ? "left" : `event${count === 1 ? "" : "s"}`}
+                            {required > 0 ? ` · ${required} required` : ""}
                           </span>
-                          <span className="chev">▾</span>
+                          <span className="chev">▴</span>
                         </button>
 
                         <div className="spine">
-                          {noFutureInMonth && <TodayMarker />}
-                          {group.events.map((e, i) => {
-                            const isPast  = e.date < todayStr;
-                            const isToday = e.date === todayStr;
-                            return (
-                              <React.Fragment key={e.id}>
-                                {i === todayMarkerIndex && <TodayMarker />}
-                                <TimelineRow
-                                  event={e}
-                                  isToday={isToday}
-                                  isPast={isPast}
-                                  selected={selectedEvent?.id === e.id}
-                                  onSelect={setSelectedEvent}
-                                  rowRef={e.id === todayAnchorId ? (el => { todayRef.current = el; }) : undefined}
-                                />
-                              </React.Fragment>
-                            );
-                          })}
+                          {group.events.map(e => (
+                            <TimelineRow
+                              key={e.id}
+                              event={e}
+                              isToday={e.date === todayStr}
+                              isPast={false}
+                              done={doneById.get(e.id)}
+                              selected={selectedEvent?.id === e.id}
+                              onSelect={setSelectedEvent}
+                            />
+                          ))}
                         </div>
                       </div>
                     );
                   })}
+
+                  {lastEvent && (
+                    <div className="tl-end">
+                      <span className="e-dot" />
+                      <p>Nothing scheduled past {fmtDate(lastEvent.date)}.</p>
+                      <button onClick={() => setActiveModal("create")}>Add event →</button>
+                    </div>
+                  )}
                   </>
                 )}
               </div>
@@ -1824,7 +1885,7 @@ export default function TimelinePage() {
                             <span className="soon">{relWhen(upNext.date)}</span>
                           </div>
                           <h3>{upNext.title}</h3>
-                          <p className="meta">{fmtDate(upNext.date)}{upNext.time ? ` · ${upNext.time}` : ""}</p>
+                          <p className="meta">{fmtDate(upNext.date)}{formatEventTime(upNext.time, upNext.schedule) ? ` · ${formatEventTime(upNext.time, upNext.schedule)}` : ""}</p>
                           {(upNext.description || upNext.location) && (
                             <p className="desc">{upNext.description || upNext.location}</p>
                           )}
@@ -1841,7 +1902,7 @@ export default function TimelinePage() {
                               <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
                               <div className="what">
                                 <p className="t">{ev.title}</p>
-                                <p className="s">{catLabelOf(typeMap, ev.category)}{ev.mandatory ? " · Required" : ev.time ? ` · ${ev.time}` : ""}</p>
+                                <p className="s">{catLabelOf(typeMap, ev.category)}{ev.mandatory ? " · Required" : formatEventTime(ev.time, ev.schedule) ? ` · ${formatEventTime(ev.time, ev.schedule)}` : ""}</p>
                               </div>
                             </button>
                           ))}

@@ -181,6 +181,7 @@ export type LiveCheckIn = {
     title: string;
     date: string;
     time: string | null;
+    schedule?: unknown;
     location: string | null;
     mandatory: boolean;
   };
@@ -272,6 +273,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
       title:     event.title,
       date:      event.date,
       time:      event.time,
+      schedule:  event.schedule,
       location:  event.location,
       mandatory: event.mandatory,
     },
@@ -565,6 +567,7 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
       title:     event.title,
       date:      event.date,
       time:      event.time,
+      schedule:  event.schedule,
       location:  event.location,
       mandatory: event.mandatory,
     },

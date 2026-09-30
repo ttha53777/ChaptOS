@@ -15,6 +15,7 @@ import type { RequestContext } from "@/lib/context";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { resolveThresholds, isAttendanceExempt, type Thresholds } from "@/lib/thresholds";
 import { getBrotherStatus, type Brother as BrotherType, type BrotherStatus } from "@/app/data";
+import { formatEventTime } from "@/lib/event-time";
 
 export const PEEK_TYPES = ["member", "event", "task"] as const;
 export type PeekType = (typeof PEEK_TYPES)[number];
@@ -170,7 +171,7 @@ async function eventPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
   // The date is the subtitle — repeating it here would spend a grid cell saying
   // what the header already said.
   const facts: PeekFact[] = [
-    ...(event.time ? [{ k: "Time", v: event.time, mono: true }] : []),
+    ...(formatEventTime(event.time, event.schedule) ? [{ k: "Time", v: formatEventTime(event.time, event.schedule)!, mono: true }] : []),
     ...(event.location ? [{ k: "Location", v: event.location }] : []),
     { k: "Category", v: event.category },
     { k: "Attendance required", v: event.mandatory ? "Yes" : "No", tone: event.mandatory ? "warn" : "muted" },

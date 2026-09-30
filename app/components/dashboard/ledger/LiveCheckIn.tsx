@@ -3,6 +3,7 @@ import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import type { LiveCheckIn as LiveCheckInData } from "@/lib/services/attendance-service";
 import { apiErrorMessage } from "../../../lib/api";
 import { WhosHere } from "./WhosHere";
+import { formatEventTime } from "@/lib/event-time";
 
 // No "use client" directive: ledger/* components inherit client-ness from
 // app/[slug]/page.tsx, which is itself "use client".
@@ -214,7 +215,7 @@ export function LiveCheckIn({
           )}
 
           <p className="live-meta">
-            {event.time && <><span>{event.time}</span><span className="dotsep">·</span></>}
+            {formatEventTime(event.time, event.schedule) && <><span>{formatEventTime(event.time, event.schedule)}</span><span className="dotsep">·</span></>}
             {event.location && <><span><b>{event.location}</b></span><span className="dotsep">·</span></>}
             {event.mandatory && <span className="live-req">Mandatory</span>}
 

@@ -19,6 +19,10 @@ import { orgFetch } from "../../lib/api";
 import { daysFromToday, todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/meetings-ledger.css";
+import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
+import { useNow } from "../../hooks/useNow";
+import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
+import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 
 const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
 
@@ -41,7 +45,7 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 function sortedMeetings(events: CalendarEvent[]) {
-  return [...events].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  return [...events].sort((a, b) => compareEvents(b, a)); // newest first, by start time within a day
 }
 
 function fmtDateFull(dateStr: string) {
@@ -88,7 +92,10 @@ type AttendanceSummaryRow = { calendarEventId: number; present: number; eligible
 
 // ─── MeetingForm (shared by add + edit modals) ────────────────────────────────
 
-type MeetingDraft = { title: string; date: string; time: string; location: string };
+type MeetingDraft = { title: string; when: ScheduleValue; location: string };
+/** What the calendar API takes. A structured schedule decides date/time server-side;
+ *  only a legacy "as written" time travels as free text. */
+type MeetingInput = { title: string; location: string; schedule: Schedule | null; date: string; time: string | null };
 
 function MeetingForm({
   initial,
@@ -98,7 +105,7 @@ function MeetingForm({
 }: {
   initial: MeetingDraft;
   submitLabel: string;
-  onSubmit: (d: MeetingDraft) => void | Promise<void>;
+  onSubmit: (d: MeetingInput) => void | Promise<void>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState<MeetingDraft>(initial);
@@ -108,16 +115,27 @@ function MeetingForm({
   // both read the pre-render `false`.
   const submitting = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const set = (k: keyof MeetingDraft) =>
+  const [scheduleError, setScheduleError] = useState("");
+  const set = (k: "title" | "location") =>
     (e: React.ChangeEvent<HTMLInputElement>) => setForm(f => ({ ...f, [k]: e.target.value }));
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
     if (submitting.current) return;
+    const result = scheduleFromValue(form.when);
+    if ("error" in result) { setScheduleError(result.error); return; }
+    setScheduleError("");
+    const { schedule } = result;
     submitting.current = true;
     setIsSubmitting(true);
     try {
-      await onSubmit(form);
+      await onSubmit({
+        title: form.title.trim(),
+        location: form.location.trim(),
+        schedule,
+        date: schedule ? scheduleDate(schedule) : form.when.date,
+        time: schedule ? scheduleTime(schedule) : form.when.legacyTime.trim() || null,
+      });
     } finally {
       // On success the parent unmounts this form; on failure it stays open so
       // the officer can retry, which needs the button live again.
@@ -135,14 +153,12 @@ function MeetingForm({
         <FieldLabel tone="dusk">Title *</FieldLabel>
         <input required className={inputDuskCls} value={form.title} onChange={set("title")} placeholder="Spring Chapter Meeting" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Date *</FieldLabel>
-          <input required type="date" className={inputDuskCls} value={form.date} onChange={set("date")} />
-        </div>
-        <div>
-          <FieldLabel tone="dusk">Time</FieldLabel>
-          <input className={inputDuskCls} value={form.time} onChange={set("time")} placeholder="7:00 PM" />
+      <div>
+        <FieldLabel tone="dusk">When *</FieldLabel>
+        {/* ScheduleFields is built on the cef-* vocabulary; .cef-root carries its dusk tokens. */}
+        <div className="cef-root">
+          <ScheduleFields value={form.when} onChange={when => setForm(f => ({ ...f, when }))} />
+          {scheduleError && <p role="alert" className="cef-hint sched-warn">{scheduleError}</p>}
         </div>
       </div>
       <div>
@@ -285,7 +301,7 @@ function MeetingDetailOverlay({
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const meta = [event.time, event.location].filter(Boolean);
+  const meta = [formatEventTime(event.time, event.schedule), event.location].filter(Boolean);
 
   return (
     <div className="dash fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
@@ -565,17 +581,18 @@ export default function ChapterPage() {
   }
 
   // ── Add meeting ───────────────────────────────────────────────────────────────
-  async function handleAdd(draft: MeetingDraft) {
+  async function handleAdd(draft: MeetingInput) {
     setPageError(null);
     try {
       const created = await requestJson<CalendarEvent>("/api/calendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: draft.title.trim(),
+          title: draft.title,
+          schedule: draft.schedule,
           date: draft.date,
-          time: draft.time.trim() || null,
-          location: draft.location.trim() || null,
+          time: draft.time,
+          location: draft.location || null,
           category: "chapter",
           mandatory: true,
           description: "",
@@ -594,7 +611,7 @@ export default function ChapterPage() {
   }
 
   // ── Edit metadata ─────────────────────────────────────────────────────────────
-  async function handleEdit(draft: MeetingDraft) {
+  async function handleEdit(draft: MeetingInput) {
     if (!editTarget) return;
     const id = editTarget.id;
     setPageError(null);
@@ -603,10 +620,11 @@ export default function ChapterPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: draft.title.trim(),
+          title: draft.title,
+          schedule: draft.schedule,
           date: draft.date,
-          time: draft.time.trim() || null,
-          location: draft.location.trim() || null,
+          time: draft.time,
+          location: draft.location || null,
         }),
       });
       setEvents(prev => prev.map(e => e.id === id ? { ...updated, description: e.description } : e));
@@ -677,14 +695,15 @@ export default function ChapterPage() {
   const sorted = useMemo(() => sortedMeetings(events), [events]);
   const selectedEvent = selectedId !== null ? events.find(e => e.id === selectedId) ?? null : null;
 
-  // Next meeting = earliest chapter event on/after today; else the most recent.
+  // Next meeting = earliest chapter event that hasn't finished; else the most recent.
   const today = todayStr();
+  const now = useNow();
   const { nextMeeting, pastMeetings } = useMemo(() => {
-    const upcoming = sorted.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    const upcoming = sorted.filter(e => !isEventOver(e, now)).sort(compareEvents);
     const next = upcoming[0] ?? null;
     const past = sorted.filter(e => e.id !== next?.id);
     return { nextMeeting: next, pastMeetings: past };
-  }, [sorted, today]);
+  }, [sorted, now]);
 
   const meetingsHeld = events.length;
 
@@ -752,7 +771,7 @@ export default function ChapterPage() {
                   <span className="ai-chip">AI</span>
                   <p>
                     {nextMeeting
-                      ? `Next meeting ${relativeWhen(nextMeeting.date).toLowerCase()} — ${fmtDate(nextMeeting.date)}${nextMeeting.time ? ` at ${nextMeeting.time}` : ""}${nextMeeting.location ? ` in ${nextMeeting.location}` : ""}. ${meetingsHeld} meeting${meetingsHeld === 1 ? "" : "s"} on the books this term.`
+                      ? `Next meeting ${relativeWhen(nextMeeting.date).toLowerCase()} — ${fmtDate(nextMeeting.date)}${formatEventTime(nextMeeting.time, nextMeeting.schedule) ? ` at ${formatEventTime(nextMeeting.time, nextMeeting.schedule)}` : ""}${nextMeeting.location ? ` in ${nextMeeting.location}` : ""}. ${meetingsHeld} meeting${meetingsHeld === 1 ? "" : "s"} on the books this term.`
                       : `No upcoming meetings scheduled. ${meetingsHeld} meeting${meetingsHeld === 1 ? "" : "s"} on the books this term.`}
                   </p>
                 </div>
@@ -889,7 +908,7 @@ export default function ChapterPage() {
       {showAddModal && (
         <Modal title="Add Meeting" tone="dusk" onClose={() => setShowAddModal(false)}>
           <MeetingForm
-            initial={{ title: "", date: todayStr(), time: "", location: "" }}
+            initial={{ title: "", when: initialSchedule(null, { date: todayStr(), isNew: true }), location: "" }}
             submitLabel="Add Meeting"
             onSubmit={handleAdd}
             onClose={() => setShowAddModal(false)}
@@ -903,8 +922,7 @@ export default function ChapterPage() {
           <MeetingForm
             initial={{
               title: editTarget.title,
-              date: editTarget.date,
-              time: editTarget.time ?? "",
+              when: initialSchedule(editTarget.schedule, { date: editTarget.date, time: editTarget.time, isNew: false }),
               location: editTarget.location ?? "",
             }}
             submitLabel="Save Changes"
@@ -958,7 +976,7 @@ function OnDeckHero({
     <div className="ondeck">
       <div className="od-top">
         <span className="pill">Next meeting</span>
-        <span className="when">{dp.dow} · {fmtDate(event.date)}{event.time ? ` · ${event.time}` : ""}</span>
+        <span className="when">{dp.dow} · {fmtDate(event.date)}{formatEventTime(event.time, event.schedule) ? ` · ${formatEventTime(event.time, event.schedule)}` : ""}</span>
       </div>
       <h3>{event.title}</h3>
       <p className="od-meta">
