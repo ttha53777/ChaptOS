@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Sidebar } from "../../components/Sidebar";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
@@ -66,7 +66,7 @@ function pollClosesLabel(closeDate: string | null, today: Date): string | null {
 }
 
 export default function TasksPage() {
-  const { taskList, setTaskList, pollList, setPollList, brotherList, currentUser, can } = useChapter();
+  const { taskList, setTaskList, pollList, setPollList, brotherList, currentUser, can, loadedSections } = useChapter();
   const params = useSearchParams();
   const toast = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -127,24 +127,47 @@ export default function TasksPage() {
     (a.brotherId != null && a.brotherId === selfId) || (a.roleId != null && myRoleIds.has(a.roleId)),
   ), [selfId, myRoleIds]);
 
+  // Read-only task sheet: what a deep link opens for members who can't edit.
+  const [taskViewId, setTaskViewId] = useState<number | null>(null);
+  const taskView = taskViewId == null ? null : taskList.find(t => t.id === taskViewId) ?? null;
+  // A ?task=/?poll= link whose target isn't in the loaded list (deleted, or a
+  // stale calendar entry). Said out loud rather than landing on an unmarked list.
+  const [missingLink, setMissingLink] = useState<"task" | "poll" | null>(null);
+
   // Honor ?new=1 / ?task=<id> (tasks) and ?newPoll=1 / ?poll=<id> (polls) from
-  // links on the dashboard / timeline.
+  // the dashboard, timeline and subscribed calendars. A calendar tap is a cold
+  // load, so wait for the list to arrive rather than matching against the empty
+  // initial state; the ref keys on the link so each one is handled exactly once.
+  const tasksLoaded = loadedSections.has("deadlines");
+  const pollsLoaded = loadedSections.has("polls");
+  const handledLink = useRef<string | null>(null);
   useEffect(() => {
-    if (params.get("newPoll") === "1") { openAddPoll(); return; }
+    const key = params.toString();
+    // Permissions read false until the user loads; deciding earlier would hand a
+    // manager the read-only sheet.
+    if (handledLink.current === key || !currentUser) return;
+    if (params.get("newPoll") === "1") { handledLink.current = key; if (canManagePolls) openAddPoll(); return; }
     const pollParam = params.get("poll");
     if (pollParam) {
+      if (!pollsLoaded) return;
+      handledLink.current = key;
       const p = pollList.find(x => x.id === Number(pollParam));
-      if (p) { openEditPoll(p); return; }
+      if (!p) setMissingLink("poll");
+      else if (canManagePolls) openEditPoll(p);
+      else openPollView(p);
+      return;
     }
-    if (params.get("new") === "1") { openAdd(); return; }
+    if (params.get("new") === "1") { handledLink.current = key; if (canManage) openAdd(); return; }
     const taskParam = params.get("task");
     if (taskParam) {
+      if (!tasksLoaded) return;
+      handledLink.current = key;
       const t = taskList.find(x => x.id === Number(taskParam));
-      if (t) openEdit(t);
+      if (!t) setMissingLink("task");
+      else if (canManage) openEdit(t);
+      else setTaskViewId(t.id);
     }
-    // run once on mount; lists are stable enough for the initial deep-link
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [params, currentUser, tasksLoaded, pollsLoaded, taskList, pollList, canManage, canManagePolls, openAdd, openEdit, openAddPoll, openEditPoll, openPollView]);
 
   // ── Filtering + grouping ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -434,6 +457,14 @@ export default function TasksPage() {
             </div>
 
             {error && <div className="tk-error" role="alert">{error}</div>}
+            {missingLink && (
+              <div className="tk-notice" role="status">
+                <span>{missingLink === "task"
+                  ? "This deadline was removed. If you came from your calendar, it disappears there the next time your calendar refreshes."
+                  : "This poll was removed."}</span>
+                <button className="tk-link" onClick={() => setMissingLink(null)}>Dismiss</button>
+              </div>
+            )}
 
             {/* ── Body ── */}
             {!hasAny ? (
@@ -544,6 +575,13 @@ export default function TasksPage() {
         </Modal>
       )}
 
+      {taskView && (
+        <Modal title="Task" tone="dusk" onClose={() => setTaskViewId(null)}>
+          <TaskSheet task={taskView} today={today} canComplete={canCompleteTask(taskView)}
+            onToggle={() => setStatus(taskView, taskView.status === "done" ? "open" : "done")} />
+        </Modal>
+      )}
+
       {confirmDelete && (
         <ConfirmDialog
           title="Delete task"
@@ -595,6 +633,37 @@ export default function TasksPage() {
             onEdit={() => { setPollViewId(null); openEditPoll(pollView); }}
             onDelete={() => { setPollViewId(null); setConfirmDeletePoll({ id: pollView.id, title: pollView.question }); }} />
         </Modal>
+      )}
+    </div>
+  );
+}
+
+/** Read-only task detail for members without MANAGE_TASKS. An assignee can still
+ *  mark it done here, mirroring the row's circle. */
+function TaskSheet({ task, today, canComplete, onToggle }: {
+  task: Task;
+  today: Date;
+  canComplete: boolean;
+  onToggle: () => void;
+}) {
+  const done = task.status === "done";
+  const when = whenLabel(task, today);
+  return (
+    <div className="tk-sheet">
+      <p className="title">{task.title}</p>
+      <dl>
+        <dt>Due</dt>
+        <dd>{task.dueDate ? <>{fmtDate(task.dueDate)} <span className={`when ${when.cls}`}>· {when.txt}</span></> : "No due date"}</dd>
+        <dt>Status</dt>
+        <dd>{done ? "Done" : "Open"}</dd>
+        <dt>Assigned to</dt>
+        <dd>{task.assignments.length
+          ? task.assignments.map(a => a.role?.name ?? a.brother?.name).filter(Boolean).join(", ")
+          : "No one yet"}</dd>
+        {task.notes && <><dt>Notes</dt><dd className="notes">{task.notes}</dd></>}
+      </dl>
+      {canComplete && (
+        <button className="act" onClick={onToggle}>{done ? "Reopen" : "Mark done"}</button>
       )}
     </div>
   );

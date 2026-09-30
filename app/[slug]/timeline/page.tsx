@@ -1269,12 +1269,17 @@ export default function TimelinePage() {
   // steer, and re-selecting on every render would fight their next click.
   const deepLinkedId = searchParams.get("event");
   const didDeepLink  = useRef<string | null>(null);
+  // A calendar/dashboard link to an event that's gone. Said out loud rather than
+  // landing on the timeline with nothing selected.
+  const [deepLinkMissing, setDeepLinkMissing] = useState(false);
   useEffect(() => {
     if (!deepLinkedId || didDeepLink.current === deepLinkedId) return;
-    if (calendarLoading || allEvents.length === 0) return;
+    // Wait for the calendar fetch to settle; a failed fetch shows its own banner,
+    // so it isn't reported as a removed event.
+    if (calendarLoading || calendarError) return;
     const match = allEvents.find(e => String(e.id) === deepLinkedId);
     didDeepLink.current = deepLinkedId;
-    if (!match) return;
+    if (!match) { setDeepLinkMissing(true); return; }
     setSelectedEvent(match);
     // The initial collapse hides every month but the current one, and a week can
     // straddle a month boundary — so open the target's month before scrolling.
@@ -1290,7 +1295,7 @@ export default function TimelinePage() {
       document.querySelector(`[data-event-id="${match.id}"]`)
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
     }));
-  }, [deepLinkedId, calendarLoading, allEvents]);
+  }, [deepLinkedId, calendarLoading, calendarError, allEvents]);
 
   // ── Collapse every month except the current one, once after events load ──
   const didInitCollapse = useRef(false);
@@ -1452,6 +1457,16 @@ export default function TimelinePage() {
                 {calendarError && (
                   <button onClick={() => setCalendarError(null)} className="card-act">Dismiss</button>
                 )}
+              </div>
+            )}
+            {deepLinkMissing && (
+              <div role="status" style={{
+                marginBottom: 14, border: "1px solid var(--line)", borderRadius: 10,
+                background: "var(--card)", padding: "10px 14px", fontSize: 12, color: "var(--ink-soft)",
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+              }}>
+                <span>This event was removed. If you came from your calendar, it disappears there the next time your calendar refreshes.</span>
+                <button onClick={() => setDeepLinkMissing(false)} className="card-act">Dismiss</button>
               </div>
             )}
 

@@ -410,6 +410,38 @@
   font-size: 13px;
 }
 
+/* A deep link (calendar, dashboard) to a task or poll that no longer exists. */
+.dash.dash-tasks .tk-notice {
+  margin-top: 16px;
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+/* ── Read-only task sheet (members without MANAGE_TASKS; mounts in the modal,
+   outside .dash, so it carries its own fallbacks like .tk-form below) ───────── */
+.tk-sheet { display: flex; flex-direction: column; gap: 16px; font-size: 13.5px; color: #c9c2b4; }
+.tk-sheet .title { font-size: 16px; font-weight: 500; color: #ece7dd; overflow-wrap: anywhere; }
+.tk-sheet dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+.tk-sheet dt { font-family: var(--font-geist-mono, ui-monospace, monospace); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #958d7c; padding-top: 3px; }
+.tk-sheet dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.tk-sheet dd.notes { white-space: pre-wrap; }
+.tk-sheet .when { color: #958d7c; }
+.tk-sheet .when.late { color: #d98ba3; }
+.tk-sheet .when.soon { color: #ddb36a; }
+.tk-sheet .act {
+  align-self: flex-start;
+  font-family: var(--font-geist-mono, ui-monospace, monospace); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: #a78bfa; background: rgba(167,139,250,.10); border: 1px solid rgba(167,139,250,.10);
+  border-radius: 8px; padding: 9px 15px; transition: border-color .15s;
+}
+.tk-sheet .act:hover { border-color: #a78bfa; }
+@media (max-width: 420px) { .tk-sheet dl { grid-template-columns: 1fr; gap: 2px; } .tk-sheet dd { margin-bottom: 8px; } }
+
 /* ── Modal form (unchanged grammar, kept for the create/edit dialog) ────────── */
 .dash.dash-tasks .tk-form,
 .tk-form { display: flex; flex-direction: column; gap: 14px; }
