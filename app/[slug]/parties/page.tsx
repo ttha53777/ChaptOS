@@ -60,10 +60,10 @@ function partyWhen(value: ScheduleValue): PartyWhen | { error: string } {
 
 function PartyWhenField({ value, onChange, error }: { value: ScheduleValue; onChange: (v: ScheduleValue) => void; error: string }) {
   return (
-    <div className="cef-root">
-      <FieldLabel tone="dusk">When *</FieldLabel>
+    <div className="cef-field">
+      <span className="cef-label">When</span>
       <ScheduleFields value={value} onChange={onChange} legacyReadOnly />
-      {error && <p role="alert" className="cef-hint sched-warn mt-1">{error}</p>}
+      {error && <p role="alert" className="cef-hint sched-warn">{error}</p>}
     </div>
   );
 }
@@ -87,27 +87,27 @@ function AddPartyForm({ onSubmit, onClose }: {
       const timing = partyWhen(when);
       if ("error" in timing) { setWhenError(timing.error); return; }
       onSubmit({ ...form, ...timing });
-    }} className="space-y-3">
-      <div>
-        <FieldLabel tone="dusk">Party name *</FieldLabel>
-        <input className={inputDuskCls} required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
+    }} className="cef-root cef">
+      <div className="cef-field">
+        <label className="cef-label" htmlFor="party-name">Party name</label>
+        <input id="party-name" className="cef-input" required value={form.name} onChange={set("name")} placeholder="Spring Rush Social" />
       </div>
       <PartyWhenField value={when} onChange={setWhen} error={whenError} />
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Party type</FieldLabel>
-          <select className={inputDuskCls} value={form.partyType} onChange={e => setForm(f => ({ ...f, partyType: e.target.value as "Open" | "Closed" }))}>
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="party-type">Party type</label>
+          <select id="party-type" className="cef-input" value={form.partyType} onChange={e => setForm(f => ({ ...f, partyType: e.target.value as "Open" | "Closed" }))}>
             <option value="Open">Open</option>
             <option value="Closed">Closed</option>
           </select>
         </div>
-        <div>
-          <FieldLabel tone="dusk">Theme</FieldLabel>
-          <input className={inputDuskCls} value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="party-theme">Theme<span className="opt">opt</span></label>
+          <input id="party-theme" className="cef-input" value={form.theme} onChange={set("theme")} placeholder="All White, Black & Gold…" />
         </div>
-        <div>
-          <FieldLabel tone="dusk">Collab org</FieldLabel>
-          <input className={inputDuskCls} value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="party-collab">Collab org<span className="opt">opt</span></label>
+          <input id="party-collab" className="cef-input" value={form.collabOrg} onChange={set("collabOrg")} placeholder="KDF, DSP…" />
         </div>
       </div>
       <div className="flex gap-2 justify-end pt-1">
@@ -144,27 +144,27 @@ function EditPartyForm({ party, onSubmit, onClose }: {
       const timing = partyWhen(when);
       if ("error" in timing) { setWhenError(timing.error); return; }
       onSubmit({ name, ...timing, partyType, theme, collabOrg });
-    }} className="space-y-3">
-      <div>
-        <FieldLabel tone="dusk">Party name *</FieldLabel>
-        <input className={inputDuskCls} required value={name} onChange={e => setName(e.target.value)} />
+    }} className="cef-root cef">
+      <div className="cef-field">
+        <label className="cef-label" htmlFor="party-name">Party name</label>
+        <input id="party-name" className="cef-input" required value={name} onChange={e => setName(e.target.value)} />
       </div>
       <PartyWhenField value={when} onChange={setWhen} error={whenError} />
       <div className="grid grid-cols-2 gap-3">
-        <div>
-          <FieldLabel tone="dusk">Party type</FieldLabel>
-          <select className={inputDuskCls} value={partyType} onChange={e => setPartyType(e.target.value as "Open" | "Closed")}>
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="party-type">Party type</label>
+          <select id="party-type" className="cef-input" value={partyType} onChange={e => setPartyType(e.target.value as "Open" | "Closed")}>
             <option value="Open">Open</option>
             <option value="Closed">Closed</option>
           </select>
         </div>
-        <div>
-          <FieldLabel tone="dusk">Theme</FieldLabel>
-          <input className={inputDuskCls} value={theme} onChange={e => setTheme(e.target.value)} placeholder="All White…" />
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="party-theme">Theme<span className="opt">opt</span></label>
+          <input id="party-theme" className="cef-input" value={theme} onChange={e => setTheme(e.target.value)} placeholder="All White…" />
         </div>
-        <div>
-          <FieldLabel tone="dusk">Collab org</FieldLabel>
-          <input className={inputDuskCls} value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder="KDF, DSP…" />
+        <div className="cef-field">
+          <label className="cef-label" htmlFor="party-collab">Collab org<span className="opt">opt</span></label>
+          <input id="party-collab" className="cef-input" value={collabOrg} onChange={e => setCollabOrg(e.target.value)} placeholder="KDF, DSP…" />
         </div>
       </div>
       <div className="flex gap-2 justify-end pt-1">

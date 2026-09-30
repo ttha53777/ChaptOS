@@ -532,28 +532,28 @@ export default function ServicePage() {
       {/* ── Add / Edit service event modal ── */}
       {eventModal && (
         <Modal title={eventModal === "add" ? "Log service event" : "Edit service event"} tone="dusk" onClose={() => setEventModal(null)}>
-          <div className="space-y-3">
-            <div>
-              <FieldLabel tone="dusk">Title</FieldLabel>
-              <input className="svc-input" value={eventForm.title} autoFocus
+          <div className="cef-root cef">
+            <div className="cef-field">
+              <label className="cef-label" htmlFor="svc-title">Title</label>
+              <input id="svc-title" className="cef-input" value={eventForm.title} autoFocus
                 onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="Beach cleanup, food bank, …" />
             </div>
-            <div className="cef-root">
-              <FieldLabel tone="dusk">When</FieldLabel>
+            <div className="cef-field">
+              <span className="cef-label">When</span>
               <ScheduleFields value={when} onChange={setWhen} legacyReadOnly
                 minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
-              {whenError && <p role="alert" className="cef-hint sched-warn mt-1">{whenError}</p>}
+              {whenError && <p role="alert" className="cef-hint sched-warn">{whenError}</p>}
             </div>
-            <div>
-              <FieldLabel tone="dusk">Location</FieldLabel>
-              <input className="svc-input" value={eventForm.location}
+            <div className="cef-field">
+              <label className="cef-label" htmlFor="svc-location">Location<span className="opt">opt</span></label>
+              <input id="svc-location" className="cef-input" value={eventForm.location}
                 onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
                 placeholder="Address or venue name" />
             </div>
-            <div>
-              <FieldLabel tone="dusk">Notes</FieldLabel>
-              <textarea className="svc-input min-h-[72px] resize-none" value={eventForm.notes}
+            <div className="cef-field">
+              <label className="cef-label" htmlFor="svc-notes">Notes<span className="opt">opt</span></label>
+              <textarea id="svc-notes" className="cef-textarea" value={eventForm.notes}
                 onChange={e => setEventForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Details, dress code, what to bring…" />
             </div>
