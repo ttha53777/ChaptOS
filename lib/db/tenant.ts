@@ -1858,10 +1858,17 @@ function scopedCalendarSubscription(orgId: number, run: Run) {
     update: (data: Prisma.CalendarSubscriptionUpdateManyMutationInput) => run(p => p.calendarSubscription.updateMany({ where: { organizationId: orgId }, data })),
     // Settle one specific validation request; a newer request (different
     // timestamp) is left for the worker pass that projected after it.
-    settleValidation: (requestedAt: Date, validated: boolean) => run(p => p.calendarSubscription.updateMany({
-      where: { organizationId: orgId, validationRequestedAt: requestedAt },
-      data: { validationRequestedAt: null, ...(validated ? { validatedAt: new Date() } : {}) },
-    })),
+    // A passing check also turns the calendar on when the request asked for it
+    // (`goLive`: the caller has confirmed the rollout gate still allows it).
+    // At most one of the two writes matches (enableOnValidation splits them), and
+    // both key on requestedAt, so a newer request is untouched. `enabled` goes in
+    // the same write as `validatedAt`: the calendar_feed_enabled CHECK needs both.
+    settleValidation: (requestedAt: Date, validated: boolean, goLive = false) => run(async p => {
+      const settled = { validationRequestedAt: null, enableOnValidation: false, ...(validated ? { validatedAt: new Date() } : {}) };
+      const where = { organizationId: orgId, validationRequestedAt: requestedAt };
+      const live = await p.calendarSubscription.updateMany({ where: { ...where, enableOnValidation: true }, data: { ...settled, ...(validated && goLive ? { enabled: true } : {}) } });
+      return live.count ? live : p.calendarSubscription.updateMany({ where, data: settled });
+    }),
   };
 }
 function scopedCalendarFeedItem(orgId: number, run: Run) {

@@ -51,8 +51,10 @@ migration process. It adds RLS-protected subscription/projection/work tables, st
 schedules, an officer-confirmed org time zone, and transactional queue triggers.
 The triggers must ship with the tables: a schema-only `db push` is insufficient.
 
-1. In Settings → General → Calendar subscription, an officer confirms the IANA
-   time zone. No server/browser default is silently assigned. It is only the
+1. In Settings → Operations → Calendar subscription, an officer confirms the IANA
+   time zone. The field is prefilled from the officer's device and labelled
+   "from this device"; it is saved only when they turn the calendar on, so no
+   server/browser default is silently assigned. It is only the
    default for newly entered times: every published timed event carries its own
    zone and absolute instants, so changing it later neither pauses nor
    re-validates the subscription (v2; v1 paused the feed).
@@ -68,7 +70,14 @@ The triggers must ship with the tables: a schema-only `db push` is insufficient.
    delete or recategorize the legacy row after confirming its data. Do not synthesize
    party entries or blindly link a similarly named event. Invalid dates are reported
    and excluded; uncertain times publish all-day with the fixed confirmation notice.
-6. Validate. Admins do this themselves in Settings ("Check publication"): it
+   Settings offers the same two fixes per item: **Delete** for a legacy deadline
+   (after the officer checks it has a matching task) and **Add to timeline** for a
+   service project, which follows the backfill rule above and refuses on any
+   possible existing match. Parties link out only; they are never synthesized.
+6. Validate. Admins do this themselves in Settings with **Turn on for members**
+   (`turnOn`), which also sets `enableOnValidation` so the worker enables the feed
+   when the check passes; the officer doesn't wait for it. The standalone
+   `validate` action remains for the CLI and API. Either way it
    creates the credential if missing (when `CALENDAR_FEED_KEY` is configured),
    records `CalendarSubscription.validationRequestedAt` and enqueues work; the
    worker's next full projection settles the request, setting `validatedAt` only

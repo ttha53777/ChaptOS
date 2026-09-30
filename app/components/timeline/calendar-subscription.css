@@ -119,7 +119,22 @@
 .dash .set-section .cal-step-body > p:not([class]) { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
 .dash .set-section .cal-issues { display: flex; flex-direction: column; gap: 8px; }
 .dash .set-section .cal-issues li { font-size: 12.5px; color: var(--ink-soft); }
+.dash .set-section .cal-issue { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; }
+.dash .set-section .cal-issue-text { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dash .set-section ul.cal-issues { list-style: none; margin: 0; padding: 0; }
+.dash .set-section .cal-issue .sc-btn-row { flex-shrink: 0; margin: 0; }
 .dash .set-section .cal-zone { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .cal-sec.tight { gap: 6px; }
 .cal-list { margin-top: 10px; }
 @media (max-width: 420px) { .cal-choices { grid-template-columns: 1fr; } }
+
+/* ── Settings: "Tell your members" — the message as it will read in the chat ── */
+.dash .set-section .cal-tell { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; }
+.dash .set-section .cal-tell-head { display: flex; flex-direction: column; gap: 3px; }
+.dash .set-section .cal-tell-msg {
+  align-self: flex-start; max-width: 520px; overflow-wrap: anywhere;
+  font-size: 13px; line-height: 1.55; color: var(--ink);
+  background: var(--vio-bg); border: 1px solid rgba(167,139,250,.22);
+  border-radius: 14px 14px 14px 4px; padding: 11px 14px;
+}
+.dash .set-section .cal-tell .sc-btn svg { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; }

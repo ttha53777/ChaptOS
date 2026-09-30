@@ -1552,6 +1552,8 @@ model CalendarSubscription {
   validatedAt DateTime?
   // An admin asked for a readiness check; the worker settles it after a full projection.
   validationRequestedAt DateTime?
+  // The pending request also turns the calendar on for members if it passes.
+  enableOnValidation Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

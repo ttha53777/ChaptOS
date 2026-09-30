@@ -21,6 +21,7 @@ import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
 import { EventFieldsSection } from "./sections/EventFieldsSection";
 import { TransactionCategoriesSection } from "./sections/TransactionCategoriesSection";
+import { CalendarSubscription } from "../../components/timeline/CalendarSubscription";
 import { useChapter } from "../../context/ChapterContext";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
 import { scrollIntoViewSafe } from "../../lib/scroll";
@@ -37,7 +38,7 @@ type SectionId =
   | "index"
   | "general" | "vocabulary"
   | "accounts" | "invitations" | "roles" | "member-fields"
-  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "money-categories" | "workflows"
+  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "calendar" | "money-categories" | "workflows"
   | "activity-log" | "billing";
 
 type Intent = "Identity" | "Membership" | "Operations" | "System";
@@ -130,6 +131,12 @@ const NAV_ITEMS: NavItem[] = [
     blurb: "Choose what every event records.",
     lede: "What the events board asks about each event — the same questions for all of them, which is what makes a budget or a head count something you can compare across the term. The ten built-ins can be renamed; add your own, or stop collecting the ones you don't use.",
     icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  },
+  {
+    id: "calendar", label: "Calendar subscription", group: "Operations", tint: "t-sage",
+    blurb: "Put your events and deadlines in members' own calendars.",
+    lede: "Turn it on once and members can add your events and deadlines to Google or Apple Calendar, where they stay up to date on their own. You keep editing them here.",
+    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M12 14v4m-2-2h4",
   },
   {
     id: "money-categories", label: "Money categories", group: "Operations", tint: "t-gold",
@@ -473,6 +480,7 @@ function SettingsPageBody() {
       case "custom-metrics": return <CustomMetricsSection {...props} />;
       case "event-types":    return <EventTypesSection {...props} />;
       case "event-fields":   return <EventFieldsSection {...props} />;
+      case "calendar":       return <CalendarSubscription settings />;
       case "money-categories": return <TransactionCategoriesSection {...props} />;
       case "roles":          return <RolesSection {...props} />;
       case "activity-log":   return <ActivityLogSection {...props} />;

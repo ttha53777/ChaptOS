@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auditCalendarFeed, type ScheduleIssue } from "./audit";
 import { validZone } from "./schedule";
+import { feedRolloutAllowed } from "./config";
 
 type Scoped = ReturnType<typeof db>;
 
@@ -39,6 +40,8 @@ export async function feedReadiness(scoped: Scoped): Promise<FeedReadiness> {
 export async function settleRequestedValidation(orgId: number, requestedAt: Date): Promise<boolean> {
   const scoped = db(orgId);
   const { problem } = await feedReadiness(scoped);
-  await scoped.calendarSubscription.settleValidation(requestedAt, problem === null);
+  // Runs right after a successful full projection, which is what `enable`
+  // otherwise waits for; the rollout gate is re-read in case it closed meanwhile.
+  await scoped.calendarSubscription.settleValidation(requestedAt, problem === null, feedRolloutAllowed(orgId));
   return problem === null;
 }
