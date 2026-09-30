@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { CalendarFeedItem } from "@/app/generated/prisma/client";
-import { scheduleSchema, validDate, wallTimeToInstant, legacySchedule } from "@/lib/calendar-feed/schedule";
+import { scheduleSchema, validDate, wallTimeToInstant, legacySchedule, endInstant, timeIsClear } from "@/lib/calendar-feed/schedule";
 import { calendarProjection, taskProjection, cancellationRetention } from "@/lib/calendar-feed/projection";
 import { renderCalendar } from "@/lib/calendar-feed/render";
 import { googleEventUrl, singleEventIcs } from "@/lib/calendar-feed/single-event";
@@ -26,10 +26,37 @@ describe("schedule validation", () => {
     expect(wallTimeToInstant("2026-11-01T01:30", "America/New_York", "-05:00")).toBe("2026-11-01T06:30:00Z");
     expect(() => wallTimeToInstant("2026-11-01T01:30", "America/New_York", "-06:00")).toThrow();
   });
-  it("supports overnight instants and refuses to infer legacy times", () => {
+  it("supports overnight instants and reads unsaved times from the event's typed time", () => {
     expect(scheduleSchema.safeParse({ kind: "timed", start: "2026-10-01T23:00:00Z", end: "2026-10-02T02:00:00Z", timeZone: "Europe/London" }).success).toBe(true);
-    expect(legacySchedule("2026-10-01", "after dinner")).toEqual({ schedule: { kind: "allDay", start: "2026-10-01", end: "2026-10-02" }, issue: "Time to be confirmed in ChaptOS" });
-    expect(legacySchedule("yesterday", "7 PM").schedule).toBeNull();
+    const zone = "America/New_York";
+    // No time: all-day, nothing to confirm.
+    expect(legacySchedule("2026-10-01", null, zone)).toEqual({ schedule: { kind: "allDay", start: "2026-10-01", end: "2026-10-02" }, issue: null });
+    expect(legacySchedule("2026-10-01", "All Day", zone)).toEqual({ schedule: { kind: "allDay", start: "2026-10-01", end: "2026-10-02" }, issue: null });
+    // A readable time publishes at that time; no end means the default length.
+    expect(legacySchedule("2026-10-01", "7:00 PM", zone)).toEqual({ schedule: { kind: "timed", start: "2026-10-01T23:00:00Z", timeZone: zone }, issue: null });
+    expect(legacySchedule("2026-10-01", "7-9pm", zone).schedule).toEqual({ kind: "timed", start: "2026-10-01T23:00:00Z", end: "2026-10-02T01:00:00Z", timeZone: zone });
+    expect(legacySchedule("2026-10-01", "9pm-1am", zone).schedule).toEqual({ kind: "timed", start: "2026-10-02T01:00:00Z", end: "2026-10-02T05:00:00Z", timeZone: zone });
+    // Unreadable text, no org zone, or a skipped wall time: all-day, to be confirmed.
+    const tbc = { schedule: { kind: "allDay", start: "2026-10-01", end: "2026-10-02" }, issue: "Time to be confirmed in ChaptOS" };
+    expect(legacySchedule("2026-10-01", "7ish", zone)).toEqual(tbc);
+    expect(legacySchedule("2026-10-01", "after dinner", zone)).toEqual(tbc);
+    // A time with no AM/PM is read as PM.
+    expect(legacySchedule("2026-10-01", "7:30", zone).schedule).toEqual({ kind: "timed", start: "2026-10-01T23:30:00Z", timeZone: zone });
+    expect(legacySchedule("2026-10-01", "8", zone).schedule).toEqual({ kind: "timed", start: "2026-10-02T00:00:00Z", timeZone: zone });
+    expect(legacySchedule("2026-10-01", "12:15", zone).schedule).toEqual({ kind: "timed", start: "2026-10-01T16:15:00Z", timeZone: zone });
+    expect(legacySchedule("2026-10-01", "7:00 PM")).toEqual(tbc);
+    expect(legacySchedule("2026-03-08", "2:30 AM", zone).issue).toBe("Time to be confirmed in ChaptOS");
+    expect(legacySchedule("yesterday", "7 PM", zone).schedule).toBeNull();
+  });
+  it("only accepts new times that say AM or PM (or are 24-hour)", () => {
+    for (const ok of ["7:30 PM", "7pm", "7-9pm", "19:00", "07:30", "All Day", ""]) expect(timeIsClear(ok), ok).toBe(true);
+    for (const bad of ["7:30", "8", "11:45", "7ish", "after dinner"]) expect(timeIsClear(bad), bad).toBe(false);
+  });
+  it("accepts a timed event with only a start, which ends an hour later where a calendar needs an end", () => {
+    const startOnly = scheduleSchema.safeParse({ kind: "timed", start: "2026-10-01T23:00:00Z", timeZone: "America/New_York" });
+    expect(startOnly.success).toBe(true);
+    expect(endInstant(startOnly.data!)).toEqual(new Date("2026-10-02T00:00:00Z"));
+    expect(scheduleSchema.safeParse({ kind: "timed", start: "2026-10-01T23:00:00Z", end: "2026-10-01T23:00:00Z", timeZone: "America/New_York" }).success).toBe(false);
   });
 });
 describe("allowlisted projection and serialization", () => {
@@ -143,6 +170,14 @@ describe("single-event copies (Add this event)", () => {
     expect(allDay.searchParams.get("dates")).toBe("20261001/20261002");
     expect(allDay.searchParams.get("details")).toBe(`Time to be confirmed in ChaptOS\nOpen in ChaptOS: ${link}`);
     expect(allDay.searchParams.has("ctz")).toBe(false);
+  });
+  it("publishes a start-only event as a one-hour block in the feed, the copy and the Google link", () => {
+    const startOnly = calendarProjection({ ...event, schedule: { kind: "timed", start: "2026-10-01T23:00:00Z", timeZone: "America/New_York" } })!;
+    const feed = renderCalendar("Org", "org", [item({ published: startOnly as never })], "https://example.com", now).body;
+    expect(feed).toContain("DTSTART:20261001T230000Z");
+    expect(feed).toContain("DTEND:20261002T000000Z");
+    expect(vevent(singleEventIcs(startOnly, { orgId: 1, eventId: 5, orgName: "Org", link, now }))).toEqual(vevent(feed));
+    expect(new URL(googleEventUrl(startOnly, link)).searchParams.get("dates")).toBe("20261001T230000Z/20261002T000000Z");
   });
 });
 describe("credential encryption", () => {

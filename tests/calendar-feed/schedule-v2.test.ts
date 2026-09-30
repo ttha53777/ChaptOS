@@ -15,6 +15,10 @@ describe("resolveWallTime", () => {
 });
 
 describe("moveSchedule", () => {
+  it("keeps a start-only event start-only", () => {
+    const startOnly = { kind: "timed" as const, start: "2026-10-01T23:00:00Z", timeZone: "America/New_York" };
+    expect(moveSchedule(startOnly, "2026-10-08")).toEqual({ ...startOnly, start: "2026-10-08T23:00:00Z" });
+  });
   it("keeps local wall times and length across DST, and all-day spans", () => {
     expect(moveSchedule(ny("2027-03-11T00:00:00Z", "2027-03-11T02:00:00Z"), "2027-03-20")).toEqual(ny("2027-03-20T23:00:00Z", "2027-03-21T01:00:00Z"));
     // Overnight stays overnight.
@@ -41,8 +45,11 @@ describe("parseLegacyTime", () => {
   ])("reads %s", (text, expected) => {
     expect(parseLegacyTime(text)).toEqual({ end: undefined, ...expected });
   });
-  it.each(["TBD", "after dinner", "7", "10:30", "7 at night", "12:75pm"])("leaves unclear text %s alone", text => {
+  it.each(["TBD", "after dinner", "7 at night", "12:75pm"])("leaves unclear text %s alone", text => {
     expect(parseLegacyTime(text).start).toBeUndefined();
+  });
+  it.each([["7", "19:00"], ["10:30", "22:30"], ["12:30", "12:30"]])("reads a lone %s with no AM/PM as PM", (text, start) => {
+    expect(parseLegacyTime(text)).toEqual({ start });
   });
   it("skips digits inside longer numbers and reads the real time", () => {
     expect(parseLegacyTime("Room 204 at 7pm")).toEqual({ start: "19:00", end: undefined });

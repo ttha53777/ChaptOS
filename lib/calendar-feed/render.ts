@@ -2,7 +2,7 @@ import ical, { ICalEventStatus, ICalEventTransparency } from "ical-generator";
 import { createHash } from "node:crypto";
 import type { CalendarFeedItem } from "@/app/generated/prisma/client";
 import type { PublishedItem } from "./projection";
-import { endInstant } from "./schedule";
+import { endInstant, timedEnd } from "./schedule";
 
 // Normalize CR/control characters before serialization. The serializer handles
 // RFC TEXT escaping and UTF-8 octet-aware line folding (covered by tests).
@@ -26,10 +26,11 @@ export function fixedDescription(value: PublishedItem, link: string) {
 }
 /** The published fields as calendar properties: shared by the feed and one-off copies. */
 export function publishedFields(value: PublishedItem, link: string) {
-  const allDay = value.schedule.kind === "allDay";
+  const { schedule } = value;
+  const allDay = schedule.kind === "allDay";
   return {
-    start: new Date(allDay ? `${value.schedule.start}T00:00:00Z` : value.schedule.start),
-    end: new Date(allDay ? `${value.schedule.end}T00:00:00Z` : value.schedule.end),
+    start: new Date(allDay ? `${schedule.start}T00:00:00Z` : schedule.start),
+    end: new Date(allDay ? `${schedule.end}T00:00:00Z` : timedEnd(schedule)),
     allDay,
     summary: text(value.title),
     location: text(value.location),

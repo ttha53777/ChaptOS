@@ -440,7 +440,7 @@ function AdminReadiness({ data, busy, change, reload }: {
 
       {unconfirmed.length > 0 && (
         <details className="cal-details prose" open={unconfirmed.length <= 5}>
-          <summary><span><strong className="text-[var(--ink)]">{unconfirmed.length} event{unconfirmed.length === 1 ? " shows" : "s show"} as all-day in members&apos; calendars</strong> because the time was typed as text. Set a start and end time to fix it.</span></summary>
+          <summary><span><strong className="text-[var(--ink)]">{unconfirmed.length} event{unconfirmed.length === 1 ? " shows" : "s show"} as all-day in members&apos; calendars</strong> because ChaptOS can&apos;t read the time that was typed. Set a start time to fix it.</span></summary>
           <ul className="sc-card cal-list">{unconfirmed.map(issue => <UnconfirmedTime key={issue.id} issue={issue} onSaved={reload} />)}</ul>
         </details>
       )}

@@ -22,17 +22,17 @@ export async function refreshCalendarFeed(orgId: number, reconcile = false): Pro
         tx.task.findMany({ where: { organizationId: orgId }, select: { id: true, title: true, dueDate: true, status: true } }),
         tx.calendarFeedItem.findMany({ where: { organizationId: orgId } }),
       ]);
+      const org = await tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { slug: true, timeZone: true } });
       const current = new Map<string, { sourceType: "calendar" | "task"; sourceId: number; published: PublishedItem }>();
       for (const row of calendar) {
         if (row.programmingEvent && row.programmingEvent.organizationId !== orgId) continue;
-        const published = calendarProjection(row, row.programmingEvent?.stage);
+        const published = calendarProjection(row, row.programmingEvent?.stage, org.timeZone);
         if (published) current.set(`calendar:${row.id}`, { sourceType: "calendar", sourceId: row.id, published });
       }
       for (const row of tasks) {
         const published = taskProjection(row);
         if (published) current.set(`task:${row.id}`, { sourceType: "task", sourceId: row.id, published });
       }
-      const org = await tx.organization.findUniqueOrThrow({ where: { id: orgId }, select: { slug: true } });
       const origin = feedOrigin();
       for (const next of current.values()) next.published.url = `${origin}/${encodeURIComponent(org.slug)}/${next.sourceType === "task" ? "tasks" : "timeline"}?${next.sourceType === "task" ? "task" : "event"}=${next.sourceId}`;
       const now = new Date();

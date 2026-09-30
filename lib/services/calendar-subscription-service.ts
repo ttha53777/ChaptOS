@@ -67,10 +67,10 @@ export async function manageCalendarSubscription(ctx: RequestContext, input: z.i
   if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) throw new ForbiddenError();
   if (input.action === "link") return linkToTimeline(ctx, input.id);
   if (input.action === "timeZone") {
-    // The zone is only the default for newly entered times: every published
-    // timed event carries its own zone and absolute instants, so the feed's
-    // content doesn't change and there is nothing to pause or re-validate.
+    // Events with a saved schedule carry their own zone, but a typed time
+    // ("7:00 PM") is read in the org's zone, so republish those.
     await ctx.db.organization.update({ where: { id: ctx.orgId }, data: { timeZone: input.timeZone } });
+    await ctx.db.calendarFeedWork.enqueue();
   } else {
     const sub = await ctx.db.calendarSubscription.find();
     if (!sub) throw new ValidationError("Calendar subscription migration has not been applied");

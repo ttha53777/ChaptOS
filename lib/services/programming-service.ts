@@ -1,4 +1,4 @@
-import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, scheduleDate, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { guardLegacyNotes } from "@/lib/collaboration/notes-compat";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
@@ -269,6 +269,7 @@ async function assertOwnerInOrg(
 
 export async function createProgrammingTask(ctx: RequestContext, input: CreateProgrammingTaskInput) {
   if (input.schedule) input = { ...input, dueDate: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
+  if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   const types = await managedTypes(ctx);
   requireManagedCategory(types, input.category);
   await assertOwnerInOrg(ctx, input.ownerBrotherId, input.ownerRoleId);
@@ -306,6 +307,8 @@ const FROZEN_WHEN_PUBLISHED = ["title", "dueDate", "location", "time", "category
 export async function updateProgrammingTask(ctx: RequestContext, id: number, input: UpdateProgrammingTaskInput) {
   if (input.schedule) input = { ...input, dueDate: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   const { row: existing, types } = await requireProgrammingEvent(ctx, id);
+  // Only a time being changed must say AM/PM, so older events stay editable.
+  if (input.time && input.time.trim() !== (existing.time ?? "").trim() && !timeIsClear(input.time)) throw new ValidationError(UNCLEAR_TIME);
 
   if (stageIsPublished(existing.stage)) {
     const frozen = FROZEN_WHEN_PUBLISHED.filter(f => input[f] !== undefined);

@@ -13,9 +13,16 @@ export const dateSchema = z.string().refine(validDate, "Use a valid YYYY-MM-DD d
 export const zoneSchema = z.string().max(100).refine(validZone, "Use an IANA time zone, such as America/New_York");
 export const scheduleSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("allDay"), start: dateSchema, end: dateSchema }).strict(),
-  z.object({ kind: z.literal("timed"), start: z.iso.datetime(), end: z.iso.datetime(), timeZone: zoneSchema }).strict(),
-]).refine(v => v.kind === "allDay" ? v.end > v.start : Temporal.Instant.compare(v.end, v.start) > 0, { message: "End must be after start", path: ["end"] });
+  // A timed event's end is optional: officers often only know when it starts.
+  z.object({ kind: z.literal("timed"), start: z.iso.datetime(), end: z.iso.datetime().optional(), timeZone: zoneSchema }).strict(),
+]).refine(v => v.kind === "allDay" ? v.end > v.start : v.end === undefined || Temporal.Instant.compare(v.end, v.start) > 0, { message: "End must be after start", path: ["end"] });
 export type Schedule = z.infer<typeof scheduleSchema>;
+/** How long a start-only event lasts where a calendar needs an end (feeds, copies, links). */
+export const DEFAULT_TIMED_MINUTES = 60;
+/** A timed event's end, or its start plus the default length when none was entered. */
+export function timedEnd(schedule: Extract<Schedule, { kind: "timed" }>): string {
+  return schedule.end ?? Temporal.Instant.from(schedule.start).add({ minutes: DEFAULT_TIMED_MINUTES }).toString();
+}
 export function nextDate(value: string): string { return Temporal.PlainDate.from(value).add({ days: 1 }).toString(); }
 
 /** Reject both nonexistent and repeated wall times. An officer must explicitly choose an offset for the latter. */
@@ -51,7 +58,7 @@ export function moveSchedule(schedule: Schedule, date: string): Schedule | null 
   const shift = (value: string) => Temporal.Instant.from(value).toZonedDateTimeISO(schedule.timeZone).toPlainDateTime().add({ days })
     .toZonedDateTime(schedule.timeZone, { disambiguation: "reject" }).toInstant().toString();
   try {
-    const moved = scheduleSchema.safeParse({ ...schedule, start: shift(schedule.start), end: shift(schedule.end) });
+    const moved = scheduleSchema.safeParse({ ...schedule, start: shift(schedule.start), ...(schedule.end && { end: shift(schedule.end) }) });
     return moved.success ? moved.data : null;
   } catch { return null; }
 }
@@ -62,16 +69,50 @@ export function scheduleTime(schedule: Schedule): string | null {
   return schedule.kind === "allDay" ? null : Temporal.Instant.from(schedule.start).toZonedDateTimeISO(schedule.timeZone).toPlainTime().toString({ smallestUnit: "minute" });
 }
 export function endInstant(schedule: Schedule): Date {
-  return new Date(schedule.kind === "allDay" ? `${schedule.end}T00:00:00Z` : schedule.end);
+  return new Date(schedule.kind === "allDay" ? `${schedule.end}T00:00:00Z` : timedEnd(schedule));
 }
-export function legacySchedule(date: string | null, time: string | null): { schedule: Schedule | null; issue: string | null } {
+/**
+ * An event without a saved schedule, read from its date and typed time. No time
+ * means all-day. A readable time ("7:00 PM", "7-9pm") is published as that time
+ * in the org's zone, with the default length when no end was typed. Only text
+ * nothing can read ("7ish", a bare "8") stays all-day, marked to be confirmed.
+ */
+export function legacySchedule(date: string | null, time: string | null, timeZone?: string | null): { schedule: Schedule | null; issue: string | null } {
   if (!date || !validDate(date)) return { schedule: null, issue: "Invalid or missing date" };
-  // Free text has no trustworthy end. Even a recognizable start is insufficient.
-  return { schedule: { kind: "allDay", start: date, end: nextDate(date) }, issue: time?.trim() ? "Time to be confirmed in ChaptOS" : null };
+  const allDay: Schedule = { kind: "allDay", start: date, end: nextDate(date) };
+  if (!time?.trim() || /^all[\s-]?day$/i.test(time.trim())) return { schedule: allDay, issue: null };
+  const timed = timeZone ? legacyTimed(date, time, timeZone) : null;
+  return timed ? { schedule: timed, issue: null } : { schedule: allDay, issue: "Time to be confirmed in ChaptOS" };
 }
-/** Read an unambiguous clock time out of legacy free text ("7:30 PM", "19:00", "7-9pm").
- *  Only a prefill the officer confirms; anything unclear yields nothing. */
+function legacyTimed(date: string, time: string, timeZone: string): Schedule | null {
+  const { start, end } = parseLegacyTime(time);
+  if (!start || !validZone(timeZone)) return null;
+  // A skipped or repeated wall time has no single answer: leave it all-day.
+  const at = (day: string, hhmm: string) => { const r = resolveWallTime(`${day}T${hhmm}`, timeZone); return r.kind === "ok" ? r.instant : undefined; };
+  const startAt = at(date, start);
+  if (!startAt) return null;
+  // "9pm-1am" ends the next morning.
+  const endAt = end ? at(end > start ? date : nextDate(date), end) : undefined;
+  const parsed = scheduleSchema.safeParse({ kind: "timed", start: startAt, ...(endAt && { end: endAt }), timeZone });
+  return parsed.success ? parsed.data : null;
+}
+/** Read a clock time out of legacy free text ("7:30 PM", "19:00", "7-9pm").
+ *  A time typed alone with no AM/PM ("7:30", "8") is read as PM: chapter events
+ *  are evenings, and older forms didn't ask. New times must say (`timeIsClear`).
+ *  The feed publishes what this reads; anything else unclear yields nothing. */
 export function parseLegacyTime(text: string): { start?: string; end?: string } {
+  const bare = /^\s*([1-9]|1[0-2])(?::([0-5]\d))?\s*$/.exec(text);
+  if (bare) return { start: `${String(Number(bare[1]) % 12 + 12).padStart(2, "0")}:${bare[2] ?? "00"}` };
+  return readClock(text);
+}
+export const UNCLEAR_TIME = "Add AM or PM to the time, e.g. 7:30 PM.";
+/** Whether a newly typed time says AM or PM, or is 24-hour ("19:00", "07:30").
+ *  "7:30" alone is refused so no new event depends on the PM reading above. */
+export function timeIsClear(text: string): boolean {
+  const t = text.trim();
+  return !t || /^all[\s-]?day$/i.test(t) || readClock(t).start !== undefined;
+}
+function readClock(text: string): { start?: string; end?: string } {
   // Whole numbers only ("204" is not 8pm); a/p only as a suffix ("7 at" is not 7am).
   const token = /(?<!\d)(\d{1,2})(?::(\d{2}))?(?!\d)\s*(?:(a|p)(?:\.?\s*m\.?)?(?![a-z]))?/gi;
   const found = [...text.toLowerCase().matchAll(token)].slice(0, 2).map(m => ({ h: Number(m[1]), m: Number(m[2] ?? 0), mer: m[3] as "a" | "p" | undefined, raw: m[0] }));

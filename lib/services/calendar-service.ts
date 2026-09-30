@@ -1,4 +1,4 @@
-import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, scheduleDate, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
@@ -58,6 +58,7 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
 
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
+  if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   await assertCategoryUsable(ctx, input.category, "create");
   await assertWithinActiveSemester(ctx, input.date);
   const { event, partyEventId } = await ctx.db.$transaction(async tx => {
@@ -123,6 +124,8 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
       throw new ValidationError("This event has a party ledger. Keep the Party category to preserve its records.");
     }
     guardLegacyNotes(locked, input);
+    // Only a time being changed must say AM/PM, so older events stay editable.
+    if (input.time && input.time.trim() !== (locked.time ?? "").trim() && !timeIsClear(input.time)) throw new ValidationError(UNCLEAR_TIME);
     if (input.date != null && input.schedule === undefined && input.time === undefined) {
       const followed = followDateChange(locked.schedule, input.date);
       if (followed) { data.schedule = followed.schedule; data.time = followed.time; }

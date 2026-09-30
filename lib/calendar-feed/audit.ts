@@ -1,5 +1,5 @@
 import type { db } from "@/lib/db";
-import { scheduleSchema, validDate } from "./schedule";
+import { legacySchedule, scheduleSchema, validDate } from "./schedule";
 export type ScheduleIssueKind = "legacy-deadline" | "invalid-date" | "time-unconfirmed" | "unlinked-service" | "unlinked-party" | "invalid-due-date";
 export interface ScheduleIssue {
   source: "calendar" | "service" | "party" | "task"; id: number; title: string; issue: string; blocking: boolean;
@@ -8,17 +8,19 @@ export interface ScheduleIssue {
   date?: string; time?: string | null;
 }
 export async function auditCalendarFeed(scoped: ReturnType<typeof db>): Promise<ScheduleIssue[]> {
-  const [calendar, services, parties, tasks] = await Promise.all([
+  const [calendar, services, parties, tasks, org] = await Promise.all([
     scoped.calendarEvent.findMany({ select: { id: true, title: true, date: true, time: true, schedule: true, category: true } }),
     scoped.serviceEvent.findMany({ select: { id: true, title: true, calendarEventId: true } }),
     scoped.partyEvent.findMany({ select: { id: true, name: true, attendanceEventId: true } }),
     scoped.task.findMany({ where: { dueDate: { not: null } }, select: { id: true, title: true, dueDate: true } }),
+    scoped.organization.findFirst({ select: { timeZone: true } }),
   ]);
   const issues: ScheduleIssue[] = [];
   for (const row of calendar) {
     if (row.category === "deadline") issues.push({ kind: "legacy-deadline", source: "calendar", id: row.id, title: row.title, issue: "Legacy deadline: review against tasks, then remove or recategorize this calendar row", blocking: true });
     else if (!validDate(row.date)) issues.push({ kind: "invalid-date", source: "calendar", id: row.id, title: row.title, issue: "Invalid date; excluded from subscription", blocking: false });
-    else if (!scheduleSchema.safeParse(row.schedule).success && row.time?.trim()) issues.push({ kind: "time-unconfirmed", source: "calendar", id: row.id, title: row.title, issue: "Time to be confirmed in ChaptOS; publishes all-day", blocking: false, date: row.date, time: row.time });
+    // Only a typed time nothing can read; a readable one publishes at that time.
+    else if (!scheduleSchema.safeParse(row.schedule).success && legacySchedule(row.date, row.time, org?.timeZone).issue) issues.push({ kind: "time-unconfirmed", source: "calendar", id: row.id, title: row.title, issue: "Time to be confirmed in ChaptOS; publishes all-day", blocking: false, date: row.date, time: row.time });
   }
   const calendarIds = new Set(calendar.map(row => row.id));
   for (const row of services) if (row.calendarEventId === null || !calendarIds.has(row.calendarEventId)) issues.push({ kind: "unlinked-service", source: "service", id: row.id, title: row.title, issue: "Unlinked service project; review/backfill canonical calendar event", blocking: true });

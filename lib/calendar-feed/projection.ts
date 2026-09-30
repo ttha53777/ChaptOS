@@ -14,12 +14,13 @@ export interface PublishedItem {
    *  their hash and only required events take a SEQUENCE bump on reconcile. */
   mandatory?: true;
 }
-export function calendarProjection(row: { title: string; date: string; time: string | null; location: string | null; category: string; mandatory: boolean; schedule: unknown }, stage?: string | null): PublishedItem | null {
+/** `timeZone` is the org's: it places a typed time ("7:00 PM") on events saved without a schedule. */
+export function calendarProjection(row: { title: string; date: string; time: string | null; location: string | null; category: string; mandatory: boolean; schedule: unknown }, stage?: string | null, timeZone?: string | null): PublishedItem | null {
   if (stage && stage !== "confirmed" && stage !== "done") return null;
   // Legacy deadline calendars must be reviewed, never exported alongside tasks.
   if (row.category === "deadline") return null;
   const parsed = scheduleSchema.safeParse(row.schedule);
-  const legacy = legacySchedule(row.date, row.time);
+  const legacy = legacySchedule(row.date, row.time, timeZone);
   const schedule = parsed.success ? parsed.data : legacy.schedule;
   if (!schedule) return null;
   return { title: row.title, location: row.location ?? "", category: row.category, schedule, timeUnconfirmed: !parsed.success && Boolean(legacy.issue), transparent: false, ...(row.mandatory ? { mandatory: true as const } : {}) };

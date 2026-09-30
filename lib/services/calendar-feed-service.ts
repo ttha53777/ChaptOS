@@ -26,12 +26,12 @@ export async function exportCalendarEvent(ctx: RequestContext, id: number, to: "
   const [row, organization] = await Promise.all([
     // The scoped wrapper's return type drops the select; the runtime shape is this.
     ctx.db.calendarEvent.findFirst({ where: { id }, select: { id: true, title: true, date: true, time: true, location: true, category: true, mandatory: true, schedule: true, programmingEvent: { select: { stage: true, organizationId: true } } } }) as Promise<ExportRow | null>,
-    ctx.db.organization.findFirst({ select: { name: true, slug: true } }),
+    ctx.db.organization.findFirst({ select: { name: true, slug: true, timeZone: true } }),
   ]);
   if (!row || !organization) throw new NotFoundError("Event");
   // Same guard as the worker: a cross-org programming link is never published.
   if (row.programmingEvent && row.programmingEvent.organizationId !== ctx.orgId) throw new NotFoundError("Event");
-  const published = calendarProjection(row, row.programmingEvent?.stage);
+  const published = calendarProjection(row, row.programmingEvent?.stage, organization.timeZone);
   if (!published) throw new ValidationError("This event can't be added to a calendar yet");
   let origin = requestOrigin;
   try { origin = feedOrigin(); } catch { /* unconfigured server: link back to where the member is */ }

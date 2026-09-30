@@ -1,10 +1,10 @@
-import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, scheduleDate, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateServiceEventInput, UpdateServiceEventInput } from "@/lib/validation/service-event";
 
@@ -24,6 +24,7 @@ export async function listServiceEvents(ctx: RequestContext) {
 
 export async function createServiceEvent(ctx: RequestContext, input: CreateServiceEventInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) ?? undefined };
+  if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   // Guard before the transaction so neither the CalendarEvent nor the
   // ServiceEvent row is written when the date is out of the active semester.
   await assertWithinActiveSemester(ctx, input.date);
