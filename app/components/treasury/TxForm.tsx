@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { FieldLabel } from "../dashboard/primitives";
 import { inputCls, inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../dashboard/styles";
 import { Transaction, PAYMENT_METHODS } from "../../data";
@@ -98,9 +98,15 @@ export function TxForm({
   // can't silently re-bucket it.
   const categories = catalog.options(type, initial?.category ?? null);
 
+  // A future date defaults to Scheduled, but once someone flips the toggle their
+  // pick sticks across later date edits (and the partial dates a native date
+  // input emits while typing) instead of being reset every keystroke.
+  const pickedStatus = useRef<"posted" | "scheduled" | null>(
+    initial?.date && initial.date > todayStr() ? (initial.status as "posted" | "scheduled") : null
+  );
   function handleDateChange(newDate: string) {
     setDate(newDate);
-    setStatus(newDate > todayStr() ? "scheduled" : "posted");
+    setStatus(newDate > todayStr() ? (pickedStatus.current ?? "scheduled") : "posted");
   }
 
   function addEvent(id: number) {
@@ -178,7 +184,7 @@ export function TxForm({
       {type === "expense" && isFutureDate && (
         <button
           type="button"
-          onClick={() => setStatus(s => s === "scheduled" ? "posted" : "scheduled")}
+          onClick={() => { const next = status === "scheduled" ? "posted" : "scheduled"; pickedStatus.current = next; setStatus(next); }}
           className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
             status === "scheduled"
               ? "border-amber-500/30 bg-amber-500/[0.07]"

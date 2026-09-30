@@ -1924,13 +1924,13 @@ export default function TimelinePage() {
       </div>
 
       {activeModal === "create" && (
-        <Modal title="Add Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm submitLabel="Add Event" onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => setActiveModal(null)}>
+          <CalendarEventForm submitLabel="Add event" onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (
-        <Modal title="Edit Calendar Event" tone="dusk" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save Event" onSubmit={handleUpdateEvent} categoryOptions={editCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        <Modal ariaLabel="Edit calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => setActiveModal(null)}>
+          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save event" onCancel={() => setActiveModal(null)} onSubmit={handleUpdateEvent} categoryOptions={editCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {confirmDeleteEvent && (

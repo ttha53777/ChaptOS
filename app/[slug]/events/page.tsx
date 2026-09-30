@@ -830,9 +830,11 @@ export default function ProgrammingPage() {
       )}
 
       {modal === "add" && (
-        <Modal title="New Event" tone="dusk" onClose={() => setModal(null)}>
+        <Modal ariaLabel="New event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => setModal(null)}>
           <CalendarEventForm
-            submitLabel="Add Event"
+            heading="New event"
+            submitLabel="Add event"
+            onCancel={() => setModal(null)}
             onSubmit={handleAdd}
             categoryOptions={programmingFormOptions}
             showCollab
@@ -851,9 +853,11 @@ export default function ProgrammingPage() {
       )}
 
       {modal === "edit" && editTarget && (
-        <Modal title="Edit Event" tone="dusk" onClose={() => { setModal(null); setEditTarget(null); }}>
+        <Modal ariaLabel="Edit event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => { setModal(null); setEditTarget(null); }}>
           <CalendarEventForm
-            submitLabel="Save Changes"
+            heading="Edit event"
+            submitLabel="Save changes"
+            onCancel={() => { setModal(null); setEditTarget(null); }}
             initialEvent={{
               id: editTarget.id,
               schedule: editTarget.schedule,

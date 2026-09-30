@@ -56,13 +56,6 @@ function lengthMinutes(startTime: string, endTime: string): number {
   return (mins(endTime) - mins(startTime) + 1440) % 1440 || 1440;
 }
 
-/** Moving the start carries the end with it, as calendar apps do, so a 7–9pm
- *  event moved to 8pm reads 8–10pm instead of silently shrinking or wrapping. */
-export function shiftEnd(oldStart: string, oldEnd: string, newStart: string): string {
-  if (![oldStart, oldEnd, newStart].every(t => /^\d{2}:\d{2}$/.test(t))) return oldEnd;
-  return hhmm((mins(newStart) + lengthMinutes(oldStart, oldEnd)) % 1440);
-}
-
 /** An overnight span over 12 hours is almost always an AM/PM slip (7pm–9am
  *  meant 7–9pm). `suggest` is the other-meridiem end when that lands later the
  *  same day. Null when the pair looks deliberate. */
@@ -139,22 +132,22 @@ function allZones(): string[] {
   try { return intl.supportedValuesOf?.("timeZone") ?? []; } catch { return []; }
 }
 
-export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOnly = false }: {
+export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOnly = false, variant = "stacked" }: {
   value: ScheduleValue;
   onChange: (next: ScheduleValue) => void;
   minDate?: string;
   maxDate?: string;
   /** Forms whose API can't store free-text times show the legacy value without editing it. */
   legacyReadOnly?: boolean;
+  /** "inline" is the calendar-event dialog's one-line `date  start → end` row with
+   *  an All day switch; "stacked" is the labelled grid the other forms use. */
+  variant?: "stacked" | "inline";
 }) {
   const id = useId();
   const org = useOrgTimeZone();
   const [pickingZone, setPickingZone] = useState(false);
   const [zoneDraft, setZoneDraft] = useState("");
-  // The end a start edit just moved, so the officer can put it back in one tap.
-  // `from` is the end before the first of a run of start edits (8pm, then 9pm
-  // still offers the original 9pm). Stale once the end no longer reads `to`.
-  const [shifted, setShifted] = useState<{ from: string; to: string } | null>(null);
+  const [showLastDay, setShowLastDay] = useState(false);
   const zones = useMemo(allZones, []);
   const set = (patch: Partial<ScheduleValue>) => onChange({ ...value, ...patch });
   const defaultZone = org.zone ?? deviceZone();
@@ -165,9 +158,11 @@ export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOn
   }, [org.loaded, defaultZone, value, onChange]);
 
   const timed = value.mode === "timed";
-  // Ends only appears once there is a start; a hidden end is ignored.
-  const showEnd = timed && Boolean(value.startTime);
-  const hasEnd = showEnd && Boolean(value.endTime);
+  // Ends only appears once there is a start; a hidden end is ignored. It stays
+  // up while the start is being retyped (a half-typed time reads as ""), so the
+  // field doesn't vanish and jump back mid-edit.
+  const showEnd = timed && Boolean(value.startTime || value.endTime);
+  const hasEnd = timed && Boolean(value.startTime && value.endTime);
   const start = timed ? wall(value, "start") : null;
   const end = hasEnd ? wall(value, "end") : null;
   // Classify without the chosen offset so the chooser stays visible (and shows
@@ -177,7 +172,6 @@ export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOn
   const overnight = hasEnd && value.endTime <= value.startTime;
   const sameAsStart = hasEnd && value.endTime === value.startTime;
   const suspect = hasEnd ? suspectLength(value.startTime, value.endTime) : null;
-  const moved = hasEnd && shifted?.to === value.endTime && shifted.from !== value.endTime ? shifted : null;
   // "EDT" vs "EST" for the two readings of a repeated hour.
   const offsetName = (which: "start" | "end", offset: string) => {
     try {
@@ -207,6 +201,109 @@ export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOn
     </fieldset>
   );
 
+  const zonePicker = (
+    <div className="cef-field">
+      <label className="cef-label" htmlFor={`${id}-zone`}>Time zone for this event</label>
+      <input id={`${id}-zone`} className="cef-input" list={`${id}-zones`} value={zoneDraft} autoFocus placeholder="Search a city, e.g. Chicago"
+        onChange={e => setZoneDraft(e.target.value)}
+        onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setPickingZone(false); } }} />
+      <datalist id={`${id}-zones`}>{zones.map(z => <option key={z} value={z}>{zoneLabel(z)}</option>)}</datalist>
+      <div className="sched-zone-actions">
+        <button type="button" className="sched-link" disabled={!validZone(zoneDraft)}
+          onClick={() => { set({ zone: zoneDraft, startOffset: "", endOffset: "" }); setPickingZone(false); }}>Use this zone</button>
+        {org.zone && value.zone !== org.zone && (
+          <button type="button" className="sched-link" onClick={() => { set({ zone: org.zone!, startOffset: "", endOffset: "" }); setPickingZone(false); }}>Use the organization&apos;s ({zoneLabel(org.zone)})</button>
+        )}
+        <button type="button" className="sched-link" onClick={() => setPickingZone(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+
+  // Problems a timed span can have, shared by both layouts.
+  const timedWarnings = <>
+    {sameAsStart && <p className="cef-hint sched-warn" role="alert">The end is the same as the start. Clear it or pick a later time.</p>}
+    {suspect && (
+      <p className="cef-hint sched-warn" role="alert">
+        This runs {suspect.hours} hours, ending the next day at {clock12(value.endTime)}.{" "}
+        {suspect.suggest && <button type="button" className="sched-link" onClick={() => set({ endTime: suspect.suggest!, endOffset: "" })}>Change to {clock12(suspect.suggest)}</button>}
+      </p>
+    )}
+    {start?.kind === "gap" && <p className="cef-hint sched-warn" role="alert">That start time doesn&apos;t exist on this date (clocks skip forward an hour).</p>}
+    {end?.kind === "gap" && <p className="cef-hint sched-warn" role="alert">That end time doesn&apos;t exist on this date (clocks skip forward an hour).</p>}
+    {repeatChooser("start", startRepeat)}
+    {repeatChooser("end", endRepeat)}
+  </>;
+
+  if (variant === "inline") {
+    const allDay = value.mode === "allDay";
+    const multiDay = allDay && (showLastDay || Boolean(value.lastDay));
+    const startClock = clock12(value.startTime);
+    return (
+      <div className="sched sched-inline">
+        <div className="sched-when">
+          <label className="sr-only" htmlFor={`${id}-date`}>{multiDay ? "First day" : "Date"}</label>
+          <input id={`${id}-date`} type="date" className="cef-input sched-date" value={value.date} min={minDate} max={maxDate} required
+            onChange={e => set({ date: e.target.value, startOffset: "", endOffset: "" })} />
+          {value.mode === "timed" && <>
+            <label className="sr-only" htmlFor={`${id}-start`}>Starts</label>
+            <input id={`${id}-start`} type="time" className="cef-input sched-time" value={value.startTime} required
+              onChange={e => set({ startTime: e.target.value, startOffset: "" })} />
+            <span className="sched-arrow" aria-hidden>→</span>
+            <label className="sr-only" htmlFor={`${id}-end`}>Ends (optional)</label>
+            <input id={`${id}-end`} type="time" className="cef-input sched-time" value={value.endTime}
+              onChange={e => set({ endTime: e.target.value, endOffset: "" })} />
+          </>}
+          {multiDay && <>
+            <span className="sched-arrow" aria-hidden>→</span>
+            <label className="sr-only" htmlFor={`${id}-last`}>Last day (optional)</label>
+            <input id={`${id}-last`} type="date" className="cef-input sched-date" value={value.lastDay} min={value.date} max={maxDate}
+              onChange={e => set({ lastDay: e.target.value })} />
+          </>}
+          {value.mode === "legacy" && <>
+            <label className="sr-only" htmlFor={`${id}-legacy`}>Time, as written</label>
+            <input id={`${id}-legacy`} className="cef-input sched-legacy" value={value.legacyTime} readOnly={legacyReadOnly} onChange={e => set({ legacyTime: e.target.value })} />
+          </>}
+        </div>
+
+        <div className="sched-meta">
+          <span className="sched-dur" aria-live="polite">
+            {value.mode === "timed" && (
+              !value.startTime ? "Pick a start time"
+                : !value.endTime ? <>Starts <b>{startClock}</b> · no end time</>
+                : sameAsStart ? "End matches start"
+                : <><b>{durationLabel(value.startTime, value.endTime)}</b>{overnight && " · ends next day"}</>
+            )}
+            {allDay && <><b>All day</b>{!multiDay && <> · <button type="button" className="sched-link" onClick={() => setShowLastDay(true)}>Several days</button></>}</>}
+            {value.mode === "legacy" && <b>As written</b>}
+            {value.mode === "timed" && !pickingZone && <>
+              {" · "}
+              <button type="button" className="sched-zone" title="Change time zone" onClick={() => { setZoneDraft(""); setPickingZone(true); }}>
+                {value.zone ? zoneLabel(value.zone) : "Loading time zone…"}
+              </button>
+            </>}
+          </span>
+          <label className="cef-sw">
+            <input type="checkbox" checked={allDay} onChange={e => e.target.checked ? set({ mode: "allDay" }) : value.mode === "allDay" && set({ mode: "timed" })} />
+            <span className="track" aria-hidden />All day
+          </label>
+        </div>
+
+        {value.mode === "legacy" && (
+          <p className="cef-hint">
+            {legacyRead
+              ? <>Calendars show this at {clock12(legacyRead)}{timeIsClear(value.legacyTime) ? "" : " (no AM/PM was typed, so it's read as PM)"}.{" "}</>
+              : <>Calendar subscriptions show this as an all-day event until it has a start time.{" "}</>}
+            <button type="button" className="sched-link" onClick={convertLegacy}>Set a time</button>
+          </p>
+        )}
+        {value.mode === "timed" && <>
+          {timedWarnings}
+          {pickingZone && zonePicker}
+        </>}
+      </div>
+    );
+  }
+
   return (
     <div className="sched">
       <div className="cef-chips" role="radiogroup" aria-label="Schedule">
@@ -231,17 +328,12 @@ export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOn
         {value.mode === "timed" && <>
           <div className="cef-field">
             <label className="cef-label" htmlFor={`${id}-start`}>Starts</label>
-            <input id={`${id}-start`} type="time" className="cef-input" value={value.startTime} required onChange={e => {
-              const startTime = e.target.value;
-              // Keep the length; a cleared start leaves the end for when it comes back.
-              const endTime = startTime && value.startTime && value.endTime ? shiftEnd(value.startTime, value.endTime, startTime) : value.endTime;
-              if (endTime !== value.endTime) setShifted({ from: shifted?.to === value.endTime ? shifted.from : value.endTime, to: endTime });
-              set({ startTime, endTime, startOffset: "", endOffset: endTime === value.endTime ? value.endOffset : "" });
-            }} />
+            <input id={`${id}-start`} type="time" className="cef-input" value={value.startTime} required
+              onChange={e => set({ startTime: e.target.value, startOffset: "" })} />
           </div>
           {showEnd && <div className="cef-field sched-end-in">
             <label className="cef-label" htmlFor={`${id}-end`}>Ends<span className="opt">opt</span></label>
-            <input id={`${id}-end`} type="time" className="cef-input" value={value.endTime} onChange={e => { setShifted(null); set({ endTime: e.target.value, endOffset: "" }); }} />
+            <input id={`${id}-end`} type="time" className="cef-input" value={value.endTime} onChange={e => set({ endTime: e.target.value, endOffset: "" })} />
           </div>}
         </>}
         {value.mode === "allDay" && (
@@ -268,47 +360,14 @@ export function ScheduleFields({ value, onChange, minDate, maxDate, legacyReadOn
       )}
 
       {value.mode === "timed" && <>
-        {hasEnd && !sameAsStart && !suspect && !moved && <p className="cef-hint sched-duration">{durationLabel(value.startTime, value.endTime)}{overnight && " · ends the next day"}</p>}
-        {moved && (
-          <p className="cef-hint" aria-live="polite">
-            End moved to {clock12(moved.to)}{overnight && " the next day"} to keep it {durationLabel(value.startTime, value.endTime)}.{" "}
-            {/* Keeping an end that now equals the start would only trade this note for an error. */}
-            {moved.from !== value.startTime && <button type="button" className="sched-link" onClick={() => { setShifted(null); set({ endTime: moved.from, endOffset: "" }); }}>Keep {clock12(moved.from)}</button>}
-          </p>
-        )}
-        {sameAsStart && <p className="cef-hint sched-warn" role="alert">The end is the same as the start. Clear it or pick a later time.</p>}
-        {suspect && (
-          <p className="cef-hint sched-warn" role="alert">
-            This runs {suspect.hours} hours, ending the next day at {clock12(value.endTime)}.{" "}
-            {suspect.suggest && <button type="button" className="sched-link" onClick={() => set({ endTime: suspect.suggest!, endOffset: "" })}>Change to {clock12(suspect.suggest)}</button>}
-          </p>
-        )}
-        {start?.kind === "gap" && <p className="cef-hint sched-warn" role="alert">That start time doesn&apos;t exist on this date (clocks skip forward an hour).</p>}
-        {end?.kind === "gap" && <p className="cef-hint sched-warn" role="alert">That end time doesn&apos;t exist on this date (clocks skip forward an hour).</p>}
-        {repeatChooser("start", startRepeat)}
-        {repeatChooser("end", endRepeat)}
+        {hasEnd && !sameAsStart && !suspect && <p className="cef-hint sched-duration">{durationLabel(value.startTime, value.endTime)}{overnight && " · ends the next day"}</p>}
+        {timedWarnings}
         {!pickingZone ? (
           <p className="cef-hint">
             {value.zone ? <>Times in {zoneLabel(value.zone)}{!org.zone && value.zone === deviceZone() ? " · this device's zone" : ""}. </> : "Loading time zone… "}
             <button type="button" className="sched-link" onClick={() => { setZoneDraft(""); setPickingZone(true); }}>Change</button>
           </p>
-        ) : (
-          <div className="cef-field">
-            <label className="cef-label" htmlFor={`${id}-zone`}>Time zone for this event</label>
-            <input id={`${id}-zone`} className="cef-input" list={`${id}-zones`} value={zoneDraft} autoFocus placeholder="Search a city, e.g. Chicago"
-              onChange={e => setZoneDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Escape") setPickingZone(false); }} />
-            <datalist id={`${id}-zones`}>{zones.map(z => <option key={z} value={z}>{zoneLabel(z)}</option>)}</datalist>
-            <div className="sched-zone-actions">
-              <button type="button" className="sched-link" disabled={!validZone(zoneDraft)}
-                onClick={() => { set({ zone: zoneDraft, startOffset: "", endOffset: "" }); setPickingZone(false); }}>Use this zone</button>
-              {org.zone && value.zone !== org.zone && (
-                <button type="button" className="sched-link" onClick={() => { set({ zone: org.zone!, startOffset: "", endOffset: "" }); setPickingZone(false); }}>Use the organization&apos;s ({zoneLabel(org.zone)})</button>
-              )}
-              <button type="button" className="sched-link" onClick={() => setPickingZone(false)}>Cancel</button>
-            </div>
-          </div>
-        )}
+        ) : zonePicker}
       </>}
     </div>
   );

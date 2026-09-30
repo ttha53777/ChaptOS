@@ -2509,8 +2509,8 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "event" && (
-        <Modal title="New Event" tone="dusk" onClose={closeModal}>
-          <CalendarEventForm submitLabel="Add Event" onSubmit={handleAddCalendarEvent} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={closeModal}>
+          <CalendarEventForm submitLabel="Add event" onCancel={closeModal} onSubmit={handleAddCalendarEvent} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
         </Modal>
       )}
       {activeModal === "deadline" && canTasks && (

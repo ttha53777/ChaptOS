@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add Calendar Event — mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+    --bg: #0b0a08; --panel: #0f0d0a; --card: #161310; --card-2: #1b1813;
+    --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+    --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+    --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10);
+    --c-chapter:#8fb0d6; --c-social:#ddb36a; --c-fundy:#86b988; --c-program:#a78bfa;
+    --c-party:#d98ba3; --c-service:#5fbdb0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+
+  /* Fake timeline behind the scrim, just for context */
+  .page { padding: 40px 56px; opacity: .5; }
+  .page h1 { font-family: var(--serif); font-weight: 400; font-size: 34px; margin: 0 0 28px; }
+  .page .row { height: 54px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 13px; }
+  .page .row i { width: 8px; height: 8px; border-radius: 50%; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(10px); display: grid; place-items: center; padding: 16px; }
+
+  /* ── The dialog ─────────────────────────────────────────────── */
+  .dlg {
+    width: 100%; max-width: 680px; max-height: calc(100dvh - 32px); overflow: auto;
+    background: var(--panel); border: 1px solid rgba(236,231,221,.1); border-radius: 18px;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 0 28px; }
+  .dlg-kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .x { width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .x:hover { background: rgba(236,231,221,.07); color: var(--ink); }
+
+  form { padding: 4px 28px 0; }
+
+  /* Title: the headline of the event, typed where it will be read */
+  .title {
+    width: 100%; background: none; border: 0; outline: none; padding: 6px 0 14px;
+    font-family: var(--serif); font-size: 28px; line-height: 1.2; color: var(--ink);
+    border-bottom: 1px solid var(--line);
+  }
+  .title::placeholder { color: var(--faint); }
+  .title:focus { border-bottom-color: var(--vio); }
+
+  /* Icon-led rows: the icon is the label, so the form reads as a sentence */
+  .rows { display: flex; flex-direction: column; }
+  .r { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 14px; align-items: start; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+  .r:last-child { border-bottom: 0; }
+  .ic { width: 18px; height: 18px; margin-top: 9px; color: var(--faint); }
+  .r:focus-within .ic { color: var(--vio); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  .field {
+    font-family: var(--sans); font-size: 14px; color: var(--ink); background: var(--card-2);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; outline: none; min-width: 0;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .field::placeholder { color: var(--faint); }
+  .field:focus { border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+  input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { filter: invert(.7); cursor: pointer; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* When */
+  .when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .when .date { flex: 1 1 170px; }
+  .when .time { width: 124px; }
+  .arrow { color: var(--faint); font-size: 13px; }
+  .when-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; min-height: 22px; }
+  .dur { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .dur b { color: var(--ink-soft); font-weight: 500; }
+
+  /* Switch (shared by All day and Required) */
+  .sw { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-soft); cursor: pointer; user-select: none; }
+  .sw input { position: absolute; opacity: 0; pointer-events: none; }
+  .sw .track { width: 30px; height: 18px; border-radius: 999px; background: rgba(236,231,221,.12); position: relative; transition: background .15s; flex-shrink: 0; }
+  .sw .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-soft); transition: transform .15s, background .15s; }
+  .sw input:checked + .track { background: var(--vio-deep); }
+  .sw input:checked + .track::after { transform: translateX(12px); background: #fff; }
+  .sw input:focus-visible + .track { box-shadow: 0 0 0 3px var(--vio-bg); }
+
+  /* Category */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 3px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font: 500 12.5px var(--sans);
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px 6px 10px;
+    transition: color .12s, border-color .12s, background .12s;
+  }
+  .chip:hover { color: var(--ink-soft); border-color: rgba(236,231,221,.2); }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .chip[aria-checked=true] { color: var(--ink); border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .hint { font-family: var(--serif); font-style: italic; font-size: 12.5px; color: var(--faint); margin: 8px 0 0; }
+
+  /* Required attendance: a row of its own, with the why underneath */
+  .req { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 6px; }
+  .req .t { font-size: 14px; color: var(--ink); }
+  .req .s { font-size: 12.5px; color: var(--faint); margin-top: 2px; }
+
+  /* Details: quiet, no boxes until you need them */
+  .quiet { width: 100%; background: none; border: 0; border-radius: 8px; padding: 9px 12px; font: 14px/1.5 var(--sans); color: var(--ink); outline: none; resize: none; transition: background .12s; }
+  .quiet::placeholder { color: var(--faint); }
+  .quiet:hover { background: rgba(236,231,221,.03); }
+  .quiet:focus { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--vio); }
+  textarea.quiet { min-height: 44px; max-height: 160px; overflow: auto; }
+
+  /* Footer */
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 28px 20px; margin-top: 8px; border-top: 1px solid var(--line-soft); }
+  .kbd { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+  .kbd kbd { font: inherit; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--muted); }
+  .btns { display: flex; gap: 8px; margin-left: auto; }
+  .btn { font: 500 13.5px var(--sans); border-radius: 10px; padding: 10px 18px; cursor: pointer; border: 1px solid transparent; }
+  .ghost { background: none; color: var(--muted); border-color: var(--line); }
+  .ghost:hover { color: var(--ink); border-color: rgba(236,231,221,.2); }
+  .primary { background: var(--ink); color: #14110d; font-weight: 600; }
+  .primary:hover { background: #fff; }
+  .primary:disabled { background: rgba(236,231,221,.12); color: var(--faint); cursor: not-allowed; }
+
+  @media (max-width: 520px) {
+    .dlg-head { padding-left: 20px; } form { padding: 4px 20px 0; } .foot { padding: 14px 20px 18px; }
+    .title { font-size: 24px; }
+    .r { grid-template-columns: 20px minmax(0,1fr); gap: 12px; }
+    .when .date { flex-basis: 100%; }
+    .when .time { flex: 1 1 0; width: auto; }
+    .kbd { display: none; }
+    .btns { width: 100%; } .btns .btn { flex: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="page" aria-hidden="true">
+    <h1>Timeline</h1>
+    <div class="row"><i style="background:var(--c-chapter)"></i>Chapter meeting · Sun 7:00 PM</div>
+    <div class="row"><i style="background:var(--c-social)"></i>Mixer with ΚΔ · Fri 9:00 PM</div>
+    <div class="row"><i style="background:var(--c-service)"></i>Food bank shift · Sat 10:00 AM</div>
+    <div class="row"><i style="background:var(--c-fundy)"></i>Pancake breakfast · Oct 12</div>
+    <div class="row"><i style="background:var(--c-party)"></i>Fall formal · Nov 8</div>
+  </div>
+
+  <div class="scrim">
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="k">
+      <div class="dlg-head">
+        <span class="dlg-kicker" id="k">New calendar event</span>
+        <button class="x" type="button" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
+      </div>
+
+      <form id="f">
+        <label class="sr" for="title">Title</label>
+        <input id="title" class="title" placeholder="Event name" autocomplete="off" autofocus required>
+
+        <div class="rows">
+          <!-- When -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <div>
+              <div class="when">
+                <label class="sr" for="date">Date</label>
+                <input id="date" type="date" class="field date num" value="2026-10-04">
+                <span id="times" style="display:contents">
+                  <label class="sr" for="start">Starts</label>
+                  <input id="start" type="time" class="field time num" value="19:00">
+                  <span class="arrow" aria-hidden="true">→</span>
+                  <label class="sr" for="end">Ends</label>
+                  <input id="end" type="time" class="field time num" value="21:00">
+                </span>
+              </div>
+              <div class="when-meta">
+                <span class="dur" id="dur" aria-live="polite"></span>
+                <label class="sw"><input type="checkbox" id="allday"><span class="track"></span>All day</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3" fill="currentColor"/></svg>
+            <div>
+              <div class="chips" role="radiogroup" aria-label="Category" id="chips"></div>
+              <p class="hint" id="hint"></p>
+            </div>
+          </div>
+
+          <!-- Required attendance -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2.5 2.5L16 9"/><rect x="3.5" y="3.5" width="17" height="17" rx="4"/></svg>
+            <label class="req">
+              <span><span class="t">Required attendance</span><span class="s" style="display:block">Take attendance and track excuses.</span></span>
+              <span class="sw"><input type="checkbox" id="req"><span class="track"></span></span>
+            </label>
+          </div>
+
+          <!-- Location -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+            <div><label class="sr" for="loc">Location</label><input id="loc" class="quiet" placeholder="Add location"></div>
+          </div>
+
+          <!-- Description -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+            <div><label class="sr" for="desc">Description</label><textarea id="desc" class="quiet" rows="1" placeholder="Add notes, agenda, or links"></textarea></div>
+          </div>
+        </div>
+      </form>
+
+      <div class="foot">
+        <span class="kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to add</span>
+        <div class="btns">
+          <button class="btn ghost" type="button">Cancel</button>
+          <button class="btn primary" type="submit" form="f" id="go" disabled>Add event</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const CATS = [
+    { slug: "chapter", label: "Chapter", req: true },
+    { slug: "social", label: "Social" },
+    { slug: "fundy", label: "Fundraiser" },
+    { slug: "program", label: "Programming" },
+    { slug: "service", label: "Service" },
+    { slug: "party", label: "Party" },
+  ];
+  const $ = id => document.getElementById(id);
+  let cat = "chapter";
+
+  function renderChips() {
+    $("chips").innerHTML = CATS.map(c => `<button type="button" role="radio" class="chip" aria-checked="${c.slug === cat}" data-s="${c.slug}" style="--c:var(--c-${c.slug})"><span class="dot"></span>${c.label}</button>`).join("");
+    $("hint").textContent = cat === "party" ? "Guest list and wrap-up live on the Parties page." : cat === "chapter" ? "Chapter events are required by default." : "";
+    $("hint").hidden = !$("hint").textContent;
+  }
+  $("chips").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    cat = b.dataset.s; if (CATS.find(c => c.slug === cat).req) $("req").checked = true; renderChips();
+  });
+
+  const m = t => { const [h, n] = t.split(":").map(Number); return h * 60 + n; };
+  const clock = t => { let [h, n] = t.split(":").map(Number); const ap = h < 12 ? "AM" : "PM"; h = h % 12 || 12; return n ? `${h}:${String(n).padStart(2, "0")} ${ap}` : `${h} ${ap}`; };
+  function dur() {
+    const s = $("start").value, e = $("end").value, d = $("dur");
+    if ($("allday").checked) { d.innerHTML = "<b>All day</b>"; return; }
+    if (!s) { d.textContent = "Pick a start time"; return; }
+    if (!e) { d.innerHTML = `Starts <b>${clock(s)}</b> · no end time`; return; }
+    const len = (m(e) - m(s) + 1440) % 1440;
+    if (!len) { d.textContent = "End matches start"; return; }
+    const h = Math.floor(len / 60), n = len % 60;
+    d.innerHTML = `<b>${h ? h + " hr" : ""}${h && n ? " " : ""}${n ? n + " min" : ""}</b>${m(e) <= m(s) ? " · ends next day" : ""}`;
+  }
+  // Moving the start keeps the length, as calendar apps do.
+  let prevStart = $("start").value;
+  $("start").addEventListener("input", () => {
+    const s = $("start").value, e = $("end").value;
+    if (s && prevStart && e) { const len = (m(e) - m(prevStart) + 1440) % 1440, x = (m(s) + len) % 1440; $("end").value = `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`; }
+    prevStart = s; dur();
+  });
+  $("end").addEventListener("input", dur);
+  $("allday").addEventListener("change", () => { $("times").hidden = $("allday").checked; $("times").style.display = $("allday").checked ? "none" : "contents"; dur(); });
+
+  $("title").addEventListener("input", () => { $("go").disabled = !$("title").value.trim(); });
+  $("desc").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+  document.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !$("go").disabled) $("go").click(); });
+  $("f").addEventListener("submit", e => { e.preventDefault(); $("go").textContent = "Added ✓"; });
+
+  $("req").checked = true;
+  renderChips(); dur();
+</script>
+</body>
+</html>

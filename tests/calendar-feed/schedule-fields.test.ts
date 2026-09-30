@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { durationLabel, initialSchedule, scheduleFromValue, shiftEnd, suspectLength, type ScheduleValue } from "@/app/components/timeline/ScheduleFields";
+import { durationLabel, initialSchedule, scheduleFromValue, suspectLength, type ScheduleValue } from "@/app/components/timeline/ScheduleFields";
 
 const value = (patch: Partial<ScheduleValue>): ScheduleValue => ({
   mode: "timed", date: "2026-10-01", startTime: "", endTime: "", lastDay: "", legacyTime: "", zone: "America/New_York", startOffset: "", endOffset: "", ...patch,
@@ -32,17 +32,6 @@ describe("durationLabel", () => {
     expect(durationLabel("19:00", "20:30")).toBe("1 hr 30 min");
     expect(durationLabel("19:00", "19:45")).toBe("45 min");
     expect(durationLabel("22:00", "01:00")).toBe("3 hr");
-  });
-});
-
-describe("shiftEnd", () => {
-  it("keeps the length when the start moves", () => {
-    expect(shiftEnd("19:00", "21:00", "20:00")).toBe("22:00");
-    expect(shiftEnd("19:00", "21:00", "22:00")).toBe("00:00");
-    expect(shiftEnd("22:00", "01:00", "21:30")).toBe("00:30");
-  });
-  it("leaves the end alone when there is nothing to measure", () => {
-    expect(shiftEnd("", "21:00", "20:00")).toBe("21:00");
   });
 });
 
