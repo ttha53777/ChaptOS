@@ -1417,7 +1417,7 @@ export default function TimelinePage() {
             <p className="tb-org hidden text-[11px] leading-tight text-[#958d7c] sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
-          <AddToCalendarButton onClick={() => setSubscribeOpen({})} />
+          <AddToCalendarButton variant="toolbar" onClick={() => setSubscribeOpen({})} />
           <p className="tb-date hidden text-[11px] text-[#958d7c] xl:block shrink-0">{dateShort}</p>
 
           <button

@@ -14,6 +14,21 @@ function serverConfigured(): boolean {
   try { feedOrigin(); return true; } catch { return false; }
 }
 
+/**
+ * What a member may know about publishing. `unknown` covers "no work row" and
+ * "never published": missing health data must never read as up to date. While
+ * work is pending or retrying the feed answers 503, so calendar apps keep the
+ * last copy they fetched; `updatedAt` is when that copy was published.
+ */
+function memberStatus(work: { version: number; appliedVersion: number; processedAt: Date | null; failedAt: Date | null } | null) {
+  const updatedAt = work?.appliedVersion ? work.processedAt : null;
+  const state = !work || !updatedAt ? "unknown"
+    : work.failedAt ? "retrying"
+    : work.version !== work.appliedVersion ? "publishing"
+    : "current";
+  return { state, updatedAt } as const;
+}
+
 export async function getCalendarSubscription(ctx: RequestContext) {
   const [subscription, organization, work] = await Promise.all([ctx.db.calendarSubscription.find(), ctx.db.organization.findFirst({ select: { name: true, timeZone: true } }), ctx.db.calendarFeedWork.find()]);
   const admin = ctx.isOrgAdmin || ctx.isPlatformAdmin;
@@ -23,7 +38,7 @@ export async function getCalendarSubscription(ctx: RequestContext) {
   const timeZone = organization?.timeZone ?? null;
   // Only preview what a subscriber can actually fetch right now.
   const preview = url ? upcomingPreview(await ctx.db.calendarFeedItem.list(), timeZone) : [];
-  const base = { enabled: subscription?.enabled ?? false, available: allowed, url, orgName: organization?.name ?? "", preview, timeZone, admin, validated: Boolean(subscription?.validatedAt) };
+  const base = { enabled: subscription?.enabled ?? false, available: allowed, url, orgName: organization?.name ?? "", preview, timeZone, admin, validated: Boolean(subscription?.validatedAt), status: memberStatus(work), generation: subscription?.generation ?? 0 };
   if (!admin) return base;
   const readiness = await feedReadiness(ctx.db);
   return {

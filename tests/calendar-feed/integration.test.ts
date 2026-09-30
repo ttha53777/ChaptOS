@@ -376,3 +376,26 @@ describe("v2: member setup preview", () => {
     expect((await getCalendarSubscription(member)).preview).toEqual([]);
   });
 });
+
+describe("v2: member publishing status", () => {
+  it("never reports missing health as current, tracks pending work, and bumps generation on rotate", async () => {
+    const f = await fixture();
+    const member = { ...f.ctx, isOrgAdmin: false };
+    const initial = await getCalendarSubscription(member);
+    expect(initial.status.state).toBe("current");
+    expect(initial.status.updatedAt).toBeInstanceOf(Date);
+    expect(initial).not.toHaveProperty("health");
+
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { title: "changed" } });
+    expect((await getCalendarSubscription(member)).status.state).toBe("publishing");
+    await testPrisma.calendarFeedWork.update({ where: { organizationId: f.org.id }, data: { failedAt: new Date(), failures: 1 } });
+    expect((await getCalendarSubscription(member)).status.state).toBe("retrying");
+
+    await testPrisma.calendarFeedWork.delete({ where: { organizationId: f.org.id } });
+    expect((await getCalendarSubscription(member)).status).toEqual({ state: "unknown", updatedAt: null });
+
+    const before = initial.generation;
+    await manageCalendarSubscription(f.ctx, { action: "rotate" });
+    expect((await getCalendarSubscription(member)).generation).toBe(before + 1);
+  });
+});

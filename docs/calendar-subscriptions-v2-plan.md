@@ -1,7 +1,8 @@
 # Calendar subscriptions v2
 
 Proposed September 29, 2026. **1.1 and 1.2 implemented September 30, 2026;
-1.3 implemented September 29, 2026** (see "Status" at the end); the rest is still a plan.
+1.3, 1.4 and 1.5 implemented September 29, 2026** (see "Status" at the end);
+Release 2 is still a plan.
 Builds on `docs/calendar-subscriptions-plan.md` (v1 design) and
 `docs/calendar-subscriptions-rollout.md` (v1 deployment). Supersedes the earlier
 v2 "ease of use" draft, keeping its setup/troubleshooting ideas.
@@ -321,3 +322,34 @@ handoff, 375px width). The real-app timeline was checked only for the button and
 the `?subscribe=` open/close, because the running dev server predates the
 calendar migrations and its stale Prisma client returns 500 for the subscription
 API.
+
+**1.4 Calendar links — implemented.** `tasks/page.tsx` now handles `?task=` /
+`?poll=` / `?new=` / `?newPoll=` once the current user and the relevant list
+(`loadedSections` "deadlines" / "polls") have loaded, guarded by a ref keyed on
+the query string, instead of once on mount against empty lists. Managers still
+get the edit form; everyone else gets a read-only task sheet (due, status,
+assignees, notes), where an assignee can mark it done, and the poll's voting
+view instead of the poll editor. A link to a task or poll that isn't in the list
+shows "This deadline was removed…". The timeline's `?event=` now waits for the
+calendar fetch to settle rather than for a non-empty list, and says "This event
+was removed…" on a miss (a failed fetch keeps its own error banner). Cold load
+through sign-in keeps the query (`proxy.ts` `?next=`), and the `/[slug]` layout
+resolves the org from the URL slug, so a multi-org member lands in the link's
+org without a cookie-sync reload. Not checked in the running app: the dev server
+predates the calendar migrations (see 1.3).
+
+**1.5 Status and troubleshooting — implemented.** Members get
+`status: { state, updatedAt }` and the link `generation` from
+`getCalendarSubscription` (admin `health` stays admin-only). `state` is
+`current`, `publishing`, `retrying`, or `unknown`; no work row or no successful
+publish is `unknown`, never current. The dialog shows "Calendar updated by
+ChaptOS · 3 min ago" (or publishing / retrying / not published yet) under the
+preview, and a **Calendar not updating?** panel covering the four causes. It
+opens by itself when publishing is behind or the link changed. "I've added it"
+now records the link generation, so a member whose link was later replaced sees
+"Your organization replaced this calendar link" and can re-add, and a member who
+had added it sees "paused" rather than "off" when the feed is disabled. No
+"projection" wording remains in UI copy. Checked with the component browser test
+(status line, panel, replaced and paused notices); the new integration test for
+the status states and generation bump is written but was not run, because the
+Docker test database wasn't responding.

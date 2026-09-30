@@ -13,9 +13,9 @@ async function main() {
   const root = process.cwd();
   await writeFile(join(temp, "api.ts"), `
 export const apiErrorMessage=(e,fallback)=>e.message||fallback;
-let state={enabled:true,available:true,url:'https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics',orgName:'Alpha Test',preview:[{title:'Chapter meeting',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'timed',start:'2026-10-06T23:00:00Z',end:'2026-10-07T01:00:00Z',timeZone:'America/New_York'}},{title:'Deadline: Dues',location:'',deadline:true,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-08',end:'2026-10-09'}},{title:'Retreat',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-10',end:'2026-10-12'}}],timeZone:'America/New_York',admin:true,validated:true,validating:false,configured:true,problem:null,issues:[{kind:'time-unconfirmed',source:'calendar',id:7,title:'Chapter meeting',issue:'x',blocking:false,date:'2026-10-05',time:'7-9pm'}],health:{pending:false,failedAt:null,processedAt:'2026-09-29',failures:0}};
+let state={enabled:true,available:true,url:'https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics',orgName:'Alpha Test',preview:[{title:'Chapter meeting',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'timed',start:'2026-10-06T23:00:00Z',end:'2026-10-07T01:00:00Z',timeZone:'America/New_York'}},{title:'Deadline: Dues',location:'',deadline:true,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-08',end:'2026-10-09'}},{title:'Retreat',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-10',end:'2026-10-12'}}],timeZone:'America/New_York',admin:true,validated:true,validating:false,configured:true,problem:null,issues:[{kind:'time-unconfirmed',source:'calendar',id:7,title:'Chapter meeting',issue:'x',blocking:false,date:'2026-10-05',time:'7-9pm'}],health:{pending:false,failedAt:null,processedAt:'2026-09-29',failures:0},status:{state:'current',updatedAt:new Date(Date.now()-180000).toISOString()},generation:0};
 export async function requestJson(url,opts){
- if(opts?.method==='PATCH'){ const body=JSON.parse(opts.body);window.actions.push(body.action);if(body.action==='disable')state={...state,enabled:false,url:null};if(body.action==='rotate')state={...state,url:'https://example.invalid/replacement.ics'};return {ok:true}; }
+ if(opts?.method==='PATCH'){ const body=JSON.parse(opts.body);window.actions.push(body.action);if(body.action==='disable')state={...state,enabled:false,url:null};if(body.action==='rotate')state={...state,url:'https://example.invalid/replacement.ics',generation:state.generation+1};return {ok:true}; }
  return {...state};
 }`);
   await build({ stdin: { contents: `
@@ -38,7 +38,7 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   try {
-    await page.goto(`http://127.0.0.1:${(server.address() as { port: number }).port}`);
+    await page.goto(`http://127.0.0.1:${(server.address() as { port: number }).port}/alpha`);
     // Desktop (Windows): Google is preselected and only its steps show.
     const trigger = page.getByRole("button", { name: "Add to my calendar", exact: true });
     await trigger.click();
@@ -50,6 +50,12 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     assert.match(text, /Due Thu, Oct 8/);
     assert.match(text, /Sat, Oct 10 – Sun, Oct 11/);
     assert.match(text, /Not included: notes/);
+    // Publishing status, and the troubleshooting panel stays shut while current.
+    assert.match(text, /Calendar updated by ChaptOS · 3 min ago/);
+    assert.equal(await dialog.locator("details", { hasText: "Calendar not updating?" }).evaluate(el => (el as HTMLDetailsElement).open), false);
+    await dialog.getByText("Calendar not updating?").click();
+    assert.match(await dialog.innerText(), /No: the latest changes were published 3 min ago/);
+    assert.match(await dialog.innerText(), /imported a one-time copy/);
     assert.equal(await dialog.getByRole("radio", { name: "Google Calendar" }).isChecked(), true);
     assert.match(text, /From URL/);
     assert.doesNotMatch(text, /iCloud/);
@@ -79,7 +85,7 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     // iPhone: Apple preselected; Google hands off to a computer without the feed secret.
     const phone = await browser.newPage({ viewport: { width: 375, height: 740 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
     phone.on("pageerror", error => errors.push(error.message));
-    await phone.goto(page.url().replace(/\/$/, "") + "/alpha");
+    await phone.goto(page.url());
     await phone.getByRole("button", { name: "Add to my calendar", exact: true }).first().click();
     const sheet = phone.getByRole("dialog");
     await sheet.getByText("Choose iCloud", { exact: false }).waitFor();
@@ -104,8 +110,20 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     assert.deepEqual(await page.evaluate(() => (window as unknown as { actions: string[] }).actions), ["validate"]);
     await page.getByRole("button", { name: "Regenerate and revoke old URL" }).click();
     await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("rotate"));
+    // The member who added the old link is told it was replaced, and can re-add.
+    await trigger.click();
+    await dialog.getByText("replaced this calendar link").waitFor();
+    assert.match(await dialog.innerText(), /Yes: the link you added was replaced/);
+    await dialog.getByRole("button", { name: "I've added it" }).click();
+    assert.doesNotMatch(await dialog.innerText(), /replaced this calendar link/);
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
     await page.getByRole("button", { name: "Disable subscription" }).click();
     await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("disable"));
+    await trigger.click();
+    await dialog.getByText("paused calendar updates").waitFor();
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
     // All-day fixer prefills the times the text clearly states.
     await page.getByRole("button", { name: "Set time" }).click();
     const fixer = page.locator("li", { hasText: "Chapter meeting" });
@@ -134,7 +152,7 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     assert.deepEqual(errors, []);
-    console.log("Calendar browser checks passed: provider chooser (UA preselect, keyboard switch), preview, privacy note, clipboard fallback, self-reported confirmation, focus restoration, iPhone Google handoff without secret, webcal, readiness check, rotation confirmation, disable, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport.");
+    console.log("Calendar browser checks passed: publishing status + troubleshooting, replaced-link and paused notices, provider chooser (UA preselect, keyboard switch), preview, privacy note, clipboard fallback, self-reported confirmation, focus restoration, iPhone Google handoff without secret, webcal, readiness check, rotation confirmation, disable, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport.");
   } finally { await browser.close(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(temp, { recursive: true, force: true }); }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

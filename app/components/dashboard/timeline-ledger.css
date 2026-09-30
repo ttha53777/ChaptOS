@@ -19,7 +19,7 @@
 .dash .tl-add-btn svg { stroke: var(--vio); }
 
 /* Briefing carries two actions now — keep them on one row, deadline first. */
-.dash .tl-add-actions { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; }
+.dash .tl-add-actions { flex-shrink: 0; max-width: 100%; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* Ghost variant — secondary "Add Deadline" reads quieter than the filled "Add Event". */
 .dash .tl-add-btn.ghost { color: var(--muted); background: transparent; border-color: var(--line); }
