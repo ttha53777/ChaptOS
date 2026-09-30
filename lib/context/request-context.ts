@@ -55,6 +55,9 @@ export interface BuildContextOpts {
   selfId?: number;
   /** Rate-limit writes per actor. Pass false to skip. Default: true with 30/10s. */
   rateLimit?: boolean | { limit: number; windowMs: number };
+  /** Org the URL names, for plain links that can't send the x-org-slug header
+   *  (downloads). Same precedence and membership check as that header. */
+  orgSlug?: string;
 }
 
 export type BuildContextResult =
@@ -74,7 +77,7 @@ export function buildContext(opts: FeedContextOpts): Promise<{ ctx: FeedContext;
 export function buildContext(opts?: BuildContextOpts): Promise<BuildContextResult>;
 export async function buildContext(opts: BuildContextOpts | FeedContextOpts = {}): Promise<BuildContextResult | { ctx: FeedContext; error?: undefined }> {
   if ("mode" in opts) return buildFeedContext(opts.credentials);
-  const user = await requireUser();
+  const user = await requireUser(opts.orgSlug ? { orgSlug: opts.orgSlug } : undefined);
   if (!user) {
     return { error: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }

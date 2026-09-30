@@ -38,6 +38,7 @@ import { TaskForm, type RoleOption, type TaskFormValue } from "../components/das
 import type { QuickActionKey } from "../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../components/timeline/CalendarEventForm";
+import { CalendarInviteCard } from "../components/timeline/CalendarInvite";
 import { isEventTypeVisibleInPicker } from "../../lib/event-types";
 import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
 import { Card, Modal, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
@@ -2218,6 +2219,11 @@ export default function Home() {
                 ? () => openAttendanceLog(calendarList.find(e => e.id === liveCheckIn.event.id))
                 : undefined}
             />
+
+            {/* ── Calendar invite ─────────────────────────────────────────── */}
+            {/* Self-gating: only while the feed is live and this browser hasn't
+                added it or said "Not now". Also a new member's first-visit nudge. */}
+            <CalendarInviteCard />
 
             {/* ── Pinned announcement ─────────────────────────────────────── */}
             {feature("operations", "announcement") && (

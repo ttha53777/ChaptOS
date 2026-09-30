@@ -18,7 +18,7 @@ export async function refreshCalendarFeed(orgId: number, reconcile = false): Pro
       // the full projection below (requesting also enqueues, so it can't be skipped).
       validationRequestedAt = (await tx.calendarSubscription.findUnique({ where: { organizationId: orgId }, select: { validationRequestedAt: true } }))?.validationRequestedAt ?? null;
       const [calendar, tasks, previous] = await Promise.all([
-        tx.calendarEvent.findMany({ where: { organizationId: orgId }, select: { id: true, title: true, date: true, time: true, location: true, category: true, schedule: true, programmingEvent: { select: { stage: true, organizationId: true } } } }),
+        tx.calendarEvent.findMany({ where: { organizationId: orgId }, select: { id: true, title: true, date: true, time: true, location: true, category: true, mandatory: true, schedule: true, programmingEvent: { select: { stage: true, organizationId: true } } } }),
         tx.task.findMany({ where: { organizationId: orgId }, select: { id: true, title: true, dueDate: true, status: true } }),
         tx.calendarFeedItem.findMany({ where: { organizationId: orgId } }),
       ]);

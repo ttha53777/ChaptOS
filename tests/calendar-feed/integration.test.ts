@@ -14,8 +14,12 @@ import { createCalendar, updateCalendar } from "@/lib/services/calendar-service"
 import { createServiceEvent, updateServiceEvent } from "@/lib/services/service-event-service";
 import { createParty, updateParty } from "@/lib/services/party-service";
 import { GET, HEAD } from "@/app/api/calendar/feeds/[publicId]/[secret]/route";
+import { GET as exportEvent } from "@/app/api/calendar/[id]/export/route";
+import { GET as subscriptionGet } from "@/app/api/calendar/subscription/route";
+import { calendarFeedLive } from "@/lib/services/calendar-subscription-service";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
+import { manageCalendarFeedInput } from "@/lib/validation/calendar-feed";
 import { appPrisma, applyEnforcingRls, dropEnforcingRls, asOrg } from "../setup/rls";
 
 beforeEach(async () => {
@@ -28,7 +32,7 @@ beforeEach(async () => {
 });
 afterAll(async () => { await testPrisma.$disconnect(); await appPrisma.$disconnect(); });
 // Admin fields are absent from member responses, so the inferred type is a union.
-type AdminView = Awaited<ReturnType<typeof getCalendarSubscription>> & { validating?: boolean; problem?: string | null; issues?: { kind: string; title: string }[] };
+type AdminView = Awaited<ReturnType<typeof getCalendarSubscription>> & { validating?: boolean; turningOn?: boolean; problem?: string | null; issues?: { kind: string; title: string; blocking: boolean }[] };
 const adminView = async (ctx: RequestContext) => (await getCalendarSubscription(ctx)) as AdminView;
 function context(orgId: number): RequestContext {
   return { requestId: randomUUID(), orgId, actorId: 1, actorName: "Test", actorEmail: null, authUserId: "auth-test", membershipId: null, permissions: 0, maxRank: 0, isOrgAdmin: true, isPlatformAdmin: false, db: db(orgId) };
@@ -113,6 +117,22 @@ describe("durable projection", () => {
     expect(rows).toHaveLength(1);
     expect(JSON.stringify(rows)).not.toMatch(/Private|SECRET/);
   });
+  it("publishes whether an event is required, and toggling it bumps SEQUENCE", async () => {
+    const f = await fixture();
+    const read = async () => (await (await GET(f.request(), { params: Promise.resolve(f.params) })).text()).replace(/\r\n /g, "");
+    const link = `https://example.com/one/timeline?event=${f.event.id}`;
+    const [before] = await db(f.org.id).calendarFeedItem.list();
+    expect(await read()).toContain(`DESCRIPTION:Required · attendance is taken\\nOpen in ChaptOS: ${link}`);
+    await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { mandatory: false } });
+    await refreshCalendarFeed(f.org.id);
+    const [after] = await db(f.org.id).calendarFeedItem.list();
+    expect(after.uid).toBe(before.uid); expect(after.revision).toBe(before.revision + 1);
+    const body = await read();
+    expect(body).toContain(`DESCRIPTION:Open in ChaptOS: ${link}`);
+    expect(body).toContain(`URL;VALUE=URI:${link}`);
+    expect(body).not.toContain("Required");
+    expect(body).toContain(`SEQUENCE:${after.revision}`);
+  });
   it("keeps UID stable on edits, increments only published changes, and cancels deletions", async () => {
     const f = await fixture(); const [before] = await db(f.org.id).calendarFeedItem.list();
     await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { description: "private new note" } });
@@ -134,9 +154,19 @@ describe("durable projection", () => {
     const task = await testPrisma.task.create({ data: { organizationId: f.org.id, title: "Submit", dueDate: "2027-02-01" } });
     await refreshCalendarFeed(f.org.id);
     const identity = (await db(f.org.id).calendarFeedItem.list()).find(r => r.sourceType === "task")!;
+    // Completing a deadline takes it off calendars as a cancellation...
     await testPrisma.task.update({ where: { id: task.id }, data: { status: "done" } });
     await refreshCalendarFeed(f.org.id);
-    expect((await (await GET(f.request(), { params: Promise.resolve(f.params) })).text())).toContain("[Done] Submit");
+    const done = (await db(f.org.id).calendarFeedItem.list()).find(r => r.uid === identity.uid)!;
+    expect(done.cancelledAt).not.toBeNull(); expect(done.revision).toBe(identity.revision + 1);
+    const doneBody = (await (await GET(f.request(), { params: Promise.resolve(f.params) })).text()).replace(/\r\n /g, "");
+    expect(doneBody).toMatch(/SUMMARY:Deadline: Submit\r\n(?:.*\r\n)*?STATUS:CANCELLED/);
+    expect(doneBody).not.toContain("[Done]");
+    // ...and reopening it restores the same entry.
+    await testPrisma.task.update({ where: { id: task.id }, data: { status: "open" } });
+    await refreshCalendarFeed(f.org.id);
+    const reopened = (await db(f.org.id).calendarFeedItem.list()).find(r => r.sourceType === "task")!;
+    expect(reopened.uid).toBe(identity.uid); expect(reopened.cancelledAt).toBeNull(); expect(reopened.revision).toBe(done.revision + 1);
     await testPrisma.task.update({ where: { id: task.id }, data: { dueDate: null } });
     await refreshCalendarFeed(f.org.id);
     expect((await db(f.org.id).calendarFeedItem.list()).find(r => r.uid === identity.uid)?.cancelledAt).not.toBeNull();
@@ -352,6 +382,64 @@ describe("v2: admins run readiness from Settings", () => {
     expect(view.issues?.find(i => i.kind === "legacy-deadline")?.title).toBe("Old dues deadline");
     await expect(manageCalendarSubscription(ctx, { action: "validate" })).rejects.toThrow(/blocking/);
   });
+  it("turns on in one step: saves the zone, and the worker enables it when the check passes", async () => {
+    const { org, ctx } = await unprovisioned();
+    await manageCalendarSubscription(ctx, { action: "turnOn", timeZone: "America/New_York" });
+    expect((await testPrisma.organization.findUniqueOrThrow({ where: { id: org.id } })).timeZone).toBe("America/New_York");
+    const pending = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+    expect(pending).toMatchObject({ enabled: false, enableOnValidation: true });
+    expect(pending.tokenCiphertext).not.toBeNull();
+    expect(await adminView(ctx)).toMatchObject({ validating: true, turningOn: true });
+
+    await refreshCalendarFeed(org.id);
+    const live = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
+    expect(live).toMatchObject({ enabled: true, enableOnValidation: false, validationRequestedAt: null });
+    expect((await getCalendarSubscription(ctx)).url).not.toBeNull();
+
+    // Turned off later, turning back on is immediate: the check is on file.
+    await manageCalendarSubscription(ctx, { action: "disable" });
+    await manageCalendarSubscription(ctx, { action: "turnOn" });
+    expect((await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } })).enabled).toBe(true);
+  });
+  it("a failed turn-on check, or turning off meanwhile, leaves it off", async () => {
+    const { org, ctx } = await unprovisioned();
+    await expect(manageCalendarSubscription(ctx, { action: "turnOn" })).rejects.toThrow(/time zone/);
+    await manageCalendarSubscription(ctx, { action: "turnOn", timeZone: "America/New_York" });
+    await testPrisma.calendarEvent.create({ data: { organizationId: org.id, title: "Old dues deadline", date: "2027-01-05", category: "deadline", mandatory: false } });
+    await refreshCalendarFeed(org.id);
+    expect(await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } })).toMatchObject({ enabled: false, enableOnValidation: false, validatedAt: null });
+
+    await testPrisma.calendarEvent.deleteMany({ where: { organizationId: org.id, category: "deadline" } });
+    await manageCalendarSubscription(ctx, { action: "turnOn" });
+    await manageCalendarSubscription(ctx, { action: "disable" });
+    await refreshCalendarFeed(org.id);
+    expect((await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } })).enabled).toBe(false);
+  });
+  it("puts an unlinked service project on the timeline like the backfill; never a party or a probable duplicate", async () => {
+    const { org, ctx } = await unprovisioned();
+    const service = await testPrisma.serviceEvent.create({ data: { organizationId: org.id, title: "Food bank", date: "2027-02-01", location: "Main St", notes: "SECRET" } });
+    const party = await testPrisma.partyEvent.create({ data: { organizationId: org.id, name: "Formal", date: "2027-02-03" } });
+    expect((await adminView(ctx)).issues?.filter(i => i.blocking).map(i => i.kind).sort()).toEqual(["unlinked-party", "unlinked-service"]);
+
+    await manageCalendarSubscription(ctx, { action: "link", source: "service", id: service.id });
+    await manageCalendarSubscription(ctx, { action: "link", source: "service", id: service.id }); // already linked: no second entry
+    const { calendarEventId } = await testPrisma.serviceEvent.findUniqueOrThrow({ where: { id: service.id } });
+    const entry = await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: calendarEventId! } });
+    expect(entry).toMatchObject({ title: "Food bank", date: "2027-02-01", category: "service", location: "Main St", description: null, schedule: { kind: "allDay", start: "2027-02-01", end: "2027-02-02" } });
+    expect(await testPrisma.calendarEvent.count({ where: { organizationId: org.id, title: "Food bank" } })).toBe(1);
+    expect((await adminView(ctx)).issues?.filter(i => i.blocking).map(i => i.kind)).toEqual(["unlinked-party"]);
+    // Parties aren't accepted at all: their attendance may belong to an existing event.
+    expect(manageCalendarFeedInput.safeParse({ action: "link", source: "party", id: party.id }).success).toBe(false);
+
+    // A possible existing match is left for a person to decide.
+    const twin = await testPrisma.serviceEvent.create({ data: { organizationId: org.id, title: "Food bank", date: "2027-03-01", location: "", notes: "" } });
+    await expect(manageCalendarSubscription(ctx, { action: "link", source: "service", id: twin.id })).rejects.toThrow(/already has an event/);
+    expect((await testPrisma.serviceEvent.findUniqueOrThrow({ where: { id: twin.id } })).calendarEventId).toBeNull();
+
+    const other = await createOrg("other", "other");
+    const foreign = await testPrisma.serviceEvent.create({ data: { organizationId: other.id, title: "Theirs", date: "2027-02-01", location: "", notes: "" } });
+    await expect(manageCalendarSubscription(ctx, { action: "link", source: "service", id: foreign.id })).rejects.toThrow(/not found/i);
+  });
   it("keeps admin-only readiness out of member responses and member hands off admin actions", async () => {
     const { ctx } = await unprovisioned();
     const memberCtx = { ...ctx, isOrgAdmin: false };
@@ -397,5 +485,45 @@ describe("v2: member publishing status", () => {
     const before = initial.generation;
     await manageCalendarSubscription(f.ctx, { action: "rotate" });
     expect((await getCalendarSubscription(member)).generation).toBe(before + 1);
+  });
+});
+
+describe("A3: invites and one-off copies", () => {
+  const signIn = (orgId: number, id: number) => { session.user = { id, orgId, name: "Member", email: null, authUserId: "member", memberships: [{ id: 1, organizationId: orgId, isOrgAdmin: false }], roleRows: [], isPlatformAdmin: false }; };
+  it("summary says only whether the feed is live, never the URL", async () => {
+    const f = await fixture();
+    signIn(f.org.id, f.ctx.actorId);
+    const body = await (await subscriptionGet(new Request("https://example.com/api/calendar/subscription?summary=1"))).json();
+    expect(body).toEqual({ live: true });
+    await manageCalendarSubscription(f.ctx, { action: "disable" });
+    expect(await calendarFeedLive(f.ctx)).toEqual({ live: false });
+  });
+  it("exports one event as ICS or a Google link from published fields only, never notes", async () => {
+    const f = await fixture();
+    signIn(f.org.id, f.ctx.actorId);
+    const call = (to: string, id = f.event.id) => exportEvent(new Request(`https://example.com/api/calendar/${id}/export?to=${to}&org=${f.org.slug}`), { params: Promise.resolve({ id: String(id) }) });
+    const ics = await call("ics");
+    expect(ics.status).toBe(200);
+    expect(ics.headers.get("content-type")).toContain("text/calendar");
+    expect(ics.headers.get("content-disposition")).toMatch(/^attachment; filename=".+\.ics"$/);
+    const body = await ics.text();
+    expect(body).toContain("SUMMARY:one event");
+    expect(body).toContain(`UID:chaptos-copy-${f.org.id}-${f.event.id}`);
+    expect(body.replace(/\r\n /g, "")).toContain("DESCRIPTION:Required · attendance is taken\\nOpen in ChaptOS: ");
+    expect(body).not.toContain("SECRET");
+    const google = await call("google");
+    expect(google.status).toBe(302);
+    expect(google.headers.get("location")).toMatch(/^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE/);
+    expect(google.headers.get("location")).not.toContain("SECRET");
+    expect((await call("pdf")).status).toBe(400);
+    // The feed's own exclusions hold: a draft programming event isn't exportable.
+    await testPrisma.programmingEvent.create({ data: { organizationId: f.org.id, calendarEventId: f.event.id, title: "Program", date: "2027-01-01", category: "service", stage: "planning" } });
+    expect((await call("ics")).status).toBe(400);
+  });
+  it("can't export another org's event", async () => {
+    const first = await fixture(); const second = await fixture("two");
+    signIn(first.org.id, first.ctx.actorId);
+    const res = await exportEvent(new Request(`https://example.com/api/calendar/${second.event.id}/export?to=ics`), { params: Promise.resolve({ id: String(second.event.id) }) });
+    expect(res.status).toBe(404);
   });
 });

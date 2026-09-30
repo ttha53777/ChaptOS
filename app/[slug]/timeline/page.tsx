@@ -1,5 +1,6 @@
 "use client";
 import { AddToCalendarButton, AddToCalendarDialog, type Provider } from "../../components/timeline/CalendarSubscription";
+import { AddThisEvent, useCalendarLive } from "../../components/timeline/CalendarInvite";
 
 import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useContext } from "react";
@@ -351,6 +352,8 @@ function EventDetail({
   deadlineStatus,
   canCompleteDeadline,
   onToggleDeadline,
+  exportable,
+  onSubscribe,
 }: {
   event: CalendarEvent;
   onClose: () => void;
@@ -372,6 +375,10 @@ function EventDetail({
   deadlineStatus: "open" | "done" | null;
   canCompleteDeadline: boolean;
   onToggleDeadline: (complete: boolean) => void;
+  /** A real CalendarEvent row (not a folded-in deadline/IG row): offer a one-off copy. */
+  exportable: boolean;
+  /** Present while members can subscribe: the sheet points there too. */
+  onSubscribe?: () => void;
 }) {
   const isDeadline = event.category === "deadline";
   const isMeeting  = isMeetingEvent(event);
@@ -556,6 +563,8 @@ function EventDetail({
           </svg>
         </button>
       )}
+
+      {exportable && !isDeadline && <AddThisEvent eventId={event.id} onSubscribe={onSubscribe} />}
 
       {/* Instagram posts that promote this event (set from the Instagram page). */}
       {linkedPosts && linkedPosts.length > 0 && (
@@ -1249,6 +1258,7 @@ export default function TimelinePage() {
   // close so a reload doesn't reopen it.
   const subscribeParam = searchParams.get("subscribe");
   const [subscribeOpen, setSubscribeOpen] = useState<{ provider?: Provider } | null>(null);
+  const calendarLive = useCalendarLive();
   const didSubscribeLink = useRef(false);
   useEffect(() => {
     if (!subscribeParam || didSubscribeLink.current) return;
@@ -1780,6 +1790,8 @@ export default function TimelinePage() {
                     deadlineStatus={selectedDeadline?.status ?? null}
                     canCompleteDeadline={canManageEvents && selectedDeadline != null}
                     onToggleDeadline={(complete) => { if (selectedDeadline) setDeadlineComplete(selectedDeadline.id, complete); }}
+                    exportable={apiEventIds.has(selectedEvent.id)}
+                    onSubscribe={calendarLive ? () => setSubscribeOpen({}) : undefined}
                   />
                 ) : glanceFocus ? (
                   <GlanceDetail

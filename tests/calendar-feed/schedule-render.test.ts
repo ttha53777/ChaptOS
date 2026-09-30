@@ -3,10 +3,11 @@ import type { CalendarFeedItem } from "@/app/generated/prisma/client";
 import { scheduleSchema, validDate, wallTimeToInstant, legacySchedule } from "@/lib/calendar-feed/schedule";
 import { calendarProjection, taskProjection, cancellationRetention } from "@/lib/calendar-feed/projection";
 import { renderCalendar } from "@/lib/calendar-feed/render";
+import { googleEventUrl, singleEventIcs } from "@/lib/calendar-feed/single-event";
 import { createCredential, decryptCredential, tokenMatches } from "@/lib/calendar-feed/credentials";
 
 const now = new Date("2026-09-29T12:00:00Z");
-const event = { title: "Chapter", date: "2026-10-01", time: null, location: "Room 1", category: "chapter", schedule: null };
+const event = { title: "Chapter", date: "2026-10-01", time: null, location: "Room 1", category: "chapter", mandatory: false, schedule: null };
 function item(overrides: Partial<CalendarFeedItem> = {}): CalendarFeedItem {
   return { id: 1, organizationId: 1, sourceType: "calendar", sourceId: 5, uid: "permanent-uid", published: calendarProjection(event) as never, contentHash: "hash", revision: 2, changedAt: new Date("2026-09-28T00:00:00Z"), cancelledAt: null, retainUntil: null, ...overrides };
 }
@@ -50,6 +51,12 @@ describe("allowlisted projection and serialization", () => {
     expect(first.body).toContain("SEQUENCE:2");
     expect(first.body).not.toMatch(/METHOD:|ATTENDEE|ORGANIZER|RSVP/);
   });
+  it("emits hourly refresh hints once, at calendar level", () => {
+    const { body } = renderCalendar("Org", "org", [item()], "https://example.com", now);
+    expect(body.match(/\r\nREFRESH-INTERVAL;VALUE=DURATION:PT1H\r\n/g)).toHaveLength(1);
+    expect(body.match(/\r\nX-PUBLISHED-TTL:PT1H\r\n/g)).toHaveLength(1);
+    expect(body.indexOf("REFRESH-INTERVAL")).toBeLessThan(body.indexOf("BEGIN:VEVENT"));
+  });
   it("escapes property injection, folds Unicode by octet, never leaks notes", () => {
     const published = calendarProjection({ ...event, title: "🎉".repeat(70) + "\r\nATTENDEE:evil;comma,slash\\", description: "SECRET NOTES", notesSummary: "SECRET SUMMARY" } as typeof event)!;
     const { body } = renderCalendar("Org\r\nATTENDEE:evil", "org", [item({ published: published as never })], "https://example.com", now);
@@ -60,15 +67,36 @@ describe("allowlisted projection and serialization", () => {
     expect(body).not.toContain("�");
     expect(body.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
   });
-  it("renders timed events in UTC and all dated tasks transparently including done", () => {
+  it("renders timed events in UTC and open dated tasks transparently; completed tasks aren't published", () => {
     const published = calendarProjection({ ...event, schedule: { kind: "timed", start: "2026-10-01T23:00:00Z", end: "2026-10-02T02:00:00Z", timeZone: "Europe/London" } });
-    const task = taskProjection({ title: "Apply", dueDate: "2026-10-02", status: "done" });
+    const task = taskProjection({ title: "Apply", dueDate: "2026-10-02", status: "open" });
     const { body } = renderCalendar("Org", "org", [item({ published: published as never }), item({ id: 2, uid: "task-uid", sourceType: "task", published: task as never })], "https://example.com", now);
     expect(body).toContain("DTSTART:20261001T230000Z");
     expect(body).toContain("DTEND:20261002T020000Z");
-    expect(body).toContain("SUMMARY:Deadline: [Done] Apply");
+    expect(body).toContain("SUMMARY:Deadline: Apply");
     expect(body).toContain("TRANSP:TRANSPARENT");
     expect(taskProjection({ title: "Apply", dueDate: null, status: "open" })).toBeNull();
+    expect(taskProjection({ title: "Apply", dueDate: "2026-10-02", status: "done" })).toBeNull();
+  });
+  it("describes entries only with fixed lines: required, unconfirmed, and the way back", () => {
+    const description = (value: object, overrides: Partial<CalendarFeedItem> = {}) =>
+      renderCalendar("Org", "org", [item({ published: value as never, ...overrides })], "https://example.com", now).body
+        .replace(/\r\n /g, "").split("\r\n").find(l => l.startsWith("DESCRIPTION:"));
+    const required = calendarProjection({ ...event, mandatory: true, description: "SECRET NOTES", notesSummary: "SECRET SUMMARY" } as typeof event)!;
+    expect(required.mandatory).toBe(true);
+    expect(description(required)).toBe("DESCRIPTION:Required · attendance is taken\\nOpen in ChaptOS: https://example.com/org/timeline?event=5");
+    // Optional events omit the key entirely, so rows published before it existed keep their hash.
+    expect(calendarProjection(event)).not.toHaveProperty("mandatory");
+    expect(description(calendarProjection(event)!)).toBe("DESCRIPTION:Open in ChaptOS: https://example.com/org/timeline?event=5");
+    expect(description(calendarProjection({ ...event, mandatory: true, time: "after dinner" })!))
+      .toBe("DESCRIPTION:Required · attendance is taken\\nTime to be confirmed in ChaptOS\\nOpen in ChaptOS: https://example.com/org/timeline?event=5");
+    // The stored worker URL wins, and URL is still emitted alongside.
+    const stored = { ...calendarProjection(event)!, url: "https://app.test/org/timeline?event=5" };
+    const body = renderCalendar("Org", "org", [item({ published: stored as never })], "https://example.com", now).body.replace(/\r\n /g, "");
+    expect(body).toContain("DESCRIPTION:Open in ChaptOS: https://app.test/org/timeline?event=5");
+    expect(body).toContain("URL;VALUE=URI:https://app.test/org/timeline?event=5");
+    const task = taskProjection({ title: "Apply", dueDate: "2026-10-02", status: "open" })!;
+    expect(description(task, { sourceType: "task", sourceId: 9 })).toBe("DESCRIPTION:Open in ChaptOS: https://example.com/org/tasks?task=9");
   });
   it("retains cancellations through the later retention boundary and excludes expired past entries", () => {
     const published = calendarProjection(event)!;
@@ -78,6 +106,43 @@ describe("allowlisted projection and serialization", () => {
     expect(renderCalendar("Org", "org", [canceled], "https://example.com", now).body).toContain("STATUS:CANCELLED");
     expect(renderCalendar("Org", "org", [canceled], "https://example.com", new Date("2027-01-01")).body).not.toContain("BEGIN:VEVENT");
     expect(renderCalendar("Org", "org", [item()], "https://example.com", new Date("2027-06-01")).body).not.toContain("BEGIN:VEVENT");
+  });
+});
+describe("single-event copies (Add this event)", () => {
+  const timed = calendarProjection({ ...event, location: "Room 1", schedule: { kind: "timed", start: "2026-10-01T23:00:00Z", end: "2026-10-02T02:00:00Z", timeZone: "America/New_York" } })!;
+  const link = "https://example.com/org/timeline?event=5";
+  const vevent = (body: string) => body.replace(/\r\n /g, "").split("\r\n").filter(l => /^(DTSTART|DTEND|SUMMARY|LOCATION|CATEGORIES|TRANSP|DESCRIPTION)[:;]/.test(l)).sort();
+  it("carries exactly the feed's published fields, under its own stable UID", () => {
+    for (const value of [calendarProjection(event)!, timed, calendarProjection({ ...event, time: "after dinner" })!]) {
+      const feed = renderCalendar("Org", "org", [item({ published: value as never })], "https://example.com", now).body;
+      const copy = singleEventIcs(value, { orgId: 1, eventId: 5, orgName: "Org", link, now });
+      expect(vevent(copy)).toEqual(vevent(feed));
+      expect(copy).toContain("UID:chaptos-copy-1-5");
+      expect(copy).not.toContain("permanent-uid");
+      // A one-off copy is not a subscription: no refresh hints.
+      expect(copy).not.toMatch(/REFRESH-INTERVAL|X-PUBLISHED-TTL/);
+    }
+  });
+  it("never includes notes, and escapes hostile titles", () => {
+    const value = calendarProjection({ ...event, title: "Mixer\r\nATTENDEE:evil", description: "SECRET NOTES", notesSummary: "SECRET SUMMARY" } as typeof event)!;
+    const copy = singleEventIcs(value, { orgId: 1, eventId: 5, orgName: "Org", link, now });
+    expect(copy).not.toContain("SECRET");
+    expect(copy).not.toMatch(/\r\nATTENDEE:/);
+    expect(googleEventUrl(value, link)).not.toContain("SECRET");
+  });
+  it("builds Google's create-event link with the same times, and the way back in the details", () => {
+    const url = new URL(googleEventUrl(timed, link));
+    expect(url.origin + url.pathname).toBe("https://calendar.google.com/calendar/render");
+    expect(url.searchParams.get("action")).toBe("TEMPLATE");
+    expect(url.searchParams.get("text")).toBe("Chapter");
+    expect(url.searchParams.get("dates")).toBe("20261001T230000Z/20261002T020000Z");
+    expect(url.searchParams.get("ctz")).toBe("America/New_York");
+    expect(url.searchParams.get("location")).toBe("Room 1");
+    expect(url.searchParams.get("details")).toBe(`Open in ChaptOS: ${link}`);
+    const allDay = new URL(googleEventUrl(calendarProjection({ ...event, time: "after dinner" })!, link));
+    expect(allDay.searchParams.get("dates")).toBe("20261001/20261002");
+    expect(allDay.searchParams.get("details")).toBe(`Time to be confirmed in ChaptOS\nOpen in ChaptOS: ${link}`);
+    expect(allDay.searchParams.has("ctz")).toBe(false);
   });
 });
 describe("credential encryption", () => {

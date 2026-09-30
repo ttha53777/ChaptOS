@@ -1,0 +1,57 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Calendar invites: the dashboard card and the event sheet's "Add this event".
+   Both render inside `.dash` and use its tokens only. The card is the violet
+   counterpart of BillingAlert's rose one: an invitation, not a problem.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Dashboard card ─────────────────────────────────────────────────────────── */
+.dash .cal-invite {
+  margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px;
+  position: relative; overflow: hidden;
+  border: 1px solid rgba(167,139,250,.28); border-radius: 14px; padding: 16px 20px 16px 18px;
+  background: linear-gradient(180deg, rgba(167,139,250,.08), rgba(167,139,250,.02)), var(--card);
+  box-shadow: var(--shadow);
+}
+/* A tiny calendar page with today's date: says "calendar" before the words do. */
+.dash .cal-invite-page {
+  flex-shrink: 0; width: 46px; border-radius: 9px; overflow: hidden; text-align: center;
+  border: 1px solid var(--line); background: var(--card-2);
+}
+.dash .cal-invite-page .m { display: block; padding: 3px 0 2px; background: var(--vio-deep); color: #fff;
+  font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.dash .cal-invite-page .n { display: block; padding: 3px 0 5px; font-family: var(--serif); font-size: 21px; line-height: 1.1; color: var(--ink); }
+.dash .cal-invite-copy { flex: 1 1 280px; min-width: 0; }
+.dash .cal-invite-copy h3 { font-family: var(--serif); font-weight: 500; font-size: 17px; line-height: 1.3; color: var(--ink); }
+.dash .cal-invite-copy p { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.dash .cal-invite-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.dash .cal-invite-go {
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  font-size: 13px; font-weight: 600; color: #fff; background: var(--vio-deep);
+  border: 0; border-radius: 9px; padding: 9px 15px; cursor: pointer; transition: filter .12s;
+}
+.dash .cal-invite-go:hover { filter: brightness(1.1); }
+.dash .cal-invite-go svg { width: 14px; height: 14px; }
+.dash .cal-invite-later { white-space: nowrap; font-size: 12.5px; color: var(--muted); background: none; border: 0; border-radius: 9px; padding: 9px 10px; cursor: pointer; }
+.dash .cal-invite-later:hover { color: var(--ink); }
+.dash .cal-invite-go:focus-visible, .dash .cal-invite-later:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+@media (max-width: 560px) {
+  .dash .cal-invite { align-items: flex-start; }
+  .dash .cal-invite-actions { width: 100%; }
+  .dash .cal-invite-go { flex: 1; justify-content: center; }
+}
+
+/* ── Event sheet: "Add this event" ──────────────────────────────────────────── */
+.dash .cal-one { display: flex; flex-direction: column; gap: 7px; }
+.dash .cal-one > .lab { font-family: var(--mono); font-size: 9.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.dash .cal-one-links { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dash .cal-one-link {
+  display: flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
+  font-size: 12px; font-weight: 500; color: var(--ink-soft);
+  border: 1px solid var(--line); border-radius: 9px; background: var(--card); padding: 8px 10px;
+  transition: border-color .12s, color .12s;
+}
+.dash .cal-one-link:hover { border-color: var(--vio); color: var(--ink); }
+.dash .cal-one-link:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+.dash .cal-one-note { font-size: 11px; line-height: 1.5; color: var(--faint); }
+.dash .cal-one-note button { font: inherit; color: var(--vio); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.dash .cal-one-note button:hover { color: var(--ink); text-decoration: underline; }

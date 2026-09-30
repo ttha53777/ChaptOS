@@ -14,16 +14,36 @@ async function main() {
   await writeFile(join(temp, "api.ts"), `
 export const apiErrorMessage=(e,fallback)=>e.message||fallback;
 let state={enabled:true,available:true,url:'https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics',orgName:'Alpha Test',preview:[{title:'Chapter meeting',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'timed',start:'2026-10-06T23:00:00Z',end:'2026-10-07T01:00:00Z',timeZone:'America/New_York'}},{title:'Deadline: Dues',location:'',deadline:true,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-08',end:'2026-10-09'}},{title:'Retreat',location:'',deadline:false,timeUnconfirmed:false,schedule:{kind:'allDay',start:'2026-10-10',end:'2026-10-12'}}],timeZone:'America/New_York',admin:true,validated:true,validating:false,configured:true,problem:null,issues:[{kind:'time-unconfirmed',source:'calendar',id:7,title:'Chapter meeting',issue:'x',blocking:false,date:'2026-10-05',time:'7-9pm'}],health:{pending:false,failedAt:null,processedAt:'2026-09-29',failures:0},status:{state:'current',updatedAt:new Date(Date.now()-180000).toISOString()},generation:0};
+// ?setup: a first-time admin. No saved zone, one legacy deadline and one unlinked service project.
+if(location.search==='?setup')state={...state,enabled:false,url:null,timeZone:null,validated:false,health:{pending:true,failedAt:null,processedAt:null,failures:0},issues:[{kind:'legacy-deadline',source:'calendar',id:9,title:'Old dues deadline',issue:'x',blocking:true},{kind:'unlinked-service',source:'service',id:3,title:'Food bank',issue:'x',blocking:true}]};
+let settleOnNextLoad=false;
 export async function requestJson(url,opts){
- if(opts?.method==='PATCH'){ const body=JSON.parse(opts.body);window.actions.push(body.action);if(body.action==='disable')state={...state,enabled:false,url:null};if(body.action==='rotate')state={...state,url:'https://example.invalid/replacement.ics',generation:state.generation+1};return {ok:true}; }
+ if(opts?.method==='DELETE'){ window.actions.push('delete:'+url);state={...state,issues:state.issues.filter(i=>!url.endsWith('/'+i.id))};return null; }
+ if(opts?.method==='PATCH'){ const body=JSON.parse(opts.body);window.actions.push(body.action);window.bodies=[...(window.bodies||[]),body];if(body.action==='disable')state={...state,enabled:false,url:null};if(body.action==='rotate')state={...state,url:'https://example.invalid/replacement.ics',generation:state.generation+1};
+  if(body.action==='link')state={...state,issues:state.issues.filter(i=>!(i.source===body.source&&i.id===body.id))};
+  // The worker settles on a later load, as the real poll would see it.
+  if(body.action==='turnOn'){state={...state,timeZone:body.timeZone??state.timeZone,validating:true,turningOn:true};settleOnNextLoad=true;}
+  return {ok:true}; }
+ if(url.includes('summary=1')) return {live:Boolean(state.url)};
+ if(settleOnNextLoad&&window.actions.length&&window.settle){settleOnNextLoad=false;state={...state,validating:false,turningOn:false,validated:true,enabled:true,url:'https://example.invalid/api/calendar/feeds/test/disposable-test-token.ics',health:{pending:false,failedAt:null,processedAt:new Date().toISOString(),failures:0}};}
+ if(url.includes('summary=1')) return {live:Boolean(state.url)};
  return {...state};
 }`);
   await build({ stdin: { contents: `
 import React from 'react';import {createRoot} from 'react-dom/client';
 import {CalendarSubscription} from '${root}/app/components/timeline/CalendarSubscription';
 import {CalendarEventForm} from '${root}/app/components/timeline/CalendarEventForm';
-window.actions=[];window.submitted=null;
-createRoot(document.getElementById('root')).render(<main><CalendarSubscription/><CalendarSubscription settings/><CalendarEventForm submitLabel="Save schedule" categoryOptions={[{slug:'chapter',label:'Chapter',mandatoryDefault:true}]} onSubmit={draft=>{window.submitted=draft;}}/></main>);
+import {CalendarInviteCard, AddThisEvent} from '${root}/app/components/timeline/CalendarInvite';
+import '${root}/app/components/dashboard/dashboard-ledger.css';
+import '${root}/app/components/dashboard/timeline-ledger.css';
+import '${root}/app/[slug]/settings/settings-ledger.css';
+window.actions=[];window.submitted=null;window.subscribed=0;
+// ?a3: the dashboard invite, the event sheet's one-off links and the admin message, inside the real .dash styles.
+createRoot(document.getElementById('root')).render(location.search==='?setup'
+ ? <div className="dash" data-dashboard-theme="dusk"><main><style>{'.dash p,.dash h3{margin:0}'}</style><div className="set-section"><CalendarSubscription settings/></div></main></div>
+ : location.search==='?a3'
+ ? <div className="dash" data-dashboard-theme="dusk"><main><style>{'.dash p,.dash h3{margin:0}'}</style><CalendarInviteCard/><div className="ev" style={{margin:'24px 0',maxWidth:338}}><AddThisEvent eventId={42} onSubscribe={()=>{window.subscribed++;}}/></div><div className="set-section"><CalendarSubscription settings/></div></main></div>
+ : <main><CalendarSubscription/><CalendarSubscription settings/><CalendarEventForm submitLabel="Save schedule" categoryOptions={[{slug:'chapter',label:'Chapter',mandatoryDefault:true}]} onSubmit={draft=>{window.submitted=draft;}}/></main>);
 `, resolveDir: root, loader: "tsx" }, bundle: true, outfile: join(temp, "main.js"), jsx: "automatic", platform: "browser", format: "iife", alias: { "@": root }, plugins: [{ name: "mock-api", setup(builder) { builder.onResolve({ filter: /lib\/api$/ }, () => ({ path: join(temp, "api.ts") })); } }], define: { "process.env.NODE_ENV": '"development"' } });
   const server = createServer(async (req, res) => {
     if (req.url === "/main.js" || req.url === "/main.css") { res.setHeader("Content-Type", req.url.endsWith("css") ? "text/css" : "text/javascript"); res.end(await readFile(join(temp, req.url.slice(1)))); return; }
@@ -43,6 +63,17 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     const trigger = page.getByRole("button", { name: "Add to my calendar", exact: true });
     await trigger.click();
     const dialog = page.getByRole("dialog");
+    const google = dialog.getByRole("link", { name: "Add to Google Calendar" });
+    await google.waitFor();
+    // One-click Google: the add-by-URL screen, prefilled with the webcal form of the feed.
+    const googleHref = new URL(await google.getAttribute("href") ?? "");
+    assert.equal(googleHref.origin + googleHref.pathname, "https://calendar.google.com/calendar/r");
+    assert.equal(googleHref.searchParams.get("cid"), "webcal://example.invalid/api/calendar/feeds/test/disposable-test-token.ics");
+    assert.equal(await google.getAttribute("target"), "_blank");
+    assert.equal(await google.getAttribute("referrerpolicy"), "no-referrer");
+    // The copy-and-paste steps are the fallback, closed by default.
+    assert.equal(await dialog.getByText("URL of calendar").isVisible(), false);
+    await dialog.getByText("If the button doesn't work").click();
     await dialog.getByText("URL of calendar").waitFor();
     const text = await dialog.innerText();
     assert.match(text, /Alpha Test/);
@@ -97,17 +128,18 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     assert.match(handoff, /^http:\/\/127\.0\.0\.1:\d+\/alpha\/timeline\?subscribe=google$/);
     assert.doesNotMatch(handoff, /token|feeds/);
     assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    assert.equal(await sheet.getByRole("link", { name: "Add to Google Calendar" }).count(), 0);
     await sheet.getByRole("button", { name: /I'm on a computer/ }).click();
-    assert.match(await sheet.innerText(), /URL of calendar/);
+    await sheet.getByRole("link", { name: "Add to Google Calendar" }).waitFor();
     await phone.close();
 
-    // Readiness checklist: every step done in this state, check can be re-run.
-    await page.getByRole("button", { name: "Run the check again" }).click();
-    await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("validate"));
+    // Live: no setup steps left, just the zone and the Advanced controls.
+    assert.match(await page.getByRole("status").filter({ hasText: "On for members" }).innerText(), /On for members/);
+    assert.equal(await page.getByRole("button", { name: "Turn on for members" }).count(), 0);
     // Advanced: regeneration needs an explicit confirmation.
     await page.getByText("Advanced", { exact: true }).click();
     await page.getByRole("button", { name: "Regenerate URL", exact: true }).click();
-    assert.deepEqual(await page.evaluate(() => (window as unknown as { actions: string[] }).actions), ["validate"]);
+    assert.deepEqual(await page.evaluate(() => (window as unknown as { actions: string[] }).actions), []);
     await page.getByRole("button", { name: "Regenerate and revoke old URL" }).click();
     await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("rotate"));
     // The member who added the old link is told it was replaced, and can re-add.
@@ -118,7 +150,7 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     assert.doesNotMatch(await dialog.innerText(), /replaced this calendar link/);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
-    await page.getByRole("button", { name: "Disable subscription" }).click();
+    await page.getByRole("button", { name: "Turn off for members" }).click();
     await page.waitForFunction(() => (window as unknown as { actions: string[] }).actions.includes("disable"));
     await trigger.click();
     await dialog.getByText("paused calendar updates").waitFor();
@@ -151,8 +183,91 @@ createRoot(document.getElementById('root')).render(<main><CalendarSubscription/>
     assert.equal(submitted.time, "01:30");
     await page.setViewportSize({ width: 390, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+
+    // ── A3 ────────────────────────────────────────────────────────────────
+    const origin = new URL(page.url()).origin;
+    for (const width of [900, 375]) {
+      const a3 = await browser.newPage({ viewport: { width, height: 900 }, userAgent: width < 400 ? "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36" : undefined });
+      a3.on("pageerror", error => errors.push(error.message));
+      await a3.goto(`${origin}/alpha?a3`);
+      // Dashboard invite: shown while live and not yet added or dismissed.
+      const invite = a3.getByRole("region", { name: "Get chapter events in your own calendar" });
+      await invite.waitFor();
+      await a3.screenshot({ path: join(temp, `a3-${width}.png`), fullPage: true });
+      if (process.env.A3_SHOTS) await writeFile(join(process.env.A3_SHOTS, `a3-${width}.png`), await readFile(join(temp, `a3-${width}.png`)));
+      // Event sheet: both one-off links, scoped to the org, with the "won't update" note.
+      assert.equal(await a3.getByRole("link", { name: "Google Calendar" }).getAttribute("href"), "/api/calendar/42/export?to=google&org=alpha");
+      assert.equal(await a3.getByRole("link", { name: "Google Calendar" }).getAttribute("target"), "_blank");
+      assert.equal(await a3.getByRole("link", { name: /Apple/ }).getAttribute("href"), "/api/calendar/42/export?to=ics&org=alpha");
+      assert.notEqual(await a3.getByRole("link", { name: /Apple/ }).getAttribute("download"), null);
+      assert.match(await a3.locator(".cal-one").innerText(), /won't change if this event does/);
+      await a3.getByRole("button", { name: "Get every event, kept up to date" }).click();
+      assert.equal(await a3.evaluate(() => (window as unknown as { subscribed: number }).subscribed), 1);
+      // Admin message: the setup link, never the feed secret.
+      const message = await a3.locator(".cal-tell-msg").innerText();
+      assert.match(message, new RegExp(`^Alpha Test's calendar is now in ChaptOS\\..*${origin.replace(/[.:/]/g, "\\$&")}/alpha/timeline\\?subscribe=1$`));
+      assert.doesNotMatch(message, /token|feeds|\.ics/);
+      await a3.getByRole("button", { name: "Copy message" }).click();
+      assert.match(await a3.getByRole("alert").last().innerText(), /message is selected/);
+      assert.equal(await a3.evaluate(() => window.getSelection()?.toString()), message);
+      assert.equal(await a3.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+      if (width === 900) {
+        // "Not now" is remembered in this browser.
+        await invite.getByRole("button", { name: "Not now" }).click();
+        await invite.waitFor({ state: "detached" });
+        await a3.reload();
+        await a3.locator(".cal-tell-msg").waitFor();
+        assert.equal(await invite.count(), 0);
+      } else {
+        // Marking it added from the card's dialog retires the card.
+        await invite.getByRole("button", { name: "Add to my calendar" }).click();
+        const sheet = a3.getByRole("dialog");
+        await sheet.getByRole("button", { name: "I've added it" }).click();
+        await a3.keyboard.press("Escape");
+        await invite.waitFor({ state: "detached" });
+      }
+      await a3.close();
+    }
+    // Feed off: no invite at all.
+    await page.goto(`${origin}/alpha?a3`);
+    await page.locator(".cal-tell-msg, .sc-note").first().waitFor();
+    assert.equal(await page.locator(".cal-invite").count(), 0);
+
+    // ── First-time setup from Settings, at desktop and phone widths ─────────
+    for (const width of [900, 375]) {
+      const setup = await browser.newPage({ viewport: { width, height: 900 }, timezoneId: "America/Chicago" });
+      setup.on("pageerror", error => errors.push(error.message));
+      await setup.goto(`${origin}/alpha?setup`);
+      const turnOn = setup.getByRole("button", { name: "Turn on for members" });
+      await turnOn.waitFor();
+      // The zone is prefilled from this device, not asked for as a separate step.
+      assert.match(await setup.locator(".cal-check").innerText(), /Chicago[\s\S]*America\/Chicago[\s\S]*from this device/);
+      // Blocked until both items are fixed here, without leaving the page.
+      assert.equal(await turnOn.isDisabled(), true);
+      assert.match(await setup.locator(".set-section").innerText(), /Fix the 2 items above first/);
+      await setup.screenshot({ path: join(temp, `setup-${width}.png`), fullPage: true });
+      if (process.env.A3_SHOTS) await writeFile(join(process.env.A3_SHOTS, `setup-${width}.png`), await readFile(join(temp, `setup-${width}.png`)));
+      const legacy = setup.locator("li", { hasText: "Old dues deadline" });
+      await legacy.getByRole("button", { name: "Delete" }).click();
+      await legacy.getByRole("button", { name: "Delete entry" }).click();
+      await legacy.waitFor({ state: "detached" });
+      await setup.locator("li", { hasText: "Food bank" }).getByRole("button", { name: "Add to timeline" }).click();
+      await setup.getByText("Food bank").waitFor({ state: "detached" });
+      assert.equal(await setup.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+      // One click: saves the zone and turns on once the worker's check passes.
+      await turnOn.click();
+      await setup.getByText("switches on by itself").waitFor();
+      const w = setup as unknown as { evaluate: typeof setup.evaluate };
+      assert.deepEqual(await w.evaluate(() => (window as unknown as { actions: string[] }).actions), ["delete:/api/calendar/9", "link", "turnOn"]);
+      assert.deepEqual(await w.evaluate(() => (window as unknown as { bodies: unknown[] }).bodies), [{ action: "link", source: "service", id: 3 }, { action: "turnOn", timeZone: "America/Chicago" }]);
+      await setup.evaluate(() => { (window as unknown as { settle: boolean }).settle = true; });
+      await setup.getByText("On for members").waitFor({ timeout: 10_000 });
+      await setup.locator(".cal-tell-msg").waitFor();
+      await setup.close();
+    }
+
     assert.deepEqual(errors, []);
-    console.log("Calendar browser checks passed: publishing status + troubleshooting, replaced-link and paused notices, provider chooser (UA preselect, keyboard switch), preview, privacy note, clipboard fallback, self-reported confirmation, focus restoration, iPhone Google handoff without secret, webcal, readiness check, rotation confirmation, disable, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport.");
+    console.log("Calendar browser checks passed: publishing status + troubleshooting, replaced-link and paused notices, provider chooser (UA preselect, keyboard switch), preview, privacy note, clipboard fallback, self-reported confirmation, focus restoration, one-click Google + copy fallback, iPhone Google handoff without secret, webcal, one-click turn-on with device zone + in-place fixes at 900 and 375px, rotation confirmation, turn off, all-day fixer prefill, timed default, DST gap and repeated hour, narrow viewport; A3 dashboard invite (dismiss, added, feed off), event-sheet one-off links, admin message without secret at 900 and 375px.");
   } finally { await browser.close(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(temp, { recursive: true, force: true }); }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

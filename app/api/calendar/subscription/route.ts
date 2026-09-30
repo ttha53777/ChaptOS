@@ -1,11 +1,15 @@
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
-import { getCalendarSubscription, manageCalendarSubscription } from "@/lib/services/calendar-subscription-service";
-import { manageCalendarFeedInput } from "@/lib/validation/calendar-feed";
-export async function GET() {
+import { calendarFeedLive, getCalendarSubscription, manageCalendarSubscription } from "@/lib/services/calendar-subscription-service";
+import { calendarSubscriptionQuery, manageCalendarFeedInput } from "@/lib/validation/calendar-feed";
+export async function GET(request: Request) {
   const { ctx, error } = await buildContext({ rateLimit: false });
   if (error) return error;
-  try { return Response.json(await getCalendarSubscription(ctx), { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } }); }
+  try {
+    // ?summary=1: just "is it live", for the dashboard invite. Never the URL.
+    const { summary } = calendarSubscriptionQuery.parse(Object.fromEntries(new URL(request.url).searchParams));
+    return Response.json(summary ? await calendarFeedLive(ctx) : await getCalendarSubscription(ctx), { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
+  }
   catch (e) { return toResponse(e); }
 }
 export async function PATCH(request: Request) {
