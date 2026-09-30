@@ -114,5 +114,10 @@
 .sched-link:disabled { color: var(--faint); cursor: default; text-decoration: none; }
 .sched-zone-actions { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; }
 .sched-warn { color: #e0796b; }
+/* Ends appears once a start is entered; it takes the third column, which the grid already reserves. */
+.sched-end-in { animation: sched-end-in .16s ease-out; }
+@keyframes sched-end-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .sched-end-in { animation: none; } }
+.sched-duration { font-variant-numeric: tabular-nums; }
 .sched-repeat { border: 1px solid var(--line); border-radius: 9px; padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; }
 .sched-radio { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
