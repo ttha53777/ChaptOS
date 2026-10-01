@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
-import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
+import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
@@ -120,6 +120,11 @@ export async function POST(req: NextRequest) {
     isPlatformAdmin: ctx.isPlatformAdmin,
   };
 
+  // What the user actually typed, for the self-service builders' figure check
+  // (a card's $ or hours must be a number the member said, not one the model
+  // supplied). Assistant turns are excluded — the model can't vouch for itself.
+  const userText = history.filter(m => m.role === "user").map(m => m.content).join("\n");
+
   const systemPromptPromise = buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName });
 
   const encoder = new TextEncoder();
@@ -148,6 +153,7 @@ export async function POST(req: NextRequest) {
       let totalIters = 0;
       let fastPathPattern: string | null = null;
       let answeredStructured = false;
+      let answeredProposal = false;
       // Sources actually consulted this request (TOOL_UI labels, ordered dedup) —
       // attached to the structured answer server-side, never model-claimed.
       const consulted: string[] = [];
@@ -345,13 +351,7 @@ export async function POST(req: NextRequest) {
             if (isReadTool(tc.name)) {
               resultPayload = await runTool(tc.name, argsObj, ctx.db, ctx.orgId, undefined, access);
             } else if (isProposalTool(tc.name)) {
-              const proposal = await runProposal(tc.name, argsObj, ctx.db, {
-                orgId: ctx.orgId,
-                actorId: ctx.actorId,
-                permissions: ctx.permissions,
-                isOrgAdmin: ctx.isOrgAdmin,
-                isPlatformAdmin: ctx.isPlatformAdmin,
-              });
+              const proposal = await runProposal(tc.name, argsObj, ctx.db, { orgId: ctx.orgId, ...access, userText });
               if ("error" in proposal) {
                 resultPayload = proposal;
               } else {
@@ -427,6 +427,14 @@ export async function POST(req: NextRequest) {
               break;
             }
           }
+          // A batch that was nothing but self-service cards, all drafted: the
+          // card IS the reply (Submit / Discard), so skip the round trip the
+          // model would spend acknowledging it. A refusal still loops back —
+          // the model has to relay the question or the reason.
+          if (!answerCall && results.length > 0 && results.every(r => r.proposalEvent && isSelfServiceProposal(r.tc.name))) {
+            answeredProposal = true;
+            break;
+          }
           // Loop back: the model now sees the tool results and writes its answer.
         }
 
@@ -456,7 +464,7 @@ export async function POST(req: NextRequest) {
             // tells us which deterministic answer served it.
             fastPath: fastPathPattern,
             // How the request resolved: structured compose_answer, fast-path, or prose.
-            answered: answeredStructured ? "structured" : fastPathPattern ? "fastpath" : "text",
+            answered: answeredStructured ? "structured" : answeredProposal ? "proposal" : fastPathPattern ? "fastpath" : "text",
             iters: totalIters,
             perIterMs,
             toolMs,

@@ -156,6 +156,9 @@ export function WritCard({ card, onApprove, onDiscard, onEdit, choices }: {
   choices?: ChoiceSets;
 }) {
   const blocked = !card.perm.canApprove;
+  // A member acting on their own record (file an excuse, cast a vote). There's
+  // no officer sign-off in it, so the card reads as submitting, not approving.
+  const self = card.perm.name === null;
   const settled = card.state === "approved" || card.state === "discarded" || card.state === "dismissed" || card.state === "error";
   /** The payload key of the one row currently open, if any. */
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -237,15 +240,17 @@ export function WritCard({ card, onApprove, onDiscard, onEdit, choices }: {
       </div>
 
       {/* The gate spells out the permission itself; caption it otherwise. */}
-      {!blocked && !settled && (
+      {!blocked && !settled && (self ? (
+        <div className="permline">Only affects <b>your own</b> record</div>
+      ) : (
         <div className="permline"><span className="lk"><IcLock size={11} /></span>Requires <b>{card.perm.label}</b></div>
-      )}
+      ))}
       {blocked && !settled && <GateNote card={card} />}
 
       {card.state === "pending" && (
         <div className="wfoot">
           <button type="button" className="wbtn primary" disabled={blocked} data-w="ratify" onClick={() => onApprove(card)}>
-            Approve
+            {self ? "Submit" : "Approve"}
           </button>
           <button type="button" className="wbtn quiet" data-w="decline" onClick={() => onDiscard(card)}>
             {blocked ? "Dismiss" : "Discard"}
@@ -253,7 +258,7 @@ export function WritCard({ card, onApprove, onDiscard, onEdit, choices }: {
         </div>
       )}
       {card.state === "confirming" && (
-        <div className="wfoot"><span className="wbusy"><span className="arc sm" />Approving…</span></div>
+        <div className="wfoot"><span className="wbusy"><span className="arc sm" />{self ? "Submitting…" : "Approving…"}</span></div>
       )}
       {settled && <SettledBar card={card} />}
     </div>

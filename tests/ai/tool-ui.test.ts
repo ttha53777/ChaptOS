@@ -45,7 +45,8 @@ describe("TOOL_UI / PROPOSAL_META completeness", () => {
     for (const n of toolNames.filter(isProposalTool)) {
       const meta = PROPOSAL_META[n];
       expect(meta, n).toBeTruthy();
-      expect(PERMISSIONS[meta.perm], n).toBeTruthy();
+      // null = self-service (acts only on the caller's own record).
+      if (meta.perm !== null) expect(PERMISSIONS[meta.perm], n).toBeTruthy();
       expect(meta.label, n).toBeTruthy();
       expect(meta.title, n).toBeTruthy();
     }

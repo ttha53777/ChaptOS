@@ -119,7 +119,8 @@ export interface AnswerData {
 }
 
 export interface ProposalPermInfo {
-  name: string;
+  /** null = self-service: the member acts on their own record, needs no permission, and nothing is filed in Approvals. */
+  name: string | null;
   label: string;
   canApprove: boolean;
   holders?: { roleTitles: string[]; memberName?: string };

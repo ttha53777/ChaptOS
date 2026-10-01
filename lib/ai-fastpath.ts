@@ -216,9 +216,16 @@ const INTENTS: Intent[] = [
  * would run. Exported for unit tests so the regex table can be exercised without
  * a DB. Returns null when no intent fires (→ falls through to the LLM).
  */
+// A member asking Ask Chapt to DO something for them ("I can't make chapter
+// this week", "reimburse me $40") can share keywords with a read intent — the
+// this-week and dues matchers would answer it with a list and never offer the
+// confirm card. Any of these sends the question to the model instead.
+const SELF_SERVICE_ASK = /\b(excuse|excused|can t make|cant make|won t make|reimburse\w*|pay me back|vote|voting|log my|mark (it|this|that|my)\b.*\bdone)\b/;
+
 export function matchIntent(question: string): { pattern: string; tool: string; args: Record<string, unknown> } | null {
   const q = normalize(question);
   if (!q) return null;
+  if (SELF_SERVICE_ASK.test(q)) return null;
   for (const intent of INTENTS) {
     let call: { tool: string; args: Record<string, unknown> } | null = null;
     try { call = intent.match(q); } catch { continue; }

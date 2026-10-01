@@ -68,10 +68,20 @@ const APPROVED_TEXT: Record<string, string> = {
   events: "Approved — added to the calendar.",
   programming: "Approved — added to the board.",
   instagram: "Approved — added to the queue.",
+  excuse: "Submitted — your excuse is filed.",
+  reimbursement: "Submitted — sent to the treasurer.",
+  service: "Logged — your hours are recorded.",
+  poll: "Voted — your pick is in.",
 };
 
-function approvedText(kind: string): string {
-  return APPROVED_TEXT[kind] ?? "Approved.";
+// A task completion shares the timeline kind with adding a deadline, so it
+// needs its own line rather than "added to the timeline".
+const APPROVED_TEXT_BY_ACTION: Record<string, string> = {
+  propose_complete_task: "Done — marked complete.",
+};
+
+function approvedText(card: ProposalCard): string {
+  return APPROVED_TEXT_BY_ACTION[card.action] ?? APPROVED_TEXT[card.display.kind] ?? "Approved.";
 }
 
 /** Text a message contributes to the request history (the server wants prose). */
@@ -82,6 +92,12 @@ function messageText(m: ChatMessage): string {
       m.answer.verdict.replace(/\*/g, ""),
       ...m.answer.rows.map(r => [r.title, r.subtitle, r.value].filter(Boolean).join(" — ")),
     ].join("\n");
+  }
+  // A self-service reply can be the card alone (the server ends the turn
+  // without prose). Without this the turn would drop out of the history and a
+  // follow-up ("make it $45") would reach a model that never saw the draft.
+  if (m.proposals?.length) {
+    return m.proposals.map(p => `Drafted for confirmation (${p.state}): ${p.summary}`).join("\n");
   }
   return "";
 }
@@ -559,7 +575,7 @@ export function ChatWidget() {
       });
       if (res.ok) {
         const stamp = `${timeStamp()} · ${actorName}`;
-        updateProposal(msgId, card.id, { state: "approved", resultMessage: approvedText(card.display.kind), stamp });
+        updateProposal(msgId, card.id, { state: "approved", resultMessage: approvedText(card), stamp });
         // Record the approval (fire-and-forget — the domain write already
         // happened; a missing audit row must not un-settle the card). The
         // server verifies the signed blob before writing anything.
@@ -575,7 +591,11 @@ export function ChatWidget() {
         // back org-scoped. Without an id there is nothing to read, so an edited
         // card whose endpoint returned no id records nothing rather than
         // recording the pre-edit draft as if it were what happened.
-        if (card.edited) {
+        // Self-service (perm.name null) spent no officer authority, so there
+        // is no approval to record — the domain event is the whole trail.
+        if (card.perm.name === null) {
+          /* nothing to record */
+        } else if (card.edited) {
           if (subjectId !== null) {
             void orgFetch("/api/ai/approvals", {
               method: "POST",

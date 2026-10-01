@@ -35,6 +35,10 @@ const SUBJECT_BY_ACTION: Record<string, string> = {
   propose_add_programming_event: "ProgrammingEvent",
 };
 
+// Self-service proposals (perm null) spend no officer authority, which is all
+// this record audits — the client never files them, and a forged call can't.
+const SELF_SERVICE_NOT_RECORDED = "Self-service actions aren't recorded as approvals.";
+
 interface ApprovalRow {
   id: number;
   kind: string;
@@ -94,6 +98,7 @@ function deriveSummary(display: RecordApprovalInput["display"]): string {
 export async function recordChatApproval(ctx: RequestContext, input: RecordApprovalInput) {
   const meta = PROPOSAL_META[input.action];
   if (!meta) throw new ValidationError("Unknown proposal action.");
+  if (meta.perm === null) throw new ValidationError(SELF_SERVICE_NOT_RECORDED);
   if (input.display.kind !== meta.kind) throw new ValidationError("Proposal kind mismatch.");
 
   // Rebuild the signed blob exactly as runProposal signed it. perm, orgId, and
@@ -253,6 +258,7 @@ async function readBackRows(
 export async function recordEditedApproval(ctx: RequestContext, action: string, subjectId: number) {
   const meta = PROPOSAL_META[action];
   if (!meta) throw new ValidationError("Unknown proposal action.");
+  if (meta.perm === null) throw new ValidationError(SELF_SERVICE_NOT_RECORDED);
   if (!(ctx.isPlatformAdmin || ctx.isOrgAdmin || hasPermission(ctx.permissions, meta.perm))) {
     throw new ForbiddenError(`Recording this approval requires ${meta.label}.`);
   }

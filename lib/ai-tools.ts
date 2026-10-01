@@ -65,7 +65,7 @@ async function orgThresholds(scoped: Scoped, orgId: number): Promise<Thresholds>
 // ────────────────────────────────────────────────────────────────────────────
 
 /** The chapter surface a proposal writes to — drives approvals filters + card glyphs. */
-export const PROPOSAL_KINDS = ["timeline", "instagram", "events", "treasury", "dues", "programming"] as const;
+export const PROPOSAL_KINDS = ["timeline", "instagram", "events", "treasury", "dues", "programming", "excuse", "reimbursement", "service", "poll"] as const;
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number];
 
 /** One key/value line on the writ card (and, verbatim, in the approval record). */
@@ -83,9 +83,15 @@ export interface ProposalDisplay {
  * The permission gates BOTH proposing and approving: a holder self-approves;
  * a non-holder's draft is blocked (not routed), with `holders` naming who in
  * this org does hold it so the model/UI can point them the right way.
+ *
+ * `name: null` marks a SELF-SERVICE action — one any member may take on their
+ * own record (file an excuse, log their hours). It needs no permission, is
+ * never blocked, and is not filed in the Approvals record: that record audits
+ * officer authority exercised through chat, and a member acting for themselves
+ * exercised none. The target endpoint pins the write to ctx.actorId itself.
  */
 export interface ProposalPerm {
-  name: Permission;
+  name: Permission | null;
   label: string;        // human label, e.g. "Manage dues"
   canApprove: boolean;
   holders?: PermHolders;
@@ -117,6 +123,12 @@ type ProposalDraft = Omit<Proposal, "display" | "perm" | "sig" | "iat"> & { rows
 
 /** The slice of RequestContext runProposal needs — the eval harness fabricates one. */
 export interface ProposalCtx {
+  /**
+   * Everything the user typed this conversation. Self-service builders refuse a
+   * dollar/hour figure that doesn't appear in it. Undefined skips that check
+   * (the eval harness, the event-idea panel).
+   */
+  userText?: string;
   orgId: number;
   actorId: number;
   permissions: number;
@@ -131,13 +143,20 @@ export interface ProposalCtx {
  * card and gate copy use; two tools may share a bit but read differently
  * ("Manage dues" vs "Manage treasury" are both MANAGE_TREASURY).
  */
-export const PROPOSAL_META: Record<string, { perm: Permission; label: string; kind: ProposalKind; title: string }> = {
+export const PROPOSAL_META: Record<string, { perm: Permission | null; label: string; kind: ProposalKind; title: string }> = {
   propose_add_deadline:          { perm: "MANAGE_TASKS",     label: "Manage timeline",  kind: "timeline",    title: "Add a deadline" },
   propose_add_instagram_task:    { perm: "MANAGE_INSTAGRAM", label: "Manage Instagram", kind: "instagram",   title: "Add an Instagram task" },
   propose_add_calendar_event:    { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "events",      title: "Add a calendar event" },
   propose_log_transaction:       { perm: "MANAGE_TREASURY",  label: "Manage treasury",  kind: "treasury",    title: "Log a transaction" },
   propose_record_dues_payment:   { perm: "MANAGE_TREASURY",  label: "Manage dues",      kind: "dues",        title: "Record a dues payment" },
   propose_add_programming_event: { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "programming", title: "Add a programming event" },
+  // Self-service (perm null — see ProposalPerm). Each endpoint writes only the
+  // caller's own row, so the draft never needs anyone else's authority.
+  propose_submit_excuse:         { perm: null, label: "Just you", kind: "excuse",        title: "Submit an excuse" },
+  propose_request_reimbursement: { perm: null, label: "Just you", kind: "reimbursement", title: "Request a reimbursement" },
+  propose_log_my_service_hours:  { perm: null, label: "Just you", kind: "service",       title: "Log your service hours" },
+  propose_complete_task:         { perm: null, label: "Just you", kind: "timeline",      title: "Mark a task done" },
+  propose_cast_vote:             { perm: null, label: "Just you", kind: "poll",          title: "Cast your vote" },
 };
 
 const IG_TYPES = INSTAGRAM_TYPES;
@@ -748,6 +767,95 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           owner: { type: "string", description: "Optional brother name responsible. Only include if the user mentions one." },
         },
         required: ["title", "type"],
+      },
+    },
+  },
+  // ── Self-service proposals: any member, acting on their OWN record only ──
+  // These take the user's OWN WORDS for the record ("chapter", "Thursday"), not
+  // an id: the server matches them against what the asker can act on. That
+  // saves the lookup round trip and leaves no id for the model to get wrong.
+  {
+    type: "function",
+    function: {
+      name: "propose_submit_excuse",
+      description:
+        "Submit the ASKER's own attendance excuse for an event they can't make or missed. Call this DIRECTLY — no lookup first; the server finds the event from `event` + `date`. " +
+        "Returns a confirm card showing the matched event; nothing is filed until they confirm.",
+      parameters: {
+        type: "object",
+        properties: {
+          event:  { type: "string", description: "The event as the user named it, e.g. 'chapter', 'formal', 'study hours'." },
+          date:   { type: "string", description: "YYYY-MM-DD of the event, if the user gave a day ('Thursday', 'last week's', 'the 14th') — resolve it against Today. Omit if they gave none (then the next upcoming match is used)." },
+          reason: { type: "string", description: "Why, in the user's own words. If they gave none, ask for one line instead of calling." },
+        },
+        required: ["event", "reason"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_request_reimbursement",
+      description:
+        "Request reimbursement for money the ASKER spent on the chapter. Returns a confirm card; nothing is filed until they confirm, and a treasurer approves it afterwards. " +
+        "amount must be the figure the user typed — if they didn't say how much, ask; never estimate.",
+      parameters: {
+        type: "object",
+        properties: {
+          amount:      { type: "number", description: "Dollars spent, exactly as the user stated." },
+          description: { type: "string", description: "What it was for, e.g. 'Pizza for chapter'." },
+          date:        { type: "string", description: "Optional YYYY-MM-DD of the purchase, only if the user named when. Defaults to today." },
+        },
+        required: ["amount", "description"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_log_my_service_hours",
+      description:
+        "Log the ASKER's own hours for a service event. Call this DIRECTLY — no lookup first; the server finds the event from `event` + `date`. " +
+        "This SETS their hours for that event (replacing any earlier entry). hours must be the number the user typed — if they didn't say, ask.",
+      parameters: {
+        type: "object",
+        properties: {
+          event: { type: "string", description: "The service event as the user named it, e.g. 'food bank', 'beach cleanup'." },
+          date:  { type: "string", description: "YYYY-MM-DD, only if the user gave a day. Omit otherwise (the most recent match is used)." },
+          hours: { type: "number", description: "Hours worked, exactly as the user stated." },
+        },
+        required: ["event", "hours"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_complete_task",
+      description:
+        "Mark one of the ASKER's open tasks done. Call this DIRECTLY — no lookup first; the server matches `task` against the open tasks assigned to them (officers who manage tasks: any open task).",
+      parameters: {
+        type: "object",
+        properties: {
+          task: { type: "string", description: "The task as the user named it, e.g. 'flyers', 'venue deposit'." },
+        },
+        required: ["task"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_cast_vote",
+      description:
+        "Cast (or change) the ASKER's vote on an open poll assigned to them. Call this DIRECTLY — no lookup first; the server finds the poll and option from the user's words.",
+      parameters: {
+        type: "object",
+        properties: {
+          poll:   { type: "string", description: "The poll as the user named it ('formal date'). Omit if they didn't — works when only one poll is open for them." },
+          option: { type: "string", description: "The choice the user picked, in their words ('May 2', 'B')." },
+        },
+        required: ["option"],
       },
     },
   },
@@ -2603,10 +2711,373 @@ async function proposeAddProgrammingEvent(args: ToolArgs, scoped: Scoped): Promi
   };
 }
 
+// ── Self-service builders ──────────────────────────────────────────────────
+// Each acts on the ASKER's own record. Two things keep them fast and keep the
+// model from inventing anything:
+//
+//   • The model passes the user's WORDS for the record ("chapter", "flyers"),
+//     never an id. The builder matches them against only what the asker can act
+//     on (their open tasks, polls assigned to them), in ONE query, alongside the
+//     second read it needs — so the turn is one model call, not lookup +
+//     propose, and a wrong-but-real id can't slip onto a card. Genuinely
+//     different matches come back as a one-line question, never a guess.
+//   • A figure that ends up on the card (dollars, hours) must be one the user
+//     actually typed this conversation (pctx.userText) — otherwise the model is
+//     told to ask. A card is the last check, but a plausible $40 is easy to
+//     approve without reading.
+//
+// Each builder also checks what its endpoint would refuse (duplicate excuse,
+// closed poll, same vote, task already done), so the member hears why before
+// they click. The endpoint still enforces all of it.
+
+const MATCH_STOPWORDS = new Set(["the", "my", "our", "for", "of", "at", "to", "on", "and", "this", "that", "next", "last", "option", "one"]);
+
+/** Lowercase word tokens worth matching on; a trailing plural "s" is dropped so "flyers" finds "Print flyer". */
+function matchTokens(s: string): string[] {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ")
+    .filter(t => t.length >= 2 && !MATCH_STOPWORDS.has(t))
+    .map(t => (t.length > 3 && t.endsWith("s") ? t.slice(0, -1) : t));
+}
+
+/** Items tied for the best non-zero score (tokens found, +1 when the whole phrase appears). */
+function bestMatches<T>(items: T[], needle: string, text: (t: T) => string): T[] {
+  const toks = matchTokens(needle);
+  const phrase = needle.trim().toLowerCase();
+  let best = 0;
+  let out: T[] = [];
+  for (const it of items) {
+    const hay = text(it).toLowerCase();
+    let score = toks.filter(t => hay.includes(t)).length;
+    if (score > 0 && phrase && hay.includes(phrase)) score++;
+    if (score > best) { best = score; out = [it]; }
+    else if (score === best && score > 0) out.push(it);
+  }
+  return out;
+}
+
+/** "A (2026-10-02); B (2026-10-09)" — the candidates a clarifying question names. */
+function listChoices(items: { label: string; date?: string | null }[], max = 5): string {
+  return items.slice(0, max).map(i => (i.date ? `${i.label} (${i.date})` : i.label)).join("; ");
+}
+
+function shiftISO(iso: string, days: number): string {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** A caller-supplied YYYY-MM-DD, undefined when absent, or an error when present but malformed. */
+function optionalDate(v: unknown): string | undefined | { error: string } {
+  if (typeof v !== "string" || !v.trim()) return undefined;
+  return DATE_RE.test(v.trim()) ? v.trim() : badProposal("date must be YYYY-MM-DD.");
+}
+
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
+/** Every number the user typed: digits (with thousands commas), number words, "an hour", "half an hour". */
+function statedNumbers(text: string): number[] {
+  const t = text.toLowerCase().replace(/(\d),(?=\d{3}\b)/g, "$1");
+  const out = [...t.matchAll(/\d+(?:\.\d+)?/g)].map(m => Number(m[0]));
+  for (const w of t.split(/[^a-z]+/)) if (w in NUMBER_WORDS) out.push(NUMBER_WORDS[w]);
+  if (/\b(an|a) hour\b/.test(t)) out.push(1);
+  if (/\bhalf (an|a) hour\b/.test(t)) out.push(0.5);
+  return out;
+}
+
+/**
+ * Refuse a figure the user never typed. Skipped when no user text is supplied
+ * (the eval harness), so the check can only ever narrow, never block a caller
+ * that can't provide it.
+ */
+function unstatedFigure(value: number, pctx: ProposalCtx, what: string): { error: string } | null {
+  if (pctx.userText === undefined) return null;
+  if (statedNumbers(pctx.userText).some(n => Math.abs(n - value) < 0.005)) return null;
+  return badProposal(`The user never stated ${value} as the ${what}. Ask them for the exact ${what} — don't estimate or compute it.`);
+}
+
+async function actorHeldRoleIds(scoped: Scoped, actorId: number): Promise<Set<number>> {
+  const rows = await scoped.brotherRole.findMany({ where: { brotherId: actorId }, select: { roleId: true } });
+  return new Set(rows.map(r => r.roleId));
+}
+
+function assignedTo(assignments: { brotherId: number | null; roleId: number | null }[], actorId: number, held: Set<number>): boolean {
+  return assignments.some(a => a.brotherId === actorId || (a.roleId != null && held.has(a.roleId)));
+}
+
+function clip(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 3)}…` : s;
+}
+
+type DatedRow = { id: number; title: string; date: string };
+
+/**
+ * Pick the dated record the user meant from `rows` (already narrowed to a date
+ * or a window). A named date is decisive: if the words match nothing that day
+ * but only one thing happens that day, that's it ("Thursday's meeting" when
+ * the event is titled "Chapter"). Without a date, several dates of the SAME
+ * title (a weekly meeting) resolve by `prefer`; different titles are asked.
+ */
+function resolveDated<T extends DatedRow>(
+  rows: T[], words: string, date: string | undefined, extra: (r: T) => string, prefer: "upcoming" | "recent", noun: string,
+): T | { error: string } {
+  let hits = bestMatches(rows, words, r => `${r.title} ${extra(r)}`);
+  if (hits.length === 0 && date && rows.length === 1) hits = rows;
+  if (hits.length === 0) {
+    return badProposal(date
+      ? `No ${noun} matching "${words}" on ${date}.${rows.length ? ` That day has: ${listChoices(rows.map(r => ({ label: r.title })))}.` : ""} Ask the user which one they mean.`
+      : `No ${noun} matching "${words}" around now. Ask the user for its name or date.`);
+  }
+  const titles = new Set(hits.map(h => h.title.trim().toLowerCase()));
+  if (titles.size > 1) {
+    return badProposal(`"${words}" matches several ${noun}s: ${listChoices(hits.map(h => ({ label: h.title, date: h.date })))}. Ask the user which one, in one line.`);
+  }
+  if (date) return hits[0];
+  const today = todayISO();
+  const upcoming = hits.filter(h => h.date >= today).sort((x, y) => x.date.localeCompare(y.date));
+  const past = hits.filter(h => h.date < today).sort((x, y) => y.date.localeCompare(x.date));
+  const pick = prefer === "upcoming" ? upcoming[0] : past[0];
+  if (pick) return pick;
+  // Nothing on the expected side of today ("can't make the golf outing" when
+  // the only one was three weeks ago). Crossing over is a guess about tense
+  // the user never made — confirm it, then the date makes it decisive.
+  const other = (prefer === "upcoming" ? past : upcoming)[0];
+  return badProposal(`The only ${noun} matching "${words}" is "${other.title}" on ${other.date}, which is ${prefer === "upcoming" ? "already past" : "still upcoming"}. Ask the user if they mean that one; if so, call again with date=${other.date}.`);
+}
+
+async function proposeSubmitExcuse(args: ToolArgs, scoped: Scoped, pctx: ProposalCtx): Promise<ProposalDraft | { error: string }> {
+  const words = String(args.event ?? "").trim();
+  const reason = String(args.reason ?? "").trim();
+  const date = optionalDate(args.date);
+  if (typeof date === "object") return date;
+  if (!words) return badProposal("event required — the event as the user named it.");
+  if (!reason) return badProposal("A reason is required — ask the user for one line on why they can't attend.");
+  if (reason.length > 1000) return badProposal("Reason too long (1000 characters max).");
+
+  // Excuses can be retroactive ("I missed chapter"), so the no-date window
+  // reaches back a month as well as forward.
+  const today = todayISO();
+  const when = date ? date : { gte: shiftISO(today, -30), lte: shiftISO(today, 90) };
+  const [events, mine] = await Promise.all([
+    scoped.calendarEvent.findMany({ where: { date: when }, orderBy: { date: "asc" }, take: 300, select: { id: true, title: true, date: true, category: true } }),
+    scoped.attendanceExcuse.findMany({ where: { brotherId: pctx.actorId, calendarEvent: { date: when } }, select: { calendarEventId: true, status: true } }),
+  ]);
+  const event = resolveDated(events, words, date, e => e.category, "upcoming", "event");
+  if ("error" in event) return event;
+
+  // An attendance manager's own excuse auto-approves (submitExcuse); everyone
+  // else's queues for review, and can't be re-filed while one is live.
+  const selfApproves = pctx.isPlatformAdmin || hasPermission(pctx.permissions, "MANAGE_ATTENDANCE");
+  const existing = mine.find(x => x.calendarEventId === event.id)?.status;
+  if (!selfApproves && existing === "approved") return badProposal(`Your excuse for "${event.title}" (${event.date}) is already approved.`);
+  if (!selfApproves && existing === "pending") return badProposal(`You already have an excuse pending review for "${event.title}" (${event.date}).`);
+
+  return {
+    kind: "proposal",
+    action: "propose_submit_excuse",
+    endpoint: "/api/excuses",
+    method: "POST",
+    payload: { calendarEventId: event.id, reason },
+    summary: `Excuse for "${event.title}" (${event.date}): ${reason}. ${selfApproves ? "Approved on submit." : "An officer reviews it."}`,
+    rows: [
+      { k: "Event", v: event.title },
+      { k: "Date", v: event.date, em: true },
+      { k: "Reason", v: clip(reason, 80) },
+      { k: "Review", v: selfApproves ? "Approved on submit" : "Pending officer review" },
+    ],
+  };
+}
+
+async function proposeRequestReimbursement(args: ToolArgs, _scoped: Scoped, pctx: ProposalCtx): Promise<ProposalDraft | { error: string }> {
+  const amount = r2(Number(args.amount));
+  const description = String(args.description ?? "").trim();
+  const d = optionalDate(args.date);
+  if (typeof d === "object") return d;
+  const date = d ?? todayISO();
+  if (!(amount > 0)) return badProposal("amount must be a positive dollar figure — ask the user how much.");
+  if (!description) return badProposal("description required — what was the money spent on?");
+  if (description.length > 500) return badProposal("Description too long (500 characters max).");
+  if (date > todayISO()) return badProposal("That date is in the future — a reimbursement is for money already spent.");
+  const unstated = unstatedFigure(amount, pctx, "amount");
+  if (unstated) return unstated;
+
+  return {
+    kind: "proposal",
+    action: "propose_request_reimbursement",
+    endpoint: "/api/reimbursements",
+    method: "POST",
+    payload: { brotherId: pctx.actorId, amount, date, description },
+    summary: `Reimbursement request: ${fmtUsd(amount)} for "${description}" (${date}). A treasurer approves it before it's paid.`,
+    rows: [
+      { k: "Amount", v: fmtUsd(amount), em: true },
+      { k: "For", v: clip(description, 60) },
+      { k: "Date", v: date },
+      { k: "Review", v: "Pending treasurer approval" },
+    ],
+  };
+}
+
+async function proposeLogMyServiceHours(args: ToolArgs, scoped: Scoped, pctx: ProposalCtx): Promise<ProposalDraft | { error: string }> {
+  const words = String(args.event ?? "").trim();
+  const hours = Math.round(Number(args.hours) * 100) / 100;
+  const date = optionalDate(args.date);
+  if (typeof date === "object") return date;
+  if (!words) return badProposal("event required — the service event as the user named it.");
+  // Mirrors logMyParticipationInput's cap; zero is left to the Service page,
+  // where clearing your hours is a deliberate act rather than a chat misread.
+  if (!(hours > 0) || hours > 1000) return badProposal("hours must be a positive number — ask the user how many.");
+  const unstated = unstatedFigure(hours, pctx, "number of hours");
+  if (unstated) return unstated;
+
+  // Hours get logged after the fact, so the window leans back.
+  const today = todayISO();
+  const when = date ? date : { gte: shiftISO(today, -90), lte: shiftISO(today, 7) };
+  const [events, mine] = await Promise.all([
+    scoped.serviceEvent.findMany({ where: { date: when }, orderBy: { date: "asc" }, take: 300, select: { id: true, title: true, date: true, location: true } }),
+    scoped.serviceParticipation.findMany({ where: { brotherId: pctx.actorId, serviceEvent: { date: when } }, select: { serviceEventId: true, hours: true } }),
+  ]);
+  const event = resolveDated(events, words, date, e => e.location ?? "", "recent", "service event");
+  if ("error" in event) return event;
+  const before = mine.find(p => p.serviceEventId === event.id)?.hours;
+  if (before === hours) return badProposal(`You already have ${hours} hours logged for "${event.title}" (${event.date}).`);
+
+  return {
+    kind: "proposal",
+    action: "propose_log_my_service_hours",
+    endpoint: `/api/service-events/${event.id}/participation/me`,
+    method: "POST",
+    payload: { hours },
+    summary: `Log ${hours} service hours at "${event.title}" (${event.date})${before !== undefined ? `, replacing ${before}` : ""}.`,
+    rows: [
+      { k: "Event", v: event.title },
+      { k: "Date", v: event.date },
+      { k: "Hours", v: String(hours), em: true },
+      ...(before !== undefined ? [{ k: "Replaces", v: `${before} hours` }] : []),
+    ],
+  };
+}
+
+async function proposeCompleteTask(args: ToolArgs, scoped: Scoped, pctx: ProposalCtx): Promise<ProposalDraft | { error: string }> {
+  const words = String(args.task ?? "").trim();
+  if (!words) return badProposal("task required — the task as the user named it.");
+
+  const [open, held] = await Promise.all([
+    scoped.task.findMany({
+      where: { status: "open" },
+      orderBy: { dueDate: "asc" },
+      take: 300,
+      select: { id: true, title: true, dueDate: true, assignments: { select: { brotherId: true, roleId: true } } },
+    }),
+    actorHeldRoleIds(scoped, pctx.actorId),
+  ]);
+  // Same rule as updateTask: a status flip is open to the task's assignees;
+  // anyone else needs MANAGE_TASKS. Matching only within that set means a
+  // member's words can never land on somebody else's task.
+  const manages = pctx.isPlatformAdmin || pctx.isOrgAdmin || hasPermission(pctx.permissions, "MANAGE_TASKS");
+  const mine = manages ? open : open.filter(t => assignedTo(t.assignments, pctx.actorId, held));
+  if (mine.length === 0) return badProposal(manages ? "There are no open tasks." : "You have no open tasks assigned to you.");
+
+  const hits = bestMatches(mine, words, t => t.title);
+  if (hits.length === 0) {
+    return badProposal(`None of ${manages ? "the open tasks" : "your open tasks"} match "${words}". ${manages ? "Open" : "Yours"}: ${listChoices(mine.map(t => ({ label: t.title, date: t.dueDate })), 8)}. Ask which one.`);
+  }
+  if (hits.length > 1) {
+    return badProposal(`"${words}" matches several open tasks: ${listChoices(hits.map(t => ({ label: t.title, date: t.dueDate })))}. Ask the user which one, in one line.`);
+  }
+  const task = hits[0];
+
+  return {
+    kind: "proposal",
+    action: "propose_complete_task",
+    endpoint: `/api/tasks/${task.id}`,
+    method: "PATCH",
+    payload: { status: "done" },
+    summary: `Mark "${task.title}" done.`,
+    rows: [
+      { k: "Title", v: task.title },
+      ...(task.dueDate ? [{ k: "Due", v: task.dueDate }] : []),
+      { k: "Status", v: "Open → Done", em: true },
+    ],
+  };
+}
+
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth"];
+
+/** The option the user meant: exact label, "B"/"option 2"/"the second one", or a unique word match. */
+function pickOption<O extends { id: number; label: string }>(options: O[], said: string): O | null {
+  const t = said.trim().toLowerCase().replace(/^(option|choice)\s+/, "").replace(/^the\s+/, "").replace(/\s+one$/, "");
+  const exact = options.find(o => o.label.trim().toLowerCase() === t);
+  if (exact) return exact;
+  const byIndex = /^[a-z]$/.test(t) ? t.charCodeAt(0) - 97 : /^\d$/.test(t) ? Number(t) - 1 : ORDINALS.indexOf(t);
+  if (byIndex >= 0 && byIndex < options.length) return options[byIndex];
+  const hits = bestMatches(options, said, o => o.label);
+  return hits.length === 1 ? hits[0] : null;
+}
+
+async function proposeCastVote(args: ToolArgs, scoped: Scoped, pctx: ProposalCtx): Promise<ProposalDraft | { error: string }> {
+  const words = typeof args.poll === "string" ? args.poll.trim() : "";
+  const said = String(args.option ?? "").trim();
+  if (!said) return badProposal("option required — the choice the user picked.");
+
+  const [open, held] = await Promise.all([
+    scoped.poll.findMany({
+      where: { status: "open" },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: {
+        id: true, question: true,
+        options: { orderBy: { position: "asc" }, select: { id: true, label: true } },
+        assignments: { select: { brotherId: true, roleId: true } },
+        votes: { where: { brotherId: pctx.actorId }, select: { optionId: true } },
+      },
+    }),
+    actorHeldRoleIds(scoped, pctx.actorId),
+  ]);
+  // Only polls the asker may vote on (castVote's assignee rule) are candidates.
+  const mine = open.filter(p => assignedTo(p.assignments, pctx.actorId, held));
+  if (mine.length === 0) return badProposal("There are no open polls assigned to you.");
+
+  let candidates = words ? bestMatches(mine, words, p => p.question) : mine;
+  if (words && candidates.length === 0) {
+    return badProposal(`No open poll of yours matches "${words}". Yours: ${listChoices(mine.map(p => ({ label: p.question })))}.`);
+  }
+  // No poll named (or a vague one): the poll whose options the pick fits.
+  if (candidates.length > 1) {
+    const fits = candidates.filter(p => pickOption(p.options, said));
+    if (fits.length >= 1) candidates = fits;
+  }
+  if (candidates.length > 1) {
+    return badProposal(`Several open polls could take "${said}": ${listChoices(candidates.map(p => ({ label: p.question })))}. Ask which poll, in one line.`);
+  }
+  const poll = candidates[0];
+  const option = pickOption(poll.options, said);
+  if (!option) {
+    return badProposal(`"${said}" doesn't match exactly one option on "${poll.question}". Options: ${poll.options.map(o => o.label).join(" | ")}. Ask which.`);
+  }
+  const prior = poll.votes[0] ? poll.options.find(o => o.id === poll.votes[0].optionId) : undefined;
+  if (prior?.id === option.id) return badProposal(`You already voted "${option.label}" on "${poll.question}".`);
+
+  return {
+    kind: "proposal",
+    action: "propose_cast_vote",
+    endpoint: `/api/polls/${poll.id}/vote`,
+    method: "POST",
+    payload: { optionId: option.id },
+    summary: `Vote "${option.label}" on "${poll.question}"${prior ? `, changing from "${prior.label}"` : ""}.`,
+    rows: [
+      { k: "Poll", v: clip(poll.question, 80) },
+      { k: "Your vote", v: option.label, em: true },
+      ...(prior ? [{ k: "Replaces", v: prior.label }] : []),
+    ],
+  };
+}
+
 // Handlers may be sync or async; runProposal awaits either. The scoped client
 // lets a handler read current state to enrich the card (validate-only — never a
-// write). Sync handlers simply ignore the second arg.
-type ProposalHandler = (args: ToolArgs, scoped: Scoped) =>
+// write); pctx is who's asking, which the self-service builders act for.
+// Handlers that need neither simply ignore the trailing args.
+type ProposalHandler = (args: ToolArgs, scoped: Scoped, pctx: ProposalCtx) =>
   | (ProposalDraft | { error: string })
   | Promise<ProposalDraft | { error: string }>;
 
@@ -2617,7 +3088,21 @@ const PROPOSAL_HANDLERS: Record<string, ProposalHandler> = {
   propose_log_transaction:        proposeLogTransaction,
   propose_record_dues_payment:    proposeRecordDuesPayment,
   propose_add_programming_event:  proposeAddProgrammingEvent,
+  propose_submit_excuse:          proposeSubmitExcuse,
+  propose_request_reimbursement:  proposeRequestReimbursement,
+  propose_log_my_service_hours:   proposeLogMyServiceHours,
+  propose_complete_task:          proposeCompleteTask,
+  propose_cast_vote:              proposeCastVote,
 };
+
+/**
+ * True for a self-service proposal (perm null). Once its card is out there is
+ * nothing left for the model to say — the chat route ends the turn instead of
+ * paying a round trip for "Here's your card."
+ */
+export function isSelfServiceProposal(name: string): boolean {
+  return PROPOSAL_META[name]?.perm === null;
+}
 
 /** True when the tool name is a write proposal (server validates but never writes). */
 export function isProposalTool(name: string): boolean {
@@ -2640,13 +3125,18 @@ export async function runProposal(name: string, args: ToolArgs, scoped: Scoped, 
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
   try {
-    const draft = await handler(args, scoped);
+    const draft = await handler(args, scoped, pctx);
     if ("error" in draft) return draft;
     const { rows, ...core } = draft;
     const display: ProposalDisplay = { kind: meta.kind, title: meta.title, rows };
+    const iat = Date.now();
+    // Self-service: the handler already checked the caller may act on this
+    // record, and there's no approval to record, so nothing to sign.
+    if (meta.perm === null) {
+      return { ...core, display, perm: { name: null, label: meta.label, canApprove: true }, sig: null, iat };
+    }
     const canApprove = pctx.isPlatformAdmin || pctx.isOrgAdmin || hasPermission(pctx.permissions, meta.perm);
     const holders = canApprove ? undefined : await findPermHolders(scoped, pctx.orgId, meta.perm);
-    const iat = Date.now();
     const sig = signProposalBlob({
       action: core.action,
       endpoint: core.endpoint,
@@ -2921,6 +3411,11 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   propose_log_transaction:       { verb: "Drafting a transaction" },
   propose_record_dues_payment:   { verb: "Drafting a payment record" },
   propose_add_programming_event: { verb: "Drafting a programming event" },
+  propose_submit_excuse:         { verb: "Drafting your excuse" },
+  propose_request_reimbursement: { verb: "Drafting your reimbursement" },
+  propose_log_my_service_hours:  { verb: "Drafting your service hours" },
+  propose_complete_task:         { verb: "Drafting a task update" },
+  propose_cast_vote:             { verb: "Drafting your vote" },
   // Terminal answer tool — the client renders its own standing "Composing the
   // answer" step, but keep the verb here so nothing falls back to a raw name.
   compose_answer: { verb: "Composing the answer" },

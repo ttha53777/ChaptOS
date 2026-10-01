@@ -41,6 +41,9 @@ const EVENTS = { verb: "Scanning the calendar", source: "Events" };
 
 // Ordered — first match wins, so put the specific subjects above the general.
 const GUESSES: Guess[] = [
+  // Self-service asks — above dues/attendance, whose keywords ("paid", "missed") they share.
+  { match: ["reimburse", "pay me back"], intent: "Drafting your reimbursement…", plan: [] },
+  { match: ["excuse", "can t make", "cant make", "won t make"], intent: "Finding the event…", plan: [EVENTS] },
   { match: ["dues", "due", "owe", "paid", "payment"], intent: "Reading the chapter's dues…", plan: [ROSTER] },
   { match: ["attendance", "attend", "missed", "absent", "showed up"], intent: "Cross-checking attendance…", plan: [ATTENDANCE, ROSTER] },
   { match: ["budget", "spent", "spending", "expense"], intent: "Opening the books…", plan: [BUDGET, LEDGER] },
