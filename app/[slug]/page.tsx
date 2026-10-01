@@ -41,7 +41,7 @@ import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../components/timeline/CalendarEventForm";
 import { CalendarInviteCard } from "../components/timeline/CalendarInvite";
 import { isEventTypeVisibleInPicker } from "../../lib/event-types";
-import { BrotherDrawer } from "../components/dashboard/drawers/BrotherDrawer";
+import { MemberSpotlight } from "../components/members/MemberSpotlight";
 import { Card, Modal, ConfirmDialog, FieldLabel } from "../components/dashboard/primitives";
 import { KPI_ICONS, SECTION_IDS, inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../components/dashboard/styles";
 import { type Announcement } from "../components/dashboard/AnnouncementCard";
@@ -1185,30 +1185,6 @@ export default function Home() {
   }
 
   // ── Brother profile save ───────────────────────────────────────────────────
-  function updateBrother(id: number, updates: Omit<Brother, "id" | "duesOwed">) {
-    const prev = brotherList.find(b => b.id === id);
-    if (!prev) return;
-    setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
-    addActivity(`${updates.name || prev.name} profile updated`, "info");
-    // Renaming YOURSELF also has to move the greeting and the sidebar profile,
-    // which read currentUser (loaded once from /api/auth/me) rather than the
-    // roster — otherwise the app keeps using your old name until a reload.
-    const renamingSelf = currentUser?.id === id && !!updates.name && updates.name !== prev.name;
-    if (renamingSelf) setSelfNameLocal(updates.name);
-    persistMutation(
-      requestJson<Brother>(`/api/brothers/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      }),
-      "Brother profile update failed. Local changes were reverted.",
-      () => {
-        setBrotherList(list => list.map(b => b.id === id ? prev : b));
-        if (renamingSelf) setSelfNameLocal(prev.name);
-      },
-    );
-  }
-
   // ── Fetch calendar events (attendance event picker + This Week) ───────────
   // A callback rather than an inline effect body so This Week's Retry can re-run
   // exactly this request — the calendar is page-owned, so refreshChapterData()
@@ -2792,17 +2768,13 @@ export default function Home() {
         onEditDeadline={openEditDeadline}
       />
 
-      {/* ── Brother Detail Drawer ───────────────────────────────────────────── */}
-      <BrotherDrawer
+      {/* ── Member card ─────────────────────────────────────────────────────── */}
+      <MemberSpotlight
         brotherId={selectedBrotherId}
-        brotherList={brotherList}
+        onNavigate={setSelectedBrotherId}
         onClose={() => setSelectedBrotherId(null)}
-        onSave={updateBrother}
         onPayDues={openPayDues}
         onLogServiceHours={openLogServiceHours}
-        isAdmin={isAdmin}
-        canTreasury={canTreasury}
-        selfId={selfId}
       />
 
       {/* ── Confirm Delete Dialog ───────────────────────────────────────────── */}

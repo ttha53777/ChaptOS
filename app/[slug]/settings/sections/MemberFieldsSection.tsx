@@ -13,7 +13,7 @@ import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useDirtyGuard } from "../SettingsDirtyContext";
 
 // Settings → Member Fields. Lets an org admin define extra fields that appear
-// on the member roster and in the BrotherDrawer profile tab (e.g. jersey number,
+// on the member roster and in the MemberSpotlight About section (e.g. jersey number,
 // major, pledge class). Follows the VocabSection / ThresholdsSection pattern:
 // reads from ChapterContext as source of truth, diffs locally, PATCHes on save,
 // then calls refreshChapterData() so the rest of the UI updates immediately.

@@ -34,7 +34,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const recordMap = new Map(records.map(r => [r.calendarEventId, r.attended]));
     const excuseMap = new Map(excuses.map(e => [e.calendarEventId, e]));
 
-    const history = events.map(event => {
+    // Only this semester's events. Every mandatory event the org has ever had used
+    // to come back, so past semesters showed up as rows of "No record". Anything
+    // with a record or excuse this semester is kept regardless of its date, so the
+    // list can never drop a row that counts toward the attendance ratio.
+    const inSemester = (date: string) => {
+      const d = date.slice(0, 10);
+      return d >= semester.startDate.slice(0, 10) && d <= semester.endDate.slice(0, 10);
+    };
+    const history = events.filter(event => inSemester(event.date) || recordMap.has(event.id) || excuseMap.has(event.id)).map(event => {
       const excuse = excuseMap.get(event.id);
       return {
         calendarEventId: event.id,

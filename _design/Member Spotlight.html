@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  ChaptOS · Member Spotlight
+  ══════════════════════════════════════════════════════════════════════════
+  Replaces the slide-in BrotherDrawer with a centered spotlight, in the same
+  warm-dusk language as the shipped Ask Chapt spotlight (Fraunces verdicts,
+  mono numbers, ONE violet accent, zero gradients).
+
+  The design ideas, and the drawer problems each one fixes:
+    · EVERY VALUE SAVES ON ITS OWN. No big "Save Changes" form. Edit GPA, save
+      GPA, done. So a save can't carry a stale service-hours number back
+      over a fresh one, and an untouched field is never re-sent.
+    · DERIVED NUMBERS AREN'T TEXT BOXES. Attendance comes from check-ins,
+      service from logged events, dues from the ledger. Each shows where it
+      comes from and offers the one real way to change it (log hours, record
+      payment). GPA and chapter metrics are the only typed values, and only
+      for officers who hold Manage members. Members can't edit their own GPA.
+    · SAVING KEEPS THE SPOTLIGHT OPEN. A failed save shows its error at the
+      field and keeps your draft. A successful one confirms with Undo.
+    · NOTHING IS LOST SILENTLY. Leaving with an unsaved edit asks
+      Save / Discard in place. Esc backs out one level: edit → confirm → close.
+    · NEW ISN'T AT RISK. Someone who joined this week reads "too early to
+      tell", not a red 0.00 GPA.
+    · WHAT YOU SEE DEPENDS ON WHO YOU ARE. Other members get a contact card,
+      not a peer's GPA and dues. Excuses: you excuse your own absence, or an
+      attendance officer excuses on someone's behalf. It never files against
+      the wrong person.
+    · ATTENDANCE IS THIS TERM, SORTED BY WHAT NEEDS A DECISION. Upcoming
+      events are counted, not listed as "No record".
+    · ARCHIVE BEFORE ERASE. Archive (keeps history, frees a seat) is the
+      default. Permanent removal is a typed confirm inside the spotlight.
+
+  Added, sparingly: step through the roster (← →) without closing, a
+  one-sentence standing verdict, "set by · when" provenance on typed values,
+  copy email.
+
+  Mock controls (top bar): switch viewer (President / Treasurer / Member),
+  simulate a failed save. Click any roster row.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Member Spotlight</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Geist:wght@300..600&family=Geist+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813; --card-3: #221d17;
+  --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30);
+  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13);
+  --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13);
+  --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
+  --scrim: rgba(5,4,2,.62);
+  --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+input, select { font: inherit; color: inherit; }
+::selection { background: var(--vio-bg); }
+:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+/* ── Mock controls ─────────────────────────────────────────────────────── */
+.mockbar { position: sticky; top: 0; z-index: 70; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 10px 16px; background: #0a0907; border-bottom: 1px dashed var(--line-med);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); }
+.mockbar b { color: var(--vio); font-weight: 500; text-transform: uppercase; letter-spacing: .12em; }
+.mockbar .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mockbar .seg button { background: none; border: 0; padding: 5px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.mockbar .seg button + button { border-left: 1px solid var(--line); }
+.mockbar .seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); }
+.mockbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ── Faux roster page (context behind the spotlight) ───────────────────── */
+.page { max-width: 1040px; margin: 0 auto; padding: 36px 24px 80px; }
+.page h1 { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -.025em; margin: 0 0 4px; }
+.page .lede { color: var(--muted); margin: 0 0 26px; }
+.roster { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+.roster .rh, .roster .rr { display: grid; grid-template-columns: minmax(0,2.2fr) 1fr 1fr 1fr 1fr; gap: 12px; align-items: center; padding: 12px 18px; }
+.roster .rh { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--line); }
+.roster .rr { width: 100%; background: none; border: 0; border-top: 1px solid var(--line-soft); text-align: left; transition: background .15s; }
+.roster .rr:first-of-type { border-top: 0; }
+.roster .rr:hover { background: var(--card-2); }
+.roster .who { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.roster .who span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roster .who small { display: block; color: var(--muted); font-size: 12px; }
+.roster .num { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+.roster .foot { padding: 11px 18px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+@media (max-width: 720px) {
+  .roster .rh { display: none; }
+  .roster .rr { grid-template-columns: minmax(0,1fr) auto; }
+  .roster .rr .num:not(.keep) { display: none; }
+}
+
+/* avatar */
+.av { display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: var(--card-3); color: var(--ink-soft);
+  font-family: var(--serif); font-weight: 500; width: 32px; height: 32px; font-size: 12.5px; box-shadow: 0 0 0 1.5px var(--line-med); }
+.av.lg { width: 52px; height: 52px; font-size: 19px; box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--line-med); }
+.av.t-warn { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--warn); }
+.av.t-risk { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--risk); }
+.av.t-ok   { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ok); }
+.av.t-new  { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--vio); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 9px; font-family: var(--mono);
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; border: 1px solid transparent; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.t-ok   { color: var(--ok);   background: var(--ok-bg); }
+.pill.t-warn { color: var(--warn); background: var(--warn-bg); }
+.pill.t-risk { color: var(--risk); background: var(--risk-bg); }
+.pill.t-new  { color: var(--vio);  background: var(--vio-bg); }
+.pill.t-muted{ color: var(--muted); background: var(--line-soft); border-color: var(--line); }
+
+/* ── Spotlight shell ───────────────────────────────────────────────────── */
+.ms-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 40px 24px 48px;
+  background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); -webkit-backdrop-filter: blur(6px) saturate(115%);
+  animation: fade .18s ease both; }
+.ms-overlay[hidden] { display: none; }
+@keyframes fade { from { opacity: 0; } }
+.ms-spot { position: relative; width: min(760px, 100%); max-height: min(740px, 88vh); display: flex; flex-direction: column;
+  background: var(--card); border: 1px solid var(--line-med); border-radius: 20px; box-shadow: var(--card-shadow); overflow: hidden;
+  animation: spot-in .26s var(--ease) both; }
+.ms-spot:focus { outline: none; }
+@keyframes spot-in { from { opacity: 0; transform: translateY(-8px) scale(.985); } }
+.ms-spot.swap .ms-scroll { animation: swap .22s var(--ease) both; }
+@keyframes swap { from { opacity: .2; transform: translateY(4px); } }
+
+/* header */
+.ms-head { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 16px; align-items: center; padding: 20px 20px 0 22px; }
+.ms-head h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 25px; letter-spacing: -.022em; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-head .sub { margin-top: 3px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: 12.5px; }
+.ms-head .sub .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); }
+.ms-ctl { display: flex; align-items: center; gap: 4px; align-self: start; }
+.ms-ctl .count { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); padding: 0 4px; }
+.ibtn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: none; border: 0; color: var(--muted); transition: .15s; }
+.ibtn:hover:not(:disabled) { color: var(--ink); background: var(--card-2); }
+.ibtn:disabled { opacity: .3; cursor: default; }
+.ibtn svg { width: 16px; height: 16px; }
+
+/* verdict: the one-sentence standing */
+.ms-verdict { margin: 16px 22px 0; font-family: var(--serif); font-size: 17px; line-height: 1.45; letter-spacing: -.01em; color: var(--ink-soft); text-wrap: pretty; }
+.ms-verdict em { font-style: italic; }
+.ms-verdict em.t-ok { color: var(--ok); } .ms-verdict em.t-warn { color: var(--warn); }
+.ms-verdict em.t-risk { color: var(--risk); } .ms-verdict em.t-new { color: var(--vio); } .ms-verdict em.t-muted { color: var(--muted); }
+
+/* tabs */
+.ms-tabs { display: flex; gap: 22px; padding: 0 22px; margin-top: 16px; border-bottom: 1px solid var(--line); }
+.ms-tabs button { position: relative; background: none; border: 0; padding: 10px 0 11px; font-size: 13px; color: var(--muted); transition: color .15s; }
+.ms-tabs button:hover { color: var(--ink); }
+.ms-tabs button[aria-selected="true"] { color: var(--ink); }
+.ms-tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--vio); border-radius: 2px; }
+.ms-tabs .badge { margin-left: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 6px; }
+
+.ms-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 22px 22px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+/* section label */
+.lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin: 22px 0 6px; display: flex; align-items: center; gap: 10px; }
+.lbl .r { margin-left: auto; letter-spacing: .06em; text-transform: none; font-size: 10.5px; }
+
+/* ── Measure rows ──────────────────────────────────────────────────────── */
+.m { display: grid; grid-template-columns: 116px minmax(0,1fr) auto; gap: 6px 18px; align-items: center; padding: 15px 0; border-top: 1px solid var(--line-soft); }
+.m:first-child { border-top: 0; }
+.m .k { font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.m .v { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.m .v .n { font-family: var(--mono); font-size: 20px; letter-spacing: -.02em; color: var(--ink); }
+.m .v .n.t-warn { color: var(--warn); } .m .v .n.t-risk { color: var(--risk); } .m .v .n.t-ok { color: var(--ok); }
+.m .v .n.none { font-family: var(--sans); font-size: 14px; color: var(--muted); letter-spacing: 0; }
+.m .v .of { font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+.m .src { grid-column: 2; font-size: 12px; color: var(--muted); margin-top: -2px; }
+.m .src b { font-weight: 500; color: var(--ink-soft); }
+.m .act { grid-column: 3; grid-row: 1 / span 2; display: flex; gap: 6px; }
+.m .bar { grid-column: 2; position: relative; height: 3px; border-radius: 3px; background: var(--line); margin: 2px 0 1px; max-width: 280px; }
+.m .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--ink-soft); }
+.m .bar i.t-warn { background: var(--warn); } .m .bar i.t-risk { background: var(--risk); } .m .bar i.t-ok { background: var(--ok); }
+.m .bar .goal { position: absolute; top: -3px; width: 1.5px; height: 9px; background: var(--muted); border-radius: 1px; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line-med); border-radius: 8px;
+  padding: 6px 11px; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.btn:hover:not(:disabled) { border-color: var(--vio-line); color: var(--ink); }
+.btn.primary { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: #8b4cf0; border-color: #8b4cf0; color: #fff; }
+.btn.danger { border-color: rgba(207,130,114,.35); color: var(--risk); }
+.btn.danger:hover:not(:disabled) { background: var(--risk-bg); border-color: var(--risk); color: var(--risk); }
+.btn.ghost { border-color: transparent; color: var(--muted); padding-left: 8px; padding-right: 8px; }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); border-color: transparent; background: var(--card-2); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn svg { width: 13px; height: 13px; }
+
+/* ── Inline editor (one value at a time) ───────────────────────────────── */
+.ed { grid-column: 1 / -1; margin-top: 4px; padding: 14px; border: 1px solid var(--vio-line); border-radius: 12px; background: var(--paper-2);
+  animation: ed-in .18s var(--ease) both; }
+@keyframes ed-in { from { opacity: 0; transform: translateY(-3px); } }
+.ed .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ed .fld { display: flex; align-items: center; gap: 8px; }
+.ed input, .ed select, .ed textarea { background: var(--card); border: 1px solid var(--line-med); border-radius: 8px; padding: 7px 10px; font-size: 14px; min-width: 0; }
+.ed input:focus, .ed select:focus { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.ed input.num { width: 96px; font-family: var(--mono); }
+.ed input.wide { flex: 1; min-width: 180px; }
+.ed .of { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.ed .sp { margin-left: auto; display: flex; gap: 6px; }
+.ed .hint { margin: 9px 0 0; font-size: 12px; color: var(--muted); }
+.ed .hint.err { color: var(--risk); }
+.ed .keys { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: .04em; }
+.ed .seg { display: inline-flex; border: 1px solid var(--line-med); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+.ed .seg button { background: none; border: 0; padding: 6px 12px; font-size: 12.5px; color: var(--muted); }
+.ed .seg button + button { border-left: 1px solid var(--line-med); }
+.ed .seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); }
+.ed.danger { border-color: rgba(207,130,114,.4); }
+
+/* small lists (service log, metrics) */
+.mini { grid-column: 2 / -1; margin: 4px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); }
+.mini li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
+.mini li span:last-child { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--vio); font-size: 12px; }
+.linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.note { margin: 18px 0 0; padding: 11px 13px; border-radius: 10px; background: var(--line-soft); color: var(--muted); font-size: 12.5px; display: flex; gap: 10px; }
+.note svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--faint); }
+
+/* ── Attendance ────────────────────────────────────────────────────────── */
+.att-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 0 4px; }
+.att-sum .big { font-family: var(--serif); font-size: 16px; color: var(--ink-soft); }
+.att-sum .big b { font-family: var(--mono); font-weight: 400; color: var(--ink); }
+.exempt { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--vio-bg); border: 1px solid var(--vio-line); font-size: 13px; }
+.exempt .sp { margin-left: auto; }
+.ev { display: grid; grid-template-columns: 10px minmax(0,1fr) auto; gap: 4px 12px; align-items: start; padding: 11px 0; border-top: 1px solid var(--line-soft); }
+.ev:first-child { border-top: 0; }
+.ev .d { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--faint); }
+.ev .d.ok { background: var(--ok); } .ev .d.warn { background: var(--warn); } .ev .d.risk { background: var(--risk); }
+.ev .d.hollow { background: none; box-shadow: inset 0 0 0 1.5px var(--faint); }
+.ev .t { font-size: 13.5px; color: var(--ink); }
+.ev .m2 { font-size: 12px; color: var(--muted); }
+.ev .why { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
+.ev .why i { color: var(--muted); font-style: normal; }
+.ev .why.rej { color: var(--risk); }
+.ev .acts { display: flex; gap: 6px; }
+.ev .ed { grid-column: 2 / -1; }
+.more { margin-top: 8px; font-size: 12.5px; color: var(--faint); }
+
+/* ── Profile ───────────────────────────────────────────────────────────── */
+.kv { display: grid; grid-template-columns: 150px minmax(0,1fr) auto; gap: 4px 16px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line-soft); }
+.kv:first-child { border-top: 0; }
+.kv .k { font-size: 12.5px; color: var(--muted); }
+.kv .k .req { color: var(--risk); margin-left: 2px; }
+.kv .v { font-size: 13.5px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.kv .v.empty { color: var(--faint); }
+.kv .v small { display: block; color: var(--faint); font-size: 11.5px; }
+.kv .ed { grid-column: 1 / -1; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; border: 1px solid var(--line-med); font-size: 12.5px; color: var(--ink-soft); }
+.chip.ro { padding-right: 10px; }
+.chip button { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 0; background: none; color: var(--faint); }
+.chip button:hover { color: var(--ink); background: var(--card-3); }
+.chip button svg { width: 10px; height: 10px; }
+.chip.add { border-style: dashed; color: var(--muted); padding-right: 10px; background: none; }
+.chip.add:hover { color: var(--ink); border-color: var(--vio-line); }
+.chip select { background: none; border: 0; font-size: 12.5px; color: var(--ink); padding: 0 4px 0 0; }
+
+.danger-zone { margin-top: 8px; display: grid; gap: 10px; }
+.dz { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.dz p { margin: 0; flex: 1; min-width: 220px; font-size: 12.5px; color: var(--muted); }
+.dz p b { color: var(--ink-soft); font-weight: 500; }
+
+/* ── Guard + toast ─────────────────────────────────────────────────────── */
+.guard { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 22px; border-top: 1px solid var(--vio-line); background: var(--paper-2); font-size: 13px; animation: ed-in .18s var(--ease) both; }
+.guard .sp { margin-left: auto; display: flex; gap: 6px; }
+.toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 9px 10px 9px 14px;
+  border-radius: 999px; background: var(--card-3); border: 1px solid var(--line-med); box-shadow: 0 16px 40px -18px rgba(0,0,0,.9);
+  font-size: 13px; white-space: nowrap; max-width: calc(100% - 32px); animation: toast-in .25s var(--ease) both; z-index: 3; }
+.toast span { overflow: hidden; text-overflow: ellipsis; }
+.toast .linkbtn { font-size: 12.5px; flex-shrink: 0; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+.ms-keys { display: flex; gap: 14px; justify-content: flex-end; padding: 9px 22px; border-top: 1px solid var(--line-soft); font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--faint); }
+.ms-keys kbd { font-family: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 3px; color: var(--muted); }
+
+.spin { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: rot .7s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ── Phone: spotlight becomes a bottom sheet ───────────────────────────── */
+@media (max-width: 640px) {
+  .ms-overlay { place-items: end stretch; padding: 0; }
+  .ms-spot { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; border-bottom: 0; animation-name: sheet-in; }
+  @keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } }
+  .ms-head { padding: 16px 12px 0 16px; gap: 12px; }
+  .ms-head h2 { font-size: 21px; }
+  .av.lg { width: 44px; height: 44px; font-size: 16px; }
+  .ms-ctl .count, .ms-head .sub .dot { display: none; }
+  .ms-verdict { margin: 14px 16px 0; font-size: 15.5px; }
+  .ms-tabs { padding: 0 16px; gap: 18px; }
+  .ms-scroll { padding: 4px 16px 20px; }
+  .m { grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; }
+  .m .k { grid-column: 1; }
+  .m .v, .m .src, .m .bar { grid-column: 1; }
+  .m .act { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+  .mini { grid-column: 1 / -1; }
+  .kv { grid-template-columns: minmax(0,1fr) auto; }
+  .kv .v { grid-column: 1; grid-row: 2; }
+  .kv > .btn, .kv > .act { grid-column: 2; grid-row: 1 / span 2; }
+  .ms-keys { display: none; }
+  .guard { padding: 12px 16px; }
+}
+@media (max-width: 640px) { .mockbar { position: static; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="mockbar" role="region" aria-label="Mock controls">
+  <b>Mock</b>
+  <span>Viewing as</span>
+  <div class="seg" id="viewerSeg">
+    <button data-viewer="president" aria-pressed="true">President · all perms</button>
+    <button data-viewer="treasurer" aria-pressed="false">Treasurer · dues only</button>
+    <button data-viewer="member" aria-pressed="false">Sam · plain member</button>
+  </div>
+  <label><input type="checkbox" id="failNext"> Next save fails</label>
+</div>
+
+<main class="page" id="page" aria-hidden="false">
+  <h1>Brotherhood</h1>
+  <p class="lede">Beta Chapter · Fall 2026 · click a member</p>
+  <div class="roster" id="roster"></div>
+</main>
+
+<div class="ms-overlay" id="overlay" hidden>
+  <div class="ms-spot" id="spot" role="dialog" aria-modal="true" aria-labelledby="msName" tabindex="-1"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   Data
+   ═══════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date("2026-09-30T12:00:00");
+const TERM = { name: "Fall 2026", start: new Date("2026-08-24"), end: new Date("2026-12-12") };
+const GOALS = { attWatch: 75, attRisk: 60, gpaWatch: 3.0, gpaRisk: 2.5, gpaMax: 4.0, service: 10 };
+const SERVICE_EVENTS = [
+  { id: 11, t: "Habitat build", d: "2026-09-27" },
+  { id: 12, t: "Food bank shift", d: "2026-09-20" },
+  { id: 13, t: "Campus cleanup", d: "2026-09-13" },
+  { id: 14, t: "Blood drive", d: "2026-09-06" },
+];
+const ALL_ROLES = ["President", "Treasurer", "Social Chair", "Scholarship Chair", "Service Chair", "Recruitment Chair"];
+const CUSTOM_DEFS = [
+  { id: "major", label: "Major", required: false },
+  { id: "grad",  label: "Grad year", required: true, type: "number" },
+  { id: "shirt", label: "T-shirt size", required: false },
+];
+
+const members = [
+  {
+    id: 1, name: "Marcus Bell", email: "mbell@state.edu", joined: "2025-09-08",
+    roles: ["Social Chair"], committees: ["Rush", "Banquet"],
+    gpa: { v: 2.84, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 120, exempt: null,
+    service: [{ ev: 12, h: 3 }, { ev: 13, h: 2 }, { ev: 14, h: 1 }],
+    custom: { major: "Economics", grad: 2027, shirt: "L" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 9, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "attended" },
+      { id: 102, t: "Rush kickoff", d: "2026-09-05", s: "attended" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "absent" },
+      { id: 104, t: "Philanthropy kickoff", d: "2026-09-12", s: "attended" },
+      { id: 105, t: "Chapter meeting", d: "2026-09-16", s: "pending", reason: "Organic chem midterm, 7–9pm" },
+      { id: 106, t: "Brotherhood retreat", d: "2026-09-19", s: "rejected", reason: "Family thing", note: "Needs 48 hours' notice" },
+      { id: 107, t: "Chapter meeting", d: "2026-09-23", s: "absent" },
+      { id: 108, t: "Study hall", d: "2026-09-26", s: "attended" },
+      { id: 109, t: "Chapter dinner", d: "2026-09-28", s: "attended" },
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 111, t: "Alumni mixer", d: "2026-08-29", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+      { id: 191, t: "Homecoming setup", d: "2026-10-10", s: "upcoming" },
+    ],
+  },
+  {
+    id: 2, name: "Priya Nair", email: "pnair@state.edu", joined: "2026-09-27",
+    roles: [], committees: [],
+    gpa: null, dues: 250, exempt: null, service: [],
+    custom: { major: "", grad: null, shirt: "" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: null }],
+    events: [
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+      { id: 191, t: "Homecoming setup", d: "2026-10-10", s: "upcoming" },
+    ],
+  },
+  {
+    id: 3, name: "Sam Okafor", email: "sokafor@state.edu", joined: "2024-09-10",
+    roles: [], committees: ["Philanthropy"],
+    gpa: { v: 3.61, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 0, exempt: null,
+    service: [{ ev: 11, h: 5 }, { ev: 12, h: 3 }, { ev: 14, h: 3 }],
+    custom: { major: "Biology", grad: 2026, shirt: "M" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 14, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 111, t: "Alumni mixer", d: "2026-08-29", s: "attended" },
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "attended" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "attended" },
+      { id: 104, t: "Philanthropy kickoff", d: "2026-09-12", s: "attended" },
+      { id: 105, t: "Chapter meeting", d: "2026-09-16", s: "attended" },
+      { id: 106, t: "Brotherhood retreat", d: "2026-09-19", s: "attended" },
+      { id: 107, t: "Chapter meeting", d: "2026-09-23", s: "absent" },
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+    ],
+  },
+  {
+    id: 4, name: "Dana Whitfield", email: "dwhitfield@state.edu", joined: "2024-01-20",
+    roles: ["Recruitment Chair"], committees: [],
+    gpa: { v: 2.31, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 340, exempt: { reason: "Studying abroad", by: "Alex Moreno", at: "Aug 20" },
+    service: [{ ev: 14, h: 1 }],
+    custom: { major: "International Relations", grad: 2027, shirt: "S" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 4, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "absent" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "absent" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+    ],
+  },
+];
+const SELF_ID = 3; // Sam, when viewing as the plain member
+
+const VIEWERS = {
+  president: { name: "Jordan Ellis", members: true, roles: true, treasury: true, attendance: true, service: true, officer: true },
+  treasurer: { name: "Chris Park",   members: false, roles: false, treasury: true, attendance: false, service: false, officer: true },
+  member:    { name: "Sam Okafor",   members: false, roles: false, treasury: false, attendance: false, service: false, officer: false, selfId: SELF_ID },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════════════════════════════ */
+const S = {
+  viewer: "president",
+  idx: null,          // index into members, null = closed
+  tab: "overview",
+  editing: null,      // "gpa" | "metric:0" | "name" | "committees" | "cf:grad" | "dues" | "service" | "exempt" | "excuse:105" | "reject:105" | "remove"
+  draft: {},          // editor-local values
+  saving: false,
+  error: null,
+  guard: null,        // pending navigation while an edit is dirty: {fn, label}
+  toast: null,        // {text, undo}
+  lastFocus: null,
+};
+let toastTimer = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const fmt$ = n => "$" + n.toLocaleString("en-US");
+const initials = n => n.split(" ").map(p => p[0]).slice(0, 2).join("");
+const firstName = n => n.split(" ")[0];
+function fmtDate(iso) {
+  const d = new Date(iso + "T12:00:00");
+  const opts = { weekday: "short", month: "short", day: "numeric" };
+  if (d.getFullYear() !== TODAY.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("en-US", opts);
+}
+const daysSince = iso => Math.floor((TODAY - new Date(iso + "T12:00:00")) / 864e5);
+const cur = () => S.idx === null ? null : members[S.idx];
+const V = () => VIEWERS[S.viewer];
+const isSelf = m => V().selfId === m.id;
+const canSeeStanding = m => V().officer || isSelf(m);
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Derived values: computed, never typed
+   ═══════════════════════════════════════════════════════════════════════ */
+function attendance(m) {
+  const past = m.events.filter(e => e.s !== "upcoming");
+  const joined = new Date(m.joined + "T00:00:00");
+  const counted = past.filter(e => new Date(e.d) >= joined && e.s !== "excused" && e.s !== "pending");
+  const attended = counted.filter(e => e.s === "attended").length;
+  const upcoming = m.events.filter(e => e.s === "upcoming").length;
+  return { attended, of: counted.length, pct: counted.length ? Math.round(attended / counted.length * 100) : null, upcoming,
+           pending: past.filter(e => e.s === "pending").length, unexcused: past.filter(e => e.s === "absent" || e.s === "rejected").length };
+}
+const serviceTotal = m => m.service.reduce((s, x) => s + x.h, 0);
+const termFrac = () => Math.min(1, Math.max(0, (TODAY - TERM.start) / (TERM.end - TERM.start)));
+const isNew = m => daysSince(m.joined) < 14;
+
+function toneAtt(p) { return p === null ? "" : p < GOALS.attRisk ? "t-risk" : p < GOALS.attWatch ? "t-warn" : "t-ok"; }
+function toneGpa(g) { return g === null ? "" : g < GOALS.gpaRisk ? "t-risk" : g < GOALS.gpaWatch ? "t-warn" : "t-ok"; }
+
+function standing(m) {
+  const self = isSelf(m);
+  const subj = self ? "You're" : `${esc(firstName(m.name))} is`;
+  if (m.archived) return { tone: "t-muted", label: "Archived", s: `<em class="t-muted">Archived</em> today. Hidden from the roster and not using a seat. Their history is kept.` };
+  const a = attendance(m);
+  if (isNew(m)) {
+    const d = daysSince(m.joined);
+    let s = `${self ? "You" : esc(firstName(m.name))} joined ${d === 0 ? "today" : d === 1 ? "yesterday" : d + " days ago"}, so it's <em class="t-new">too early to tell</em>. Nothing counts against ${self ? "you" : "them"} yet.`;
+    if (m.dues > 0) s += ` The ${fmt$(m.dues)} new-member fee is outstanding.`;
+    return { tone: "t-new", label: "New", s };
+  }
+  const issues = []; let worst = 0;
+  if (!m.exempt && a.pct !== null && a.pct < GOALS.attWatch) { issues.push(`attendance is ${a.pct}%`); worst = Math.max(worst, a.pct < GOALS.attRisk ? 2 : 1); }
+  if (m.gpa && m.gpa.v < GOALS.gpaWatch) { issues.push(`GPA is ${m.gpa.v.toFixed(2)}`); worst = Math.max(worst, m.gpa.v < GOALS.gpaRisk ? 2 : 1); }
+  if (m.dues > 0) { issues.push(`${fmt$(m.dues)} in dues is outstanding`); worst = Math.max(worst, 1); }
+  if (!issues.length) return { tone: "t-ok", label: "Good", s: `${subj} in <em class="t-ok">good standing</em> on every measure${m.exempt ? " (exempt from attendance this term)" : ""}.` };
+  const tone = worst === 2 ? "t-risk" : "t-warn", word = worst === 2 ? "at risk" : "on watch";
+  const list = issues.length === 1 ? issues[0] : issues.slice(0, -1).join(", ") + " and " + issues.at(-1);
+  return { tone, label: worst === 2 ? "At risk" : "Watch", s: `${subj} <em class="${tone}">${word}</em>: ${list}.` };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Icons
+   ═══════════════════════════════════════════════════════════════════════ */
+const I = {
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+  l: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>',
+  info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+  xs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Roster (background page)
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderRoster() {
+  const rows = members.filter(m => !m.archived).map(m => {
+    const st = standing(m), a = attendance(m), show = canSeeStanding(m);
+    return `<button class="rr" data-open="${members.indexOf(m)}">
+      <span class="who"><span class="av ${show ? st.tone : ""}">${initials(m.name)}</span><span>${esc(m.name)}<small>${esc(m.roles[0] || "Member")}</small></span></span>
+      <span class="num keep">${show ? `<span class="pill ${st.tone}">${st.label}</span>` : ""}</span>
+      <span class="num">${show ? (m.exempt ? "Exempt" : a.pct === null ? "—" : a.pct + "%") : "·"}</span>
+      <span class="num">${show ? (m.gpa ? m.gpa.v.toFixed(2) : "—") : "·"}</span>
+      <span class="num">${show ? (m.dues ? fmt$(m.dues) : "Paid") : "·"}</span>
+    </button>`;
+  }).join("");
+  $("#roster").innerHTML = `<div class="rh"><span>Member</span><span>Standing</span><span>Attendance</span><span>GPA</span><span>Dues</span></div>${rows}
+    <div class="foot">4 of 34 shown · standing columns are officers-only</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Spotlight
+   ═══════════════════════════════════════════════════════════════════════ */
+function render(opts = {}) {
+  renderRoster();
+  const m = cur();
+  const ov = $("#overlay");
+  if (!m) { ov.hidden = true; $("#page").removeAttribute("aria-hidden"); return; }
+  ov.hidden = false; $("#page").setAttribute("aria-hidden", "true");
+  const st = standing(m), vis = members.filter(x => !x.archived || x === m), pos = vis.indexOf(m);
+  const officerView = canSeeStanding(m);
+  const a = attendance(m);
+  if (!officerView) S.tab = "profile";
+  const scrollY = $(".ms-scroll")?.scrollTop ?? 0;
+
+  $("#spot").innerHTML = `
+    <div class="ms-head">
+      <span class="av lg ${officerView ? st.tone : ""}" aria-hidden="true">${initials(m.name)}</span>
+      <div style="min-width:0">
+        <h2 id="msName">${esc(m.name)}${isSelf(m) ? ' <span style="color:var(--faint);font-size:.6em;font-style:italic">you</span>' : ""}</h2>
+        <div class="sub">
+          ${officerView ? `<span class="pill ${st.tone}">${st.label}</span>` : ""}
+          <span>${esc(m.roles.join(" · ") || "Member")}</span><span class="dot"></span>
+          <span>Since ${new Date(m.joined + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+        </div>
+      </div>
+      <div class="ms-ctl">
+        <button class="ibtn" data-act="prev" aria-label="Previous member" ${pos <= 0 ? "disabled" : ""}>${I.l}</button>
+        <span class="count">${pos + 1} / ${vis.length}</span>
+        <button class="ibtn" data-act="next" aria-label="Next member" ${pos >= vis.length - 1 ? "disabled" : ""}>${I.r}</button>
+        <button class="ibtn" data-act="close" aria-label="Close">${I.x}</button>
+      </div>
+    </div>
+    ${officerView ? `<p class="ms-verdict" aria-live="polite">${st.s}</p>` : ""}
+    ${officerView ? `<div class="ms-tabs" role="tablist" aria-label="Member sections">
+      ${tabBtn("overview", "Overview")}
+      ${tabBtn("attendance", "Attendance", (V().attendance && a.pending) ? `<span class="badge">${a.pending}</span>` : "")}
+      ${tabBtn("profile", "Profile")}
+    </div>` : `<div class="ms-tabs" style="gap:0"></div>`}
+    <div class="ms-scroll" role="tabpanel" id="panel" aria-labelledby="tab-${S.tab}">
+      ${S.tab === "overview" ? overview(m) : S.tab === "attendance" ? attendanceTab(m) : profile(m)}
+    </div>
+    ${S.guard ? guardBar() : `<div class="ms-keys"><span><kbd>←</kbd><kbd>→</kbd>members</span><span><kbd>esc</kbd>${S.editing ? "cancel edit" : "close"}</span></div>`}
+    ${S.toast ? `<div class="toast" role="status"><span>${S.toast.text}</span>${S.toast.undo ? '<button class="linkbtn" data-act="undo">Undo</button>' : ""}</div>` : ""}
+  `;
+  const sc = $(".ms-scroll");
+  if (opts.swap) { $("#spot").classList.remove("swap"); void $("#spot").offsetWidth; $("#spot").classList.add("swap"); sc.scrollTop = 0; }
+  else sc.scrollTop = scrollY;
+  const f = $("#spot [data-focus]");
+  if (f && opts.focusEditor !== false) { f.focus(); if (f.select && f.type !== "number") { const l = f.value.length; f.setSelectionRange?.(l, l); } else f.select?.(); }
+}
+function tabBtn(id, label, extra = "") {
+  return `<button role="tab" id="tab-${id}" aria-controls="panel" aria-selected="${S.tab === id}" tabindex="${S.tab === id ? 0 : -1}" data-tab="${id}">${label}${extra}</button>`;
+}
+
+/* ── Overview: the four measures ───────────────────────────────────────── */
+function overview(m) {
+  const v = V(), a = attendance(m), self = isSelf(m), svc = serviceTotal(m);
+  const pace = GOALS.service * termFrac();
+  let out = `<div class="lbl">Standing · ${TERM.name}</div><div>`;
+
+  // Attendance: derived from check-ins
+  out += `<div class="m"><span class="k">Attendance</span>`;
+  if (m.exempt) out += `<span class="v"><span class="n none">Exempt this term</span></span><span class="src">${esc(m.exempt.reason)} · set by <b>${esc(m.exempt.by)}</b>, ${m.exempt.at}</span>`;
+  else if (a.pct === null) out += `<span class="v"><span class="n none">No events yet</span></span><span class="src">Counts from their first mandatory event after joining</span>`;
+  else out += `<span class="v"><span class="n ${toneAtt(a.pct)}">${a.pct}%</span><span class="of">${a.attended} of ${a.of} events${new Date(m.joined) > TERM.start ? " since joining" : ""}</span></span>
+    <span class="bar"><i class="${toneAtt(a.pct)}" style="width:${a.pct}%"></i><span class="goal" style="left:${GOALS.attWatch}%"></span></span>
+    <span class="src">From check-ins · goal ${GOALS.attWatch}%${a.pending ? ` · <b>${a.pending} excuse pending</b>` : ""}${a.unexcused && !a.pending ? ` · ${a.unexcused} unexcused` : ""}</span>`;
+  out += `<span class="act"><button class="btn ghost" data-tab="attendance">History</button></span></div>`;
+
+  // GPA: the one typed standing value, Manage members only
+  const editingGpa = S.editing === "gpa";
+  out += `<div class="m"><span class="k">GPA</span>`;
+  out += m.gpa
+    ? `<span class="v"><span class="n ${toneGpa(m.gpa.v)}">${m.gpa.v.toFixed(2)}</span><span class="of">of ${GOALS.gpaMax.toFixed(2)}</span></span>
+       <span class="bar"><i class="${toneGpa(m.gpa.v)}" style="width:${m.gpa.v / GOALS.gpaMax * 100}%"></i><span class="goal" style="left:${GOALS.gpaWatch / GOALS.gpaMax * 100}%"></span></span>
+       <span class="src">Set by <b>${esc(m.gpa.by)}</b>, ${m.gpa.at} · goal ${GOALS.gpaWatch.toFixed(2)}</span>`
+    : `<span class="v"><span class="n none">Not on file</span></span><span class="src">${v.members ? "Add it once they report one. It won't count against them until then." : "Not reported yet"}</span>`;
+  out += `<span class="act">${v.members && !editingGpa ? `<button class="btn" data-edit="gpa">${m.gpa ? "Edit" : "Add GPA"}</button>` : ""}</span>`;
+  if (editingGpa) out += numEditor("gpa", { label: "GPA", max: GOALS.gpaMax, step: 0.01, of: `of ${GOALS.gpaMax.toFixed(2)}`, clearable: !!m.gpa,
+    hint: "Saves just this value. Clearing it marks the GPA “not on file”." });
+  out += `</div>`;
+
+  // Dues: ledger-backed, never typed over
+  out += `<div class="m"><span class="k">Dues</span>
+    <span class="v">${m.dues > 0 ? `<span class="n t-warn">${fmt$(m.dues)}</span><span class="of">owed</span>` : `<span class="n t-ok">Paid up</span>`}</span>
+    <span class="src">Balance moves with the Treasury ledger</span>
+    <span class="act">${v.treasury && S.editing !== "dues" ? `<button class="btn" data-edit="dues">${m.dues > 0 ? "Record payment" : "Charge or waive"}</button>` : ""}</span>`;
+  if (S.editing === "dues") out += duesEditor(m);
+  out += `</div>`;
+
+  // Service: from logged events, never typed over
+  const fresh = isNew(m); // pace only means something once they've had time to serve
+  const svcTone = svc >= GOALS.service ? "t-ok" : !fresh && svc + 0.01 < pace ? "t-warn" : "";
+  out += `<div class="m"><span class="k">Service</span>
+    <span class="v"><span class="n ${svcTone}">${svc}h</span><span class="of">of ${GOALS.service}h</span></span>
+    <span class="bar"><i class="${svcTone}" style="width:${Math.min(100, svc / GOALS.service * 100)}%"></i>${fresh ? "" : `<span class="goal" style="left:${pace / GOALS.service * 100}%" title="Where they'd be on pace today"></span>`}</span>
+    <span class="src">${svc >= GOALS.service ? "Goal met" : fresh ? "Just joined, so no pace yet" : svc + 0.01 < pace ? `Behind pace (${pace.toFixed(1)}h expected by now)` : "On pace for the term"} · from ${m.service.length} logged event${m.service.length === 1 ? "" : "s"}</span>
+    <span class="act">${v.service && S.editing !== "service" ? `<button class="btn" data-edit="service">Log hours</button>` : ""}</span>`;
+  if (m.service.length) out += `<ul class="mini">${m.service.slice(0, 3).map(x => { const e = SERVICE_EVENTS.find(s => s.id === x.ev); return `<li><span>${esc(e.t)} · ${fmtDate(e.d)}</span><span>${x.h}h</span></li>`; }).join("")}</ul>`;
+  if (S.editing === "service") out += serviceEditor(m);
+  out += `</div></div>`;
+
+  // Chapter-defined metrics (typed, Manage members)
+  if (m.metrics.length) {
+    out += `<div class="lbl">Chapter metrics</div><div>`;
+    m.metrics.forEach((x, i) => {
+      const key = "metric:" + i, t = x.v === null ? "" : x.v >= x.goal ? "t-ok" : "t-warn";
+      out += `<div class="m"><span class="k">${esc(x.name)}</span>
+        <span class="v">${x.v === null ? `<span class="n none">Not recorded</span>` : `<span class="n ${t}">${x.v}${x.unit}</span><span class="of">goal ${x.goal}${x.unit}</span>`}</span>
+        <span class="src">${x.by ? `Set by <b>${esc(x.by)}</b>, ${x.at}` : "No value yet"}</span>
+        <span class="act">${v.members && S.editing !== key ? `<button class="btn" data-edit="${key}">${x.v === null ? "Add" : "Edit"}</button>` : ""}</span>`;
+      if (S.editing === key) out += numEditor(key, { label: x.name, max: 1000, step: "any", of: x.unit, clearable: x.v !== null, hint: "Clear to remove the value entirely." });
+      out += `</div>`;
+    });
+    out += `</div>`;
+  }
+
+  if (self) out += `<p class="note">${I.info}<span>GPA and metrics are set by officers with <b>Manage members</b> (Jordan Ellis). Think something's wrong? Tell them. Service hours are added when the service chair logs an event.</span></p>`;
+  else if (!v.members) out += `<p class="note">${I.lock}<span>You can see standing but not change GPA or metrics. That takes <b>Manage members</b>.${v.treasury ? " Dues are yours to manage." : ""}</span></p>`;
+  return out;
+}
+
+function numEditor(key, o) {
+  const d = S.draft;
+  return `<div class="ed" role="group" aria-label="Edit ${esc(o.label)}">
+    <div class="row">
+      <label class="fld"><span class="sr" style="position:absolute;left:-9999px">${esc(o.label)}</span>
+        <input class="num" data-focus data-draft="value" type="number" inputmode="decimal" min="0" max="${o.max}" step="${o.step}" value="${esc(d.value)}" aria-describedby="edHint" aria-invalid="${!!S.error}">
+        <span class="of">${esc(o.of || "")}</span></label>
+      ${o.clearable ? `<button class="btn ghost" data-act="clear-field">Clear</button>` : ""}
+      <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+      <button class="btn primary" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span> Saving' : "Save"}</button></span>
+    </div>
+    <p class="hint ${S.error ? "err" : ""}" id="edHint">${S.error ? esc(S.error) : `${o.hint} <span class="keys">↵ save · esc cancel</span>`}</p>
+  </div>`;
+}
+
+function duesEditor(m) {
+  const d = S.draft, kind = d.kind;
+  const expl = kind === "payment"
+    ? `Posts a ${fmt$(+d.amount || 0)} income entry to the Treasury ledger and lowers the balance at the same moment.`
+    : kind === "charge" ? "Adds to what they owe. No money moves; logged with your reason." : "Forgives part of the balance. No money moves; logged with your reason.";
+  return `<div class="ed" role="group" aria-label="Dues">
+    <div class="seg" role="group" aria-label="Kind">
+      ${["payment", "charge", "waive"].map(k => `<button data-kind="${k}" aria-pressed="${kind === k}" ${k !== "charge" && m.dues === 0 ? "disabled" : ""}>${k === "payment" ? "Payment" : k === "charge" ? "Charge" : "Waive"}</button>`).join("")}
+    </div>
+    <div class="row">
+      <label class="fld"><span class="of">$</span><input class="num" data-focus data-draft="amount" type="number" min="0" step="0.01" value="${esc(d.amount)}" aria-label="Amount"></label>
+      ${kind === "payment"
+        ? `<select data-draft="method" aria-label="Method">${["Venmo", "Zelle", "Cash", "Card"].map(x => `<option ${d.method === x ? "selected" : ""}>${x}</option>`).join("")}</select>`
+        : `<input class="wide" data-draft="reason" placeholder="Reason (required)" value="${esc(d.reason)}" aria-label="Reason">`}
+      <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+      <button class="btn primary" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span> Saving' : kind === "payment" ? "Record" : kind === "charge" ? "Charge" : "Waive"}</button></span>
+    </div>
+    <p class="hint ${S.error ? "err" : ""}">${S.error ? esc(S.error) : expl}</p>
+  </div>`;
+}
+
+function serviceEditor(m) {
+  const d = S.draft;
+  return `<div class="ed" role="group" aria-label="Log service hours">
+    <div class="row">
+      <select data-focus data-draft="ev" aria-label="Service event">${SERVICE_EVENTS.map(e => `<option value="${e.id}" ${+d.ev === e.id ? "selected" : ""}>${esc(e.t)} · ${fmtDate(e.d)}</option>`).join("")}</select>
+      <label class="fld"><input class="num" data-draft="hours" type="number" min="0" step="0.5" value="${esc(d.hours)}" aria-label="Hours"><span class="of">hours</span></label>
+      <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+      <button class="btn primary" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span> Saving' : "Log"}</button></span>
+    </div>
+    <p class="hint ${S.error ? "err" : ""}">${S.error ? esc(S.error) : "Adds to that event's sign-in sheet. The total is recounted from events, so it can't drift."}</p>
+  </div>`;
+}
+
+/* ── Attendance tab ────────────────────────────────────────────────────── */
+function attendanceTab(m) {
+  const v = V(), a = attendance(m), self = isSelf(m);
+  const past = m.events.filter(e => e.s !== "upcoming").sort((x, y) => y.d.localeCompare(x.d));
+  const decide = past.filter(e => e.s === "pending");
+  const unexcused = past.filter(e => e.s === "absent" || e.s === "rejected");
+  const rest = past.filter(e => !decide.includes(e) && !unexcused.includes(e));
+  let out = `<div class="att-sum"><span class="big">${m.exempt ? "Exempt this term" : a.pct === null ? "No mandatory events yet" : `<b>${a.attended}</b> of <b>${a.of}</b> mandatory events · ${TERM.name}`}</span>
+    ${v.attendance && !m.exempt && S.editing !== "exempt" ? `<button class="btn ghost" data-edit="exempt">Mark exempt…</button>` : ""}</div>`;
+  if (m.exempt) out += `<div class="exempt"><span><b>${esc(m.exempt.reason)}.</b> Absences this term don't count.</span>${v.attendance ? `<span class="sp"><button class="btn ghost" data-act="clear-exempt">Clear exemption</button></span>` : ""}</div>`;
+  if (S.editing === "exempt") out += `<div class="ed"><div class="row">
+      <select data-focus data-draft="reason" aria-label="Exemption reason">${["Studying abroad", "Co-op / internship", "Inactive", "Other"].map(r => `<option ${S.draft.reason === r ? "selected" : ""}>${r}</option>`).join("")}</select>
+      <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button><button class="btn primary" data-act="save">${S.saving ? '<span class="spin"></span> Saving' : "Exempt for " + TERM.name}</button></span></div>
+      <p class="hint ${S.error ? "err" : ""}">${S.error ? esc(S.error) : "Their absences stop counting for this term only. Past terms are untouched."}</p></div>`;
+
+  if (decide.length) out += `<div class="lbl">Needs a decision</div><div>${decide.map(e => evRow(m, e)).join("")}</div>`;
+  if (unexcused.length) out += `<div class="lbl">Unexcused</div><div>${unexcused.map(e => evRow(m, e)).join("")}</div>`;
+  if (rest.length) out += `<div class="lbl">Earlier</div><div>${rest.map(e => evRow(m, e)).join("")}</div>`;
+  if (a.upcoming) out += `<p class="more">+ ${a.upcoming} upcoming mandatory event${a.upcoming > 1 ? "s" : ""} this term</p>`;
+  if (!v.attendance && !self) out += `<p class="note">${I.lock}<span>Approving excuses takes <b>Manage attendance</b>.</span></p>`;
+  return out;
+}
+function evRow(m, e) {
+  const v = V(), self = isSelf(m);
+  const dot = { attended: "ok", excused: "warn", pending: "warn", rejected: "risk", absent: "risk" }[e.s];
+  const label = { attended: "Attended", excused: "Excused", pending: "Excuse pending", rejected: "Excuse not approved", absent: "Absent" }[e.s];
+  const whose = self ? "Your reason" : "Their reason";
+  let acts = "";
+  if (e.s === "pending" && v.attendance && S.editing !== "reject:" + e.id)
+    acts = `<button class="btn" data-act="approve" data-ev="${e.id}">Approve</button><button class="btn ghost" data-edit="reject:${e.id}">Reject</button>`;
+  else if ((e.s === "absent" || e.s === "rejected") && S.editing !== "excuse:" + e.id) {
+    if (v.attendance && !self) acts = `<button class="btn ghost" data-edit="excuse:${e.id}">Excuse for ${esc(firstName(m.name))}</button>`;
+    else if (self) acts = `<button class="btn ghost" data-edit="excuse:${e.id}">${e.s === "rejected" ? "Try again" : "Request excuse"}</button>`;
+  }
+  let body = `<div class="ev"><span class="d ${dot}"></span><div><div class="t">${esc(e.t)}</div><div class="m2">${fmtDate(e.d)} · ${label}${e.s === "pending" && self ? " · waiting on the attendance chair" : ""}</div>
+    ${e.reason && (e.s === "pending" || e.s === "excused") ? `<div class="why"><i>${whose}:</i> ${esc(e.reason)}</div>` : ""}
+    ${e.s === "rejected" ? `<div class="why rej">Not approved${e.note ? `: ${esc(e.note)}` : "."}</div>` : ""}
+    </div><div class="acts">${acts}</div>`;
+  if (S.editing === "excuse:" + e.id || S.editing === "reject:" + e.id) {
+    const rej = S.editing.startsWith("reject");
+    body += `<div class="ed"><div class="row">
+      <input class="wide" data-focus data-draft="text" placeholder="${rej ? "Note for them (optional)" : self ? "Why you missed it" : "Reason, e.g. exam or illness"}" value="${esc(S.draft.text)}" aria-label="${rej ? "Rejection note" : "Reason"}">
+      <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+      <button class="btn ${rej ? "danger" : "primary"}" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span>' : rej ? "Reject" : self ? "Send request" : "Excuse"}</button></span></div>
+      <p class="hint ${S.error ? "err" : ""}">${S.error ? esc(S.error) : rej ? `${esc(firstName(m.name))} sees this note.` : self ? "Goes to the attendance chair for approval." : `Approved right away and filed under ${esc(m.name)}, not you.`}</p></div>`;
+  }
+  return body + `</div>`;
+}
+
+/* ── Profile tab ───────────────────────────────────────────────────────── */
+function profile(m) {
+  const v = V(), self = isSelf(m), officerView = canSeeStanding(m);
+  const canEdit = v.members || self;
+  let out = "";
+  if (!officerView) out += `<p class="note" style="margin-top:14px">${I.lock}<span>Standing, GPA and dues are visible to officers and to ${esc(firstName(m.name))}.</span></p>`;
+  out += `<div class="lbl">In Beta Chapter</div><div>`;
+  out += kvRow("name", "Name", esc(m.name) + (canEdit ? `<small>Only changes how this chapter sees them</small>` : ""), canEdit, () =>
+    textEditor("Name", "Required. Other chapters they belong to keep their own name for them."));
+  // Roles: immediate chips (MANAGE_ROLES)
+  out += `<div class="kv"><span class="k">Roles</span><span class="v"><span class="chips">${m.roles.map(r => `<span class="chip ${v.roles ? "" : "ro"}">${esc(r)}${v.roles ? `<button data-act="rm-role" data-role="${esc(r)}" aria-label="Remove ${esc(r)}">${I.xs}</button>` : ""}</span>`).join("") || (v.roles ? "" : `<span class="empty" style="color:var(--faint)">Member</span>`)}
+    ${v.roles ? (S.editing === "add-role"
+      ? `<span class="chip"><select data-focus data-act-change="add-role" aria-label="Choose a role"><option value="">Choose…</option>${ALL_ROLES.filter(r => !m.roles.includes(r)).map(r => `<option>${r}</option>`).join("")}</select><button data-act="cancel" aria-label="Cancel">${I.xs}</button></span>`
+      : `<button class="chip add" data-edit="add-role">+ Role</button>`) : ""}</span></span><span></span></div>`;
+  out += kvRow("committees", "Committees", m.committees.length ? `<span class="chips">${m.committees.map(c => `<span class="chip ro">${esc(c)}</span>`).join("")}</span>` : `<span style="color:var(--faint)">None</span>`, canEdit, () =>
+    textEditor("Committees", "Separate with commas. Leave empty for none."));
+  out += `</div>`;
+
+  out += `<div class="lbl">Details</div><div>`;
+  CUSTOM_DEFS.forEach(def => {
+    const val = m.custom[def.id], empty = val === null || val === undefined || String(val).trim() === "";
+    out += kvRow("cf:" + def.id, `${esc(def.label)}${def.required ? '<span class="req" aria-label="required">*</span>' : ""}`,
+      empty ? `<span style="color:${def.required ? "var(--warn)" : "var(--faint)"}">${def.required ? "Missing" : "—"}</span>` : esc(val), canEdit,
+      () => textEditor(def.label, def.required ? "Required by your chapter." : "Optional. Leave empty to clear.", def.type === "number"));
+  });
+  out += `<div class="kv"><span class="k">Email</span><span class="v">${esc(m.email)}</span><span class="act"><button class="btn ghost" data-act="copy" aria-label="Copy email">${I.copy} Copy</button></span></div>`;
+  out += `</div>`;
+
+  if (v.members && !self) {
+    out += `<div class="lbl">Membership</div><div class="danger-zone">`;
+    if (m.archived) out += `<div class="dz"><p><b>Archived.</b> Restoring puts them back on the roster and uses a seat.</p><button class="btn" data-act="restore">Restore</button></div>`;
+    else out += `<div class="dz"><p><b>Archive</b> hides ${esc(firstName(m.name))} from the roster and frees a seat. Attendance, dues and history stay. You can restore any time.</p><button class="btn" data-act="archive">Archive</button></div>`;
+    if (S.editing === "remove") {
+      out += `<div class="ed danger"><p style="margin:0 0 10px;font-size:13px">This permanently erases ${esc(firstName(m.name))}'s attendance, excuses, service log and metric values <b>in Beta Chapter</b>. Ledger entries stay, with their name removed. Other chapters they belong to aren't affected.</p>
+        <div class="row"><input class="wide" data-focus data-draft="text" placeholder="Type ${esc(m.name)} to confirm" value="${esc(S.draft.text)}" aria-label="Type the member's name to confirm">
+        <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button><button class="btn danger" data-act="save" ${S.draft.text?.trim().toLowerCase() === m.name.toLowerCase() ? "" : "disabled"}>Remove permanently</button></span></div>
+        ${S.error ? `<p class="hint err">${esc(S.error)}</p>` : ""}</div>`;
+    } else out += `<div class="dz"><p>Remove permanently: for erasure requests or someone added by mistake.</p><button class="btn ghost" data-edit="remove" style="color:var(--risk)">Remove…</button></div>`;
+    out += `</div>`;
+  }
+  return out;
+}
+function kvRow(key, label, display, canEdit, editor) {
+  const on = S.editing === key;
+  return `<div class="kv"><span class="k">${label}</span><span class="v">${display}</span>
+    <span class="act">${canEdit && !on ? `<button class="btn ghost" data-edit="${key}">Edit</button>` : ""}</span>${on ? editor() : ""}</div>`;
+}
+function textEditor(label, hint, numeric) {
+  return `<div class="ed"><div class="row">
+    <input class="wide" data-focus data-draft="value" ${numeric ? 'type="number" inputmode="numeric"' : ""} value="${esc(S.draft.value)}" aria-label="${esc(label)}" aria-invalid="${!!S.error}">
+    <span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+    <button class="btn primary" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span> Saving' : "Save"}</button></span></div>
+    <p class="hint ${S.error ? "err" : ""}">${S.error ? esc(S.error) : `${esc(hint)} <span class="keys">↵ save · esc cancel</span>`}</p></div>`;
+}
+
+function guardBar() {
+  return `<div class="guard" role="alertdialog" aria-label="Unsaved change"><span>You have an unsaved change to <b>${esc(editLabel())}</b>.</span>
+    <span class="sp"><button class="btn ghost" data-act="guard-discard">Discard</button><button class="btn primary" data-act="guard-save">Save</button></span></div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Editing: one value at a time, saved on its own
+   ═══════════════════════════════════════════════════════════════════════ */
+function editLabel() {
+  const k = S.editing || "";
+  if (k === "gpa") return "GPA";
+  if (k.startsWith("metric:")) return cur().metrics[+k.split(":")[1]].name;
+  if (k.startsWith("cf:")) return CUSTOM_DEFS.find(d => d.id === k.slice(3)).label;
+  return { name: "Name", committees: "Committees", dues: "Dues", service: "Service hours", exempt: "Exemption", remove: "Removal" }[k] || (k.startsWith("reject") ? "Rejection note" : "Excuse");
+}
+function initialDraft(key, m) {
+  if (key === "gpa") return { value: m.gpa ? m.gpa.v.toFixed(2) : "" };
+  if (key.startsWith("metric:")) { const x = m.metrics[+key.split(":")[1]]; return { value: x.v ?? "" }; }
+  if (key === "name") return { value: m.name };
+  if (key === "committees") return { value: m.committees.join(", ") };
+  if (key.startsWith("cf:")) return { value: m.custom[key.slice(3)] ?? "" };
+  if (key === "dues") return { kind: m.dues > 0 ? "payment" : "charge", amount: m.dues > 0 ? String(m.dues) : "", method: "Venmo", reason: "" };
+  if (key === "service") return { ev: SERVICE_EVENTS[0].id, hours: "" };
+  if (key === "exempt") return { reason: "Studying abroad" };
+  return { text: "" };
+}
+let baseline = "";
+const isDirty = () => S.editing && JSON.stringify(S.draft) !== baseline;
+
+function startEdit(key) {
+  guarded(() => {
+    S.editing = key; S.draft = initialDraft(key, cur()); baseline = JSON.stringify(S.draft); S.error = null; render();
+  });
+}
+function stopEdit() { S.editing = null; S.draft = {}; S.error = null; S.saving = false; baseline = ""; }
+
+/** Run fn now, or, if an edit is dirty, ask Save / Discard first. */
+function guarded(fn) {
+  if (isDirty() && S.editing !== "add-role") { S.guard = { fn }; render({ focusEditor: false }); $(".guard .btn.primary")?.focus(); return; }
+  stopEdit(); fn();
+}
+
+function validate(key, m, d) {
+  const num = s => s === "" || s === null ? null : Number(s);
+  if (key === "gpa") { const n = num(d.value); if (n === null) return null; if (!Number.isFinite(n) || n < 0 || n > GOALS.gpaMax) return `GPA must be between 0 and ${GOALS.gpaMax.toFixed(2)}.`; return null; }
+  if (key.startsWith("metric:")) { const n = num(d.value); if (n !== null && (!Number.isFinite(n) || n < 0)) return "Enter a number of 0 or more, or clear it."; return null; }
+  if (key === "name" && !String(d.value).trim()) return "A name is required.";
+  if (key.startsWith("cf:")) { const def = CUSTOM_DEFS.find(x => x.id === key.slice(3)); if (def.required && !String(d.value).trim()) return `${def.label} is required by your chapter.`; }
+  if (key === "dues") {
+    const n = Number(d.amount); if (!(n > 0)) return "Enter an amount above $0.";
+    if (d.kind !== "charge" && n > m.dues) return `That's more than the ${fmt$(m.dues)} they owe.`;
+    if (d.kind !== "payment" && !d.reason.trim()) return "Add a reason. It's kept in the audit log.";
+  }
+  if (key === "service" && !(Number(d.hours) > 0)) return "Enter hours above 0.";
+  if (key.startsWith("excuse:") && !d.text.trim()) return "Add a reason.";
+  return null;
+}
+
+function save(then) {
+  const m = cur(), key = S.editing, d = S.draft;
+  const err = validate(key, m, d);
+  if (err) { S.error = err; render(); return; }
+  S.saving = true; S.error = null; render({ focusEditor: false });
+  setTimeout(() => {
+    if ($("#failNext").checked) {
+      $("#failNext").checked = false;
+      S.saving = false; S.error = "Couldn't save. Nothing changed and your edit is still here. Try again.";
+      render(); return;
+    }
+    const undo = apply(m, key, d);
+    stopEdit();
+    if (undo) toast(undo.text, undo.fn); else render();
+    then?.();
+  }, 520);
+}
+
+/** Apply a saved edit to the member. Returns {text, fn} for the toast's Undo. */
+function apply(m, key, d) {
+  const snap = JSON.parse(JSON.stringify(m));
+  const restore = () => Object.assign(m, JSON.parse(JSON.stringify(snap)));
+  const me = "You";
+  if (key === "gpa") {
+    const before = m.gpa ? m.gpa.v.toFixed(2) : "not on file";
+    m.gpa = d.value === "" ? null : { v: Math.round(Number(d.value) * 100) / 100, by: me, at: "just now" };
+    return { text: `GPA ${before} → ${m.gpa ? m.gpa.v.toFixed(2) : "not on file"}`, fn: restore };
+  }
+  if (key.startsWith("metric:")) {
+    const x = m.metrics[+key.split(":")[1]];
+    x.v = d.value === "" ? null : Number(d.value); x.by = x.v === null ? null : me; x.at = "just now";
+    return { text: `${x.name} ${x.v === null ? "cleared" : "set to " + x.v + x.unit}`, fn: restore };
+  }
+  if (key === "name") { m.name = d.value.trim(); return { text: "Name updated", fn: restore }; }
+  if (key === "committees") { m.committees = d.value.split(",").map(s => s.trim()).filter(Boolean); return { text: "Committees updated", fn: restore }; }
+  if (key.startsWith("cf:")) { const def = CUSTOM_DEFS.find(x => x.id === key.slice(3)); m.custom[def.id] = def.type === "number" && d.value !== "" ? Number(d.value) : String(d.value).trim(); return { text: `${def.label} updated`, fn: restore }; }
+  if (key === "dues") {
+    const n = Number(d.amount);
+    m.dues = d.kind === "charge" ? m.dues + n : Math.max(0, m.dues - n);
+    return { text: d.kind === "payment" ? `Recorded ${fmt$(n)} from ${firstName(m.name)} · in Treasury` : d.kind === "charge" ? `Charged ${fmt$(n)}` : `Waived ${fmt$(n)}`, fn: restore };
+  }
+  if (key === "service") { const ex = m.service.find(x => x.ev === +d.ev); if (ex) ex.h += Number(d.hours); else m.service.unshift({ ev: +d.ev, h: Number(d.hours) }); return { text: `Logged ${d.hours}h for ${firstName(m.name)}`, fn: restore }; }
+  if (key === "exempt") { m.exempt = { reason: d.reason, by: "You", at: "just now" }; return { text: `Exempt for ${TERM.name}`, fn: restore }; }
+  if (key.startsWith("excuse:")) {
+    const e = m.events.find(x => x.id === +key.split(":")[1]);
+    if (isSelf(m)) { e.s = "pending"; e.reason = d.text.trim(); return { text: "Excuse sent to the attendance chair", fn: restore }; }
+    e.s = "excused"; e.reason = d.text.trim(); return { text: `Excused ${firstName(m.name)} for ${e.t}`, fn: restore };
+  }
+  if (key.startsWith("reject:")) { const e = m.events.find(x => x.id === +key.split(":")[1]); e.s = "rejected"; e.note = d.text.trim(); return { text: "Excuse rejected", fn: restore }; }
+  if (key === "remove") {
+    const i = members.indexOf(m); members.splice(i, 1);
+    S.idx = null; renderRoster();
+    return { text: `${m.name} removed`, fn: null };
+  }
+}
+
+function toast(text, undo) {
+  S.toast = { text: esc(text), undo };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { S.toast = null; if (cur()) render({ focusEditor: false }); }, 6000);
+  if (cur()) render({ focusEditor: false }); else { render(); pageToast(text); }
+}
+function pageToast(text) {
+  const t = document.createElement("div"); t.className = "toast"; t.style.position = "fixed"; t.textContent = text;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 3500);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Navigation
+   ═══════════════════════════════════════════════════════════════════════ */
+function open(i, trigger) { S.lastFocus = trigger || document.activeElement; S.idx = i; S.tab = canSeeStanding(members[i]) ? "overview" : "profile"; stopEdit(); render(); $("#spot").focus(); }
+function close() {
+  guarded(() => {
+    S.idx = null; S.guard = null; S.toast = null; render();
+    (S.lastFocus && document.contains(S.lastFocus) ? S.lastFocus : $(".rr"))?.focus();
+  });
+}
+function step(dir) {
+  const vis = members.filter(x => !x.archived || x === cur()), pos = vis.indexOf(cur()), nx = vis[pos + dir];
+  if (!nx) return;
+  guarded(() => {
+    S.idx = members.indexOf(nx);
+    // Keep the tab while stepping (an officer entering GPAs moves row to row)
+    // unless this viewer can't see it for the next member.
+    if (!canSeeStanding(nx)) S.tab = "profile";
+    else if (!canSeeStanding(vis[pos])) S.tab = "overview";
+    render({ swap: true }); $("#spot").focus();
+  });
+}
+
+/* ── Events ───────────────────────────────────────────────────────────── */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, [data-open]");
+  if (e.target === $("#overlay")) return close();
+  if (!t) return;
+  if (t.dataset.viewer) {
+    S.viewer = t.dataset.viewer;
+    document.querySelectorAll("#viewerSeg button").forEach(b => b.setAttribute("aria-pressed", b === t));
+    stopEdit(); S.guard = null;
+    if (cur()) S.tab = canSeeStanding(cur()) ? "overview" : "profile";
+    return render();
+  }
+  if (t.dataset.open !== undefined) return open(+t.dataset.open, t);
+  if (t.dataset.tab) { const tab = t.dataset.tab; return guarded(() => { S.tab = tab; render({ focusEditor: false }); $(`#tab-${tab}`)?.focus(); }); }
+  if (t.dataset.edit) return startEdit(t.dataset.edit);
+  if (t.dataset.kind) { S.draft.kind = t.dataset.kind; S.error = null; if (t.dataset.kind !== "payment") S.draft.amount = ""; else S.draft.amount = String(cur().dues); return render(); }
+  const m = cur();
+  switch (t.dataset.act) {
+    case "close": return close();
+    case "prev": return step(-1);
+    case "next": return step(1);
+    case "cancel": stopEdit(); return render({ focusEditor: false });
+    case "save": return save();
+    case "clear-field": S.draft.value = ""; return save();
+    case "undo": if (S.toast?.undo) { S.toast.undo(); S.toast = null; clearTimeout(toastTimer); render({ focusEditor: false }); } return;
+    case "guard-discard": { const fn = S.guard.fn; S.guard = null; stopEdit(); return fn(); }
+    case "guard-save": { const fn = S.guard.fn; S.guard = null; return save(fn); }
+    case "approve": {
+      const ev = m.events.find(x => x.id === +t.dataset.ev); const snap = ev.s;
+      ev.s = "excused"; return toast(`Approved: ${ev.t}`, () => { ev.s = snap; });
+    }
+    case "clear-exempt": { const snap = m.exempt; m.exempt = null; return toast("Exemption cleared", () => { m.exempt = snap; }); }
+    case "rm-role": { const r = t.dataset.role, snap = [...m.roles]; m.roles = m.roles.filter(x => x !== r); return toast(`Removed ${r}`, () => { m.roles = snap; }); }
+    case "archive": { m.archived = true; return toast(`${firstName(m.name)} archived · seat freed`, () => { m.archived = false; }); }
+    case "restore": { m.archived = false; return toast(`${firstName(m.name)} restored`, () => { m.archived = true; }); }
+    case "copy": navigator.clipboard?.writeText(m.email).catch(() => {}); return toast("Email copied");
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.dataset.actChange === "add-role" && el.value) {
+    const m = cur(), snap = [...m.roles]; m.roles = [...m.roles, el.value]; stopEdit();
+    return toast(`Added ${el.value}`, () => { m.roles = snap; });
+  }
+  if (el.dataset.draft) { S.draft[el.dataset.draft] = el.value; if (S.editing === "dues") render(); }
+});
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (!el.dataset.draft) return;
+  S.draft[el.dataset.draft] = el.value;
+  if (S.error) { S.error = null; const h = el.closest(".ed")?.querySelector(".hint"); if (h) { h.classList.remove("err"); h.textContent = "Press ↵ to save, esc to cancel"; } }
+  if (S.editing === "remove") { const b = el.closest(".ed").querySelector(".btn.danger"); b.disabled = el.value.trim().toLowerCase() !== cur().name.toLowerCase(); }
+  if (S.editing === "dues" && el.dataset.draft === "amount") { const h = el.closest(".ed").querySelector(".hint"); if (S.draft.kind === "payment") h.textContent = `Posts a ${fmt$(+el.value || 0)} income entry to the Treasury ledger and lowers the balance at the same moment.`; }
+});
+document.addEventListener("keydown", e => {
+  if (!cur()) return;
+  const inField = e.target.matches("input, select, textarea");
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (S.guard) { S.guard = null; return render(); }            // back out of the prompt
+    if (S.editing) { stopEdit(); return render({ focusEditor: false }); } // then out of the edit
+    return close();                                               // then close
+  }
+  if (e.key === "Enter" && inField && S.editing && e.target.tagName !== "SELECT") { e.preventDefault(); return save(); }
+  // Tabs: arrow keys move between them (roving tabindex)
+  if (e.target.getAttribute("role") === "tab" && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+    e.preventDefault();
+    const tabs = [...document.querySelectorAll('[role="tab"]')], i = tabs.indexOf(e.target);
+    return tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length].click();
+  }
+  if (!inField && !S.editing) {
+    if (e.key === "ArrowRight" || e.key === "j") { e.preventDefault(); return step(1); }
+    if (e.key === "ArrowLeft" || e.key === "k") { e.preventDefault(); return step(-1); }
+  }
+  // focus trap
+  if (e.key === "Tab") {
+    const f = [...$("#spot").querySelectorAll('button:not(:disabled), input, select, [tabindex="0"]')].filter(x => x.offsetParent);
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || document.activeElement === $("#spot"))) { e.preventDefault(); f.at(-1).focus(); }
+    else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus(); }
+  }
+});
+
+render();
+</script>
+</body>
+</html>

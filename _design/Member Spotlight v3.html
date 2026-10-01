@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  ChaptOS · Member Spotlight v3: simplified
+  ══════════════════════════════════════════════════════════════════════════
+  v2 fit on one screen but had too much going on: bordered tiles, progress
+  bars, provenance lines, lock icons, a dot strip, mono caps labels, pencils
+  on every cell. v3 keeps four things:
+
+    1. WHO: name, role, and one sentence of standing.
+    2. FOUR NUMBERS: attendance, GPA, dues, service. Big, plain, colored
+       only when off goal. Each number is a button: click it for the detail
+       and the one thing you can do about it (edit GPA, record a payment,
+       log hours, see every event / mark exempt).
+    3. NEEDS ATTENTION: only rows someone has to act on. Hidden when empty.
+    4. ABOUT: plain label/value rows. "Edit" appears on hover.
+
+  Everything else moved behind a click. Behaviour from v1/v2 is unchanged:
+  one value saved at a time with Undo, Save/Discard before leaving an edit,
+  officers-only GPA, derived numbers never typed over, peers see a contact
+  card, excuses filed against the right person, Esc backs out one level.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Member Spotlight v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Geist:wght@300..600&family=Geist+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813; --card-3: #221d17;
+  --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30);
+  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13);
+  --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13);
+  --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
+  --scrim: rgba(5,4,2,.62);
+  --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+  --pop-shadow: 0 1px 0 rgba(0,0,0,.5), 0 24px 50px -20px rgba(0,0,0,.95);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+input, select { font: inherit; color: inherit; }
+::selection { background: var(--vio-bg); }
+:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+/* ── Mock controls ─────────────────────────────────────────────────────── */
+.mockbar { position: sticky; top: 0; z-index: 70; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 10px 16px; background: #0a0907; border-bottom: 1px dashed var(--line-med);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); }
+.mockbar b { color: var(--vio); font-weight: 500; text-transform: uppercase; letter-spacing: .12em; }
+.mockbar .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mockbar .seg button { background: none; border: 0; padding: 5px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.mockbar .seg button + button { border-left: 1px solid var(--line); }
+.mockbar .seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); }
+.mockbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ── Faux roster page ──────────────────────────────────────────────────── */
+.page { max-width: 1040px; margin: 0 auto; padding: 36px 24px 80px; }
+.page h1 { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -.025em; margin: 0 0 4px; }
+.page .lede { color: var(--muted); margin: 0 0 26px; }
+.roster { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+.roster .rh, .roster .rr { display: grid; grid-template-columns: minmax(0,2.2fr) 1fr 1fr 1fr 1fr; gap: 12px; align-items: center; padding: 12px 18px; }
+.roster .rh { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--line); }
+.roster .rr { width: 100%; background: none; border: 0; border-top: 1px solid var(--line-soft); text-align: left; transition: background .15s; }
+.roster .rr:first-of-type { border-top: 0; }
+.roster .rr:hover { background: var(--card-2); }
+.roster .who { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.roster .who span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roster .who small { display: block; color: var(--muted); font-size: 12px; }
+.roster .num { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+.roster .foot { padding: 11px 18px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+@media (max-width: 720px) {
+  .roster .rh { display: none; }
+  .roster .rr { grid-template-columns: minmax(0,1fr) auto; }
+  .roster .rr .num:not(.keep) { display: none; }
+}
+.av { display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: var(--card-3); color: var(--ink-soft);
+  font-family: var(--serif); font-weight: 500; width: 32px; height: 32px; font-size: 12.5px; box-shadow: 0 0 0 1.5px var(--line-med); }
+.av.lg { width: 60px; height: 60px; font-size: 21px; }
+.av.t-warn { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--warn); }
+.av.t-risk { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--risk); }
+.av.t-ok   { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ok); }
+.av.t-new  { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--vio); }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 8px; font-family: var(--mono);
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.t-ok { color: var(--ok); background: var(--ok-bg); } .pill.t-warn { color: var(--warn); background: var(--warn-bg); }
+.pill.t-risk { color: var(--risk); background: var(--risk-bg); } .pill.t-new { color: var(--vio); background: var(--vio-bg); }
+.pill.t-muted { color: var(--muted); background: var(--line-soft); }
+
+/* ── Spotlight ─────────────────────────────────────────────────────────── */
+.ms-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 28px 24px;
+  background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); -webkit-backdrop-filter: blur(6px) saturate(115%);
+  animation: fade .18s ease both; overflow-y: auto; }
+.ms-overlay[hidden] { display: none; }
+@keyframes fade { from { opacity: 0; } }
+.ms-spot { position: relative; width: min(1080px, 100%); background: var(--card); border: 1px solid var(--line-med); border-radius: 22px;
+  box-shadow: var(--card-shadow); animation: spot-in .26s var(--ease) both; padding: 30px 34px 30px; }
+.ms-spot.narrow { width: min(640px, 100%); }
+.ms-spot:focus { outline: none; }
+@keyframes spot-in { from { opacity: 0; transform: translateY(-8px) scale(.985); } }
+.ms-spot.swap .swapper { animation: swap .22s var(--ease) both; }
+@keyframes swap { from { opacity: .2; transform: translateY(4px); } }
+
+.head { display: flex; align-items: center; gap: 18px; }
+.head .who { min-width: 0; flex: 1; }
+.head h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 32px; letter-spacing: -.025em; line-height: 1.1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.head .sub { margin-top: 4px; color: var(--muted); font-size: 14px; }
+.ctl { display: flex; align-items: center; gap: 2px; align-self: flex-start; position: relative; margin: -6px -8px 0 0; }
+.ibtn { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: none; border: 0; color: var(--faint); transition: .15s; }
+.ibtn:hover:not(:disabled), .ibtn[aria-expanded="true"] { color: var(--ink); background: var(--card-2); }
+.ibtn:disabled { opacity: .3; cursor: default; }
+.ibtn svg { width: 17px; height: 17px; }
+
+.verdict { margin: 22px 0 0; font-family: var(--serif); font-size: 21px; line-height: 1.4; letter-spacing: -.012em; color: var(--ink-soft); text-wrap: pretty; max-width: 62ch; }
+.verdict em { font-style: italic; }
+.verdict em.t-ok { color: var(--ok); } .verdict em.t-warn { color: var(--warn); } .verdict em.t-risk { color: var(--risk); }
+.verdict em.t-new { color: var(--vio); } .verdict em.t-muted { color: var(--muted); }
+
+/* four numbers */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); margin: 28px -12px 0; }
+.stat { position: relative; }
+.stat > button { width: 100%; text-align: left; background: none; border: 0; border-radius: 12px; padding: 12px 12px 12px; transition: background .15s; }
+.stat > button:hover, .stat > button[aria-expanded="true"] { background: var(--card-2); }
+.stat .k { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.stat .k .go { opacity: 0; color: var(--faint); transition: opacity .15s; font-size: 12px; }
+.stat > button:hover .go, .stat > button:focus-visible .go { opacity: 1; }
+.stat .n { display: block; margin-top: 4px; font-family: var(--mono); font-size: 34px; letter-spacing: -.03em; line-height: 1.1; color: var(--ink); }
+.stat .n.t-warn { color: var(--warn); } .stat .n.t-risk { color: var(--risk); } .stat .n.t-ok { color: var(--ink); }
+.stat .n.none { font-family: var(--sans); font-size: 20px; letter-spacing: -.01em; color: var(--muted); line-height: 1.7; }
+.stat .c { display: block; margin-top: 3px; font-size: 12.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.rule { height: 1px; background: var(--line-soft); margin: 24px 0 22px; }
+.lower { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 44px; }
+.lower.solo { grid-template-columns: minmax(0,1fr); }
+.h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 400; }
+
+/* needs attention */
+.ev { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 0 14px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line-soft); }
+.ev:first-of-type { border-top: 0; padding-top: 4px; }
+.ev .t { font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .m2 { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .acts { display: flex; gap: 4px; }
+.calm { font-size: 14px; color: var(--faint); padding: 4px 0; }
+
+/* about */
+.row { position: relative; display: grid; grid-template-columns: 120px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line-soft); min-height: 44px; }
+.rows .row:first-child { border-top: 0; padding-top: 4px; }
+/* Nothing needs attention: About takes the full width as two columns of rows. */
+.lower.span { grid-template-columns: minmax(0,1fr); }
+.lower.span .rows { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 44px; }
+.lower.span .rows .row:nth-child(2) { border-top: 0; padding-top: 4px; }
+.row .k { font-size: 13px; color: var(--muted); }
+.row .k .req { color: var(--risk); margin-left: 2px; }
+.row .v { font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .v.empty { color: var(--faint); } .row .v.miss { color: var(--warn); }
+.row .e { opacity: 0; transition: opacity .15s; }
+.row:hover .e, .row:focus-within .e, .row.on .e { opacity: 1; }
+@media (hover: none) { .row .e { opacity: 1; } }
+
+.tact { background: none; border: 0; padding: 4px 8px; border-radius: 7px; font-size: 13px; color: var(--vio); white-space: nowrap; }
+.tact:hover { background: var(--vio-bg); }
+.tact.quiet { color: var(--muted); }
+.tact.quiet:hover { color: var(--ink); background: var(--card-2); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid var(--line-med); font-size: 12.5px; color: var(--ink-soft); }
+.chip button { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 0; background: none; color: var(--faint); }
+.chip button:hover { color: var(--ink); background: var(--card-3); }
+.chip button svg { width: 9px; height: 9px; }
+.note { margin-top: 18px; font-size: 13px; color: var(--faint); }
+
+/* ── Popover ───────────────────────────────────────────────────────────── */
+.pop { position: absolute; z-index: 20; left: 0; top: calc(100% + 6px); width: 340px; max-width: calc(100vw - 40px);
+  padding: 16px; border: 1px solid var(--vio-line); border-radius: 14px; background: var(--card-2); box-shadow: var(--pop-shadow);
+  animation: pop-in .16s var(--ease) both; text-align: left; }
+.pop.up { top: auto; bottom: calc(100% + 6px); }
+.pop.right { left: auto; right: 0; }
+.pop.danger { border-color: rgba(207,130,114,.45); }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-3px); } }
+.pop .ttl { font-size: 13.5px; color: var(--ink); margin: 0 0 4px; }
+.pop .sm { font-size: 12.5px; color: var(--muted); margin: 0 0 12px; }
+.pop .fr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pop input, .pop select { background: var(--card); border: 1px solid var(--line-med); border-radius: 9px; padding: 7px 10px; font-size: 14px; min-width: 0; }
+.pop input:focus, .pop select:focus { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.pop input.num { width: 100px; font-family: var(--mono); }
+.pop input.wide, .pop select.wide { flex: 1; min-width: 150px; }
+.pop .of { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.pop .foot { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+.pop .foot .sp { margin-left: auto; display: flex; gap: 6px; }
+.pop .hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.pop .hint.err { color: var(--risk); }
+.pop .seg { display: inline-flex; border: 1px solid var(--line-med); border-radius: 9px; overflow: hidden; margin-bottom: 12px; }
+.pop .seg button { background: none; border: 0; padding: 6px 12px; font-size: 12.5px; color: var(--muted); }
+.pop .seg button + button { border-left: 1px solid var(--line-med); }
+.pop .seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); }
+.pop .seg button:disabled { opacity: .35; cursor: default; }
+.pop .list { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow-y: auto; }
+.pop .list li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; border-top: 1px solid var(--line-soft); }
+.pop .list li:first-child { border-top: 0; }
+.pop .list li span:last-child { color: var(--muted); white-space: nowrap; }
+.pop .list li .risk { color: var(--risk); } .pop .list li .warn { color: var(--warn); }
+.menu { display: grid; gap: 2px; margin: -6px; }
+.menu button { display: grid; gap: 1px; text-align: left; background: none; border: 0; padding: 9px 11px; border-radius: 9px; }
+.menu button:hover { background: var(--card-3); }
+.menu button b { font-weight: 500; font-size: 13.5px; }
+.menu button small { font-size: 12px; color: var(--muted); }
+.menu button.danger b { color: var(--risk); }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line-med); border-radius: 9px;
+  padding: 6px 12px; font-size: 13px; color: var(--ink-soft); white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.btn:hover:not(:disabled) { border-color: var(--vio-line); color: var(--ink); }
+.btn.primary { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: #8b4cf0; border-color: #8b4cf0; color: #fff; }
+.btn.danger { border-color: rgba(207,130,114,.35); color: var(--risk); }
+.btn.danger:hover:not(:disabled) { background: var(--risk-bg); border-color: var(--risk); }
+.btn.ghost { border-color: transparent; color: var(--muted); padding-left: 9px; padding-right: 9px; }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); border-color: transparent; background: var(--card-3); }
+.btn:disabled { opacity: .45; cursor: default; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--vio); font-size: 13px; }
+.linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.guard, .toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; white-space: nowrap;
+  border-radius: 999px; background: var(--card-3); box-shadow: var(--pop-shadow); font-size: 13.5px; max-width: calc(100% - 32px); animation: toast-in .22s var(--ease) both; }
+.guard { padding: 8px 8px 8px 18px; border: 1px solid var(--vio-line); }
+.toast { padding: 10px 14px 10px 18px; border: 1px solid var(--line-med); z-index: 25; }
+.toast span { overflow: hidden; text-overflow: ellipsis; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+.spin { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: rot .7s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+@media (max-width: 860px) {
+  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .lower { grid-template-columns: minmax(0,1fr); gap: 26px; }
+  .lower.span .rows { grid-template-columns: minmax(0,1fr); }
+  .lower.span .rows .row:nth-child(2) { border-top: 1px solid var(--line-soft); padding-top: 9px; }
+}
+@media (max-width: 640px) {
+  .mockbar { position: static; }
+  .ms-overlay { place-items: end stretch; padding: 0; }
+  .ms-spot { width: 100%; max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; border-bottom: 0; padding: 20px 18px 24px; }
+  .head { gap: 14px; } .head h2 { font-size: 24px; } .av.lg { width: 48px; height: 48px; font-size: 17px; }
+  .ctl .hide-sm { display: none; }
+  .verdict { font-size: 17px; margin-top: 16px; }
+  .stats { margin-top: 18px; } .stat .n { font-size: 27px; }
+  .row { grid-template-columns: 96px minmax(0,1fr) auto; }
+  .pop { width: min(320px, calc(100vw - 40px)); }
+  .guard, .toast { position: fixed; }
+}
+@media (max-height: 760px) and (min-width: 641px) {
+  .ms-overlay { padding: 16px 24px; } .ms-spot { padding: 24px 30px; }
+  .verdict { margin-top: 16px; } .stats { margin-top: 18px; } .rule { margin: 18px 0 16px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="mockbar" role="region" aria-label="Mock controls">
+  <b>Mock</b>
+  <span>Viewing as</span>
+  <div class="seg" id="viewerSeg">
+    <button data-viewer="president" aria-pressed="true">President · all perms</button>
+    <button data-viewer="treasurer" aria-pressed="false">Treasurer · dues only</button>
+    <button data-viewer="member" aria-pressed="false">Sam · plain member</button>
+  </div>
+  <label><input type="checkbox" id="failNext"> Next save fails</label>
+</div>
+
+<main class="page" id="page">
+  <h1>Brotherhood</h1>
+  <p class="lede">Beta Chapter · Fall 2026 · click a member</p>
+  <div class="roster" id="roster"></div>
+</main>
+
+<div class="ms-overlay" id="overlay" hidden>
+  <div class="ms-spot" id="spot" role="dialog" aria-modal="true" aria-labelledby="msName" tabindex="-1"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   Data
+   ═══════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date("2026-09-30T12:00:00");
+const TERM = { name: "Fall 2026", start: new Date("2026-08-24"), end: new Date("2026-12-12") };
+const GOALS = { attWatch: 75, attRisk: 60, gpaWatch: 3.0, gpaRisk: 2.5, gpaMax: 4.0, service: 10 };
+const SERVICE_EVENTS = [
+  { id: 11, t: "Habitat build", d: "2026-09-27" },
+  { id: 12, t: "Food bank shift", d: "2026-09-20" },
+  { id: 13, t: "Campus cleanup", d: "2026-09-13" },
+  { id: 14, t: "Blood drive", d: "2026-09-06" },
+];
+const ALL_ROLES = ["President", "Treasurer", "Social Chair", "Scholarship Chair", "Service Chair", "Recruitment Chair"];
+const CUSTOM_DEFS = [
+  { id: "major", label: "Major", required: false },
+  { id: "grad",  label: "Grad year", required: true, type: "number" },
+  { id: "shirt", label: "T-shirt size", required: false },
+];
+
+const members = [
+  {
+    id: 1, name: "Marcus Bell", email: "mbell@state.edu", joined: "2025-09-08",
+    roles: ["Social Chair"], committees: ["Rush", "Banquet"],
+    gpa: { v: 2.84, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 120, exempt: null,
+    service: [{ ev: 12, h: 3 }, { ev: 13, h: 2 }, { ev: 14, h: 1 }],
+    custom: { major: "Economics", grad: 2027, shirt: "L" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 9, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "attended" },
+      { id: 102, t: "Rush kickoff", d: "2026-09-05", s: "attended" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "absent" },
+      { id: 104, t: "Philanthropy kickoff", d: "2026-09-12", s: "attended" },
+      { id: 105, t: "Chapter meeting", d: "2026-09-16", s: "pending", reason: "Organic chem midterm, 7–9pm" },
+      { id: 106, t: "Brotherhood retreat", d: "2026-09-19", s: "rejected", reason: "Family thing", note: "Needs 48 hours' notice" },
+      { id: 107, t: "Chapter meeting", d: "2026-09-23", s: "absent" },
+      { id: 108, t: "Study hall", d: "2026-09-26", s: "attended" },
+      { id: 109, t: "Chapter dinner", d: "2026-09-28", s: "attended" },
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 111, t: "Alumni mixer", d: "2026-08-29", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+      { id: 191, t: "Homecoming setup", d: "2026-10-10", s: "upcoming" },
+    ],
+  },
+  {
+    id: 2, name: "Priya Nair", email: "pnair@state.edu", joined: "2026-09-27",
+    roles: [], committees: [],
+    gpa: null, dues: 250, exempt: null, service: [],
+    custom: { major: "", grad: null, shirt: "" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: null }],
+    events: [
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+      { id: 191, t: "Homecoming setup", d: "2026-10-10", s: "upcoming" },
+    ],
+  },
+  {
+    id: 3, name: "Sam Okafor", email: "sokafor@state.edu", joined: "2024-09-10",
+    roles: [], committees: ["Philanthropy"],
+    gpa: { v: 3.61, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 0, exempt: null,
+    service: [{ ev: 11, h: 5 }, { ev: 12, h: 3 }, { ev: 14, h: 3 }],
+    custom: { major: "Biology", grad: 2026, shirt: "M" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 14, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 111, t: "Alumni mixer", d: "2026-08-29", s: "attended" },
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "attended" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "attended" },
+      { id: 104, t: "Philanthropy kickoff", d: "2026-09-12", s: "attended" },
+      { id: 105, t: "Chapter meeting", d: "2026-09-16", s: "attended" },
+      { id: 106, t: "Brotherhood retreat", d: "2026-09-19", s: "attended" },
+      { id: 107, t: "Chapter meeting", d: "2026-09-23", s: "absent" },
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+    ],
+  },
+  {
+    id: 4, name: "Dana Whitfield", email: "dwhitfield@state.edu", joined: "2024-01-20",
+    roles: ["Recruitment Chair"], committees: [],
+    gpa: { v: 2.31, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 340, exempt: { reason: "Studying abroad", by: "Alex Moreno", at: "Aug 20" },
+    service: [{ ev: 14, h: 1 }],
+    custom: { major: "International Relations", grad: 2027, shirt: "S" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 4, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "absent" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "absent" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+    ],
+  },
+];
+const SELF_ID = 3; // Sam, when viewing as the plain member
+
+const VIEWERS = {
+  president: { name: "Jordan Ellis", members: true, roles: true, treasury: true, attendance: true, service: true, officer: true },
+  treasurer: { name: "Chris Park",   members: false, roles: false, treasury: true, attendance: false, service: false, officer: true },
+  member:    { name: "Sam Okafor",   members: false, roles: false, treasury: false, attendance: false, service: false, officer: false, selfId: SELF_ID },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════════════════════════════ */
+const S = {
+  viewer: "president",
+  idx: null,          // index into members, null = closed
+  tab: "overview",
+  editing: null,      // "gpa" | "metric:0" | "name" | "committees" | "cf:grad" | "dues" | "service" | "exempt" | "excuse:105" | "reject:105" | "remove"
+  draft: {},          // editor-local values
+  saving: false,
+  error: null,
+  guard: null,        // pending navigation while an edit is dirty: {fn, label}
+  toast: null,        // {text, undo}
+  lastFocus: null,
+};
+let toastTimer = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const fmt$ = n => "$" + n.toLocaleString("en-US");
+const initials = n => n.split(" ").map(p => p[0]).slice(0, 2).join("");
+const firstName = n => n.split(" ")[0];
+function fmtDate(iso) {
+  const d = new Date(iso + "T12:00:00");
+  const opts = { weekday: "short", month: "short", day: "numeric" };
+  if (d.getFullYear() !== TODAY.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("en-US", opts);
+}
+const daysSince = iso => Math.floor((TODAY - new Date(iso + "T12:00:00")) / 864e5);
+const cur = () => S.idx === null ? null : members[S.idx];
+const V = () => VIEWERS[S.viewer];
+const isSelf = m => V().selfId === m.id;
+const canSeeStanding = m => V().officer || isSelf(m);
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Derived values: computed, never typed
+   ═══════════════════════════════════════════════════════════════════════ */
+function attendance(m) {
+  const past = m.events.filter(e => e.s !== "upcoming");
+  const joined = new Date(m.joined + "T00:00:00");
+  const counted = past.filter(e => new Date(e.d) >= joined && e.s !== "excused" && e.s !== "pending");
+  const attended = counted.filter(e => e.s === "attended").length;
+  const upcoming = m.events.filter(e => e.s === "upcoming").length;
+  return { attended, of: counted.length, pct: counted.length ? Math.round(attended / counted.length * 100) : null, upcoming,
+           pending: past.filter(e => e.s === "pending").length, unexcused: past.filter(e => e.s === "absent" || e.s === "rejected").length };
+}
+const serviceTotal = m => m.service.reduce((s, x) => s + x.h, 0);
+const termFrac = () => Math.min(1, Math.max(0, (TODAY - TERM.start) / (TERM.end - TERM.start)));
+const isNew = m => daysSince(m.joined) < 14;
+
+function toneAtt(p) { return p === null ? "" : p < GOALS.attRisk ? "t-risk" : p < GOALS.attWatch ? "t-warn" : "t-ok"; }
+function toneGpa(g) { return g === null ? "" : g < GOALS.gpaRisk ? "t-risk" : g < GOALS.gpaWatch ? "t-warn" : "t-ok"; }
+
+function standing(m) {
+  const self = isSelf(m);
+  const subj = self ? "You're" : `${esc(firstName(m.name))} is`;
+  if (m.archived) return { tone: "t-muted", label: "Archived", s: `<em class="t-muted">Archived</em> today. Hidden from the roster and not using a seat. Their history is kept.` };
+  const a = attendance(m);
+  if (isNew(m)) {
+    const d = daysSince(m.joined);
+    let s = `${self ? "You" : esc(firstName(m.name))} joined ${d === 0 ? "today" : d === 1 ? "yesterday" : d + " days ago"}, so it's <em class="t-new">too early to tell</em>. Nothing counts against ${self ? "you" : "them"} yet.`;
+    if (m.dues > 0) s += ` The ${fmt$(m.dues)} new-member fee is outstanding.`;
+    return { tone: "t-new", label: "New", s };
+  }
+  const issues = []; let worst = 0;
+  if (!m.exempt && a.pct !== null && a.pct < GOALS.attWatch) { issues.push(`attendance is ${a.pct}%`); worst = Math.max(worst, a.pct < GOALS.attRisk ? 2 : 1); }
+  if (m.gpa && m.gpa.v < GOALS.gpaWatch) { issues.push(`GPA is ${m.gpa.v.toFixed(2)}`); worst = Math.max(worst, m.gpa.v < GOALS.gpaRisk ? 2 : 1); }
+  if (m.dues > 0) { issues.push(`${fmt$(m.dues)} in dues is outstanding`); worst = Math.max(worst, 1); }
+  if (!issues.length) return { tone: "t-ok", label: "Good", s: `${subj} in <em class="t-ok">good standing</em> on every measure${m.exempt ? " (exempt from attendance this term)" : ""}.` };
+  const tone = worst === 2 ? "t-risk" : "t-warn", word = worst === 2 ? "at risk" : "on watch";
+  const list = issues.length === 1 ? issues[0] : issues.slice(0, -1).join(", ") + " and " + issues.at(-1);
+  return { tone, label: worst === 2 ? "At risk" : "Watch", s: `${subj} <em class="${tone}">${word}</em>: ${list}.` };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Icons
+   ═══════════════════════════════════════════════════════════════════════ */
+const I = {
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+  l: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  xs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Roster (background page)
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderRoster() {
+  const rows = members.filter(m => !m.archived).map(m => {
+    const st = standing(m), a = attendance(m), show = canSeeStanding(m);
+    return `<button class="rr" data-open="${members.indexOf(m)}">
+      <span class="who"><span class="av ${show ? st.tone : ""}">${initials(m.name)}</span><span>${esc(m.name)}<small>${esc(m.roles[0] || "Member")}</small></span></span>
+      <span class="num keep">${show ? `<span class="pill ${st.tone}">${st.label}</span>` : ""}</span>
+      <span class="num">${show ? (m.exempt ? "Exempt" : a.pct === null ? "—" : a.pct + "%") : "·"}</span>
+      <span class="num">${show ? (m.gpa ? m.gpa.v.toFixed(2) : "—") : "·"}</span>
+      <span class="num">${show ? (m.dues ? fmt$(m.dues) : "Paid") : "·"}</span>
+    </button>`;
+  }).join("");
+  $("#roster").innerHTML = `<div class="rh"><span>Member</span><span>Standing</span><span>Attendance</span><span>GPA</span><span>Dues</span></div>${rows}
+    <div class="foot">4 of 34 shown · standing columns are officers-only</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Spotlight
+   ═══════════════════════════════════════════════════════════════════════ */
+function render(opts = {}) {
+  renderRoster();
+  const m = cur();
+  const ov = $("#overlay");
+  if (!m) { ov.hidden = true; $("#page").removeAttribute("aria-hidden"); return; }
+  ov.hidden = false; $("#page").setAttribute("aria-hidden", "true");
+  const st = standing(m), vis = members.filter(x => !x.archived || x === m), pos = vis.indexOf(m);
+  const full = canSeeStanding(m), v = V(), self = isSelf(m);
+  const hasMenu = v.members || self;
+
+  $("#spot").innerHTML = `
+    <div class="head">
+      <span class="av lg ${full ? st.tone : ""}" aria-hidden="true">${initials(m.name)}</span>
+      <div class="who">
+        <h2 id="msName">${esc(m.name)}</h2>
+        <div class="sub">${esc(m.roles.join(" · ") || "Member")} · since ${new Date(m.joined + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}${self ? " · you" : ""}</div>
+      </div>
+      <div class="ctl">
+        ${hasMenu ? `<button class="ibtn" data-edit="menu" aria-label="More" aria-haspopup="true" aria-expanded="${["menu", "remove", "name"].includes(S.editing)}">${I.more}</button>` : ""}
+        <button class="ibtn hide-sm" data-act="prev" aria-label="Previous member (←)" title="Previous (←)" ${pos <= 0 ? "disabled" : ""}>${I.l}</button>
+        <button class="ibtn hide-sm" data-act="next" aria-label="Next member (→)" title="Next (→)" ${pos >= vis.length - 1 ? "disabled" : ""}>${I.r}</button>
+        <button class="ibtn" data-act="close" aria-label="Close (esc)" title="Close (esc)">${I.x}</button>
+        ${S.editing === "menu" ? pop(menu(m), "right", "More") : S.editing === "remove" ? pop(removeConfirm(m), "right danger", "Remove permanently") : S.editing === "name" ? pop(`<p class="ttl">Name in Beta Chapter</p><p class="sm">Other chapters keep their own name for them.</p>${textFields("Name")}`, "right", "Rename") : ""}
+      </div>
+    </div>
+    <div class="swapper">
+      ${full ? `<p class="verdict" aria-live="polite">${st.s}</p>${stats(m)}<div class="rule"></div>` : `<div class="rule" style="margin-top:26px"></div>`}
+      <div class="lower ${!full ? "solo" : attentionItems(m).length ? "" : "span"}">
+        ${full && attentionItems(m).length ? `<section aria-label="Needs attention">${attention(m)}</section>` : ""}
+        <section aria-label="About">${about(m, full)}</section>
+      </div>
+    </div>
+    ${S.guard ? guardBar() : ""}
+    ${S.toast && !S.guard ? `<div class="toast" role="status"><span>${S.toast.text}</span>${S.toast.undo ? '<button class="linkbtn" data-act="undo">Undo</button>' : ""}</div>` : ""}
+  `;
+  $("#spot").classList.toggle("narrow", !full);
+  if (opts.swap) { $("#spot").classList.remove("swap"); void $("#spot").offsetWidth; $("#spot").classList.add("swap"); }
+  const f = $("#spot [data-focus]");
+  if (f && opts.focusEditor !== false) { f.focus(); if (f.type === "number") f.select?.(); else if (f.setSelectionRange) { const l = f.value.length; f.setSelectionRange(l, l); } }
+}
+
+const pop = (inner, cls, label) => `<div class="pop ${cls}" role="dialog" aria-label="${esc(label)}">${inner}</div>`;
+const done = () => `<div class="foot"><span class="sp"><button class="btn ghost" data-act="cancel">Done</button></span></div>`;
+const saveBtns = (label = "Save", cls = "primary", extra = "") => `<div class="foot">${extra}<span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+  <button class="btn ${cls}" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span> Saving' : label}</button></span></div>`;
+const hint = text => text || S.error ? `<p class="hint ${S.error ? "err" : ""}" id="edHint">${S.error ? esc(S.error) : text}</p>` : "";
+
+/* ── Four numbers. Each is a button; the detail and the action live behind it. ── */
+function stats(m) {
+  const a = attendance(m), svc = serviceTotal(m), pace = GOALS.service * termFrac(), fresh = isNew(m);
+  const stat = (key, label, n, nCls, caption, popHtml, align) => `<div class="stat">
+      <button data-edit="${key}" aria-expanded="${S.editing === key || (key === "att" && S.editing === "exempt")}" aria-haspopup="dialog">
+        <span class="k">${label}<span class="go" aria-hidden="true">›</span></span>
+        <span class="n ${nCls}">${n}</span><span class="c">${caption}</span>
+      </button>${popHtml ? pop(popHtml, align, label) : ""}</div>`;
+
+  const attN = m.exempt ? "Exempt" : a.pct === null ? "No events yet" : a.pct + "%";
+  const attCls = m.exempt || a.pct === null ? "none" : toneAtt(a.pct);
+  const attCap = m.exempt ? esc(m.exempt.reason) : a.pct === null ? "counts from their first event" : `${a.attended} of ${a.of} events`;
+
+  const svcCls = svc >= GOALS.service ? "" : !fresh && svc + 0.01 < pace ? "t-warn" : "";
+  const svcCap = svc >= GOALS.service ? "goal met" : fresh ? `of ${GOALS.service}h · just joined` : svc + 0.01 < pace ? `of ${GOALS.service}h · behind pace` : `of ${GOALS.service}h · on pace`;
+
+  return `<div class="stats">
+    ${stat("att", "Attendance", attN, attCls, attCap, S.editing === "att" ? attPop(m) : S.editing === "exempt" ? exemptPop() : "", "")}
+    ${stat("gpa", "GPA", m.gpa ? m.gpa.v.toFixed(2) : "Not on file", m.gpa ? toneGpa(m.gpa.v) : "none", m.gpa ? `goal ${GOALS.gpaWatch.toFixed(2)}` : "won't count until added", S.editing === "gpa" ? gpaPop(m) : "", "")}
+    ${stat("dues", "Dues", m.dues > 0 ? fmt$(m.dues) : "Paid", m.dues > 0 ? "t-warn" : "", m.dues > 0 ? "owed" : "nothing owed", S.editing === "dues" ? duesPop(m) : "", "right")}
+    ${stat("service", "Service", svc + "h", svcCls, svcCap, S.editing === "service" ? servicePop(m) : "", "right")}
+  </div>`;
+}
+
+const EV_LABEL = { attended: "Attended", excused: "Excused", pending: "Excuse pending", rejected: "Not excused", absent: "Absent", upcoming: "Upcoming" };
+const EV_CLS = { rejected: "risk", absent: "risk", pending: "warn" };
+function attPop(m) {
+  const v = V(), a = attendance(m);
+  const evs = [...m.events].sort((x, y) => y.d.localeCompare(x.d));
+  const sub = m.exempt ? `Exempt: ${esc(m.exempt.reason)}. Absences don't count this term.` : a.pct === null ? "No mandatory events since they joined." : `${a.attended} of ${a.of} mandatory events · goal ${GOALS.attWatch}%`;
+  const act = v.attendance ? (m.exempt ? `<button class="btn ghost" data-act="clear-exempt">Clear exemption</button>` : `<button class="btn ghost" data-edit="exempt">Mark exempt…</button>`) : "";
+  return `<p class="ttl">Attendance · ${TERM.name}</p><p class="sm">${sub}</p>
+    <ul class="list">${evs.map(e => `<li><span>${esc(e.t)} <span style="color:var(--faint)">· ${fmtDate(e.d)}</span></span><span class="${EV_CLS[e.s] || ""}">${EV_LABEL[e.s]}</span></li>`).join("")}</ul>
+    <div class="foot">${act}<span class="sp"><button class="btn ghost" data-act="cancel">Done</button></span></div>`;
+}
+function exemptPop() {
+  return `<p class="ttl">Exempt from attendance</p><p class="sm">Their absences stop counting for ${TERM.name} only.</p>
+    <div class="fr"><select class="wide" data-focus data-draft="reason" aria-label="Reason">${["Studying abroad", "Co-op / internship", "Inactive", "Other"].map(r => `<option ${S.draft.reason === r ? "selected" : ""}>${r}</option>`).join("")}</select></div>
+    ${hint("")}${saveBtns("Exempt")}`;
+}
+function gpaPop(m) {
+  const who = m.gpa ? `Set by ${esc(m.gpa.by)}, ${m.gpa.at}.` : "Not reported yet.";
+  if (!V().members) return `<p class="ttl">GPA</p><p class="sm" style="margin:0">${who} ${isSelf(m) ? "Officers update it. Something off? Tell Jordan Ellis." : "Changing it needs Manage members."}</p>${done()}`;
+  return `<p class="ttl">GPA</p><p class="sm">${who} Goal is ${GOALS.gpaWatch.toFixed(2)}.</p>
+    <div class="fr"><input class="num" data-focus data-draft="value" type="number" inputmode="decimal" min="0" max="${GOALS.gpaMax}" step="0.01" value="${esc(S.draft.value)}" aria-label="GPA" aria-describedby="edHint" aria-invalid="${!!S.error}"><span class="of">of ${GOALS.gpaMax.toFixed(2)}</span></div>
+    ${hint("")}${saveBtns("Save", "primary", m.gpa ? `<button class="btn ghost" data-act="clear-field">Clear</button>` : "")}`;
+}
+function duesPop(m) {
+  if (!V().treasury) return `<p class="ttl">Dues</p><p class="sm" style="margin:0">${m.dues > 0 ? `${fmt$(m.dues)} owed.` : "Nothing owed."} ${isSelf(m) ? "Pay the treasurer and it shows up here." : "Recording payments needs Manage treasury."}</p>${done()}`;
+  const d = S.draft, kind = d.kind;
+  const expl = kind === "payment" ? "Also adds the income entry to Treasury." : "No money moves. Kept with your reason.";
+  return `<p class="ttl">Dues</p><p class="sm">${m.dues > 0 ? `${fmt$(m.dues)} owed.` : "Nothing owed."}</p>
+    <div class="seg" role="group" aria-label="Kind">${["payment", "charge", "waive"].map(k => `<button data-kind="${k}" aria-pressed="${kind === k}" ${k !== "charge" && m.dues === 0 ? "disabled" : ""}>${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}</div>
+    <div class="fr"><span class="of">$</span><input class="num" data-focus data-draft="amount" type="number" min="0" step="0.01" value="${esc(d.amount)}" aria-label="Amount">
+    ${kind === "payment" ? `<select data-draft="method" aria-label="Method">${["Venmo", "Zelle", "Cash", "Card"].map(x => `<option ${d.method === x ? "selected" : ""}>${x}</option>`).join("")}</select>`
+      : `<input class="wide" data-draft="reason" placeholder="Reason" value="${esc(d.reason)}" aria-label="Reason">`}</div>
+    ${hint(expl)}${saveBtns(kind === "payment" ? "Record" : kind === "charge" ? "Charge" : "Waive")}`;
+}
+function servicePop(m) {
+  const log = m.service.length
+    ? `<ul class="list" style="margin-bottom:12px">${m.service.map(x => { const e = SERVICE_EVENTS.find(s => s.id === x.ev); return `<li><span>${esc(e.t)} <span style="color:var(--faint)">· ${fmtDate(e.d)}</span></span><span>${x.h}h</span></li>`; }).join("")}</ul>`
+    : `<p class="sm">Nothing logged yet.</p>`;
+  if (!V().service) return `<p class="ttl">Service · ${serviceTotal(m)} of ${GOALS.service}h</p>${log}<p class="sm" style="margin:0">The service chair logs hours after each event.</p>${done()}`;
+  const d = S.draft;
+  return `<p class="ttl">Service · ${serviceTotal(m)} of ${GOALS.service}h</p>${log}
+    <div class="fr"><select class="wide" data-focus data-draft="ev" aria-label="Service event">${SERVICE_EVENTS.map(e => `<option value="${e.id}" ${+d.ev === e.id ? "selected" : ""}>${esc(e.t)} · ${fmtDate(e.d)}</option>`).join("")}</select>
+    <input class="num" data-draft="hours" type="number" min="0" step="0.5" value="${esc(d.hours)}" aria-label="Hours" placeholder="Hours" style="width:80px"></div>
+    ${hint("")}${saveBtns("Log hours")}`;
+}
+
+/* ── Needs attention: only what someone has to act on ─────────────────── */
+// When this is empty the section isn't rendered at all and About spans the width.
+function attentionItems(m) {
+  if (m.exempt) return [];
+  const past = m.events.filter(e => e.s !== "upcoming");
+  return [...past.filter(e => e.s === "pending"), ...past.filter(e => e.s === "absent" || e.s === "rejected").sort((x, y) => y.d.localeCompare(x.d))];
+}
+function attention(m) {
+  const items = attentionItems(m);
+  let out = `<h3 class="h3">Needs attention</h3>`;
+  out += items.slice(0, 3).map(e => evRow(m, e)).join("");
+  if (items.length > 3) out += `<p class="calm" style="font-size:13px">+${items.length - 3} more in <button class="linkbtn" data-edit="att">Attendance</button></p>`;
+  return out;
+}
+function evRow(m, e) {
+  const v = V(), self = isSelf(m);
+  const meta = `${fmtDate(e.d)} · ` + (e.s === "pending" ? `excuse pending: “${esc(e.reason)}”` : e.s === "rejected" ? `excuse not approved${e.note ? ` (${esc(e.note)})` : ""}` : "absent, no excuse");
+  const editingThis = S.editing === "excuse:" + e.id || S.editing === "reject:" + e.id;
+  let acts = "";
+  if (!editingThis) {
+    if (e.s === "pending" && v.attendance) acts = `<button class="tact" data-act="approve" data-ev="${e.id}">Approve</button><button class="tact quiet" data-edit="reject:${e.id}">Reject</button>`;
+    else if (e.s === "pending" && self) acts = `<span style="font-size:12.5px;color:var(--faint)">Waiting</span>`;
+    else if (e.s !== "pending" && v.attendance && !self) acts = `<button class="tact" data-edit="excuse:${e.id}">Excuse</button>`;
+    else if (e.s !== "pending" && self) acts = `<button class="tact" data-edit="excuse:${e.id}">Request excuse</button>`;
+  }
+  let p = "";
+  if (editingThis) {
+    const rej = S.editing.startsWith("reject");
+    p = pop(`<p class="ttl">${rej ? "Reject excuse" : self ? "Request an excuse" : `Excuse ${esc(firstName(m.name))}`}</p><p class="sm">${esc(e.t)}, ${fmtDate(e.d)}. ${rej ? `${esc(firstName(m.name))} sees your note.` : self ? "Goes to the attendance chair." : "Approved right away."}</p>
+      <div class="fr"><input class="wide" data-focus data-draft="text" placeholder="${rej ? "Note (optional)" : "Reason"}" value="${esc(S.draft.text)}" aria-label="${rej ? "Rejection note" : "Reason"}"></div>
+      ${hint("")}${saveBtns(rej ? "Reject" : self ? "Send" : "Excuse", rej ? "danger" : "primary")}`, "up right", rej ? "Reject excuse" : "Excuse");
+  }
+  return `<div class="ev"><div style="min-width:0"><div class="t">${esc(e.t)}</div><div class="m2" title="${esc(e.reason || e.note || "")}">${meta}</div></div><div class="acts">${acts}</div>${p}</div>`;
+}
+
+/* ── About: plain rows, Edit on hover ──────────────────────────────────── */
+function about(m, full) {
+  const v = V(), self = isSelf(m), canEdit = v.members || self;
+  const row = (key, label, value, o = {}) => {
+    const on = S.editing === key;
+    const btn = o.action ?? (o.editable && !on ? `<button class="tact quiet e" data-edit="${key}" aria-label="Edit ${esc(o.plain || label)}">Edit</button>` : "");
+    return `<div class="row ${on ? "on" : ""}"><span class="k">${label}</span><span class="v ${o.cls || ""}" ${o.title ? `title="${esc(o.title)}"` : ""}>${value}</span>${btn}${on && o.editor ? pop(o.editor(), "up right", "Edit " + (o.plain || label)) : ""}</div>`;
+  };
+  const rows = [];
+  rows.push(row("roles", "Roles", esc(m.roles.join(", ") || "Member"), { cls: m.roles.length ? "" : "empty", editable: v.roles, editor: () => rolesPop(m) }));
+  rows.push(row("committees", "Committees", esc(m.committees.join(", ") || "None"), { cls: m.committees.length ? "" : "empty", editable: canEdit,
+    editor: () => `<p class="ttl">Committees</p><p class="sm">Separate with commas.</p>${textFields("Committees")}` }));
+  rows.push(row(null, "Email", esc(m.email), { title: m.email, action: `<button class="tact quiet e" data-act="copy">Copy</button>` }));
+  CUSTOM_DEFS.slice(0, 2).forEach(def => {
+    const val = m.custom[def.id], empty = val === null || val === undefined || String(val).trim() === "";
+    rows.push(row("cf:" + def.id, `${esc(def.label)}${def.required ? '<span class="req" aria-label="required">*</span>' : ""}`, empty ? (def.required ? "Missing" : "—") : esc(val),
+      { plain: def.label, cls: empty ? (def.required ? "miss" : "empty") : "", editable: canEdit,
+        editor: () => `<p class="ttl">${esc(def.label)}</p>${def.required ? `<p class="sm">Required by your chapter.</p>` : ""}${textFields(def.label, def.type === "number")}` }));
+  });
+  if (full) m.metrics.slice(0, 1).forEach((x, i) => {
+    rows.push(row("metric:" + i, esc(x.name), x.v === null ? "—" : `${x.v}${x.unit} <span style="color:var(--faint)">of ${x.goal}${x.unit}</span>`,
+      { plain: x.name, cls: x.v === null ? "empty" : "", editable: v.members, editor: () => `<p class="ttl">${esc(x.name)}</p><p class="sm">${x.by ? `Set by ${esc(x.by)}, ${x.at}. ` : ""}Goal ${x.goal}${x.unit}.</p>
+        <div class="fr"><input class="num" data-focus data-draft="value" type="number" min="0" step="any" value="${esc(S.draft.value)}" aria-label="${esc(x.name)}"><span class="of">${x.unit}</span></div>
+        ${hint("")}${saveBtns("Save", "primary", x.v !== null ? `<button class="btn ghost" data-act="clear-field">Clear</button>` : "")}` }));
+  });
+  let out = `<h3 class="h3">About</h3><div class="rows">${rows.join("")}</div>`;
+  if (!full) out += `<p class="note">Standing, GPA and dues are only visible to officers and to ${esc(firstName(m.name))}.</p>`;
+  return out;
+}
+function rolesPop(m) {
+  return `<p class="ttl">Roles</p><p class="sm">Changes save right away.</p>
+    <div class="chips" style="margin-bottom:12px">${m.roles.map(r => `<span class="chip">${esc(r)}<button data-act="rm-role" data-role="${esc(r)}" aria-label="Remove ${esc(r)}">${I.xs}</button></span>`).join("") || `<span style="color:var(--faint);font-size:13px">No roles</span>`}</div>
+    <div class="fr"><select class="wide" data-focus data-act-change="add-role" aria-label="Add a role"><option value="">Add a role…</option>${ALL_ROLES.filter(r => !m.roles.includes(r)).map(r => `<option>${r}</option>`).join("")}</select></div>${done()}`;
+}
+function textFields(label, numeric) {
+  return `<div class="fr"><input class="wide" data-focus data-draft="value" ${numeric ? 'type="number" inputmode="numeric"' : ""} value="${esc(S.draft.value)}" aria-label="${esc(label)}" aria-describedby="edHint" aria-invalid="${!!S.error}"></div>
+    ${hint("")}${saveBtns()}`;
+}
+
+/* ── ⋯ menu ────────────────────────────────────────────────────────────── */
+function menu(m) {
+  const v = V(), self = isSelf(m);
+  return `<div class="menu" role="menu">
+    <button role="menuitem" data-edit="name"><b>Rename</b><small>How this chapter shows ${self ? "you" : "them"}</small></button>
+    ${v.members && !self ? (m.archived
+      ? `<button role="menuitem" data-act="restore"><b>Restore to roster</b><small>Uses a seat again</small></button>`
+      : `<button role="menuitem" data-act="archive"><b>Archive</b><small>Hide from the roster and free a seat. History stays.</small></button>`) +
+      `<button role="menuitem" class="danger" data-edit="remove"><b>Remove permanently…</b><small>For erasure requests or mistakes</small></button>` : ""}
+  </div>`;
+}
+function removeConfirm(m) {
+  return `<p class="ttl">Remove ${esc(m.name)} permanently?</p><p class="sm">Erases their attendance, excuses, service log and metrics in Beta Chapter. Ledger entries stay, without their name.</p>
+    <div class="fr"><input class="wide" data-focus data-draft="text" placeholder="Type their name to confirm" value="${esc(S.draft.text)}" aria-label="Type the member's name to confirm"></div>
+    ${hint("")}
+    <div class="foot"><span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button><button class="btn danger" data-act="save" ${S.draft.text?.trim().toLowerCase() === m.name.toLowerCase() ? "" : "disabled"}>Remove</button></span></div>`;
+}
+function guardBar() {
+  return `<div class="guard" role="alertdialog" aria-label="Unsaved change"><span>Unsaved change to <b>${esc(editLabel())}</b></span>
+    <button class="btn ghost" data-act="guard-discard">Discard</button><button class="btn primary" data-act="guard-save">Save</button></div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Editing: one value at a time, saved on its own
+   ═══════════════════════════════════════════════════════════════════════ */
+function editLabel() {
+  const k = S.editing || "";
+  if (k === "gpa") return "GPA";
+  if (k.startsWith("metric:")) return cur().metrics[+k.split(":")[1]].name;
+  if (k.startsWith("cf:")) return CUSTOM_DEFS.find(d => d.id === k.slice(3)).label;
+  return { name: "Name", committees: "Committees", dues: "Dues", service: "Service hours", exempt: "Exemption", remove: "Removal" }[k] || (k.startsWith("reject") ? "Rejection note" : "Excuse");
+}
+function initialDraft(key, m) {
+  if (key === "gpa") return { value: m.gpa ? m.gpa.v.toFixed(2) : "" };
+  if (key.startsWith("metric:")) { const x = m.metrics[+key.split(":")[1]]; return { value: x.v ?? "" }; }
+  if (key === "name") return { value: m.name };
+  if (key === "committees") return { value: m.committees.join(", ") };
+  if (key.startsWith("cf:")) return { value: m.custom[key.slice(3)] ?? "" };
+  if (key === "dues") return { kind: m.dues > 0 ? "payment" : "charge", amount: m.dues > 0 ? String(m.dues) : "", method: "Venmo", reason: "" };
+  if (key === "service") return { ev: SERVICE_EVENTS[0].id, hours: "" };
+  if (key === "exempt") return { reason: "Studying abroad" };
+  return { text: "" };
+}
+let baseline = "";
+const isDirty = () => S.editing && JSON.stringify(S.draft) !== baseline;
+
+function startEdit(key) {
+  guarded(() => {
+    S.editing = key; S.draft = initialDraft(key, cur()); baseline = JSON.stringify(S.draft); S.error = null; render();
+  });
+}
+function stopEdit() { S.editing = null; S.draft = {}; S.error = null; S.saving = false; baseline = ""; }
+
+/** Run fn now, or, if an edit is dirty, ask Save / Discard first. */
+function guarded(fn) {
+  if (isDirty() && S.editing !== "add-role") { S.guard = { fn }; render({ focusEditor: false }); $(".guard .btn.primary")?.focus(); return; }
+  stopEdit(); fn();
+}
+
+function validate(key, m, d) {
+  const num = s => s === "" || s === null ? null : Number(s);
+  if (key === "gpa") { const n = num(d.value); if (n === null) return null; if (!Number.isFinite(n) || n < 0 || n > GOALS.gpaMax) return `GPA must be between 0 and ${GOALS.gpaMax.toFixed(2)}.`; return null; }
+  if (key.startsWith("metric:")) { const n = num(d.value); if (n !== null && (!Number.isFinite(n) || n < 0)) return "Enter a number of 0 or more, or clear it."; return null; }
+  if (key === "name" && !String(d.value).trim()) return "A name is required.";
+  if (key.startsWith("cf:")) { const def = CUSTOM_DEFS.find(x => x.id === key.slice(3)); if (def.required && !String(d.value).trim()) return `${def.label} is required by your chapter.`; }
+  if (key === "dues") {
+    const n = Number(d.amount); if (!(n > 0)) return "Enter an amount above $0.";
+    if (d.kind !== "charge" && n > m.dues) return `That's more than the ${fmt$(m.dues)} they owe.`;
+    if (d.kind !== "payment" && !d.reason.trim()) return "Add a reason. It's kept in the audit log.";
+  }
+  if (key === "service" && !(Number(d.hours) > 0)) return "Enter hours above 0.";
+  if (key.startsWith("excuse:") && !d.text.trim()) return "Add a reason.";
+  return null;
+}
+
+function save(then) {
+  const m = cur(), key = S.editing, d = S.draft;
+  const err = validate(key, m, d);
+  if (err) { S.error = err; render(); return; }
+  S.saving = true; S.error = null; render({ focusEditor: false });
+  setTimeout(() => {
+    if ($("#failNext").checked) {
+      $("#failNext").checked = false;
+      S.saving = false; S.error = "Couldn't save. Nothing changed and your edit is still here. Try again.";
+      render(); return;
+    }
+    const undo = apply(m, key, d);
+    stopEdit();
+    if (undo) toast(undo.text, undo.fn); else render();
+    then?.();
+  }, 520);
+}
+
+/** Apply a saved edit to the member. Returns {text, fn} for the toast's Undo. */
+function apply(m, key, d) {
+  const snap = JSON.parse(JSON.stringify(m));
+  const restore = () => Object.assign(m, JSON.parse(JSON.stringify(snap)));
+  const me = "You";
+  if (key === "gpa") {
+    const before = m.gpa ? m.gpa.v.toFixed(2) : "not on file";
+    m.gpa = d.value === "" ? null : { v: Math.round(Number(d.value) * 100) / 100, by: me, at: "just now" };
+    return { text: `GPA ${before} → ${m.gpa ? m.gpa.v.toFixed(2) : "not on file"}`, fn: restore };
+  }
+  if (key.startsWith("metric:")) {
+    const x = m.metrics[+key.split(":")[1]];
+    x.v = d.value === "" ? null : Number(d.value); x.by = x.v === null ? null : me; x.at = "just now";
+    return { text: `${x.name} ${x.v === null ? "cleared" : "set to " + x.v + x.unit}`, fn: restore };
+  }
+  if (key === "name") { m.name = d.value.trim(); return { text: "Name updated", fn: restore }; }
+  if (key === "committees") { m.committees = d.value.split(",").map(s => s.trim()).filter(Boolean); return { text: "Committees updated", fn: restore }; }
+  if (key.startsWith("cf:")) { const def = CUSTOM_DEFS.find(x => x.id === key.slice(3)); m.custom[def.id] = def.type === "number" && d.value !== "" ? Number(d.value) : String(d.value).trim(); return { text: `${def.label} updated`, fn: restore }; }
+  if (key === "dues") {
+    const n = Number(d.amount);
+    m.dues = d.kind === "charge" ? m.dues + n : Math.max(0, m.dues - n);
+    return { text: d.kind === "payment" ? `Recorded ${fmt$(n)} from ${firstName(m.name)} · in Treasury` : d.kind === "charge" ? `Charged ${fmt$(n)}` : `Waived ${fmt$(n)}`, fn: restore };
+  }
+  if (key === "service") { const ex = m.service.find(x => x.ev === +d.ev); if (ex) ex.h += Number(d.hours); else m.service.unshift({ ev: +d.ev, h: Number(d.hours) }); return { text: `Logged ${d.hours}h for ${firstName(m.name)}`, fn: restore }; }
+  if (key === "exempt") { m.exempt = { reason: d.reason, by: "You", at: "just now" }; return { text: `Exempt for ${TERM.name}`, fn: restore }; }
+  if (key.startsWith("excuse:")) {
+    const e = m.events.find(x => x.id === +key.split(":")[1]);
+    if (isSelf(m)) { e.s = "pending"; e.reason = d.text.trim(); return { text: "Excuse sent to the attendance chair", fn: restore }; }
+    e.s = "excused"; e.reason = d.text.trim(); return { text: `Excused ${firstName(m.name)} for ${e.t}`, fn: restore };
+  }
+  if (key.startsWith("reject:")) { const e = m.events.find(x => x.id === +key.split(":")[1]); e.s = "rejected"; e.note = d.text.trim(); return { text: "Excuse rejected", fn: restore }; }
+  if (key === "remove") {
+    const i = members.indexOf(m); members.splice(i, 1);
+    S.idx = null; renderRoster();
+    return { text: `${m.name} removed`, fn: null };
+  }
+}
+
+function toast(text, undo) {
+  S.toast = { text: esc(text), undo };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { S.toast = null; if (cur()) render({ focusEditor: false }); }, 6000);
+  if (cur()) render({ focusEditor: false }); else { render(); pageToast(text); }
+}
+function pageToast(text) {
+  const t = document.createElement("div"); t.className = "toast"; t.style.position = "fixed"; t.textContent = text;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 3500);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Navigation
+   ═══════════════════════════════════════════════════════════════════════ */
+function open(i, trigger) { S.lastFocus = trigger || document.activeElement; S.idx = i; stopEdit(); S.guard = null; render(); $("#spot").focus(); }
+function close() {
+  guarded(() => {
+    S.idx = null; S.guard = null; S.toast = null; render();
+    (S.lastFocus && document.contains(S.lastFocus) ? S.lastFocus : $(".rr"))?.focus();
+  });
+}
+function step(dir) {
+  const vis = members.filter(x => !x.archived || x === cur()), pos = vis.indexOf(cur()), nx = vis[pos + dir];
+  if (!nx) return;
+  guarded(() => { S.idx = members.indexOf(nx); render({ swap: true }); $("#spot").focus(); });
+}
+
+/* ── Events ───────────────────────────────────────────────────────────── */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, [data-open]");
+  if (e.target === $("#overlay")) return close();
+  if (t?.dataset.viewer) {
+    S.viewer = t.dataset.viewer;
+    document.querySelectorAll("#viewerSeg button").forEach(b => b.setAttribute("aria-pressed", b === t));
+    stopEdit(); S.guard = null;
+    return render();
+  }
+  if (t?.dataset.open !== undefined) return open(+t.dataset.open, t);
+  if (!cur()) return;
+  // A click outside the open popover closes it (asking first if it's dirty).
+  if (S.editing && !e.target.closest(".pop, .guard") && !t) return guarded(() => render({ focusEditor: false }));
+  if (!t) return;
+  if (t.dataset.edit) return S.editing === t.dataset.edit ? (stopEdit(), render({ focusEditor: false })) : startEdit(t.dataset.edit);
+  if (t.dataset.kind) { S.draft.kind = t.dataset.kind; S.error = null; S.draft.amount = t.dataset.kind === "payment" ? String(cur().dues) : ""; return render(); }
+  const m = cur();
+  switch (t.dataset.act) {
+    case "close": return close();
+    case "prev": return step(-1);
+    case "next": return step(1);
+    case "cancel": stopEdit(); return render({ focusEditor: false });
+    case "save": return save();
+    case "clear-field": S.draft.value = ""; return save();
+    case "undo": if (S.toast?.undo) { S.toast.undo(); S.toast = null; clearTimeout(toastTimer); render({ focusEditor: false }); } return;
+    case "guard-discard": { const fn = S.guard.fn; S.guard = null; stopEdit(); return fn(); }
+    case "guard-save": { const fn = S.guard.fn; S.guard = null; return save(fn); }
+    case "approve": return guarded(() => {
+      const ev = m.events.find(x => x.id === +t.dataset.ev), snap = ev.s;
+      ev.s = "excused"; toast(`Approved: ${ev.t}, ${fmtDate(ev.d)}`, () => { ev.s = snap; });
+    });
+    case "clear-exempt": return guarded(() => { const snap = m.exempt; m.exempt = null; toast("Exemption cleared", () => { m.exempt = snap; }); });
+    case "rm-role": return guarded(() => { const r = t.dataset.role, snap = [...m.roles]; m.roles = m.roles.filter(x => x !== r); toast(`Removed ${r}`, () => { m.roles = snap; }); });
+    case "archive": stopEdit(); m.archived = true; return toast(`${firstName(m.name)} archived · seat freed`, () => { m.archived = false; });
+    case "restore": stopEdit(); m.archived = false; return toast(`${firstName(m.name)} restored`, () => { m.archived = true; });
+    case "copy": navigator.clipboard?.writeText(m.email).catch(() => {}); return toast("Email copied");
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.dataset.actChange === "add-role" && el.value) {
+    const m = cur(), snap = [...m.roles]; m.roles = [...m.roles, el.value]; stopEdit();
+    return toast(`Added ${el.value}`, () => { m.roles = snap; });
+  }
+  if (el.dataset.draft) { S.draft[el.dataset.draft] = el.value; if (S.editing === "dues" && el.tagName === "SELECT") render({ focusEditor: false }); }
+});
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (!el.dataset.draft) return;
+  S.draft[el.dataset.draft] = el.value;
+  if (S.error) { S.error = null; const h = el.closest(".pop")?.querySelector(".hint"); if (h) { h.classList.remove("err"); h.textContent = "Press ↵ to save, esc to cancel."; } }
+  if (S.editing === "remove") el.closest(".pop").querySelector(".btn.danger").disabled = el.value.trim().toLowerCase() !== cur().name.toLowerCase();
+});
+document.addEventListener("keydown", e => {
+  if (!cur()) return;
+  const inField = e.target.matches("input, select, textarea");
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (S.guard) { S.guard = null; return render(); }                        // back out of the prompt
+    if (S.editing) { stopEdit(); return render({ focusEditor: false }); }     // then out of the popover
+    return close();                                                           // then close
+  }
+  if (e.key === "Enter" && inField && S.editing && e.target.tagName !== "SELECT") { e.preventDefault(); return save(); }
+  if (!inField && !S.editing && !S.guard) {
+    if (e.key === "ArrowRight" || e.key === "j") { e.preventDefault(); return step(1); }
+    if (e.key === "ArrowLeft" || e.key === "k") { e.preventDefault(); return step(-1); }
+  }
+  if (e.key === "Tab") { // focus trap
+    const f = [...$("#spot").querySelectorAll("button:not(:disabled), input, select")].filter(x => x.offsetParent);
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || document.activeElement === $("#spot"))) { e.preventDefault(); f.at(-1).focus(); }
+    else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus(); }
+  }
+});
+
+render();
+</script>
+</body>
+</html>

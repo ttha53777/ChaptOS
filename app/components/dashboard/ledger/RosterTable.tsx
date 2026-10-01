@@ -71,7 +71,7 @@ function SortHead({
 /**
  * Editorial roster. Reuses the page's filtered+sorted `brothers`, the
  * filter/sort callbacks, and getBrotherStatus. Carries `id="sec-brothers"` for
- * the sidebar anchor. Dues/service-hour edits happen in the BrotherDrawer (open
+ * the sidebar anchor. Dues/service-hour edits happen in the MemberSpotlight card (open
  * a row); this table is read-only.
  *
  * Role lives inside the Member cell rather than in a column of its own: that is

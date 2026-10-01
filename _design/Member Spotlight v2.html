@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  ChaptOS · Member Spotlight v2: everything on one screen
+  ══════════════════════════════════════════════════════════════════════════
+  v1 (Member Spotlight.html) split the member across three tabs. v2 puts all
+  of it on one screen with no scrolling, and stays calm by being strict about
+  what each thing gets:
+
+    · ONE SENTENCE of standing up top. It tells you what's wrong before any number.
+    · STANDING is a 2×2 of quiet tiles (GPA, Dues, Service, a chapter metric):
+      a number, a hairline bar, one line of "where this comes from", one action.
+    · ATTENDANCE is a single column: the rate, a dot per mandatory event this
+      term (hover for the event), and ONLY the rows that need someone to act.
+      Everything that went fine collapses into its dot.
+    · PROFILE is one strip of six cells at the bottom.
+    · Editors are POPOVERS anchored to what they edit, so opening one never
+      grows the layout or makes it scroll. One value at a time, saved on its
+      own, Undo after, Save/Discard if you try to leave mid-edit.
+    · Rare things live one click deep: Archive/Remove in the ⋯ menu,
+      exemptions in the attendance header, the full event list behind "+N".
+
+  All v1 fixes carry over: typed values (GPA, metrics) only for Manage
+  members; derived values (attendance, service, dues) are never text boxes;
+  new members read "too early to tell"; excuses file against the right
+  person; peers see a contact card, not GPA/dues; Esc backs out one level.
+
+  Fits without scrolling from 1024×720 up. Under 900px wide it stacks, and
+  on a phone it's a scrolling bottom sheet (one screen can't hold it there).
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Member Spotlight v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Geist:wght@300..600&family=Geist+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+  --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813; --card-3: #221d17;
+  --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30);
+  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13);
+  --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13);
+  --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
+  --scrim: rgba(5,4,2,.62);
+  --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+  --pop-shadow: 0 1px 0 rgba(0,0,0,.5), 0 24px 50px -20px rgba(0,0,0,.95);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+input, select { font: inherit; color: inherit; }
+::selection { background: var(--vio-bg); }
+:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+
+/* ── Mock controls ─────────────────────────────────────────────────────── */
+.mockbar { position: sticky; top: 0; z-index: 70; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  padding: 10px 16px; background: #0a0907; border-bottom: 1px dashed var(--line-med);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--muted); }
+.mockbar b { color: var(--vio); font-weight: 500; text-transform: uppercase; letter-spacing: .12em; }
+.mockbar .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mockbar .seg button { background: none; border: 0; padding: 5px 10px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.mockbar .seg button + button { border-left: 1px solid var(--line); }
+.mockbar .seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); }
+.mockbar label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* ── Faux roster page ──────────────────────────────────────────────────── */
+.page { max-width: 1040px; margin: 0 auto; padding: 36px 24px 80px; }
+.page h1 { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -.025em; margin: 0 0 4px; }
+.page .lede { color: var(--muted); margin: 0 0 26px; }
+.roster { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+.roster .rh, .roster .rr { display: grid; grid-template-columns: minmax(0,2.2fr) 1fr 1fr 1fr 1fr; gap: 12px; align-items: center; padding: 12px 18px; }
+.roster .rh { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); border-bottom: 1px solid var(--line); }
+.roster .rr { width: 100%; background: none; border: 0; border-top: 1px solid var(--line-soft); text-align: left; transition: background .15s; }
+.roster .rr:first-of-type { border-top: 0; }
+.roster .rr:hover { background: var(--card-2); }
+.roster .who { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.roster .who span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roster .who small { display: block; color: var(--muted); font-size: 12px; }
+.roster .num { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+.roster .foot { padding: 11px 18px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+@media (max-width: 720px) {
+  .roster .rh { display: none; }
+  .roster .rr { grid-template-columns: minmax(0,1fr) auto; }
+  .roster .rr .num:not(.keep) { display: none; }
+}
+
+.av { display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: var(--card-3); color: var(--ink-soft);
+  font-family: var(--serif); font-weight: 500; width: 32px; height: 32px; font-size: 12.5px; box-shadow: 0 0 0 1.5px var(--line-med); }
+.av.lg { width: 48px; height: 48px; font-size: 17px; }
+.av.t-warn { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--warn); }
+.av.t-risk { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--risk); }
+.av.t-ok   { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ok); }
+.av.t-new  { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--vio); }
+
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 8px; font-family: var(--mono);
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; border: 1px solid transparent; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.t-ok   { color: var(--ok);   background: var(--ok-bg); }
+.pill.t-warn { color: var(--warn); background: var(--warn-bg); }
+.pill.t-risk { color: var(--risk); background: var(--risk-bg); }
+.pill.t-new  { color: var(--vio);  background: var(--vio-bg); }
+.pill.t-muted{ color: var(--muted); background: var(--line-soft); border-color: var(--line); }
+
+/* ── Spotlight shell ───────────────────────────────────────────────────── */
+.ms-overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 28px 24px;
+  background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); -webkit-backdrop-filter: blur(6px) saturate(115%);
+  animation: fade .18s ease both; overflow-y: auto; }
+.ms-overlay[hidden] { display: none; }
+@keyframes fade { from { opacity: 0; } }
+.ms-spot { position: relative; width: min(1000px, 100%); display: flex; flex-direction: column;
+  background: var(--card); border: 1px solid var(--line-med); border-radius: 20px; box-shadow: var(--card-shadow);
+  animation: spot-in .26s var(--ease) both; }
+.ms-spot:focus { outline: none; }
+@keyframes spot-in { from { opacity: 0; transform: translateY(-8px) scale(.985); } }
+.ms-spot.swap .ms-main { animation: swap .22s var(--ease) both; }
+@keyframes swap { from { opacity: .2; transform: translateY(4px); } }
+
+/* header: identity + the one-sentence verdict */
+.ms-head { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 14px; align-items: center; padding: 18px 18px 16px 22px; border-bottom: 1px solid var(--line-soft); }
+.ms-head .id { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+.ms-head h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 24px; letter-spacing: -.022em; line-height: 1.15; white-space: nowrap; }
+.ms-head .sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--muted); font-size: 12.5px; }
+.ms-head .sub .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); }
+.ms-verdict { margin: 4px 0 0; font-family: var(--serif); font-size: 15.5px; line-height: 1.4; letter-spacing: -.01em; color: var(--ink-soft); text-wrap: pretty; }
+.ms-verdict em { font-style: italic; }
+.ms-verdict em.t-ok { color: var(--ok); } .ms-verdict em.t-warn { color: var(--warn); }
+.ms-verdict em.t-risk { color: var(--risk); } .ms-verdict em.t-new { color: var(--vio); } .ms-verdict em.t-muted { color: var(--muted); }
+.ms-ctl { display: flex; align-items: center; gap: 2px; align-self: start; position: relative; }
+.ms-ctl .count { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); padding: 0 4px; }
+.ibtn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: none; border: 0; color: var(--muted); transition: .15s; }
+.ibtn:hover:not(:disabled), .ibtn[aria-expanded="true"] { color: var(--ink); background: var(--card-2); }
+.ibtn:disabled { opacity: .3; cursor: default; }
+.ibtn svg { width: 16px; height: 16px; }
+.pen { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; border: 0; background: none; color: var(--faint); vertical-align: middle; transition: .15s; }
+.pen:hover { color: var(--ink); background: var(--card-2); }
+.pen svg { width: 12px; height: 12px; }
+.anchor { position: relative; }
+
+/* main grid: standing (2×2) | attendance */
+.ms-main { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap: 0; }
+.col { padding: 16px 22px 18px; min-width: 0; display: flex; flex-direction: column; }
+.col + .col { border-left: 1px solid var(--line-soft); }
+.lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin: 0 0 10px; display: flex; align-items: center; gap: 10px; min-height: 22px; }
+.lbl .r { margin-left: auto; letter-spacing: .04em; text-transform: none; font-size: 11px; }
+
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); grid-auto-rows: 1fr; gap: 10px; flex: 1; }
+.tile { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 12px 13px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); min-height: 112px; }
+.tile.editing { border-color: var(--vio-line); }
+.tile .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; }
+.tile .k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { display: flex; align-items: baseline; gap: 7px; }
+.n { font-family: var(--mono); font-size: 21px; letter-spacing: -.02em; color: var(--ink); line-height: 1.15; }
+.n.t-warn { color: var(--warn); } .n.t-risk { color: var(--risk); } .n.t-ok { color: var(--ok); }
+.n.none { font-family: var(--sans); font-size: 14px; color: var(--muted); letter-spacing: 0; line-height: 1.7; }
+.of { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.src { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: auto; }
+.src b { font-weight: 500; color: var(--ink-soft); }
+.bar { position: relative; height: 3px; border-radius: 3px; background: var(--line); margin: 2px 0; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--ink-soft); }
+.bar i.t-warn { background: var(--warn); } .bar i.t-risk { background: var(--risk); } .bar i.t-ok { background: var(--ok); }
+.bar .goal { position: absolute; top: -3px; width: 1.5px; height: 9px; background: var(--muted); border-radius: 1px; }
+
+.tact { font-family: var(--sans); letter-spacing: 0; text-transform: none; background: none; border: 0; padding: 2px 6px; margin-right: -6px; border-radius: 6px; font-size: 12px; color: var(--vio); white-space: nowrap; }
+.tact:hover { background: var(--vio-bg); }
+.lock { display: inline-flex; color: var(--faint); } .lock svg { width: 12px; height: 12px; }
+
+/* attendance column */
+.att-head { display: flex; align-items: baseline; gap: 10px; }
+.att-head .n { font-size: 26px; }
+.strip { display: flex; align-items: center; gap: 5px; margin: 12px 0 4px; flex-wrap: wrap; }
+.strip .e { width: 12px; height: 12px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
+.strip .e.ok { background: var(--ok); } .strip .e.warn { background: var(--warn); } .strip .e.risk { background: var(--risk); }
+.strip .e.up { background: none; box-shadow: inset 0 0 0 1.5px var(--line-med); }
+.strip .today { width: 1px; height: 16px; background: var(--muted); margin: 0 3px; }
+.strip-cap { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; letter-spacing: .06em; color: var(--faint); }
+.attn { margin-top: 12px; }
+.attn .sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
+.ev { position: relative; display: grid; grid-template-columns: 8px minmax(0,1fr) auto; gap: 0 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.ev:first-of-type { border-top: 0; }
+.ev .d { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.ev .d.warn { background: var(--warn); } .ev .d.risk { background: var(--risk); }
+.ev .t { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .m2 { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .m2 .rej { color: var(--risk); }
+.ev .acts { display: flex; gap: 2px; }
+.calm { margin-top: 14px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.calm .d { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.exempt { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--vio-bg); border: 1px solid var(--vio-line); font-size: 12.5px; color: var(--ink-soft); display: flex; gap: 10px; align-items: center; }
+.exempt .tact { margin-left: auto; }
+
+/* profile strip */
+.ms-prof { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); border-top: 1px solid var(--line-soft); }
+.cell { position: relative; padding: 11px 22px 12px; min-width: 0; border-left: 1px solid var(--line-soft); }
+.cell:nth-child(3n+1) { border-left: 0; }
+.cell:nth-child(n+4) { border-top: 1px solid var(--line-soft); }
+.cell .k { display: flex; align-items: center; justify-content: space-between; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); min-height: 22px; }
+.cell .k .req { color: var(--risk); margin-left: 3px; }
+.cell .v { font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell .v.miss { color: var(--warn); } .cell .v.empty { color: var(--faint); }
+.chips { display: flex; gap: 5px; overflow: hidden; white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 3px 1px 9px; border-radius: 999px; border: 1px solid var(--line-med); font-size: 12px; color: var(--ink-soft); flex-shrink: 0; }
+.chip.ro { padding-right: 9px; }
+.chip button { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 0; background: none; color: var(--faint); }
+.chip button:hover { color: var(--ink); background: var(--card-3); }
+.chip button svg { width: 9px; height: 9px; }
+.note-row { display: flex; gap: 8px; align-items: center; padding: 10px 22px; border-top: 1px solid var(--line-soft); font-size: 12px; color: var(--muted); }
+.note-row svg { width: 13px; height: 13px; color: var(--faint); flex-shrink: 0; }
+
+/* ── Popover editor ────────────────────────────────────────────────────── */
+.pop { position: absolute; z-index: 20; left: -1px; top: calc(100% + 6px); width: max(100%, 300px); max-width: min(380px, calc(100vw - 32px));
+  padding: 13px; border: 1px solid var(--vio-line); border-radius: 12px; background: var(--card-2); box-shadow: var(--pop-shadow);
+  animation: pop-in .16s var(--ease) both; text-align: left; }
+.pop.up { top: auto; bottom: calc(100% + 6px); }
+.pop.right { left: auto; right: -1px; }
+.pop.danger { border-color: rgba(207,130,114,.45); }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-3px); } }
+.pop .ttl { font-size: 12.5px; color: var(--ink-soft); margin: 0 0 10px; }
+.pop .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pop input, .pop select { background: var(--card); border: 1px solid var(--line-med); border-radius: 8px; padding: 6px 9px; font-size: 13.5px; min-width: 0; }
+.pop input:focus, .pop select:focus { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+.pop input.num { width: 92px; font-family: var(--mono); }
+.pop input.wide, .pop select.wide { flex: 1; min-width: 150px; }
+.pop .foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.pop .foot .sp { margin-left: auto; display: flex; gap: 6px; }
+.pop .hint { margin: 9px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.pop .hint.err { color: var(--risk); }
+.pop .keys { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.pop .seg { display: inline-flex; border: 1px solid var(--line-med); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.pop .seg button { background: none; border: 0; padding: 5px 11px; font-size: 12px; color: var(--muted); }
+.pop .seg button + button { border-left: 1px solid var(--line-med); }
+.pop .seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); }
+.pop .seg button:disabled { opacity: .35; cursor: default; }
+.pop .list { margin: 0; padding: 0; list-style: none; max-height: 260px; overflow-y: auto; }
+.pop .list li { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 12.5px; border-top: 1px solid var(--line-soft); }
+.pop .list li:first-child { border-top: 0; }
+.pop .list li span:last-child { color: var(--muted); white-space: nowrap; }
+.menu { display: grid; gap: 2px; }
+.menu button { display: grid; gap: 1px; text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 8px; }
+.menu button:hover { background: var(--card-3); }
+.menu button b { font-weight: 500; font-size: 13px; }
+.menu button small { font-size: 11.5px; color: var(--muted); }
+.menu button.danger b { color: var(--risk); }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid var(--line-med); border-radius: 8px;
+  padding: 5px 11px; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; transition: border-color .15s, color .15s, background .15s; }
+.btn:hover:not(:disabled) { border-color: var(--vio-line); color: var(--ink); }
+.btn.primary { background: var(--vio-deep); border-color: var(--vio-deep); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: #8b4cf0; border-color: #8b4cf0; color: #fff; }
+.btn.danger { border-color: rgba(207,130,114,.35); color: var(--risk); }
+.btn.danger:hover:not(:disabled) { background: var(--risk-bg); border-color: var(--risk); }
+.btn.ghost { border-color: transparent; color: var(--muted); padding-left: 8px; padding-right: 8px; }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); border-color: transparent; background: var(--card-3); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn svg { width: 13px; height: 13px; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--vio); font-size: 12px; }
+.linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* guard + toast float over the bottom edge; neither adds height */
+.guard { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 12px; white-space: nowrap;
+  padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--card-3); border: 1px solid var(--vio-line); box-shadow: var(--pop-shadow); font-size: 13px; animation: toast-in .2s var(--ease) both; }
+.toast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 9px 12px 9px 16px;
+  border-radius: 999px; background: var(--card-3); border: 1px solid var(--line-med); box-shadow: var(--pop-shadow);
+  font-size: 13px; white-space: nowrap; max-width: calc(100% - 32px); animation: toast-in .25s var(--ease) both; z-index: 25; }
+.toast span { overflow: hidden; text-overflow: ellipsis; }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 6px); } }
+.spin { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: rot .7s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ── Narrower: stack; phone: bottom sheet that scrolls ─────────────────── */
+@media (max-width: 900px) {
+  .ms-main { grid-template-columns: minmax(0,1fr); }
+  .col + .col { border-left: 0; border-top: 1px solid var(--line-soft); }
+}
+@media (max-width: 640px) {
+  .mockbar { position: static; }
+  .ms-overlay { place-items: end stretch; padding: 0; }
+  .ms-spot { width: 100%; max-height: 92vh; overflow-y: auto; border-radius: 18px 18px 0 0; border-bottom: 0; }
+  .ms-head { padding: 14px 10px 14px 16px; gap: 12px; }
+  .ms-head h2 { font-size: 20px; }
+  .ms-ctl .count, .ms-head .sub .dot { display: none; }
+  .col { padding: 14px 16px; }
+  .tiles { gap: 8px; }
+  .tile { min-height: 104px; padding: 11px; }
+  .ms-prof { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .cell { padding: 10px 16px; border-left: 0; border-top: 1px solid var(--line-soft); }
+  .cell:nth-child(2n) { border-left: 1px solid var(--line-soft); }
+  .pop { width: min(300px, calc(100vw - 48px)); }
+  .guard, .toast { position: fixed; bottom: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="mockbar" role="region" aria-label="Mock controls">
+  <b>Mock</b>
+  <span>Viewing as</span>
+  <div class="seg" id="viewerSeg">
+    <button data-viewer="president" aria-pressed="true">President · all perms</button>
+    <button data-viewer="treasurer" aria-pressed="false">Treasurer · dues only</button>
+    <button data-viewer="member" aria-pressed="false">Sam · plain member</button>
+  </div>
+  <label><input type="checkbox" id="failNext"> Next save fails</label>
+</div>
+
+<main class="page" id="page">
+  <h1>Brotherhood</h1>
+  <p class="lede">Beta Chapter · Fall 2026 · click a member</p>
+  <div class="roster" id="roster"></div>
+</main>
+
+<div class="ms-overlay" id="overlay" hidden>
+  <div class="ms-spot" id="spot" role="dialog" aria-modal="true" aria-labelledby="msName" tabindex="-1"></div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   Data
+   ═══════════════════════════════════════════════════════════════════════ */
+const TODAY = new Date("2026-09-30T12:00:00");
+const TERM = { name: "Fall 2026", start: new Date("2026-08-24"), end: new Date("2026-12-12") };
+const GOALS = { attWatch: 75, attRisk: 60, gpaWatch: 3.0, gpaRisk: 2.5, gpaMax: 4.0, service: 10 };
+const SERVICE_EVENTS = [
+  { id: 11, t: "Habitat build", d: "2026-09-27" },
+  { id: 12, t: "Food bank shift", d: "2026-09-20" },
+  { id: 13, t: "Campus cleanup", d: "2026-09-13" },
+  { id: 14, t: "Blood drive", d: "2026-09-06" },
+];
+const ALL_ROLES = ["President", "Treasurer", "Social Chair", "Scholarship Chair", "Service Chair", "Recruitment Chair"];
+const CUSTOM_DEFS = [
+  { id: "major", label: "Major", required: false },
+  { id: "grad",  label: "Grad year", required: true, type: "number" },
+  { id: "shirt", label: "T-shirt size", required: false },
+];
+
+const members = [
+  {
+    id: 1, name: "Marcus Bell", email: "mbell@state.edu", joined: "2025-09-08",
+    roles: ["Social Chair"], committees: ["Rush", "Banquet"],
+    gpa: { v: 2.84, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 120, exempt: null,
+    service: [{ ev: 12, h: 3 }, { ev: 13, h: 2 }, { ev: 14, h: 1 }],
+    custom: { major: "Economics", grad: 2027, shirt: "L" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 9, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "attended" },
+      { id: 102, t: "Rush kickoff", d: "2026-09-05", s: "attended" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "absent" },
+      { id: 104, t: "Philanthropy kickoff", d: "2026-09-12", s: "attended" },
+      { id: 105, t: "Chapter meeting", d: "2026-09-16", s: "pending", reason: "Organic chem midterm, 7–9pm" },
+      { id: 106, t: "Brotherhood retreat", d: "2026-09-19", s: "rejected", reason: "Family thing", note: "Needs 48 hours' notice" },
+      { id: 107, t: "Chapter meeting", d: "2026-09-23", s: "absent" },
+      { id: 108, t: "Study hall", d: "2026-09-26", s: "attended" },
+      { id: 109, t: "Chapter dinner", d: "2026-09-28", s: "attended" },
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 111, t: "Alumni mixer", d: "2026-08-29", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+      { id: 191, t: "Homecoming setup", d: "2026-10-10", s: "upcoming" },
+    ],
+  },
+  {
+    id: 2, name: "Priya Nair", email: "pnair@state.edu", joined: "2026-09-27",
+    roles: [], committees: [],
+    gpa: null, dues: 250, exempt: null, service: [],
+    custom: { major: "", grad: null, shirt: "" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: null }],
+    events: [
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+      { id: 191, t: "Homecoming setup", d: "2026-10-10", s: "upcoming" },
+    ],
+  },
+  {
+    id: 3, name: "Sam Okafor", email: "sokafor@state.edu", joined: "2024-09-10",
+    roles: [], committees: ["Philanthropy"],
+    gpa: { v: 3.61, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 0, exempt: null,
+    service: [{ ev: 11, h: 5 }, { ev: 12, h: 3 }, { ev: 14, h: 3 }],
+    custom: { major: "Biology", grad: 2026, shirt: "M" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 14, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 111, t: "Alumni mixer", d: "2026-08-29", s: "attended" },
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "attended" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "attended" },
+      { id: 104, t: "Philanthropy kickoff", d: "2026-09-12", s: "attended" },
+      { id: 105, t: "Chapter meeting", d: "2026-09-16", s: "attended" },
+      { id: 106, t: "Brotherhood retreat", d: "2026-09-19", s: "attended" },
+      { id: 107, t: "Chapter meeting", d: "2026-09-23", s: "absent" },
+      { id: 110, t: "Chapter meeting", d: "2026-09-30", s: "attended" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+    ],
+  },
+  {
+    id: 4, name: "Dana Whitfield", email: "dwhitfield@state.edu", joined: "2024-01-20",
+    roles: ["Recruitment Chair"], committees: [],
+    gpa: { v: 2.31, by: "Jordan Ellis", at: "Sep 14" },
+    dues: 340, exempt: { reason: "Studying abroad", by: "Alex Moreno", at: "Aug 20" },
+    service: [{ ev: 14, h: 1 }],
+    custom: { major: "International Relations", grad: 2027, shirt: "S" },
+    metrics: [{ name: "Study hours", unit: "h", goal: 12, v: 4, by: "Jordan Ellis", at: "Sep 26" }],
+    events: [
+      { id: 101, t: "Chapter meeting", d: "2026-09-02", s: "absent" },
+      { id: 103, t: "Chapter meeting", d: "2026-09-09", s: "absent" },
+      { id: 190, t: "Chapter meeting", d: "2026-10-07", s: "upcoming" },
+    ],
+  },
+];
+const SELF_ID = 3; // Sam, when viewing as the plain member
+
+const VIEWERS = {
+  president: { name: "Jordan Ellis", members: true, roles: true, treasury: true, attendance: true, service: true, officer: true },
+  treasurer: { name: "Chris Park",   members: false, roles: false, treasury: true, attendance: false, service: false, officer: true },
+  member:    { name: "Sam Okafor",   members: false, roles: false, treasury: false, attendance: false, service: false, officer: false, selfId: SELF_ID },
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════════════════════════════ */
+const S = {
+  viewer: "president",
+  idx: null,          // index into members, null = closed
+  tab: "overview",
+  editing: null,      // "gpa" | "metric:0" | "name" | "committees" | "cf:grad" | "dues" | "service" | "exempt" | "excuse:105" | "reject:105" | "remove"
+  draft: {},          // editor-local values
+  saving: false,
+  error: null,
+  guard: null,        // pending navigation while an edit is dirty: {fn, label}
+  toast: null,        // {text, undo}
+  lastFocus: null,
+};
+let toastTimer = null;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const fmt$ = n => "$" + n.toLocaleString("en-US");
+const initials = n => n.split(" ").map(p => p[0]).slice(0, 2).join("");
+const firstName = n => n.split(" ")[0];
+function fmtDate(iso) {
+  const d = new Date(iso + "T12:00:00");
+  const opts = { weekday: "short", month: "short", day: "numeric" };
+  if (d.getFullYear() !== TODAY.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("en-US", opts);
+}
+const daysSince = iso => Math.floor((TODAY - new Date(iso + "T12:00:00")) / 864e5);
+const cur = () => S.idx === null ? null : members[S.idx];
+const V = () => VIEWERS[S.viewer];
+const isSelf = m => V().selfId === m.id;
+const canSeeStanding = m => V().officer || isSelf(m);
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Derived values: computed, never typed
+   ═══════════════════════════════════════════════════════════════════════ */
+function attendance(m) {
+  const past = m.events.filter(e => e.s !== "upcoming");
+  const joined = new Date(m.joined + "T00:00:00");
+  const counted = past.filter(e => new Date(e.d) >= joined && e.s !== "excused" && e.s !== "pending");
+  const attended = counted.filter(e => e.s === "attended").length;
+  const upcoming = m.events.filter(e => e.s === "upcoming").length;
+  return { attended, of: counted.length, pct: counted.length ? Math.round(attended / counted.length * 100) : null, upcoming,
+           pending: past.filter(e => e.s === "pending").length, unexcused: past.filter(e => e.s === "absent" || e.s === "rejected").length };
+}
+const serviceTotal = m => m.service.reduce((s, x) => s + x.h, 0);
+const termFrac = () => Math.min(1, Math.max(0, (TODAY - TERM.start) / (TERM.end - TERM.start)));
+const isNew = m => daysSince(m.joined) < 14;
+
+function toneAtt(p) { return p === null ? "" : p < GOALS.attRisk ? "t-risk" : p < GOALS.attWatch ? "t-warn" : "t-ok"; }
+function toneGpa(g) { return g === null ? "" : g < GOALS.gpaRisk ? "t-risk" : g < GOALS.gpaWatch ? "t-warn" : "t-ok"; }
+
+function standing(m) {
+  const self = isSelf(m);
+  const subj = self ? "You're" : `${esc(firstName(m.name))} is`;
+  if (m.archived) return { tone: "t-muted", label: "Archived", s: `<em class="t-muted">Archived</em> today. Hidden from the roster and not using a seat. Their history is kept.` };
+  const a = attendance(m);
+  if (isNew(m)) {
+    const d = daysSince(m.joined);
+    let s = `${self ? "You" : esc(firstName(m.name))} joined ${d === 0 ? "today" : d === 1 ? "yesterday" : d + " days ago"}, so it's <em class="t-new">too early to tell</em>. Nothing counts against ${self ? "you" : "them"} yet.`;
+    if (m.dues > 0) s += ` The ${fmt$(m.dues)} new-member fee is outstanding.`;
+    return { tone: "t-new", label: "New", s };
+  }
+  const issues = []; let worst = 0;
+  if (!m.exempt && a.pct !== null && a.pct < GOALS.attWatch) { issues.push(`attendance is ${a.pct}%`); worst = Math.max(worst, a.pct < GOALS.attRisk ? 2 : 1); }
+  if (m.gpa && m.gpa.v < GOALS.gpaWatch) { issues.push(`GPA is ${m.gpa.v.toFixed(2)}`); worst = Math.max(worst, m.gpa.v < GOALS.gpaRisk ? 2 : 1); }
+  if (m.dues > 0) { issues.push(`${fmt$(m.dues)} in dues is outstanding`); worst = Math.max(worst, 1); }
+  if (!issues.length) return { tone: "t-ok", label: "Good", s: `${subj} in <em class="t-ok">good standing</em> on every measure${m.exempt ? " (exempt from attendance this term)" : ""}.` };
+  const tone = worst === 2 ? "t-risk" : "t-warn", word = worst === 2 ? "at risk" : "on watch";
+  const list = issues.length === 1 ? issues[0] : issues.slice(0, -1).join(", ") + " and " + issues.at(-1);
+  return { tone, label: worst === 2 ? "At risk" : "Watch", s: `${subj} <em class="${tone}">${word}</em>: ${list}.` };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Icons
+   ═══════════════════════════════════════════════════════════════════════ */
+const I = {
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+  l: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  r: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  xs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+};
+const lockIcon = why => `<span class="lock" title="${esc(why)}" aria-label="${esc(why)}">${I.lock}</span>`;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Roster (background page)
+   ═══════════════════════════════════════════════════════════════════════ */
+function renderRoster() {
+  const rows = members.filter(m => !m.archived).map(m => {
+    const st = standing(m), a = attendance(m), show = canSeeStanding(m);
+    return `<button class="rr" data-open="${members.indexOf(m)}">
+      <span class="who"><span class="av ${show ? st.tone : ""}">${initials(m.name)}</span><span>${esc(m.name)}<small>${esc(m.roles[0] || "Member")}</small></span></span>
+      <span class="num keep">${show ? `<span class="pill ${st.tone}">${st.label}</span>` : ""}</span>
+      <span class="num">${show ? (m.exempt ? "Exempt" : a.pct === null ? "—" : a.pct + "%") : "·"}</span>
+      <span class="num">${show ? (m.gpa ? m.gpa.v.toFixed(2) : "—") : "·"}</span>
+      <span class="num">${show ? (m.dues ? fmt$(m.dues) : "Paid") : "·"}</span>
+    </button>`;
+  }).join("");
+  $("#roster").innerHTML = `<div class="rh"><span>Member</span><span>Standing</span><span>Attendance</span><span>GPA</span><span>Dues</span></div>${rows}
+    <div class="foot">4 of 34 shown · standing columns are officers-only</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Spotlight: one screen, no tabs
+   ═══════════════════════════════════════════════════════════════════════ */
+function render(opts = {}) {
+  renderRoster();
+  const m = cur();
+  const ov = $("#overlay");
+  if (!m) { ov.hidden = true; $("#page").removeAttribute("aria-hidden"); return; }
+  ov.hidden = false; $("#page").setAttribute("aria-hidden", "true");
+  const st = standing(m), vis = members.filter(x => !x.archived || x === m), pos = vis.indexOf(m);
+  const full = canSeeStanding(m), v = V(), self = isSelf(m);
+  const canName = v.members || self;
+
+  $("#spot").innerHTML = `
+    <div class="ms-head">
+      <span class="av lg ${full ? st.tone : ""}" aria-hidden="true">${initials(m.name)}</span>
+      <div style="min-width:0">
+        <div class="id">
+          <span class="anchor"><h2 id="msName">${esc(m.name)}${canName && S.editing !== "name" ? ` <button class="pen" data-edit="name" aria-label="Edit name in this chapter">${I.pen}</button>` : ""}</h2>
+            ${S.editing === "name" ? pop(textFields("Name", "Only changes how Beta Chapter sees them. Other chapters keep their own."), "", "Edit name") : ""}</span>
+          <span class="sub">${full ? `<span class="pill ${st.tone}">${st.label}</span>` : ""}<span>${esc(m.roles.join(" · ") || "Member")}</span><span class="dot"></span><span>Since ${new Date(m.joined + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>${self ? '<span class="dot"></span><span style="font-style:italic;font-family:var(--serif)">you</span>' : ""}</span>
+        </div>
+        ${full ? `<p class="ms-verdict" aria-live="polite">${st.s}</p>` : ""}
+      </div>
+      <div class="ms-ctl">
+        ${v.members && !self ? `<button class="ibtn" data-edit="menu" aria-label="More actions" aria-haspopup="true" aria-expanded="${S.editing === "menu" || S.editing === "remove"}">${I.more}</button>` : ""}
+        <button class="ibtn" data-act="prev" aria-label="Previous member (←)" title="Previous (←)" ${pos <= 0 ? "disabled" : ""}>${I.l}</button>
+        <span class="count">${pos + 1} / ${vis.length}</span>
+        <button class="ibtn" data-act="next" aria-label="Next member (→)" title="Next (→)" ${pos >= vis.length - 1 ? "disabled" : ""}>${I.r}</button>
+        <button class="ibtn" data-act="close" aria-label="Close (esc)" title="Close (esc)">${I.x}</button>
+        ${S.editing === "menu" ? pop(menu(m), "right", "More actions") : S.editing === "remove" ? pop(removeConfirm(m), "right danger", "Remove permanently") : ""}
+      </div>
+    </div>
+    ${full ? `<div class="ms-main">
+      <section class="col" aria-label="Standing">${standingCol(m)}</section>
+      <section class="col" aria-label="Attendance">${attendanceCol(m)}</section>
+    </div>` : ""}
+    ${profileStrip(m, full)}
+    ${noteRow(m, full)}
+    ${S.guard ? guardBar() : ""}
+    ${S.toast && !S.guard ? `<div class="toast" role="status"><span>${S.toast.text}</span>${S.toast.undo ? '<button class="linkbtn" data-act="undo">Undo</button>' : ""}</div>` : ""}
+  `;
+  if (opts.swap) { $("#spot").classList.remove("swap"); void $("#spot").offsetWidth; $("#spot").classList.add("swap"); }
+  const f = $("#spot [data-focus]");
+  if (f && opts.focusEditor !== false) { f.focus(); if (f.select && f.type !== "number" && f.setSelectionRange) { const l = f.value.length; f.setSelectionRange(l, l); } else f.select?.(); }
+}
+
+const pop = (inner, cls, label) => `<div class="pop ${cls}" role="dialog" aria-label="${esc(label)}">${inner}</div>`;
+const saveBtns = (label = "Save", cls = "primary", extra = "") => `<div class="foot">${extra}<span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button>
+  <button class="btn ${cls}" data-act="save" ${S.saving ? "disabled" : ""}>${S.saving ? '<span class="spin"></span> Saving' : label}</button></span></div>`;
+const hint = (text, withKeys = true) => `<p class="hint ${S.error ? "err" : ""}" id="edHint">${S.error ? esc(S.error) : text + (withKeys ? ' <span class="keys">↵ save · esc cancel</span>' : "")}</p>`;
+
+/* ── Standing: 2×2 tiles ───────────────────────────────────────────────── */
+function standingCol(m) {
+  const v = V(), self = isSelf(m), svc = serviceTotal(m), pace = GOALS.service * termFrac(), fresh = isNew(m);
+  const noEdit = self ? "Set by officers with Manage members" : "Needs Manage members";
+  const tiles = [];
+
+  // GPA: typed, Manage members only
+  tiles.push(`<div class="tile ${S.editing === "gpa" ? "editing" : ""}">
+    <div class="top"><span class="k">GPA</span>${v.members ? (S.editing === "gpa" ? "" : `<button class="tact" data-edit="gpa">${m.gpa ? "Edit" : "Add"}</button>`) : lockIcon(noEdit)}</div>
+    ${m.gpa ? `<div class="v"><span class="n ${toneGpa(m.gpa.v)}">${m.gpa.v.toFixed(2)}</span><span class="of">of ${GOALS.gpaMax.toFixed(2)}</span></div>
+      <div class="bar"><i class="${toneGpa(m.gpa.v)}" style="width:${m.gpa.v / GOALS.gpaMax * 100}%"></i><span class="goal" style="left:${GOALS.gpaWatch / GOALS.gpaMax * 100}%"></span></div>
+      <div class="src" title="Set by ${esc(m.gpa.by)}, ${m.gpa.at}">Set by <b>${esc(m.gpa.by)}</b>, ${m.gpa.at}</div>`
+    : `<div class="v"><span class="n none">Not on file</span></div><div class="src">Won't count against them until added</div>`}
+    ${S.editing === "gpa" ? pop(numFields({ max: GOALS.gpaMax, step: 0.01, of: `of ${GOALS.gpaMax.toFixed(2)}`, clearable: !!m.gpa, hint: `Goal is ${GOALS.gpaWatch.toFixed(2)}. Clear to mark “not on file”.` }), "", "Edit GPA") : ""}
+  </div>`);
+
+  // Dues: ledger-backed
+  tiles.push(`<div class="tile ${S.editing === "dues" ? "editing" : ""}">
+    <div class="top"><span class="k">Dues</span>${v.treasury ? (S.editing === "dues" ? "" : `<button class="tact" data-edit="dues">${m.dues > 0 ? "Record payment" : "Charge"}</button>`) : lockIcon(self ? "Pay the treasurer; it's recorded here" : "Needs Manage treasury")}</div>
+    <div class="v">${m.dues > 0 ? `<span class="n t-warn">${fmt$(m.dues)}</span><span class="of">owed</span>` : `<span class="n t-ok">Paid up</span>`}</div>
+    <div class="src">Moves with the Treasury ledger</div>
+    ${S.editing === "dues" ? pop(duesFields(m), "right", "Dues") : ""}
+  </div>`);
+
+  // Service: from logged events
+  const latest = m.service[0] && SERVICE_EVENTS.find(s => s.id === m.service[0].ev);
+  const svcTone = svc >= GOALS.service ? "t-ok" : !fresh && svc + 0.01 < pace ? "t-warn" : "";
+  const svcLine = svc >= GOALS.service ? "Goal met" : fresh ? "Just joined, so no pace yet" : svc + 0.01 < pace ? `Behind pace (${pace.toFixed(1)}h by now)` : "On pace";
+  tiles.push(`<div class="tile ${S.editing === "service" ? "editing" : ""}">
+    <div class="top"><span class="k">Service</span>${v.service ? (S.editing === "service" ? "" : `<button class="tact" data-edit="service">Log hours</button>`) : lockIcon("Logged by the service chair")}</div>
+    <div class="v"><span class="n ${svcTone}">${svc}h</span><span class="of">of ${GOALS.service}h</span></div>
+    <div class="bar"><i class="${svcTone}" style="width:${Math.min(100, svc / GOALS.service * 100)}%"></i>${fresh ? "" : `<span class="goal" style="left:${pace / GOALS.service * 100}%" title="On pace today"></span>`}</div>
+    <div class="src" title="${m.service.map(x => { const e = SERVICE_EVENTS.find(s => s.id === x.ev); return `${e.t}: ${x.h}h`; }).join(" · ")}">${svcLine}${latest ? ` · last: ${esc(latest.t)} +${m.service[0].h}h` : ""}</div>
+    ${S.editing === "service" ? pop(serviceFields(), "up", "Log service hours") : ""}
+  </div>`);
+
+  // First chapter metric (typed, Manage members)
+  m.metrics.slice(0, 1).forEach((x, i) => {
+    const key = "metric:" + i, t = x.v === null ? "" : x.v >= x.goal ? "t-ok" : "t-warn";
+    tiles.push(`<div class="tile ${S.editing === key ? "editing" : ""}">
+      <div class="top"><span class="k">${esc(x.name)}</span>${v.members ? (S.editing === key ? "" : `<button class="tact" data-edit="${key}">${x.v === null ? "Add" : "Edit"}</button>`) : lockIcon(noEdit)}</div>
+      ${x.v === null ? `<div class="v"><span class="n none">Not recorded</span></div><div class="src">Chapter metric · goal ${x.goal}${x.unit}</div>`
+        : `<div class="v"><span class="n ${t}">${x.v}${x.unit}</span><span class="of">of ${x.goal}${x.unit}</span></div>
+           <div class="bar"><i class="${t}" style="width:${Math.min(100, x.v / x.goal * 100)}%"></i></div>
+           <div class="src">Set by <b>${esc(x.by)}</b>, ${x.at}</div>`}
+      ${S.editing === key ? pop(numFields({ max: 100000, step: "any", of: x.unit, clearable: x.v !== null, hint: "Clear to remove the value." }), "up right", "Edit " + x.name) : ""}
+    </div>`);
+  });
+
+  return `<div class="lbl">Standing · ${TERM.name}</div><div class="tiles">${tiles.join("")}</div>`;
+}
+
+/* ── Attendance: rate, a dot per event, only what needs action ─────────── */
+function attendanceCol(m) {
+  const v = V(), a = attendance(m), self = isSelf(m);
+  const evs = [...m.events].sort((x, y) => x.d.localeCompare(y.d));
+  const past = evs.filter(e => e.s !== "upcoming"), up = evs.filter(e => e.s === "upcoming");
+  const dotCls = e => ({ attended: "ok", excused: "warn", pending: "warn", rejected: "risk", absent: "risk", upcoming: "up" }[e.s]);
+  const status = e => ({ attended: "Attended", excused: "Excused", pending: "Excuse pending", rejected: "Excuse not approved", absent: "Absent", upcoming: "Upcoming" }[e.s]);
+  const dot = e => `<span class="e ${dotCls(e)}" title="${esc(e.t)} · ${fmtDate(e.d)} · ${status(e)}"></span>`;
+
+  let out = `<div class="lbl">Attendance · ${TERM.name}${v.attendance && !m.exempt ? `<span class="r anchor"><button class="tact" data-edit="exempt">Mark exempt</button>${S.editing === "exempt" ? pop(exemptFields(), "right", "Mark exempt") : ""}</span>` : ""}</div>`;
+
+  if (m.exempt) out += `<div class="att-head"><span class="n" style="font-size:20px;color:var(--muted)">Exempt</span></div>`;
+  else if (a.pct === null) out += `<div class="att-head"><span class="n none">No mandatory events yet</span></div>`;
+  else out += `<div class="att-head"><span class="n ${toneAtt(a.pct)}">${a.pct}%</span><span class="of">${a.attended} of ${a.of}${new Date(m.joined) > TERM.start ? " since joining" : ""} · goal ${GOALS.attWatch}%</span></div>
+    <div class="bar"><i class="${toneAtt(a.pct)}" style="width:${a.pct}%"></i><span class="goal" style="left:${GOALS.attWatch}%"></span></div>`;
+
+  out += `<div class="strip" aria-label="${past.length} past and ${up.length} upcoming mandatory events">${past.map(dot).join("")}<span class="today" title="Today"></span>${up.map(dot).join("")}</div>
+    <div class="strip-cap"><span>${fmtDate(TERM.start.toISOString().slice(0, 10)).replace(/^\w+, /, "")}</span><span>today</span><span>${fmtDate(TERM.end.toISOString().slice(0, 10)).replace(/^\w+, /, "")}</span></div>`;
+
+  if (m.exempt) {
+    out += `<div class="exempt"><span><b>${esc(m.exempt.reason)}.</b> Absences don't count this term.</span>${v.attendance ? `<button class="tact" data-act="clear-exempt">Clear</button>` : ""}</div>`;
+    return out + allLink(evs);
+  }
+
+  const act = [...past.filter(e => e.s === "pending"), ...past.filter(e => e.s === "absent" || e.s === "rejected").reverse()];
+  if (!act.length) return out + `<div class="calm"><span class="d"></span><span>Nothing needs a decision.</span>${allLinkInline(evs)}</div>`;
+  const shown = act.slice(0, 3);
+  out += `<div class="attn"><div class="sub">Needs attention</div>${shown.map(e => evRow(m, e)).join("")}</div>`;
+  return out + allLink(evs, act.length - shown.length);
+}
+function allLinkInline(evs) {
+  return `<span class="anchor" style="margin-left:auto"><button class="tact" data-edit="list">All ${evs.length} events</button>${S.editing === "list" ? pop(eventList(evs), "up right", "All events") : ""}</span>`;
+}
+function allLink(evs, more = 0) {
+  return `<div class="calm" style="margin-top:8px">${more ? `<span>+${more} more</span>` : ""}${allLinkInline(evs)}</div>`;
+}
+function eventList(evs) {
+  const lab = { attended: "Attended", excused: "Excused", pending: "Pending", rejected: "Not approved", absent: "Absent", upcoming: "Upcoming" };
+  return `<p class="ttl">Mandatory events · ${TERM.name}</p><ul class="list">${[...evs].reverse().map(e => `<li><span>${esc(e.t)} · ${fmtDate(e.d)}</span><span>${lab[e.s]}</span></li>`).join("")}</ul>
+    <div class="foot"><span class="sp"><button class="btn ghost" data-act="cancel">Done</button></span></div>`;
+}
+function evRow(m, e) {
+  const v = V(), self = isSelf(m);
+  const whose = self ? "you" : "they";
+  let meta = `${fmtDate(e.d)} · `;
+  if (e.s === "pending") meta += `Pending: “${esc(e.reason)}”`;
+  else if (e.s === "rejected") meta += `<span class="rej">Not approved${e.note ? `: ${esc(e.note)}` : ""}</span>`;
+  else meta += "Absent, no excuse";
+  let acts = "";
+  const editingThis = S.editing === "excuse:" + e.id || S.editing === "reject:" + e.id;
+  if (!editingThis) {
+    if (e.s === "pending" && v.attendance) acts = `<button class="tact" data-act="approve" data-ev="${e.id}">Approve</button><button class="tact" style="color:var(--muted)" data-edit="reject:${e.id}">Reject</button>`;
+    else if (e.s === "pending" && self) acts = `<span class="of">waiting</span>`;
+    else if (e.s !== "pending" && v.attendance && !self) acts = `<button class="tact" data-edit="excuse:${e.id}">Excuse</button>`;
+    else if (e.s !== "pending" && self) acts = `<button class="tact" data-edit="excuse:${e.id}">${e.s === "rejected" ? "Try again" : "Request excuse"}</button>`;
+  }
+  let p = "";
+  if (editingThis) {
+    const rej = S.editing.startsWith("reject");
+    p = pop(`<p class="ttl">${rej ? "Reject excuse" : self ? "Request an excuse" : `Excuse ${esc(firstName(m.name))}`} · ${esc(e.t)}, ${fmtDate(e.d)}</p>
+      <div class="row"><input class="wide" data-focus data-draft="text" placeholder="${rej ? "Note for them (optional)" : self ? "Why you missed it" : "Reason, e.g. exam or illness"}" value="${esc(S.draft.text)}" aria-label="${rej ? "Rejection note" : "Reason"}"></div>
+      ${hint(rej ? `${esc(firstName(m.name))} sees this note.` : self ? "Goes to the attendance chair to approve." : `Approved right away, filed under ${esc(m.name)}.`, false)}
+      ${saveBtns(rej ? "Reject" : self ? "Send" : "Excuse", rej ? "danger" : "primary")}`, "right", rej ? "Reject excuse" : "Excuse");
+  }
+  return `<div class="ev"><span class="d ${e.s === "pending" ? "warn" : "risk"}"></span>
+    <div style="min-width:0"><div class="t">${esc(e.t)}</div><div class="m2" title="${esc(e.reason || e.note || "")}">${meta}</div></div>
+    <div class="acts">${acts}</div>${p}</div>`;
+}
+
+/* ── Profile strip: six cells ──────────────────────────────────────────── */
+function profileStrip(m, full) {
+  const v = V(), self = isSelf(m), canEdit = v.members || self;
+  const cell = (key, label, value, opts = {}) => {
+    const on = S.editing === key;
+    return `<div class="cell"><div class="k"><span>${label}</span>${opts.action ?? (canEdit && key && !on ? `<button class="pen" data-edit="${key}" aria-label="Edit ${esc(opts.plain || label)}">${I.pen}</button>` : "")}</div>
+      <div class="v ${opts.cls || ""}" ${opts.title ? `title="${esc(opts.title)}"` : ""}>${value}</div>${on && opts.editor ? pop(opts.editor(), "up", "Edit " + (opts.plain || label)) : ""}</div>`;
+  };
+  const roleAction = v.roles ? (S.editing === "add-role" ? "" : `<button class="pen" data-edit="add-role" aria-label="Add a role">${I.plus}</button>`) : "";
+  const roles = m.roles.length
+    ? `<span class="chips">${m.roles.map(r => `<span class="chip ${v.roles ? "" : "ro"}">${esc(r)}${v.roles ? `<button data-act="rm-role" data-role="${esc(r)}" aria-label="Remove ${esc(r)}">${I.xs}</button>` : ""}</span>`).join("")}</span>`
+    : "Member";
+  const cells = [
+    `<div class="cell"><div class="k"><span>Roles</span>${roleAction}</div><div class="v ${m.roles.length ? "" : "empty"}">${roles}</div>
+      ${S.editing === "add-role" ? pop(`<p class="ttl">Add a role</p><div class="row"><select class="wide" data-focus data-act-change="add-role" aria-label="Choose a role"><option value="">Choose…</option>${ALL_ROLES.filter(r => !m.roles.includes(r)).map(r => `<option>${r}</option>`).join("")}</select></div>
+        <div class="foot"><span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button></span></div>`, "up", "Add role") : ""}</div>`,
+    cell("committees", "Committees", m.committees.length ? `<span class="chips">${m.committees.map(c => `<span class="chip ro">${esc(c)}</span>`).join("")}</span>` : "None",
+      { cls: m.committees.length ? "" : "empty", editor: () => textFields("Committees", "Separate with commas. Empty for none.") }),
+    cell(null, "Email", esc(m.email), { title: m.email, action: `<button class="pen" data-act="copy" aria-label="Copy email" title="Copy">${I.copy}</button>` }),
+    ...CUSTOM_DEFS.map(def => {
+      const val = m.custom[def.id], empty = val === null || val === undefined || String(val).trim() === "";
+      return cell("cf:" + def.id, `${esc(def.label)}${def.required ? '<span class="req" aria-label="required">*</span>' : ""}`, empty ? (def.required ? "Missing" : "—") : esc(val),
+        { plain: def.label, cls: empty ? (def.required ? "miss" : "empty") : "", title: empty ? "" : String(val), editor: () => textFields(def.label, def.required ? "Required by your chapter." : "Optional. Empty to clear.", def.type === "number") });
+    }),
+  ];
+  return `<div class="ms-prof" aria-label="Profile">${cells.join("")}</div>`;
+}
+function noteRow(m, full) {
+  const v = V(), self = isSelf(m);
+  if (!full) return `<div class="note-row">${I.lock}<span>Standing, GPA and dues are visible to officers and to ${esc(firstName(m.name))}.</span></div>`;
+  if (self) return `<div class="note-row">${I.lock}<span>Officers set your GPA and metrics; the service chair logs your hours. Something off? Tell Jordan Ellis.</span></div>`;
+  return "";
+}
+
+/* ── Header menu: rare, consequential actions ──────────────────────────── */
+function menu(m) {
+  return `<div class="menu" role="menu">
+    ${m.archived
+      ? `<button role="menuitem" data-act="restore"><b>Restore to roster</b><small>Uses a seat again</small></button>`
+      : `<button role="menuitem" data-act="archive"><b>Archive</b><small>Hide from the roster and free a seat. History stays.</small></button>`}
+    <button role="menuitem" class="danger" data-edit="remove"><b>Remove permanently…</b><small>For erasure requests or mistakes</small></button>
+  </div>`;
+}
+function removeConfirm(m) {
+  return `<p class="ttl" style="line-height:1.5">Erases ${esc(firstName(m.name))}'s attendance, excuses, service log and metrics <b>in Beta Chapter</b>. Ledger entries stay, with the name removed. Other chapters aren't affected.</p>
+    <div class="row"><input class="wide" data-focus data-draft="text" placeholder="Type ${esc(m.name)}" value="${esc(S.draft.text)}" aria-label="Type the member's name to confirm"></div>
+    ${S.error ? `<p class="hint err">${esc(S.error)}</p>` : ""}
+    <div class="foot"><span class="sp"><button class="btn ghost" data-act="cancel">Cancel</button><button class="btn danger" data-act="save" ${S.draft.text?.trim().toLowerCase() === m.name.toLowerCase() ? "" : "disabled"}>Remove</button></span></div>`;
+}
+
+/* ── Editor bodies ─────────────────────────────────────────────────────── */
+function numFields(o) {
+  return `<div class="row"><input class="num" data-focus data-draft="value" type="number" inputmode="decimal" min="0" max="${o.max}" step="${o.step}" value="${esc(S.draft.value)}" aria-label="Value" aria-describedby="edHint" aria-invalid="${!!S.error}"><span class="of">${esc(o.of || "")}</span></div>
+    ${hint(o.hint)}${saveBtns("Save", "primary", o.clearable ? `<button class="btn ghost" data-act="clear-field">Clear</button>` : "")}`;
+}
+function textFields(label, h, numeric) {
+  return `<div class="row"><input class="wide" data-focus data-draft="value" ${numeric ? 'type="number" inputmode="numeric"' : ""} value="${esc(S.draft.value)}" aria-label="${esc(label)}" aria-describedby="edHint" aria-invalid="${!!S.error}"></div>
+    ${hint(esc(h))}${saveBtns()}`;
+}
+function duesFields(m) {
+  const d = S.draft, kind = d.kind;
+  const expl = kind === "payment" ? `Adds a ${fmt$(+d.amount || 0)} income entry to Treasury and lowers the balance together.`
+    : kind === "charge" ? "Adds to what they owe. Logged with your reason." : "Forgives part of the balance. Logged with your reason.";
+  return `<div class="seg" role="group" aria-label="Kind">${["payment", "charge", "waive"].map(k => `<button data-kind="${k}" aria-pressed="${kind === k}" ${k !== "charge" && m.dues === 0 ? "disabled" : ""}>${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}</div>
+    <div class="row"><span class="of">$</span><input class="num" data-focus data-draft="amount" type="number" min="0" step="0.01" value="${esc(d.amount)}" aria-label="Amount">
+    ${kind === "payment" ? `<select data-draft="method" aria-label="Method">${["Venmo", "Zelle", "Cash", "Card"].map(x => `<option ${d.method === x ? "selected" : ""}>${x}</option>`).join("")}</select>`
+      : `<input class="wide" data-draft="reason" placeholder="Reason (required)" value="${esc(d.reason)}" aria-label="Reason">`}</div>
+    <p class="hint ${S.error ? "err" : ""}" id="duesHint">${S.error ? esc(S.error) : expl}</p>
+    ${saveBtns(kind === "payment" ? "Record" : kind === "charge" ? "Charge" : "Waive")}`;
+}
+function serviceFields() {
+  const d = S.draft;
+  return `<div class="row"><select class="wide" data-focus data-draft="ev" aria-label="Service event">${SERVICE_EVENTS.map(e => `<option value="${e.id}" ${+d.ev === e.id ? "selected" : ""}>${esc(e.t)} · ${fmtDate(e.d)}</option>`).join("")}</select>
+    <input class="num" data-draft="hours" type="number" min="0" step="0.5" value="${esc(d.hours)}" aria-label="Hours" placeholder="hours"></div>
+    ${hint("Adds to that event's sign-in sheet. The total recounts from events.", false)}${saveBtns("Log")}`;
+}
+function exemptFields() {
+  return `<p class="ttl">Exempt from attendance for ${TERM.name}</p>
+    <div class="row"><select class="wide" data-focus data-draft="reason" aria-label="Reason">${["Studying abroad", "Co-op / internship", "Inactive", "Other"].map(r => `<option ${S.draft.reason === r ? "selected" : ""}>${r}</option>`).join("")}</select></div>
+    ${hint("Absences stop counting this term only.", false)}${saveBtns("Exempt")}`;
+}
+function guardBar() {
+  return `<div class="guard" role="alertdialog" aria-label="Unsaved change"><span>Unsaved change to <b>${esc(editLabel())}</b></span>
+    <button class="btn ghost" data-act="guard-discard">Discard</button><button class="btn primary" data-act="guard-save">Save</button></div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Editing: one value at a time, saved on its own
+   ═══════════════════════════════════════════════════════════════════════ */
+function editLabel() {
+  const k = S.editing || "";
+  if (k === "gpa") return "GPA";
+  if (k.startsWith("metric:")) return cur().metrics[+k.split(":")[1]].name;
+  if (k.startsWith("cf:")) return CUSTOM_DEFS.find(d => d.id === k.slice(3)).label;
+  return { name: "Name", committees: "Committees", dues: "Dues", service: "Service hours", exempt: "Exemption", remove: "Removal" }[k] || (k.startsWith("reject") ? "Rejection note" : "Excuse");
+}
+function initialDraft(key, m) {
+  if (key === "gpa") return { value: m.gpa ? m.gpa.v.toFixed(2) : "" };
+  if (key.startsWith("metric:")) { const x = m.metrics[+key.split(":")[1]]; return { value: x.v ?? "" }; }
+  if (key === "name") return { value: m.name };
+  if (key === "committees") return { value: m.committees.join(", ") };
+  if (key.startsWith("cf:")) return { value: m.custom[key.slice(3)] ?? "" };
+  if (key === "dues") return { kind: m.dues > 0 ? "payment" : "charge", amount: m.dues > 0 ? String(m.dues) : "", method: "Venmo", reason: "" };
+  if (key === "service") return { ev: SERVICE_EVENTS[0].id, hours: "" };
+  if (key === "exempt") return { reason: "Studying abroad" };
+  return { text: "" };
+}
+let baseline = "";
+const isDirty = () => S.editing && JSON.stringify(S.draft) !== baseline;
+
+function startEdit(key) {
+  guarded(() => {
+    S.editing = key; S.draft = initialDraft(key, cur()); baseline = JSON.stringify(S.draft); S.error = null; render();
+  });
+}
+function stopEdit() { S.editing = null; S.draft = {}; S.error = null; S.saving = false; baseline = ""; }
+
+/** Run fn now, or, if an edit is dirty, ask Save / Discard first. */
+function guarded(fn) {
+  if (isDirty() && S.editing !== "add-role") { S.guard = { fn }; render({ focusEditor: false }); $(".guard .btn.primary")?.focus(); return; }
+  stopEdit(); fn();
+}
+
+function validate(key, m, d) {
+  const num = s => s === "" || s === null ? null : Number(s);
+  if (key === "gpa") { const n = num(d.value); if (n === null) return null; if (!Number.isFinite(n) || n < 0 || n > GOALS.gpaMax) return `GPA must be between 0 and ${GOALS.gpaMax.toFixed(2)}.`; return null; }
+  if (key.startsWith("metric:")) { const n = num(d.value); if (n !== null && (!Number.isFinite(n) || n < 0)) return "Enter a number of 0 or more, or clear it."; return null; }
+  if (key === "name" && !String(d.value).trim()) return "A name is required.";
+  if (key.startsWith("cf:")) { const def = CUSTOM_DEFS.find(x => x.id === key.slice(3)); if (def.required && !String(d.value).trim()) return `${def.label} is required by your chapter.`; }
+  if (key === "dues") {
+    const n = Number(d.amount); if (!(n > 0)) return "Enter an amount above $0.";
+    if (d.kind !== "charge" && n > m.dues) return `That's more than the ${fmt$(m.dues)} they owe.`;
+    if (d.kind !== "payment" && !d.reason.trim()) return "Add a reason. It's kept in the audit log.";
+  }
+  if (key === "service" && !(Number(d.hours) > 0)) return "Enter hours above 0.";
+  if (key.startsWith("excuse:") && !d.text.trim()) return "Add a reason.";
+  return null;
+}
+
+function save(then) {
+  const m = cur(), key = S.editing, d = S.draft;
+  const err = validate(key, m, d);
+  if (err) { S.error = err; render(); return; }
+  S.saving = true; S.error = null; render({ focusEditor: false });
+  setTimeout(() => {
+    if ($("#failNext").checked) {
+      $("#failNext").checked = false;
+      S.saving = false; S.error = "Couldn't save. Nothing changed and your edit is still here. Try again.";
+      render(); return;
+    }
+    const undo = apply(m, key, d);
+    stopEdit();
+    if (undo) toast(undo.text, undo.fn); else render();
+    then?.();
+  }, 520);
+}
+
+/** Apply a saved edit to the member. Returns {text, fn} for the toast's Undo. */
+function apply(m, key, d) {
+  const snap = JSON.parse(JSON.stringify(m));
+  const restore = () => Object.assign(m, JSON.parse(JSON.stringify(snap)));
+  const me = "You";
+  if (key === "gpa") {
+    const before = m.gpa ? m.gpa.v.toFixed(2) : "not on file";
+    m.gpa = d.value === "" ? null : { v: Math.round(Number(d.value) * 100) / 100, by: me, at: "just now" };
+    return { text: `GPA ${before} → ${m.gpa ? m.gpa.v.toFixed(2) : "not on file"}`, fn: restore };
+  }
+  if (key.startsWith("metric:")) {
+    const x = m.metrics[+key.split(":")[1]];
+    x.v = d.value === "" ? null : Number(d.value); x.by = x.v === null ? null : me; x.at = "just now";
+    return { text: `${x.name} ${x.v === null ? "cleared" : "set to " + x.v + x.unit}`, fn: restore };
+  }
+  if (key === "name") { m.name = d.value.trim(); return { text: "Name updated", fn: restore }; }
+  if (key === "committees") { m.committees = d.value.split(",").map(s => s.trim()).filter(Boolean); return { text: "Committees updated", fn: restore }; }
+  if (key.startsWith("cf:")) { const def = CUSTOM_DEFS.find(x => x.id === key.slice(3)); m.custom[def.id] = def.type === "number" && d.value !== "" ? Number(d.value) : String(d.value).trim(); return { text: `${def.label} updated`, fn: restore }; }
+  if (key === "dues") {
+    const n = Number(d.amount);
+    m.dues = d.kind === "charge" ? m.dues + n : Math.max(0, m.dues - n);
+    return { text: d.kind === "payment" ? `Recorded ${fmt$(n)} from ${firstName(m.name)} · in Treasury` : d.kind === "charge" ? `Charged ${fmt$(n)}` : `Waived ${fmt$(n)}`, fn: restore };
+  }
+  if (key === "service") { const ex = m.service.find(x => x.ev === +d.ev); if (ex) ex.h += Number(d.hours); else m.service.unshift({ ev: +d.ev, h: Number(d.hours) }); return { text: `Logged ${d.hours}h for ${firstName(m.name)}`, fn: restore }; }
+  if (key === "exempt") { m.exempt = { reason: d.reason, by: "You", at: "just now" }; return { text: `Exempt for ${TERM.name}`, fn: restore }; }
+  if (key.startsWith("excuse:")) {
+    const e = m.events.find(x => x.id === +key.split(":")[1]);
+    if (isSelf(m)) { e.s = "pending"; e.reason = d.text.trim(); return { text: "Excuse sent to the attendance chair", fn: restore }; }
+    e.s = "excused"; e.reason = d.text.trim(); return { text: `Excused ${firstName(m.name)} for ${e.t}`, fn: restore };
+  }
+  if (key.startsWith("reject:")) { const e = m.events.find(x => x.id === +key.split(":")[1]); e.s = "rejected"; e.note = d.text.trim(); return { text: "Excuse rejected", fn: restore }; }
+  if (key === "remove") {
+    const i = members.indexOf(m); members.splice(i, 1);
+    S.idx = null; renderRoster();
+    return { text: `${m.name} removed`, fn: null };
+  }
+}
+
+function toast(text, undo) {
+  S.toast = { text: esc(text), undo };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { S.toast = null; if (cur()) render({ focusEditor: false }); }, 6000);
+  if (cur()) render({ focusEditor: false }); else { render(); pageToast(text); }
+}
+function pageToast(text) {
+  const t = document.createElement("div"); t.className = "toast"; t.style.position = "fixed"; t.textContent = text;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 3500);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Navigation
+   ═══════════════════════════════════════════════════════════════════════ */
+function open(i, trigger) { S.lastFocus = trigger || document.activeElement; S.idx = i; stopEdit(); S.guard = null; render(); $("#spot").focus(); }
+function close() {
+  guarded(() => {
+    S.idx = null; S.guard = null; S.toast = null; render();
+    (S.lastFocus && document.contains(S.lastFocus) ? S.lastFocus : $(".rr"))?.focus();
+  });
+}
+function step(dir) {
+  const vis = members.filter(x => !x.archived || x === cur()), pos = vis.indexOf(cur()), nx = vis[pos + dir];
+  if (!nx) return;
+  guarded(() => { S.idx = members.indexOf(nx); render({ swap: true }); $("#spot").focus(); });
+}
+
+/* ── Events ───────────────────────────────────────────────────────────── */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, [data-open]");
+  if (e.target === $("#overlay")) return close();
+  if (t?.dataset.viewer) {
+    S.viewer = t.dataset.viewer;
+    document.querySelectorAll("#viewerSeg button").forEach(b => b.setAttribute("aria-pressed", b === t));
+    stopEdit(); S.guard = null;
+    return render();
+  }
+  if (t?.dataset.open !== undefined) return open(+t.dataset.open, t);
+  if (!cur()) return;
+  // A click outside the open popover closes it (asking first if it's dirty).
+  if (S.editing && !e.target.closest(".pop, .guard") && !t) return guarded(() => render({ focusEditor: false }));
+  if (!t) return;
+  if (t.dataset.edit) return S.editing === t.dataset.edit ? (stopEdit(), render({ focusEditor: false })) : startEdit(t.dataset.edit);
+  if (t.dataset.kind) { S.draft.kind = t.dataset.kind; S.error = null; S.draft.amount = t.dataset.kind === "payment" ? String(cur().dues) : ""; return render(); }
+  const m = cur();
+  switch (t.dataset.act) {
+    case "close": return close();
+    case "prev": return step(-1);
+    case "next": return step(1);
+    case "cancel": stopEdit(); return render({ focusEditor: false });
+    case "save": return save();
+    case "clear-field": S.draft.value = ""; return save();
+    case "undo": if (S.toast?.undo) { S.toast.undo(); S.toast = null; clearTimeout(toastTimer); render({ focusEditor: false }); } return;
+    case "guard-discard": { const fn = S.guard.fn; S.guard = null; stopEdit(); return fn(); }
+    case "guard-save": { const fn = S.guard.fn; S.guard = null; return save(fn); }
+    case "approve": return guarded(() => {
+      const ev = m.events.find(x => x.id === +t.dataset.ev), snap = ev.s;
+      ev.s = "excused"; toast(`Approved: ${ev.t}, ${fmtDate(ev.d)}`, () => { ev.s = snap; });
+    });
+    case "clear-exempt": return guarded(() => { const snap = m.exempt; m.exempt = null; toast("Exemption cleared", () => { m.exempt = snap; }); });
+    case "rm-role": return guarded(() => { const r = t.dataset.role, snap = [...m.roles]; m.roles = m.roles.filter(x => x !== r); toast(`Removed ${r}`, () => { m.roles = snap; }); });
+    case "archive": stopEdit(); m.archived = true; return toast(`${firstName(m.name)} archived · seat freed`, () => { m.archived = false; });
+    case "restore": stopEdit(); m.archived = false; return toast(`${firstName(m.name)} restored`, () => { m.archived = true; });
+    case "copy": navigator.clipboard?.writeText(m.email).catch(() => {}); return toast("Email copied");
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if (el.dataset.actChange === "add-role" && el.value) {
+    const m = cur(), snap = [...m.roles]; m.roles = [...m.roles, el.value]; stopEdit();
+    return toast(`Added ${el.value}`, () => { m.roles = snap; });
+  }
+  if (el.dataset.draft) { S.draft[el.dataset.draft] = el.value; if (S.editing === "dues" && el.tagName === "SELECT") render({ focusEditor: false }); }
+});
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (!el.dataset.draft) return;
+  S.draft[el.dataset.draft] = el.value;
+  if (S.error) { S.error = null; const h = el.closest(".pop")?.querySelector(".hint"); if (h) { h.classList.remove("err"); h.textContent = "Press ↵ to save, esc to cancel."; } }
+  if (S.editing === "remove") el.closest(".pop").querySelector(".btn.danger").disabled = el.value.trim().toLowerCase() !== cur().name.toLowerCase();
+  if (S.editing === "dues" && el.dataset.draft === "amount" && S.draft.kind === "payment") $("#duesHint").textContent = `Adds a ${fmt$(+el.value || 0)} income entry to Treasury and lowers the balance together.`;
+});
+document.addEventListener("keydown", e => {
+  if (!cur()) return;
+  const inField = e.target.matches("input, select, textarea");
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (S.guard) { S.guard = null; return render(); }                        // back out of the prompt
+    if (S.editing) { stopEdit(); return render({ focusEditor: false }); }     // then out of the popover
+    return close();                                                           // then close
+  }
+  if (e.key === "Enter" && inField && S.editing && e.target.tagName !== "SELECT") { e.preventDefault(); return save(); }
+  if (!inField && !S.editing && !S.guard) {
+    if (e.key === "ArrowRight" || e.key === "j") { e.preventDefault(); return step(1); }
+    if (e.key === "ArrowLeft" || e.key === "k") { e.preventDefault(); return step(-1); }
+  }
+  if (e.key === "Tab") { // focus trap
+    const f = [...$("#spot").querySelectorAll("button:not(:disabled), input, select")].filter(x => x.offsetParent);
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || document.activeElement === $("#spot"))) { e.preventDefault(); f.at(-1).focus(); }
+    else if (!e.shiftKey && document.activeElement === f.at(-1)) { e.preventDefault(); f[0].focus(); }
+  }
+});
+
+render();
+</script>
+</body>
+</html>

@@ -6,7 +6,7 @@ import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../components/dashboard/styles";
-import { BrotherDrawer } from "../../components/dashboard/drawers/BrotherDrawer";
+import { MemberSpotlight } from "../../components/members/MemberSpotlight";
 import { JoinRequestsPanel } from "../../components/dashboard/JoinRequestsPanel";
 import { TxForm } from "../../components/treasury/TxForm";
 import { useToast } from "../../components/dashboard/Toast";
@@ -25,7 +25,7 @@ import {
   fmtDate,
 } from "../../data";
 import { apiErrorMessage, requestJson } from "../../lib/api";
-import { seatWallFrom, type SeatWall } from "../../lib/seat-wall";
+import { type SeatWall } from "../../lib/seat-wall";
 import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -37,7 +37,7 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
 
-// Minimal service-event shape for the Brother-drawer "Log service hours" picker.
+// Minimal service-event shape for the member card's "Log service hours" picker.
 type ServiceEventOption = { id: number; title: string; date: string };
 /** Shape of GET /api/brothers/ghost-accounts (lib/services/brother-service). */
 type GhostAccount = { brotherId: number; name: string; email: string | null; joinedAt: string };
@@ -57,7 +57,7 @@ function Measure({ label, prefix, value, unit, note, noteTone }: {
 }
 
 // Status pill in the warm pane — mirrors RosterTable's STATUS_TAG so rows match
-// the `.dash` palette (the cold <StatusBadge> stays in use inside the drawer).
+// the `.dash` palette (the member card uses its own standing tones).
 const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
   "Good":    { cls: "st-good",  label: "GOOD" },
   "Watch":   { cls: "st-watch", label: "WATCH" },
@@ -90,7 +90,7 @@ function SortHead({ label, sortKey, activeKey, dir, onClick, numeric }: {
 // that nobody could ever sign in to.
 
 export default function BrothersPage() {
-  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can, setSelfNameLocal } = useChapter();
+  const { currentUser, brotherList, setBrotherList, isLoading, avatarRevision, can } = useChapter();
   const v = useVocab();
   const toast = useToast();
   const router = useRouter();
@@ -102,7 +102,7 @@ export default function BrothersPage() {
   // Invite links are gated on MANAGE_SETTINGS, not MANAGE_BROTHERS — roster CRUD
   // and settings authority are deliberately separate bits (lib/permissions.ts).
   const canSettings = can("MANAGE_SETTINGS");
-  // Distinct from MANAGE_BROTHERS — gates the pending-excuse chip + drawer review.
+  // Distinct from MANAGE_BROTHERS — gates the pending-excuse chip + member-card review.
   const canAttendance = can("MANAGE_ATTENDANCE");
   const customFieldDefs = useMemo(
     () => (currentUser?.org?.customMemberFields ?? []).filter(f => f.showOnRoster).sort((a, b) => a.rosterOrder - b.rosterOrder),
@@ -117,7 +117,7 @@ export default function BrothersPage() {
   const [sortDir,          setSortDir]          = useState<"asc" | "desc">("asc");
   const [selectedId,       setSelectedId]       = useState<number | null>(null);
   // "Record Payment" modal — opened from the Pay button on a roster row or the
-  // Brother drawer. Holds the target brother; the amount entered is deducted
+  // member card. Holds the target brother; the amount entered is deducted
   // from their outstanding dues.
   const [payTarget,        setPayTarget]        = useState<Brother | null>(null);
   const [payAmountStr,     setPayAmountStr]     = useState("");
@@ -130,7 +130,7 @@ export default function BrothersPage() {
   // a failure to retry — it's a state with one specific way out.
   const [seatWall,         setSeatWall]         = useState<SeatWall | null>(null);
   const [deleteError,      setDeleteError]      = useState<string | null>(null);
-  // "Log service hours" modal (opened from the Brother drawer's + control).
+  // "Log service hours" modal (opened from the member card's Service popover).
   const [logHoursFor,     setLogHoursFor]     = useState<Brother | null>(null);
   const [logHoursEvents,  setLogHoursEvents]  = useState<ServiceEventOption[]>([]);
   const [logHoursEventId, setLogHoursEventId] = useState<number | null>(null);
@@ -194,7 +194,7 @@ export default function BrothersPage() {
       .catch(() => {});
   }, [canBrothers]);
 
-  // After a drawer approve/reject, drop the acted-on member's chip (floor 0) and
+  // After a member-card approve/reject, drop the acted-on member's chip (floor 0) and
   // patch attendance on approval (mirrors the Timeline review queue).
   const handleExcuseDecided = useCallback(
     (brotherId: number, _action: "approve" | "reject", attendance: number | null) => {
@@ -202,17 +202,6 @@ export default function BrothersPage() {
         const next = Math.max(0, (prev[brotherId] ?? 0) - 1);
         return { ...prev, [brotherId]: next };
       });
-      if (attendance !== null) {
-        setBrotherList(prev => prev.map(b => b.id === brotherId ? { ...b, attendance } : b));
-      }
-    },
-    [setBrotherList],
-  );
-
-  // After a semester exemption is set/cleared in the drawer, patch the member's
-  // attendance value so the roster chip flips between "Exempt" and a real %.
-  const handleExemptionChanged = useCallback(
-    (brotherId: number, attendance: number | null) => {
       if (attendance !== null) {
         setBrotherList(prev => prev.map(b => b.id === brotherId ? { ...b, attendance } : b));
       }
@@ -283,30 +272,6 @@ export default function BrothersPage() {
   }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
-
-  const updateBrother = useCallback((id: number, updates: Omit<Brother, "id" | "duesOwed">) => {
-    const prev = brotherList.find(b => b.id === id);
-    if (!prev) return;
-    setBrotherList(list => list.map(b => b.id === id ? { ...b, ...updates } : b));
-    // Renaming YOURSELF also has to move the greeting and the sidebar profile,
-    // which read currentUser (loaded once from /api/auth/me) rather than the
-    // roster — otherwise the app keeps using your old name until a reload.
-    const renamingSelf = currentUser?.id === id && !!updates.name && updates.name !== prev.name;
-    if (renamingSelf) setSelfNameLocal(updates.name);
-    requestJson<Brother>(`/api/brothers/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    }).catch(err => {
-      setBrotherList(list => list.map(b => b.id === id ? prev : b));
-      if (renamingSelf) setSelfNameLocal(prev.name);
-      // Un-archiving a member is a growth path too, so this can 402 exactly like
-      // adding one (see updateBrother in lib/services/brother-service.ts).
-      const wall = seatWallFrom(err);
-      if (wall) setSeatWall(wall);
-      else setPageError(apiErrorMessage(err, "Update failed. Changes were reverted."));
-    });
-  }, [brotherList, setBrotherList, currentUser?.id, setSelfNameLocal]);
 
   // Opens the Record Payment modal pre-filled with the full outstanding balance.
   const payDues = useCallback((b: Brother) => {
@@ -788,21 +753,17 @@ export default function BrothersPage() {
         </main>
       </div>
 
-      {/* ── Brother Drawer (already Ledger-styled) ── */}
-      <BrotherDrawer
+      {/* ── Member card. Writes go straight to the API and patch brotherList;
+          ←/→ follow the table's current filter + sort. ── */}
+      <MemberSpotlight
         brotherId={selectedId}
-        brotherList={brotherList}
+        order={filtered.map(b => b.id)}
+        onNavigate={setSelectedId}
         onClose={() => setSelectedId(null)}
-        onSave={updateBrother}
         onPayDues={payDues}
         onLogServiceHours={openLogServiceHours}
         onDelete={deleteBrother}
-        isAdmin={canBrothers}
-        canTreasury={canTreasury}
-        canManageExcuses={canAttendance}
         onExcuseDecided={handleExcuseDecided}
-        onExemptionChanged={handleExemptionChanged}
-        selfId={selfId}
       />
 
       {/* ── Log Service Hours Modal ── */}

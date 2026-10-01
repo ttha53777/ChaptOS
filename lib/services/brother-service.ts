@@ -150,6 +150,30 @@ export async function listGhostAccounts(ctx: RequestContext): Promise<GhostAccou
   }));
 }
 
+/** What the member card shows beyond the roster row: contact + tenure. */
+export interface MemberProfile {
+  brotherId: number;
+  email:     string | null;
+  joinedAt:  string;
+}
+
+/**
+ * One member's email and join date, for the member card (MemberSpotlight).
+ *
+ * Kept off listVisibleBrothers on purpose: that read ships to every member on
+ * every page, and email is PII almost nothing needs. The card asks for one person
+ * at a time instead. `joinedAt` is this org's Membership, so "member since" is
+ * when they joined THIS chapter, not when their account was first created.
+ */
+export async function getMemberProfile(ctx: RequestContext, brotherId: number): Promise<MemberProfile> {
+  const m = await ctx.db.member.findFirst({
+    where:  { brotherId, brother: { is: { isGhost: false } } },
+    select: { brotherId: true, joinedAt: true, brother: { select: { email: true } } },
+  });
+  if (!m) throw new NotFoundError("Member not found");
+  return { brotherId: m.brotherId, email: m.brother.email, joinedAt: m.joinedAt.toISOString() };
+}
+
 // createBrother is gone. Officers can no longer type a person onto the roster:
 // the only way a Membership is created is approving a JoinRequest, in
 // lib/services/join-request-service.ts, which is where the Brother + Membership

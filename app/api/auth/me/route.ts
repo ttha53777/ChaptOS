@@ -200,8 +200,8 @@ export async function GET() {
             customMemberFields: sanitizeFieldDefs(
               Array.isArray(org.config?.customMemberFields) ? org.config.customMemberFields as unknown as CustomMemberFieldDef[] : [],
             ),
-            // Count of active metric definitions — used by BrotherDrawer to decide
-            // whether to show the "metrics" tab (avoids a separate API call).
+            // Count of active metric definitions — used by MemberSpotlight to decide
+            // whether to fetch metric rows for About (avoids a wasted API call).
             metricDefinitionCount,
             // Pending reimbursement tickets — drives the Sidebar's Treasury count
             // badge without pulling the whole list into every page load.
