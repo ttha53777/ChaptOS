@@ -1383,10 +1383,10 @@ export default function Home() {
   }), [brotherList, THRESHOLDS, measured]);
 
   // ── Needs-attention queue ───────────────────────────────────────────────────
-  // Overdue deadlines, outstanding dues (aggregated), and at-risk members.
+  // Overdue deadlines, pending reimbursements, and outstanding dues (aggregated).
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, measured),
-    [brotherList, taskList, THRESHOLDS, todayISO, reimbursementList, measured],
+    () => deriveNeedsAttention(brotherList, taskList, todayISO, reimbursementList, measured),
+    [brotherList, taskList, todayISO, reimbursementList, measured],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
@@ -2343,14 +2343,12 @@ export default function Home() {
                   <NeedsAttention
                     items={needsAttention}
                     onMarkDone={completeDeadline}
-                    onOpenProfile={(id) => setSelectedBrotherId(id)}
                     onSendReminder={() => setActiveDrawer("dues")}
                     onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
                     hasData={hasAnyData}
                     loading={!attentionLoaded}
                     error={attentionFailed}
                     onRetry={retrySections}
-                    tracked={measured}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
                   />
                   </div>

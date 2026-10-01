@@ -146,24 +146,24 @@ describe("getBrotherStatus — untracked metrics", () => {
 });
 
 describe("deriveNeedsAttention — untracked metrics", () => {
-  it("produces no member-risk rows for a healthy team", () => {
+  it("excludes risk rows regardless of tracked metrics", () => {
     // Previously this returned one row per member, each reading "0.0 GPA".
-    expect(deriveNeedsAttention(teamRoster, [], DEFAULT_THRESHOLDS, TODAY, [], TEAM_TRACKED)).toEqual([]);
-    expect(deriveNeedsAttention(teamRoster, [], DEFAULT_THRESHOLDS, TODAY)).toHaveLength(teamRoster.length);
+    expect(deriveNeedsAttention(teamRoster, [], TODAY, [], TEAM_TRACKED)).toEqual([]);
+    expect(deriveNeedsAttention(teamRoster, [], TODAY)).toEqual([]);
   });
 
   it("skips the outstanding-dues row when the org doesn't track dues", () => {
     const roster = [brother({ id: 1, name: "Sam", attendance: 100, gpa: 0, duesOwed: 90, serviceHours: 0 })];
-    const items = deriveNeedsAttention(roster, [], DEFAULT_THRESHOLDS, TODAY, [], TEAM_TRACKED);
+    const items = deriveNeedsAttention(roster, [], TODAY, [], TEAM_TRACKED);
     expect(items.some(i => i.kind === "dues")).toBe(false);
 
-    const clubItems = deriveNeedsAttention(roster, [], DEFAULT_THRESHOLDS, TODAY, [], CLUB_TRACKED);
+    const clubItems = deriveNeedsAttention(roster, [], TODAY, [], CLUB_TRACKED);
     expect(clubItems.some(i => i.kind === "dues")).toBe(true);
   });
 
   it("still reports overdue deadlines, which are not per-member metrics", () => {
     const tasks = [task({ id: 1, title: "Roster due", dueDate: "2026-05-14", status: "open" })];
-    const items = deriveNeedsAttention(teamRoster, tasks, DEFAULT_THRESHOLDS, TODAY, [], TEAM_TRACKED);
+    const items = deriveNeedsAttention(teamRoster, tasks, TODAY, [], TEAM_TRACKED);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ kind: "deadline-overdue", id: 1 });
   });

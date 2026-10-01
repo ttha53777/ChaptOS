@@ -1,7 +1,5 @@
 import React, { useState } from "react";
 import { fmt$, fmtDate, type AttentionItem } from "../../../data";
-import { isAttendanceExempt } from "@/lib/thresholds";
-import { ALL_TRACKED, type TrackedMetrics } from "@/lib/tracked-metrics";
 import { useVocab } from "../../../hooks/useVocab";
 import { SectionError } from "./SectionError";
 
@@ -11,8 +9,7 @@ const VISIBLE_LIMIT = 6;
 /**
  * "Needs attention" queue — the first content block. Renders the ordered
  * AttentionItem[] from deriveNeedsAttention(). Actions route to existing
- * handlers: Mark done → completeDeadline, Open profile → open the brother
- * drawer, Send reminder → open the Dues KPI drawer (decision: no new backend).
+ * handlers: Mark done → completeDeadline, Send reminder → open the Dues KPI drawer (decision: no new backend).
  *
  * Capped at VISIBLE_LIMIT rows: this card sits above the roster, and an
  * uncapped list on a large org pushes everything else off the screen. The count
@@ -21,19 +18,16 @@ const VISIBLE_LIMIT = 6;
 export function NeedsAttention({
   items,
   onMarkDone,
-  onOpenProfile,
   onSendReminder,
   onOpenReimbursements,
   hideButton,
   hasData = true,
-  tracked = ALL_TRACKED,
   loading = false,
   error = false,
   onRetry,
 }: {
   items: AttentionItem[];
   onMarkDone: (deadlineId: number) => void;
-  onOpenProfile: (brotherId: number) => void;
   onSendReminder: () => void;
   onOpenReimbursements: () => void;
   hideButton?: React.ReactNode;
@@ -41,7 +35,6 @@ export function NeedsAttention({
    *  then means "nothing has been measured", not "nothing is wrong" — and praise
    *  requires evidence. */
   hasData?: boolean;
-  tracked?: TrackedMetrics;
   /** The queue is derived from three sections (roster, deadlines,
    *  reimbursements); true until all of them land. "Nothing needs attention" is
    *  the one sentence on this page a member might act on by NOT acting, so it
@@ -83,7 +76,7 @@ export function NeedsAttention({
         <div className="rail-empty">
           {hasData
             ? "Nothing needs attention — nice work."
-            : `Nothing to watch yet — items appear here once you're tracking ${v("Dues").toLowerCase()}, attendance or grades.`}
+            : `Nothing to watch yet — items appear here once you're tracking ${v("Dues").toLowerCase()}, deadlines or reimbursements.`}
         </div>
       ) : (
         visible.map((it) => {
@@ -134,26 +127,7 @@ export function NeedsAttention({
               </div>
             );
           }
-          // Only report measures the org tracks — otherwise the line reads
-          // "0.0 GPA · 0 service hours" for metrics nobody ever recorded.
-          const detail = [
-            tracked.attendance
-              ? (isAttendanceExempt(it.attendance) ? "Exempt from attendance" : `${it.attendance}% attendance`)
-              : null,
-            tracked.gpa ? `${it.gpa.toFixed(1)} GPA` : null,
-            tracked.serviceHours ? `${it.serviceHours} ${v("Service").toLowerCase()} hours` : null,
-          ].filter(Boolean).join(" · ");
-          return (
-            <div className="att-row" key={`m-${it.brotherId}`}>
-              <span className="dot bg-rose" />
-              <span className="tag rose">MEMBER</span>
-              <div className="body">
-                <p className="t">{it.name} flagged at risk</p>
-                {detail && <p className="m">{detail}</p>}
-              </div>
-              <button type="button" className="act" onClick={() => onOpenProfile(it.brotherId)}>Open profile</button>
-            </div>
-          );
+          return null;
         })
       )}
 

@@ -7,7 +7,6 @@
 
 import { describe, expect, it } from "vitest";
 import { deriveNeedsAttention, type Brother, type Task, type TaskAssignment } from "@/app/data";
-import { DEFAULT_THRESHOLDS } from "@/lib/thresholds";
 
 const TODAY = "2026-06-13";
 
@@ -34,7 +33,7 @@ describe("deriveNeedsAttention", () => {
       task({ id: 3, title: "Done Task", dueDate: "2026-05-01", status: "done" }),    // done → skip
       task({ id: 4, title: "Undated", dueDate: null, status: "open" }),              // no date → skip
     ];
-    const items = deriveNeedsAttention([], tasks, DEFAULT_THRESHOLDS, TODAY);
+    const items = deriveNeedsAttention([], tasks, TODAY);
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ kind: "deadline-overdue", id: 1, daysLate: 30, assignees: "Rinchen" });
   });
@@ -45,7 +44,7 @@ describe("deriveNeedsAttention", () => {
       brother({ id: 2, name: "Nathaniel B", attendance: 90, gpa: 3.3, duesOwed: 150 }),
       brother({ id: 3, name: "Paid Up", duesOwed: 0 }),
     ];
-    const items = deriveNeedsAttention(brothers, [], DEFAULT_THRESHOLDS, TODAY);
+    const items = deriveNeedsAttention(brothers, [], TODAY);
     const dues = items.find((i) => i.kind === "dues");
     expect(dues).toBeDefined();
     if (dues?.kind !== "dues") throw new Error("expected dues item");
@@ -53,26 +52,25 @@ describe("deriveNeedsAttention", () => {
     expect(dues.brothers.map((b) => b.name)).toEqual(["Nathaniel B", "Noah Kim"]); // sorted desc by amount
   });
 
-  it("flags at-risk members (below attendance or GPA cutoff)", () => {
+  it("excludes at-risk members (below attendance or GPA cutoff)", () => {
     const brothers = [
       brother({ id: 1, name: "At Risk Att", attendance: 58, gpa: 3.3 }),   // attendance < 65
       brother({ id: 2, name: "At Risk Gpa", attendance: 90, gpa: 2.5 }),   // gpa < 2.7
       brother({ id: 3, name: "Fine", attendance: 90, gpa: 3.4 }),
     ];
-    const risks = deriveNeedsAttention(brothers, [], DEFAULT_THRESHOLDS, TODAY).filter((i) => i.kind === "member-risk");
-    expect(risks.map((r) => (r.kind === "member-risk" ? r.name : ""))).toEqual(["At Risk Att", "At Risk Gpa"]);
+    expect(deriveNeedsAttention(brothers, [], TODAY)).toEqual([]);
   });
 
-  it("orders rows: overdue tasks, then dues, then at-risk members", () => {
+  it("keeps overdue tasks and dues even for at-risk members", () => {
     const brothers = [brother({ id: 1, name: "Risky", attendance: 50, gpa: 2.0, duesOwed: 100 })];
     const tasks = [task({ id: 9, dueDate: "2026-06-01", status: "open" })];
-    const kinds = deriveNeedsAttention(brothers, tasks, DEFAULT_THRESHOLDS, TODAY).map((i) => i.kind);
-    expect(kinds).toEqual(["deadline-overdue", "dues", "member-risk"]);
+    const kinds = deriveNeedsAttention(brothers, tasks, TODAY).map((i) => i.kind);
+    expect(kinds).toEqual(["deadline-overdue", "dues"]);
   });
 
   it("returns an empty queue when nothing needs attention", () => {
     const brothers = [brother({ id: 1, name: "All Good" })];
     const tasks = [task({ id: 1, dueDate: "2026-07-01", status: "open" })];
-    expect(deriveNeedsAttention(brothers, tasks, DEFAULT_THRESHOLDS, TODAY)).toEqual([]);
+    expect(deriveNeedsAttention(brothers, tasks, TODAY)).toEqual([]);
   });
 });

@@ -16,7 +16,7 @@
   position: fixed; inset: 0 auto 0 0; z-index: 50;
   width: min(280px, 86vw); display: flex; flex-direction: column;
   background: var(--paper-2); border-right: 1px solid var(--line);
-  color: var(--ink); font-size: 14px; line-height: 1.5;
+  color: var(--ink); font-size: 15px; line-height: 1.5;
   transform: translateX(-100%); transition: transform .24s var(--sb-ease), width .22s var(--sb-ease);
 }
 .sb.open { transform: none; }
@@ -28,7 +28,7 @@
 }
 :where(.sb) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; text-align: left; cursor: pointer; }
 .sb :focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
-.sb .i { width: 16px; height: 16px; flex: none; }
+.sb .i { width: 18px; height: 18px; flex: none; }
 
 /* The rail rules all hang off this one selector, so the drawer is never railed. */
 @media (min-width: 1024px) {
@@ -60,9 +60,9 @@
 .sb-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sb-logo.sm { width: 26px; height: 26px; border-radius: 7px; font-size: 9.5px; }
 .sb-org-txt { min-width: 0; flex: 1; }
-.sb-org-name { display: block; font-family: var(--sb-serif); font-size: 14px; font-weight: 500; line-height: 1.2;
+.sb-org-name { display: block; font-family: var(--sb-serif); font-size: 15px; font-weight: 500; line-height: 1.2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sb-org-term { display: block; margin-top: 2px; min-height: 14px; font-family: var(--sb-mono); font-size: 9.5px; letter-spacing: .14em;
+.sb-org-term { display: block; margin-top: 2px; min-height: 14px; font-family: var(--sb-mono); font-size: 10.5px; letter-spacing: .14em;
   text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-org-chev { color: var(--faint); }
 
@@ -71,9 +71,9 @@
 
 .sb-needs { margin: 2px 2px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .sb-needs-h { display: flex; align-items: center; gap: 9px; width: 100%; height: 38px; padding: 0 8px 0 10px; border-radius: 11px;
-  font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  font-size: 13.5px; font-weight: 600; color: var(--ink); }
 .sb-needs-h:hover { background: rgba(var(--ink-rgb),.035); }
-.sb-needs-h > .i { width: 15px; height: 15px; color: var(--rose); }
+.sb-needs-h > .i { width: 17px; height: 17px; color: var(--rose); }
 .sb-needs-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .sb-needs-hint { font-family: var(--sb-mono); font-size: 9.5px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase;
   color: var(--faint); opacity: 0; transition: opacity .15s; }
@@ -89,7 +89,7 @@
 .sb-needs.closed .sb-needs-body > ul { padding-top: 0; padding-bottom: 0; border-top-color: transparent; opacity: 0; visibility: hidden;
   transition: padding .26s var(--sb-ease), opacity .2s, visibility 0s .26s; }
 .sb-needs-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 8px 0 5px; border-radius: 8px;
-  font-size: 12.5px; color: var(--ink-soft); text-decoration: none; }
+  font-size: 13.5px; color: var(--ink-soft); text-decoration: none; }
 .sb-needs-row:hover { background: rgba(var(--ink-rgb),.05); color: var(--ink); }
 .sb-num { min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; display: grid; place-items: center;
   font-family: var(--sb-mono); font-size: 11px; font-weight: 500; }
@@ -106,11 +106,11 @@
 
 .sb-grp { margin-bottom: 14px; }
 .sb-grp-h { display: flex; align-items: center; height: 24px; padding: 0 6px 0 10px; }
-.sb-grp-h span { font-family: var(--sb-mono); font-size: 9.5px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.sb-grp-h span { font-family: var(--sb-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
 .sb-items { display: grid; gap: 1px; }
 
 .sb-item { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px;
-  border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
+  border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--muted); text-decoration: none; transition: background .12s, color .12s; }
 .sb-item:hover { background: rgba(var(--ink-rgb),.05); color: var(--ink-soft); }
 .sb-item .i { opacity: .8; }
 .sb-item[aria-current="page"] { background: var(--card-2); color: var(--ink); }
@@ -135,8 +135,8 @@
   font-size: 11px; font-weight: 600; color: var(--ink); background: var(--card-3); border: 1px solid var(--line); }
 .sb-av img { width: 100%; height: 100%; object-fit: cover; }
 .sb-me-txt { min-width: 0; }
-.sb-me-nm { display: block; font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sb-me-rl { display: block; font-size: 11px; color: var(--faint); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-me-nm { display: block; font-size: 14px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sb-me-rl { display: block; font-size: 12px; color: var(--faint); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-iconbtn { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 8px; color: var(--faint); }
 .sb-iconbtn:hover { color: var(--ink); background: rgba(var(--ink-rgb),.06); }
 .sb-collapse { display: none !important; }

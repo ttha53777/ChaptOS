@@ -567,15 +567,13 @@ export function getBrotherStatus(
 
 // ─── Needs-attention queue ──────────────────────────────────────────────────
 // Pure derivation behind the dashboard's "Needs attention" block. Co-located
-// with calcHealthScore / getBrotherStatus because it shares their Brother /
-// Deadline / Thresholds inputs. `today` is injectable so the unit test is
+// with calcHealthScore / getBrotherStatus because it shares their Brother inputs. `today` is injectable so the unit test is
 // deterministic.
 
 export type AttentionItem =
   | { kind: "deadline-overdue"; id: number; title: string; assignees: string; dueDate: string; daysLate: number }
   | { kind: "reimbursement"; count: number; total: number; requests: { id: number; name: string; amount: number }[] }
-  | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] }
-  | { kind: "member-risk"; brotherId: number; name: string; attendance: number; gpa: number; serviceHours: number };
+  | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] };
 
 /** Whole days from ISO `from` to ISO `to` (both yyyy-mm-dd), via UTC to dodge DST. */
 function isoDaysBetween(from: string, to: string): number {
@@ -597,7 +595,6 @@ export function taskAssigneeLabel(task: Task, max = 2): string {
 export function deriveNeedsAttention(
   brothers: Brother[],
   tasks: Task[],
-  thresholds: Thresholds = THRESHOLDS,
   today: string = new Date().toISOString().slice(0, 10),
   pendingReimbursements: Reimbursement[] = [],
   tracked: TrackedMetrics = ALL_TRACKED,
@@ -642,15 +639,6 @@ export function deriveNeedsAttention(
       kind: "dues",
       total: owing.reduce((s, b) => s + b.duesOwed, 0),
       brothers: owing.map(b => ({ id: b.id, name: b.name, amount: b.duesOwed })),
-    });
-  }
-
-  // At-risk members (rose): one row each.
-  for (const b of brothers.filter(b => getBrotherStatus(b, thresholds, tracked) === "At Risk")) {
-    items.push({
-      kind: "member-risk",
-      brotherId: b.id, name: b.name,
-      attendance: b.attendance, gpa: b.gpa, serviceHours: b.serviceHours,
     });
   }
 
