@@ -99,6 +99,12 @@ const EXTRACTORS: Record<string, Extractor> = {
     ...fromList(prop(r, "candidates"), "title", "event"),
   ],
   list_deadlines: r => fromList(listRows(r), "title", "task"),
+  get_custom_metrics: r => fromList(prop(r, "members"), "name", "member"),
+  list_member_fields: r => fromList(prop(r, "members"), "name", "member"),
+  list_reimbursements: r => fromList(prop(r, "reimbursements"), "name", "member"),
+  list_dues_payments: r => fromList(prop(r, "payments"), "name", "member"),
+  list_attendance_exemptions: r => fromList(listRows(r), "name", "member"),
+  list_polls: r => (Array.isArray(r) ? r.flatMap(p => fromList(prop(p, "notVoted"), "name", "member")) : []),
   weekly_digest: r => [
     ...fromList(prop(r, "events"), "title", "event"),
     ...fromList(prop(r, "deadlinesDue"), "title", "task"),

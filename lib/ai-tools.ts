@@ -24,6 +24,8 @@ import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { signProposalBlob } from "@/lib/ai-approval-sig";
 import { findPermHolders, type PermHolders } from "@/lib/permission-holders";
+import { getMetricStatus } from "@/lib/metrics";
+import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 
 /**
  * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
@@ -439,6 +441,164 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           end:   { type: "string", description: "Inclusive YYYY-MM-DD end." },
           order: { type: "string", enum: ["asc", "desc"], description: "Sort by date (default asc)." },
           limit: { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next'." },
+        },
+      },
+    },
+  },
+  // ── Blind-spot reads: org data the tools above don't reach ──
+  // Descriptions are deliberately short — every schema rides in the tools array
+  // on every loop iteration. Member rows come back as {id, name} so answer rows
+  // resolve to a peekable member (lib/ai-refs).
+  {
+    type: "function",
+    function: {
+      name: "get_custom_metrics",
+      description:
+        "The chapter's own custom metrics (e.g. study hours, workouts) — defined in Settings, separate from attendance/GPA/dues/service. " +
+        "No metric → one summary per metric (goal, average/total, on-track / watch / at-risk / not-recorded counts). " +
+        "metric=<name fragment> → also that metric's members; add status to filter (e.g. 'who's behind on study hours' → status='at_risk', order='asc').",
+      parameters: {
+        type: "object",
+        properties: {
+          metric: { type: "string", description: "Metric name or fragment. Omit for the overview of every metric." },
+          status: { type: "string", enum: ["at_risk", "watch", "on_track", "missing"], description: "Member filter (needs metric). missing = no value recorded." },
+          order:  { type: "string", enum: ["asc", "desc"], description: "Sort members by value (default asc = lowest first)." },
+          limit:  { type: "integer", minimum: 1, maximum: 100, description: "Max members (default 25)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_member_fields",
+      description:
+        "The chapter's custom roster fields (e.g. Pledge Class, Major, Shirt Size, Waiver) and members' values. " +
+        "No field → the field list with how many members have filled each in. " +
+        "field=<name> → members and their value; value=<fragment> filters ('who's in the Fall 24 class'); missing_only=true finds who hasn't filled it in.",
+      parameters: {
+        type: "object",
+        properties: {
+          field:        { type: "string", description: "Field label or fragment." },
+          value:        { type: "string", description: "Value fragment to match (case-insensitive)." },
+          missing_only: { type: "boolean", description: "Only members with no value for field." },
+          limit:        { type: "integer", minimum: 1, maximum: 100, description: "Max members (default 100)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_polls",
+      description:
+        "Chapter polls: question, status (open/closed), close date, per-option vote counts, and turnout. " +
+        "Results are hidden (sealed) on open polls the asker hasn't voted in unless they manage polls — say so rather than guessing. " +
+        "Poll managers also get `notVoted` names ('who hasn't voted?').",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "Question fragment (case-insensitive)." },
+          status:   { type: "string", enum: ["open", "closed"] },
+          limit:    { type: "integer", minimum: 1, maximum: 50, description: "Default 10, newest first." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_reimbursements",
+      description:
+        "Reimbursement requests members filed (who, amount, date, description, category, status pending/approved/rejected). " +
+        "`summary` has exact totals over ALL matches (e.g. pendingTotal) — use it instead of adding rows. " +
+        "'What do we owe people back?' → status='pending'.",
+      parameters: {
+        type: "object",
+        properties: {
+          status:   { type: "string", enum: ["pending", "approved", "rejected"] },
+          member:   { type: "string", description: "Member name fragment." },
+          start:    { type: "string", description: "Inclusive YYYY-MM-DD start." },
+          end:      { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          order_by: { type: "string", enum: ["date", "amount"], description: "Default date." },
+          order:    { type: "string", enum: ["asc", "desc"], description: "Default desc." },
+          limit:    { type: "integer", minimum: 1, maximum: 100, description: "Default 25." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_dues_payments",
+      description:
+        "Dues payment HISTORY (who paid, amount, date, method, status pending/approved/rejected) — list_brothers only has the current balance owed. " +
+        "Use for 'when did X last pay?', 'payments awaiting approval', 'how much dues came in this month'. " +
+        "Treasury managers see everyone; other members see only their own payments. `summary` holds exact totals.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["pending", "approved", "rejected"] },
+          member: { type: "string", description: "Member name fragment." },
+          start:  { type: "string", description: "Inclusive YYYY-MM-DD start." },
+          end:    { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          order:  { type: "string", enum: ["asc", "desc"], description: "By date, default desc (latest first)." },
+          limit:  { type: "integer", minimum: 1, maximum: 100, description: "Default 25." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_docs",
+      description:
+        "Search the chapter's Docs library (links to bylaws, forms, sheets, policies) by title, description, or folder name. " +
+        "Returns title, url, folder, description. Omit query to list pinned + most recent docs.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Word or phrase, e.g. 'bylaws', 'risk'. Short fragments match best." },
+          limit: { type: "integer", minimum: 1, maximum: 25, description: "Default 10." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_announcement",
+      description: "The chapter announcement currently pinned for all members (title, body, link, who posted it, when).",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_join_requests",
+      description:
+        "People who asked to join via an invite link and are waiting on officer review (name, email, requested date). " +
+        "Default status is pending. Requires the Manage members permission.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["pending", "approved", "rejected"], description: "Default pending." },
+          limit:  { type: "integer", minimum: 1, maximum: 100, description: "Default 50." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_attendance_exemptions",
+      description:
+        "Members exempted from attendance this semester (abroad, co-op, inactive, other) and why. Explains low or missing attendance numbers. " +
+        "Requires the Manage attendance permission.",
+      parameters: {
+        type: "object",
+        properties: {
+          member: { type: "string", description: "Member name fragment." },
         },
       },
     },
@@ -1554,7 +1714,7 @@ async function getEventAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolR
   };
 }
 
-async function getBrotherAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
+async function getBrotherAttendance(args: ToolArgs, scoped: Scoped, access?: ToolAccess): Promise<ToolResult> {
   const id = typeof args.id === "number" ? args.id : undefined;
   const name = typeof args.name === "string" ? args.name.trim() : undefined;
   if (id == null && !name) return { error: "Provide id or name." };
@@ -1584,7 +1744,7 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped): Promise<Too
   if (!brother) return { error: "Brother not found." };
 
   // Relation-scoped wrappers keep these bare-FK reads org-safe (attendanceRecord
-  // via CalendarEvent, attendanceExcuse via Brother).
+  // via CalendarEvent, attendanceExcuse via CalendarEvent).
   const [records, excuses] = await Promise.all([
     scoped.attendanceRecord.findMany({
       where: { brotherId: brother.id },
@@ -1595,8 +1755,22 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped): Promise<Too
       include: { calendarEvent: { select: { title: true, date: true } } },
     }),
   ]);
-  const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
   const missed = records.filter(r => !r.attended);
+
+  // This semester's exemption (abroad, co-op, inactive) is what explains a
+  // record with misses or no record at all. It's a second wave rather than a
+  // third parallel query — that would queue on the 2-connection pool
+  // (lib/prisma.ts) for every call — so it's paid only when there's something
+  // to explain, and only for whoever the app lets see exemptions: attendance
+  // managers and the member themselves.
+  const seeExemption = canAccess(access, "MANAGE_ATTENDANCE") || access?.actorId === brother.id;
+  const exemption = seeExemption && (missed.length > 0 || records.length === 0)
+    ? await scoped.attendanceExemption.findFirst({
+        where: { brotherId: brother.id, semester: { is: { isActive: true } } },
+        select: { reason: true, note: true },
+      })
+    : null;
+  const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
   return {
     brother: { id: brother.id, name: brother.name },
     counts: {
@@ -1611,6 +1785,7 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped): Promise<Too
       excused: excusedEventIds.has(r.calendarEventId),
     })),
     excuses: excuses.map(e => ({ title: e.calendarEvent.title, date: e.calendarEvent.date, status: e.status, reason: e.reason })),
+    ...(exemption ? { exemptThisSemester: { reason: exemption.reason, ...(exemption.note ? { note: exemption.note } : {}) } } : {}),
   };
 }
 
@@ -1742,6 +1917,435 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
     }));
 
   return listResult(mapped, !!(title || start || end || daySuffix || stageFilter || typeFilter));
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Blind-spot read handlers
+//
+// Latency rules these follow (the model round trip dominates, but every scoped
+// query is its own BEGIN + SET LOCAL + query + COMMIT, and the app pool holds
+// only 2 connections per instance — lib/prisma.ts):
+//   - ONE wave per call, at most 2 queries wide. A third concurrent query
+//     queues for a connection and costs a full extra round of latency.
+//     Child rows ride the parent query's include/relation filter instead of a
+//     second "now fetch the ids we found" query.
+//   - Names come from rosterNames(), cached per org, so a tool that shows
+//     people costs no extra query on a warm cache.
+//   - Results are compact (no nulls, rounded money, capped lists): every byte
+//     of a tool result is input the model must read before it can answer.
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Who is asking — the gate for tools whose app screens are permission-gated. */
+export interface ToolAccess {
+  actorId: number;
+  permissions: number;
+  isOrgAdmin: boolean;
+  isPlatformAdmin: boolean;
+}
+
+/** Mirrors buildContext({ requirePerm }): org/platform admins pass every gate. */
+function canAccess(access: ToolAccess | undefined, perm: Permission): boolean {
+  if (!access) return false; // callers that don't say who's asking get the conservative answer
+  return access.isPlatformAdmin || access.isOrgAdmin || hasPermission(access.permissions, perm);
+}
+
+function denied(label: string): { error: string } {
+  return { error: `This needs the ${label} permission, which the person asking doesn't hold. Tell them so in one sentence.` };
+}
+
+/**
+ * brotherId → this org's display name for every non-ghost roster member.
+ * 60s per-org cache: names change rarely, and this sits on the path of every
+ * tool that lists people. A just-approved member shows up within a minute.
+ */
+const rosterNameCache = new Map<number, { value: Map<number, string>; expires: number }>();
+
+async function rosterNames(scoped: Scoped, orgId: number): Promise<Map<number, string>> {
+  const now = Date.now();
+  const cached = rosterNameCache.get(orgId);
+  if (cached && cached.expires > now) return cached.value;
+  const rows = await scoped.member.findMany({
+    where: { brother: { is: { isGhost: false } } },
+    select: { brotherId: true, name: true, brother: { select: { name: true } } },
+  });
+  const value = new Map(rows.map(r => [r.brotherId, r.name ?? r.brother.name]));
+  rosterNameCache.set(orgId, { value, expires: now + 60 * 1000 });
+  return value;
+}
+
+/** brotherIds whose name contains the fragment, or null when no fragment was given. */
+function idsMatching(names: Map<number, string>, fragment: unknown): Set<number> | null {
+  if (typeof fragment !== "string" || !fragment.trim()) return null;
+  const needle = fragment.trim().toLowerCase();
+  return new Set([...names].filter(([, n]) => n.toLowerCase().includes(needle)).map(([id]) => id));
+}
+
+function dateRange(args: ToolArgs): { gte?: string; lte?: string } | undefined {
+  const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
+  const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  return start || end ? { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } : undefined;
+}
+
+type MetricDef = { id: number; name: string; unit: string | null; goal: number; atRiskBelow: number; watchBelow: number | null; aggregation: string };
+type MetricDefWithValues = MetricDef & { values: { brotherId: number; value: number }[] };
+
+async function getCustomMetrics(args: ToolArgs, scoped: Scoped, orgId: number): Promise<ToolResult> {
+  const fragment = typeof args.metric === "string" ? args.metric.trim().toLowerCase() : "";
+  // Definitions and every member's value in ONE scoped query (the values are an
+  // include, so they load inside the same transaction instead of costing a
+  // second pool checkout); filtering to one metric happens in memory.
+  const [defs, names] = await Promise.all([
+    scoped.orgMetricDefinition.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true, name: true, unit: true, goal: true, atRiskBelow: true, watchBelow: true, aggregation: true,
+        values: { select: { brotherId: true, value: true } },
+      },
+    }) as unknown as Promise<MetricDefWithValues[]>,
+    rosterNames(scoped, orgId),
+  ]);
+  if (defs.length === 0) {
+    return { count: 0, items: [], hint: "This chapter hasn't defined any custom metrics (Settings → Custom Metrics). Safe to say there are none." };
+  }
+
+  const picked = fragment
+    ? (defs.find(d => d.name.toLowerCase() === fragment) ? defs.filter(d => d.name.toLowerCase() === fragment) : defs.filter(d => d.name.toLowerCase().includes(fragment)))
+    : defs;
+  if (picked.length === 0) {
+    return { error: `No custom metric matches "${args.metric}". Metrics: ${defs.map(d => d.name).join(", ")}.` };
+  }
+
+  const byDef = new Map<number, Map<number, number>>();
+  for (const d of picked) {
+    // Off the roster (or a ghost) — the dashboard doesn't count them either.
+    byDef.set(d.id, new Map(d.values.filter(v => names.has(v.brotherId)).map(v => [v.brotherId, v.value])));
+  }
+
+  const summarize = (d: MetricDef) => {
+    const vals = byDef.get(d.id) ?? new Map<number, number>();
+    const counts = { on_track: 0, watch: 0, at_risk: 0 };
+    let sum = 0;
+    for (const value of vals.values()) { counts[getMetricStatus(value, d)]++; sum += value; }
+    return {
+      metric: d.name,
+      ...(d.unit ? { unit: d.unit } : {}),
+      goal: d.goal,
+      atRiskBelow: d.atRiskBelow,
+      average: vals.size ? r2(sum / vals.size) : null,
+      total: r2(sum),
+      onTrack: counts.on_track,
+      watch: counts.watch,
+      atRisk: counts.at_risk,
+      notRecorded: names.size - vals.size,
+    };
+  };
+
+  // Overview, or an ambiguous fragment: summaries only — member lists for several
+  // metrics at once would bloat the result the model has to read.
+  if (picked.length > 1) return { metrics: picked.map(summarize) };
+
+  const def = picked[0];
+  const vals = byDef.get(def.id) ?? new Map<number, number>();
+  const status = typeof args.status === "string" ? args.status : undefined;
+  const dir = args.order === "desc" ? -1 : 1;
+  const members = [...names]
+    .map(([id, name]) => {
+      const value = vals.get(id);
+      return value === undefined
+        ? { id, name, value: null as number | null, status: "missing" }
+        : { id, name, value: r2(value), status: getMetricStatus(value, def) as string };
+    })
+    .filter(m => (status ? m.status === status : true))
+    // Missing values sort last either way — "lowest" should mean lowest recorded.
+    .sort((a, b) => (a.value === null ? 1 : b.value === null ? -1 : (a.value - b.value) * dir));
+
+  return {
+    summary: summarize(def),
+    members: members.slice(0, clampLimit(args.limit, 25)),
+    ...(members.length === 0 ? { hint: status ? "No members in that status. Broaden before saying none." : "No members on the roster." } : {}),
+  };
+}
+
+// Custom field definitions share OrganizationConfig with thresholds; cached separately
+// (5 min) so this tool doesn't pay the config read on every call.
+const fieldDefCache = new Map<number, { value: CustomMemberFieldDef[]; expires: number }>();
+
+async function memberFieldDefs(scoped: Scoped, orgId: number): Promise<CustomMemberFieldDef[]> {
+  const now = Date.now();
+  const cached = fieldDefCache.get(orgId);
+  if (cached && cached.expires > now) return cached.value;
+  const config = await scoped.organizationConfig.find();
+  const raw = config?.customMemberFields;
+  const value = Array.isArray(raw) ? sanitizeFieldDefs(raw) : [];
+  fieldDefCache.set(orgId, { value, expires: now + 5 * 60 * 1000 });
+  return value;
+}
+
+async function listMemberFields(args: ToolArgs, scoped: Scoped, orgId: number): Promise<ToolResult> {
+  const [defs, rows] = await Promise.all([
+    memberFieldDefs(scoped, orgId),
+    scoped.member.findMany({
+      where: { brother: { is: { isGhost: false } } },
+      select: { brotherId: true, name: true, customFields: true, brother: { select: { name: true } } },
+    }),
+  ]);
+  if (defs.length === 0) {
+    return { count: 0, items: [], hint: "This chapter has no custom member fields (Settings → Member Fields). Safe to say there are none." };
+  }
+  const people = rows.map(r => ({
+    id: r.brotherId,
+    name: r.name ?? r.brother.name,
+    values: (typeof r.customFields === "object" && r.customFields !== null ? r.customFields : {}) as Record<string, unknown>,
+  }));
+  const filled = (v: unknown) => v !== null && v !== undefined && String(v).trim() !== "";
+
+  const fragment = typeof args.field === "string" ? args.field.trim().toLowerCase() : "";
+  if (!fragment) {
+    return {
+      fields: defs.map(d => ({
+        field: d.label,
+        type: d.type,
+        ...(d.required ? { required: true } : {}),
+        ...(d.options?.length ? { options: d.options } : {}),
+        filledIn: people.filter(p => filled(p.values[d.id])).length,
+        of: people.length,
+      })),
+    };
+  }
+
+  const def = defs.find(d => d.label.toLowerCase() === fragment) ?? defs.find(d => d.label.toLowerCase().includes(fragment));
+  if (!def) return { error: `No member field matches "${args.field}". Fields: ${defs.map(d => d.label).join(", ")}.` };
+
+  const valueNeedle = typeof args.value === "string" ? args.value.trim().toLowerCase() : "";
+  const missingOnly = args.missing_only === true;
+  const matches = people
+    .filter(p => {
+      const v = p.values[def.id];
+      if (missingOnly) return !filled(v);
+      if (valueNeedle) return filled(v) && String(v).toLowerCase().includes(valueNeedle);
+      return true;
+    })
+    .map(p => ({ id: p.id, name: p.name, value: filled(p.values[def.id]) ? p.values[def.id] : null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    field: def.label,
+    matching: matches.length,
+    members: matches.slice(0, clampLimit(args.limit)),
+    ...(matches.length === 0 ? { hint: missingOnly ? "Everyone has filled this in." : "No members match. Broaden before saying none." } : {}),
+  };
+}
+
+async function listPolls(args: ToolArgs, scoped: Scoped, orgId: number, access?: ToolAccess): Promise<ToolResult> {
+  const question = typeof args.question === "string" && args.question.trim() ? args.question.trim() : undefined;
+  const status = args.status === "open" || args.status === "closed" ? args.status : undefined;
+  const manager = canAccess(access, "MANAGE_POLLS");
+
+  // Role-assigned polls expand to their current holders through the include
+  // (same transaction), so this is one pool checkout plus the cached names.
+  const [polls, names] = await Promise.all([
+    scoped.poll.findMany({
+      where: {
+        ...(status ? { status } : {}),
+        ...(question ? { question: { contains: question, mode: "insensitive" } } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: clampLimit(args.limit, 10, 50),
+      select: {
+        id: true, question: true, status: true, closeDate: true,
+        options: { orderBy: { position: "asc" }, select: { id: true, label: true } },
+        votes: { select: { brotherId: true, optionId: true } },
+        assignments: {
+          select: {
+            brotherId: true,
+            // Only managers see turnout, so only they pay for the expansion.
+            ...(manager ? { role: { select: { brothers: { select: { brotherId: true } } } } } : {}),
+          },
+        },
+      },
+    }),
+    rosterNames(scoped, orgId),
+  ]);
+
+  const mapped = polls.map(p => {
+    const assignees = new Set<number>();
+    for (const a of p.assignments as { brotherId: number | null; role?: { brothers: { brotherId: number }[] } | null }[]) {
+      if (a.brotherId != null) assignees.add(a.brotherId);
+      for (const h of a.role?.brothers ?? []) assignees.add(h.brotherId);
+    }
+    const voters = new Set(p.votes.map(v => v.brotherId));
+    const myVote = access ? p.votes.find(v => v.brotherId === access.actorId) : undefined;
+    // Same reveal rule as the Polls page (lib/services/poll-service buildDTOs).
+    const revealed = p.status === "closed" || myVote != null || manager;
+    const tally = new Map<number, number>();
+    for (const v of p.votes) tally.set(v.optionId, (tally.get(v.optionId) ?? 0) + 1);
+    return {
+      id: p.id,
+      question: p.question,
+      status: p.status,
+      ...(p.closeDate ? { closeDate: p.closeDate } : {}),
+      votes: p.votes.length,
+      ...(manager ? { eligible: assignees.size } : {}),
+      ...(revealed
+        ? { options: p.options.map(o => ({ label: o.label, votes: tally.get(o.id) ?? 0 })) }
+        : { options: p.options.map(o => o.label), sealed: "Results hidden until the asker votes or the poll closes." }),
+      ...(myVote ? { yourVote: p.options.find(o => o.id === myVote.optionId)?.label } : {}),
+      ...(manager
+        ? { notVoted: [...assignees].filter(id => !voters.has(id) && names.has(id)).map(id => ({ id, name: names.get(id)! })) }
+        : {}),
+    };
+  });
+  return listResult(mapped, !!(question || status));
+}
+
+async function listReimbursements(args: ToolArgs, scoped: Scoped, orgId: number): Promise<ToolResult> {
+  const status = typeof args.status === "string" ? args.status : undefined;
+  const range = dateRange(args);
+  const orderField = args.order_by === "amount" ? "amount" : "date";
+  const orderDir = args.order === "asc" ? "asc" : "desc";
+  const [rows, names] = await Promise.all([
+    scoped.reimbursement.findMany({
+      where: { ...(status ? { status } : {}), ...(range ? { date: range } : {}) },
+      orderBy: [{ [orderField]: orderDir }, { id: "desc" }],
+      select: { id: true, brotherId: true, amount: true, date: true, description: true, category: true, status: true },
+    }),
+    rosterNames(scoped, orgId),
+  ]);
+  const who = idsMatching(names, args.member);
+  const matched = who ? rows.filter(r => who.has(r.brotherId)) : rows;
+  const filtered = !!(status || range || who);
+  if (matched.length === 0) return listResult([], filtered);
+
+  const pending = matched.filter(r => r.status === "pending");
+  return {
+    summary: {
+      count: matched.length,
+      total: r2(matched.reduce((s, r) => s + r.amount, 0)),
+      pendingCount: pending.length,
+      pendingTotal: r2(pending.reduce((s, r) => s + r.amount, 0)),
+    },
+    reimbursements: matched.slice(0, clampLimit(args.limit, 25)).map(r => ({
+      id: r.brotherId, // member id, so the row opens that member (lib/ai-refs)
+      name: names.get(r.brotherId) ?? "Former member",
+      amount: r2(r.amount),
+      date: r.date,
+      description: r.description,
+      ...(r.category ? { category: r.category } : {}),
+      status: r.status,
+    })),
+  };
+}
+
+async function listDuesPayments(args: ToolArgs, scoped: Scoped, orgId: number, access?: ToolAccess): Promise<ToolResult> {
+  // Treasury holders see the chapter's payments; everyone else only their own.
+  const all = canAccess(access, "MANAGE_TREASURY");
+  if (!all && !access) return denied("Manage treasury");
+  const status = typeof args.status === "string" ? args.status : undefined;
+  const range = dateRange(args);
+  const [rows, names] = await Promise.all([
+    scoped.duesPayment.findMany({
+      where: {
+        ...(all ? {} : { brotherId: access!.actorId }),
+        ...(status ? { status } : {}),
+        ...(range ? { date: range } : {}),
+      },
+      orderBy: [{ date: args.order === "asc" ? "asc" : "desc" }, { id: "desc" }],
+      select: { brotherId: true, amount: true, date: true, paymentMethod: true, status: true },
+    }),
+    rosterNames(scoped, orgId),
+  ]);
+  const who = idsMatching(names, args.member);
+  const matched = who ? rows.filter(r => who.has(r.brotherId)) : rows;
+  const scope = all ? {} : { scope: "Only the asker's own payments — they can't see other members' payments." };
+  if (matched.length === 0) {
+    return { ...listResult([], !!(status || range || who)), ...scope } as ToolResult;
+  }
+  const approved = matched.filter(r => r.status === "approved");
+  return {
+    ...scope,
+    summary: {
+      count: matched.length,
+      approvedTotal: r2(approved.reduce((s, r) => s + r.amount, 0)),
+      pendingCount: matched.filter(r => r.status === "pending").length,
+    },
+    payments: matched.slice(0, clampLimit(args.limit, 25)).map(r => ({
+      id: r.brotherId,
+      name: names.get(r.brotherId) ?? "Former member",
+      amount: r2(r.amount),
+      date: r.date,
+      ...(r.paymentMethod ? { method: r.paymentMethod } : {}),
+      status: r.status,
+    })),
+  };
+}
+
+async function searchDocs(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
+  const q = typeof args.query === "string" ? args.query.trim() : "";
+  const contains = { contains: q, mode: "insensitive" as const };
+  const rows = await scoped.doc.findMany({
+    where: q
+      ? { OR: [{ title: contains }, { description: contains }, { ogTitle: contains }, { folder: { is: { name: contains } } }] }
+      : {},
+    orderBy: [{ pinnedAt: { sort: "desc", nulls: "last" } }, { updatedAt: "desc" }],
+    take: clampLimit(args.limit, 10, 25),
+    select: { title: true, url: true, description: true, pinnedAt: true, folder: { select: { name: true } } },
+  }) as unknown as { title: string; url: string; description: string | null; pinnedAt: Date | null; folder: { name: string } | null }[];
+  return listResult(rows.map(d => ({
+    title: d.title,
+    url: d.url,
+    ...(d.folder ? { folder: d.folder.name } : {}),
+    ...(d.description ? { description: d.description.slice(0, 200) } : {}),
+    ...(d.pinnedAt ? { pinned: true } : {}),
+  })), !!q);
+}
+
+async function getAnnouncement(scoped: Scoped): Promise<ToolResult> {
+  const a = await scoped.chapterAnnouncement.findFirst({
+    select: { title: true, body: true, ctaLabel: true, ctaUrl: true, authorName: true, updatedAt: true },
+  });
+  if (!a) return { none: true, hint: "No announcement is posted. Safe to say so." };
+  return {
+    title: a.title,
+    body: a.body.length > 800 ? `${a.body.slice(0, 800)}…` : a.body,
+    ...(a.ctaUrl ? { link: { label: a.ctaLabel ?? "Link", url: a.ctaUrl } } : {}),
+    ...(a.authorName ? { postedBy: a.authorName } : {}),
+    updated: a.updatedAt.toISOString().slice(0, 10),
+  };
+}
+
+async function listJoinRequests(args: ToolArgs, scoped: Scoped, _orgId: number, access?: ToolAccess): Promise<ToolResult> {
+  if (!canAccess(access, "MANAGE_BROTHERS")) return denied("Manage members");
+  const status = typeof args.status === "string" ? args.status : "pending";
+  const rows = await scoped.joinRequest.findMany({
+    where: { status },
+    orderBy: { createdAt: "asc" }, // oldest first — who's been waiting longest
+    take: clampLimit(args.limit, 50),
+    select: { name: true, email: true, createdAt: true, decidedAt: true },
+  });
+  return listResult(rows.map(r => ({
+    name: r.name,
+    ...(r.email ? { email: r.email } : {}),
+    requested: r.createdAt.toISOString().slice(0, 10),
+    ...(r.decidedAt ? { decided: r.decidedAt.toISOString().slice(0, 10) } : {}),
+  })), status !== "pending");
+}
+
+async function listAttendanceExemptions(args: ToolArgs, scoped: Scoped, orgId: number, access?: ToolAccess): Promise<ToolResult> {
+  if (!canAccess(access, "MANAGE_ATTENDANCE")) return denied("Manage attendance");
+  const [rows, names] = await Promise.all([
+    scoped.attendanceExemption.findMany({
+      where: { semester: { is: { isActive: true } } },
+      select: { brotherId: true, reason: true, note: true },
+    }),
+    rosterNames(scoped, orgId),
+  ]);
+  const who = idsMatching(names, args.member);
+  const mapped = rows
+    .filter(r => names.has(r.brotherId) && (who ? who.has(r.brotherId) : true))
+    .map(r => ({ id: r.brotherId, name: names.get(r.brotherId)!, reason: r.reason, ...(r.note ? { note: r.note } : {}) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return listResult(mapped, !!who);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -2068,7 +2672,7 @@ export async function runProposal(name: string, args: ToolArgs, scoped: Scoped, 
 // Dispatcher
 // ────────────────────────────────────────────────────────────────────────────
 
-const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: number, now?: Date) => Promise<ToolResult>> = {
+const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: number, now?: Date, access?: ToolAccess) => Promise<ToolResult>> = {
   list_brothers:           (args, scoped, orgId) => listBrothers(args, scoped, orgId),
   get_brother:             (args, scoped, orgId) => getBrother(args, scoped, orgId),
   list_deadlines:          (args, scoped) => listDeadlines(args, scoped),
@@ -2081,10 +2685,19 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
   recent_activity:         (args, scoped) => recentActivity(args, scoped),
   weekly_digest:           (_args, scoped, orgId, now) => weeklyDigest(scoped, orgId, now),
   get_event_attendance:    (args, scoped) => getEventAttendance(args, scoped),
-  get_brother_attendance:  (args, scoped) => getBrotherAttendance(args, scoped),
+  get_brother_attendance:  (args, scoped, _orgId, _now, access) => getBrotherAttendance(args, scoped, access),
   list_roles:              (args, scoped) => listRoles(args, scoped),
   list_service_events:     (args, scoped) => listServiceEvents(args, scoped),
   list_programming_events: (args, scoped) => listProgrammingEvents(args, scoped),
+  get_custom_metrics:      (args, scoped, orgId) => getCustomMetrics(args, scoped, orgId),
+  list_member_fields:      (args, scoped, orgId) => listMemberFields(args, scoped, orgId),
+  list_polls:              (args, scoped, orgId, _now, access) => listPolls(args, scoped, orgId, access),
+  list_reimbursements:     (args, scoped, orgId) => listReimbursements(args, scoped, orgId),
+  list_dues_payments:      (args, scoped, orgId, _now, access) => listDuesPayments(args, scoped, orgId, access),
+  search_docs:             (args, scoped) => searchDocs(args, scoped),
+  get_announcement:        (_args, scoped) => getAnnouncement(scoped),
+  list_join_requests:      (args, scoped, orgId, _now, access) => listJoinRequests(args, scoped, orgId, access),
+  list_attendance_exemptions: (args, scoped, orgId, _now, access) => listAttendanceExemptions(args, scoped, orgId, access),
 };
 
 /**
@@ -2094,14 +2707,19 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
  *
  * `now` pins date-relative tools (weekly_digest) for the eval harness; omit it
  * in prod so tools see the same real today as the system prompt.
+ *
+ * `access` is who's asking. Tools whose app screen is permission-gated (join
+ * requests, exemptions, other members' dues payments, poll results) answer only
+ * what that person could see in the app; without it they return the most
+ * restrictive answer.
  */
-export async function runTool(name: string, args: ToolArgs, scoped: Scoped, orgId: number, now?: Date): Promise<ToolResult> {
+export async function runTool(name: string, args: ToolArgs, scoped: Scoped, orgId: number, now?: Date, access?: ToolAccess): Promise<ToolResult> {
   const handler = READ_HANDLERS[name];
   if (!handler) return { error: `Unknown tool: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
   try {
-    return await handler(args, scoped, orgId, now);
+    return await handler(args, scoped, orgId, now, access);
   } catch (e) {
     console.error(`runTool(${name}) failed:`, e);
     return { error: e instanceof Error ? e.message : "Tool failed" };
@@ -2244,6 +2862,57 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   list_roles: { verb: "Checking officer roles", source: "Roles", finding: countFinding("role") },
   list_service_events: { verb: "Scanning service events", source: "Service", finding: countFinding("event") },
   list_programming_events: { verb: "Scanning the programming board", source: "Programming", finding: countFinding("event") },
+  get_custom_metrics: {
+    verb: "Checking custom metrics",
+    source: "Metrics",
+    finding: r => {
+      if (isErr(r)) return null;
+      const o = r as { summary?: { metric: string; atRisk: number }; metrics?: unknown[] };
+      if (o.summary) return `${o.summary.atRisk} at risk`;
+      if (o.metrics) return `${o.metrics.length} metric${o.metrics.length === 1 ? "" : "s"}`;
+      return rowsOf(r)?.length === 0 ? "none defined" : null;
+    },
+  },
+  list_member_fields: {
+    verb: "Reading member fields",
+    source: "Roster · fields",
+    finding: r => {
+      if (isErr(r)) return null;
+      const o = r as { matching?: number; fields?: unknown[] };
+      if (typeof o.matching === "number") return `${o.matching} member${o.matching === 1 ? "" : "s"}`;
+      if (o.fields) return `${o.fields.length} field${o.fields.length === 1 ? "" : "s"}`;
+      return rowsOf(r)?.length === 0 ? "none defined" : null;
+    },
+  },
+  list_polls: { verb: "Checking polls", source: "Polls", finding: countFinding("poll") },
+  list_reimbursements: {
+    verb: "Reviewing reimbursements",
+    source: "Treasury · reimbursements",
+    finding: r => {
+      if (isErr(r)) return null;
+      const s = (r as { summary?: { count: number; pendingCount: number; pendingTotal: number } }).summary;
+      if (!s) return rowsOf(r)?.length === 0 ? "none found" : null;
+      return s.pendingCount ? `${s.pendingCount} pending · ${fmtUsd(s.pendingTotal)}` : `${s.count} request${s.count === 1 ? "" : "s"}`;
+    },
+  },
+  list_dues_payments: {
+    verb: "Checking dues payments",
+    source: "Dues · payments",
+    finding: r => {
+      if (isErr(r)) return null;
+      const s = (r as { summary?: { count: number } }).summary;
+      if (!s) return rowsOf(r)?.length === 0 ? "none found" : null;
+      return `${s.count} payment${s.count === 1 ? "" : "s"}`;
+    },
+  },
+  search_docs: { verb: "Searching docs", source: "Docs", finding: countFinding("doc") },
+  get_announcement: {
+    verb: "Reading the announcement",
+    source: "Announcement",
+    finding: r => (isErr(r) ? null : (r as { none?: boolean }).none ? "none posted" : "posted"),
+  },
+  list_join_requests: { verb: "Checking join requests", source: "Join requests", finding: countFinding("request") },
+  list_attendance_exemptions: { verb: "Checking exemptions", source: "Attendance · exemptions", finding: countFinding("exemption") },
   // Proposal drafts: no source chip (their reads are incidental) and no posted
   // finding — the writ card that follows IS the result.
   propose_add_deadline:          { verb: "Drafting a deadline" },

@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
-import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
+import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
@@ -111,6 +111,15 @@ export async function POST(req: NextRequest) {
   // Kick off the prompt build but don't await it here — awaiting before
   // constructing the Response delays the SSE headers (and the client's
   // "thinking" state) by a DB round trip on cache miss. The stream awaits it.
+  // Who's asking, for the read tools whose app screens are permission-gated
+  // and for proposal authority.
+  const access: ToolAccess = {
+    actorId: ctx.actorId,
+    permissions: ctx.permissions,
+    isOrgAdmin: ctx.isOrgAdmin,
+    isPlatformAdmin: ctx.isPlatformAdmin,
+  };
+
   const systemPromptPromise = buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName });
 
   const encoder = new TextEncoder();
@@ -334,7 +343,7 @@ export async function POST(req: NextRequest) {
             let resultPayload: unknown;
             let proposalEvent: Proposal | null = null;
             if (isReadTool(tc.name)) {
-              resultPayload = await runTool(tc.name, argsObj, ctx.db, ctx.orgId);
+              resultPayload = await runTool(tc.name, argsObj, ctx.db, ctx.orgId, undefined, access);
             } else if (isProposalTool(tc.name)) {
               const proposal = await runProposal(tc.name, argsObj, ctx.db, {
                 orgId: ctx.orgId,

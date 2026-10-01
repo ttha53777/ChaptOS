@@ -234,7 +234,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       if (isReadTool(tc.function.name)) {
         // Pass the pinned date so date-relative tools (weekly_digest) agree
         // with the pinned system prompt instead of using the real today.
-        payload = await runTool(tc.function.name, args, scoped, orgId, now);
+        payload = await runTool(tc.function.name, args, scoped, orgId, now, pctx);
       } else if (isProposalTool(tc.function.name)) {
         const p = await runProposal(tc.function.name, args, scoped, pctx);
         if ("error" in p) {
