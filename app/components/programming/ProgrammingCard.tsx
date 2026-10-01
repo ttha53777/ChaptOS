@@ -45,12 +45,12 @@ function cardBlocker(task: ProgrammingTask): { text: string; tone: "rose" | "gol
 
 function countdown(dueDate: string | null): { label: string; tone: string } | null {
   if (!dueDate) return null;
-  if (dueDate < TODAY) return { label: "past", tone: "bg-white/[0.05] text-slate-500" };
+  if (dueDate < TODAY) return { label: "past", tone: "bg-[rgba(var(--ink-rgb),0.05)] text-[color:var(--faint)]" };
   const days = Math.round((new Date(dueDate + "T00:00:00").getTime() - new Date(TODAY + "T00:00:00").getTime()) / 86_400_000);
   if (days === 0) return { label: "Today", tone: "bg-red-500/15 text-red-300" };
   if (days === 1) return { label: "Tomorrow", tone: "bg-red-500/15 text-red-300" };
   if (days <= 7)  return { label: `in ${days}d`, tone: "bg-amber-500/15 text-amber-300" };
-  return { label: `in ${days}d`, tone: "bg-white/[0.06] text-slate-400" };
+  return { label: `in ${days}d`, tone: "bg-[rgba(var(--ink-rgb),0.06)] text-[color:var(--muted)]" };
 }
 
 export function ProgrammingCard({
@@ -140,8 +140,8 @@ function DefaultCard({
           : selected
             ? "border-indigo-500/40 bg-indigo-500/[0.06] ring-1 ring-inset ring-indigo-500/20"
             : isDone
-              ? "border-white/[0.06] bg-[#0e1119] opacity-80 hover:opacity-100"
-              : "border-white/[0.07] bg-[#10131c] hover:border-white/[0.14]"
+              ? "border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--card)] opacity-80 hover:opacity-100"
+              : "border-[rgba(var(--ink-rgb),0.07)] bg-[color:var(--card)] hover:border-[rgba(var(--ink-rgb),0.14)]"
       }`}
       style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms` }}
     >
@@ -149,8 +149,8 @@ function DefaultCard({
         <TypeBadge label={visual.label} hex={visual.hex} />
         {cd && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium ${cd.tone}`}>{cd.label}</span>}
       </div>
-      <p className={`line-clamp-2 text-[13px] font-semibold leading-snug ${isDone ? "text-slate-200" : "text-white"}`}>{task.title}</p>
-      <p className="mt-1.5 truncate text-[11px] text-slate-500">
+      <p className={`line-clamp-2 text-[13px] font-semibold leading-snug ${isDone ? "text-[color:var(--ink)]" : "text-[color:var(--ink)]"}`}>{task.title}</p>
+      <p className="mt-1.5 truncate text-[11px] text-[color:var(--faint)]">
         {task.dueDate ? fmtDate(task.dueDate) : "No date set"}
         {task.location ? ` · ${task.location}` : ""}
         {task.collab ? ` · w/ ${task.collab}` : ""}
@@ -168,7 +168,7 @@ function DefaultCard({
         </p>
       ) : task.owner ? (
         // Settled: the quiet owner row rather than a blocker line.
-        <p className="mt-2 truncate text-[11px] text-slate-500">{ownerShortLabel(task.owner)}</p>
+        <p className="mt-2 truncate text-[11px] text-[color:var(--faint)]">{ownerShortLabel(task.owner)}</p>
       ) : null}
     </div>
   );

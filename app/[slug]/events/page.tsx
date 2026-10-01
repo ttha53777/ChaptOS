@@ -556,7 +556,7 @@ export default function ProgrammingPage() {
   const panelOpen = selected || isClosingDrawer;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Programming" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

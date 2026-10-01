@@ -26,26 +26,6 @@
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
 
-  --paper:    #0f0d0a;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-deep: #7c3aed;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 
   /* Fluid up to a comfortable reading ceiling: the pane fills the available
      width (minus side gutters) and only stops growing past 1180px so lines
@@ -59,14 +39,14 @@
 
 /* ── Toolbar bar (breadcrumb label) ──────────────────────────────────────────── */
 header.dash-toolbar.pty-toolbar-bar {
-  background: rgba(15, 13, 10, 0.85);
-  border-bottom-color: rgba(236, 231, 221, 0.09);
+  background: rgba(var(--paper-rgb),0.85);
+  border-bottom-color: rgba(var(--ink-rgb),0.09);
 }
-header.dash-toolbar.pty-toolbar-bar .tb-icon-btn { color: #958d7c; }
-header.dash-toolbar.pty-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar.pty-toolbar-bar .tb-icon-btn { color: var(--muted); }
+header.dash-toolbar.pty-toolbar-bar .tb-icon-btn:hover { color: var(--ink); background: rgba(var(--ink-rgb),0.035); }
 header.dash-toolbar .pty-crumb {
   font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
-  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+  font-size: 15px; letter-spacing: -.01em; color: var(--ink);
 }
 
 /* ── Briefing ────────────────────────────────────────────────────────────────── */

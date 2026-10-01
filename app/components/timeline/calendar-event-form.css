@@ -14,24 +14,6 @@
   --serif: var(--font-fraunces), Georgia, serif;
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-deep: #7c3aed;
-  --vio-bg:   rgba(167,139,250,.10);
-  --c-chapter:  #8fb0d6;
-  --c-social:   #ddb36a;
-  --c-fundy:    #86b988;
-  --c-program:  #a78bfa;
-  --c-party:    #d98ba3;
-  --c-deadline: #e0796b;
-  --c-service:  #5fbdb0;
 }
 
 /* The form sits flush in the Modal body; the panel itself is warm paper via
@@ -101,7 +83,7 @@
 /* Switch — shared by All day and Required attendance */
 .cef-sw { position: relative; display: inline-flex; flex-shrink: 0; white-space: nowrap; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-soft); cursor: pointer; user-select: none; }
 .cef-sw input { position: absolute; opacity: 0; pointer-events: none; }
-.cef-sw .track { width: 30px; height: 18px; border-radius: 999px; background: rgba(236,231,221,.12); position: relative; transition: background .15s; flex-shrink: 0; }
+.cef-sw .track { width: 30px; height: 18px; border-radius: 999px; background: rgba(var(--ink-rgb),.12); position: relative; transition: background .15s; flex-shrink: 0; }
 .cef-sw .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-soft); transition: transform .15s, background .15s; }
 .cef-sw input:checked + .track { background: var(--vio-deep); }
 .cef-sw input:checked + .track::after { transform: translateX(12px); background: #fff; }
@@ -114,7 +96,7 @@
   color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px 6px 10px;
   transition: color .12s, border-color .12s, background .12s;
 }
-.cef-cat:hover { color: var(--ink-soft); border-color: rgba(236,231,221,.2); }
+.cef-cat:hover { color: var(--ink-soft); border-color: rgba(var(--ink-rgb),.2); }
 .cef-cat .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--cdot); }
 .cef-cat[aria-checked="true"] { color: var(--ink); border-color: var(--cdot); background: color-mix(in srgb, var(--cdot) 14%, transparent); }
 
@@ -126,14 +108,14 @@
 /* Location / notes: quiet, no box until you need one */
 .cef-quiet { width: 100%; background: none; border: 0; border-radius: 8px; padding: 9px 12px; font: 14px/1.5 var(--sans); color: var(--ink); outline: none; resize: none; transition: background .12s, box-shadow .12s; }
 .cef-quiet::placeholder { color: var(--faint); }
-.cef-quiet:hover { background: rgba(236,231,221,.03); }
+.cef-quiet:hover { background: rgba(var(--ink-rgb),.03); }
 .cef-quiet:focus { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--vio); }
 .cef-notes { display: block; min-height: 44px; max-height: 160px; overflow: auto; }
 
 /* Footer — full-bleed rule, pinned to the bottom of the scrolling Modal body */
 .cef-foot {
   position: sticky; bottom: -24px; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin: 8px -24px -24px; padding: 16px 24px 20px; border-top: 1px solid var(--line-soft); background: #0f0d0a;
+  margin: 8px -24px -24px; padding: 16px 24px 20px; border-top: 1px solid var(--line-soft); background: var(--paper);
   border-radius: 0 0 15px 15px;
 }
 .cef-kbd { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
@@ -141,10 +123,10 @@
 .cef-btns { display: flex; gap: 8px; margin-left: auto; }
 .cef-btn { font: 500 13.5px var(--sans); border-radius: 10px; padding: 10px 18px; cursor: pointer; border: 1px solid transparent; transition: color .12s, border-color .12s, background .12s; }
 .cef-btn.ghost { background: none; color: var(--muted); border-color: var(--line); }
-.cef-btn.ghost:hover { color: var(--ink); border-color: rgba(236,231,221,.2); }
-.cef-btn.primary { background: var(--ink); color: #14110d; font-weight: 600; }
+.cef-btn.ghost:hover { color: var(--ink); border-color: rgba(var(--ink-rgb),.2); }
+.cef-btn.primary { background: var(--ink); color: var(--paper); font-weight: 600; }
 .cef-btn.primary:hover { background: #fff; }
-.cef-btn.primary:disabled { background: rgba(236,231,221,.12); color: var(--faint); cursor: not-allowed; }
+.cef-btn.primary:disabled { background: rgba(var(--ink-rgb),.12); color: var(--faint); cursor: not-allowed; }
 
 @media (max-width: 520px) {
   .cef-title { font-size: 24px; }
@@ -167,7 +149,7 @@
 .sched-link { font: inherit; font-style: normal; color: var(--vio); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .sched-link:disabled { color: var(--faint); cursor: default; text-decoration: none; }
 .sched-zone-actions { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; }
-.sched-warn { color: #e0796b; }
+.sched-warn { color: var(--c-deadline); }
 /* Ends appears once a start is entered; it takes the third column, which the grid already reserves. */
 .sched-end-in { animation: sched-end-in .16s ease-out; }
 @keyframes sched-end-in { from { opacity: 0; transform: translateY(4px); } }

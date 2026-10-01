@@ -2,48 +2,18 @@
    Settings — "Chapter Ledger" dusk redesign
    Same warm-paper editorial system as dashboard-ledger.css / timeline-ledger.css.
 
-   The dashboard scopes its dusk tokens to `.dash[data-dashboard-theme="dusk"]`,
-   but the Settings layout has its OWN nav column that lives OUTSIDE the `.dash`
-   content wrapper — so it can't inherit those tokens. We therefore declare the
-   full dusk palette + font aliases on `.set-page` (the page root), so both the
-   nav column and the `.dash` content area inherit one consistent token set.
+   The palette is global (:root / html[data-theme="ivory"] in globals.css), so
+   the nav column outside `.dash` inherits it too. `.set-page` only adds fonts.
 
    ISOLATION: `.set-*` classes are net-new, unique names; `.dash`-prefixed rules
    match how dashboard-ledger.css scopes. No bare element selectors.
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* ── Page root: declare dusk tokens here so the nav column inherits them too ──── */
+/* ── Page root: fonts only; the palette comes from :root (app/globals.css) ──── */
 .set-page {
   --serif: var(--font-fraunces), Georgia, serif;
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
-
-  --paper:    #0f0d0a;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  /* --muted / --faint carry nearly all the secondary copy on this page:
-     .sc-note, .sc-row-sub, .ix-row .h, input placeholders, .sc-locked and every
-     timestamp, at 8.5–12px. The original --faint (#6b6354) measured ~3.1:1 on
-     --card (#161310) — below the 4.5:1 AA floor for body text. Raised to ~4.8:1,
-     with --muted lifted to match so the two-step ramp doesn't collapse into one
-     tone. Don't darken either of these without re-checking the ratio. */
-  --muted:    #a49b88;
-  --faint:    #8a8271;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-deep: #7c3aed;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 }
 
 /* ── Focus ────────────────────────────────────────────────────────────────────
@@ -68,13 +38,12 @@
   margin: 0;
   padding: 34px 44px 80px;
 }
-/* The contrast-corrected --muted/--faint declared on .set-page above only reach
-   the nav column: dashboard-ledger.css re-declares the whole dusk palette on
-   `.dash[data-dashboard-theme="dusk"]`, which sits INSIDE .set-page and so wins
-   for all page content. Re-assert the two text tokens here, at a specificity the
-   dashboard's rule can't beat, scoped to Settings — the dashboard and timeline
-   keep their own values until they get the same treatment. */
-.dash.dash-settings[data-dashboard-theme="dusk"] {
+/* Dusk only: --faint (var(--faint)) measures ~3.1:1 on --card (var(--card)) — below
+   the 4.5:1 AA floor for the 8.5–12px secondary copy that dominates this page.
+   Raised to ~4.8:1 with --muted lifted to match so the two-step ramp doesn't
+   collapse. Ivory's globals already clear AA. Don't darken these without
+   re-checking the ratio. */
+html:not([data-theme="ivory"]) .set-page {
   --muted: #a49b88;
   --faint: #8a8271;
 }
@@ -292,22 +261,22 @@
 /* dashboard-ledger.css only warms header.dash-toolbar at md+. Settings shows this
    toolbar at every width, so warm its base here too (mobile included). */
 header.dash-toolbar.set-toolbar {
-  background: rgba(15, 13, 10, 0.85);
-  border-bottom-color: rgba(236, 231, 221, 0.09);
+  background: rgba(var(--paper-rgb),0.85);
+  border-bottom-color: rgba(var(--ink-rgb),0.09);
 }
-header.dash-toolbar.set-toolbar .tb-icon-btn { color: #958d7c; }
-header.dash-toolbar.set-toolbar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar.set-toolbar .tb-icon-btn { color: var(--muted); }
+header.dash-toolbar.set-toolbar .tb-icon-btn:hover { color: var(--ink); background: rgba(var(--ink-rgb),0.035); }
 
 header.dash-toolbar .set-crumb-link {
   font-family: var(--font-geist-mono), ui-monospace, Menlo, monospace;
-  color: var(--tb-faint, #6b6354); background: none; border: none; cursor: pointer; padding: 0;
+  color: var(--tb-faint, var(--faint)); background: none; border: none; cursor: pointer; padding: 0;
 }
-header.dash-toolbar .set-crumb-link:hover { color: var(--tb-vio, #a78bfa); }
+header.dash-toolbar .set-crumb-link:hover { color: var(--tb-vio, var(--vio)); }
 header.dash-toolbar .set-crumb-cur {
   font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
-  letter-spacing: -.01em; color: var(--tb-ink, #ece7dd);
+  letter-spacing: -.01em; color: var(--tb-ink, var(--ink));
 }
-header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
+header.dash-toolbar .set-crumb svg { color: var(--tb-faint, var(--faint)); }
 
 /* ── Toast (status / error) ────────────────────────────────────────────────────
    Sticky, not in-flow. A group page stacks every section in an intent on one
@@ -415,7 +384,7 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
 .dash .set-section .sc-input:focus,
 .dash .set-section .sc-select:focus,
 .dash .set-section .sc-textarea:focus {
-  outline: none; border-color: rgba(167,139,250,.5);
+  outline: none; border-color: rgba(var(--vio-rgb),.5);
   box-shadow: 0 0 0 3px var(--vio-bg);
 }
 .dash .set-section .sc-input-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -443,17 +412,17 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
 }
 .dash .set-section .sc-btn svg { width: 13px; height: 13px; }
 /* Primary — solid violet accent. */
-.dash .set-section .sc-btn-primary { background: var(--vio); color: #1a1206; border-color: var(--vio); }
-.dash .set-section .sc-btn-primary:hover:not(:disabled) { background: #b9a0fb; border-color: #b9a0fb; }
+.dash .set-section .sc-btn-primary { background: var(--vio); color: var(--paper); border-color: var(--vio); }
+.dash .set-section .sc-btn-primary:hover:not(:disabled) { background: var(--vio-hi); border-color: var(--vio-hi); }
 /* Secondary — quiet outline on paper. */
 .dash .set-section .sc-btn-ghost { background: var(--card); color: var(--ink-soft); border-color: var(--line); }
 .dash .set-section .sc-btn-ghost:hover:not(:disabled) { background: var(--card-2); color: var(--ink); border-color: var(--line); }
 /* Accent ghost — outline that warms to violet on hover (chip actions). */
-.dash .set-section .sc-btn-accent { background: var(--vio-bg); color: var(--vio); border-color: rgba(167,139,250,.25); }
-.dash .set-section .sc-btn-accent:hover:not(:disabled) { background: rgba(167,139,250,.18); }
+.dash .set-section .sc-btn-accent { background: var(--vio-bg); color: var(--vio); border-color: rgba(var(--vio-rgb),.25); }
+.dash .set-section .sc-btn-accent:hover:not(:disabled) { background: rgba(var(--vio-rgb),.18); }
 /* Destructive. */
-.dash .set-section .sc-btn-danger { background: var(--rose-bg); color: var(--rose); border-color: rgba(217,139,163,.25); }
-.dash .set-section .sc-btn-danger:hover:not(:disabled) { background: rgba(217,139,163,.18); }
+.dash .set-section .sc-btn-danger { background: var(--rose-bg); color: var(--rose); border-color: rgba(var(--rose-rgb),.25); }
+.dash .set-section .sc-btn-danger:hover:not(:disabled) { background: rgba(var(--rose-rgb),.18); }
 .dash .set-section .sc-btn:disabled { opacity: .35; cursor: default; }
 .dash .set-section .sc-btn-sm { padding: 5px 10px; font-size: 11px; }
 /* A wrap-friendly row of buttons. */
@@ -481,7 +450,7 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
   display: grid; place-items: center; color: transparent; transition: background .12s, border-color .12s, color .12s;
 }
 .dash .set-section .sc-box svg { width: 11px; height: 11px; }
-.dash .set-section .sc-check input:checked + .sc-box { background: var(--vio); border-color: var(--vio); color: #1a1206; }
+.dash .set-section .sc-check input:checked + .sc-box { background: var(--vio); border-color: var(--vio); color: var(--paper); }
 .dash .set-section .sc-check input:focus-visible + .sc-box { box-shadow: 0 0 0 3px var(--vio-bg); }
 .dash .set-section .sc-check .sc-check-key { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .dash .set-section .sc-check .sc-check-sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; }
@@ -492,7 +461,7 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
   padding: 13px 15px; transition: background .12s, border-color .12s;
 }
 .dash .set-section .sc-pick:hover { background: var(--card-2); }
-.dash .set-section .sc-pick.on { border-color: rgba(167,139,250,.35); background: var(--vio-bg); }
+.dash .set-section .sc-pick.on { border-color: rgba(var(--vio-rgb),.35); background: var(--vio-bg); }
 .dash .set-section .sc-pick-features { margin-top: 10px; padding-left: 14px; border-left: 1px solid var(--line); }
 
 /* ── Status pills / chips ────────────────────────────────────────────────────── */
@@ -624,7 +593,7 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, #6b6354); }
   border: 2px solid transparent; cursor: pointer; transition: transform 140ms ease;
 }
 .dash .set-section .et-swatch:hover { transform: scale(1.15); }
-.dash .set-section .et-swatch.on { border-color: var(--paper, #0f0d0a); box-shadow: 0 0 0 2px var(--sc); }
+.dash .set-section .et-swatch.on { border-color: var(--paper, var(--paper)); box-shadow: 0 0 0 2px var(--sc); }
 
 /* ── Link-out row ─────────────────────────────────────────────────────────
    A settings block that leaves Settings rather than expanding in place

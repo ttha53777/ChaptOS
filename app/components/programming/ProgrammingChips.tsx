@@ -55,7 +55,7 @@ export function StarRating({
           type="button"
           disabled={disabled}
           onClick={() => onChange?.(value === n ? null : n)}
-          className={`text-[14px] leading-none transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:scale-110"} ${value != null && n <= value ? "text-[#d9b08b]" : "text-[#4a4439]"}`}
+          className={`text-[14px] leading-none transition-colors ${disabled ? "cursor-default" : "cursor-pointer hover:scale-110"} ${value != null && n <= value ? "text-[color:var(--gold)]" : "text-[rgba(var(--ink-rgb),0.18)]"}`}
           aria-label={`${n} star${n > 1 ? "s" : ""}`}
         >
           ★

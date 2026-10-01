@@ -249,7 +249,7 @@ export function JoinRequestsPanel({
               </div>
             </div>
 
-            <p className="text-[13px] leading-relaxed text-[#c9c2b4]">
+            <p className="text-[13px] leading-relaxed text-[color:var(--ink-soft)]">
               Approving creates their spot on the roster and lets them in
               immediately. They&rsquo;ll start with no dues, no attendance and no
               recorded hours.
@@ -272,7 +272,7 @@ export function JoinRequestsPanel({
               </select>
               {rolesLoading && <p role="status" className="jr-note">Loading roles…</p>}
               {rolesError && <p role="alert" className="jr-note">Couldn't load roles. <button className="auth-link vio" onClick={() => void loadRoles()}>Retry</button> You can still approve without a role.</p>}
-              <p className="text-[12px] leading-relaxed text-[#958d7c]" style={{ marginTop: 8 }}>
+              <p className="text-[12px] leading-relaxed text-[color:var(--muted)]" style={{ marginTop: 8 }}>
                 A role carries real permissions. You can only hand out roles ranked
                 below your own, and you can change this later from the roster.
               </p>

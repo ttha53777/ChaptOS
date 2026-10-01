@@ -3,6 +3,7 @@ import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { CheckInStatus, ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
+import { can } from "@/lib/permissions";
 import { CHECKIN_WINDOW_MS, acceptsCheckIns, checkInMsRemaining, checkInState } from "@/lib/checkin";
 import type { RecordAttendanceInput } from "@/lib/validation/attendance";
 
@@ -210,16 +211,40 @@ const CLOSED_LINGER_MS = 10 * 60 * 1000;
 export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn | null> {
   const now = new Date();
 
-  // Most recently opened window, ignoring anything long finished. A window that
-  // expired without being closed still surfaces (as "closed") so an officer sees
-  // it and can close it for real — that close is what records the absences.
+  // Officers also need the active semester to bound the stale-window branch
+  // below. Members skip it, so their idle read stays a single query.
+  const officer = can(ctx, "MANAGE_ATTENDANCE");
+  const officerSemester = officer ? await getActiveSemester(ctx.db) : null;
+  const semesterStart = officerSemester ? Date.parse(officerSemester.startDate) : NaN;
+
+  // Most recently opened window, ignoring anything long finished.
+  //
+  // A window that expired without being closed has recorded NOTHING — no-shows
+  // only become absences when an officer closes it. Everyone sees it briefly as
+  // "closed"; officers keep seeing it until they close it, because this band is
+  // the only place that prompts for that close, and letting it vanish after the
+  // linger meant those absences were silently never counted. Bounded to windows
+  // opened this semester: closing one from an earlier term would file its
+  // absences under the current one.
   const event = await ctx.db.calendarEvent.findFirst({
     where: {
       mandatory: true,
-      checkInOpenedAt: { not: null, gte: new Date(now.getTime() - CHECKIN_WINDOW_MS - CLOSED_LINGER_MS) },
       OR: [
-        { checkInClosedAt: null },
-        { checkInClosedAt: { gte: new Date(now.getTime() - CLOSED_LINGER_MS) } },
+        // Open, or expired within the linger.
+        {
+          checkInOpenedAt: { not: null, gte: new Date(now.getTime() - CHECKIN_WINDOW_MS - CLOSED_LINGER_MS) },
+          checkInClosedAt: null,
+        },
+        // Closed by an officer within the linger — keyed on the close, so a
+        // late close of an old window still shows its final tally.
+        {
+          checkInOpenedAt: { not: null },
+          checkInClosedAt: { gte: new Date(now.getTime() - CLOSED_LINGER_MS) },
+        },
+        ...(Number.isNaN(semesterStart) ? [] : [{
+          checkInOpenedAt: { not: null, gte: new Date(semesterStart) },
+          checkInClosedAt: null,
+        }]),
       ],
     },
     orderBy: { checkInOpenedAt: "desc" },
@@ -229,7 +254,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
   const state = checkInState(event, now);
   if (!state) return null;
 
-  const semester = await getActiveSemester(ctx.db);
+  const semester = officerSemester ?? await getActiveSemester(ctx.db);
   if (!semester) return null;
 
   const [records, excuses, exemptions, brotherIds] = await Promise.all([

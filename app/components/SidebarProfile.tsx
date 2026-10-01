@@ -9,6 +9,14 @@ import { LeaveOrgModal } from "./LeaveOrgModal";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useChapter } from "../context/ChapterContext";
 import { useOrgPath } from "../hooks/useOrgPath";
+import { useAppTheme } from "../hooks/useAppTheme";
+import type { AppThemePref } from "@/lib/theme";
+
+const THEME_OPTIONS: { value: AppThemePref; label: string }[] = [
+  { value: "dusk", label: "Dark" },
+  { value: "ivory", label: "Light" },
+  { value: "system", label: "System" },
+];
 
 async function syncAvatarSession() {
   const supabase = createClient();
@@ -34,6 +42,7 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
   const orgPath = useOrgPath();
   const pathname = usePathname();
   const router = useRouter();
+  const { pref: themePref, setPref: setThemePref } = useAppTheme();
 
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -142,8 +151,8 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
   if (loading) {
     return (
       <div className="flex items-center gap-2.5 px-3 py-2">
-        <div className="h-8 w-8 shrink-0 rounded-full bg-[rgba(236,231,221,0.07)] animate-pulse" />
-        <div className="h-3 w-24 rounded bg-[rgba(236,231,221,0.07)] animate-pulse" />
+        <div className="h-8 w-8 shrink-0 rounded-full bg-[rgba(var(--ink-rgb),0.07)] animate-pulse" />
+        <div className="h-3 w-24 rounded bg-[rgba(var(--ink-rgb),0.07)] animate-pulse" />
       </div>
     );
   }
@@ -168,7 +177,7 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
           if (!open) setLeaveError(null);
           setOpen(v => !v);
         }}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[rgba(236,231,221,0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a78bfa]/40"
+        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[rgba(var(--ink-rgb),0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--vio)]/40"
         aria-label="Open profile menu"
         aria-expanded={open}
         aria-haspopup="menu"
@@ -178,14 +187,14 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
           avatarUrl={user?.avatarUrl}
           revision={avatarRevision}
           size="sm"
-          ringClassName="ring-1 ring-[rgba(236,231,221,0.12)]"
+          ringClassName="ring-1 ring-[rgba(var(--ink-rgb),0.12)]"
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-[13px] font-semibold leading-tight text-[#ece7dd]">{firstName}</p>
+            <p className="truncate text-[13px] font-semibold leading-tight text-[color:var(--ink)]">{firstName}</p>
             {user?.isAdmin && (
               <span
-                className="shrink-0 rounded-full bg-[#a78bfa]/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[#c4b5fd] ring-1 ring-inset ring-[#a78bfa]/30"
+                className="shrink-0 rounded-full bg-[color:var(--vio)]/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[color:var(--vio-hi)] ring-1 ring-inset ring-[color:var(--vio)]/30"
                 title="You have admin permissions"
               >
                 Admin
@@ -193,11 +202,11 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </div>
           {user?.role && (
-            <p className="truncate text-[10.5px] leading-tight text-[#6b6354] mt-0.5">{user.role}</p>
+            <p className="truncate text-[10.5px] leading-tight text-[color:var(--faint)] mt-0.5">{user.role}</p>
           )}
         </div>
         <svg
-          className={`h-3.5 w-3.5 shrink-0 text-[#6b6354] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          className={`h-3.5 w-3.5 shrink-0 text-[color:var(--faint)] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
           xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -207,7 +216,7 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
       {/* ── Upward popover ───────────────────────────────────────────────── */}
       {open && (
         <div
-          className="absolute bottom-full left-0 right-0 z-[60] mb-2 overflow-hidden rounded-xl border border-[rgba(236,231,221,0.1)] bg-[#1b1813] shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+          className="absolute bottom-full left-0 right-0 z-[60] mb-2 overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.1)] bg-[color:var(--card-2)] shadow-[0_8px_32px_rgba(var(--shade-rgb),calc(0.6*var(--shade-k)))]"
           role="menu"
         >
           <div className="flex items-center gap-3 px-4 py-3.5">
@@ -216,18 +225,18 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
               avatarUrl={user?.avatarUrl}
               revision={avatarRevision}
               size="md"
-              ringClassName="ring-2 ring-[rgba(236,231,221,0.1)]"
+              ringClassName="ring-2 ring-[rgba(var(--ink-rgb),0.1)]"
             />
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-[#ece7dd]">{user?.name}</p>
+              <p className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{user?.name}</p>
               {user?.role && (
-                <p className="truncate text-[11px] leading-tight text-[#958d7c] mt-0.5">{user.role}</p>
+                <p className="truncate text-[11px] leading-tight text-[color:var(--muted)] mt-0.5">{user.role}</p>
               )}
-              <p className="truncate text-[11px] text-[#6b6354] mt-0.5">{user?.email}</p>
+              <p className="truncate text-[11px] text-[color:var(--faint)] mt-0.5">{user?.email}</p>
             </div>
           </div>
 
-          <div className="h-px bg-[rgba(236,231,221,0.06)]" />
+          <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
 
           <div className="p-2 space-y-0.5">
             <Link
@@ -237,8 +246,8 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
               onClick={() => { setOpen(false); onNavigate?.(); }}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all ${
                 settingsActive
-                  ? "bg-[#14120e] text-[#ece7dd]"
-                  : "text-[#958d7c] hover:bg-[rgba(236,231,221,0.05)] hover:text-[#ece7dd]"
+                  ? "bg-[color:var(--paper-2)] text-[color:var(--ink)]"
+                  : "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink)]"
               }`}
             >
               <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -253,7 +262,7 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
               disabled={photoBusy}
               role="menuitem"
               onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[#958d7c] transition-all hover:bg-[rgba(236,231,221,0.05)] hover:text-[#ece7dd] disabled:opacity-50"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink)] disabled:opacity-50"
             >
               <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a41.763 41.763 0 00-1.134-.175 2.31 2.31 0 01-1.227-1.054 2.31 2.31 0 00-2.31-1.227H8.084a2.31 2.31 0 00-2.31 1.227 2.31 2.31 0 01-1.227 1.054z" />
@@ -268,7 +277,7 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
                 disabled={photoBusy}
                 role="menuitem"
                 onClick={handleRemovePhoto}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[#958d7c] transition-all hover:bg-[rgba(236,231,221,0.05)] hover:text-[#ece7dd] disabled:opacity-50"
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink)] disabled:opacity-50"
               >
                 <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -282,15 +291,39 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
             )}
           </div>
 
+          <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
+
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-[color:var(--faint)]" id="theme-label">Theme</span>
+            <div role="radiogroup" aria-labelledby="theme-label" className="flex rounded-lg border border-[rgba(var(--ink-rgb),0.1)] p-0.5">
+              {THEME_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={themePref === opt.value}
+                  onClick={() => setThemePref(opt.value)}
+                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                    themePref === opt.value
+                      ? "bg-[color:var(--vio-bg)] text-[color:var(--vio)]"
+                      : "text-[color:var(--muted)] hover:text-[color:var(--ink)]"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {currentUser?.org && (
             <>
-              <div className="h-px bg-[rgba(236,231,221,0.06)]" />
+              <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
               <div className="p-2 space-y-0.5">
                 <button
                   type="button"
                   role="menuitem"
                   onClick={() => { setLeaveError(null); setOpen(false); setLeaveOpen(true); }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[#958d7c] transition-all hover:bg-amber-500/10 hover:text-amber-400"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-amber-500/10 hover:text-amber-400"
                 >
                   <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
@@ -304,14 +337,14 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
             </>
           )}
 
-          <div className="h-px bg-[rgba(236,231,221,0.06)]" />
+          <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
 
           <div className="p-2">
             <button
               onClick={handleSignOut}
               disabled={signingOut}
               role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[#958d7c] transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
             >
               <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

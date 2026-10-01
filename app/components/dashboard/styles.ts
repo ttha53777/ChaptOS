@@ -49,14 +49,14 @@ export const inputCls = "w-full rounded-lg border border-white/[0.08] bg-[#0a0d1
 /** Dusk-themed sibling of `inputCls` — warm paper, violet focus. For forms that
  *  live inside the Chapter Ledger redesign (Meetings page, dusk modals) so inputs
  *  match the surrounding palette instead of the cold-slate operations theme. */
-export const inputDuskCls = "w-full rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a] px-3 py-2 text-[13px] text-[#ece7dd] placeholder:text-[#6b6354] focus:border-[#a78bfa]/60 focus:outline-none focus:ring-2 focus:ring-[#a78bfa]/15";
+export const inputDuskCls = "w-full rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--paper)] px-3 py-2 text-[13px] text-[color:var(--ink)] placeholder:text-[color:var(--faint)] focus:border-[color:var(--vio)]/60 focus:outline-none focus:ring-2 focus:ring-[color:var(--vio)]/15";
 
 /** Dusk-themed buttons for forms/modals in the Chapter Ledger redesign. The
  *  full-width primary mirrors `.adf-submit`; the ghost/primary pair mirrors the
  *  ConfirmDialog footer so shared forms read as dusk wherever they're mounted. */
-export const btnDuskPrimaryCls = "w-full rounded-lg bg-[#a78bfa] px-4 py-2.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#bda6fc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
-export const btnDuskGhostCls = "rounded-lg border border-[rgba(236,231,221,0.12)] px-4 py-1.5 text-[13px] text-[#958d7c] hover:border-[rgba(236,231,221,0.24)] hover:text-[#ece7dd] transition-colors disabled:opacity-50";
-export const btnDuskActionCls = "rounded-lg bg-[#a78bfa] px-4 py-1.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#bda6fc] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+export const btnDuskPrimaryCls = "w-full rounded-lg bg-[color:var(--vio)] px-4 py-2.5 text-[13px] font-semibold text-[color:var(--paper)] hover:bg-[color:var(--vio-hi)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+export const btnDuskGhostCls = "rounded-lg border border-[rgba(var(--ink-rgb),0.12)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.24)] hover:text-[color:var(--ink)] transition-colors disabled:opacity-50";
+export const btnDuskActionCls = "rounded-lg bg-[color:var(--vio)] px-4 py-1.5 text-[13px] font-semibold text-[color:var(--paper)] hover:bg-[color:var(--vio-hi)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
 /** Frosted header CTA — matches Brothers, Instagram, Treasury toolbar buttons */
 export const headerActionBtnCls =
@@ -67,7 +67,7 @@ export const tooltipStyle = {
   backdropFilter: "blur(8px)",
   border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: 10,
-  boxShadow: "0 8px 24px -8px rgba(0,0,0,0.6)",
+  boxShadow: "0 8px 24px -8px rgba(var(--shade-rgb),calc(0.6*var(--shade-k)))",
   fontSize: 11,
   color: "#cbd5e1",
 };

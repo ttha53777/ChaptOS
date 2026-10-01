@@ -1,6 +1,70 @@
 @import "tailwindcss";
 
+/* ── App palette: dusk (default) / ivory ─────────────────────────────────────
+   One token set for the whole signed-in app — sidebar, every .dash page, the
+   drawers, Ask Chapt, the member card. lib/theme.ts stamps html[data-theme]
+   before first paint; ivory re-points the same names. Pre-auth scopes
+   (.auth-scope, .crf, .lp) declare their own tokens and are unaffected.
+
+   Literal washes go through the *-rgb channels — rgba(var(--ink-rgb), .09) —
+   so a hairline that is cream-on-black in dusk becomes ink-on-paper in ivory.
+   Shadows multiply their alpha by --shade-k: paper wants a far lighter shadow
+   than black does. */
 :root {
+  --paper:    #0f0d0a;
+  --paper-2:  #14120e;
+  --card:     #161310;
+  --card-2:   #1b1813;
+  --card-3:   #221d17;
+  --ink:      #ece7dd;
+  --ink-soft: #c9c2b4;
+  --muted:    #958d7c;
+  --faint:    #6b6354;
+  --line:     rgba(236,231,221,.09);
+  --line-soft:rgba(236,231,221,.05);
+  --line-med: rgba(236,231,221,.14);
+  --skel:     rgba(236,231,221,.085);
+  --vio:      #a78bfa;
+  --vio-deep: #7c3aed;
+  --vio-hi:   #c4b5fd;
+  --vio-bg:   rgba(167,139,250,.10);
+  --vio-line: rgba(167,139,250,.30);
+  --gold:     #ddb36a;
+  --gold-bg:  rgba(221,179,106,.10);
+  --rose:     #d98ba3;
+  --rose-bg:  rgba(217,139,163,.10);
+  --ok:       #7fb08a;
+  --ok-bg:    rgba(127,176,138,.10);
+  --warn:     #d3a04e;
+  --warn-bg:  rgba(211,160,78,.13);
+  --risk:     #cf8272;
+  --risk-bg:  rgba(207,130,114,.13);
+  --danger:   #f87171;
+  --err-ink:  #fda4af;
+  --scrim:    rgba(5,4,2,.62);
+  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+
+  --ink-rgb:   236,231,221;
+  --paper-rgb: 15,13,10;
+  --vio-rgb:   167,139,250;
+  --gold-rgb:  221,179,106;
+  --rose-rgb:  217,139,163;
+  --ok-rgb:    127,176,138;
+  --risk-rgb:  207,130,114;
+  --err-rgb:   244,63,94;
+  --shade-rgb: 0,0,0;
+  --shade-k:   1;
+
+  /* Calendar category hues — keys match CalEventCategory (var(--c-${cat})). */
+  --c-chapter:  #8fb0d6;
+  --c-social:   #ddb36a;
+  --c-fundy:    #86b988;
+  --c-program:  #a78bfa;
+  --c-party:    #d98ba3;
+  --c-deadline: #e0796b;
+  --c-service:  #5fbdb0;
+
+  /* Legacy cold tokens (pre-ledger components). */
   --background: #07090f;
   --surface: #10121a;
   --surface-elevated: #141820;
@@ -11,6 +75,83 @@
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -12px rgba(0, 0, 0, 0.5);
   --shadow-elevated: 0 2px 4px rgba(0, 0, 0, 0.5), 0 16px 40px -16px rgba(0, 0, 0, 0.6);
   --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme="ivory"] {
+  color-scheme: light;
+
+  --paper:    #f2ede3;
+  --paper-2:  #ece6d9;
+  --card:     #faf7f0;
+  --card-2:   #f4f0e6;
+  --card-3:   #ede7da;
+  --ink:      #171410;
+  --ink-soft: #3d382f;
+  --muted:    #6f675a;
+  --faint:    #8a8170;
+  --line:     rgba(23,20,16,.13);
+  --line-soft:rgba(23,20,16,.07);
+  --line-med: rgba(23,20,16,.2);
+  --skel:     rgba(23,20,16,.085);
+  /* Violet inverts across themes, as in every ivory block in this repo. */
+  --vio:      #6d28d9;
+  --vio-deep: #5b21b6;
+  --vio-hi:   #5b21b6;
+  --vio-bg:   rgba(109,40,217,.08);
+  --vio-line: rgba(109,40,217,.28);
+  --gold:     #9a7224;
+  --gold-bg:  rgba(154,114,36,.10);
+  --rose:     #b34f72;
+  --rose-bg:  rgba(179,79,114,.09);
+  --ok:       #3f7a50;
+  --ok-bg:    rgba(63,122,80,.10);
+  --warn:     #8f6a1f;
+  --warn-bg:  rgba(143,106,31,.10);
+  --risk:     #b24a35;
+  --risk-bg:  rgba(178,74,53,.09);
+  --danger:   #c2362f;
+  --err-ink:  #b42335;
+  --scrim:    rgba(40,34,24,.28);
+  --shadow:   0 1px 2px rgba(23,20,16,.05), 0 14px 34px -26px rgba(23,20,16,.35);
+
+  --ink-rgb:   23,20,16;
+  --paper-rgb: 242,237,227;
+  --vio-rgb:   109,40,217;
+  --gold-rgb:  154,114,36;
+  --rose-rgb:  179,79,114;
+  --ok-rgb:    63,122,80;
+  --risk-rgb:  178,74,53;
+  --err-rgb:   200,40,70;
+  --shade-rgb: 40,32,20;
+  --shade-k:   .4;
+
+  --c-chapter:  #3f6ea3;
+  --c-social:   #9a7224;
+  --c-fundy:    #4a7d4c;
+  --c-program:  #6d28d9;
+  --c-party:    #b34f72;
+  --c-deadline: #c14a37;
+  --c-service:  #2f8579;
+
+  /* Tailwind's pale status tints (text-red-400, text-indigo-300, …) were picked
+     to read on black and vanish on paper. Tailwind v4 utilities resolve through
+     these --color-* vars, so deepening them here fixes every call site at once. */
+  --color-red-200: #991b1b;     --color-red-300: #b91c1c;     --color-red-400: #b91c1c;
+  --color-amber-300: #b45309;   --color-amber-400: #b45309;
+  --color-emerald-300: #047857; --color-emerald-400: #047857;
+  --color-indigo-200: #3730a3;  --color-indigo-300: #4338ca;  --color-indigo-400: #4f46e5;
+  --color-rose-300: #be123c;    --color-rose-400: #be123c;
+
+  --background: #f2ede3;
+  --surface: #faf7f0;
+  --surface-elevated: #f4f0e6;
+  --border-subtle: rgba(23,20,16,.07);
+  --border-default: rgba(23,20,16,.11);
+  --border-strong: rgba(23,20,16,.2);
+  --foreground: #171410;
+  --shadow-card: 0 1px 2px rgba(23,20,16,.05), 0 8px 24px -14px rgba(23,20,16,.18);
+  --shadow-elevated: 0 2px 4px rgba(23,20,16,.06), 0 16px 40px -18px rgba(23,20,16,.25);
+  --inner-highlight: inset 0 1px 0 rgba(255,255,255,.6);
 }
 
 @theme inline {
@@ -42,9 +183,9 @@ table {
 /* Premium scrollbar — thin, subtle, only on hover */
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.06); border-radius: 4px; transition: background 0.2s; }
-*:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
-*::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
+*::-webkit-scrollbar-thumb { background: rgba(var(--ink-rgb), 0.06); border-radius: 4px; transition: background 0.2s; }
+*:hover::-webkit-scrollbar-thumb { background: rgba(var(--ink-rgb), 0.12); }
+*::-webkit-scrollbar-thumb:hover { background: rgba(var(--ink-rgb), 0.2); }
 
 /* Flat page background — matches Treasury */
 .page-ambient {
@@ -62,7 +203,7 @@ table {
 
 /* Frosted toolbar — matches Treasury header */
 .toolbar-frosted {
-  background: rgba(7, 9, 15, 0.85);
+  background: rgba(var(--paper-rgb), 0.85);
   backdrop-filter: saturate(140%) blur(12px);
   -webkit-backdrop-filter: saturate(140%) blur(12px);
 }

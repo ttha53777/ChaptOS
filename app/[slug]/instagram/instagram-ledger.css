@@ -21,31 +21,11 @@
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
 
-  --paper:    #0f0d0a;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-deep: #7c3aed;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 
   /* post-type hues — drive chip dots, the legend, and calendar marks */
-  --t-reel:     #a78bfa;  /* violet */
-  --t-carousel: #ddb36a;  /* gold   */
-  --t-story:    #7fb08a;  /* sage   */
+  --t-reel:     var(--vio);  /* violet */
+  --t-carousel: var(--gold);  /* gold   */
+  --t-story:    var(--ok);  /* sage   */
 
   max-width: 1180px;
   margin: 0;
@@ -60,14 +40,14 @@
 
 /* ── Toolbar bar (mobile breadcrumb label) ───────────────────────────────────── */
 header.dash-toolbar.ig-toolbar-bar {
-  background: rgba(15, 13, 10, 0.85);
-  border-bottom-color: rgba(236, 231, 221, 0.09);
+  background: rgba(var(--paper-rgb),0.85);
+  border-bottom-color: rgba(var(--ink-rgb),0.09);
 }
-header.dash-toolbar.ig-toolbar-bar .tb-icon-btn { color: #958d7c; }
-header.dash-toolbar.ig-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar.ig-toolbar-bar .tb-icon-btn { color: var(--muted); }
+header.dash-toolbar.ig-toolbar-bar .tb-icon-btn:hover { color: var(--ink); background: rgba(var(--ink-rgb),0.035); }
 header.dash-toolbar .ig-crumb {
   font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
-  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+  font-size: 15px; letter-spacing: -.01em; color: var(--ink);
 }
 
 /* ── Briefing ────────────────────────────────────────────────────────────────── */
@@ -111,7 +91,7 @@ header.dash-toolbar .ig-crumb {
 .dash .ig-search { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; min-width: 220px; flex: 1 1 220px; max-width: 320px;
   border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--faint);
   transition: border-color .12s, box-shadow .12s; }
-.dash .ig-search:focus-within { border-color: rgba(167,139,250,.5); box-shadow: 0 0 0 3px var(--vio-bg); }
+.dash .ig-search:focus-within { border-color: rgba(var(--vio-rgb),.5); box-shadow: 0 0 0 3px var(--vio-bg); }
 .dash .ig-search svg { width: 14px; height: 14px; flex-shrink: 0; }
 .dash .ig-search input { flex: 1; min-width: 0; background: none; border: none; outline: none;
   color: var(--ink); font-family: var(--mono); font-size: 11px; letter-spacing: .03em; }
@@ -152,7 +132,7 @@ header.dash-toolbar .ig-crumb {
   grid-template-columns: 4px 116px 1fr auto; gap: 14px;
   border: 1px solid var(--line); border-radius: 11px; background: var(--card);
   box-shadow: var(--shadow); padding: 12px 16px 12px 0; transition: background .12s, border-color .12s, transform .12s; }
-.dash .ig-post:hover { background: var(--card-2); border-color: rgba(167,139,250,.22); transform: translateY(-1px); }
+.dash .ig-post:hover { background: var(--card-2); border-color: rgba(var(--vio-rgb),.22); transform: translateY(-1px); }
 .dash .ig-post:focus-visible { outline: none; border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
 .dash .ig-post.selected { border-color: var(--vio); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--vio-bg), var(--shadow); }
 .dash .ig-post .accent { width: 4px; align-self: stretch; border-radius: 11px 0 0 11px; }
@@ -256,38 +236,21 @@ header.dash-toolbar .ig-crumb {
 .dash .ig-empty .h { font-size: 12.5px; color: var(--faint); margin-top: 6px; }
 
 /* ── Detail rail (opens on post click) ───────────────────────────────────────────
-   Rendered at the page root (outside .dash), so it re-declares the dusk tokens it
-   needs and provides its own fonts. A scrim dims the page; the panel slides in
+   Rendered at the page root (outside .dash), so it provides its own fonts; the
+   palette is global. A scrim dims the page; the panel slides in
    from the right and goes full-width on small screens. */
 .ig-rail, .ig-rail-scrim {
   --serif: var(--font-fraunces), Georgia, serif;
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
 }
-.ig-rail-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(7,6,4,.5); backdrop-filter: blur(2px);
+.ig-rail-scrim { position: fixed; inset: 0; z-index: 60; background: var(--scrim); backdrop-filter: blur(2px);
   animation: ig-scrim-in .16s ease; }
 @keyframes ig-scrim-in { from { opacity: 0; } to { opacity: 1; } }
 
 .ig-rail { position: fixed; top: 0; right: 0; bottom: 0; z-index: 61; width: 380px; max-width: 92vw;
   display: flex; flex-direction: column; background: var(--paper-2); border-left: 1px solid var(--line);
-  box-shadow: -24px 0 60px -28px rgba(0,0,0,.85); font-family: var(--sans); color: var(--ink);
+  box-shadow: -24px 0 60px -28px rgba(var(--shade-rgb),calc(.85 * var(--shade-k))); font-family: var(--sans); color: var(--ink);
   animation: ig-rail-in .2s cubic-bezier(.32,.72,0,1); }
 @keyframes ig-rail-in { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
@@ -341,7 +304,7 @@ header.dash-toolbar .ig-crumb {
   width: 100%; border-radius: 9px; padding: 9px 12px; cursor: pointer; transition: background .12s, border-color .12s, color .12s;
   font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; border: 1px solid; }
 .ig-rail .ig-rail-acts button svg { width: 14px; height: 14px; }
-.ig-rail .ig-rail-acts .primary { color: #1a1206; background: var(--ok); border-color: var(--ok); }
+.ig-rail .ig-rail-acts .primary { color: var(--paper); background: var(--ok); border-color: var(--ok); }
 .ig-rail .ig-rail-acts .primary:hover { filter: brightness(1.08); }
 .ig-rail .ig-rail-acts .ghost { color: var(--ink-soft); background: var(--card-2); border-color: var(--line); }
 .ig-rail .ig-rail-acts .ghost:hover { color: var(--ink); border-color: var(--vio); }
@@ -361,7 +324,7 @@ header.dash-toolbar .ig-crumb {
     border-left: none;
     border-top: 1px solid var(--line);
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 -8px 40px -8px rgba(0,0,0,.7);
+    box-shadow: 0 -8px 40px -8px rgba(var(--shade-rgb),calc(.7 * var(--shade-k)));
     overflow-y: auto;
     animation: ig-rail-up .22s cubic-bezier(.32,.72,0,1);
   }

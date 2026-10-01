@@ -35,7 +35,7 @@ export function EventsHelp({ onClose }: { onClose: () => void }) {
           Four lanes. Each one costs something to enter and buys something in return.
         </p>
 
-        <div className="divide-y divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.015]">
+        <div className="divide-y divide-[rgba(var(--ink-rgb),0.06)] overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.015)]">
           {STAGES.map(s => {
             const cost = costOf(s);
             return (

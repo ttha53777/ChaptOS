@@ -4,8 +4,8 @@
 
 // Dusk ledger ramp — violet lead, then gold / rose / sage semantics, then muted tints.
 export const DONUT_COLORS = [
-  "#a78bfa", "#ddb36a", "#d98ba3", "#7fb08a",
-  "#7c3aed", "#c9a24a", "#b86b85", "#5f8a6a",
+  "var(--vio)", "var(--gold)", "var(--rose)", "var(--ok)",
+  "var(--vio-deep)", "#c9a24a", "#b86b85", "#5f8a6a",
 ];
 
 /**

@@ -170,14 +170,14 @@ function MeetingForm({
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="rounded-lg border border-[rgba(236,231,221,0.12)] px-4 py-1.5 text-[13px] text-[#958d7c] hover:border-[rgba(236,231,221,0.24)] hover:text-[#ece7dd] transition-colors disabled:opacity-50"
+          className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.24)] hover:text-[color:var(--ink)] transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-lg bg-[#7c3aed] px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? "Saving…" : submitLabel}
         </button>
@@ -195,7 +195,7 @@ function renderInline(text: string, keyPrefix: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-[#ece7dd]">{part.slice(2, -2)}</strong>;
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-[color:var(--ink)]">{part.slice(2, -2)}</strong>;
     }
     return <span key={`${keyPrefix}-${i}`}>{part}</span>;
   });
@@ -223,7 +223,7 @@ function SummaryMarkdown({ text }: { text: string }) {
     const header = line.match(/^\*\*([^*]+)\*\*:?\s*$/);
     if (header) {
       blocks.push(
-        <p key={`h-${i}`} className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-[#a78bfa] first:mt-0">
+        <p key={`h-${i}`} className="mt-2 text-[11px] font-semibold uppercase tracking-wider text-[color:var(--vio)] first:mt-0">
           {header[1]}
         </p>,
       );
@@ -232,7 +232,7 @@ function SummaryMarkdown({ text }: { text: string }) {
     blocks.push(<p key={`p-${i}`} className="leading-relaxed">{renderInline(line, `p-${i}`)}</p>);
   });
   flushBullets();
-  return <div className="space-y-2 text-[13px] text-[#c9c2b4]">{blocks}</div>;
+  return <div className="space-y-2 text-[13px] text-[color:var(--ink-soft)]">{blocks}</div>;
 }
 
 // ─── MeetingDetailOverlay ─────────────────────────────────────────────────────
@@ -306,16 +306,16 @@ function MeetingDetailOverlay({
   return (
     <div className="dash fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+      <div className="absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" />
 
       {/* Panel — stop propagation so clicks inside don't close */}
-      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={event.title} className="relative flex w-full max-w-5xl flex-col bg-[#0f0d0a]" onClick={e => e.stopPropagation()}>
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={event.title} className="relative flex w-full max-w-5xl flex-col bg-[color:var(--paper)]" onClick={e => e.stopPropagation()}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
-        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(236,231,221,0.08)] bg-[#0f0d0a] px-4 sm:px-6">
+        <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--paper)] px-4 sm:px-6">
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-[#958d7c] transition-colors hover:bg-[rgba(236,231,221,0.06)] hover:text-[#ece7dd]"
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink)]"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -323,11 +323,11 @@ function MeetingDetailOverlay({
             <span className="hidden sm:inline">Back</span>
           </button>
 
-          <div className="h-4 w-px bg-[rgba(236,231,221,0.1)]" />
+          <div className="h-4 w-px bg-[rgba(var(--ink-rgb),0.1)]" />
 
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="h-2 w-2 shrink-0 rounded-full bg-[#a78bfa]" />
-            <p className="truncate text-[14px] font-semibold text-[#ece7dd]">{event.title}</p>
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--vio)]" />
+            <p className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{event.title}</p>
           </div>
 
           {shared && <NotesCollaborators peers={collaborators} />}
@@ -339,7 +339,7 @@ function MeetingDetailOverlay({
               disabled={summarizeState === "running" || (shared ? sharedStatus.saving === "loading" : !notesDraft.trim())}
               title={!notesDraft.trim() ? "Add notes first" : "Generate an AI summary of these notes"}
               aria-label={event.notesSummary ? "Re-summarize notes" : "Summarize notes"}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[#a78bfa] transition-colors hover:bg-[rgba(167,139,250,0.1)] hover:text-[#c4b5fd] disabled:cursor-not-allowed disabled:text-[#6b6354] disabled:hover:bg-transparent sm:py-1.5"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--vio)] transition-colors hover:bg-[rgba(var(--vio-rgb),0.1)] hover:text-[color:var(--vio-hi)] disabled:cursor-not-allowed disabled:text-[color:var(--faint)] disabled:hover:bg-transparent sm:py-1.5"
             >
               {summarizeState === "running" ? (
                 <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -357,7 +357,7 @@ function MeetingDetailOverlay({
             <button
               onClick={onEdit}
               aria-label="Edit meeting"
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[#958d7c] transition-colors hover:bg-[rgba(236,231,221,0.06)] hover:text-[#c9c2b4] sm:py-1.5"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink-soft)] sm:py-1.5"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -367,7 +367,7 @@ function MeetingDetailOverlay({
             <button
               onClick={onDelete}
               aria-label="Delete meeting"
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[#958d7c] transition-colors hover:bg-[rgba(217,139,163,0.1)] hover:text-[#d98ba3] sm:py-1.5"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--rose-rgb),0.1)] hover:text-[color:var(--rose)] sm:py-1.5"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -378,22 +378,22 @@ function MeetingDetailOverlay({
         </div>
 
         {/* ── Meta strip ──────────────────────────────────────────────────── */}
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-[rgba(236,231,221,0.05)] bg-[rgba(236,231,221,0.02)] px-6 py-3">
-          <div className="flex items-center gap-2 text-[12px] text-[#958d7c]">
-            <svg className="h-3.5 w-3.5 text-[#6b6354]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-[rgba(var(--ink-rgb),0.05)] bg-[rgba(var(--ink-rgb),0.02)] px-6 py-3">
+          <div className="flex items-center gap-2 text-[12px] text-[color:var(--muted)]">
+            <svg className="h-3.5 w-3.5 text-[color:var(--faint)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             {fmtDateFull(event.date)}
           </div>
           {meta.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 text-[12px] text-[#958d7c]">
-              <div className="h-3 w-px bg-[rgba(236,231,221,0.1)]" />
+            <div key={i} className="flex items-center gap-2 text-[12px] text-[color:var(--muted)]">
+              <div className="h-3 w-px bg-[rgba(var(--ink-rgb),0.1)]" />
               {item}
             </div>
           ))}
           <div className="flex items-center gap-2">
-            <div className="h-3 w-px bg-[rgba(236,231,221,0.1)]" />
-            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(167,139,250,0.12)] px-2 py-0.5 text-[10px] font-semibold text-[#a78bfa] ring-1 ring-inset ring-[rgba(167,139,250,0.2)]">
+            <div className="h-3 w-px bg-[rgba(var(--ink-rgb),0.1)]" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(var(--vio-rgb),0.12)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--vio)] ring-1 ring-inset ring-[rgba(var(--vio-rgb),0.2)]">
               Required
             </span>
           </div>
@@ -406,21 +406,21 @@ function MeetingDetailOverlay({
             {event.notesSummary && (() => {
               const stale = notesSummaryStale(event);
               return (
-                <div className={`mb-8 rounded-xl border p-4 ${stale ? "border-[rgba(221,179,106,0.3)] bg-[rgba(221,179,106,0.04)]" : "border-[rgba(167,139,250,0.2)] bg-[rgba(167,139,250,0.04)]"}`}>
+                <div className={`mb-8 rounded-xl border p-4 ${stale ? "border-[rgba(var(--gold-rgb),0.3)] bg-[rgba(var(--gold-rgb),0.04)]" : "border-[rgba(var(--vio-rgb),0.2)] bg-[rgba(var(--vio-rgb),0.04)]"}`}>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ring-1 ring-inset ${stale ? "bg-[rgba(221,179,106,0.15)] text-[#ddb36a] ring-[rgba(221,179,106,0.25)]" : "bg-[rgba(167,139,250,0.15)] text-[#a78bfa] ring-[rgba(167,139,250,0.25)]"}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider ring-1 ring-inset ${stale ? "bg-[rgba(var(--gold-rgb),0.15)] text-[color:var(--gold)] ring-[rgba(var(--gold-rgb),0.25)]" : "bg-[rgba(var(--vio-rgb),0.15)] text-[color:var(--vio)] ring-[rgba(var(--vio-rgb),0.25)]"}`}>
                       <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                         <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
                       </svg>
                       AI Summary
                     </span>
                     {event.notesSummaryAt && (
-                      <span className="text-[10px] text-[#6b6354]">
+                      <span className="text-[10px] text-[color:var(--faint)]">
                         Generated {new Date(event.notesSummaryAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     )}
                     {stale && (
-                      <span className="text-[10px] font-medium text-[#ddb36a]">
+                      <span className="text-[10px] font-medium text-[color:var(--gold)]">
                         Notes have changed — re-summarize to refresh.
                       </span>
                     )}
@@ -431,14 +431,14 @@ function MeetingDetailOverlay({
             })()}
 
             {(summarizeError || sharedError) && (
-              <div className="mb-6 rounded-lg border border-[rgba(217,139,163,0.2)] bg-[rgba(217,139,163,0.1)] px-3 py-2 text-[12px] text-[#d98ba3]">
+              <div className="mb-6 rounded-lg border border-[rgba(var(--rose-rgb),0.2)] bg-[rgba(var(--rose-rgb),0.1)] px-3 py-2 text-[12px] text-[color:var(--rose)]">
                 {summarizeError || sharedError}
               </div>
             )}
 
             {shared ? <CollaborativeNotesEditor key={event.id} ref={editorRef} eventId={event.id} slug={slug} onSaved={onNotesSaved} onState={setSharedStatus} onPeers={setCollaborators} /> : <div>
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#958d7c]">Meeting Minutes</p>
-              {canEditNotes && event.notesInitialized && <p className="mb-3 text-[12px] text-[#958d7c]">Shared editing is paused. These are the last saved minutes.</p>}
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted)]">Meeting Minutes</p>
+              {canEditNotes && event.notesInitialized && <p className="mb-3 text-[12px] text-[color:var(--muted)]">Shared editing is paused. These are the last saved minutes.</p>}
               <textarea
                 className={`${inputDuskCls} min-h-[55vh] resize-none font-mono text-[13px] leading-relaxed`}
                 value={notesDraft}
@@ -708,7 +708,7 @@ export default function ChapterPage() {
   const meetingsHeld = events.length;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -719,10 +719,10 @@ export default function ChapterPage() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* ── Top bar (mobile/tablet only — hidden at lg+ where the sidebar is
             static and "Add meeting" lives in the briefing below). ─────────────── */}
-        <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(236,231,221,0.06)] bg-[#14120e] px-4 sm:px-6 lg:hidden">
+        <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--paper-2)] px-4 sm:px-6 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-[rgba(236,231,221,0.07)] lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
             aria-label="Open menu"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -730,15 +730,15 @@ export default function ChapterPage() {
             </svg>
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-tight text-[#ece7dd]">{v("Meetings")}</p>
+            <p className="text-[14px] font-semibold leading-tight text-[color:var(--ink)]">{v("Meetings")}</p>
           </div>
         </header>
 
         {/* ── Error banners ───────────────────────────────────────────────────── */}
         {pageError && (
-          <div className="flex items-center justify-between gap-3 border-b border-[rgba(221,179,106,0.2)] bg-[rgba(221,179,106,0.1)] px-5 py-2.5">
-            <p className="text-[12px] text-[#ddb36a]">{pageError}</p>
-            <button onClick={() => setPageError(null)} className="text-[#ddb36a] hover:text-[#f0d9a8]" aria-label="Dismiss">
+          <div className="flex items-center justify-between gap-3 border-b border-[rgba(var(--gold-rgb),0.2)] bg-[rgba(var(--gold-rgb),0.1)] px-5 py-2.5">
+            <p className="text-[12px] text-[color:var(--gold)]">{pageError}</p>
+            <button onClick={() => setPageError(null)} className="text-[color:var(--gold)] hover:text-[color:var(--ink)]" aria-label="Dismiss">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -746,9 +746,9 @@ export default function ChapterPage() {
           </div>
         )}
         {deleteError && (
-          <div className="flex items-center justify-between gap-3 border-b border-[rgba(217,139,163,0.2)] bg-[rgba(217,139,163,0.1)] px-5 py-2.5">
-            <p className="text-[12px] text-[#d98ba3]">{deleteError}</p>
-            <button onClick={() => setDeleteError(null)} className="text-[#d98ba3] hover:text-[#e8b0c2]" aria-label="Dismiss">
+          <div className="flex items-center justify-between gap-3 border-b border-[rgba(var(--rose-rgb),0.2)] bg-[rgba(var(--rose-rgb),0.1)] px-5 py-2.5">
+            <p className="text-[12px] text-[color:var(--rose)]">{deleteError}</p>
+            <button onClick={() => setDeleteError(null)} className="text-[color:var(--rose)] hover:text-[color:var(--ink)]" aria-label="Dismiss">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -757,7 +757,7 @@ export default function ChapterPage() {
         )}
 
         {/* ── Main ────────────────────────────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto bg-[#0f0d0a]">
+        <main className="flex-1 overflow-y-auto bg-[color:var(--paper)]">
           <div className="dash" data-dashboard-theme="dusk">
 
             {/* Briefing */}
@@ -786,7 +786,7 @@ export default function ChapterPage() {
 
             {!loading && loadError && (
               <div className="flex flex-col items-center gap-2 py-24 text-center">
-                <p className="text-[14px] text-[#d98ba3]">{loadError}</p>
+                <p className="text-[14px] text-[color:var(--rose)]">{loadError}</p>
               </div>
             )}
 
@@ -939,7 +939,7 @@ export default function ChapterPage() {
           tone="dusk"
           message={
             <>
-              Delete <span className="font-semibold text-[#ece7dd]">&ldquo;{deleteTarget.title}&rdquo;</span>?
+              Delete <span className="font-semibold text-[color:var(--ink)]">&ldquo;{deleteTarget.title}&rdquo;</span>?
               {" "}This will permanently remove the meeting, its minutes, attendance records, and excuse requests.
             </>
           }

@@ -69,7 +69,7 @@ export function StarRadioGroup({
           style={{ fontSize: size }}
           className={`leading-none transition-transform duration-75 ${
             disabled ? "cursor-default" : "cursor-pointer hover:scale-110"
-          } ${display != null && n <= display ? "text-[#ddb36a]" : "text-[#3a352d]"}`}
+          } ${display != null && n <= display ? "text-[color:var(--gold)]" : "text-[rgba(var(--ink-rgb),0.18)]"}`}
         >
           ★
         </button>

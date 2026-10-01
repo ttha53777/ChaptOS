@@ -37,10 +37,10 @@ export function OrgSwitcher() {
   }
 
   return (
-    <label className="flex items-center gap-2 text-xs text-[#958d7c]">
+    <label className="flex items-center gap-2 text-xs text-[color:var(--muted)]">
       <span className="sr-only">Active organization</span>
       <select
-        className="w-full rounded-md border border-[rgba(236,231,221,0.12)] bg-[#161310] px-2 py-1 text-[#c9c2b4] outline-none transition-colors focus:border-[#a78bfa]"
+        className="w-full rounded-md border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--card)] px-2 py-1 text-[color:var(--ink-soft)] outline-none transition-colors focus:border-[color:var(--vio)]"
         value={currentUser.orgId}
         onChange={onChange}
         aria-label="Active organization"

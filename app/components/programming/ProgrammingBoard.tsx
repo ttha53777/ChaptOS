@@ -197,20 +197,20 @@ export function ProgrammingBoard({
             onDragOver={dndEnabled ? e => { e.preventDefault(); setOverStage(stage); } : undefined}
             onDragLeave={() => setOverStage(s => (s === stage ? null : s))}
             onDrop={dndEnabled ? () => handleDrop(stage) : undefined}
-            className={`flex min-w-0 flex-col rounded-xl border bg-[#0c0f16] transition-colors duration-150 ${
-              isOver ? "border-indigo-500/40 ring-1 ring-inset ring-indigo-500/20" : "border-white/[0.06]"
+            className={`flex min-w-0 flex-col rounded-xl border bg-[color:var(--card)] transition-colors duration-150 ${
+              isOver ? "border-indigo-500/40 ring-1 ring-inset ring-indigo-500/20" : "border-[rgba(var(--ink-rgb),0.06)]"
             }`}
           >
-            <div className="flex items-center justify-between border-b border-white/[0.05] px-3.5 py-3">
+            <div className="flex items-center justify-between border-b border-[rgba(var(--ink-rgb),0.05)] px-3.5 py-3">
               <div className="flex items-center gap-2">
                 <span className={`h-2 w-2 rounded-full ${pill.dot}`} />
-                <span className="text-[12px] font-semibold uppercase tracking-wide text-slate-300">{STAGE_LABELS[stage]}</span>
-                <span className="rounded-full bg-white/[0.06] px-1.5 text-[10px] font-medium tabular-nums text-slate-400">{items.length}</span>
+                <span className="text-[12px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">{STAGE_LABELS[stage]}</span>
+                <span className="rounded-full bg-[rgba(var(--ink-rgb),0.06)] px-1.5 text-[10px] font-medium tabular-nums text-[color:var(--muted)]">{items.length}</span>
               </div>
             </div>
             <div className={`flex flex-col gap-2.5 p-2.5 sm:min-h-[120px] transition-colors duration-150 ${isOver ? "bg-indigo-500/[0.05]" : ""}`}>
               {items.length === 0 ? (
-                <p className="px-1 py-4 text-center text-[11px] text-slate-600 sm:py-6">
+                <p className="px-1 py-4 text-center text-[11px] text-[color:var(--faint)] sm:py-6">
                   {dndEnabled ? "Drop events here" : "Nothing here"}
                 </p>
               ) : (() => {
@@ -234,7 +234,7 @@ export function ProgrammingBoard({
                     {hidden > 0 && (
                       <button
                         onClick={() => setShowAllDone(true)}
-                        className="mt-1 w-full rounded-lg border border-white/[0.06] py-2 text-[11px] text-slate-500 transition-colors hover:border-white/10 hover:text-slate-400"
+                        className="mt-1 w-full rounded-lg border border-[rgba(var(--ink-rgb),0.06)] py-2 text-[11px] text-[color:var(--faint)] transition-colors hover:border-[rgba(var(--ink-rgb),0.1)] hover:text-[color:var(--muted)]"
                       >
                         +{hidden} more
                       </button>
@@ -242,7 +242,7 @@ export function ProgrammingBoard({
                     {stage === "done" && showAllDone && items.length > DONE_LIMIT && (
                       <button
                         onClick={() => setShowAllDone(false)}
-                        className="mt-1 w-full rounded-lg border border-white/[0.06] py-2 text-[11px] text-slate-500 transition-colors hover:border-white/10 hover:text-slate-400"
+                        className="mt-1 w-full rounded-lg border border-[rgba(var(--ink-rgb),0.06)] py-2 text-[11px] text-[color:var(--faint)] transition-colors hover:border-[rgba(var(--ink-rgb),0.1)] hover:text-[color:var(--muted)]"
                       >
                         Show less
                       </button>

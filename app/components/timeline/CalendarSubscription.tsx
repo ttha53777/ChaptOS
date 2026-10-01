@@ -98,7 +98,7 @@ export function AddToCalendarButton({ onClick, variant = "briefing" }: { onClick
   useEffect(() => { void prefetchSubscription().catch(() => {}); }, []);
   if (variant === "toolbar") return (
     <button onClick={onClick} aria-label="Add to my calendar"
-      className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-[#958d7c]">
+      className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--ink-soft)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[color:var(--vio)]/40 hover:bg-[color:var(--vio)]/10 hover:text-[color:var(--ink)] focus:outline-none [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:text-[color:var(--muted)]">
       <CalendarIcon /><span className="hidden sm:inline">Subscribe</span>
     </button>
   );

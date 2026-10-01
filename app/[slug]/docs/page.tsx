@@ -665,7 +665,7 @@ export default function DocsPage() {
   const canReorder = canManage && !queryActive;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

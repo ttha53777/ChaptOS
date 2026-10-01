@@ -329,15 +329,15 @@ export default function InstagramPage() {
   const hasTasks = igTaskList.length > 0;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Instagram" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* ── Mobile toolbar (hamburger + label). No desktop topbar. ── */}
-        <header className="toolbar-frosted dash-toolbar ig-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+        <header className="toolbar-frosted dash-toolbar ig-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.05)] px-4 sm:px-6 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07]"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)]"
             aria-label="Open menu"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

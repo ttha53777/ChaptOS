@@ -87,7 +87,7 @@ export function MoveDocDialog({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#161310] px-4 py-1.5 text-[13px] text-[#c9c2b4] transition-colors hover:border-[rgba(236,231,221,0.22)] hover:text-[#ece7dd]"
+          className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--card)] px-4 py-1.5 text-[13px] text-[color:var(--ink-soft)] transition-colors hover:border-[rgba(var(--ink-rgb),0.22)] hover:text-[color:var(--ink)]"
         >
           Done
         </button>

@@ -95,15 +95,15 @@ export function BudgetView({
   }, [transactions]);
 
   if (loading) {
-    return <div className="h-[400px] animate-pulse rounded-xl border border-white/[0.06] bg-[#10121a]" />;
+    return <div className="h-[400px] animate-pulse rounded-xl border border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--card)]" />;
   }
 
   if (!budget) {
     return (
-      <div className="rounded-2xl border border-white/[0.07] bg-[#10121a] p-10 text-center"
+      <div className="rounded-2xl border border-[rgba(var(--ink-rgb),0.07)] bg-[color:var(--card)] p-10 text-center"
         style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)" }}>
-        <p className="text-[14px] font-semibold text-[#ece7dd]">No budget set for {semester}</p>
-        <p className="mt-1 text-[12px] text-[#958d7c]">Divide your funds across categories. Pools grow live as income lands.</p>
+        <p className="text-[14px] font-semibold text-[color:var(--ink)]">No budget set for {semester}</p>
+        <p className="mt-1 text-[12px] text-[color:var(--muted)]">Divide your funds across categories. Pools grow live as income lands.</p>
         {isAdmin && (
           <button
             onClick={() => setEditOpen(true)}
@@ -144,7 +144,7 @@ export function BudgetView({
     <div className="space-y-4">
       {/* ── Header row: stats (8) + allocation pie (4) ──────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="rounded-2xl border border-white/[0.07] p-5 lg:col-span-8"
+        <div className="rounded-2xl border border-[rgba(var(--ink-rgb),0.07)] p-5 lg:col-span-8"
           style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)" }}>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
@@ -162,33 +162,33 @@ export function BudgetView({
               </button>
             )}
           </div>
-          <p className="mt-3 text-[11px] text-[#958d7c]">
-            Funding pool <span className="font-semibold text-[#c9c2b4] tabular-nums">{fmt$(Math.round(pool))}</span> = carryover + income − reserve · each category gets its % of this pool live as money lands.
+          <p className="mt-3 text-[11px] text-[color:var(--muted)]">
+            Funding pool <span className="font-semibold text-[color:var(--ink-soft)] tabular-nums">{fmt$(Math.round(pool))}</span> = carryover + income − reserve · each category gets its % of this pool live as money lands.
           </p>
 
           {/* ── Burn-rate strip ───────────────────────────────────────── */}
-          <div className="mt-4 border-t border-white/[0.05] pt-4">
+          <div className="mt-4 border-t border-[rgba(var(--ink-rgb),0.05)] pt-4">
             <div className="flex items-baseline justify-between">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#958d7c]">Spent vs. Funded</p>
-              <p className="text-[11px] tabular-nums text-[#958d7c]">
-                <span className={`font-semibold ${actualExpenses > pool && pool > 0 ? "text-red-400" : "text-[#ece7dd]"}`}>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Spent vs. Funded</p>
+              <p className="text-[11px] tabular-nums text-[color:var(--muted)]">
+                <span className={`font-semibold ${actualExpenses > pool && pool > 0 ? "text-red-400" : "text-[color:var(--ink)]"}`}>
                   {fmt$(Math.round(actualExpenses))}
                 </span>
-                <span className="text-[#6b6354]"> / </span>
-                <span className="text-[#c9c2b4]">{fmt$(Math.round(pool))}</span>
+                <span className="text-[color:var(--faint)]"> / </span>
+                <span className="text-[color:var(--ink-soft)]">{fmt$(Math.round(pool))}</span>
               </p>
             </div>
-            <div className="mt-2 h-[8px] w-full overflow-hidden rounded-full bg-white/[0.05]">
+            <div className="mt-2 h-[8px] w-full overflow-hidden rounded-full bg-[rgba(var(--ink-rgb),0.05)]">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
                   width: `${pool > 0 ? Math.min(100, (actualExpenses / pool) * 100) : (actualExpenses > 0 ? 100 : 0)}%`,
-                  background: actualExpenses > pool && pool > 0 ? "#ef4444" : "#a78bfa",
+                  background: actualExpenses > pool && pool > 0 ? "#ef4444" : "var(--vio)",
                 }}
               />
             </div>
             <div className="mt-2 flex items-center justify-between text-[10px] tabular-nums">
-              <span className="text-[#958d7c]">
+              <span className="text-[color:var(--muted)]">
                 {pool > 0 ? `${((actualExpenses / pool) * 100).toFixed(0)}% of pool used` : "—"}
               </span>
               <span className={
@@ -196,7 +196,7 @@ export function BudgetView({
                   ? "font-semibold text-red-400"
                   : actualExpenses > pool * 0.85 && pool > 0
                     ? "font-semibold text-amber-400"
-                    : "text-[#958d7c]"
+                    : "text-[color:var(--muted)]"
               }>
                 {pool > 0 && actualExpenses > pool
                   ? `Over by ${fmt$(Math.round(actualExpenses - pool))}`
@@ -208,12 +208,12 @@ export function BudgetView({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/[0.07] p-4 lg:col-span-4"
+        <div className="rounded-2xl border border-[rgba(var(--ink-rgb),0.07)] p-4 lg:col-span-4"
           style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 50%)" }}>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#958d7c]">Allocation Split</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">Allocation Split</p>
           {!hasAllocations ? (
             <div className="flex h-[180px] items-center justify-center">
-              <p className="text-[11px] text-[#6b6354]">No allocations yet</p>
+              <p className="text-[11px] text-[color:var(--faint)]">No allocations yet</p>
             </div>
           ) : (
             <TreasuryDonutChart data={allocationPieData} />
@@ -236,13 +236,13 @@ export function BudgetView({
           return (
             <div
               key={cat.slug}
-              className="rounded-2xl border border-white/[0.07] p-4"
+              className="rounded-2xl border border-[rgba(var(--ink-rgb),0.07)] p-4"
               style={{ background: "linear-gradient(to bottom, rgba(255,255,255,0.025) 0%, #10121a 60%)" }}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-semibold text-[#ece7dd]">{cat.label}</p>
-                  <p className="text-[10px] text-[#958d7c]">{percent.toFixed(0)}% share</p>
+                  <p className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{cat.label}</p>
+                  <p className="text-[10px] text-[color:var(--muted)]">{percent.toFixed(0)}% share</p>
                 </div>
                 {isOver && (
                   <span className="shrink-0 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400 ring-1 ring-inset ring-red-500/25">
@@ -250,27 +250,27 @@ export function BudgetView({
                   </span>
                 )}
                 {!isOver && isUnfunded && spent === 0 && (
-                  <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-[#958d7c] ring-1 ring-inset ring-white/[0.08]">
+                  <span className="shrink-0 rounded-full bg-[rgba(var(--ink-rgb),0.06)] px-2 py-0.5 text-[10px] font-semibold text-[color:var(--muted)] ring-1 ring-inset ring-[rgba(var(--ink-rgb),0.08)]">
                     UNFUNDED
                   </span>
                 )}
               </div>
 
               <div className="mt-3 flex items-baseline justify-between">
-                <span className="text-[11px] text-[#958d7c]">Funded</span>
-                <span className="text-[14px] font-semibold tabular-nums text-[#ece7dd]">
+                <span className="text-[11px] text-[color:var(--muted)]">Funded</span>
+                <span className="text-[14px] font-semibold tabular-nums text-[color:var(--ink)]">
                   {fmt$(Math.round(fundedPool))}
                 </span>
               </div>
               <div className="mt-1 flex items-baseline justify-between">
-                <span className="text-[11px] text-[#958d7c]">Spent</span>
-                <span className={`text-[14px] font-semibold tabular-nums ${isOver ? "text-red-400" : "text-[#c9c2b4]"}`}>
+                <span className="text-[11px] text-[color:var(--muted)]">Spent</span>
+                <span className={`text-[14px] font-semibold tabular-nums ${isOver ? "text-red-400" : "text-[color:var(--ink-soft)]"}`}>
                   {fmt$(Math.round(spent))}
                 </span>
               </div>
 
               {/* Progress bar */}
-              <div className="mt-3 h-[6px] w-full overflow-hidden rounded-full bg-white/[0.05]">
+              <div className="mt-3 h-[6px] w-full overflow-hidden rounded-full bg-[rgba(var(--ink-rgb),0.05)]">
                 <div
                   className="h-full rounded-full transition-all"
                   style={{
@@ -279,7 +279,7 @@ export function BudgetView({
                   }}
                 />
               </div>
-              <p className="mt-2 text-[10px] tabular-nums text-[#958d7c]">
+              <p className="mt-2 text-[10px] tabular-nums text-[color:var(--muted)]">
                 {fundedPool > 0
                   ? (isOver
                       ? `Over by ${fmt$(Math.round(spent - fundedPool))}`
@@ -299,13 +299,13 @@ export function BudgetView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-400/80">Reserve / Carryover</p>
-            <p className="mt-1 text-[18px] font-semibold tabular-nums text-[#ece7dd]">
-              {fmt$(Math.round(reserveTarget))} <span className="text-[12px] font-medium text-[#958d7c]">target</span>
+            <p className="mt-1 text-[18px] font-semibold tabular-nums text-[color:var(--ink)]">
+              {fmt$(Math.round(reserveTarget))} <span className="text-[12px] font-medium text-[color:var(--muted)]">target</span>
             </p>
-            <p className="mt-0.5 text-[11px] text-[#958d7c]">Set aside off the top</p>
+            <p className="mt-0.5 text-[11px] text-[color:var(--muted)]">Set aside off the top</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#958d7c]">Projected end</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">Projected end</p>
             <p className={`mt-1 text-[18px] font-semibold tabular-nums ${reserveOnTrack ? "text-emerald-400" : "text-red-400"}`}>
               {fmt$(Math.round(projectedEnd))}
             </p>
@@ -334,15 +334,15 @@ export function BudgetView({
 
 function Stat({ label, value, tone }: { label: string; value: string; tone: "slate" | "emerald" | "amber" | "violet" | "red" }) {
   const toneCls = {
-    slate:   "text-[#ece7dd]",
+    slate:   "text-[color:var(--ink)]",
     emerald: "text-emerald-400",
     amber:   "text-amber-400",
-    violet:  "text-[#a78bfa]",
+    violet:  "text-[color:var(--vio)]",
     red:     "text-red-400",
   }[tone];
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#958d7c]">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]">{label}</p>
       <p className={`mt-0.5 text-[17px] font-semibold tabular-nums ${toneCls}`}>{value}</p>
     </div>
   );
@@ -427,7 +427,7 @@ function EditBudgetModal({
             <button
               type="button"
               onClick={() => setCarryoverStr(String(Math.max(0, Math.round(currentBalance))))}
-              className="text-[10px] font-semibold text-[#a78bfa] hover:text-[#bda6fc]"
+              className="text-[10px] font-semibold text-[color:var(--vio)] hover:text-[color:var(--vio-hi)]"
             >
               Use current balance ({fmt$(Math.max(0, Math.round(currentBalance)))})
             </button>
@@ -442,7 +442,7 @@ function EditBudgetModal({
             className={inputDuskCls}
             autoFocus
           />
-          <p className="mt-1 text-[10px] text-[#958d7c]">
+          <p className="mt-1 text-[10px] text-[color:var(--muted)]">
             Starting funds. Pool grows live as new income lands — no need to predict the semester total.
           </p>
         </div>
@@ -458,23 +458,23 @@ function EditBudgetModal({
             placeholder="0.00"
             className={inputDuskCls}
           />
-          <p className="mt-1 text-[10px] text-[#958d7c]">
+          <p className="mt-1 text-[10px] text-[color:var(--muted)]">
             Locked-aside dollar amount for next semester's carryover. Sliders below divide what's left ({fmt$(Math.round(pool))} from current carryover).
           </p>
         </div>
 
-        <div className="max-h-[320px] overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a]">
+        <div className="max-h-[320px] overflow-y-auto rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--paper)]">
           {categories.map((cat, idx) => {
             const value = percents[cat.slug] ?? 0;
             const dollar = pool * value / 100;
             return (
               <div
                 key={cat.slug}
-                className={`flex items-center gap-3 px-3 py-2.5 ${idx > 0 ? "border-t border-white/[0.04]" : ""}`}
+                className={`flex items-center gap-3 px-3 py-2.5 ${idx > 0 ? "border-t border-[rgba(var(--ink-rgb),0.04)]" : ""}`}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-medium text-[#c9c2b4]">{cat.label}</p>
-                  <p className="text-[10px] tabular-nums text-[#958d7c]">
+                  <p className="text-[12px] font-medium text-[color:var(--ink-soft)]">{cat.label}</p>
+                  <p className="text-[10px] tabular-nums text-[color:var(--muted)]">
                     {fmt$(Math.round(dollar))} from pool
                   </p>
                 </div>
@@ -485,7 +485,7 @@ function EditBudgetModal({
                   step={1}
                   value={value}
                   onChange={e => setPct(cat.slug, Number(e.target.value))}
-                  className="h-1 w-[120px] accent-[#a78bfa]"
+                  className="h-1 w-[120px] accent-[color:var(--vio)]"
                 />
                 <input
                   type="number"
@@ -494,9 +494,9 @@ function EditBudgetModal({
                   step={1}
                   value={value}
                   onChange={e => setPct(cat.slug, Number(e.target.value))}
-                  className="w-14 rounded border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a] px-2 py-1 text-[12px] tabular-nums text-[#ece7dd] focus:border-[#a78bfa]/60 focus:outline-none"
+                  className="w-14 rounded border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--paper)] px-2 py-1 text-[12px] tabular-nums text-[color:var(--ink)] focus:border-[color:var(--vio)]/60 focus:outline-none"
                 />
-                <span className="w-3 text-[11px] text-[#958d7c]">%</span>
+                <span className="w-3 text-[11px] text-[color:var(--muted)]">%</span>
               </div>
             );
           })}

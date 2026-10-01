@@ -30,7 +30,7 @@ function memberStatus(m){const t=DB.settings.thresholds;return m.attendance<t.at
 const statusTone=s=>s==='Good'||s==='done'||s==='posted'||s==='approved'?'mint':s==='At Risk'||s==='overdue'||s==='rejected'?'peach':'butter';
 const balance=()=>DB.transactions.filter(t=>t.status==='posted').reduce((n,t)=>n+(t.type==='income'?t.amount:-t.amount),0);
 const overdueTasks=()=>DB.tasks.filter(t=>t.status!=='done'&&t.date<TODAY);
-const upcoming=()=>DB.events.filter(e=>e.date>=TODAY).sort((a,b)=>a.date.localeCompare(b.date));
+const upcoming=()=>DB.events.filter(e=>e.date>=TODAY&&(['chapter','party'].includes(e.category)||['confirmed','done'].includes(e.stage))).sort((a,b)=>a.date.localeCompare(b.date));
 function save(message,tone='mint'){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch{}if(message){DB.activity.unshift({text:message,date:'Sep 10 · Just now',tone});try{localStorage.setItem(KEY,JSON.stringify(DB))}catch{}toast(message)}render()}
 let toastTimer;function toast(msg){$('#toast').textContent=msg;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3200)}
 function navName(key){if(key==='brothers')return DB.settings.vocabulary.Member==='Brother'?'Brotherhood':DB.settings.vocabulary.Member+'s';if(key==='chapter')return DB.settings.vocabulary.Meetings;if(key==='treasury')return DB.settings.vocabulary.Treasury;return routes[key]?.[0]||key}

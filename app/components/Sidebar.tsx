@@ -103,15 +103,15 @@ export function SvgIcon({ d, className = "h-4 w-4" }: { d: string; className?: s
 function navItemClass(isActive: boolean) {
   return `relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
     isActive
-      ? "bg-[#1b1813] text-[#ece7dd]"
-      : "text-[#958d7c] hover:bg-[rgba(236,231,221,0.05)] hover:text-[#c9c2b4]"
+      ? "bg-[color:var(--card-2)] text-[color:var(--ink)]"
+      : "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink-soft)]"
   }`;
 }
 
 // Violet accent rail shown on the active nav item — echoes `.nav a.active::before`
 // from the dashboard redesign mock. Parent must be `relative` (navItemClass is).
 function ActiveBar() {
-  return <span aria-hidden="true" className="absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#a78bfa]" />;
+  return <span aria-hidden="true" className="absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-r-full bg-[color:var(--vio)]" />;
 }
 
 // Small rose notification pill shown next to a nav item that has items needing
@@ -401,7 +401,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
         className={`relative cursor-grab rounded-lg transition-opacity ${isDragging ? "opacity-40" : ""}`}
       >
         {isDropTarget && (
-          <span aria-hidden className="absolute -top-[3px] left-2 right-2 h-[2px] rounded-full bg-[#a78bfa]" />
+          <span aria-hidden className="absolute -top-[3px] left-2 right-2 h-[2px] rounded-full bg-[color:var(--vio)]" />
         )}
         {inner}
       </div>
@@ -410,27 +410,27 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-[rgba(236,231,221,0.09)] bg-[#14120e] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 xl:w-60 2xl:w-64 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      {open && <div className="fixed inset-0 z-40 bg-[color:var(--scrim)] lg:hidden" onClick={onClose} />}
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-[rgba(var(--ink-rgb),0.09)] bg-[color:var(--paper-2)] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 xl:w-60 2xl:w-64 ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <Link
           href={orgPath("/")}
           onClick={onClose}
-          className="flex h-14 items-center gap-3 border-b border-[rgba(236,231,221,0.06)] px-4 transition-colors hover:bg-[rgba(236,231,221,0.03)]"
+          className="flex h-14 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.06)] px-4 transition-colors hover:bg-[rgba(var(--ink-rgb),0.03)]"
           aria-label="Go to dashboard home"
         >
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Org logo" className="h-8 w-8 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_rgba(0,0,0,0.4)]" />
+            <img src={logoUrl} alt="Org logo" className="h-8 w-8 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_rgba(var(--shade-rgb),calc(0.4*var(--shade-k)))]" />
           ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#a78bfa] to-[#7c3aed] text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(167,139,250,0.3)]">{orgInitials(orgName)}</div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[color:var(--vio)] to-[color:var(--vio-deep)] text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(var(--vio-rgb),0.3)]">{orgInitials(orgName)}</div>
           )}
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold leading-tight text-[#ece7dd]" style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}>{orgName}</p>
-            <p className="mt-0.5 font-mono text-[9px] uppercase leading-tight tracking-[0.14em] text-[#6b6354]">{semesterLabel}</p>
+            <p className="truncate text-[13px] font-semibold leading-tight text-[color:var(--ink)]" style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}>{orgName}</p>
+            <p className="mt-0.5 font-mono text-[9px] uppercase leading-tight tracking-[0.14em] text-[color:var(--faint)]">{semesterLabel}</p>
           </div>
         </Link>
         {currentUser && currentUser.memberships.length > 1 && (
-          <div className="border-b border-[rgba(236,231,221,0.06)] px-4 py-2">
+          <div className="border-b border-[rgba(var(--ink-rgb),0.06)] px-4 py-2">
             <OrgSwitcher />
           </div>
         )}
@@ -443,7 +443,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
               const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
               return (
                 <section key={group.label} aria-labelledby={headingId}>
-                  <p id={headingId} className="mb-1.5 px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.18em] text-[#6b6354]">
+                  <p id={headingId} className="mb-1.5 px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.18em] text-[color:var(--faint)]">
                     {group.label}
                   </p>
                   <div className="space-y-0.5">
@@ -455,9 +455,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           </div>
         </nav>
 
-        <div className="shrink-0 border-t border-[rgba(236,231,221,0.06)] px-2 py-2">
+        <div className="shrink-0 border-t border-[rgba(var(--ink-rgb),0.06)] px-2 py-2">
           <SidebarProfile onNavigate={onClose} />
-          <p className="px-3 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[#6b6354]">ChaptOS · v1.0</p>
+          <p className="px-3 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--faint)]">ChaptOS · v1.0</p>
         </div>
       </aside>
     </>

@@ -1,8 +1,8 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Detail drawers — "Chapter Ledger" redesign (companion to dashboard-ledger.css)
    The KPI / Widget / Custom-Metric / Brother drawers render as fixed overlays
-   OUTSIDE the `.dash` wrapper, so they can't inherit its dusk tokens. This file
-   redeclares the same dusk palette under `.dash-drawer` and ports the editorial
+   OUTSIDE the `.dash` wrapper. The palette is global (app/globals.css); this file
+   adds fonts under `.dash-drawer` and ports the editorial
    component vocabulary (serif headings, mono labels, --card/--vio/--gold/--rose/
    --ok) the dashboard itself uses, so the drawers read as the same surface.
 
@@ -17,31 +17,12 @@
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
 
-  --paper:    #0f0d0a;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-deep: #7c3aed;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --info:     #8fb0d6;
-  --info-bg:  rgba(143,176,214,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
+  --info:     var(--c-chapter);
+  --info-bg:  color-mix(in srgb, var(--c-chapter) 10%, transparent);
 }
 
 /* ── Backdrop + panel shell ──────────────────────────────────────────────────── */
-.dash-drawer-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.5);
+.dash-drawer-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(var(--shade-rgb),calc(.5 * var(--shade-k)));
   backdrop-filter: blur(1px); transition: opacity .2s; }
 .dash-drawer-backdrop.closed { opacity: 0; pointer-events: none; }
 

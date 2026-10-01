@@ -27,7 +27,7 @@ import { todayStr } from "../../lib/dates";
 
 /** The header pill's ink — the same four lane colours the stage control walks. */
 const STAGE_PILL: Record<ProgrammingStage, string> = {
-  idea: "#6b6354", planning: "#ddb36a", confirmed: "#a78bfa", done: "#7fb08a",
+  idea: "var(--faint)", planning: "var(--gold)", confirmed: "var(--vio)", done: "var(--ok)",
 };
 
 export function ProgrammingDetailPanel({
@@ -200,14 +200,14 @@ export function ProgrammingDetailPanel({
   return (
     // The drawer shell owns the rounding, the border and the scrolling now, so
     // this is a plain surface inside it rather than a card with its own edges.
-    <Card className="flex min-h-full flex-col border-0 !bg-transparent" style={{ background: "linear-gradient(to bottom,#ece7dd0a 0%,#0f0d0a 45%)" }}>
+    <Card className="flex min-h-full flex-col border-0 !bg-transparent" style={{ background: "linear-gradient(to bottom,#ece7dd0a 0%,var(--paper) 45%)" }}>
       <div className="ev-pn-head">
         {/* Lane and kind come BEFORE the name: both are what you're scanning
             for as the drawer slides in, and both are one word. */}
         <div className="ev-pn-top">
           <span
             className="ev-pn-stage"
-            style={{ color: STAGE_PILL[event.stage], background: event.stage === "idea" ? "#0f0d0a" : "transparent" }}
+            style={{ color: STAGE_PILL[event.stage], background: event.stage === "idea" ? "var(--paper)" : "transparent" }}
           >
             {STAGE_LABELS[event.stage]}
           </span>
@@ -287,7 +287,7 @@ export function ProgrammingDetailPanel({
           missing fields as buttons straight to their editors. Its own band under
           the header, matching the sheet's other sections. */}
       {onStage && (
-        <div className="border-b border-[rgba(236,231,221,0.05)] px-[22px] pb-4 pt-[15px]">
+        <div className="border-b border-[rgba(var(--ink-rgb),0.05)] px-[22px] pb-4 pt-[15px]">
           <StageControl
             event={event}
             canManage={canManage}
@@ -503,7 +503,7 @@ export function ProgrammingDetailPanel({
               <>
                 <div className="space-y-1">
                   {linkedTxns.map(t => (
-                    <div key={t.id} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                    <div key={t.id} className="flex items-center justify-between rounded-lg border border-[rgba(var(--ink-rgb),0.06)] bg-[rgba(var(--ink-rgb),0.02)] px-3 py-2">
                       <div className="min-w-0">
                         <p className="ev-pn-tx-t">{t.description || t.category}</p>
                         <p className="ev-pn-tx-m">{fmtDate(t.date)} · {t.category}</p>
@@ -514,7 +514,7 @@ export function ProgrammingDetailPanel({
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.04] px-3 py-2">
+                <div className="flex items-center justify-between rounded-lg border border-[rgba(var(--ink-rgb),0.06)] bg-[rgba(var(--ink-rgb),0.04)] px-3 py-2">
                   <span className="ev-pn-h">Total expenses</span>
                   <span className="ev-pn-tx-amt out total">
                     {fmt$(linkedTxns.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0))}

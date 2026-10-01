@@ -488,7 +488,7 @@ function SettingsPageBody() {
   }
 
   return (
-    <div className="set-page flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="set-page flex h-screen overflow-hidden bg-[color:var(--paper)]">
       {/* Main app (workflow) sidebar. On Settings the page has its own nav column,
           so we hide the main sidebar's static desktop presence (lg:hidden wrapper)
           — it stays available below lg as the hamburger-triggered mobile drawer. */}
@@ -508,7 +508,7 @@ function SettingsPageBody() {
             translate-x slide, opened from the toolbar's "Settings" breadcrumb. */}
         {navOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+            className="fixed inset-0 z-40 bg-[color:var(--scrim)] lg:hidden"
             onClick={() => setNavOpen(false)}
             aria-hidden="true"
           />
@@ -605,10 +605,10 @@ function SettingsPageBody() {
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
           {/* Toolbar: breadcrumb + mobile hamburger. dash-toolbar themes it warm at md+. */}
-          <header className="toolbar-frosted dash-toolbar set-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+          <header className="toolbar-frosted dash-toolbar set-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.05)] px-4 sm:px-6 lg:hidden">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden"
+              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
               aria-label="Open menu"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -622,7 +622,7 @@ function SettingsPageBody() {
               ref={navTriggerRef}
               onClick={() => setNavOpen(true)}
               aria-expanded={navOpen}
-              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden"
+              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
               aria-label="Open settings sections"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>

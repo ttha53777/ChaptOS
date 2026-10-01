@@ -6,14 +6,14 @@
    neither vocabulary already has lives here.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.cef-root { --ok: #7fb08a; --ok-bg: rgba(127,176,138,.10); }
+.cef-root {   }
 
 /* ── Dialog copy & buttons (mirrors ev-btn / tl-add-btn in timeline-ledger.css) ── */
 .cal-flow { display: flex; flex-direction: column; gap: 18px; font-size: 13px; line-height: 1.55; color: var(--ink-soft); }
 .cal-flow strong { color: var(--ink); font-weight: 600; }
 .cal-flow em { font-style: normal; color: var(--ink); }
 .cal-sec { display: flex; flex-direction: column; gap: 9px; }
-.cal-err { font-size: 12px; color: #e0796b; }
+.cal-err { font-size: 12px; color: var(--c-deadline); }
 .cal-muted { color: var(--muted); }
 
 .cal-btn {
@@ -37,7 +37,7 @@
 }
 .cal-tile:hover { border-color: var(--muted); }
 .cal-tile input { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.cal-tile .glyph { width: 36px; height: 36px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); opacity: .7; transition: opacity .12s; }
+.cal-tile .glyph { width: 36px; height: 36px; filter: drop-shadow(0 2px 6px rgba(var(--shade-rgb),calc(.35 * var(--shade-k)))); opacity: .7; transition: opacity .12s; }
 .cal-tile:has(input:checked) { border-color: var(--vio); background: var(--vio-bg); color: var(--ink); }
 .cal-tile:has(input:checked) .glyph { opacity: 1; }
 .cal-tile:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--vio-bg); border-color: var(--vio); }
@@ -83,8 +83,8 @@
 .cal-pub { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .02em; color: var(--muted); }
 .cal-pub .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--faint); }
 .cal-pub.current .dot { background: var(--ok); }
-.cal-pub.publishing .dot, .cal-pub.retrying .dot { background: #ddb36a; }
-.cal-alert { border: 1px solid rgba(221,179,106,.3); background: rgba(221,179,106,.08); border-radius: 11px; padding: 11px 13px; color: var(--ink-soft); }
+.cal-pub.publishing .dot, .cal-pub.retrying .dot { background: var(--gold); }
+.cal-alert { border: 1px solid rgba(var(--gold-rgb),.3); background: rgba(var(--gold-rgb),.08); border-radius: 11px; padding: 11px 13px; color: var(--ink-soft); }
 
 /* ── Settings checklist — step marker inside an .sc-row ────────────────────── */
 .dash .set-section .cal-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -93,7 +93,7 @@
   flex-shrink: 0; width: 22px; height: 22px; margin-top: -1px; border-radius: 50%; display: grid; place-items: center;
   font-family: var(--mono); font-size: 10px; color: var(--muted); background: var(--card-2); border: 1px solid var(--line);
 }
-.dash .set-section .cal-step-n.done { color: var(--ok); background: var(--ok-bg); border-color: rgba(127,176,138,.25); }
+.dash .set-section .cal-step-n.done { color: var(--ok); background: var(--ok-bg); border-color: rgba(var(--ok-rgb),.25); }
 .dash .set-section .cal-step-n svg { width: 11px; height: 11px; }
 .dash .set-section .cal-step-body { display: flex; flex-direction: column; gap: 10px; }
 .dash .set-section .cal-step-body > p:not([class]) { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
@@ -113,7 +113,7 @@
 .dash .set-section .cal-tell-msg {
   align-self: flex-start; max-width: 520px; overflow-wrap: anywhere;
   font-size: 13px; line-height: 1.55; color: var(--ink);
-  background: var(--vio-bg); border: 1px solid rgba(167,139,250,.22);
+  background: var(--vio-bg); border: 1px solid rgba(var(--vio-rgb),.22);
   border-radius: 14px 14px 14px 4px; padding: 11px 14px;
 }
 .dash .set-section .cal-tell .sc-btn svg { width: 12px; height: 12px; margin-right: 5px; vertical-align: -1px; }

@@ -68,7 +68,7 @@ export function InstagramPostForm({
           value={form.dueDate}
           onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
         />
-        <p className="mt-1 text-[11px] text-[#8a8474]">The planned date — drives urgency and the calendar.</p>
+        <p className="mt-1 text-[11px] text-[color:var(--muted)]">The planned date — drives urgency and the calendar.</p>
       </div>
       {showPostedDate && (
         <div>
@@ -79,7 +79,7 @@ export function InstagramPostForm({
             value={form.postedDate ?? ""}
             onChange={e => setForm(f => ({ ...f, postedDate: e.target.value || null }))}
           />
-          <p className="mt-1 text-[11px] text-[#8a8474]">The day it actually went live.</p>
+          <p className="mt-1 text-[11px] text-[color:var(--muted)]">The day it actually went live.</p>
         </div>
       )}
       <div>
@@ -113,13 +113,13 @@ export function InstagramPostForm({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#161310] px-4 py-1.5 text-[13px] text-[#c9c2b4] transition-colors hover:border-[rgba(236,231,221,0.22)] hover:text-[#ece7dd]"
+          className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--card)] px-4 py-1.5 text-[13px] text-[color:var(--ink-soft)] transition-colors hover:border-[rgba(var(--ink-rgb),0.22)] hover:text-[color:var(--ink)]"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="rounded-lg bg-[#a78bfa] px-4 py-1.5 text-[13px] font-semibold text-[#1a1206] transition-colors hover:bg-[#b9a0fb]"
+          className="rounded-lg bg-[color:var(--vio)] px-4 py-1.5 text-[13px] font-semibold text-[color:var(--paper)] transition-colors hover:bg-[color:var(--vio-hi)]"
         >
           {submitLabel}
         </button>

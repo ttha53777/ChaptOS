@@ -25,11 +25,11 @@ import type { ProgrammingTask } from "../../../data";
 
 /** Each lane's own accent, and the wash its halo is drawn in. */
 const STAGE_COLOR: Record<ProgrammingStage, string> = {
-  idea: "#6b6354", planning: "#ddb36a", confirmed: "#a78bfa", done: "#7fb08a",
+  idea: "var(--faint)", planning: "var(--gold)", confirmed: "var(--vio)", done: "var(--ok)",
 };
 const STAGE_BG: Record<ProgrammingStage, string> = {
-  idea: "rgba(236,231,221,.05)", planning: "rgba(221,179,106,.10)",
-  confirmed: "rgba(167,139,250,.10)", done: "rgba(127,176,138,.10)",
+  idea: "rgba(var(--ink-rgb),.05)", planning: "rgba(var(--gold-rgb),.10)",
+  confirmed: "rgba(var(--vio-rgb),.10)", done: "rgba(var(--ok-rgb),.10)",
 };
 
 export function StageControl({

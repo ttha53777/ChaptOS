@@ -142,7 +142,7 @@ const ICONS: Record<ToastVariant, React.ReactNode> = {
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string) => void }) {
   return (
     <div
-      className={`pointer-events-auto flex w-full max-w-md items-start gap-2 rounded-xl border px-3 py-2.5 text-[13px] shadow-[0_8px_28px_-10px_rgba(0,0,0,0.6)] backdrop-blur-xl ${VARIANT_CLS[toast.variant]}`}
+      className={`pointer-events-auto flex w-full max-w-md items-start gap-2 rounded-xl border px-3 py-2.5 text-[13px] shadow-[0_8px_28px_-10px_rgba(var(--shade-rgb),calc(0.6*var(--shade-k)))] backdrop-blur-xl ${VARIANT_CLS[toast.variant]}`}
     >
       <span className="mt-0.5 shrink-0">{ICONS[toast.variant]}</span>
       <p className="flex-1 leading-relaxed">{toast.message}</p>

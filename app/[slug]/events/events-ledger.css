@@ -27,26 +27,6 @@
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
 
-  --paper:    #0f0d0a;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-deep: #7c3aed;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 
   width: 100%;
   max-width: 1280px;
@@ -56,14 +36,14 @@
 
 /* ── Toolbar bar (breadcrumb label) ──────────────────────────────────────────── */
 header.dash-toolbar.ev-toolbar-bar {
-  background: rgba(15, 13, 10, 0.85);
-  border-bottom-color: rgba(236, 231, 221, 0.09);
+  background: rgba(var(--paper-rgb),0.85);
+  border-bottom-color: rgba(var(--ink-rgb),0.09);
 }
-header.dash-toolbar.ev-toolbar-bar .tb-icon-btn { color: #958d7c; }
-header.dash-toolbar.ev-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236, 231, 221, 0.035); }
+header.dash-toolbar.ev-toolbar-bar .tb-icon-btn { color: var(--muted); }
+header.dash-toolbar.ev-toolbar-bar .tb-icon-btn:hover { color: var(--ink); background: rgba(var(--ink-rgb),0.035); }
 header.dash-toolbar .ev-crumb {
   font-family: var(--font-fraunces), Georgia, serif; font-weight: 500;
-  font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+  font-size: 15px; letter-spacing: -.01em; color: var(--ink);
 }
 
 /* Page errors go through the app-wide toast stack (components/dashboard/Toast).
@@ -94,10 +74,10 @@ header.dash-toolbar .ev-crumb {
 }
 .dash .ev-help-btn:hover { color: var(--vio); border-color: var(--vio); }
 .ev-help-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.ev-help-dot.idea { background: var(--faint, #6b6354); }
-.ev-help-dot.planning { background: var(--gold, #ddb36a); }
-.ev-help-dot.confirmed { background: var(--vio, #a78bfa); }
-.ev-help-dot.done { background: var(--ok, #7fb08a); }
+.ev-help-dot.idea { background: var(--faint, var(--faint)); }
+.ev-help-dot.planning { background: var(--gold, var(--gold)); }
+.ev-help-dot.confirmed { background: var(--vio, var(--vio)); }
+.ev-help-dot.done { background: var(--ok, var(--ok)); }
 
 /* ── The status line ─────────────────────────────────────────────────────────
    Replaced an AI-chipped digest paragraph. Same three facts, but as tinted
@@ -353,9 +333,6 @@ header.dash-toolbar .ev-crumb {
 /* Unscoped alongside the picker: the avatar also rides into the fix-step's
    modal portal, and into the board card's foot. Tokens restated for the portal. */
 .ev-av {
-  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
-  --gold: #ddb36a; --gold-bg: rgba(221,179,106,.10);
-  --faint: #6b6354; --line: rgba(236,231,221,.09);
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; flex-shrink: 0;
@@ -367,7 +344,7 @@ header.dash-toolbar .ev-crumb {
 .ev-av.role { border-radius: 7px; background: var(--gold-bg); color: var(--gold); }
 .ev-av.none {
   background: none; color: var(--faint);
-  border: 1px dashed var(--line); border-color: rgba(236,231,221,.18);
+  border: 1px dashed var(--line); border-color: rgba(var(--ink-rgb),.18);
 }
 
 /* Owner avatar + picker.
@@ -377,10 +354,6 @@ header.dash-toolbar .ev-crumb {
    every rule it had and collapsed into an unstyled run of names. Tokens are
    restated below for the same reason. */
 .ev-ownpick {
-  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
-  --card-2: #1b1813; --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
-  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
-  --rose: #d98ba3; --rose-bg: rgba(217,139,163,.10);
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
 }
 .ev-ownpick { border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); overflow: hidden; }
@@ -403,7 +376,7 @@ header.dash-toolbar .ev-crumb {
   padding: 6px 8px; border-radius: 8px;
   border: none; background: none; cursor: pointer; text-align: left;
 }
-.ev-ownpick-opt:hover:not(:disabled) { background: rgba(236,231,221,.04); }
+.ev-ownpick-opt:hover:not(:disabled) { background: rgba(var(--ink-rgb),.04); }
 .ev-ownpick-opt.on { background: var(--vio-bg); }
 .ev-ownpick-opt:disabled { opacity: .55; cursor: default; }
 .ev-ownpick-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -453,67 +426,67 @@ header.dash-toolbar .ev-crumb {
 .ev-fp-pill {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 999px; cursor: pointer;
-  border: 1px dashed rgba(236,231,221,.18); background: none;
-  font-size: 11.5px; color: #6b6354;
+  border: 1px dashed rgba(var(--ink-rgb),.18); background: none;
+  font-size: 11.5px; color: var(--faint);
   transition: color .15s, border-color .15s, background .15s;
 }
 .ev-fp-pill svg { width: 9px; height: 9px; }
-.ev-fp-pill:hover:not(:disabled) { color: #ece7dd; border-color: rgba(236,231,221,.32); }
-.ev-fp-pill.on { border-style: solid; border-color: rgba(167,139,250,.32); background: rgba(167,139,250,.10); color: #a78bfa; }
+.ev-fp-pill:hover:not(:disabled) { color: var(--ink); border-color: rgba(var(--ink-rgb),.32); }
+.ev-fp-pill.on { border-style: solid; border-color: rgba(var(--vio-rgb),.32); background: rgba(var(--vio-rgb),.10); color: var(--vio); }
 /* Built-in: always collected, so there's nothing to toggle. Solid edge, padlock,
    and the hover lift is withheld — it isn't a target. */
-.ev-fp-pill.locked { border-style: solid; border-color: rgba(236,231,221,.10); color: #6b6354; }
+.ev-fp-pill.locked { border-style: solid; border-color: rgba(var(--ink-rgb),.10); color: var(--faint); }
 .ev-fp-pill:disabled { cursor: default; }
 
 .ev-fp-add {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 9px; border-radius: 999px; font-size: 11.5px; cursor: pointer;
-  color: #958d7c; background: none; border: 1px dashed transparent;
+  color: var(--muted); background: none; border: 1px dashed transparent;
 }
 .ev-fp-add svg { width: 9px; height: 9px; }
-.ev-fp-add:hover:not(:disabled) { color: #a78bfa; border-color: rgba(167,139,250,.32); }
+.ev-fp-add:hover:not(:disabled) { color: var(--vio); border-color: rgba(var(--vio-rgb),.32); }
 .ev-fp-add:disabled { cursor: default; opacity: .4; }
-.ev-fp-note { margin-top: 7px; font-size: 11px; line-height: 1.5; color: #6b6354; }
-.ev-fp-note a { color: #958d7c; text-decoration: underline; text-underline-offset: 2px; }
-.ev-fp-note a:hover { color: #a78bfa; }
+.ev-fp-note { margin-top: 7px; font-size: 11px; line-height: 1.5; color: var(--faint); }
+.ev-fp-note a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.ev-fp-note a:hover { color: var(--vio); }
 
 /* ── The inline composer ──────────────────────────────────────────────────────
    Opens under the pill row rather than in Settings: the moment you find out you
    need a field is the moment you're filling one of these sheets in. */
 .ev-fn {
   margin-top: 10px; padding: 11px 12px; border-radius: 8px;
-  border: 1px solid rgba(167,139,250,.20); background: rgba(167,139,250,.06);
+  border: 1px solid rgba(var(--vio-rgb),.20); background: rgba(var(--vio-rgb),.06);
 }
 .ev-fn-k, .ev-fn-sub {
-  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #958d7c;
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
 }
 .ev-fn-sub { margin-top: 10px; }
 .ev-fn-input {
   width: 100%; margin-top: 6px; padding: 5px 8px; border-radius: 5px;
-  background: rgba(0,0,0,.22); border: 1px solid rgba(236,231,221,.16);
-  font-size: 12.5px; color: #ece7dd; outline: none;
+  background: rgba(var(--shade-rgb),calc(.22 * var(--shade-k))); border: 1px solid rgba(var(--ink-rgb),.16);
+  font-size: 12.5px; color: var(--ink); outline: none;
 }
-.ev-fn-input:focus { border-color: rgba(167,139,250,.55); }
+.ev-fn-input:focus { border-color: rgba(var(--vio-rgb),.55); }
 .ev-fn-kinds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .ev-fn-kind {
   padding: 3px 8px; border-radius: 999px; cursor: pointer; font-size: 11px;
-  border: 1px solid rgba(236,231,221,.16); background: none; color: #958d7c;
+  border: 1px solid rgba(var(--ink-rgb),.16); background: none; color: var(--muted);
 }
-.ev-fn-kind:hover:not(:disabled) { color: #ece7dd; border-color: rgba(236,231,221,.32); }
-.ev-fn-kind.on { border-color: rgba(167,139,250,.40); background: rgba(167,139,250,.14); color: #a78bfa; }
+.ev-fn-kind:hover:not(:disabled) { color: var(--ink); border-color: rgba(var(--ink-rgb),.32); }
+.ev-fn-kind.on { border-color: rgba(var(--vio-rgb),.40); background: rgba(var(--vio-rgb),.14); color: var(--vio); }
 .ev-fn-kind:disabled { cursor: default; opacity: .45; }
-.ev-fn-eg { margin-top: 7px; font-size: 11px; line-height: 1.5; color: #6b6354; }
-.ev-fn-eg b { color: #958d7c; font-weight: 500; }
-.ev-fn-err { margin-top: 6px; font-size: 11px; color: #e8a598; }
+.ev-fn-eg { margin-top: 7px; font-size: 11px; line-height: 1.5; color: var(--faint); }
+.ev-fn-eg b { color: var(--muted); font-weight: 500; }
+.ev-fn-err { margin-top: 6px; font-size: 11px; color: var(--err-ink); }
 .ev-fn-foot { display: flex; align-items: center; gap: 6px; margin-top: 11px; }
 .ev-fn-sp { flex: 1; }
 .ev-fn-btn {
   padding: 4px 11px; border-radius: 5px; cursor: pointer; font-size: 11.5px;
-  border: 1px solid rgba(236,231,221,.16); background: none; color: #958d7c;
+  border: 1px solid rgba(var(--ink-rgb),.16); background: none; color: var(--muted);
 }
-.ev-fn-btn:hover:not(:disabled) { color: #ece7dd; border-color: rgba(236,231,221,.32); }
-.ev-fn-btn.go { border-color: rgba(167,139,250,.40); background: rgba(167,139,250,.14); color: #a78bfa; }
-.ev-fn-btn.go:hover:not(:disabled) { background: rgba(167,139,250,.22); color: #c4b5fd; }
+.ev-fn-btn:hover:not(:disabled) { color: var(--ink); border-color: rgba(var(--ink-rgb),.32); }
+.ev-fn-btn.go { border-color: rgba(var(--vio-rgb),.40); background: rgba(var(--vio-rgb),.14); color: var(--vio); }
+.ev-fn-btn.go:hover:not(:disabled) { background: rgba(var(--vio-rgb),.22); color: var(--vio-hi); }
 .ev-fn-btn:disabled { cursor: default; opacity: .4; }
 
 /* Touch targets. A 20px-tall pill is a miss on a phone. */
@@ -562,9 +535,6 @@ header.dash-toolbar .ev-crumb {
    up inside its own halo. Each step carries its lane's colour on --sc, which is
    what lets the rail behind a completed step be that lane's colour too. */
 .ev-stage {
-  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
-  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
-  --vio: #a78bfa; --gold: #ddb36a;
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
 }
 .ev-stage-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
@@ -582,11 +552,11 @@ header.dash-toolbar .ev-crumb {
 .ev-stage-step.past:not(:last-child)::after { background: var(--sc, var(--vio)); opacity: .5; }
 .ev-stage-node {
   width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--line);
-  background: #161310; display: grid; place-items: center; flex-shrink: 0; z-index: 1;
+  background: var(--card); display: grid; place-items: center; flex-shrink: 0; z-index: 1;
   transition: border-color .14s, background .14s, transform .14s;
 }
 .ev-stage-node svg { width: 9px; height: 9px; opacity: 0; }
-.ev-stage-step.past .ev-stage-node { border-color: var(--sc); background: var(--sc); color: #161310; }
+.ev-stage-step.past .ev-stage-node { border-color: var(--sc); background: var(--sc); color: var(--card); }
 .ev-stage-step.past .ev-stage-node svg { opacity: 1; }
 .ev-stage-step.on .ev-stage-node {
   border-color: var(--sc); background: var(--sc); transform: scale(1.22);
@@ -626,9 +596,6 @@ header.dash-toolbar .ev-crumb {
    outside the .dash wrapper, so a .dash-prefixed rule would never match. Tokens
    are restated because the modal is outside the theming scope too. */
 .ev-ni-sub, .ev-ni-field, .ev-ni-remain, .ev-ni-cancel {
-  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
-  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
-  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10); --gold: #ddb36a; --ok: #7fb08a;
 }
 .ev-ni-sub { font-size: 12.5px; line-height: 1.55; color: var(--muted); }
 .ev-ni-sub b { color: var(--ink-soft); font-weight: 600; }
@@ -640,7 +607,7 @@ header.dash-toolbar .ev-crumb {
 }
 .ev-ni-input {
   width: 100%; border-radius: 7px; padding: 9px 11px; font-size: 13px;
-  color: var(--ink); background: rgba(236,231,221,.03);
+  color: var(--ink); background: rgba(var(--ink-rgb),.03);
   border: 1px solid var(--line); outline: none;
 }
 .ev-ni-input::placeholder { color: var(--faint); }
@@ -672,8 +639,8 @@ header.dash-toolbar .ev-crumb {
    Unscoped, like the field rows below: this sits outside the .dash wrapper. */
 .ev-panel {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(430px, 100vw); z-index: 95;
-  background: #161310; border-left: 1px solid rgba(236,231,221,.09);
-  box-shadow: -24px 0 60px -40px rgba(0,0,0,.9);
+  background: var(--card); border-left: 1px solid rgba(var(--ink-rgb),.09);
+  box-shadow: -24px 0 60px -40px rgba(var(--shade-rgb),calc(.9 * var(--shade-k)));
   transform: translateX(100%); transition: transform .26s cubic-bezier(.2,.8,.2,1);
   overflow-y: auto; overscroll-behavior: contain;
 }
@@ -684,7 +651,7 @@ header.dash-toolbar .ev-crumb {
 @media (max-width: 640px) {
   .ev-panel {
     top: 56px; left: 0; width: auto; border-left: none;
-    border-top: 1px solid rgba(236,231,221,.1); border-radius: 16px 16px 0 0;
+    border-top: 1px solid rgba(var(--ink-rgb),.1); border-radius: 16px 16px 0 0;
     transform: translateY(100%);
   }
   .ev-panel.open { transform: none; }
@@ -693,7 +660,7 @@ header.dash-toolbar .ev-crumb {
 /* The scrim dims the board only where the drawer is a sheet over it. On a wide
    screen the board behind stays live and clickable — you can open another card
    straight from the drawer — so dimming it would lie about what's reachable. */
-.ev-panel-scrim { position: fixed; inset: 0; z-index: 94; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); opacity: 1; transition: opacity .26s; }
+.ev-panel-scrim { position: fixed; inset: 0; z-index: 94; background: rgba(var(--shade-rgb),calc(.6 * var(--shade-k))); backdrop-filter: blur(3px); opacity: 1; transition: opacity .26s; }
 .ev-panel-scrim.closing { opacity: 0; }
 @media (min-width: 641px) { .ev-panel-scrim { display: none; } }
 
@@ -706,11 +673,6 @@ header.dash-toolbar .ev-crumb {
    .dash wrapper generally, so .dash-prefixed rules would never match. Tokens are
    restated for the same reason. */
 .ev-pn-sec, .ev-flds {
-  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
-  --paper: #0f0d0a; --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
-  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
-  --gold: #ddb36a; --gold-bg: rgba(221,179,106,.10);
-  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.10);
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
 }
 /* Each section is its own band with a hairline under it, rather than free-
@@ -801,10 +763,6 @@ header.dash-toolbar .ev-crumb {
    .dash, so they can't inherit the theme tokens and were each hardcoding the
    same dusk hexes inline. These are the shared roles, declared once. */
 .ev-ov {
-  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
-  --paper: #0f0d0a; --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
-  --vio: #a78bfa; --vio-bg: rgba(167,139,250,.10);
-  --gold: #ddb36a; --ok: #7fb08a;
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
 }
 .ev-ov-sub { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
@@ -824,7 +782,7 @@ header.dash-toolbar .ev-crumb {
   color: var(--muted); background: none; border: 1px solid var(--line); transition: color .12s, background .12s, border-color .12s;
 }
 .ev-ov-choice:hover { color: var(--ink); }
-.ev-ov-choice.on { color: #c4b5fd; background: var(--vio-bg); border-color: rgba(167,139,250,.30); }
+.ev-ov-choice.on { color: var(--vio-hi); background: var(--vio-bg); border-color: rgba(var(--vio-rgb),.30); }
 
 /* ── Panel chrome ────────────────────────────────────────────────────────────
    Header, spending, and linked transactions. Unscoped like the rest of the
@@ -832,13 +790,6 @@ header.dash-toolbar .ev-crumb {
 .ev-pn-head, .ev-pn-title, .ev-pn-when, .ev-pn-collab, .ev-pn-unowned, .ev-pn-btn, .ev-pn-close,
 .ev-pn-h, .ev-pn-amt, .ev-pn-note, .ev-pn-link, .ev-pn-dollar, .ev-pn-foot,
 .ev-pn-tx-t, .ev-pn-tx-m, .ev-pn-tx-amt {
-  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
-  --paper: #0f0d0a;
-  --vio: #a78bfa; --vio-deep: #8b6ff5; --vio-bg: rgba(167,139,250,.10);
-  --gold: #ddb36a; --gold-bg: rgba(221,179,106,.10);
-  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.10);
-  --rose: #d98ba3; --rose-bg: rgba(217,139,163,.10);
-  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
   --mono: "Geist Mono", ui-monospace, Menlo, monospace;
   --serif: var(--font-fraunces), Georgia, serif;
 }
@@ -888,9 +839,9 @@ header.dash-toolbar .ev-crumb {
   color: var(--ink-soft); background: var(--line-soft); border: 1px solid var(--line);
   transition: color .12s, background .12s;
 }
-.ev-pn-btn:hover { color: #c4b5fd; background: var(--vio-bg); }
-.ev-pn-btn.danger { color: var(--rose); background: var(--rose-bg); border-color: rgba(217,139,163,.20); }
-.ev-pn-btn.danger:hover { color: var(--rose); background: rgba(217,139,163,.20); }
+.ev-pn-btn:hover { color: var(--vio-hi); background: var(--vio-bg); }
+.ev-pn-btn.danger { color: var(--rose); background: var(--rose-bg); border-color: rgba(var(--rose-rgb),.20); }
+.ev-pn-btn.danger:hover { color: var(--rose); background: rgba(var(--rose-rgb),.20); }
 .ev-pn-close {
   width: 28px; height: 28px; flex-shrink: 0; display: grid; place-items: center; cursor: pointer;
   border-radius: 8px; color: var(--muted); background: transparent; border: 1px solid var(--line);
@@ -903,7 +854,7 @@ header.dash-toolbar .ev-crumb {
 .ev-pn-amt { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); }
 .ev-pn-note { font-size: 11px; color: var(--faint); }
 .ev-pn-link { font-size: 11px; font-weight: 600; color: var(--vio); background: none; border: none; cursor: pointer; }
-.ev-pn-link:hover { color: #c4b5fd; }
+.ev-pn-link:hover { color: var(--vio-hi); }
 .ev-pn-dollar { pointer-events: none; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--faint); }
 .ev-pn-tx-t { font-size: 12px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ev-pn-tx-m { font-size: 10px; color: var(--faint); }
@@ -940,19 +891,19 @@ header.dash-toolbar .ev-crumb {
 /* The wrapped record. Green, because Done is a settled state — the gold card
    this replaced read as an unfinished form asking to be filled in. */
 .ev-pn-wrap {
-  border: 1px solid rgba(127,176,138,.10); background: rgba(127,176,138,.10);
+  border: 1px solid rgba(var(--ok-rgb),.10); background: rgba(var(--ok-rgb),.10);
   border-radius: 11px; padding: 13px 15px;
 }
 .ev-pn-wrap .pw-head { display: flex; align-items: center; gap: 8px; }
 .ev-pn-wrap .pw-k {
   font-family: "Geist Mono", ui-monospace, Menlo, monospace;
-  font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: #7fb08a;
+  font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--ok);
 }
-.ev-pn-wrap .pw-stars { margin-left: auto; color: #ddb36a; font-size: 13px; letter-spacing: 1px; }
-.ev-pn-wrap .pw-stars .off { color: #6b6354; opacity: .45; }
-.ev-pn-wrap .pw-none { margin-left: auto; font-size: 11.5px; color: #6b6354; font-style: italic; }
-.ev-pn-wrap .pw-notes { margin-top: 8px; font-size: 12.5px; color: #c9c2b4; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ev-pn-wrap .pw-nonotes { margin-top: 8px; font-size: 11.5px; color: #6b6354; font-style: italic; }
+.ev-pn-wrap .pw-stars { margin-left: auto; color: var(--gold); font-size: 13px; letter-spacing: 1px; }
+.ev-pn-wrap .pw-stars .off { color: var(--faint); opacity: .45; }
+.ev-pn-wrap .pw-none { margin-left: auto; font-size: 11.5px; color: var(--faint); font-style: italic; }
+.ev-pn-wrap .pw-notes { margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ev-pn-wrap .pw-nonotes { margin-top: 8px; font-size: 11.5px; color: var(--faint); font-style: italic; }
 
 /* Whether the chapter can see this event, as a pill rather than a sentence. */
 .ev-vis {
@@ -962,8 +913,8 @@ header.dash-toolbar .ev-crumb {
   border-radius: 999px; padding: 4px 10px 4px 8px; border: 1px solid transparent;
 }
 .ev-vis svg { width: 10px; height: 10px; flex-shrink: 0; }
-.ev-vis.private { color: #6b6354; background: #0f0d0a; border-color: rgba(236,231,221,.05); }
-.ev-vis.public { color: #a78bfa; background: rgba(167,139,250,.10); border-color: rgba(167,139,250,.10); }
+.ev-vis.private { color: var(--faint); background: var(--paper); border-color: rgba(var(--ink-rgb),.05); }
+.ev-vis.public { color: var(--vio); background: rgba(var(--vio-rgb),.10); border-color: rgba(var(--vio-rgb),.10); }
 
 /* A frozen field answering a click. Unscoped — the panel mounts outside .dash. */
 .ev-refused { animation: ev-refuse 500ms cubic-bezier(.36,.07,.19,.97); }
@@ -978,7 +929,7 @@ header.dash-toolbar .ev-crumb {
 }
 @media (prefers-reduced-motion: reduce) {
   /* The shake is the whole signal, so replace it rather than dropping it. */
-  .ev-refused { animation: none; background: rgba(221,179,106,.10); border-radius: 8px; }
+  .ev-refused { animation: none; background: rgba(var(--gold-rgb),.10); border-radius: 8px; }
 }
 
 .ev-hunted { animation: ev-hunt 800ms ease-out 2; border-radius: 8px; }

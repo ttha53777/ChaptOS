@@ -8,8 +8,8 @@
 .dash .cal-invite {
   margin-top: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px;
   position: relative; overflow: hidden;
-  border: 1px solid rgba(167,139,250,.28); border-radius: 14px; padding: 16px 20px 16px 18px;
-  background: linear-gradient(180deg, rgba(167,139,250,.08), rgba(167,139,250,.02)), var(--card);
+  border: 1px solid rgba(var(--vio-rgb),.28); border-radius: 14px; padding: 16px 20px 16px 18px;
+  background: linear-gradient(180deg, rgba(var(--vio-rgb),.08), rgba(var(--vio-rgb),.02)), var(--card);
   box-shadow: var(--shadow);
 }
 /* A tiny calendar page with today's date: says "calendar" before the words do. */

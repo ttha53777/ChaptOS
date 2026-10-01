@@ -58,7 +58,7 @@ export function BrotherAvatar({
   return (
     <div
       className={`flex ${box} shrink-0 items-center justify-center rounded-full font-bold ${
-        styled ? ringClassName : `bg-white/[0.06] text-[#958d7c] ${text}`
+        styled ? ringClassName : `bg-[rgba(var(--ink-rgb),0.06)] text-[color:var(--muted)] ${text}`
       } ${className}`}
     >
       {initials}

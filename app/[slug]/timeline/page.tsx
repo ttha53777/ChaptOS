@@ -1446,7 +1446,7 @@ export default function TimelinePage() {
 
   return (
     <EventTypesContext.Provider value={typeMap}>
-    <div className="flex h-screen overflow-hidden bg-[#07090f]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Timeline" onNavClick={() => {}} />
       {subscribeOpen && <AddToCalendarDialog provider={subscribeOpen.provider} onClose={closeSubscribe} />}
 
@@ -1454,26 +1454,26 @@ export default function TimelinePage() {
 
         {/* ── Toolbar (mobile/tablet only — hidden at lg+ where the sidebar is
             static and "Add Event" lives in the briefing below). ──────────────── */}
-        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.05] px-3 sm:gap-3 sm:px-5 lg:hidden">
-          <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden">
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-2 border-b border-[rgba(var(--ink-rgb),0.05)] px-3 sm:gap-3 sm:px-5 lg:hidden">
+          <button onClick={() => setSidebarOpen(true)} className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
           <div className="min-w-0 flex-1">
-            <p className="tb-title text-[14px] font-semibold leading-tight text-[#ece7dd]">Timeline</p>
-            <p className="tb-org hidden text-[11px] leading-tight text-[#958d7c] sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
+            <p className="tb-title text-[14px] font-semibold leading-tight text-[color:var(--ink)]">Timeline</p>
+            <p className="tb-org hidden text-[11px] leading-tight text-[color:var(--muted)] sm:block">{currentUser?.org?.name ?? "ChaptOS"}</p>
           </div>
 
           <AddToCalendarButton variant="toolbar" onClick={() => setSubscribeOpen({})} />
-          <p className="tb-date hidden text-[11px] text-[#958d7c] xl:block shrink-0">{dateShort}</p>
+          <p className="tb-date hidden text-[11px] text-[color:var(--muted)] xl:block shrink-0">{dateShort}</p>
 
           <button
             onClick={() => router.push(orgPath("/tasks?new=1"))}
-            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none"
+            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--ink-soft)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[color:var(--vio)]/40 hover:bg-[color:var(--vio)]/10 hover:text-[color:var(--ink)] focus:outline-none"
           >
-            <svg className="h-3.5 w-3.5 text-[#958d7c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+            <svg className="h-3.5 w-3.5 text-[color:var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
             <span className="hidden sm:inline">Add Deadline</span>
@@ -1481,9 +1481,9 @@ export default function TimelinePage() {
 
           <button
             onClick={() => setActiveModal("create")}
-            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(236,231,221,0.12)] bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-[#c9c2b4] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[#a78bfa]/40 hover:bg-[#a78bfa]/10 hover:text-[#ece7dd] focus:outline-none"
+            className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--ink-soft)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[color:var(--vio)]/40 hover:bg-[color:var(--vio)]/10 hover:text-[color:var(--ink)] focus:outline-none"
           >
-            <svg className="h-3.5 w-3.5 text-[#958d7c]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+            <svg className="h-3.5 w-3.5 text-[color:var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
             </svg>
             <span className="hidden sm:inline">Add Event</span>
@@ -1937,7 +1937,7 @@ export default function TimelinePage() {
         <ConfirmDialog
           tone="dusk"
           title="Delete Event"
-          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDeleteEvent.title}</span>? Its attendance records and excuse requests will also be removed.{confirmDeleteEvent.partyEventId ? " This also deletes its party ledger and financial totals." : ""} This cannot be undone.</>}
+          message={<>Delete <span className="font-semibold text-[color:var(--ink)]">{confirmDeleteEvent.title}</span>? Its attendance records and excuse requests will also be removed.{confirmDeleteEvent.partyEventId ? " This also deletes its party ledger and financial totals." : ""} This cannot be undone.</>}
           onCancel={() => setConfirmDeleteEvent(null)}
           onConfirm={() => { executeDeleteEvent(confirmDeleteEvent); setConfirmDeleteEvent(null); }}
         />

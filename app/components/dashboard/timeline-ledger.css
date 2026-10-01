@@ -26,26 +26,7 @@
 .dash .tl-add-btn.ghost:hover { color: var(--ink); border-color: var(--ink); }
 .dash .tl-add-btn.ghost svg { stroke: currentColor; }
 
-/* ── Category palette — muted, editorial; only used as small node dots + legend.
-   Keys match CalEventCategory so JSX can set `var(--c-${category})`. ─────────── */
-.dash[data-dashboard-theme="dusk"] {
-  --c-chapter:  #8fb0d6;
-  --c-social:   #ddb36a;
-  --c-fundy:    #86b988;
-  --c-program:  #a78bfa;
-  --c-party:    #d98ba3;
-  --c-deadline: #e0796b;
-  --c-service:  #5fbdb0;
-}
-.dash[data-dashboard-theme="ivory"] {
-  --c-chapter:  #3f6ea3;
-  --c-social:   #9a7224;
-  --c-fundy:    #4a7d4c;
-  --c-program:  #6d28d9;
-  --c-party:    #b34f72;
-  --c-deadline: #c14a37;
-  --c-service:  #2f8579;
-}
+/* Category palette (--c-chapter, --c-social, …) lives in app/globals.css. */
 
 /* ── Glance strip — reuses .ledger/.measure; add a rose "flag" variant ───────── */
 .dash .measure .note.bad { color: var(--rose); }

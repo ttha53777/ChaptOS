@@ -122,15 +122,15 @@ export function TaskForm({
       <div>
         <FieldLabel tone="dusk">Assign to</FieldLabel>
         {/* Self-contained segmented toggle (portable across tasks page + dashboard). */}
-        <div className="inline-flex overflow-hidden rounded-lg border border-[rgba(236,231,221,0.12)]">
+        <div className="inline-flex overflow-hidden rounded-lg border border-[rgba(var(--ink-rgb),0.12)]">
           {MODES.map(m => (
             <button key={m.key} type="button"
               aria-pressed={mode === m.key}
               onClick={() => { setMode(m.key); setLocalError(null); }}
               className={`px-3.5 py-2 text-[11px] font-medium tracking-wide transition-colors ${
                 mode === m.key
-                  ? "bg-[#a78bfa] text-[#0f0d0a]"
-                  : "text-[#958d7c] hover:text-[#ece7dd] hover:bg-[rgba(236,231,221,0.06)]"
+                  ? "bg-[color:var(--vio)] text-[color:var(--paper)]"
+                  : "text-[color:var(--muted)] hover:text-[color:var(--ink)] hover:bg-[rgba(var(--ink-rgb),0.06)]"
               }`}>
               {m.label}
             </button>

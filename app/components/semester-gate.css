@@ -7,9 +7,9 @@
    solid violet action.
 
    ISOLATION: every selector begins with `.sg`. The tokens (--vio, --paper-2, …)
-   are NOT defined here — they're inherited from the `.dash[data-dashboard-theme="dusk"]`
-   wrapper the gate renders its body inside (see SemesterGate.tsx). That wrapper
-   also means Tailwind layout utilities are unsafe in here (dashboard-ledger.css
+   are NOT defined here — they come from :root / html[data-theme] in globals.css. The `.dash`
+   wrapper the gate renders its body inside (see SemesterGate.tsx) supplies fonts
+   and base rules, and also means Tailwind layout utilities are unsafe in here (dashboard-ledger.css
    has a `.dash .grid` rule that hijacks `.grid`), which is why this file owns the
    gate's layout outright instead of the component reaching for utility classes.
    ───────────────────────────────────────────────────────────────────────────── */
@@ -77,7 +77,7 @@
   color: var(--muted); background: none; border: none; cursor: pointer;
   transition: background .12s, color .12s;
 }
-.sg-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(236,231,221,.05); }
+.sg-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(var(--ink-rgb),.05); }
 /* Tinted rather than the solid violet .pc-seg uses: that control is small and inline,
    while this one is full-width — a solid fill here would rival the submit button
    below it. Choosing a mode is navigation; only the submit gets the loud treatment. */
@@ -103,7 +103,7 @@
 }
 .sg-input::placeholder { color: var(--faint); }
 .sg-input:focus,
-.sg-date:focus { outline: none; border-color: rgba(167,139,250,.55); }
+.sg-date:focus { outline: none; border-color: rgba(var(--vio-rgb),.55); }
 
 /* Two-up date row. Explicit grid (not Tailwind's `.grid`, which `.dash .grid`
    overrides with the dashboard's 1fr/rail template and would collapse to one
@@ -118,7 +118,7 @@
 .sg-track { position: relative; height: 3px; border-radius: 2px; background: var(--line); }
 .sg-track-base {
   position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px;
-  background: rgba(236,231,221,.28);
+  background: rgba(var(--ink-rgb),.28);
 }
 .sg-track-add {
   position: absolute; top: 0; height: 100%; border-radius: 2px;
@@ -145,14 +145,14 @@
 .sg-submit {
   margin-top: 24px; width: 100%; padding: 12px; border-radius: 9px; border: none; cursor: pointer;
   font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
-  font-weight: 500; background: var(--vio); color: #0f0d0a; transition: background .14s;
+  font-weight: 500; background: var(--vio); color: var(--paper); transition: background .14s;
 }
-.sg-submit:hover:not(:disabled) { background: #bda6fc; }
+.sg-submit:hover:not(:disabled) { background: var(--vio-hi); }
 .sg-submit:disabled { opacity: .5; cursor: not-allowed; }
 .sg-submit:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
 
 .sg-error {
-  margin-top: 18px; border-radius: 9px; border: 1px solid rgba(217,139,163,.25);
+  margin-top: 18px; border-radius: 9px; border: 1px solid rgba(var(--rose-rgb),.25);
   background: var(--rose-bg); color: var(--rose); padding: 9px 12px; font-size: 12.5px;
 }
 

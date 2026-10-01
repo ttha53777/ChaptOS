@@ -11,10 +11,10 @@ import { requestJson } from "../lib/api";
 // rolls over in the evening for western timezones, which would wall a chapter out
 // of the app hours before their semester's last day is actually over.
 import { todayISO } from "@/lib/dates";
-// The gate's own styles (.sg-*) use the dusk CSS vars (--vio, --paper-2, …), which
-// are scoped to `.dash[data-dashboard-theme="dusk"]`. The gate mounts at the root
-// (not inside a dashboard page), so import the ledger stylesheet here and wrap the
-// body in a .dash container below so those vars resolve.
+// The gate's own styles (.sg-*) use the global palette vars (--vio, --paper-2, …)
+// plus the `.dash` font aliases and base rules. The gate mounts at the root (not
+// inside a dashboard page), so import the ledger stylesheet here and wrap the
+// body in a .dash container below.
 import "./dashboard/dashboard-ledger.css";
 import "./semester-gate.css";
 
@@ -181,7 +181,7 @@ export function SemesterGate() {
     // way the poll composer does — the default title bar would sit above and compete
     // with it. Non-dismissable, so no ✕ is lost by dropping the bar.
     <Modal tone="dusk" maxWidthClass="max-w-lg" dismissable={false} hideHeader ariaLabel={head.ariaLabel} onClose={() => {}}>
-      {/* .dash[data-dashboard-theme="dusk"] scopes the .sg-* CSS vars (see import). */}
+      {/* .dash supplies the fonts + base rules the .sg-* styles assume (see import). */}
       <div className="dash" data-dashboard-theme="dusk">
         <div className="sg">
           <GateHead {...head} />

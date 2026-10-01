@@ -383,20 +383,20 @@ export default function TasksPage() {
   const hasAny = taskList.length > 0 || pollList.length > 0;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Tasks" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile toolbar */}
-        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.05)] px-4 sm:px-6 lg:hidden">
           <button onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
             aria-label="Open menu">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="truncate text-[13px] font-semibold text-[#ece7dd]">Tasks</span>
+          <span className="truncate text-[13px] font-semibold text-[color:var(--ink)]">Tasks</span>
         </header>
 
         <main className="page-ambient flex-1 overflow-y-auto">

@@ -25,9 +25,9 @@
   padding: 11px 12px 11px 16px;
 
   background: var(--card-2);
-  border: 1px solid rgba(167, 139, 250, .34);
+  border: 1px solid rgba(var(--vio-rgb),.34);
   border-radius: 13px;
-  box-shadow: 0 2px 0 rgba(0,0,0,.3), 0 22px 48px -26px rgba(0,0,0,.85);
+  box-shadow: 0 2px 0 rgba(var(--shade-rgb),calc(.3 * var(--shade-k))), 0 22px 48px -26px rgba(var(--shade-rgb),calc(.85 * var(--shade-k)));
 
   font-family: var(--sans);
   animation: lcb-in .34s cubic-bezier(.16,.84,.44,1) both;
@@ -43,13 +43,13 @@
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--vio);
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(167,139,250,.16);
+  box-shadow: 0 0 0 3px rgba(var(--vio-rgb),.16);
   animation: lcb-breathe 2.6s ease-in-out infinite;
 }
 
 @keyframes lcb-breathe {
-  0%, 100% { opacity: 1;   box-shadow: 0 0 0 3px rgba(167,139,250,.16); }
-  50%      { opacity: .72; box-shadow: 0 0 0 5px rgba(167,139,250,.07); }
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 3px rgba(var(--vio-rgb),.16); }
+  50%      { opacity: .72; box-shadow: 0 0 0 5px rgba(var(--vio-rgb),.07); }
 }
 
 .dash .lcb-what {
@@ -77,7 +77,7 @@
   text-overflow: ellipsis;
   border-bottom: 1px solid transparent;
 }
-.dash .lcb-title:hover { border-bottom-color: rgba(236,231,221,.3); }
+.dash .lcb-title:hover { border-bottom-color: rgba(var(--ink-rgb),.3); }
 
 .dash .lcb-btn {
   flex-shrink: 0;
@@ -88,7 +88,7 @@
   font-weight: 600;
   color: var(--vio);
   background: var(--vio-bg);
-  border: 1px solid rgba(167,139,250,.42);
+  border: 1px solid rgba(var(--vio-rgb),.42);
   border-radius: 9px;
   cursor: pointer;
   transition: background .15s, border-color .15s, color .15s;
@@ -98,7 +98,7 @@
 .dash .lcb-btn:active { transform: translateY(1px); }
 .dash .lcb-btn:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
 .dash .lcb-btn:disabled { opacity: .6; cursor: default; transform: none; }
-.dash .lcb-btn:disabled:hover { background: var(--vio-bg); border-color: rgba(167,139,250,.42); color: var(--vio); }
+.dash .lcb-btn:disabled:hover { background: var(--vio-bg); border-color: rgba(var(--vio-rgb),.42); color: var(--vio); }
 
 .dash .lcb-x {
   flex-shrink: 0;
@@ -122,19 +122,19 @@
 /* ── closing: the last stretch of the window ─────────────────────────────── */
 /* Gold, matching the full band. The urgency is real — once it expires there is
    no self-serve way back in. */
-.dash .lcb.closing { border-color: rgba(221,179,106,.4); }
+.dash .lcb.closing { border-color: rgba(var(--gold-rgb),.4); }
 .dash .lcb.closing .lcb-what b { color: var(--gold); }
 .dash .lcb.closing .lcb-dot {
   background: var(--gold);
-  box-shadow: 0 0 0 3px rgba(221,179,106,.16);
+  box-shadow: 0 0 0 3px rgba(var(--gold-rgb),.16);
   animation-name: lcb-breathe-gold;
 }
 @keyframes lcb-breathe-gold {
-  0%, 100% { opacity: 1;   box-shadow: 0 0 0 3px rgba(221,179,106,.16); }
-  50%      { opacity: .72; box-shadow: 0 0 0 5px rgba(221,179,106,.07); }
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 3px rgba(var(--gold-rgb),.16); }
+  50%      { opacity: .72; box-shadow: 0 0 0 5px rgba(var(--gold-rgb),.07); }
 }
 .dash .lcb.closing .lcb-btn {
-  color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.45);
+  color: var(--gold); background: var(--gold-bg); border-color: rgba(var(--gold-rgb),.45);
 }
 .dash .lcb.closing .lcb-btn:hover { background: var(--gold); border-color: var(--gold); color: var(--paper); }
 

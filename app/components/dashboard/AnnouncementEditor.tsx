@@ -74,7 +74,7 @@ export function AnnouncementEditor({
           />
         </div>
         <div>
-          <FieldLabel htmlFor="ann-body" tone="dusk">Body <span className="text-[#6b6354]">(optional)</span></FieldLabel>
+          <FieldLabel htmlFor="ann-body" tone="dusk">Body <span className="text-[color:var(--faint)]">(optional)</span></FieldLabel>
           <textarea
             id="ann-body"
             value={body}
@@ -87,7 +87,7 @@ export function AnnouncementEditor({
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <FieldLabel htmlFor="ann-cta-label" tone="dusk">CTA label <span className="text-[#6b6354]">(optional)</span></FieldLabel>
+            <FieldLabel htmlFor="ann-cta-label" tone="dusk">CTA label <span className="text-[color:var(--faint)]">(optional)</span></FieldLabel>
             <input
               id="ann-cta-label"
               type="text"
@@ -99,7 +99,7 @@ export function AnnouncementEditor({
             />
           </div>
           <div>
-            <FieldLabel htmlFor="ann-cta-url" tone="dusk">CTA URL <span className="text-[#6b6354]">(optional)</span></FieldLabel>
+            <FieldLabel htmlFor="ann-cta-url" tone="dusk">CTA URL <span className="text-[color:var(--faint)]">(optional)</span></FieldLabel>
             <input
               id="ann-cta-url"
               type="url"
@@ -112,7 +112,7 @@ export function AnnouncementEditor({
           </div>
         </div>
         {err && (
-          <p className="rounded-lg border border-[#d98ba3]/20 bg-[#d98ba3]/10 px-3 py-2 text-[12px] text-[#d98ba3]">
+          <p className="rounded-lg border border-[color:var(--rose)]/20 bg-[color:var(--rose)]/10 px-3 py-2 text-[12px] text-[color:var(--rose)]">
             {err}
           </p>
         )}

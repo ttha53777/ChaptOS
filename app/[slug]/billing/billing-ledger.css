@@ -16,25 +16,6 @@
   --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
 
-  --paper:    #0f0d0a;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 
   width: 100%;
   max-width: none;
@@ -44,14 +25,14 @@
 
 /* ── Mobile toolbar ─────────────────────────────────────────────────────────── */
 header.dash-toolbar.bl-toolbar-bar {
-  background: rgba(15, 13, 10, .85);
-  border-bottom-color: rgba(236, 231, 221, .09);
+  background: rgba(var(--paper-rgb),.85);
+  border-bottom-color: rgba(var(--ink-rgb),.09);
 }
-header.dash-toolbar.bl-toolbar-bar .tb-icon-btn { color: #958d7c; }
-header.dash-toolbar.bl-toolbar-bar .tb-icon-btn:hover { color: #ece7dd; background: rgba(236,231,221,.035); }
+header.dash-toolbar.bl-toolbar-bar .tb-icon-btn { color: var(--muted); }
+header.dash-toolbar.bl-toolbar-bar .tb-icon-btn:hover { color: var(--ink); background: rgba(var(--ink-rgb),.035); }
 header.dash-toolbar .bl-crumb {
   font-family: var(--font-fraunces), Georgia, serif;
-  font-weight: 500; font-size: 15px; letter-spacing: -.01em; color: #ece7dd;
+  font-weight: 500; font-size: 15px; letter-spacing: -.01em; color: var(--ink);
 }
 
 /* ── Head ───────────────────────────────────────────────────────────────────── */
@@ -123,11 +104,11 @@ header.dash-toolbar .bl-crumb {
   font-family: var(--sans); font-size: 11.5px; font-weight: 600; letter-spacing: .01em;
   border: 1px solid transparent; vertical-align: middle;
 }
-.dash .bl-pill-ok    { color: var(--ok);   background: var(--ok-bg);   border-color: rgba(127,176,138,.28); }
-.dash .bl-pill-vio   { color: var(--vio);  background: var(--vio-bg);  border-color: rgba(167,139,250,.28); }
-.dash .bl-pill-gold  { color: var(--gold); background: var(--gold-bg); border-color: rgba(221,179,106,.28); }
-.dash .bl-pill-rose  { color: var(--rose); background: var(--rose-bg); border-color: rgba(217,139,163,.28); }
-.dash .bl-pill-muted { color: var(--muted); background: rgba(236,231,221,.05); border-color: var(--line); }
+.dash .bl-pill-ok    { color: var(--ok);   background: var(--ok-bg);   border-color: rgba(var(--ok-rgb),.28); }
+.dash .bl-pill-vio   { color: var(--vio);  background: var(--vio-bg);  border-color: rgba(var(--vio-rgb),.28); }
+.dash .bl-pill-gold  { color: var(--gold); background: var(--gold-bg); border-color: rgba(var(--gold-rgb),.28); }
+.dash .bl-pill-rose  { color: var(--rose); background: var(--rose-bg); border-color: rgba(var(--rose-rgb),.28); }
+.dash .bl-pill-muted { color: var(--muted); background: rgba(var(--ink-rgb),.05); border-color: var(--line); }
 
 /* ── Action cards ───────────────────────────────────────────────────────────── */
 .dash .bl-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
@@ -182,7 +163,7 @@ header.dash-toolbar .bl-crumb {
 .dash .bl-you {
   margin-left: 8px; padding: 1px 7px; border-radius: 999px;
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--vio); background: rgba(167,139,250,.16); border: 1px solid rgba(167,139,250,.3);
+  color: var(--vio); background: rgba(var(--vio-rgb),.16); border: 1px solid rgba(var(--vio-rgb),.3);
 }
 
 .dash .bl-fine { font-size: 12px; line-height: 1.65; color: var(--faint); margin: 12px 0 0; max-width: 66ch; }
@@ -244,7 +225,7 @@ header.dash-toolbar .bl-crumb {
 .dash .bl-plan-price span, .dash .bl-capacity { font-size: 14px; color: var(--muted); }
 .dash .bl-plan button { margin-top: 6px; }
 .dash .bl-note .bl-linkish { margin-left: 10px; }
-.bl-plan-confirm { color: #c9c2b4; font-size: 14px; line-height: 1.65; }
+.bl-plan-confirm { color: var(--ink-soft); font-size: 14px; line-height: 1.65; }
 .bl-plan-confirm p + p { margin-top: 14px; }
 .bl-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 @media (max-width: 600px) { .dash .bl-plan-grid { grid-template-columns: 1fr; } }

@@ -112,11 +112,11 @@ function AddPartyForm({ onSubmit, onClose }: {
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <button type="button" onClick={onClose}
-          className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">
+          className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">
           Cancel
         </button>
         <button type="submit"
-          className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
+          className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
           Add Party
         </button>
       </div>
@@ -169,11 +169,11 @@ function EditPartyForm({ party, onSubmit, onClose }: {
       </div>
       <div className="flex gap-2 justify-end pt-1">
         <button type="button" onClick={onClose}
-          className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">
+          className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">
           Cancel
         </button>
         <button type="submit"
-          className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
+          className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
           Save Changes
         </button>
       </div>
@@ -212,15 +212,15 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg bg-white/[0.04] px-4 py-3 mb-1 flex items-center justify-between gap-3">
+      <div className="rounded-lg bg-[rgba(var(--ink-rgb),0.04)] px-4 py-3 mb-1 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-[#ece7dd]">{party.name}</p>
-          <p className="text-[11px] text-[#958d7c] mt-0.5">{fmtDate(party.date)} · {subLine(party)}</p>
+          <p className="text-[13px] font-semibold text-[color:var(--ink)]">{party.name}</p>
+          <p className="text-[11px] text-[color:var(--muted)] mt-0.5">{fmtDate(party.date)} · {subLine(party)}</p>
         </div>
         {canTakeRoll && (
           <div className="flex gap-1.5 shrink-0">
-            <span className={`h-1.5 w-1.5 rounded-full ${step === 1 ? "bg-[#a78bfa]" : "bg-[#6b6354]"}`} />
-            <span className={`h-1.5 w-1.5 rounded-full ${step === 2 ? "bg-[#a78bfa]" : "bg-[#6b6354]"}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${step === 1 ? "bg-[color:var(--vio)]" : "bg-[color:var(--faint)]"}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${step === 2 ? "bg-[color:var(--vio)]" : "bg-[color:var(--faint)]"}`} />
           </div>
         )}
       </div>
@@ -237,9 +237,9 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
               <input type="number" min="0" step="0.01" className={inputDuskCls} required value={form.expenses} onChange={set("expenses")} placeholder="0.00" />
             </div>
           </div>
-          <div className="rounded-lg bg-white/[0.04] px-3 py-2.5 text-center">
-            <p className="text-[10px] text-[#6b6354] mb-0.5">Net preview</p>
-            <p className={`text-[18px] font-bold tabular-nums ${profitPreview >= 0 ? "text-[#7fb08a]" : "text-[#d98ba3]"}`}>{fmt$(profitPreview)}</p>
+          <div className="rounded-lg bg-[rgba(var(--ink-rgb),0.04)] px-3 py-2.5 text-center">
+            <p className="text-[10px] text-[color:var(--faint)] mb-0.5">Net preview</p>
+            <p className={`text-[18px] font-bold tabular-nums ${profitPreview >= 0 ? "text-[color:var(--ok)]" : "text-[color:var(--rose)]"}`}>{fmt$(profitPreview)}</p>
           </div>
           <div>
             <FieldLabel tone="dusk">Post-event notes</FieldLabel>
@@ -247,9 +247,9 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
           </div>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" onClick={onClose}
-              className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">Cancel</button>
+              className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">Cancel</button>
             <button type="submit"
-              className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
+              className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">
               {canTakeRoll ? "Next: Who came? →" : "Mark Completed"}
             </button>
           </div>
@@ -262,35 +262,35 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
             <FieldLabel tone="dusk">Who came? ({present.size}/{brothers.length})</FieldLabel>
             <div className="flex gap-2">
               <button type="button" onClick={() => setPresent(new Set(brothers.map(b => b.id)))}
-                className="text-[10px] uppercase tracking-wider text-[#958d7c] hover:text-[#ece7dd]">All</button>
+                className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] hover:text-[color:var(--ink)]">All</button>
               <button type="button" onClick={() => setPresent(new Set())}
-                className="text-[10px] uppercase tracking-wider text-[#958d7c] hover:text-[#ece7dd]">None</button>
+                className="text-[10px] uppercase tracking-wider text-[color:var(--muted)] hover:text-[color:var(--ink)]">None</button>
             </div>
           </div>
-          <div className="max-h-[220px] overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.08)] divide-y divide-[rgba(236,231,221,0.05)]">
+          <div className="max-h-[220px] overflow-y-auto rounded-lg border border-[rgba(var(--ink-rgb),0.08)] divide-y divide-[rgba(var(--ink-rgb),0.05)]">
             {brothers.map(b => {
               const on = present.has(b.id);
               return (
                 <button type="button" key={b.id} onClick={() => togglePresent(b.id)}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-white/[0.03] transition-colors">
-                  <span className={`flex h-4 w-4 items-center justify-center rounded border ${on ? "border-[#7fb08a] bg-[#7fb08a]/20" : "border-[rgba(236,231,221,0.18)]"}`}>
-                    {on && <svg className="h-3 w-3 text-[#7fb08a]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6L9 17l-5-5" /></svg>}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[rgba(var(--ink-rgb),0.03)] transition-colors">
+                  <span className={`flex h-4 w-4 items-center justify-center rounded border ${on ? "border-[color:var(--ok)] bg-[color:var(--ok)]/20" : "border-[rgba(var(--ink-rgb),0.18)]"}`}>
+                    {on && <svg className="h-3 w-3 text-[color:var(--ok)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3}><path d="M20 6L9 17l-5-5" /></svg>}
                   </span>
-                  <span className={`text-[13px] ${on ? "text-[#ece7dd]" : "text-[#958d7c]"}`}>{b.name}</span>
+                  <span className={`text-[13px] ${on ? "text-[color:var(--ink)]" : "text-[color:var(--muted)]"}`}>{b.name}</span>
                 </button>
               );
             })}
           </div>
-          <label className="flex items-center gap-2.5 rounded-lg bg-white/[0.03] px-3 py-2.5 cursor-pointer">
+          <label className="flex items-center gap-2.5 rounded-lg bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 cursor-pointer">
             <input type="checkbox" checked={mandatory} onChange={e => setMandatory(e.target.checked)}
-              className="h-4 w-4 accent-[#a78bfa]" />
-            <span className="text-[12px] text-[#c9c2b4]">Mandatory — count this toward each brother&rsquo;s attendance %</span>
+              className="h-4 w-4 accent-[color:var(--vio)]" />
+            <span className="text-[12px] text-[color:var(--ink-soft)]">Mandatory — count this toward each brother&rsquo;s attendance %</span>
           </label>
           <div className="flex gap-2 justify-end pt-1">
             <button type="button" onClick={() => setStep(1)}
-              className="rounded-lg border border-[rgba(236,231,221,0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[#c9c2b4] hover:bg-white/[0.04] transition-colors">← Back</button>
+              className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">← Back</button>
             <button type="submit"
-              className="rounded-lg bg-[#7c3aed] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">Mark Completed</button>
+              className="rounded-lg bg-[color:var(--vio-deep)] px-4 py-2 text-[13px] font-semibold text-white hover:bg-[#6d28d9] transition-colors">Mark Completed</button>
           </div>
         </form>
       )}
@@ -588,15 +588,15 @@ export default function PartiesPage() {
 
   // ── render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Parties" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* ── Toolbar (mobile hamburger + breadcrumb) ── */}
-        <header className="toolbar-frosted dash-toolbar pty-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+        <header className="toolbar-frosted dash-toolbar pty-toolbar-bar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.05)] px-4 sm:px-6 lg:hidden">
           <button onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
             aria-label="Open menu">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -761,7 +761,7 @@ export default function PartiesPage() {
         return party ? (
           <ConfirmDialog
             title="Delete Party"
-            message={<>Delete <span className="font-semibold text-[#ece7dd]">{party.name}</span>? Its timeline entry, financial totals, attendance records, and excuses will also be removed. This cannot be undone.</>}
+            message={<>Delete <span className="font-semibold text-[color:var(--ink)]">{party.name}</span>? Its timeline entry, financial totals, attendance records, and excuses will also be removed. This cannot be undone.</>}
             onCancel={() => setConfirmDeleteId(null)}
             onConfirm={() => { handleDelete(confirmDeleteId); setConfirmDeleteId(null); }}
             tone="dusk"

@@ -164,7 +164,7 @@ export function BrotherRoleChips({
                 onClick={() => revoke(r)}
                 disabled={busyRoleId === r.id}
                 aria-label={`Revoke ${r.name}`}
-                className="ml-0.5 -mr-0.5 rounded-full px-1 leading-none text-current/70 hover:bg-white/10 disabled:opacity-40"
+                className="ml-0.5 -mr-0.5 rounded-full px-1 leading-none text-current/70 hover:bg-[rgba(var(--ink-rgb),0.1)] disabled:opacity-40"
               >
                 ×
               </button>

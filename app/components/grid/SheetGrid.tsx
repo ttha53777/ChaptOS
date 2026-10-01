@@ -83,19 +83,19 @@ export function SheetGrid<Row extends { id: number }>({
   const hasSummary = columns.some(c => c.summary);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0a0c12] shadow-[0_24px_70px_-46px_rgba(0,0,0,0.95)] ring-1 ring-inset ring-white/[0.02]">
-      <div className="flex h-10 items-center gap-2.5 border-b border-white/[0.06] bg-gradient-to-b from-[#141826] to-[#10131d] px-3.5">
+    <div className="overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--paper-2)] shadow-[0_24px_70px_-46px_rgba(var(--shade-rgb),calc(0.95*var(--shade-k)))] ring-1 ring-inset ring-[rgba(var(--ink-rgb),0.02)]">
+      <div className="flex h-10 items-center gap-2.5 border-b border-[rgba(var(--ink-rgb),0.06)] bg-gradient-to-b from-[color:var(--card-2)] to-[color:var(--card)] px-3.5">
         <div className="flex h-5 w-5 items-center justify-center rounded-md bg-indigo-500/15 ring-1 ring-inset ring-indigo-400/25">
           <svg className="h-3 w-3 text-indigo-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" d="M3 9h18M3 15h18M9 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
           </svg>
         </div>
-        <p className="text-[12px] font-semibold tracking-tight text-slate-200">{title}</p>
+        <p className="text-[12px] font-semibold tracking-tight text-[color:var(--ink)]">{title}</p>
         {badge && (
-          <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium tabular-nums text-slate-400 ring-1 ring-inset ring-white/[0.06]">{badge}</span>
+          <span className="rounded-full bg-[rgba(var(--ink-rgb),0.05)] px-2 py-0.5 text-[10px] font-medium tabular-nums text-[color:var(--muted)] ring-1 ring-inset ring-[rgba(var(--ink-rgb),0.06)]">{badge}</span>
         )}
         {onSelectRow && (
-          <span className="ml-auto hidden text-[10.5px] text-slate-600 sm:block">Click a row to open</span>
+          <span className="ml-auto hidden text-[10.5px] text-[color:var(--faint)] sm:block">Click a row to open</span>
         )}
       </div>
 
@@ -103,7 +103,7 @@ export function SheetGrid<Row extends { id: number }>({
         <table className={`w-full ${minWidthClass} border-separate border-spacing-0 text-left text-[12px]`}>
           <thead className="sticky top-0 z-10">
             <tr>
-              <HeaderChip sticky className="w-10 border-r border-white/[0.06] text-center" align="center" label="#" />
+              <HeaderChip sticky className="w-10 border-r border-[rgba(var(--ink-rgb),0.06)] text-center" align="center" label="#" />
               {columns.map(col => (
                 <HeaderChip
                   key={col.key}
@@ -120,9 +120,9 @@ export function SheetGrid<Row extends { id: number }>({
           <tbody>
             {sections.length === 0 ? (
               <tr>
-                <td colSpan={totalCols} className="border-b border-white/[0.06] py-16 text-center">
-                  <div className="flex flex-col items-center gap-2 text-slate-500">
-                    <svg className="h-6 w-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                <td colSpan={totalCols} className="border-b border-[rgba(var(--ink-rgb),0.06)] py-16 text-center">
+                  <div className="flex flex-col items-center gap-2 text-[color:var(--faint)]">
+                    <svg className="h-6 w-6 text-[color:var(--faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" d="M3 9h18M3 15h18M9 4v16M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" />
                     </svg>
                     {emptyLabel}
@@ -133,15 +133,15 @@ export function SheetGrid<Row extends { id: number }>({
               sections.map(section => (
                 <React.Fragment key={section.key}>
                   <tr>
-                    <td className="sticky left-0 z-[1] border-r border-b border-white/[0.06] bg-[#0d1018] px-2 py-1.5" aria-hidden />
+                    <td className="sticky left-0 z-[1] border-r border-b border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--card)] px-2 py-1.5" aria-hidden />
                     <td
                       colSpan={columns.length}
-                      className="border-b border-white/[0.06] bg-[#0d1018] px-3 py-1.5"
+                      className="border-b border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--card)] px-3 py-1.5"
                     >
                       <span className="inline-flex items-center gap-2">
                         <span className="h-3 w-0.5 rounded-full bg-indigo-400/70" />
-                        <span className="text-[11px] font-semibold text-slate-300">{section.label}</span>
-                        <span className="rounded bg-white/[0.05] px-1.5 py-px text-[9.5px] font-medium tabular-nums text-slate-500">{section.rows.length}</span>
+                        <span className="text-[11px] font-semibold text-[color:var(--ink-soft)]">{section.label}</span>
+                        <span className="rounded bg-[rgba(var(--ink-rgb),0.05)] px-1.5 py-px text-[9.5px] font-medium tabular-nums text-[color:var(--faint)]">{section.rows.length}</span>
                       </span>
                     </td>
                   </tr>
@@ -164,13 +164,13 @@ export function SheetGrid<Row extends { id: number }>({
           {hasSummary && allRows.length > 0 && (
             <tfoot>
               <tr>
-                <td className="sticky bottom-0 left-0 z-20 border-r border-t border-white/[0.07] bg-[#10131d] px-2 py-1.5 text-center text-[10px] text-slate-600">
+                <td className="sticky bottom-0 left-0 z-20 border-r border-t border-[rgba(var(--ink-rgb),0.07)] bg-[color:var(--card)] px-2 py-1.5 text-center text-[10px] text-[color:var(--faint)]">
                   Σ
                 </td>
                 {columns.map(col => (
                   <td
                     key={col.key}
-                    className={`sticky bottom-0 z-10 border-t border-white/[0.07] bg-[#10131d] px-2.5 py-1.5 text-[10.5px] font-medium tabular-nums text-slate-400 ${
+                    className={`sticky bottom-0 z-10 border-t border-[rgba(var(--ink-rgb),0.07)] bg-[color:var(--card)] px-2.5 py-1.5 text-[10.5px] font-medium tabular-nums text-[color:var(--muted)] ${
                       col.align === "center" ? "text-center" : ""
                     }`}
                   >
@@ -187,7 +187,7 @@ export function SheetGrid<Row extends { id: number }>({
 }
 
 const HEADER_BASE =
-  "h-8 border-b border-white/[0.07] border-r border-r-white/[0.04] bg-[#10131d] px-2.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-[#141828] hover:text-slate-300";
+  "h-8 border-b border-[rgba(var(--ink-rgb),0.07)] border-r border-r-[rgba(var(--ink-rgb),0.04)] bg-[color:var(--card)] px-2.5 text-[11px] font-medium text-[color:var(--muted)] transition-colors hover:bg-[color:var(--card-2)] hover:text-[color:var(--ink-soft)]";
 
 function HeaderChip({
   label,
@@ -213,7 +213,7 @@ function HeaderChip({
         width,
         className,
         sticky ? "sticky left-0 z-20" : "",
-        accent ? "text-slate-300" : "",
+        accent ? "text-[color:var(--ink-soft)]" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -226,7 +226,7 @@ function HeaderChip({
   );
 }
 
-const CELL = "h-9 border-b border-white/[0.04] border-r border-r-white/[0.03] px-2.5 py-1.5 align-middle";
+const CELL = "h-9 border-b border-[rgba(var(--ink-rgb),0.04)] border-r border-r-[rgba(var(--ink-rgb),0.03)] px-2.5 py-1.5 align-middle";
 
 function SheetRow<Row extends { id: number }>({
   row,
@@ -256,14 +256,14 @@ function SheetRow<Row extends { id: number }>({
       className={`group transition-colors focus-visible:outline-none ${onSelect ? "cursor-pointer" : ""} ${
         selected
           ? "bg-indigo-500/[0.08]"
-          : "bg-[#0a0c12] hover:bg-white/[0.025] focus-visible:bg-white/[0.04]"
+          : "bg-[color:var(--paper-2)] hover:bg-[rgba(var(--ink-rgb),0.025)] focus-visible:bg-[rgba(var(--ink-rgb),0.04)]"
       }`}
     >
       <td
-        className={`${CELL} sticky left-0 z-[1] w-10 border-r-white/[0.06] bg-inherit text-center text-[10px] tabular-nums ${
+        className={`${CELL} sticky left-0 z-[1] w-10 border-r-[rgba(var(--ink-rgb),0.06)] bg-inherit text-center text-[10px] tabular-nums ${
           selected
             ? "font-semibold text-indigo-300 shadow-[inset_2px_0_0_0_rgba(129,140,248,0.9)]"
-            : "text-slate-700"
+            : "text-[color:var(--faint)]"
         }`}
       >
         {selected ? (
@@ -273,7 +273,7 @@ function SheetRow<Row extends { id: number }>({
             <span className={onSelect ? "group-hover:hidden" : ""}>{rowNumber}</span>
             {onSelect && (
               <svg
-                className="mx-auto hidden h-3 w-3 text-slate-400 group-hover:block"
+                className="mx-auto hidden h-3 w-3 text-[color:var(--muted)] group-hover:block"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -303,12 +303,12 @@ function SheetRow<Row extends { id: number }>({
 /* ------------------------------------------------------------------ */
 
 function ColumnIcon({ kind, accent }: { kind: ColumnKind; accent?: boolean }) {
-  const cls = `h-3 w-3 shrink-0 ${accent ? "text-indigo-300" : "text-slate-500"}`;
+  const cls = `h-3 w-3 shrink-0 ${accent ? "text-indigo-300" : "text-[color:var(--faint)]"}`;
 
   switch (kind) {
     case "text":
       return (
-        <span className={`text-[10px] font-bold leading-none ${accent ? "text-indigo-300" : "text-slate-500"}`}>
+        <span className={`text-[10px] font-bold leading-none ${accent ? "text-indigo-300" : "text-[color:var(--faint)]"}`}>
           T<span className="text-[7px]">T</span>
         </span>
       );
@@ -328,7 +328,7 @@ function ColumnIcon({ kind, accent }: { kind: ColumnKind; accent?: boolean }) {
       );
     case "currency":
       return (
-        <span className={`text-[11px] font-bold leading-none ${accent ? "text-indigo-300" : "text-slate-500"}`}>$</span>
+        <span className={`text-[11px] font-bold leading-none ${accent ? "text-indigo-300" : "text-[color:var(--faint)]"}`}>$</span>
       );
     case "select":
       return (
@@ -350,7 +350,7 @@ function ColumnIcon({ kind, accent }: { kind: ColumnKind; accent?: boolean }) {
         </svg>
       );
     case "rating":
-      return <span className={`text-[11px] leading-none ${accent ? "text-indigo-300" : "text-slate-500"}`}>★</span>;
+      return <span className={`text-[11px] leading-none ${accent ? "text-indigo-300" : "text-[color:var(--faint)]"}`}>★</span>;
     case "badge":
       return (
         <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -367,7 +367,7 @@ function ColumnIcon({ kind, accent }: { kind: ColumnKind; accent?: boolean }) {
 /* ------------------------------------------------------------------ */
 
 const SHEET_INPUT =
-  "h-7 w-full rounded-md border border-transparent bg-transparent px-1.5 text-[12px] text-slate-200 outline-none transition-colors hover:border-white/[0.07] hover:bg-white/[0.02] focus:border-indigo-500/40 focus:bg-indigo-500/[0.07] focus:ring-1 focus:ring-inset focus:ring-indigo-500/30";
+  "h-7 w-full rounded-md border border-transparent bg-transparent px-1.5 text-[12px] text-[color:var(--ink)] outline-none transition-colors hover:border-[rgba(var(--ink-rgb),0.07)] hover:bg-[rgba(var(--ink-rgb),0.02)] focus:border-indigo-500/40 focus:bg-indigo-500/[0.07] focus:ring-1 focus:ring-inset focus:ring-indigo-500/30";
 
 /** Text/number cell that commits on blur or Enter, reverting empty required values. */
 export function SheetTextCell({
@@ -398,7 +398,7 @@ export function SheetTextCell({
   }, [value]);
 
   if (!canManage) {
-    return <span className="text-slate-400">{display ?? value ?? "—"}</span>;
+    return <span className="text-[color:var(--muted)]">{display ?? value ?? "—"}</span>;
   }
 
   return (
@@ -467,7 +467,7 @@ export function SheetLinkCell({
         target="_blank"
         rel="noopener noreferrer"
         onClick={e => e.stopPropagation()}
-        className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] text-indigo-300 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10"
+        className="inline-flex items-center gap-1 rounded-md border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-2 py-0.5 text-[11px] text-indigo-300 transition-colors hover:border-indigo-500/30 hover:bg-indigo-500/10"
       >
         <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h6M9 8h2M7 3h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z" />
@@ -478,10 +478,10 @@ export function SheetLinkCell({
   }
   if (canManage && onAdd) {
     return (
-      <button onClick={e => { e.stopPropagation(); onAdd(); }} className="cursor-pointer text-[10px] text-slate-500 transition-colors hover:text-indigo-400">
+      <button onClick={e => { e.stopPropagation(); onAdd(); }} className="cursor-pointer text-[10px] text-[color:var(--faint)] transition-colors hover:text-indigo-400">
         Add
       </button>
     );
   }
-  return <span className="text-slate-600">—</span>;
+  return <span className="text-[color:var(--faint)]">—</span>;
 }

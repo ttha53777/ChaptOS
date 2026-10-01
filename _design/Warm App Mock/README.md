@@ -27,3 +27,11 @@ The wide layout uses persistent navigation and a primary work area with a second
 ## Verification
 
 All JavaScript passed `node --check`. Browser checks covered the main destinations and every settings section, task creation appearing on the timeline, persisted state after reload, reimbursement approval, dues payment, event checklist changes, attendance dialog, and sample assistant responses. Desktop and 390px layouts were visually inspected. No runtime errors were reported during these checks.
+
+## Production fidelity pass · October 1, 2026
+
+Programming now follows the app’s `lib/programming.ts` stage gates and the structure of `ProgrammingBoard`, `TimelineStrip`, and `EventWrapUp`: a next-on-deck briefing, attention filter, published-event strip, multi-select type filters, four described lanes, calendar with an undated rail, and an event details drawer with preparation progress. Moving into Planning asks for an owner; confirming asks for date and location; moving a published event back warns that it will leave the timeline. Wrap-up saves an optional rating and notes. Event editing no longer offers a shortcut from an unconfirmed event straight to Done.
+
+The Timeline and dashboard upcoming lists exclude unpublished programming plans. Timeline search works across titles and locations, and Add to calendar previews Google, Apple, and other calendar setup with an explicit local-only state. The existing poll action now reopens closed polls correctly. All enhancements use the unchanged `theme.css` tokens. `fidelity.js` and `fidelity.css` contain the production-shaped Programming surfaces and calendar preview; the original connected mock remains the foundation.
+
+Validation: browser checks covered all 13 routes, missing-field stage prompts, publication visibility, Timeline search, calendar instructions, persisted wrap-up, multiple type filters, the undated calendar rail, mobile drawer navigation, Escape dismissal, and horizontal overflow at 390px. Desktop and mobile screenshots were reviewed. This pass does not connect production data or create a live calendar subscription.

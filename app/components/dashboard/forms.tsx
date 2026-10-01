@@ -132,8 +132,8 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
 
   return (
     <form onSubmit={handleSubmit}>
-      <p className="mb-1 text-[13px] font-semibold text-[#ece7dd]">{event.title}</p>
-      <p className="mb-4 text-[12px] text-[#958d7c]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      <p className="mb-1 text-[13px] font-semibold text-[color:var(--ink)]">{event.title}</p>
+      <p className="mb-4 text-[12px] text-[color:var(--muted)]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
       {!loading && eligible.length > 0 && (
         <div className="mb-2 flex items-center gap-3">
           {eligible.length > 6 && (
@@ -145,37 +145,37 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
               className={`${inputDuskCls} flex-1`}
             />
           )}
-          <button type="button" onClick={() => markAll(true)} className="text-[11px] font-medium text-[#a78bfa] hover:text-[#ece7dd]">All present</button>
-          <button type="button" onClick={() => markAll(false)} className="text-[11px] font-medium text-[#958d7c] hover:text-[#ece7dd]">Clear</button>
+          <button type="button" onClick={() => markAll(true)} className="text-[11px] font-medium text-[color:var(--vio)] hover:text-[color:var(--ink)]">All present</button>
+          <button type="button" onClick={() => markAll(false)} className="text-[11px] font-medium text-[color:var(--muted)] hover:text-[color:var(--ink)]">Clear</button>
         </div>
       )}
       {loading ? (
-        <p className="mb-4 text-[12px] text-[#6b6354]">Loading excuses…</p>
+        <p className="mb-4 text-[12px] text-[color:var(--faint)]">Loading excuses…</p>
       ) : (
-        <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-[rgba(236,231,221,0.08)] bg-[#0f0d0a] p-2">
+        <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--paper)] p-2">
           {q && visibleEligible.length === 0 && visibleExcused.length === 0 && (
-            <p className="px-2 py-2 text-[12px] text-[#6b6354]">No brothers match “{query}”.</p>
+            <p className="px-2 py-2 text-[12px] text-[color:var(--faint)]">No brothers match “{query}”.</p>
           )}
           {visibleEligible.map(b => (
-            <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-[rgba(236,231,221,0.05)] transition-colors">
-              <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-[rgba(236,231,221,0.2)] bg-transparent text-[#a78bfa] focus:ring-[#a78bfa]/30" />
-              <span className="flex-1 text-[13px] font-medium text-[#ece7dd]">{b.name}</span>
-              <span className="text-[11px] tabular-nums text-[#6b6354]">{b.attendance}%</span>
+            <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-[rgba(var(--ink-rgb),0.05)] transition-colors">
+              <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-[rgba(var(--ink-rgb),0.2)] bg-transparent text-[color:var(--vio)] focus:ring-[color:var(--vio)]/30" />
+              <span className="flex-1 text-[13px] font-medium text-[color:var(--ink)]">{b.name}</span>
+              <span className="text-[11px] tabular-nums text-[color:var(--faint)]">{b.attendance}%</span>
             </label>
           ))}
           {visibleExcused.map(b => (
             <div key={b.id} className="flex items-center gap-3 rounded-lg px-2 py-2 opacity-50">
-              <input type="checkbox" disabled className="h-4 w-4 rounded border-[rgba(236,231,221,0.2)] bg-transparent" />
-              <span className="flex-1 text-[13px] font-medium text-[#958d7c]">{b.name}</span>
-              <span className="text-[10px] font-semibold text-[#d9b08b]">Excused</span>
+              <input type="checkbox" disabled className="h-4 w-4 rounded border-[rgba(var(--ink-rgb),0.2)] bg-transparent" />
+              <span className="flex-1 text-[13px] font-medium text-[color:var(--muted)]">{b.name}</span>
+              <span className="text-[10px] font-semibold text-[color:var(--gold)]">Excused</span>
             </div>
           ))}
         </div>
       )}
-      <div className="mb-4 flex gap-2 text-[11px] text-[#6b6354]">
-        <span className="font-medium text-[#ece7dd]">{attended.size}</span> attending ·
-        <span className="font-medium text-[#ece7dd]">{eligible.length - attended.size}</span> absent ·
-        <span className="font-medium text-[#d9b08b]">{excused.length}</span> excused
+      <div className="mb-4 flex gap-2 text-[11px] text-[color:var(--faint)]">
+        <span className="font-medium text-[color:var(--ink)]">{attended.size}</span> attending ·
+        <span className="font-medium text-[color:var(--ink)]">{eligible.length - attended.size}</span> absent ·
+        <span className="font-medium text-[color:var(--gold)]">{excused.length}</span> excused
       </div>
       <button type="submit" disabled={busy} className={btnDuskPrimaryCls}>
         {submitting ? "Saving…" : "Log Attendance"}
@@ -237,9 +237,9 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.02)] px-3 py-2">
-        <p className="text-[13px] font-semibold text-[#ece7dd]">{event.title}</p>
-        <p className="text-[11px] text-[#6b6354]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      <div className="rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.02)] px-3 py-2">
+        <p className="text-[13px] font-semibold text-[color:var(--ink)]">{event.title}</p>
+        <p className="text-[11px] text-[color:var(--faint)]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
       </div>
       {isAdmin && (
         <div>
@@ -258,19 +258,19 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
               key={p}
               type="button"
               onClick={() => setReason(p)}
-              className="rounded-full border border-[rgba(236,231,221,0.14)] px-2.5 py-1 text-[11px] text-[#bcb4a3] hover:border-[#a78bfa]/50 hover:text-[#ece7dd] transition-colors"
+              className="rounded-full border border-[rgba(var(--ink-rgb),0.14)] px-2.5 py-1 text-[11px] text-[color:var(--ink-soft)] hover:border-[color:var(--vio)]/50 hover:text-[color:var(--ink)] transition-colors"
             >
               {p}
             </button>
           ))}
         </div>
         <textarea value={reason} onChange={e => setReason(e.target.value)} required rows={3} placeholder="Why are you (or this brother) missing this event?" className={inputDuskCls} maxLength={1000} />
-        <p className="mt-1 text-right text-[10px] text-[#6b6354]">{reason.length}/1000</p>
+        <p className="mt-1 text-right text-[10px] text-[color:var(--faint)]">{reason.length}/1000</p>
       </div>
       {!isAdmin && (
-        <p className="text-[11px] text-[#6b6354]">Submissions are reviewed by chapter admins.</p>
+        <p className="text-[11px] text-[color:var(--faint)]">Submissions are reviewed by chapter admins.</p>
       )}
-      {error && <p className="text-[12px] text-[#d98ba3]">{error}</p>}
+      {error && <p className="text-[12px] text-[color:var(--rose)]">{error}</p>}
       <button type="submit" disabled={submitting} className={btnDuskPrimaryCls}>
         {submitting ? "Submitting…" : isAdmin ? "Approve Excuse" : "Submit for Review"}
       </button>

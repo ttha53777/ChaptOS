@@ -188,18 +188,18 @@ export function TxForm({
           className={`flex w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${
             status === "scheduled"
               ? "border-amber-500/30 bg-amber-500/[0.07]"
-              : "border-white/[0.07] bg-white/[0.03] hover:border-white/[0.14]"
+              : "border-[rgba(var(--ink-rgb),0.07)] bg-[rgba(var(--ink-rgb),0.03)] hover:border-[rgba(var(--ink-rgb),0.14)]"
           }`}
         >
-          <span className={`relative flex h-4 w-7 shrink-0 rounded-full transition-colors ${status === "scheduled" ? "bg-amber-500/70" : "bg-white/[0.12]"}`}>
+          <span className={`relative flex h-4 w-7 shrink-0 rounded-full transition-colors ${status === "scheduled" ? "bg-amber-500/70" : "bg-[rgba(var(--ink-rgb),0.12)]"}`}>
             <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${status === "scheduled" ? "translate-x-3" : "translate-x-0.5"}`} />
           </span>
-          <span className={`text-[12px] ${dusk ? "text-[#958d7c]" : "text-slate-400"}`}>
+          <span className={`text-[12px] ${dusk ? "text-[color:var(--muted)]" : "text-[color:var(--muted)]"}`}>
             {status === "scheduled"
-              ? <><span className={`font-semibold ${dusk ? "text-[#d9b08b]" : "text-amber-400"}`}>Scheduled</span> — not paid yet</>
-              : <>Scheduled <span className={dusk ? "text-[#6b6354]" : "text-slate-500"}>(toggle if not paid)</span></>}
+              ? <><span className={`font-semibold ${dusk ? "text-[color:var(--gold)]" : "text-amber-400"}`}>Scheduled</span> — not paid yet</>
+              : <>Scheduled <span className={dusk ? "text-[color:var(--faint)]" : "text-[color:var(--faint)]"}>(toggle if not paid)</span></>}
           </span>
-          <svg className={`ml-auto h-3.5 w-3.5 shrink-0 ${status === "scheduled" ? (dusk ? "text-[#d9b08b]" : "text-amber-400") : (dusk ? "text-[#6b6354]" : "text-slate-600")}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className={`ml-auto h-3.5 w-3.5 shrink-0 ${status === "scheduled" ? (dusk ? "text-[color:var(--gold)]" : "text-amber-400") : (dusk ? "text-[color:var(--faint)]" : "text-[color:var(--faint)]")}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d={ICON_SCHEDULE} />
           </svg>
         </button>
@@ -239,7 +239,7 @@ export function TxForm({
                     key={id}
                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
                       dusk
-                        ? "bg-[#a78bfa]/[0.15] text-[#c4b5fd]"
+                        ? "bg-[color:var(--vio)]/[0.15] text-[color:var(--vio-hi)]"
                         : "bg-indigo-500/20 text-indigo-300"
                     }`}
                   >
@@ -279,13 +279,13 @@ export function TxForm({
             </select>
           )}
           {addableEvents.length === 0 && selectedEventIds.length > 0 && (
-            <p className={`text-[11px] ${dusk ? "text-[#6b6354]" : "text-slate-500"}`}>All semester events linked.</p>
+            <p className={`text-[11px] ${dusk ? "text-[color:var(--faint)]" : "text-[color:var(--faint)]"}`}>All semester events linked.</p>
           )}
         </div>
       )}
 
       <div className="flex justify-end gap-2 pt-1">
-        <button type="button" onClick={onCancel} className={dusk ? btnDuskGhostCls : "rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"}>Cancel</button>
+        <button type="button" onClick={onCancel} className={dusk ? btnDuskGhostCls : "rounded-lg border border-[rgba(var(--ink-rgb),0.08)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.16)] hover:text-[color:var(--ink)] transition-colors"}>Cancel</button>
         <button type="submit" disabled={saving} className={`${dusk ? btnDuskActionCls : "rounded-lg bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-indigo-500 transition-colors"} disabled:cursor-not-allowed disabled:opacity-60`}>
           {saving ? "Saving…" : duesFor ? "Record Payment" : initial?.id ? "Save Changes" : (lockType === "expense" ? "Log Expense" : lockType === "income" ? "Log Revenue" : "Add Transaction")}
         </button>

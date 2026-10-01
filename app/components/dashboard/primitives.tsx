@@ -39,7 +39,7 @@ export function Card({ children, className = "", id, onClick, style }: {
   style?: React.CSSProperties;
 }) {
   return (
-    <div id={id} onClick={onClick} style={style} className={`card-premium rounded-2xl border border-white/[0.06] bg-[#10121a] ${className}`}>
+    <div id={id} onClick={onClick} style={style} className={`card-premium rounded-2xl border border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--card)] ${className}`}>
       {children}
     </div>
   );
@@ -151,7 +151,7 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={dismissable ? onClose : undefined} />
+      <div className="absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" onClick={dismissable ? onClose : undefined} />
       <div
         ref={panelRef}
         role="dialog"
@@ -160,14 +160,14 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
         aria-label={titleRendered ? undefined : (ariaLabel ?? title)}
         tabIndex={-1}
         className={`card-premium-elevated relative flex max-h-[calc(100dvh-2rem)] w-full flex-col ${maxWidthClass} rounded-2xl border outline-none ${
-          dusk ? "border-[rgba(236,231,221,0.1)] bg-[#0f0d0a]" : "border-white/[0.08] bg-[#10121a]"
+          dusk ? "border-[rgba(var(--ink-rgb),0.1)] bg-[color:var(--paper)]" : "border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--card)]"
         }`}
       >
         {!hideHeader && (title || dismissable) && (
-          <div className={`flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4 ${dusk ? "border-[rgba(236,231,221,0.07)]" : "border-white/[0.07]"}`}>
-            <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[#ece7dd]" : "text-white"}`}>{title}</h3>
+          <div className={`flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4 ${dusk ? "border-[rgba(var(--ink-rgb),0.07)]" : "border-[rgba(var(--ink-rgb),0.07)]"}`}>
+            <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[color:var(--ink)]" : "text-[color:var(--ink)]"}`}>{title}</h3>
             {dismissable && (
-              <button type="button" onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
+              <button type="button" onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]" : "text-[color:var(--faint)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-white"}`}>
                 <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -176,7 +176,7 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
           </div>
         )}
         {hideHeader && dismissable && (
-          <button type="button" onClick={onClose} aria-label="Close dialog" className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${dusk ? "text-[#958d7c] hover:bg-[rgba(236,231,221,0.08)] hover:text-[#ece7dd]" : "text-slate-500 hover:bg-white/[0.08] hover:text-white"}`}>
+          <button type="button" onClick={onClose} aria-label="Close dialog" className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${dusk ? "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]" : "text-[color:var(--faint)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-white"}`}>
             <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -189,7 +189,7 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
 }
 
 export function FieldLabel({ children, htmlFor, tone = "slate" }: { children: React.ReactNode; htmlFor?: string; tone?: "slate" | "dusk" }) {
-  return <label htmlFor={htmlFor} className={`mb-1 block text-[12px] font-medium ${tone === "dusk" ? "text-[#958d7c]" : "text-slate-400"}`}>{children}</label>;
+  return <label htmlFor={htmlFor} className={`mb-1 block text-[12px] font-medium ${tone === "dusk" ? "text-[color:var(--muted)]" : "text-[color:var(--muted)]"}`}>{children}</label>;
 }
 
 /**
@@ -203,7 +203,7 @@ export function SaveIndicator({ state, tone = "slate" }: { state: SaveState; ton
   const dusk = tone === "dusk";
   if (state === "idle") return null;
   if (state === "saving") return (
-    <span className={`flex items-center gap-1 text-[11px] ${dusk ? "text-[#958d7c]" : "text-slate-500"}`} role="status" aria-live="polite">
+    <span className={`flex items-center gap-1 text-[11px] ${dusk ? "text-[color:var(--muted)]" : "text-[color:var(--faint)]"}`} role="status" aria-live="polite">
       <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden>
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -212,14 +212,14 @@ export function SaveIndicator({ state, tone = "slate" }: { state: SaveState; ton
     </span>
   );
   if (state === "saved") return (
-    <span className={`flex items-center gap-1 text-[11px] ${dusk ? "text-[#7fb08a]" : "text-emerald-400"}`} role="status" aria-live="polite">
+    <span className={`flex items-center gap-1 text-[11px] ${dusk ? "text-[color:var(--ok)]" : "text-emerald-400"}`} role="status" aria-live="polite">
       <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
       </svg>
       Saved
     </span>
   );
-  return <span className={`text-[11px] ${dusk ? "text-[#d98ba3]" : "text-red-400"}`} role="status" aria-live="polite">Save failed</span>;
+  return <span className={`text-[11px] ${dusk ? "text-[color:var(--rose)]" : "text-red-400"}`} role="status" aria-live="polite">Save failed</span>;
 }
 
 /**
@@ -249,7 +249,7 @@ export function LoadingSpinner({
   const dim = size === "sm" ? "h-4 w-4" : size === "lg" ? "h-12 w-12" : "h-8 w-8";
   return (
     <div className={`flex items-center justify-center ${className}`} role="status" aria-live="polite">
-      <svg className={`${dim} animate-spin ${tone === "dusk" ? "text-[#6b6354]" : "text-slate-600"}`} fill="none" viewBox="0 0 24 24" aria-hidden>
+      <svg className={`${dim} animate-spin ${tone === "dusk" ? "text-[color:var(--faint)]" : "text-[color:var(--faint)]"}`} fill="none" viewBox="0 0 24 24" aria-hidden>
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
       </svg>
@@ -272,14 +272,14 @@ export function ConfirmDialog({ title, message, confirmLabel = "Delete", onConfi
   return (
     <Modal title={title} tone={tone} onClose={onCancel}>
       <div className="space-y-4">
-        <p className={`text-[13px] leading-relaxed ${dusk ? "text-[#c9c2b4]" : "text-slate-300"}`}>{message}</p>
+        <p className={`text-[13px] leading-relaxed ${dusk ? "text-[color:var(--ink-soft)]" : "text-[color:var(--ink-soft)]"}`}>{message}</p>
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
             className={
               dusk
-                ? "rounded-lg border border-[rgba(236,231,221,0.12)] px-4 py-1.5 text-[13px] text-[#958d7c] hover:border-[rgba(236,231,221,0.24)] hover:text-[#ece7dd] transition-colors"
-                : "rounded-lg border border-white/[0.08] px-4 py-1.5 text-[13px] text-slate-400 hover:border-white/[0.16] hover:text-white transition-colors"
+                ? "rounded-lg border border-[rgba(var(--ink-rgb),0.12)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.24)] hover:text-[color:var(--ink)] transition-colors"
+                : "rounded-lg border border-[rgba(var(--ink-rgb),0.08)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.16)] hover:text-[color:var(--ink)] transition-colors"
             }
           >
             Cancel
@@ -288,7 +288,7 @@ export function ConfirmDialog({ title, message, confirmLabel = "Delete", onConfi
             onClick={onConfirm}
             className={
               dusk
-                ? "rounded-lg bg-[#d98ba3] px-4 py-1.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#e8b0c2] transition-colors"
+                ? "rounded-lg bg-[color:var(--rose)] px-4 py-1.5 text-[13px] font-semibold text-[color:var(--paper)] hover:bg-[color:var(--rose)]/85 transition-colors"
                 : "rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors"
             }
           >

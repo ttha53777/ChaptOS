@@ -17,7 +17,7 @@ export default function Error({
     <div
       className="flex min-h-full flex-1 items-center justify-center px-6 py-16"
       style={{
-        background: "#0f0d0a",
+        background: "var(--paper)",
         fontFamily:
           "var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
@@ -25,10 +25,10 @@ export default function Error({
       <div
         className="w-full max-w-md rounded-2xl p-9 text-center"
         style={{
-          background: "#161310",
-          border: "1px solid rgba(236,231,221,.09)",
+          background: "var(--card)",
+          border: "1px solid rgba(var(--ink-rgb),.09)",
           boxShadow:
-            "0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7)",
+            "0 1px 0 rgba(var(--shade-rgb),calc(.4*var(--shade-k))), 0 16px 40px -24px rgba(var(--shade-rgb),calc(.7*var(--shade-k)))",
         }}
       >
         <p
@@ -36,7 +36,7 @@ export default function Error({
           style={{
             fontFamily: "var(--font-geist-mono), ui-monospace, Menlo, monospace",
             letterSpacing: ".18em",
-            color: "#d98ba3",
+            color: "var(--rose)",
           }}
         >
           Unexpected error
@@ -44,8 +44,8 @@ export default function Error({
         <div
           className="mx-auto mb-6 mt-5 flex h-12 w-12 items-center justify-center rounded-full"
           style={{
-            border: "1px solid rgba(217,139,163,.10)",
-            background: "rgba(217,139,163,.10)",
+            border: "1px solid rgba(var(--rose-rgb),.10)",
+            background: "rgba(var(--rose-rgb),.10)",
           }}
         >
           <svg
@@ -53,7 +53,7 @@ export default function Error({
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
-            stroke="#d98ba3"
+            stroke="var(--rose)"
             strokeWidth={1.6}
           >
             <path
@@ -69,15 +69,15 @@ export default function Error({
             fontFamily: "var(--font-fraunces), Georgia, serif",
             fontWeight: 400,
             letterSpacing: "-.01em",
-            color: "#ece7dd",
+            color: "var(--ink)",
           }}
         >
           Something went{" "}
-          <em style={{ fontStyle: "italic", color: "#a78bfa" }}>sideways</em>
+          <em style={{ fontStyle: "italic", color: "var(--vio)" }}>sideways</em>
         </h1>
         <p
           className="mx-auto mt-3 max-w-[19rem] text-[13.5px] leading-relaxed"
-          style={{ color: "#c9c2b4" }}
+          style={{ color: "var(--ink-soft)" }}
         >
           This page hit an unexpected error. Your data is safe — try again, and
           if it keeps happening, reach out to an officer.
@@ -89,7 +89,7 @@ export default function Error({
               fontFamily:
                 "var(--font-geist-mono), ui-monospace, Menlo, monospace",
               letterSpacing: ".08em",
-              color: "#6b6354",
+              color: "var(--faint)",
             }}
           >
             REF · {error.digest}
@@ -99,12 +99,12 @@ export default function Error({
           <button
             onClick={reset}
             className="rounded-lg px-4 py-2 text-[13px] font-semibold transition-colors"
-            style={{ background: "#7c3aed", color: "#fff" }}
+            style={{ background: "var(--vio-deep)", color: "#fff" }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#a78bfa";
+              e.currentTarget.style.background = "var(--vio)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#7c3aed";
+              e.currentTarget.style.background = "var(--vio-deep)";
             }}
           >
             Try again
@@ -115,17 +115,17 @@ export default function Error({
             }}
             className="rounded-lg px-4 py-2 text-[13px] font-medium transition-colors"
             style={{
-              border: "1px solid rgba(236,231,221,.09)",
-              background: "#1b1813",
-              color: "#c9c2b4",
+              border: "1px solid rgba(var(--ink-rgb),.09)",
+              background: "var(--card-2)",
+              color: "var(--ink-soft)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "#a78bfa";
-              e.currentTarget.style.color = "#ece7dd";
+              e.currentTarget.style.borderColor = "var(--vio)";
+              e.currentTarget.style.color = "var(--ink)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "rgba(236,231,221,.09)";
-              e.currentTarget.style.color = "#c9c2b4";
+              e.currentTarget.style.borderColor = "rgba(var(--ink-rgb),.09)";
+              e.currentTarget.style.color = "var(--ink-soft)";
             }}
           >
             Go to dashboard

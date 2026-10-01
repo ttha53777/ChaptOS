@@ -492,14 +492,14 @@ function ReimbursementForm({
         </select>
       </div>
       <div>
-        <FieldLabel tone="dusk">Attach Receipt <span style={{ color: "#6b6354", fontWeight: 400 }}>(optional)</span></FieldLabel>
+        <FieldLabel tone="dusk">Attach Receipt <span style={{ color: "var(--faint)", fontWeight: 400 }}>(optional)</span></FieldLabel>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="w-full rounded-lg border border-dashed border-[rgba(236,231,221,0.18)] bg-[rgba(167,139,250,0.04)] px-3 py-3 text-left text-[12px] text-[#6b6354] hover:border-[#a78bfa]/50 hover:text-[#a78bfa] transition-colors"
+          className="w-full rounded-lg border border-dashed border-[rgba(var(--ink-rgb),0.18)] bg-[rgba(var(--vio-rgb),0.04)] px-3 py-3 text-left text-[12px] text-[color:var(--faint)] hover:border-[color:var(--vio)]/50 hover:text-[color:var(--vio)] transition-colors"
         >
           {file ? (
-            <span className="flex items-center gap-2 text-[#c4b5fd]">
+            <span className="flex items-center gap-2 text-[color:var(--vio-hi)]">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
               </svg>
@@ -507,7 +507,7 @@ function ReimbursementForm({
               <button
                 type="button"
                 onClick={ev => { ev.stopPropagation(); setFile(null); if (fileRef.current) fileRef.current.value = ""; }}
-                className="ml-auto text-[#6b6354] hover:text-[#d98ba3] transition-colors"
+                className="ml-auto text-[color:var(--faint)] hover:text-[color:var(--rose)] transition-colors"
                 aria-label="Remove file"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
@@ -601,10 +601,10 @@ function PartyForm({
 function DeleteConfirm({ label, onConfirm, onCancel }: { label: string; onConfirm: () => void; onCancel: () => void }) {
   return (
     <div className="space-y-4">
-      <p className="text-[13px] text-[#c9c2b4]">Are you sure you want to delete <span className="font-semibold text-[#ece7dd]">{label}</span>? This action cannot be undone.</p>
+      <p className="text-[13px] text-[color:var(--ink-soft)]">Are you sure you want to delete <span className="font-semibold text-[color:var(--ink)]">{label}</span>? This action cannot be undone.</p>
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className={btnDuskGhostCls}>Cancel</button>
-        <button onClick={onConfirm} className="rounded-lg bg-[#d98ba3] px-4 py-1.5 text-[13px] font-semibold text-[#0f0d0a] hover:bg-[#e6a0b5] transition-colors">Delete</button>
+        <button onClick={onConfirm} className="rounded-lg bg-[color:var(--rose)] px-4 py-1.5 text-[13px] font-semibold text-[color:var(--paper)] hover:bg-[color:var(--rose)]/85 transition-colors">Delete</button>
       </div>
     </div>
   );
@@ -1148,7 +1148,7 @@ export default function TreasuryPage() {
     (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues.` : ".");
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0f0d0a]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Treasury" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -1895,9 +1895,9 @@ export default function TreasuryPage() {
         >
           <div className="space-y-4">
             <div>
-              <p className="text-[12px] text-[#958d7c] mb-3">
+              <p className="text-[12px] text-[color:var(--muted)] mb-3">
                 {duesTarget.name} currently owes{" "}
-                <span className="font-semibold text-[#ddb36a]">{fmt$(duesTarget.duesOwed)}</span>
+                <span className="font-semibold text-[color:var(--gold)]">{fmt$(duesTarget.duesOwed)}</span>
               </p>
               <FieldLabel tone="dusk">{duesAction === "deduct" ? "Amount Paid ($)" : "Amount to Assign ($)"}</FieldLabel>
               <input
@@ -1915,7 +1915,7 @@ export default function TreasuryPage() {
                 if (amt <= 0) return null;
                 if (duesAction === "deduct") {
                   return (
-                    <p className="mt-1.5 text-[11px] text-[#958d7c]">
+                    <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">
                       Opens the transaction form pre-filled — review and post it to
                       record the payment.
                     </p>
@@ -1923,9 +1923,9 @@ export default function TreasuryPage() {
                 }
                 const newOwed = duesTarget.duesOwed + amt;
                 return (
-                  <p className="mt-1.5 text-[11px] text-[#958d7c]">
+                  <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">
                     New balance:{" "}
-                    <span className="text-[#c9c2b4]">{fmt$(newOwed)}</span>
+                    <span className="text-[color:var(--ink-soft)]">{fmt$(newOwed)}</span>
                   </p>
                 );
               })()}

@@ -18,7 +18,7 @@
 
    Tokens (--serif/--vio/--gold/--rose/--ok/…) come from `.dash` in
    dashboard-ledger.css; do not redeclare them. Fonts come from next/font vars on
-   <html>. v1 ships Dusk only (data-dashboard-theme="dusk").
+   <html>. Dusk/ivory comes from html[data-theme] (lib/theme.ts).
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── Page header — editorial, not a toolbar ──────────────────────────────────── */
@@ -126,7 +126,7 @@
    read as "the app is down", which is the failure mode this replaced. */
 .dash .seat-wall {
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  border: 1px solid rgba(167,139,250,.3); border-left-width: 3px;
+  border: 1px solid rgba(var(--vio-rgb),.3); border-left-width: 3px;
   border-radius: 10px; background: var(--vio-bg); padding: 14px 16px; margin-bottom: 14px;
 }
 .dash .seat-wall .sw-copy { min-width: 0; }

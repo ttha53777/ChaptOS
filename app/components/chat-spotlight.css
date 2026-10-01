@@ -16,16 +16,10 @@
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
   --ease:  cubic-bezier(.16,1,.3,1);
   --spring: cubic-bezier(.34,1.4,.4,1);
-  --paper: #0f0d0a; --paper-2: #14120e; --card: #17130f; --card-2: #1c1813;
-  --ink: #ece7dd; --ink-soft: #cbc4b6; --muted: #948c7b; --faint: #6a6253;
-  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
-  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10);
-  --vio-line: rgba(167,139,250,.30); --vio-glow: rgba(167,139,250,.16);
-  --ok: #7fb08a; --ok-bg: rgba(127,176,138,.13); --scrim: rgba(5,4,2,.62);
-  /* Peek tones — warm siblings of --ok, never the cold dashboard reds. */
-  --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13);
-  --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
-  --card-shadow: 0 1px 0 rgba(0,0,0,.5), 0 40px 80px -34px rgba(0,0,0,.9), inset 0 1px 0 rgba(236,231,221,.04);
+  /* Palette (--paper, --ink, --vio, --ok, --warn, --risk, --scrim, …) comes
+     from :root / html[data-theme="ivory"] in app/globals.css. */
+  --vio-glow: rgba(var(--vio-rgb),.16);
+  --card-shadow: 0 1px 0 rgba(var(--shade-rgb),calc(.5 * var(--shade-k))), 0 40px 80px -34px rgba(var(--shade-rgb),calc(.9 * var(--shade-k))), inset 0 1px 0 rgba(var(--ink-rgb),.04);
   font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -44,11 +38,11 @@
   font-family: var(--serif); font-size: 14px; letter-spacing: -.01em; color: var(--ink-soft);
   background: var(--card); border: 1px solid var(--line); border-radius: 999px;
   padding: 10px 16px 10px 13px; cursor: pointer;
-  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 18px 44px -22px rgba(0,0,0,.8), inset 0 1px 0 rgba(236,231,221,.04);
+  box-shadow: 0 1px 0 rgba(var(--shade-rgb),calc(.4 * var(--shade-k))), 0 18px 44px -22px rgba(var(--shade-rgb),calc(.8 * var(--shade-k))), inset 0 1px 0 rgba(var(--ink-rgb),.04);
   transition: border-color .15s, color .15s, transform .15s, box-shadow .15s;
 }
 .chat-launcher:hover { color: var(--ink); border-color: var(--vio); transform: translateY(-1px);
-  box-shadow: 0 1px 0 rgba(0,0,0,.4), 0 22px 48px -20px rgba(0,0,0,.8), 0 0 0 4px var(--vio-bg); }
+  box-shadow: 0 1px 0 rgba(var(--shade-rgb),calc(.4 * var(--shade-k))), 0 22px 48px -20px rgba(var(--shade-rgb),calc(.8 * var(--shade-k))), 0 0 0 4px var(--vio-bg); }
 .chat-launcher:focus-visible { outline: 2px solid var(--vio); outline-offset: 3px; }
 .chat-launcher .spark { color: var(--vio); flex-shrink: 0; }
 .chat-launcher .hint {

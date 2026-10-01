@@ -173,19 +173,19 @@ export function ProgrammingCalendarView({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#0c0f16]">
-      <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-3">
-        <p className="text-[13px] font-semibold text-white">{MONTH_NAMES[month - 1]} {year}</p>
+    <div className="rounded-xl border border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--card)]">
+      <div className="flex items-center justify-between border-b border-[rgba(var(--ink-rgb),0.05)] px-4 py-3">
+        <p className="text-[13px] font-semibold text-[color:var(--ink)]">{MONTH_NAMES[month - 1]} {year}</p>
         <div className="flex gap-1">
-          <button onClick={() => shift(-1)} className="rounded-md border border-white/[0.08] px-2 py-1 text-[12px] text-slate-300 hover:bg-white/[0.05]">‹</button>
-          <button onClick={() => setYm(TODAY.slice(0, 7))} className="rounded-md border border-white/[0.08] px-2.5 py-1 text-[11px] text-slate-300 hover:bg-white/[0.05]">Today</button>
-          <button onClick={() => shift(1)} className="rounded-md border border-white/[0.08] px-2 py-1 text-[12px] text-slate-300 hover:bg-white/[0.05]">›</button>
+          <button onClick={() => shift(-1)} className="rounded-md border border-[rgba(var(--ink-rgb),0.08)] px-2 py-1 text-[12px] text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.05)]">‹</button>
+          <button onClick={() => setYm(TODAY.slice(0, 7))} className="rounded-md border border-[rgba(var(--ink-rgb),0.08)] px-2.5 py-1 text-[11px] text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.05)]">Today</button>
+          <button onClick={() => shift(1)} className="rounded-md border border-[rgba(var(--ink-rgb),0.08)] px-2 py-1 text-[12px] text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.05)]">›</button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 border-b border-white/[0.05]">
+      <div className="grid grid-cols-7 border-b border-[rgba(var(--ink-rgb),0.05)]">
         {WEEKDAYS.map(d => (
-          <div key={d} className="px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">{d}</div>
+          <div key={d} className="px-2 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-[color:var(--faint)]">{d}</div>
         ))}
       </div>
 
@@ -193,10 +193,10 @@ export function ProgrammingCalendarView({
         {cells.map((day, i) => {
           const dayTasks = day ? byDay.get(day) ?? [] : [];
           return (
-            <div key={i} className={`min-h-[58px] border-b border-r border-white/[0.04] p-1 sm:min-h-[92px] sm:p-1.5 ${i % 7 === 0 ? "border-l" : ""}`}>
+            <div key={i} className={`min-h-[58px] border-b border-r border-[rgba(var(--ink-rgb),0.04)] p-1 sm:min-h-[92px] sm:p-1.5 ${i % 7 === 0 ? "border-l" : ""}`}>
               {day && (
                 <>
-                  <div className={`mb-1 text-[10px] tabular-nums ${day === TODAY ? "font-bold text-indigo-300" : "text-slate-500"}`}>
+                  <div className={`mb-1 text-[10px] tabular-nums ${day === TODAY ? "font-bold text-indigo-300" : "text-[color:var(--faint)]"}`}>
                     {Number(day.slice(-2))}
                   </div>
                   {/* Mobile: compact colored dots (titles don't fit narrow cells). */}
@@ -206,7 +206,7 @@ export function ProgrammingCalendarView({
                         key={t.id}
                         onClick={() => onSelect(t.id)}
                         aria-label={t.title}
-                        className={`h-2 w-2 rounded-full ${selectedId === t.id ? "ring-2 ring-white/70" : ""}`}
+                        className={`h-2 w-2 rounded-full ${selectedId === t.id ? "ring-2 ring-[rgba(var(--ink-rgb),0.7)]" : ""}`}
                         style={{ background: typeVisual(visuals, t.category).hex }}
                       />
                     ))}
@@ -218,7 +218,7 @@ export function ProgrammingCalendarView({
                         key={t.id}
                         onClick={() => onSelect(t.id)}
                         className={`flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[10px] transition-colors ${
-                          selectedId === t.id ? "bg-indigo-500/20 text-white" : "bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]"
+                          selectedId === t.id ? "bg-[color:var(--vio-bg)] text-[color:var(--ink)]" : "bg-[rgba(var(--ink-rgb),0.04)] text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.08)]"
                         }`}
                       >
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: typeVisual(visuals, t.category).hex }} />

@@ -32,12 +32,12 @@ afterAll(async () => { await testPrisma.$disconnect(); });
 
 // MANAGE_ATTENDANCE is enforced at the route, not the service, so permissions
 // stay 0 here — these tests exercise the service's own guards.
-function ctxFor(orgId: number, actorId: number): RequestContext {
+function ctxFor(orgId: number, actorId: number, opts: { officer?: boolean } = {}): RequestContext {
   return {
     requestId: randomUUID(), orgId, actorId,
     actorName: "Tester", actorEmail: null, authUserId: "auth-test",
     membershipId: null, permissions: 0, maxRank: 0,
-    isOrgAdmin: true, isPlatformAdmin: false,
+    isOrgAdmin: opts.officer ?? true, isPlatformAdmin: false,
     db: db(orgId),
   };
 }
@@ -310,6 +310,48 @@ describe("live check-in window", () => {
     live = await getLiveCheckIn(officerCtx);
     expect(live?.state).toBe("closed");
     expect(live?.closedByName).toBe("Officer");
+  });
+
+  it("keeps an expired, never-closed window in front of officers until they close it", async () => {
+    const { org, officer, present, absent, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    const memberCtx  = ctxFor(org.id, present.id, { officer: false });
+
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(memberCtx, event.id);
+    // Expired hours ago — long past the closed-window linger.
+    await testPrisma.calendarEvent.update({
+      where: { id: event.id },
+      data: { checkInOpenedAt: new Date(Date.now() - CHECKIN_WINDOW_MS - 3 * 60 * 60 * 1000) },
+    });
+
+    // Members stop seeing it; officers don't, and it reads as unrecorded.
+    expect(await getLiveCheckIn(memberCtx)).toBeNull();
+    const stale = await getLiveCheckIn(officerCtx);
+    expect(stale?.event.id).toBe(event.id);
+    expect(stale?.state).toBe("closed");
+    expect(stale?.closedAt).toBeNull();
+
+    // Closing it directly records the no-shows — no reopen needed.
+    const closed = await closeCheckIn(officerCtx, event.id);
+    expect(closed?.closedAt).toBeTruthy();
+    const absentRow = await testPrisma.attendanceRecord.findUnique({
+      where: { calendarEventId_brotherId: { calendarEventId: event.id, brotherId: absent.id } },
+    });
+    expect(absentRow?.attended).toBe(false);
+  });
+
+  it("does not resurface an unclosed window opened before the active semester", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    // Opened before the semester started (factory semester starts 2026-01-01).
+    await testPrisma.calendarEvent.update({
+      where: { id: event.id },
+      data: { checkInOpenedAt: new Date("2025-11-01T18:00:00Z") },
+    });
+
+    expect(await getLiveCheckIn(officerCtx)).toBeNull();
   });
 });
 

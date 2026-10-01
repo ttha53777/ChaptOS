@@ -48,7 +48,7 @@ export function AttachmentField({
           href={doc?.url ?? "#"}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-[12px] text-[#c4b5fd] hover:underline truncate"
+          className="flex items-center gap-1.5 text-[12px] text-[color:var(--vio-hi)] hover:underline truncate"
         >
           <DocIcon />
           {doc?.title ?? "Open attachment"}
@@ -61,14 +61,14 @@ export function AttachmentField({
           href={attachmentUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-[12px] text-[#c4b5fd] hover:underline truncate"
+          className="flex items-center gap-1.5 text-[12px] text-[color:var(--vio-hi)] hover:underline truncate"
         >
           <PaperclipIcon />
           Open attachment
         </a>
       );
     }
-    return <span className="text-[12px] text-[#6b6354]">—</span>;
+    return <span className="text-[12px] text-[color:var(--faint)]">—</span>;
   }
 
   // Editing mode: show current value as a dismissible chip, or an input.
@@ -82,14 +82,14 @@ export function AttachmentField({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex min-w-0 items-center gap-1.5 truncate text-[12px] text-[#c4b5fd] hover:underline"
+          className="flex min-w-0 items-center gap-1.5 truncate text-[12px] text-[color:var(--vio-hi)] hover:underline"
         >
           {doc ? <DocIcon /> : <PaperclipIcon />}
           <span className="truncate">{label}</span>
         </a>
         <button
           onClick={onClear}
-          className="shrink-0 text-[11px] text-[#6b6354] hover:text-[#d98ba3]"
+          className="shrink-0 text-[11px] text-[color:var(--faint)] hover:text-[color:var(--rose)]"
           title="Remove attachment"
         >
           ×
@@ -147,18 +147,18 @@ export function AttachmentField({
         onBlur={handleBlur}
       />
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-[rgba(236,231,221,0.12)] bg-[#0f0d0a] py-1 shadow-xl">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--paper)] py-1 shadow-xl">
           {filtered.length === 0 ? (
-            <p className="px-3 py-2 text-[12px] text-[#6b6354]">No docs match — add one in Resources first.</p>
+            <p className="px-3 py-2 text-[12px] text-[color:var(--faint)]">No docs match — add one in Resources first.</p>
           ) : (
             filtered.map(doc => (
               <button
                 key={doc.id}
                 onMouseDown={() => pickDoc(doc)}
-                className="flex w-full flex-col px-3 py-2 text-left hover:bg-[rgba(236,231,221,0.06)]"
+                className="flex w-full flex-col px-3 py-2 text-left hover:bg-[rgba(var(--ink-rgb),0.06)]"
               >
-                <span className="truncate text-[12px] text-[#c9c2b4]">{doc.title}</span>
-                <span className="truncate text-[11px] text-[#6b6354]">{hostname(doc.url)}</span>
+                <span className="truncate text-[12px] text-[color:var(--ink-soft)]">{doc.title}</span>
+                <span className="truncate text-[11px] text-[color:var(--faint)]">{hostname(doc.url)}</span>
               </button>
             ))
           )}

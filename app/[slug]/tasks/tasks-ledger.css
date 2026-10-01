@@ -15,25 +15,6 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 .dash.dash-tasks {
-  --paper:    #0f0d0a;
-  --paper-2:  #14120e;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
-  --ok:       #7fb08a;
-  --ok-bg:    rgba(127,176,138,.10);
-  --shadow:   0 1px 0 rgba(0,0,0,.4), 0 16px 40px -24px rgba(0,0,0,.7);
 
   --serif: var(--font-fraunces), Georgia, serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
@@ -272,7 +253,7 @@
 .dash.dash-tasks .tk-row.s-overdue::before { background: var(--rose); }
 .dash.dash-tasks .tk-row.s-urgent::before  { background: var(--rose); opacity: .7; }
 .dash.dash-tasks .tk-row.s-due-soon::before { background: var(--gold); }
-.dash.dash-tasks .tk-row:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+.dash.dash-tasks .tk-row:hover { border-color: rgba(var(--ink-rgb),.2); transform: translateX(1px); }
 
 .dash.dash-tasks .tk-circle {
   margin-left: 15px;
@@ -402,9 +383,9 @@
 
 .dash.dash-tasks .tk-error {
   margin-top: 16px;
-  background: rgba(244,63,94,.1);
-  border: 1px solid rgba(244,63,94,.3);
-  color: #fda4af;
+  background: rgba(var(--err-rgb),.1);
+  border: 1px solid rgba(var(--err-rgb),.3);
+  color: var(--err-ink);
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 13px;
@@ -424,22 +405,22 @@
 
 /* ── Read-only task sheet (members without MANAGE_TASKS; mounts in the modal,
    outside .dash, so it carries its own fallbacks like .tk-form below) ───────── */
-.tk-sheet { display: flex; flex-direction: column; gap: 16px; font-size: 13.5px; color: #c9c2b4; }
-.tk-sheet .title { font-size: 16px; font-weight: 500; color: #ece7dd; overflow-wrap: anywhere; }
+.tk-sheet { display: flex; flex-direction: column; gap: 16px; font-size: 13.5px; color: var(--ink-soft); }
+.tk-sheet .title { font-size: 16px; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
 .tk-sheet dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
-.tk-sheet dt { font-family: var(--font-geist-mono, ui-monospace, monospace); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #958d7c; padding-top: 3px; }
+.tk-sheet dt { font-family: var(--font-geist-mono, ui-monospace, monospace); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
 .tk-sheet dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .tk-sheet dd.notes { white-space: pre-wrap; }
-.tk-sheet .when { color: #958d7c; }
-.tk-sheet .when.late { color: #d98ba3; }
-.tk-sheet .when.soon { color: #ddb36a; }
+.tk-sheet .when { color: var(--muted); }
+.tk-sheet .when.late { color: var(--rose); }
+.tk-sheet .when.soon { color: var(--gold); }
 .tk-sheet .act {
   align-self: flex-start;
   font-family: var(--font-geist-mono, ui-monospace, monospace); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-  color: #a78bfa; background: rgba(167,139,250,.10); border: 1px solid rgba(167,139,250,.10);
+  color: var(--vio); background: rgba(var(--vio-rgb),.10); border: 1px solid rgba(var(--vio-rgb),.10);
   border-radius: 8px; padding: 9px 15px; transition: border-color .15s;
 }
-.tk-sheet .act:hover { border-color: #a78bfa; }
+.tk-sheet .act:hover { border-color: var(--vio); }
 @media (max-width: 420px) { .tk-sheet dl { grid-template-columns: 1fr; gap: 2px; } .tk-sheet dd { margin-bottom: 8px; } }
 
 /* ── Modal form (unchanged grammar, kept for the create/edit dialog) ────────── */
@@ -448,32 +429,32 @@
 /* The member/role picker is shared by TaskForm (.tk-form) and the poll composer
    (.pc) — both mount inside the dusk modal, so keep one chip grammar for both. */
 .tk-form .tk-opt,
-.pc .tk-opt { font-weight: 400; color: var(--faint, #6b6354); font-size: 11.5px; }
+.pc .tk-opt { font-weight: 400; color: var(--faint, var(--faint)); font-size: 11.5px; }
 .tk-form .tk-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .pc .tk-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .tk-form .tk-pick-chip,
 .pc .tk-pick-chip {
-  border: 1px solid rgba(236,231,221,.14);
+  border: 1px solid rgba(var(--ink-rgb),.14);
   border-radius: 999px;
   padding: 5px 11px;
   font-size: 12px;
-  color: #c9c2b4;
+  color: var(--ink-soft);
   transition: background .12s, border-color .12s, color .12s;
 }
 .tk-form .tk-pick-chip:hover,
-.pc .tk-pick-chip:hover { border-color: rgba(236,231,221,.28); }
+.pc .tk-pick-chip:hover { border-color: rgba(var(--ink-rgb),.28); }
 .tk-form .tk-pick-chip.on,
 .pc .tk-pick-chip.on {
-  background: rgba(167,139,250,.16);
-  border-color: rgba(167,139,250,.5);
-  color: #ece7dd;
+  background: rgba(var(--vio-rgb),.16);
+  border-color: rgba(var(--vio-rgb),.5);
+  color: var(--ink);
 }
 .tk-form .tk-pick-chip.role.on,
 .pc .tk-pick-chip.role.on {
-  background: color-mix(in srgb, var(--chip, #a78bfa) 18%, transparent);
-  border-color: color-mix(in srgb, var(--chip, #a78bfa) 55%, transparent);
+  background: color-mix(in srgb, var(--chip, var(--vio)) 18%, transparent);
+  border-color: color-mix(in srgb, var(--chip, var(--vio)) 55%, transparent);
 }
-.tk-form .tk-form-error { color: #fda4af; font-size: 12.5px; }
+.tk-form .tk-form-error { color: var(--err-ink); font-size: 12.5px; }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
@@ -506,7 +487,7 @@
   border-radius: 10px; padding: 15px 16px; width: 100%; text-align: left; color: inherit;
   cursor: pointer; transition: border-color .14s, transform .14s;
 }
-.dash.dash-tasks .db-row:hover { border-color: rgba(236,231,221,.2); transform: translateX(1px); }
+.dash.dash-tasks .db-row:hover { border-color: rgba(var(--ink-rgb),.2); transform: translateX(1px); }
 .dash.dash-tasks .db-glyph { flex-shrink: 0; width: 22px; height: 22px; color: var(--faint); display: grid; place-items: center; }
 .dash.dash-tasks .db-glyph svg { width: 20px; height: 20px; }
 .dash.dash-tasks .db-row.awaits .db-glyph { color: var(--vio); }
@@ -524,20 +505,6 @@
 .db-poll {
   --serif: var(--font-fraunces), Georgia, serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
-  --card:     #161310;
-  --card-2:   #1b1813;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --vio-bg:   rgba(167,139,250,.10);
-  --gold:     #ddb36a;
-  --gold-bg:  rgba(221,179,106,.10);
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
 }
 .db-poll .db-question { font-family: var(--serif); font-style: italic; font-size: 21px; line-height: 1.3; color: var(--ink); margin: 0 0 4px; }
 .db-poll .db-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 0 0 20px; display: flex; align-items: center; }
@@ -619,16 +586,6 @@
 .pc {
   --serif: var(--font-fraunces), Georgia, serif;
   --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
-  --ink:      #ece7dd;
-  --ink-soft: #c9c2b4;
-  --muted:    #958d7c;
-  --faint:    #6b6354;
-  --line:     rgba(236,231,221,.09);
-  --line-soft:rgba(236,231,221,.05);
-  --vio:      #a78bfa;
-  --gold:     #ddb36a;
-  --rose:     #d98ba3;
-  --rose-bg:  rgba(217,139,163,.10);
 }
 
 /* Head — mono kicker + serif question (mirrors .db-sub + .db-question). */
@@ -678,10 +635,10 @@
   display: flex; align-items: center; gap: 13px; width: 100%; text-align: left;
   padding: 12px 2px 2px; border: none; background: none; cursor: pointer; color: var(--vio); font-size: 13px;
 }
-.pc-add-glyph { width: 17px; height: 17px; border-radius: 50%; border: 1px dashed rgba(167,139,250,.45); display: grid; place-items: center; }
+.pc-add-glyph { width: 17px; height: 17px; border-radius: 50%; border: 1px dashed rgba(var(--vio-rgb),.45); display: grid; place-items: center; }
 .pc-add-glyph svg { width: 11px; height: 11px; }
 .pc-add-lbl { transition: color .12s; }
-.pc-add:hover .pc-add-lbl { color: #c4b0fc; }
+.pc-add:hover .pc-add-lbl { color: var(--vio-hi); }
 
 /* Who votes — segmented mode toggle (mono uppercase, echoes the ballot buttons). */
 .pc-seg { display: inline-flex; overflow: hidden; border-radius: 9px; border: 1px solid var(--line); }
@@ -689,15 +646,15 @@
   padding: 7px 14px; font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase;
   font-weight: 500; color: var(--muted); background: none; border: none; cursor: pointer; transition: background .12s, color .12s;
 }
-.pc-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(236,231,221,.05); }
-.pc-seg button.on { background: var(--vio); color: #0f0d0a; }
+.pc-seg button:hover:not(.on) { color: var(--ink-soft); background: rgba(var(--ink-rgb),.05); }
+.pc-seg button.on { background: var(--vio); color: var(--paper); }
 
 /* Closes — date field + serif footnote. */
 .pc-date {
-  width: 100%; border-radius: 9px; border: 1px solid var(--line); background: #14120e;
+  width: 100%; border-radius: 9px; border: 1px solid var(--line); background: var(--paper-2);
   padding: 9px 12px; font-size: 13px; color: var(--ink-soft); color-scheme: dark;
 }
-.pc-date:focus { outline: none; border-color: rgba(167,139,250,.5); }
+.pc-date:focus { outline: none; border-color: rgba(var(--vio-rgb),.5); }
 .pc-note { font-family: var(--serif); font-style: italic; font-size: 13px; line-height: 1.5; color: var(--muted); margin: 10px 0 0; }
 
 .pc-error { color: var(--rose); font-size: 12.5px; margin: 18px 0 0; }
@@ -706,7 +663,7 @@
 .pc-submit {
   margin-top: 28px; width: 100%; padding: 12px; border-radius: 9px; border: none; cursor: pointer;
   font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500;
-  background: var(--vio); color: #0f0d0a; transition: background .14s;
+  background: var(--vio); color: var(--paper); transition: background .14s;
 }
-.pc-submit:hover { background: #bda6fc; }
+.pc-submit:hover { background: var(--vio-hi); }
 .pc-submit:disabled { opacity: .5; cursor: not-allowed; }

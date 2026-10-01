@@ -374,17 +374,17 @@ export default function BrothersPage() {
   const belowAttend    = brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#07090f]">
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Brotherhood" onNavClick={() => {}} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
         {/* ── Toolbar (mobile/tablet only — hidden at lg+ where the sidebar is
             static and the Export/New actions live in the editorial header below). ── */}
-        <header className="toolbar-frosted dash-toolbar relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+        <header className="toolbar-frosted dash-toolbar relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.05)] px-4 sm:px-6 lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[#958d7c] hover:bg-white/[0.07] lg:hidden"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
             aria-label="Open menu"
           >
             <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -392,15 +392,15 @@ export default function BrothersPage() {
             </svg>
           </button>
           <div className="min-w-0 flex-1">
-            <p className="tb-title text-[14px] font-semibold leading-tight text-[#ece7dd]">{v("Member", true)}</p>
-            <p className="tb-org hidden text-[11px] leading-tight text-[#958d7c] sm:block">{currentUser?.org?.name ?? "ChaptOS"} · {v("Member")} Roster</p>
+            <p className="tb-title text-[14px] font-semibold leading-tight text-[color:var(--ink)]">{v("Member", true)}</p>
+            <p className="tb-org hidden text-[11px] leading-tight text-[color:var(--muted)] sm:block">{currentUser?.org?.name ?? "ChaptOS"} · {v("Member")} Roster</p>
           </div>
           {/* Mobile-only quick actions; the desktop Export/New live in the editorial header below. */}
           <div className="tb-actions flex shrink-0 items-center gap-2 lg:hidden">
             <button
               onClick={handleExport}
               title="Export CSV"
-              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(236,231,221,0.12)] bg-white/[0.04] text-[#958d7c] transition-all hover:border-[rgba(236,231,221,0.24)] hover:bg-white/[0.08] hover:text-[#ece7dd]"
+              className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-full border border-[rgba(var(--ink-rgb),0.12)] bg-[rgba(var(--ink-rgb),0.04)] text-[color:var(--muted)] transition-all hover:border-[rgba(var(--ink-rgb),0.24)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]"
             >
               <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -410,7 +410,7 @@ export default function BrothersPage() {
               <button
                 onClick={goToInvites}
                 title="Create an invite link"
-                className="tb-btn flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-white/[0.04] px-3.5 text-[12px] font-semibold text-indigo-200 transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
+                className="tb-btn flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-[rgba(var(--ink-rgb),0.04)] px-3.5 text-[12px] font-semibold text-[color:var(--vio)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
               >
                 <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -770,13 +770,13 @@ export default function BrothersPage() {
       {logHoursFor && (
         <Modal title="Log Service Hours" tone="dusk" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
           <div className="space-y-4">
-            <p className="text-[12px] text-[#958d7c]">
-              Logging hours for <span className="font-semibold text-[#ece7dd]">{logHoursFor.name}</span> against a service event.
+            <p className="text-[12px] text-[color:var(--muted)]">
+              Logging hours for <span className="font-semibold text-[color:var(--ink)]">{logHoursFor.name}</span> against a service event.
             </p>
             <div>
               <FieldLabel tone="dusk">Service Event</FieldLabel>
               {logHoursEvents.length === 0 ? (
-                <p className="mt-1 text-[12px] text-[#6b6354]">No service events yet. Create one on the Service page first.</p>
+                <p className="mt-1 text-[12px] text-[color:var(--faint)]">No service events yet. Create one on the Service page first.</p>
               ) : (
                 <select
                   className={inputDuskCls}
@@ -803,7 +803,7 @@ export default function BrothersPage() {
                 onChange={e => setLogHoursStr(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && logHoursEventId != null && logHoursStr !== "") submitLogServiceHours(); }}
               />
-              <p className="mt-1.5 text-[11px] text-[#6b6354]">
+              <p className="mt-1.5 text-[11px] text-[color:var(--faint)]">
                 Sets {logHoursFor.name.split(" ")[0]}&apos;s hours for this event. Their total recomputes from all logged events.
               </p>
             </div>
@@ -832,9 +832,9 @@ export default function BrothersPage() {
         <Modal title="Record Payment" tone="dusk" onClose={() => setPayTarget(null)}>
           <div className="space-y-4">
             <div>
-              <p className="text-[12px] text-[#958d7c] mb-3">
+              <p className="text-[12px] text-[color:var(--muted)] mb-3">
                 {payTarget.name} currently owes{" "}
-                <span className="font-semibold text-[#ddb36a]">{fmt$(payTarget.duesOwed)}</span>
+                <span className="font-semibold text-[color:var(--gold)]">{fmt$(payTarget.duesOwed)}</span>
               </p>
               <FieldLabel tone="dusk">Amount Paid ($)</FieldLabel>
               <input
@@ -848,7 +848,7 @@ export default function BrothersPage() {
                 onKeyDown={e => { if (e.key === "Enter") submitPayment(); }}
               />
               {parseFloat(payAmountStr) > 0 && (
-                <p className="mt-1.5 text-[11px] text-[#958d7c]">
+                <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">
                   Opens the transaction form pre-filled — review and post it to record
                   the payment.
                 </p>

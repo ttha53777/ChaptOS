@@ -316,7 +316,7 @@ export function EventTypesSection({
       {showNew && (
         <div
           className="rounded-xl px-4 py-4 space-y-3"
-          style={{ border: "1px solid rgba(167,139,250,.35)", background: "var(--card)" }}
+          style={{ border: "1px solid rgba(var(--vio-rgb),.35)", background: "var(--card)" }}
         >
           <h3 className="sc-h" style={{ fontSize: 14 }}>
             New event type

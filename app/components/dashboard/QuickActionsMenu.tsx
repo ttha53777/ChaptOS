@@ -198,7 +198,7 @@ export function QuickActionsMenu({
           onClick={() => setOpen(v => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-medium text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-2.5 py-1.5 text-[11px] font-medium text-[color:var(--ink-soft)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-indigo-500/40 hover:bg-indigo-500/10 hover:text-indigo-200"
         >
           <svg className="h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 2L4.5 13.5h6L11 22l8.5-11.5h-6L13 2z" />
@@ -214,7 +214,7 @@ export function QuickActionsMenu({
           onClick={() => setOpen(v => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#a78bfa] text-[#0f0d0a] hover:bg-[#bda6fc]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-[color:var(--vio)] text-[color:var(--paper)] hover:bg-[color:var(--vio-hi)]"
         >
           <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -225,24 +225,24 @@ export function QuickActionsMenu({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1.5 w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(236,231,221,0.12)] bg-[#141118]/95 py-1.5 shadow-[0_12px_28px_-8px_rgba(0,0,0,0.8)] backdrop-blur-xl"
+          className="absolute right-0 top-full z-50 mt-1.5 w-56 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--card-2)]/95 py-1.5 shadow-[0_12px_28px_-8px_rgba(var(--shade-rgb),calc(0.8*var(--shade-k)))] backdrop-blur-xl"
         >
           {items.map((a, i) => {
             const prev = items[i - 1];
             const needsDivider = showDivider && prev && prev.adminOnly && !a.adminOnly;
             return (
               <div key={a.key}>
-                {needsDivider && <div className="my-1 border-t border-[rgba(236,231,221,0.08)]" />}
+                {needsDivider && <div className="my-1 border-t border-[rgba(var(--ink-rgb),0.08)]" />}
                 <button
                   type="button"
                   role="menuitem"
                   onClick={() => handlePick(a.key)}
-                  className="group flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-[#c9c2b4] transition-colors hover:bg-[#a78bfa]/10 hover:text-[#ece7dd]"
+                  className="group flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12px] font-medium text-[color:var(--ink-soft)] transition-colors hover:bg-[color:var(--vio)]/10 hover:text-[color:var(--ink)]"
                 >
-                  <span className="text-[#958d7c] group-hover:text-[#a78bfa]">{a.icon}</span>
+                  <span className="text-[color:var(--muted)] group-hover:text-[color:var(--vio)]">{a.icon}</span>
                   <span className="flex-1">{a.label}</span>
                   {a.adminOnly && (
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[#6b6354]">Admin</span>
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[color:var(--faint)]">Admin</span>
                   )}
                 </button>
               </div>

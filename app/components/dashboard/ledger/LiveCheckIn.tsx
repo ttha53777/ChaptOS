@@ -23,6 +23,14 @@ function clockLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+/** Clock time, prefixed with the day when it wasn't today ("Tue, Sep 29 8:15 PM"). */
+function whenLabel(ms: number, now: number): string {
+  const d = new Date(ms);
+  const time = clockLabel(d.toISOString());
+  if (d.toDateString() === new Date(now).toDateString()) return time;
+  return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
+}
+
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -88,6 +96,8 @@ export function LiveCheckIn({
   const excuseApproved = me.excuse?.status === "approved";
   const excusePending  = me.excuse?.status === "pending";
   const closed = state === "closed";
+  // Closed by the clock, not by an officer: no absences were ever written.
+  const unrecorded = closed && !data.closedAt;
 
   // One class carries the card's whole temperature. Precedence matters: being
   // accounted for (checked in / excused) outranks the window's urgency, because
@@ -120,7 +130,8 @@ export function LiveCheckIn({
   }
 
   const kicker =
-    closed          ? "Check-in closed"
+    unrecorded      ? "Check-in expired"
+    : closed        ? "Check-in closed"
     : excuseApproved ? "You're excused"
     : me.checkedIn  ? "You're checked in"
     : state === "closing" ? "Check-in closing"
@@ -151,7 +162,7 @@ export function LiveCheckIn({
               {closed
                 ? data.closedAt
                   ? `ended ${clockLabel(data.closedAt)}${data.closedByName ? ` by ${data.closedByName}` : ""}`
-                  : "ended"
+                  : `ended ${whenLabel(Date.parse(data.openedAt) + CHECKIN_WINDOW_MS, now)}`
                 : `opened ${sinceLabel(data.openedAt, now)}`}
             </span>
           </p>
@@ -206,11 +217,12 @@ export function LiveCheckIn({
           )}
 
           {/* An expired window that was never closed. It reads as "closed" but
-              no absences were ever written; reopening is what gets the officer
-              back to a window they can close for real. */}
-          {closed && onReopen && !data.closedAt && (
+              no absences were ever written. Officers keep seeing it (see
+              getLiveCheckIn) until they close it — directly, not via reopen,
+              which would hand members a fresh hour to check in after the fact. */}
+          {unrecorded && onClose && (
             <p className="live-nudge">
-              This window expired without being closed, so <b>no attendance was recorded</b>. Reopen it to close it properly.
+              This window expired without being closed, so <b>no attendance has been recorded yet</b>. Close it to mark everyone who didn&rsquo;t check in absent.
             </p>
           )}
 
@@ -224,7 +236,7 @@ export function LiveCheckIn({
                 Take attendance
               </button>
             )}
-            {!closed && onClose && (
+            {(!closed || unrecorded) && onClose && (
               <button type="button" className="live-alt live-close" disabled={busy !== null} onClick={() => run("window", onClose, "Could not close check-in.")}>
                 {busy === "window" ? "Closing…" : "Close & record attendance"}
               </button>
@@ -252,7 +264,7 @@ export function LiveCheckIn({
             OWN state change is announced instead, from .live-said below. */}
         <div className="live-count">
           <p className="n">{presentCount}<small>/{eligibleCount}</small></p>
-          <p className="k">{closed ? "final tally" : "here now"}</p>
+          <p className="k">{unrecorded ? "checked in" : closed ? "final tally" : "here now"}</p>
           <span className="track"><i style={{ width: `${pct}%` }} /></span>
         </div>
 

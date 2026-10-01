@@ -6,7 +6,7 @@ import { compareEvents, formatEventTime } from "@/lib/event-time";
 
 const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTrendChart"), {
   ssr: false,
-  loading: () => <div className="h-[110px] w-full rounded-lg bg-white/[0.04] animate-pulse" />,
+  loading: () => <div className="h-[110px] w-full rounded-lg bg-[rgba(var(--ink-rgb),0.04)] animate-pulse" />,
 });
 import {
   Brother, CalendarEvent, CalEventType, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction, Poll,
@@ -2072,7 +2072,7 @@ export default function Home() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="main-route-transition flex h-screen overflow-hidden bg-[#07090f]">
+    <div className="main-route-transition flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -2087,15 +2087,15 @@ export default function Home() {
             drawer and labels the section. The ledger below reflows into a single
             column at phone widths, folding the My Standing / Quick Actions
             controls into BriefingActions exactly as the desktop pane does. */}
-        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.05] px-4 sm:px-6 lg:hidden">
+        <header className="toolbar-frosted dash-toolbar relative z-20 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.05)] px-4 sm:px-6 lg:hidden">
           <button onClick={() => setSidebarOpen(true)}
-            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.07] lg:hidden"
+            className="tb-icon-btn flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
             aria-label="Open menu">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="truncate text-[13px] font-semibold text-[#ece7dd]">Dashboard</span>
+          <span className="truncate text-[13px] font-semibold text-[color:var(--ink)]">Dashboard</span>
         </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
@@ -2534,16 +2534,16 @@ export default function Home() {
       )}
       {activeModal === "pick-event-for-excuse" && (
         <Modal title="Select Event to Excuse" tone="dusk" onClose={closeModal}>
-          <p className="mb-3 text-[12px] text-[#958d7c]">Pick a required event you (or, if you&rsquo;re an admin, another brother) need an excuse for.</p>
+          <p className="mb-3 text-[12px] text-[color:var(--muted)]">Pick a required event you (or, if you&rsquo;re an admin, another brother) need an excuse for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {calendarList.filter(e => e.mandatory).length === 0 && (
-              <p className="text-[12px] text-[#6b6354]">No required events found.</p>
+              <p className="text-[12px] text-[color:var(--faint)]">No required events found.</p>
             )}
             {calendarList.filter(e => e.mandatory).sort(compareEvents).map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("excuse"); }}
-                className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
-                <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
-                <p className="text-[11px] text-[#6b6354]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
+                className="w-full rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 text-left transition-colors hover:border-[color:var(--vio)]/30 hover:bg-[color:var(--vio)]/10">
+                <p className="text-[13px] font-medium text-[color:var(--ink)]">{e.title}</p>
+                <p className="text-[11px] text-[color:var(--faint)]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
               </button>
             ))}
           </div>
@@ -2573,16 +2573,16 @@ export default function Home() {
       )}
       {activeModal === "pick-event" && (
         <Modal title="Select Event to Log" tone="dusk" onClose={closeModal}>
-          <p className="mb-3 text-[12px] text-[#958d7c]">Pick a required event to log attendance for.</p>
+          <p className="mb-3 text-[12px] text-[color:var(--muted)]">Pick a required event to log attendance for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {calendarList.filter(e => e.mandatory).length === 0 && (
-              <p className="text-[12px] text-[#6b6354]">No required events found.</p>
+              <p className="text-[12px] text-[color:var(--faint)]">No required events found.</p>
             )}
             {calendarList.filter(e => e.mandatory).sort(compareEvents).map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("attendance"); }}
-                className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
-                <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
-                <p className="text-[11px] text-[#6b6354]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
+                className="w-full rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 text-left transition-colors hover:border-[color:var(--vio)]/30 hover:bg-[color:var(--vio)]/10">
+                <p className="text-[13px] font-medium text-[color:var(--ink)]">{e.title}</p>
+                <p className="text-[11px] text-[color:var(--faint)]">{e.date}{e.location ? ` · ${e.location}` : ""}</p>
               </button>
             ))}
           </div>
@@ -2590,20 +2590,20 @@ export default function Home() {
       )}
       {activeModal === "pick-event-for-checkin" && (
         <Modal title="Open Check-in" tone="dusk" onClose={closeModal}>
-          <p className="mb-3 text-[12px] text-[#958d7c]">Pick a required event to open live check-in for.</p>
+          <p className="mb-3 text-[12px] text-[color:var(--muted)]">Pick a required event to open live check-in for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {checkInCandidates.length === 0 && (
-              <p className="text-[12px] text-[#6b6354]">No required events found.</p>
+              <p className="text-[12px] text-[color:var(--faint)]">No required events found.</p>
             )}
             {checkInCandidates.map(e => {
               const when = e.date === todayISO ? "Today" : e.date;
               return (
                 <button key={e.id} onClick={() => { closeModal(); void handleOpenCheckIn(e); }}
-                  className="w-full rounded-lg border border-[rgba(236,231,221,0.08)] bg-[rgba(236,231,221,0.03)] px-3 py-2.5 text-left transition-colors hover:border-[#a78bfa]/30 hover:bg-[#a78bfa]/10">
-                  <p className="text-[13px] font-medium text-[#ece7dd]">{e.title}</p>
-                  <p className="text-[11px] text-[#6b6354]">
+                  className="w-full rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 text-left transition-colors hover:border-[color:var(--vio)]/30 hover:bg-[color:var(--vio)]/10">
+                  <p className="text-[13px] font-medium text-[color:var(--ink)]">{e.title}</p>
+                  <p className="text-[11px] text-[color:var(--faint)]">
                     {e.date === todayISO
-                      ? <span className="font-medium text-[#a78bfa]">{when}</span>
+                      ? <span className="font-medium text-[color:var(--vio)]">{when}</span>
                       : when}
                     {formatEventTime(e.time, e.schedule) ? ` · ${formatEventTime(e.time, e.schedule)}` : ""}{e.location ? ` · ${e.location}` : ""}
                   </p>
@@ -2618,8 +2618,8 @@ export default function Home() {
         <Modal title="Record Payment" tone="dusk" onClose={() => setPayTarget(null)}>
           <div className="space-y-4">
             <div>
-              <p className="text-[12px] text-[#958d7c] mb-3">
-                {payTarget.name} owes <span className="font-semibold text-[#d9b08b]">{fmt$(payTarget.duesOwed)}</span>
+              <p className="text-[12px] text-[color:var(--muted)] mb-3">
+                {payTarget.name} owes <span className="font-semibold text-[color:var(--gold)]">{fmt$(payTarget.duesOwed)}</span>
               </p>
               <FieldLabel tone="dusk">Amount Paid ($)</FieldLabel>
               <input
@@ -2634,7 +2634,7 @@ export default function Home() {
                 onKeyDown={e => { if (e.key === "Enter") submitPayDues(); }}
               />
               {parseFloat(payAmountStr) > 0 && (
-                <p className="mt-1.5 text-[11px] text-[#6b6354]">
+                <p className="mt-1.5 text-[11px] text-[color:var(--faint)]">
                   Opens the transaction form pre-filled — review and post it to record
                   the payment.
                 </p>
@@ -2682,13 +2682,13 @@ export default function Home() {
       {logHoursFor && (
         <Modal title="Log Service Hours" tone="dusk" onClose={() => !logHoursBusy && setLogHoursFor(null)}>
           <div className="space-y-4">
-            <p className="text-[12px] text-[#958d7c]">
-              Logging hours for <span className="font-semibold text-[#ece7dd]">{logHoursFor.name}</span> against a service event.
+            <p className="text-[12px] text-[color:var(--muted)]">
+              Logging hours for <span className="font-semibold text-[color:var(--ink)]">{logHoursFor.name}</span> against a service event.
             </p>
             <div>
               <FieldLabel tone="dusk">Service Event</FieldLabel>
               {logHoursEvents.length === 0 ? (
-                <p className="mt-1 text-[12px] text-[#6b6354]">No service events yet. Create one on the Service page first.</p>
+                <p className="mt-1 text-[12px] text-[color:var(--faint)]">No service events yet. Create one on the Service page first.</p>
               ) : (
                 <select
                   className={inputDuskCls}
@@ -2715,7 +2715,7 @@ export default function Home() {
                 onChange={e => setLogHoursStr(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && logHoursEventId != null && logHoursStr !== "") submitLogServiceHours(); }}
               />
-              <p className="mt-1.5 text-[11px] text-[#6b6354]">
+              <p className="mt-1.5 text-[11px] text-[color:var(--faint)]">
                 Sets {logHoursFor.name.split(" ")[0]}&apos;s hours for this event. Their total recomputes from all logged events.
               </p>
             </div>
@@ -2782,7 +2782,7 @@ export default function Home() {
         <ConfirmDialog
           tone="dusk"
           title="Delete Deadline"
-          message={<>Delete <span className="font-semibold text-[#ece7dd]">{confirmDelete.label}</span>? This cannot be undone.</>}
+          message={<>Delete <span className="font-semibold text-[color:var(--ink)]">{confirmDelete.label}</span>? This cannot be undone.</>}
           onCancel={() => setConfirmDelete(null)}
           onConfirm={() => {
             confirmDeleteDeadline(confirmDelete.id);
