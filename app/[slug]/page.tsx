@@ -1414,6 +1414,13 @@ export default function Home() {
       overdueCount:    taskList.filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < todayISO).length,
     };
   }, [weekRange, taskList, igTaskList, calendarList, partyList, statusCounts, todayISO]);
+  // The This Week card shows every calendar entry, parties included. The digest
+  // above drops party-linked events only because it lists parties in their own
+  // section; the agenda has no such section, so the same filter erased them.
+  const agendaEvents = useMemo(
+    () => calendarList.filter(e => e.date >= weekRange.start && e.date <= weekRange.end),
+    [calendarList, weekRange],
+  );
   const digestTotal =
     weeklyDigest.deadlinesDue.length + weeklyDigest.igDue.length +
     weeklyDigest.eventsThisWeek.length + weeklyDigest.partiesThisWeek.length;
@@ -2403,7 +2410,7 @@ export default function Home() {
                     />
                   )}
                   <ThisWeek
-                    events={weeklyDigest.eventsThisWeek}
+                    events={agendaEvents}
                     deadlines={weeklyDigest.deadlinesDue}
                     weekStart={weekRange.start}
                     weekEnd={weekRange.end}
