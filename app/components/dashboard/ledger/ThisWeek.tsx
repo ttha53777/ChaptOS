@@ -2,7 +2,7 @@ import React from "react";
 import { fmtRange, taskAssigneeLabel, type CalendarEvent, type Task } from "../../../data";
 import { SectionError } from "./SectionError";
 import type { WeekPeekTarget } from "./WeekItemPeek";
-import { compareEvents, formatEventTime } from "@/lib/event-time";
+import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
 
 const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 function weekday(iso: string): string {
@@ -19,6 +19,10 @@ type WeekItem = {
   meta: string;
   kind: "event" | "deadline";
   today: boolean;
+  /** An event that has already finished. The week runs Monday–Sunday, so by
+   *  midweek half the agenda is behind us and reads the same as what's ahead
+   *  without this. Deadlines never set it — an overdue task isn't "over". */
+  over: boolean;
   /** The record behind the row, handed straight to the peek sheet. Kept on the
    *  item rather than re-looked-up by id: the two kinds live in different lists,
    *  and an id alone would need a lookup that can miss. */
@@ -80,6 +84,7 @@ export function ThisWeek({
       meta: [formatEventTime(e.time, e.schedule), e.location, e.mandatory ? "mandatory" : null].filter(Boolean).join(" · "),
       kind: "event",
       today: e.date === today,
+      over: isEventOver(e),
       target: { kind: "event", event: e },
     })),
     ...deadlines
@@ -90,6 +95,7 @@ export function ThisWeek({
         meta: taskAssigneeLabel(d),
         kind: "deadline",
         today: d.dueDate === today,
+        over: false,
         target: { kind: "deadline", task: d },
       })),
   // Same day: all-day items (deadlines) first, then events by start time.
@@ -143,13 +149,15 @@ export function ThisWeek({
                 <p className="t">
                   {it.title}
                   {it.kind === "deadline" && <span className="ddl-pill">DEADLINE</span>}
-                  {it.today && <span className="today-pill">TODAY</span>}
+                  {/* One status pill: a finished event today is ENDED, not TODAY. */}
+                  {it.over ? <span className="ended-pill">ENDED</span>
+                    : it.today && <span className="today-pill">TODAY</span>}
                 </p>
                 {it.meta && <p className="m">{it.meta}</p>}
               </div>
             </>
           );
-          const cls = it.today ? "week-item today" : "week-item";
+          const cls = ["week-item", it.today && "today", it.over && "over"].filter(Boolean).join(" ");
           // A real <button> rather than a click handler on the div: these rows are
           // now the entry point to an event, so they have to be reachable and
           // operable from the keyboard like any other control.

@@ -532,6 +532,11 @@
   background: var(--vio-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
 .dash .ddl-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--gold);
   background: var(--gold-bg); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+/* A finished event: neutral pill, and the row steps back so what's still ahead leads. */
+.dash .ended-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--muted);
+  background: var(--line); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+.dash .week-item.over .what .t { color: var(--muted); }
+.dash .week-item.over .day b { color: var(--faint); }
 .dash .rail-empty { padding: 14px 18px; font-size: 12px; color: var(--faint); line-height: 1.55; }
 /* An empty rail card may name its one next move. Block-level so the action sits
    under the sentence rather than stretching the card's minimum width. */
