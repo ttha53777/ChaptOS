@@ -45,7 +45,7 @@
 .ms-overlay .ms-head .ms-who { min-width: 0; flex: 1; }
 .ms-overlay .ms-head h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 32px; letter-spacing: -.025em; line-height: 1.1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
-.ms-overlay .ms-head .ms-sub { margin-top: 4px; color: var(--muted); font-size: 14px; }
+.ms-overlay .ms-head .ms-sub { margin-top: 4px; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
 .ms-overlay .ms-av { width: 60px; height: 60px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center;
   background: var(--card-3); color: var(--ink-soft); font-family: var(--serif); font-weight: 500; font-size: 21px;
   box-shadow: 0 0 0 1.5px var(--line-med); object-fit: cover; }
@@ -99,6 +99,8 @@
 .ms-overlay .ms-row .k { font-size: 13px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ms-overlay .ms-row .k .req { color: var(--risk); margin-left: 2px; }
 .ms-overlay .ms-row .v { font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* .wrap: values that must be read in full (Roles) — wrap instead of ellipsizing. */
+.ms-overlay .ms-row .v.wrap { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
 .ms-overlay .ms-row .v.empty { color: var(--faint); } .ms-overlay .ms-row .v.miss { color: var(--warn); }
 .ms-overlay .ms-row .v .of { color: var(--faint); }
 .ms-overlay .ms-row .e { opacity: 0; transition: opacity .15s; }
@@ -113,10 +115,10 @@
 .ms-overlay .ms-tact.quiet:hover:not(:disabled) { color: var(--ink); background: var(--card-2); }
 .ms-overlay .ms-waiting { font-size: 12.5px; color: var(--faint); }
 .ms-overlay .ms-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.ms-overlay .ms-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid var(--line-med); font-size: 12.5px; color: var(--ink-soft); }
+.ms-overlay .ms-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 10px; border-radius: 13px; max-width: 100%; overflow-wrap: anywhere; border: 1px solid var(--line-med); font-size: 12.5px; color: var(--ink-soft); }
 .ms-overlay .ms-chip.fixed { padding-right: 10px; }
 .ms-overlay .ms-chip i { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.ms-overlay .ms-chip button { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 0; background: none; color: var(--faint); }
+.ms-overlay .ms-chip button { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0; border: 0; background: none; color: var(--faint); }
 .ms-overlay .ms-chip button:hover:not(:disabled) { color: var(--ink); background: var(--card-3); }
 .ms-overlay .ms-chip button svg { width: 9px; height: 9px; }
 

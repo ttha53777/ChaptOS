@@ -69,7 +69,10 @@
 
 /* ── Roster table tweaks layered on dashboard-ledger's table rules ───────────── */
 /* role subline nested under the name (dashboard put role in its own column) */
-.dash .b-name .rl { font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 230px; margin-top: 1px; }
+/* contain: inline-size → the role adds no width to the Member column; it fills
+   whatever the names already claimed and ellipsizes there. */
+.dash .b-name .rl { font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; contain: inline-size; margin-top: 1px; }
+.dash .roster .b-name > div:last-child { flex: 1 1 auto; }
 .dash .b-name .nm { font-size: 13px; font-weight: 550; color: var(--ink); white-space: nowrap; }
 /* pending-excuse review chip — gold "needs attention" tone, mirrors .count-chip */
 .dash .b-name .excuse-chip { display: inline-block; margin-left: 7px; vertical-align: 1px;

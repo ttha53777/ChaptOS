@@ -803,7 +803,7 @@ export function MemberSpotlight({
   const rows: React.ReactNode[] = [];
   rows.push(
     <Row key="roles" id="roles" label="Roles" edit={edit} editable={canRoles}
-      value={roleNames.join(", ") || "Member"} valueCls={roleNames.length ? "" : "empty"}
+      value={roleNames.join(", ") || "Member"} valueCls={roleNames.length ? "wrap" : "empty"}
       editor={() => (
         <>
           <p className="ttl">Roles</p>
