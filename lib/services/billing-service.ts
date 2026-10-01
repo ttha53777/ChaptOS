@@ -27,7 +27,7 @@ import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { stripe, stripeEnabled, stripePriceId } from "@/lib/stripe";
 import { checkSeatAvailable } from "@/lib/billing/guard";
 import { countBillableMembers } from "@/lib/billing/seats";
-import { findLiveSubscription, flushPendingSeatSync, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
+import { findLiveSubscription, flushPendingSeatSync, isMissingCustomer, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
 import { BILLING_BANDS, SELF_SERVE_MAX, formatPrice, formatRange, tierForCount } from "@/lib/billing/tiers";
 import type { ChangePlanInput, OpenPortalInput, RequestQuoteInput, StartCheckoutInput } from "@/lib/validation/billing";
 
@@ -219,14 +219,24 @@ export async function startCheckout(
   // finished) but not two payments completing in the same instant — nothing
   // short of a lock would, and Stripe has no dedup for that. A duplicate that
   // does slip through is visible in /admin/orgs → billing health.
-  if (existing?.stripeCustomerId) {
-    const live = await findLiveSubscription(existing.stripeCustomerId);
+  //
+  // A stored customer Stripe has never heard of (minted under a different key —
+  // a test-mode id read by the live key) can't have a live subscription either,
+  // so it's dropped and replaced rather than failing checkout outright. The
+  // upsert below overwrites the stale id.
+  let customerId = existing?.stripeCustomerId ?? null;
+  if (customerId) {
+    const live = await findLiveSubscription(customerId).catch(e => {
+      if (!isMissingCustomer(e)) throw e;
+      customerId = null;
+      return null;
+    });
     if (live) {
       throw new ValidationError("This organization already has a subscription — manage it in the billing portal.");
     }
   }
 
-  const customerId = existing?.stripeCustomerId ?? await createCustomer(ctx, org);
+  customerId ??= await createCustomer(ctx, org);
 
   const back = input.returnPath ?? `/${org.slug}/billing`;
   const session = await stripe().checkout.sessions.create({

@@ -193,6 +193,17 @@ const LIVE_STRIPE_STATUSES: readonly Stripe.Subscription.Status[] = [
  * guards a payment: refusing to answer has to block checkout, not wave it
  * through, and the caller cannot reach Stripe for the session either way.
  */
+/**
+ * Stripe has no such customer under the current key. Happens when the stored id
+ * was minted in another mode or account (a test-mode id read by a live key), so
+ * the row's customer is unusable here rather than merely unsubscribed.
+ */
+export function isMissingCustomer(e: unknown): boolean {
+  if (typeof e !== "object" || e === null) return false;
+  const err = e as Stripe.errors.StripeError;
+  return err.code === "resource_missing" && (err.param === "customer" || /no such customer/i.test(err.message ?? ""));
+}
+
 export async function findLiveSubscription(customerId: string): Promise<Stripe.Subscription | null> {
   const { data } = await stripe().subscriptions.list({
     customer: customerId,

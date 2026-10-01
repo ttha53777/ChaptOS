@@ -181,6 +181,40 @@ describe("startCheckout — the duplicate guard asks Stripe", () => {
     );
   });
 
+  it("replaces a stored customer Stripe has never heard of instead of failing", async () => {
+    const org = await createOrg("Stale", "stale-org");
+    await seedMembers(org.id, 7);
+    // A test-mode id read back by the live key: the shape that 500'd prod.
+    await testPrisma.subscription.create({
+      data: { organizationId: org.id, stripeCustomerId: "cus_testmode", status: SubscriptionStatus.Free },
+    });
+    stripeMock.subscriptions.list.mockRejectedValue(Object.assign(
+      new Error("No such customer: 'cus_testmode'"),
+      { type: "StripeInvalidRequestError", code: "resource_missing", param: "customer" },
+    ));
+
+    const { url } = await startCheckout(ctxFor(org.id), {}, "https://app.test");
+
+    expect(url).toBe("https://checkout.stripe.test/s");
+    expect(stripeMock.customers.create).toHaveBeenCalled();
+    expect(stripeMock.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: "cus_test" }),
+    );
+    expect((await sub(org.id))?.stripeCustomerId).toBe("cus_test");
+  });
+
+  it("still blocks checkout when Stripe can't answer for some other reason", async () => {
+    const org = await createOrg("Down", "down-org");
+    await seedMembers(org.id, 7);
+    await testPrisma.subscription.create({
+      data: { organizationId: org.id, stripeCustomerId: "cus_test", status: SubscriptionStatus.Free },
+    });
+    stripeMock.subscriptions.list.mockRejectedValue(Object.assign(new Error("connection reset"), { type: "StripeConnectionError" }));
+
+    await expect(startCheckout(ctxFor(org.id), {}, "https://app.test")).rejects.toThrow("connection reset");
+    expect(stripeMock.customers.create).not.toHaveBeenCalled();
+  });
+
   it("skips the Stripe lookup entirely for an org that has never had a customer", async () => {
     const org = await createOrg("Fresh", "fresh-org");
     await seedMembers(org.id, 7);
