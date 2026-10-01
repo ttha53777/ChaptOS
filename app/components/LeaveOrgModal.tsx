@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Modal } from "./dashboard/primitives";
-import { requestJson } from "../lib/api";
+import { leaveOrg } from "../lib/leave-org";
 
 // Shared "leave organization" confirmation modal. Used by both the Accounts
 // settings section and the top-right profile menu so the disconnect flow has one
@@ -10,9 +10,8 @@ import { requestJson } from "../lib/api";
 // neutral amber tone since it's reversible (the user can be re-invited) and only
 // affects the caller, not the whole org.
 //
-// On success it hard-navigates to a remaining org (or /welcome) so the app
-// re-resolves the now-gone active org cleanly; the route clears the active_org
-// cookie as part of the same response.
+// On success leaveOrg() hard-navigates to a remaining org (or /welcome) so the
+// app re-resolves the now-gone active org cleanly.
 
 export function LeaveOrgModal({
   orgName,
@@ -37,34 +36,10 @@ export function LeaveOrgModal({
   async function handleLeave() {
     if (!armed) return;
     setLeaving(true);
-    try {
-      // Slug is the stable confirmation token the server re-checks against the
-      // active org. Comes from currentUser.org, so leaving doesn't depend on any
-      // list fetch succeeding.
-      await requestJson("/api/orgs/leave", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmSlug: orgSlug }),
-      });
-
-      // Land somewhere valid now that this membership is gone. Prefer another org
-      // the user still belongs to; otherwise the onboarding entry point.
-      const remaining = memberships.find(m => m.organizationId !== activeOrgId);
-      window.location.assign(remaining ? `/${remaining.orgSlug}` : "/welcome");
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "";
-      // requestJson surfaces the server's error text in the message, so the 409
-      // last-admin guard message is already human-readable.
-      onError(
-        message.includes("409")
-          ? "You're the last admin. Promote another admin before leaving."
-          : message.includes("403") || /forbidden|cross-origin/i.test(message)
-            ? "You can't leave this organization right now."
-            : "Couldn't leave the organization. Try again.",
-      );
-      setLeaving(false);
-      onClose();
-    }
+    const msg = await leaveOrg({ orgSlug, memberships, activeOrgId });
+    onError(msg);
+    setLeaving(false);
+    onClose();
   }
 
   return (

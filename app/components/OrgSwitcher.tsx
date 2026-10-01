@@ -1,57 +1,115 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { orgInitials } from "@/lib/org-initials";
 import { useChapter } from "../context/ChapterContext";
+import { SvgIcon } from "./SvgIcon";
+
+const ICON_CHEV_UP_DOWN = "M8 9l4-4 4 4m0 6l-4 4-4-4";
+const ICON_CHECK = "M5 13l4 4L19 7";
+const ICON_PLUS = "M12 4v16m8-8H4";
+
+function OrgLogo({ name, logoUrl, small }: { name: string; logoUrl: string | null; small?: boolean }) {
+  return (
+    <span className={`sb-logo${small ? " sm" : ""}`} aria-hidden="true">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {logoUrl ? <img src={logoUrl} alt="" /> : name ? orgInitials(name) : null}
+    </span>
+  );
+}
 
 /**
- * Minimal active-org switcher. Renders only when the user has >1 membership.
+ * The sidebar's org header, which doubles as the org switcher: a popover listing
+ * every org you belong to (logo, your title there), plus "Create a new
+ * organization". Replaces the native <select> band that only multi-org people saw.
  *
  * Switching = navigating to the target org's URL (/<slug>). The /[slug] layout
- * guard reconciles the active_org_id cookie to the URL, so we don't POST here —
- * org identity flows through the URL and the cookie follows.
+ * guard reconciles the active_org_id cookie to the URL, so we don't POST here.
  *
  * We use a HARD navigation (location.assign), not router.push. Next caches and
  * reuses the [slug] layout across navigations that stay within the same layout
  * file — and /lpe → /other is the SAME layout, just a different param. A soft
  * push risks the guard (and its cookie-sync <ActiveOrgSync>) not re-running, so
- * the new org's data would never load. A hard nav guarantees the server layout
- * re-executes, the cookie syncs, and ChapterContext remounts against the new
- * org. Org switching is rare; correctness over SPA-smoothness here.
+ * the new org's data would never load. Org switching is rare; correctness over
+ * SPA-smoothness here.
  */
-export function OrgSwitcher() {
+export function OrgSwitcher({ termLabel }: { termLabel: string }) {
   const { currentUser } = useChapter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
-  if (!currentUser || currentUser.memberships.length <= 1) return null;
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
-  function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    // Sentinel: "found another org" — the /create flow detects the existing
-    // session at its Build step and skips the Google button.
-    if (e.target.value === "__new__") {
-      window.location.assign("/create");
-      return;
-    }
-    const organizationId = Number(e.target.value);
-    if (!Number.isInteger(organizationId)) return;
-    const target = currentUser?.memberships.find(m => m.organizationId === organizationId);
-    if (!target) return;
-    window.location.assign(`/${target.orgSlug}`);
-  }
+  const orgName = currentUser?.org?.name ?? "";
+  const logoUrl = currentUser?.org?.logoUrl ?? null;
+  const memberships = currentUser?.memberships ?? [];
 
   return (
-    <label className="flex items-center gap-2 text-xs text-[color:var(--muted)]">
-      <span className="sr-only">Active organization</span>
-      <select
-        className="w-full rounded-md border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--card)] px-2 py-1 text-[color:var(--ink-soft)] outline-none transition-colors focus:border-[color:var(--vio)]"
-        value={currentUser.orgId}
-        onChange={onChange}
-        aria-label="Active organization"
+    <div ref={ref} style={{ display: "contents" }}>
+      <button
+        type="button"
+        className="sb-org"
+        onClick={() => setOpen(v => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={orgName ? `${orgName}, switch organization` : "Switch organization"}
+        data-tip={orgName || undefined}
       >
-        {currentUser.memberships.map(m => (
-          <option key={m.organizationId} value={m.organizationId}>
-            {m.orgName}
-          </option>
-        ))}
-        <option value="__new__">＋ Create a new organization…</option>
-      </select>
-    </label>
+        <OrgLogo name={orgName} logoUrl={logoUrl} />
+        <span className="sb-org-txt">
+          <span className="sb-org-name">{orgName || " "}</span>
+          <span className="sb-org-term">{termLabel}</span>
+        </span>
+        <SvgIcon d={ICON_CHEV_UP_DOWN} className="i sb-org-chev" />
+      </button>
+
+      {open && currentUser && (
+        <div className="sb-pop sb-pop-org" role="menu" aria-label="Your organizations">
+          <div className="sb-cap">Your organizations</div>
+          <div className="sb-orgs">
+            {memberships.map(m => {
+              const active = m.organizationId === currentUser.orgId;
+              return (
+                <button
+                  key={m.organizationId}
+                  type="button"
+                  role="menuitem"
+                  className="sb-row"
+                  aria-current={active ? "true" : undefined}
+                  onClick={() => {
+                    setOpen(false);
+                    if (!active) window.location.assign(`/${m.orgSlug}`);
+                  }}
+                >
+                  <OrgLogo name={m.orgName} logoUrl={m.orgLogoUrl} small />
+                  <span className="sb-row-txt">
+                    <span>{m.orgName}</span>
+                    <span className="sb-sub">{m.title}</span>
+                  </span>
+                  {active && <SvgIcon d={ICON_CHECK} className="i sb-chk" />}
+                </button>
+              );
+            })}
+          </div>
+          <hr className="sb-hr" />
+          {/* The /create flow detects the existing session at its Build step and
+              skips the Google button. */}
+          <button type="button" role="menuitem" className="sb-row" onClick={() => window.location.assign("/create")}>
+            <SvgIcon d={ICON_PLUS} className="i" />
+            Create a new organization
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

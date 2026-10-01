@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dusk">
+<!--
+  ChaptOS · Sidebar Redesign
+  ══════════════════════════════════════════════════════════════════════════
+  The current sidebar (app/components/Sidebar.tsx) works, but has four rough
+  edges this mock addresses. Flip "Before / After" in the bar to compare.
+
+    1. ORG SWITCHER: a native <select> in its own band, only for multi-org
+       people. Now the org header itself is the switcher (popover, org logos,
+       your role in each org, "Create a new organization").
+    2. NEEDS YOU: three hot-pink pills (#f43f5e, white text, outside the
+       palette, no ivory pair) on Brothers / Timeline / Treasury, which say
+       how many but not what. Officers now get one short list that names each
+       queue and links to it; nav rows keep only a quiet dot. Hidden when
+       empty, never shown to members (server already zeroes the counts).
+    3. RAIL: the sidebar can collapse to a 60px icon rail ([ or the footer
+       button), with tooltips. Per-viewer.
+    4. PROFILE MENU: name + email, Invite people (officers), Settings, an
+       Appearance row that opens Dark / Light, Sign out, and a quiet leave
+       link with an inline confirm. Photo changes from the avatar.
+       Page icons are unchanged; the "ChaptOS · v1.0" footer line is gone.
+
+  No route, permission, or workflow behaviour changes. Group structure and
+  navOrder semantics (reorder within a group) are kept as-is.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidebar Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Geist:wght@300..600&family=Geist+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --serif: "Fraunces", Georgia, serif;
+  --sans:  "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono:  "Geist Mono", ui-monospace, Menlo, monospace;
+  --ease:  cubic-bezier(.16,1,.3,1);
+
+  --paper: #0f0d0a; --paper-2: #14120e; --card: #161310; --card-2: #1b1813; --card-3: #221d17;
+  --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+  --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05); --line-med: rgba(236,231,221,.14);
+  --skel: rgba(236,231,221,.085);
+  --vio: #a78bfa; --vio-deep: #7c3aed; --vio-hi: #c4b5fd; --vio-bg: rgba(167,139,250,.10); --vio-line: rgba(167,139,250,.30);
+  --gold: #ddb36a; --rose: #d98ba3; --rose-bg: rgba(217,139,163,.10);
+  --ok: #7fb08a; --warn: #d3a04e; --warn-bg: rgba(211,160,78,.13); --risk: #cf8272; --risk-bg: rgba(207,130,114,.13);
+  --scrim: rgba(5,4,2,.62);
+  --ink-rgb: 236,231,221; --vio-rgb: 167,139,250; --shade-rgb: 0,0,0; --shade-k: 1;
+  --pop-shadow: 0 1px 0 rgba(var(--shade-rgb),calc(.5*var(--shade-k))), 0 24px 50px -20px rgba(var(--shade-rgb),calc(.95*var(--shade-k)));
+}
+html[data-theme="ivory"] {
+  color-scheme: light;
+  --paper: #f2ede3; --paper-2: #ece6d9; --card: #faf7f0; --card-2: #f4f0e6; --card-3: #ede7da;
+  --ink: #171410; --ink-soft: #3d382f; --muted: #6f675a; --faint: #8a8170;
+  --line: rgba(23,20,16,.13); --line-soft: rgba(23,20,16,.07); --line-med: rgba(23,20,16,.2);
+  --skel: rgba(23,20,16,.085);
+  --vio: #6d28d9; --vio-deep: #5b21b6; --vio-hi: #5b21b6; --vio-bg: rgba(109,40,217,.08); --vio-line: rgba(109,40,217,.28);
+  --gold: #9a7224; --rose: #b34f72; --rose-bg: rgba(179,79,114,.09);
+  --ok: #3f7a50; --warn: #8f6a1f; --warn-bg: rgba(143,106,31,.10); --risk: #b24a35; --risk-bg: rgba(178,74,53,.09);
+  --scrim: rgba(40,34,24,.28);
+  --ink-rgb: 23,20,16; --vio-rgb: 109,40,217; --shade-rgb: 40,32,20; --shade-k: .4;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased; overflow: hidden; display: flex; flex-direction: column; }
+button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; }
+:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; }
+svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Mock controls ─────────────────────────────────────────────────────── */
+.mockbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 9px 16px;
+  background: #0a0907; border-bottom: 1px dashed rgba(236,231,221,.14);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: #958d7c; z-index: 90; }
+.mockbar b { color: #a78bfa; font-weight: 500; text-transform: uppercase; letter-spacing: .12em; margin-right: 4px; }
+.seg { display: inline-flex; align-items: center; gap: 6px; }
+.seg span { text-transform: uppercase; letter-spacing: .14em; color: #6b6354; }
+.seg .opts { display: inline-flex; border: 1px solid rgba(236,231,221,.12); border-radius: 7px; padding: 2px; }
+.seg button { padding: 3px 9px; border-radius: 5px; color: #958d7c; font-family: var(--mono); font-size: 10.5px; }
+.seg button[aria-pressed="true"] { background: rgba(236,231,221,.1); color: #ece7dd; }
+.mockbar .hint { margin-left: auto; color: #6b6354; }
+
+/* ── Shell ─────────────────────────────────────────────────────────────── */
+.shell { flex: 1; min-height: 0; display: flex; position: relative; }
+main { flex: 1; min-width: 0; overflow-y: auto; }
+
+/* ── Sidebar (after) ───────────────────────────────────────────────────── */
+.sb { position: relative; flex: none; width: 240px; display: flex; flex-direction: column;
+  background: var(--paper-2); border-right: 1px solid var(--line); transition: width .22s var(--ease); z-index: 50; }
+.sb.rail { width: 60px; }
+
+.org { display: flex; align-items: center; gap: 10px; height: 58px; padding: 0 10px 0 12px; margin: 0;
+  border-bottom: 1px solid var(--line-soft); width: 100%; border-radius: 0; transition: background .15s; }
+.org:hover { background: rgba(var(--ink-rgb),.035); }
+.logo { width: 32px; height: 32px; flex: none; border-radius: 9px; display: grid; place-items: center;
+  overflow: hidden; background: #2a1f4a; box-shadow: 0 0 0 1px rgba(var(--ink-rgb),.08); }
+.logo svg { width: 100%; height: 100%; display: block; }
+.logo.sm { width: 26px; height: 26px; border-radius: 7px; }
+.logo.t2 { background: #5a2338; }
+.logo.t3 { background: #1f3a2a; }
+.org .txt { min-width: 0; flex: 1; }
+.org .name, .org .term { display: block; }
+.org .name { font-family: var(--serif); font-size: 14px; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org .term { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-top: 2px; white-space: nowrap; }
+.org .term em { font-style: normal; color: var(--muted); }
+.org .chev { color: var(--faint); }
+.rail .org { padding: 0; justify-content: center; }
+.rail .org .txt, .rail .org > svg { display: none; }
+
+
+nav { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 8px 12px; scrollbar-width: thin; }
+
+/* Needs you */
+.needs { margin: 2px 2px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.needs-h { display: flex; align-items: center; gap: 9px; width: 100%; height: 38px; padding: 0 8px 0 10px; border-radius: 11px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.needs-h:hover { background: rgba(var(--ink-rgb),.035); }
+.needs-h > .i { width: 15px; height: 15px; color: var(--rose); }
+.needs-h .end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.needs-h .hint { font-family: var(--mono); font-size: 9.5px; font-weight: 400; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); opacity: 0; transition: opacity .15s; }
+.needs-h:hover .hint, .needs-h:focus-visible .hint { opacity: 1; }
+.needs-h .stack { display: flex; gap: 3px; opacity: 0; width: 0; overflow: hidden; transition: opacity .2s, width .25s var(--ease); }
+.needs.closed .needs-h .stack { opacity: 1; width: 24px; }
+.needs-h .n { min-width: 20px; height: 18px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: var(--rose); background: var(--rose-bg); }
+.needs-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .26s var(--ease); }
+.needs.closed .needs-body { grid-template-rows: 0fr; }
+.needs-body > ul { min-height: 0; overflow: hidden; list-style: none; margin: 0; padding: 0 5px; transition: padding .26s var(--ease), opacity .2s; }
+.needs:not(.closed) .needs-body > ul { padding-bottom: 5px; border-top: 1px solid var(--line-soft); padding-top: 5px; }
+.needs.closed .needs-body > ul { opacity: 0; visibility: hidden; transition: padding .26s var(--ease), opacity .2s, visibility 0s .26s; }
+.needs li button { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 8px 0 5px; border-radius: 8px; font-size: 12.5px; color: var(--ink-soft); }
+.needs li button:hover { background: rgba(var(--ink-rgb),.05); color: var(--ink); }
+.needs .num { min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; display: grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.needs .num.vio { color: var(--vio); background: var(--vio-bg); }
+.needs .num.warn { color: var(--warn); background: var(--warn-bg); }
+.needs .num.rose { color: var(--rose); background: var(--rose-bg); }
+.needs .what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.needs .where { margin-left: auto; display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--faint); white-space: nowrap; }
+.needs .where .arr { display: inline-block; opacity: 0; transform: translateX(-3px); transition: opacity .15s, transform .15s var(--ease); }
+.needs li button:hover .where { color: var(--ink-soft); }
+.needs li button:hover .where .arr { opacity: 1; transform: none; }
+.tone { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.tone.rose { background: var(--rose); } .tone.warn { background: var(--warn); } .tone.vio { background: var(--vio); }
+.sb:not(.rail) .needs-rail { display: none; }
+.rail .needs { display: none; }
+
+/* Groups */
+.grp { margin-bottom: 14px; }
+.grp-h { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 6px 0 10px; }
+.grp-h .lbl { font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.rail .grp-h { height: 1px; margin: 4px 10px 10px; padding: 0; background: var(--line); }
+.rail .grp-h > * { display: none; }
+.rail .grp:first-of-type .grp-h { display: none; }
+
+.item { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px;
+  border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted); transition: background .12s, color .12s; }
+.item:hover { background: rgba(var(--ink-rgb),.05); color: var(--ink-soft); }
+.item .i { opacity: .8; }
+.item[aria-current="page"] { background: var(--card-2); color: var(--ink); }
+.item[aria-current="page"] .i { opacity: 1; color: var(--vio); }
+.item[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 14px; transform: translateY(-50%); border-radius: 0 3px 3px 0; background: var(--vio); }
+.item .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .dot { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 3px var(--rose-bg); }
+.rail .item { justify-content: center; padding: 0; }
+.rail .item .lbl { display: none; }
+.rail .item .dot { position: absolute; top: 7px; right: 10px; margin: 0; }
+.items { display: grid; gap: 1px; }
+
+/* Footer */
+.foot { flex: none; border-top: 1px solid var(--line-soft); padding: 8px; display: flex; align-items: center; gap: 4px; }
+.me { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 9px; }
+.me:hover { background: rgba(var(--ink-rgb),.05); }
+.av { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600;
+  color: var(--ink); background: var(--card-3); border: 1px solid var(--line); }
+.me .txt { min-width: 0; }
+.me .nm { font-size: 13px; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.me .rl { font-size: 11px; color: var(--faint); line-height: 1.3; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.iconbtn { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 8px; color: var(--faint); }
+.iconbtn:hover { color: var(--ink); background: rgba(var(--ink-rgb),.06); }
+.rail .foot { flex-direction: column-reverse; gap: 6px; padding: 8px 0; }
+.rail .me { flex: none; padding: 4px; }
+.rail .me .txt { display: none; }
+.collapse .i { transition: transform .22s var(--ease); }
+.rail .collapse .i { transform: rotate(180deg); }
+
+/* Popovers */
+.pop { position: absolute; z-index: 80; min-width: 0; background: var(--card-2); border: 1px solid var(--line-med); border-radius: 12px;
+  box-shadow: var(--pop-shadow); padding: 6px; animation: pop .16s var(--ease); }
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.pop .cap { padding: 6px 8px 4px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.pop .row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 8px; font-size: 13px; color: var(--ink-soft); }
+.pop .row:hover { background: rgba(var(--ink-rgb),.06); color: var(--ink); }
+.pop .row .sub { display: block; font-size: 11px; color: var(--faint); line-height: 1.25; }
+.pop .row .chk { margin-left: auto; color: var(--vio); }
+.pop .row.danger { color: var(--risk); }
+.pop hr { border: 0; height: 1px; background: var(--line); margin: 5px 2px; }
+.pop-org { top: 52px; left: 8px; right: 8px; }
+.rail .pop-org { left: calc(100% + 8px); right: auto; top: 8px; width: 250px; }
+.pop-me { bottom: 56px; left: 8px; width: 240px; padding: 0; overflow: hidden; }
+.rail .pop-me { left: calc(100% + 8px); bottom: 8px; }
+.pm-id { display: flex; align-items: center; gap: 11px; padding: 12px 12px 10px; }
+.pm-av { position: relative; flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+  font-size: 12px; font-weight: 600; color: var(--ink); background: var(--card-3); border: 1px solid var(--line-med); }
+.pm-av .cam { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.5); opacity: 0; transition: opacity .15s; }
+.pm-av .cam .i { width: 14px; height: 14px; }
+.pm-av:hover .cam, .pm-av:focus-visible .cam { opacity: 1; }
+.pm-who { min-width: 0; }
+.pm-who .nm { font-size: 13.5px; font-weight: 600; line-height: 1.25; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-who .em { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-sec { padding: 5px; border-top: 1px solid var(--line-soft); }
+.pm-sec .row .val { margin-left: auto; font-size: 12px; color: var(--faint); }
+.pm-sec .opt .chk { margin-left: auto; color: var(--vio); }
+.pm-foot { padding: 5px; border-top: 1px solid var(--line-soft); }
+.pm-leave { display: block; width: 100%; padding: 6px 8px 4px; font-size: 11.5px; color: var(--faint); border-radius: 7px; }
+.pm-leave:hover { color: var(--risk); }
+.pm-confirm { margin: 2px 2px 4px; padding: 10px; border-radius: 9px; background: var(--risk-bg); }
+.pm-confirm p { margin: 0 0 9px; font-size: 12px; line-height: 1.4; color: var(--ink-soft); }
+.pm-confirm p b { color: var(--ink); font-weight: 600; }
+.pm-confirm .acts { display: flex; gap: 6px; justify-content: flex-end; }
+.pm-confirm button { padding: 5px 10px; border-radius: 7px; font-size: 12px; font-weight: 500; }
+.pm-confirm .cancel { color: var(--ink-soft); }
+.pm-confirm .cancel:hover { background: rgba(var(--ink-rgb),.06); }
+.pm-confirm .go { background: var(--risk); color: var(--paper); }
+html[data-theme="ivory"] .pm-confirm .go { color: #fff; }
+.pop-needs { left: calc(100% + 8px); width: 260px; }
+
+/* Rail tooltip */
+.tip { position: fixed; z-index: 95; pointer-events: none; padding: 5px 9px; border-radius: 7px; background: var(--ink); color: var(--paper);
+  font-size: 12px; font-weight: 500; white-space: nowrap; transform: translateY(-50%); opacity: 0; transition: opacity .1s; }
+.tip.on { opacity: 1; }
+.tip .k { margin-left: 8px; font-family: var(--mono); font-size: 10px; opacity: .6; }
+
+/* ── Sidebar (before) — a faithful copy of today's Sidebar.tsx ─────────── */
+.old { flex: none; width: 240px; display: flex; flex-direction: column; background: var(--paper-2); border-right: 1px solid rgba(var(--ink-rgb),.09); }
+.old .hd { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; border-bottom: 1px solid rgba(var(--ink-rgb),.06); }
+.old .hd .nm { font-family: var(--serif); font-size: 13px; font-weight: 600; line-height: 1.2; }
+.old .hd .sm { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+.old .sw { padding: 8px 16px; border-bottom: 1px solid rgba(var(--ink-rgb),.06); }
+.old select { width: 100%; font: inherit; font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(var(--ink-rgb),.12); background: var(--card); color: var(--ink-soft); }
+.old nav { padding: 12px 8px; }
+.old .g { margin-bottom: 20px; }
+.old .g p { margin: 0 0 6px; padding: 0 12px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.old .it { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.old .it:hover { background: rgba(var(--ink-rgb),.05); color: var(--ink-soft); }
+.old .it .i { opacity: .75; }
+.old .it[aria-current="page"] { background: var(--card-2); color: var(--ink); }
+.old .it[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 14px; transform: translateY(-50%); border-radius: 0 3px 3px 0; background: var(--vio); }
+.old .pill { margin-left: auto; min-width: 18px; height: 18px; padding: 0 6px; border-radius: 99px; display: inline-grid; place-items: center;
+  background: #f43f5e; color: #fff; font-size: 10px; font-weight: 700; box-shadow: 0 1px 4px rgba(244,63,94,.45); }
+.old .ft { border-top: 1px solid rgba(var(--ink-rgb),.06); padding: 8px; }
+.old .ft .me { padding: 6px 8px; }
+
+/* ── Page ──────────────────────────────────────────────────────────────── */
+.topbar { display: none; align-items: center; gap: 10px; height: 54px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); position: sticky; top: 0; background: var(--paper); z-index: 5; }
+.topbar .t { font-family: var(--serif); font-size: 15px; }
+.page { max-width: 880px; padding: 40px 48px 64px; }
+.kick { font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+h1 { font-family: var(--serif); font-weight: 400; font-size: 34px; letter-spacing: -.01em; margin: 6px 0 24px; }
+.skel { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin-bottom: 28px; }
+.skel div { height: 86px; border-radius: 12px; background: var(--card); border: 1px solid var(--line-soft); }
+.skel div:first-child { grid-column: span 2; }
+.landing { margin: -8px 0 24px; padding: 12px 14px; border-radius: 10px; border: 1px dashed var(--vio-line); color: var(--ink-soft); font-size: 13px; }
+.notes { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 22px 24px 8px; }
+.notes h2 { margin: 0 0 4px; font-family: var(--serif); font-weight: 400; font-size: 20px; }
+.notes > p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+.notes ol { margin: 0; padding: 0; list-style: none; counter-reset: n; }
+.notes li { counter-increment: n; display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 4px 10px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.notes li::before { content: counter(n); grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; color: var(--vio); background: var(--vio-bg); }
+.notes li b { font-size: 13.5px; font-weight: 600; }
+.notes li span { font-size: 13px; color: var(--muted); }
+.notes li span em { font-style: normal; color: var(--ink-soft); }
+.try { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+.try code { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 6px; background: var(--card-2); border: 1px solid var(--line); color: var(--muted); }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); opacity: 0; z-index: 99; padding: 9px 14px; border-radius: 10px;
+  background: var(--ink); color: var(--paper); font-size: 13px; transition: opacity .2s, transform .2s var(--ease); pointer-events: none; max-width: calc(100vw - 32px); }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+.scrim { display: none; }
+
+/* ── Phone: drawer ─────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .mockbar .hint { display: none; }
+  .topbar { display: flex; }
+  .sb, .old { position: absolute; top: 0; bottom: 0; left: 0; width: min(296px, 86vw) !important; transform: translateX(-100%); transition: transform .24s var(--ease); z-index: 60; }
+  .shell.drawer .sb, .shell.drawer .old { transform: none; }
+  .shell.drawer .scrim { display: block; position: absolute; inset: 0; background: var(--scrim); z-index: 55; }
+  .collapse { display: none !important; }
+  .item { height: 42px; }
+  .page { padding: 24px 16px 48px; }
+  h1 { font-size: 28px; }
+  .skel { grid-template-columns: minmax(0,1fr); }
+  .skel div:first-child { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+
+<div class="mockbar" role="toolbar" aria-label="Mock controls">
+  <b>Sidebar</b>
+  <div class="seg"><span>Version</span><div class="opts" data-k="version"><button data-v="before">Before</button><button data-v="after">After</button></div></div>
+  <div class="seg"><span>Theme</span><div class="opts" data-k="theme"><button data-v="dusk">Dark</button><button data-v="ivory">Light</button></div></div>
+  <div class="seg"><span>View as</span><div class="opts" data-k="role"><button data-v="admin">Org admin</button><button data-v="officer">Officer</button><button data-v="member">Member</button></div></div>
+  <div class="seg"><span>Queues</span><div class="opts" data-k="queues"><button data-v="busy">Busy</button><button data-v="clear">Clear</button></div></div>
+  <span class="hint">[ collapse</span>
+</div>
+
+<div class="shell" id="shell">
+  <aside id="sb" aria-label="Sidebar"></aside>
+  <div class="scrim" id="scrim"></div>
+  <main id="main"></main>
+</div>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ── Icons ──────────────────────────────────────────────────────────────────
+const P = {
+  Dashboard:   "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
+  Timeline:    "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M9 17h6M9 13h6",
+  Brotherhood: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+  Chapter:     "M3 4h18M4 4v10a1 1 0 001 1h14a1 1 0 001-1V4M12 15v4m0 0l-3 2m3-2l3 2M9 9l2 2 4-4",
+  Tasks:       "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
+  Docs:        "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
+  Instagram:   "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
+  Programming: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+  Service:     "M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z",
+  Parties:     "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3",
+  Treasury:    "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  Settings:    "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+  ChevUpDown:  "M8 9l4-4 4 4m0 6l-4 4-4-4",
+  Check:       "M5 13l4 4L19 7",
+  Plus:        "M12 4v16m8-8H4",
+  Collapse:    "M11 19l-7-7 7-7m8 14l-7-7 7-7",
+  Moon:        "M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z",
+  Sun:         "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z",
+  UserPlus:    "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
+  Camera:      "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
+  Inbox:       "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4",
+  Photo:       "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z",
+  Leave:       "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+  Menu:        "M4 6h16M4 12h16M4 18h16",
+};
+const ic = k => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[k]}"/></svg>`;
+
+// ── Data (mirrors lib/nav-order.ts + vocab for a fraternity) ──────────────
+const GROUPS = [
+  { label: "Overview",   items: ["Dashboard", "Timeline"] },
+  { label: "Members",    items: ["Brotherhood", "Chapter", "Tasks"] },
+  { label: "Operations", items: ["Docs", "Instagram", "Programming", "Service", "Parties", "Treasury"] },
+];
+const DISPLAY = { Brotherhood: "Brothers", Chapter: "Chapter" };
+// Stand-ins for an uploaded logo (Organization.logoUrl): a crest, a lotus, a gear.
+const EMBLEM = {
+  1: `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5.5l8.5 3v7.2c0 5.3-3.6 9.2-8.5 10.8-4.9-1.6-8.5-5.5-8.5-10.8V8.5z" fill="#3b2d6b" stroke="#ddb36a" stroke-width="1.3" stroke-linejoin="round"/><path d="M10.6 17.4L16 13.2l5.4 4.2" fill="none" stroke="#ddb36a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16" cy="9.9" r="1.15" fill="#ece7dd"/><circle cx="12.6" cy="21" r=".95" fill="#ece7dd"/><circle cx="19.4" cy="21" r=".95" fill="#ece7dd"/></svg>`,
+  2: `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="#f1c9d6" stroke-width="1.4" stroke-linejoin="round"><path d="M16 9c2.6 2.6 2.6 8.4 0 11.5-2.6-3.1-2.6-8.9 0-11.5z"/><path d="M16 20.5c-1.2-3.8-4.4-6.3-7.6-6.6.2 3.9 3.3 6.6 7.6 6.6zM16 20.5c1.2-3.8 4.4-6.3 7.6-6.6-.2 3.9-3.3 6.6-7.6 6.6z"/><path d="M9 23.5h14" stroke-linecap="round"/></g></svg>`,
+  3: `<svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="#bfe0c8" stroke-width="1.5" stroke-linecap="round"><circle cx="16" cy="16" r="4.6"/><circle cx="16" cy="16" r="1.4" fill="#bfe0c8" stroke="none"/><path d="M16 7.5v2.6M16 21.9v2.6M7.5 16h2.6M21.9 16h2.6M10 10l1.8 1.8M20.2 20.2L22 22M10 22l1.8-1.8M20.2 11.8L22 10"/></g></svg>`,
+};
+const ORGS = [
+  { id: 1, name: "Lambda Phi Epsilon", ini: "LΦ", role: "President", term: "Fall 2026", week: "Wk 6", cls: "" },
+  { id: 2, name: "Asian Student Union", ini: "AS", role: "Member", term: "2026–27", week: "", cls: "t2" },
+  { id: 3, name: "Robotics Club", ini: "RC", role: "Treasurer", term: "Fall 2026", week: "", cls: "t3" },
+];
+const QUEUES = [
+  { n: 3, text: "join requests",  where: "Brothers", page: "Brotherhood", tone: "vio",  perm: "admin" },
+  { n: 2, text: "excuses", where: "Timeline", page: "Timeline", tone: "warn", perm: "officer" },
+  { n: 1, text: "reimbursement",   where: "Treasury", page: "Treasury",   tone: "rose", perm: "officer" },
+];
+const ROLE_TITLE = { admin: "President", officer: "Treasurer", member: "Member" };
+
+// ── State ──────────────────────────────────────────────────────────────────
+const S = {
+  version: "after", theme: "dusk", role: "admin", queues: "busy",
+  active: "Dashboard", rail: false, drawer: false,
+  needsOpen: false, pop: null, confirmLeave: false, themeOpen: false,
+  order: Object.fromEntries(GROUPS.map(g => [g.label, [...g.items]])),
+  off: new Set(["Instagram", "Parties"]),   // workflows this org turned off
+};
+const label = k => DISPLAY[k] ?? k;
+const isOfficer = () => S.role !== "member";
+const isAdmin = () => S.role === "admin";
+const queuesFor = () => S.queues === "clear" || !isOfficer() ? [] :
+  QUEUES.filter(q => q.perm === "officer" || isAdmin());
+const queuePages = () => new Set(queuesFor().map(q => q.page));
+const total = () => queuesFor().reduce((a, q) => a + q.n, 0);
+const isPhone = () => matchMedia("(max-width: 900px)").matches;
+
+// ── Render: after ──────────────────────────────────────────────────────────
+function renderAfter() {
+  const sb = document.getElementById("sb");
+  const rail = S.rail && !isPhone();
+  sb.className = "sb" + (rail ? " rail" : "");
+  const org = ORGS[0];
+  const qp = queuePages();
+  const qs = queuesFor();
+
+  const needs = qs.length ? `
+    <section class="needs ${S.needsOpen ? "" : "closed"}" aria-label="Needs you">
+      <button class="needs-h" data-act="needs" aria-expanded="${S.needsOpen}" aria-controls="needs-list">
+        ${ic("Inbox")}Needs you
+        <span class="end"><span class="hint">${S.needsOpen ? "Hide" : "Show"}</span>
+          <span class="stack" aria-hidden="true">${qs.map(q => `<span class="tone ${q.tone}"></span>`).join("")}</span>
+          <span class="n">${total()}</span></span>
+      </button>
+      <div class="needs-body"><ul id="needs-list">${qs.map(q => `<li><button data-go="${q.page}" data-tip="${q.where}">
+        <span class="num ${q.tone}">${q.n}</span><span class="what">${q.text}</span><span class="where">${q.where}<span class="arr">→</span></span></button></li>`).join("")}</ul></div>
+    </section>
+    <button class="item needs-rail" data-act="needs-pop" data-tip="Needs you · ${total()}">${ic("Inbox")}<span class="dot"></span></button>` : "";
+
+  const groups = GROUPS.map((g, gi) => {
+    const items = S.order[g.label];
+    const vis = items.filter(k => !S.off.has(k));
+    if (!vis.length) return "";
+    return `<section class="grp" aria-label="${g.label}">
+      <div class="grp-h">
+        <span class="lbl">${g.label}</span>
+      </div>
+      <div class="items">${vis.map(k => `
+        <button class="item" data-go="${k}" data-tip="${label(k)}" ${k === S.active ? 'aria-current="page"' : ""}>
+          ${ic(k)}<span class="lbl">${label(k)}</span>${qp.has(k) ? `<span class="dot" aria-label="needs review"></span>` : ""}
+        </button>`).join("")}</div>
+    </section>`;
+  }).join("");
+
+
+  sb.innerHTML = `
+    <button class="org" data-act="org" aria-haspopup="menu" aria-expanded="${S.pop === "org"}" data-tip="${org.name}">
+      <span class="logo">${EMBLEM[org.id]}</span>
+      <span class="txt"><span class="name">${org.name}</span><span class="term">${org.term} · <em>${org.week}</em></span></span>
+      ${ic("ChevUpDown")}
+    </button>
+    <nav aria-label="Main navigation">${needs}${groups}</nav>
+    <div class="foot">
+      <button class="me" data-act="me" aria-haspopup="menu" aria-expanded="${S.pop === "me"}" data-tip="Thalha · ${ROLE_TITLE[S.role]}">
+        <span class="av">TT</span><span class="txt"><span class="nm" style="display:block">Thalha</span><span class="rl" style="display:block">${ROLE_TITLE[S.role]}</span></span>
+      </button>
+      <button class="iconbtn collapse" data-act="rail" aria-label="${rail ? "Expand" : "Collapse"} sidebar" data-tip="${rail ? "Expand" : "Collapse"}" data-tipk="[">${ic("Collapse")}</button>
+    </div>
+    ${S.pop === "org" ? popOrg() : ""}${S.pop === "me" ? popMe() : ""}${S.pop === "needs" ? popNeeds() : ""}`;
+}
+
+function popOrg() {
+  return `<div class="pop pop-org" role="menu">
+    <div class="cap">Your organizations</div>
+    ${ORGS.map((o, i) => `<button class="row" role="menuitem" data-org="${o.id}">
+      <span class="logo sm ${o.cls}">${EMBLEM[o.id]}</span><span><span style="display:block">${o.name}</span><span class="sub">${i === 0 ? ROLE_TITLE[S.role] : o.role}</span></span>
+      ${i === 0 ? `<span class="chk">${ic("Check")}</span>` : ""}</button>`).join("")}
+    <hr><button class="row" role="menuitem" data-act="neworg">${ic("Plus")}Create a new organization</button>
+  </div>`;
+}
+function popMe() {
+  const org = ORGS[0];
+  const dark = S.theme === "dusk";
+  return `<div class="pop pop-me" role="menu" aria-label="Account">
+    <div class="pm-id">
+      <button class="pm-av" data-act="photo" aria-label="Change photo">TT<span class="cam">${ic("Camera")}</span></button>
+      <div class="pm-who"><div class="nm">Thalha Thabish</div><div class="em">thalha@example.edu</div></div>
+    </div>
+    <div class="pm-sec">
+      ${isOfficer() ? `<button class="row" role="menuitem" data-act="invite">${ic("UserPlus")}Invite people</button>` : ""}
+      <button class="row" role="menuitem" data-go="Settings">${ic("Settings")}Settings</button>
+      ${S.themeOpen
+        ? `<div role="radiogroup" aria-label="Appearance">${[["dusk", "Dark", "Moon"], ["ivory", "Light", "Sun"]].map(([v, l, i]) =>
+            `<button class="row opt" role="radio" data-theme="${v}" aria-checked="${S.theme === v}">${ic(i)}${l}${S.theme === v ? `<span class="chk">${ic("Check")}</span>` : ""}</button>`).join("")}</div>`
+        : `<button class="row" role="menuitem" data-act="theme" aria-expanded="false">${ic(dark ? "Moon" : "Sun")}Appearance<span class="val">${dark ? "Dark" : "Light"}</span></button>`}
+    </div>
+    <div class="pm-foot">
+      <button class="row" role="menuitem" data-act="signout">${ic("Leave")}Sign out</button>
+      ${S.confirmLeave ? `<div class="pm-confirm" role="alertdialog" aria-label="Leave organization">
+          <p>Leave <b>${org.name}</b>? You'll need a new invite and an officer's approval to come back.</p>
+          <div class="acts"><button class="cancel" data-act="leave-cancel">Cancel</button><button class="go" data-act="leave-go">Leave</button></div>
+        </div>`
+        : `<button class="pm-leave" data-act="leave">Leave ${org.name}</button>`}
+    </div>
+  </div>`;
+}
+function popNeeds() {
+  const el = document.querySelector('[data-act="needs-pop"]');
+  const top = el ? el.offsetTop + el.closest("nav").offsetTop - el.closest("nav").scrollTop : 120;
+  return `<div class="pop pop-needs" style="top:${top}px" role="menu"><div class="cap">Needs you · ${total()}</div>
+    ${queuesFor().map(q => `<button class="row" data-go="${q.page}"><span class="tone ${q.tone}"></span><span style="font-family:var(--mono)">${q.n}</span>${q.text}<span class="sub" style="margin-left:auto">${q.where}</span></button>`).join("")}</div>`;
+}
+
+// ── Render: before (today's Sidebar.tsx) ───────────────────────────────────
+function renderBefore() {
+  const sb = document.getElementById("sb");
+  sb.className = "old";
+  const qp = Object.fromEntries(queuesFor().map(q => [q.page, q.n]));
+  sb.innerHTML = `
+    <div class="hd"><span class="logo">${EMBLEM[1]}</span><div><div class="nm">Lambda Phi Epsilon</div><div class="sm">Fall 2026</div></div></div>
+    <div class="sw"><select aria-label="Active organization">${ORGS.map(o => `<option>${o.name}</option>`).join("")}<option>＋ Create a new organization…</option></select></div>
+    <nav>${GROUPS.map(g => {
+      const vis = g.items.filter(k => !S.off.has(k));
+      return vis.length ? `<div class="g"><p>${g.label}</p>${vis.map(k => `
+        <button class="it" data-go="${k}" ${k === S.active ? 'aria-current="page"' : ""}>${ic(k)}${label(k)}${qp[k] ? `<span class="pill">${qp[k]}</span>` : ""}</button>`).join("")}</div>` : "";
+    }).join("")}</nav>
+    <div class="ft"><div class="me"><span class="av">TT</span><div><div class="nm" style="font-size:13px;font-weight:600">Thalha</div><div class="rl" style="font-size:10.5px;color:var(--faint)">${ROLE_TITLE[S.role]}</div></div></div></div>`;
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────
+function renderMain() {
+  const q = QUEUES.find(x => x.page === S.active && queuePages().has(x.page));
+  document.getElementById("main").innerHTML = `
+    <div class="topbar"><button class="iconbtn" data-act="drawer" aria-label="Open menu">${ic("Menu")}</button><span class="t">${label(S.active)}</span></div>
+    <div class="page">
+      <div class="kick">Lambda Phi Epsilon · Fall 2026</div>
+      <h1>${label(S.active)}</h1>
+      ${q ? `<div class="landing">Lands on the review queue: ${q.n} ${q.text}.</div>` : ""}
+      <div class="skel"><div></div><div></div><div></div><div></div><div></div></div>
+      <section class="notes">
+        <h2>What changes</h2>
+        <p>Compare with <em>Before</em> in the bar above. Routes, permissions and workflows stay the same.</p>
+        <ol>
+          <li><b>The org header is the switcher</b><span>Replaces the native <em>&lt;select&gt;</em> band. Shows your role in each org, with "Create a new organization" at the bottom.</span></li>
+          <li><b>One "Needs you" list for officers</b><span>Replaces three hot-pink pills that gave a count with no label. Each line says what's waiting and links to that queue. Nav rows keep a quiet dot. Hidden when there's nothing, and members never see it.</span></li>
+          <li><b>Collapse to a rail</b><span>60px icon rail with tooltips (<em>[</em> or the footer button). Saved per person.</span></li>
+          <li><b>A simpler profile menu</b><span>Name and email, then <em>Invite people</em> (officers), Settings, and Appearance. Click Appearance to pick Dark or Light. Sign out, plus a quiet leave link that asks before it acts. Hover the avatar to change your photo. Page icons stay as they are.</span></li>
+        </ol>
+        <div class="try"><code>Press [</code><code>View as Member</code><code>Queues: Clear</code><code>Narrow the window → drawer</code></div>
+      </section>
+    </div>`;
+}
+
+function render() {
+  document.documentElement.dataset.theme = S.theme === "system"
+    ? (matchMedia("(prefers-color-scheme: light)").matches ? "ivory" : "dusk") : S.theme;
+  document.getElementById("shell").classList.toggle("drawer", S.drawer);
+  document.querySelectorAll(".mockbar .opts").forEach(o => o.querySelectorAll("button").forEach(b =>
+    b.setAttribute("aria-pressed", String(S[o.dataset.k] === b.dataset.v ||
+      (o.dataset.k === "theme" && S.theme === "system" && b.dataset.v === document.documentElement.dataset.theme)))));
+  if (S.version === "after") renderAfter(); else renderBefore();
+  renderMain();
+}
+
+// ── Interactions ───────────────────────────────────────────────────────────
+let toastT;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 2200);
+}
+
+document.addEventListener("click", e => {
+  const mb = e.target.closest(".mockbar .opts button");
+  if (mb) {
+    const k = mb.parentElement.dataset.k; S[k] = mb.dataset.v;
+    S.pop = null; render(); return;
+  }
+  if (e.target.closest("#scrim")) { S.drawer = false; render(); return; }
+  const el = e.target.closest("[data-go],[data-act],button[data-theme],[data-org]");
+  if (!el) { if (S.pop && !e.target.closest(".pop")) { S.pop = null; render(); } return; }
+  hideTip();
+
+  if (el.dataset.go) {
+    if (el.dataset.go === "Settings") { S.pop = null; toast("Opens /lpe/settings"); render(); return; }
+    S.active = el.dataset.go; S.pop = null; S.drawer = false; render(); return;
+  }
+  if (el.dataset.theme) { S.theme = el.dataset.theme; S.themeOpen = false; render(); return; }
+  if (el.dataset.org) {
+    S.pop = null; render();
+    if (el.dataset.org !== "1") toast(`Switches to ${ORGS.find(o => String(o.id) === el.dataset.org).name} (hard navigation, as today)`);
+    return;
+  }
+  switch (el.dataset.act) {
+    case "org":  S.pop = S.pop === "org" ? null : "org"; break;
+    case "me":   S.pop = S.pop === "me" ? null : "me"; S.confirmLeave = false; S.themeOpen = false; break;
+    case "theme": S.themeOpen = true; break;
+    case "invite": S.pop = null; toast("Invite link copied. New people still need an officer's approval."); break;
+    case "photo": toast("Opens the photo picker"); return;
+    case "signout": S.pop = null; toast("Signs out"); break;
+    case "leave": S.confirmLeave = true; break;
+    case "leave-cancel": S.confirmLeave = false; break;
+    case "leave-go": S.pop = null; S.confirmLeave = false; toast("Left Lambda Phi Epsilon"); break;
+    case "needs": {
+      // Toggle in place (no re-render) so the open/close animates.
+      S.needsOpen = !S.needsOpen;
+      const sec = el.closest(".needs");
+      sec.classList.toggle("closed", !S.needsOpen);
+      el.setAttribute("aria-expanded", String(S.needsOpen));
+      el.querySelector(".hint").textContent = S.needsOpen ? "Hide" : "Show";
+      return;
+    }
+    case "needs-pop": S.pop = S.pop === "needs" ? null : "needs"; break;
+    case "rail": S.rail = !S.rail; S.pop = null; break;
+    case "neworg": S.pop = null; toast("Goes to /create"); break;
+    case "drawer": S.drawer = true; break;
+  }
+  render();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    if (S.pop) S.pop = null; else if (S.drawer) S.drawer = false; else return;
+    render(); return;
+  }
+  if (e.key === "[" && !e.metaKey && !e.ctrlKey && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && S.version === "after" && !isPhone()) {
+    S.rail = !S.rail; S.pop = null; render();
+  }
+});
+
+// Rail tooltips: one fixed element, so the nav's overflow can't clip it.
+const tip = document.getElementById("tip");
+function hideTip() { tip.classList.remove("on"); }
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest(".sb.rail [data-tip]");
+  if (!el || S.pop) return hideTip();
+  const r = el.getBoundingClientRect();
+  tip.innerHTML = el.dataset.tip + (el.dataset.tipk ? `<span class="k">${el.dataset.tipk}</span>` : "");
+  tip.style.left = r.right + 10 + "px"; tip.style.top = r.top + r.height / 2 + "px";
+  tip.classList.add("on");
+});
+document.addEventListener("mouseout", e => { if (e.target.closest(".sb.rail [data-tip]")) hideTip(); });
+matchMedia("(max-width: 900px)").addEventListener("change", () => { S.drawer = false; render(); });
+
+render();
+</script>
+</body>
+</html>

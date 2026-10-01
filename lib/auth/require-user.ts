@@ -51,6 +51,11 @@ export interface MembershipSummary {
   orgSlug:        string;
   /** This person's display name in THIS org, or null to fall back to Brother.name. */
   name:           string | null;
+  /** The org's profile picture, for the sidebar org switcher. */
+  orgLogoUrl:     string | null;
+  /** Office title in THIS org: the highest-ranked assigned role, else the
+   *  Membership.role free-text (which can lag the relational roles). */
+  title:          string;
 }
 
 /**
@@ -223,7 +228,7 @@ export async function requireUser(opts?: { orgSlug?: string }) {
             // query already loads every membership.
             name: true,
             role: true,
-            organization: { select: { name: true, slug: true } },
+            organization: { select: { name: true, slug: true, logoUrl: true } },
           },
         },
         // Role assignments across ALL orgs, fetched in the same round-trip so
@@ -247,14 +252,22 @@ export async function requireUser(opts?: { orgSlug?: string }) {
 
   const isPlatformAdmin = brother.isAdmin || !!brother.platformAdmin;
 
-  const memberships: MembershipSummary[] = brother.memberships.map(m => ({
-    id:             m.id,
-    organizationId: m.organizationId,
-    isOrgAdmin:     m.isOrgAdmin,
-    orgName:        m.organization.name,
-    orgSlug:        m.organization.slug,
-    name:           m.name,
-  }));
+  const memberships: MembershipSummary[] = brother.memberships.map(m => {
+    const topRole = brother.roles
+      .map(r => r.role)
+      .filter(r => r.organizationId === m.organizationId)
+      .sort((a, b) => b.rank - a.rank)[0];
+    return {
+      id:             m.id,
+      organizationId: m.organizationId,
+      isOrgAdmin:     m.isOrgAdmin,
+      orgName:        m.organization.name,
+      orgSlug:        m.organization.slug,
+      name:           m.name,
+      orgLogoUrl:     m.organization.logoUrl,
+      title:          topRole?.name ?? m.role,
+    };
+  });
 
   // Slug hint precedence: an explicit opts.orgSlug (passed by /[slug]/layout,
   // which knows the URL directly) wins; otherwise fall back to the x-org-slug

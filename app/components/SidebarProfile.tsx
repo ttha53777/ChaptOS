@@ -2,20 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { ProfileAvatar } from "./ProfileAvatar";
-import { LeaveOrgModal } from "./LeaveOrgModal";
+import { avatarDisplayUrl } from "@/lib/avatar";
+import type { AppThemePref } from "@/lib/theme";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useChapter } from "../context/ChapterContext";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { useAppTheme } from "../hooks/useAppTheme";
-import type { AppThemePref } from "@/lib/theme";
+import { leaveOrg } from "../lib/leave-org";
+import { SvgIcon } from "./SvgIcon";
 
-const THEME_OPTIONS: { value: AppThemePref; label: string }[] = [
-  { value: "dusk", label: "Dark" },
-  { value: "ivory", label: "Light" },
-  { value: "system", label: "System" },
+const ICONS = {
+  settings: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+  moon: "M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z",
+  sun: "M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z",
+  system: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+  userPlus: "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
+  camera: "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
+  signOut: "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
+  check: "M5 13l4 4L19 7",
+};
+
+const THEME_OPTIONS: { value: AppThemePref; label: string; icon: string }[] = [
+  { value: "dusk", label: "Dark", icon: ICONS.moon },
+  { value: "ivory", label: "Light", icon: ICONS.sun },
+  { value: "system", label: "System", icon: ICONS.system },
 ];
 
 async function syncAvatarSession() {
@@ -23,64 +35,54 @@ async function syncAvatarSession() {
   await supabase.auth.refreshSession();
 }
 
+function initialsOf(name: string | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return ((parts[0]![0] ?? "") + (parts.length > 1 ? parts[parts.length - 1]![0] ?? "" : "")).toUpperCase();
+}
+
 /**
- * Profile block pinned to the bottom of the sidebar. Renders an avatar + name row
- * that, when clicked, opens an UPWARD popover with everything the old top-right
- * UserAvatar menu did (change/remove photo, leave org, sign out) PLUS a Settings
- * link — Settings used to be its own sidebar nav item. Styled to the sidebar's
- * warm dusk palette rather than the slate/indigo UserAvatar palette so the shell
- * reads as one surface.
+ * Profile row pinned to the sidebar footer. Opens an upward menu: name + email
+ * (hover the avatar to change the photo), Invite people (MANAGE_SETTINGS),
+ * Settings, Appearance, Sign out, and a quiet "Leave <org>" link that confirms
+ * inline before it acts.
  *
- * `onNavigate` lets the parent close the mobile sidebar drawer when the user
- * follows the Settings link (mirrors the `onClose` every nav item already calls).
+ * `title` is the viewer's office in the active org. `onNavigate` closes the
+ * mobile drawer when a link is followed.
  */
-export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarProfile({ title, onNavigate }: { title: string; onNavigate?: () => void }) {
   const { user, loading, avatarRevision, setAvatarUrl } = useCurrentUser();
-  // Org + memberships for the "Leave organization" action live on the full
-  // ChapterContext user, not the slimmed useCurrentUser projection.
-  const { currentUser } = useChapter();
+  const { currentUser, can } = useChapter();
   const orgPath = useOrgPath();
-  const pathname = usePathname();
   const router = useRouter();
   const { pref: themePref, setPref: setThemePref } = useAppTheme();
 
   const [open, setOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [removing, setRemoving] = useState(false);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [leaveOpen, setLeaveOpen] = useState(false);
-  const [leaveError, setLeaveError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Active-state for the Settings entry — same slug-agnostic check the sidebar
-  // nav uses, so the row highlights when you're on /[slug]/settings.
-  const settingsActive = (() => {
-    if (!pathname) return false;
-    const rest = pathname.replace(/^\/[^/]+/, "");
-    return rest.startsWith("/settings");
-  })();
-
   useEffect(() => {
     if (!open) return;
-    function handler(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    function handler(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [open]);
+  function toggle() {
+    if (!open) { setThemeOpen(false); setConfirmLeave(false); setError(null); }
+    setOpen(v => !v);
+  }
 
   async function handleSignOut() {
     setSigningOut(true);
@@ -88,7 +90,7 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
       await fetch("/api/auth/signout", { method: "POST" });
     } catch { /* network failure — still redirect */ }
     // Clear the remembered org so the next /login visit starts at the org picker
-    // (State B) rather than offering one-click re-entry into the org they left.
+    // rather than offering one-click re-entry into the org they left.
     try {
       localStorage.removeItem("chaptos_last_org");
     } catch { /* storage unavailable — nothing to clear */ }
@@ -99,18 +101,11 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
     const file = e.target.files?.[0];
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (!file) return;
+    if (!file.type.startsWith("image/")) { setError("Please choose an image file (PNG, JPG, WebP, etc.)."); return; }
+    if (file.size > 2 * 1024 * 1024) { setError("Image must be under 2 MB."); return; }
 
-    if (!file.type.startsWith("image/")) {
-      setPhotoError("Please choose an image file (PNG, JPG, WebP, etc.).");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setPhotoError("Image must be under 2 MB.");
-      return;
-    }
-
-    setPhotoError(null);
-    setUploading(true);
+    setError(null);
+    setPhotoBusy(true);
     try {
       const body = new FormData();
       body.append("file", file);
@@ -120,15 +115,15 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
       await syncAvatarSession();
       setAvatarUrl(data.avatarUrl ?? null, true);
     } catch (err) {
-      setPhotoError(err instanceof Error ? err.message : "Could not update profile photo");
+      setError(err instanceof Error ? err.message : "Could not update profile photo");
     } finally {
-      setUploading(false);
+      setPhotoBusy(false);
     }
   }
 
   async function handleRemovePhoto() {
-    setPhotoError(null);
-    setRemoving(true);
+    setError(null);
+    setPhotoBusy(true);
     try {
       const res = await fetch("/api/auth/avatar", { method: "DELETE" });
       const data = await res.json().catch(() => ({})) as { avatarUrl?: string | null; error?: string };
@@ -136,236 +131,155 @@ export function SidebarProfile({ onNavigate }: { onNavigate?: () => void }) {
       await syncAvatarSession();
       setAvatarUrl(data.avatarUrl ?? null, false);
     } catch (err) {
-      setPhotoError(err instanceof Error ? err.message : "Could not remove profile photo");
+      setError(err instanceof Error ? err.message : "Could not remove profile photo");
     } finally {
-      setRemoving(false);
+      setPhotoBusy(false);
     }
   }
 
-  const photoBusy = uploading || removing;
-
-  // The pinned sidebar row shows just the first name; the popover header keeps
-  // the full name + email.
-  const firstName = user?.name?.trim().split(/\s+/)[0] ?? user?.name;
+  async function handleLeave() {
+    if (!currentUser?.org) return;
+    setLeaving(true);
+    setError(null);
+    const msg = await leaveOrg({
+      orgSlug: currentUser.org.slug,
+      memberships: currentUser.memberships,
+      activeOrgId: currentUser.orgId,
+    });
+    setError(msg);
+    setLeaving(false);
+    setConfirmLeave(false);
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2.5 px-3 py-2">
-        <div className="h-8 w-8 shrink-0 rounded-full bg-[rgba(var(--ink-rgb),0.07)] animate-pulse" />
-        <div className="h-3 w-24 rounded bg-[rgba(var(--ink-rgb),0.07)] animate-pulse" />
+      <div className="sb-me" aria-hidden="true">
+        <span className="sb-av" />
+        <span className="sb-me-txt"><span className="sb-skel" style={{ display: "block" }} /></span>
       </div>
     );
   }
 
-  return (
-    <div ref={containerRef} className="relative">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden
-        onChange={handlePhotoFile}
-      />
+  const firstName = user?.name?.trim().split(/\s+/)[0] ?? user?.name ?? "";
+  const avatarSrc = avatarDisplayUrl(user?.avatarUrl ?? null, avatarRevision);
+  const initials = initialsOf(user?.name);
+  const orgName = currentUser?.org?.name;
+  const dark = themePref !== "ivory";
+  const themeLabel = THEME_OPTIONS.find(o => o.value === themePref)?.label ?? "Dark";
 
-      {/* ── Profile row — pinned trigger ─────────────────────────────────── */}
+  return (
+    <div ref={ref} className="sb-me-wrap" style={{ display: "contents" }}>
+      <input ref={fileInputRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={handlePhotoFile} />
+
       <button
-        onClick={() => {
-          // Clear a stale leave error when opening so a past failure doesn't
-          // linger in the menu on an unrelated open.
-          if (!open) setLeaveError(null);
-          setOpen(v => !v);
-        }}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[rgba(var(--ink-rgb),0.05)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--vio)]/40"
+        type="button"
+        className="sb-me"
+        onClick={toggle}
         aria-label="Open profile menu"
-        aria-expanded={open}
         aria-haspopup="menu"
+        aria-expanded={open}
+        data-tip={`${firstName}${title ? ` · ${title}` : ""}`}
       >
-        <ProfileAvatar
-          name={user?.name}
-          avatarUrl={user?.avatarUrl}
-          revision={avatarRevision}
-          size="sm"
-          ringClassName="ring-1 ring-[rgba(var(--ink-rgb),0.12)]"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="truncate text-[13px] font-semibold leading-tight text-[color:var(--ink)]">{firstName}</p>
-            {user?.isAdmin && (
-              <span
-                className="shrink-0 rounded-full bg-[color:var(--vio)]/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-[color:var(--vio-hi)] ring-1 ring-inset ring-[color:var(--vio)]/30"
-                title="You have admin permissions"
-              >
-                Admin
-              </span>
-            )}
-          </div>
-          {user?.role && (
-            <p className="truncate text-[10.5px] leading-tight text-[color:var(--faint)] mt-0.5">{user.role}</p>
-          )}
-        </div>
-        <svg
-          className={`h-3.5 w-3.5 shrink-0 text-[color:var(--faint)] transition-transform duration-150 ${open ? "rotate-180" : ""}`}
-          xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        <span className="sb-av">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {avatarSrc ? <img key={avatarSrc} src={avatarSrc} alt="" referrerPolicy="no-referrer" /> : initials}
+        </span>
+        <span className="sb-me-txt">
+          <span className="sb-me-nm">{firstName}</span>
+          {title && <span className="sb-me-rl">{title}</span>}
+        </span>
       </button>
 
-      {/* ── Upward popover ───────────────────────────────────────────────── */}
       {open && (
-        <div
-          className="absolute bottom-full left-0 right-0 z-[60] mb-2 overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.1)] bg-[color:var(--card-2)] shadow-[0_8px_32px_rgba(var(--shade-rgb),calc(0.6*var(--shade-k)))]"
-          role="menu"
-        >
-          <div className="flex items-center gap-3 px-4 py-3.5">
-            <ProfileAvatar
-              name={user?.name}
-              avatarUrl={user?.avatarUrl}
-              revision={avatarRevision}
-              size="md"
-              ringClassName="ring-2 ring-[rgba(var(--ink-rgb),0.1)]"
-            />
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{user?.name}</p>
-              {user?.role && (
-                <p className="truncate text-[11px] leading-tight text-[color:var(--muted)] mt-0.5">{user.role}</p>
+        <div className="sb-pop sb-pop-me" role="menu" aria-label="Account">
+          <div className="sb-pm-id">
+            <button
+              type="button"
+              className="sb-pm-av"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={photoBusy}
+              aria-busy={photoBusy}
+              aria-label="Change photo"
+              title="Change photo"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {avatarSrc ? <img key={avatarSrc} src={avatarSrc} alt="" referrerPolicy="no-referrer" /> : initials}
+              <span className="cam"><SvgIcon d={ICONS.camera} className="i" /></span>
+            </button>
+            <div className="sb-pm-who">
+              <div className="sb-pm-nm">{user?.name}</div>
+              <div className="sb-pm-em">{user?.email}</div>
+              {user?.hasCustomAvatar && (
+                <button type="button" className="sb-pm-link" onClick={handleRemovePhoto} disabled={photoBusy}>
+                  Remove photo
+                </button>
               )}
-              <p className="truncate text-[11px] text-[color:var(--faint)] mt-0.5">{user?.email}</p>
             </div>
           </div>
+          {error && <p className="sb-pm-err" role="alert">{error}</p>}
 
-          <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
-
-          <div className="p-2 space-y-0.5">
+          <div className="sb-pm-sec">
+            {can("MANAGE_SETTINGS") && (
+              <Link
+                href={orgPath("/settings?section=invitations")}
+                role="menuitem"
+                className="sb-row"
+                onClick={() => { setOpen(false); onNavigate?.(); }}
+              >
+                <SvgIcon d={ICONS.userPlus} className="i" />Invite people
+              </Link>
+            )}
             <Link
               href={orgPath("/settings")}
               role="menuitem"
-              aria-current={settingsActive ? "page" : undefined}
+              className="sb-row"
               onClick={() => { setOpen(false); onNavigate?.(); }}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all ${
-                settingsActive
-                  ? "bg-[color:var(--paper-2)] text-[color:var(--ink)]"
-                  : "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink)]"
-              }`}
             >
-              <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Settings
+              <SvgIcon d={ICONS.settings} className="i" />Settings
             </Link>
-
-            <button
-              type="button"
-              disabled={photoBusy}
-              role="menuitem"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink)] disabled:opacity-50"
-            >
-              <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a41.763 41.763 0 00-1.134-.175 2.31 2.31 0 01-1.227-1.054 2.31 2.31 0 00-2.31-1.227H8.084a2.31 2.31 0 00-2.31 1.227 2.31 2.31 0 01-1.227 1.054z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {uploading ? "Uploading…" : "Change photo"}
-            </button>
-
-            {user?.hasCustomAvatar && (
-              <button
-                type="button"
-                disabled={photoBusy}
-                role="menuitem"
-                onClick={handleRemovePhoto}
-                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink)] disabled:opacity-50"
-              >
-                <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                </svg>
-                {removing ? "Removing…" : "Remove photo"}
+            {themeOpen ? (
+              <div role="radiogroup" aria-label="Appearance">
+                {THEME_OPTIONS.map(o => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={themePref === o.value}
+                    className="sb-row"
+                    onClick={() => { setThemePref(o.value); setThemeOpen(false); }}
+                  >
+                    <SvgIcon d={o.icon} className="i" />{o.label}
+                    {themePref === o.value && <SvgIcon d={ICONS.check} className="i sb-chk" />}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <button type="button" role="menuitem" className="sb-row" aria-expanded={false} onClick={() => setThemeOpen(true)}>
+                <SvgIcon d={dark ? ICONS.moon : ICONS.sun} className="i" />Appearance
+                <span className="sb-val">{themeLabel}</span>
               </button>
             )}
-
-            {photoError && (
-              <p className="px-3 py-1 text-[11px] text-red-400">{photoError}</p>
-            )}
           </div>
 
-          <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
-
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5">
-            <span className="font-mono text-[9.5px] uppercase tracking-[0.16em] text-[color:var(--faint)]" id="theme-label">Theme</span>
-            <div role="radiogroup" aria-labelledby="theme-label" className="flex rounded-lg border border-[rgba(var(--ink-rgb),0.1)] p-0.5">
-              {THEME_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={themePref === opt.value}
-                  onClick={() => setThemePref(opt.value)}
-                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
-                    themePref === opt.value
-                      ? "bg-[color:var(--vio-bg)] text-[color:var(--vio)]"
-                      : "text-[color:var(--muted)] hover:text-[color:var(--ink)]"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {currentUser?.org && (
-            <>
-              <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
-              <div className="p-2 space-y-0.5">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { setLeaveError(null); setOpen(false); setLeaveOpen(true); }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-amber-500/10 hover:text-amber-400"
-                >
-                  <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                  </svg>
-                  Leave organization
-                </button>
-                {leaveError && (
-                  <p className="px-3 py-1 text-[11px] text-red-400">{leaveError}</p>
-                )}
-              </div>
-            </>
-          )}
-
-          <div className="h-px bg-[rgba(var(--ink-rgb),0.06)]" />
-
-          <div className="p-2">
-            <button
-              onClick={handleSignOut}
-              disabled={signingOut}
-              role="menuitem"
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-[color:var(--muted)] transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
-            >
-              <svg className="h-4 w-4 shrink-0 opacity-75" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              {signingOut ? "Signing out…" : "Sign out"}
+          <div className="sb-pm-sec">
+            <button type="button" role="menuitem" className="sb-row" onClick={handleSignOut} disabled={signingOut}>
+              <SvgIcon d={ICONS.signOut} className="i" />{signingOut ? "Signing out…" : "Sign out"}
             </button>
+            {orgName && (confirmLeave ? (
+              <div className="sb-pm-confirm" role="alertdialog" aria-label="Leave organization">
+                <p>Leave <b>{orgName}</b>? You&apos;ll need a new invite and an officer&apos;s approval to come back.</p>
+                <div className="sb-pm-acts">
+                  <button type="button" className="cancel" onClick={() => setConfirmLeave(false)} disabled={leaving}>Cancel</button>
+                  <button type="button" className="go" onClick={handleLeave} disabled={leaving}>{leaving ? "Leaving…" : "Leave"}</button>
+                </div>
+              </div>
+            ) : (
+              <button type="button" className="sb-pm-leave" onClick={() => { setError(null); setConfirmLeave(true); }}>
+                Leave {orgName}
+              </button>
+            ))}
           </div>
         </div>
-      )}
-
-      {leaveOpen && currentUser?.org && (
-        <LeaveOrgModal
-          orgName={currentUser.org.name}
-          orgSlug={currentUser.org.slug}
-          memberships={currentUser.memberships}
-          activeOrgId={currentUser.orgId}
-          onClose={() => setLeaveOpen(false)}
-          // On failure the modal closes itself; re-open the dropdown so the inline
-          // error (e.g. the last-admin guard) is actually visible to the user.
-          onError={(msg) => { setLeaveError(msg); setOpen(true); }}
-        />
       )}
     </div>
   );

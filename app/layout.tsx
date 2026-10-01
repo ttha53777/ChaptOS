@@ -7,6 +7,7 @@ import { SemesterGate } from "./components/SemesterGate";
 import { LiveCheckInGate } from "./components/LiveCheckInGate";
 import { ToastProvider } from "./components/dashboard/Toast";
 import { APP_THEME_BOOT } from "@/lib/theme";
+import { SIDEBAR_RAIL_BOOT } from "@/lib/sidebar-rail";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,13 +57,14 @@ export default function RootLayout({
       // /create's theme boot script stamps data-crf-theme here before hydration
       // (see lib/onboarding/create-theme.ts), which React would otherwise report
       // as a server/client attribute mismatch, and APP_THEME_BOOT (lib/theme.ts)
-      // does the same with data-theme. Same reason next-themes requires this.
+      // does the same with data-theme (and SIDEBAR_RAIL_BOOT with data-sb). Same reason next-themes requires this.
       // Only ever affects attributes on <html> itself.
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      {/* Blocking, before any paint: stamps data-theme so ivory never flashes dusk. */}
-      <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT }} /></head>
+      {/* Blocking, before any paint: stamps data-theme so ivory never flashes
+          dusk, and data-sb so a collapsed sidebar never flashes open. */}
+      <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT + SIDEBAR_RAIL_BOOT }} /></head>
       <body suppressHydrationWarning className="min-h-full flex flex-col"><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
     </html>
   );

@@ -5,14 +5,16 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
 import { NAV_GROUPS, NAV_LABELS, applyNavOrder } from "@/lib/nav-order";
-import { orgInitials } from "@/lib/org-initials";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { orgFetch, requestJson } from "../lib/api";
 import { useChapter } from "../context/ChapterContext";
 import { useVocab } from "../hooks/useVocab";
+import { useNeedsOpen, useSidebarRail } from "../hooks/useSidebarPrefs";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SidebarProfile } from "./SidebarProfile";
+import { SvgIcon } from "./SvgIcon";
 import { useSemesters } from "../hooks/useActiveSemester";
+import "./sidebar.css";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -89,43 +91,43 @@ export function isNavVisible(label: string, enabledWorkflows: readonly string[])
 
 // ─── SvgIcon ──────────────────────────────────────────────────────────────────
 
-export function SvgIcon({ d, className = "h-4 w-4" }: { d: string; className?: string }) {
-  return (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d={d} />
-    </svg>
-  );
-}
+// Lives in its own module so OrgSwitcher/SidebarProfile can use it without a
+// circular import; re-exported because pages import it from here.
+export { SvgIcon };
 
-// Warm "Chapter Ledger" nav item — flat card-2 fill + a violet edge bar when
-// active (the dashboard mock's signature), warm muted ink otherwise. Mirrors the
-// dusk palette in dashboard-ledger.css so the shell reads as one surface.
-function navItemClass(isActive: boolean) {
-  return `relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 ${
-    isActive
-      ? "bg-[color:var(--card-2)] text-[color:var(--ink)]"
-      : "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.05)] hover:text-[color:var(--ink-soft)]"
-  }`;
-}
+const ICON_INBOX = "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4";
+const ICON_COLLAPSE = "M11 19l-7-7 7-7m8 14l-7-7 7-7";
 
-// Violet accent rail shown on the active nav item — echoes `.nav a.active::before`
-// from the dashboard redesign mock. Parent must be `relative` (navItemClass is).
-function ActiveBar() {
-  return <span aria-hidden="true" className="absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-r-full bg-[color:var(--vio)]" />;
-}
+// Where each standalone nav label routes, within the org. Dashboard is absent:
+// it's the in-page section on "/" (scrolled to via onNavClick).
+const NAV_ROUTES: Record<string, string> = {
+  Timeline:    "/timeline",
+  Tasks:       "/tasks",
+  Treasury:    "/treasury",
+  Parties:     "/parties",
+  Programming: "/events",
+  Brotherhood: "/brothers",
+  Chapter:     "/chapter",
+  Docs:        "/docs",
+  Instagram:   "/instagram",
+  Service:     "/service",
+};
 
-// Small rose notification pill shown next to a nav item that has items needing
-// attention (e.g. pending reimbursement tickets on Treasury). Counts over 9
-// collapse to "9+" so the pill never widens the row.
-function NavCountBadge({ count, label }: { count: number; label: string }) {
-  return (
-    <span
-      className="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#f43f5e] px-1.5 text-[10px] font-bold leading-none text-white shadow-[0_1px_4px_rgba(244,63,94,0.45)]"
-      aria-label={`${count} ${label}`}
-    >
-      {count > 9 ? "9+" : count}
-    </span>
-  );
+type Tone = "vio" | "warn" | "rose";
+interface Queue { key: string; n: number; text: string; page: string; href: string; tone: Tone }
+
+/** "Fall 2026 · Wk 6" while today is inside a term-sized period, else just the
+ *  label — a year-long period (or one extended past its season) would read
+ *  "Wk 40", which tells nobody anything. */
+function termLabel(sem: { label: string; startDate: string; endDate: string } | null): string {
+  if (!sem) return "";
+  const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).getTime();
+  const start = day(sem.startDate), end = day(sem.endDate);
+  const now = Date.now();
+  const WEEK = 7 * 86_400_000;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || now < start || now > end + 86_400_000) return sem.label;
+  if ((end - start) / WEEK > 26) return sem.label;
+  return `${sem.label} · Wk ${Math.floor((now - start) / WEEK) + 1}`;
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -141,30 +143,30 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const orgPath  = useOrgPath();
   const { currentUser, reimbursementList, loadedSections, can, setNavOrderLocal } = useChapter();
   const v = useVocab();
+  const { rail, setRail } = useSidebarRail();
+  const { open: needsOpen, setOpen: setNeedsOpen } = useNeedsOpen();
+  const asideRef = useRef<HTMLElement>(null);
 
-  // Pending reimbursement tickets drive the red count badge next to Treasury.
-  // The Sidebar renders on every page, so deriving this from reimbursementList
-  // forced the whole reimbursement fetch into every page load just to compute a
-  // number — /api/auth/me now carries the count instead.
-  //
-  // Where the list IS loaded (the treasury page), keep deriving from it: those
-  // pages mutate tickets optimistically without a refetch, and the badge has
-  // always followed along instantly. The /me count would lag behind them.
-  const pendingReimbursements = loadedSections.has("reimbursements")
-    ? reimbursementList.filter(r => r.status === "pending").length
-    : currentUser?.org?.pendingReimbursementCount ?? 0;
+  // ── Review queues ("Needs you") ───────────────────────────────────────────
+  // Each one is gated on the permission its review endpoint enforces, so the
+  // list never advertises work the viewer would get a 403 for.
 
-  // People waiting on an officer to let them in, badged on Brotherhood (where
-  // the review queue lives). Rides along on /api/auth/me like the reimbursement
-  // count rather than costing a fetch on every page, and the server already
-  // zeroes it for anyone without MANAGE_BROTHERS — so the badge never advertises
-  // work the viewer would get a 403 for.
+  // Pending reimbursement tickets. /api/auth/me carries the count so every page
+  // doesn't have to fetch the whole list. Where the list IS loaded (the treasury
+  // page), derive from it: that page mutates tickets optimistically without a
+  // refetch, and the /me count would lag behind.
+  const pendingReimbursements = !can("MANAGE_TREASURY") ? 0
+    : loadedSections.has("reimbursements")
+      ? reimbursementList.filter(r => r.status === "pending").length
+      : currentUser?.org?.pendingReimbursementCount ?? 0;
+
+  // People waiting on an officer to let them in. The server already zeroes it
+  // for anyone without MANAGE_BROTHERS.
   const pendingJoinRequests = currentUser?.org?.pendingJoinRequestCount ?? 0;
 
-  // Pending excuses drive a review badge on Timeline (where the review queue lives).
-  // Only MANAGE_ATTENDANCE holders can read the endpoint (members get 403), so gate
-  // the fetch on the perm and treat any failure as zero. Refetch on navigation so
-  // the count reflects decisions made on the Timeline/brother-drawer queues.
+  // Pending excuses. Only MANAGE_ATTENDANCE holders can read the endpoint, so
+  // gate the fetch on the perm and treat any failure as zero. Refetch on
+  // navigation so the count reflects decisions made on the review queues.
   const canManageAttendance = can("MANAGE_ATTENDANCE");
   const [pendingExcuses, setPendingExcuses] = useState(0);
   useEffect(() => {
@@ -179,35 +181,29 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
       .catch(() => { if (!cancelled) setPendingExcuses(0); });
     return () => { cancelled = true; };
   }, [canManageAttendance, pathname]);
-  const orgName = currentUser?.org?.name ?? "Operations";
-  const logoUrl = currentUser?.org?.logoUrl ?? null;
+
   const { active: activeSemester, loaded: semestersLoaded } = useSemesters(!!currentUser?.org?.slug);
+  const term = activeSemester ? termLabel(activeSemester) : semestersLoaded ? "" : " ";
 
   // Display labels for vocab-driven nav items. Routing keys (NAV_WORKFLOW_MAP,
-  // NAV_ICONS, isStandalone checks) remain the original string — only the
-  // rendered text changes.
+  // NAV_ICONS, NAV_ROUTES) remain the original string — only the rendered text
+  // changes. Instagram and Parties intentionally fall back to their own labels
+  // rather than the generic "Communications"/"Social".
   const NAV_DISPLAY: Record<string, string> = {
     Brotherhood: v("Member", true),
     Chapter:     v("Meetings"),
     Treasury:    v("Treasury"),
     Service:     v("Service"),
-    // Instagram and Parties intentionally omitted — they fall back (via
-    // NAV_DISPLAY[label] ?? label) to their default nav labels "Instagram" and
-    // "Parties" rather than the generic "Communications"/"Social".
   };
+  const display = (label: string) => NAV_DISPLAY[label] ?? label;
 
-  // Path *within* the org, i.e. pathname with the leading "/[slug]" segment
-  // removed. "/lpe" → "/", "/lpe/treasury" → "/treasury". Active-state checks
-  // below compare against this so they're slug-agnostic. We strip by segment
-  // (not by the context slug) so it's correct even before /api/auth/me resolves
-  // — these links only ever render inside /[slug]/*, so segment 1 is the org.
+  // Path *within* the org: "/lpe" → "/", "/lpe/treasury" → "/treasury". Strip by
+  // segment (not by the context slug) so it's right before /api/auth/me resolves.
   const subPath = (() => {
     if (!pathname || pathname === "/") return "/";
-    const rest = pathname.replace(/^\/[^/]+/, ""); // drop "/<slug>"
+    const rest = pathname.replace(/^\/[^/]+/, "");
     return rest === "" ? "/" : rest;
   })();
-
-  const semesterLabel = activeSemester?.label ?? (semestersLoaded ? "" : " ");
 
   function goToDashboardSection(label: string) {
     if (subPath !== "/") {
@@ -220,53 +216,52 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   }
 
   // Filter nav surfaces by the org's enabled workflows. Until /api/auth/me
-  // resolves (currentUser null) we render the FULL nav so there's no flash of a
-  // half-empty sidebar; once the org loads we hide the surfaces it disabled.
-  // Always-on labels (Dashboard/Timeline) survive the filter via isNavVisible's
-  // null-workflow rule. Chapter is now the toggleable "meetings" workflow.
+  // resolves we render the FULL nav so there's no flash of a half-empty sidebar.
   const enabledWorkflows = currentUser?.org?.enabledWorkflows;
   const visibleNav = enabledWorkflows
     ? NAV.filter(label => isNavVisible(label, enabledWorkflows))
     : NAV;
   const visibleNavSet = new Set(visibleNav);
 
-  // Admin-chosen sidebar order. Applied per-group below so reordering stays
-  // within each heading. Empty/absent → default order (applyNavOrder no-ops).
+  // Only queues whose page this org shows — a dot on a hidden page helps nobody.
+  const queues: Queue[] = ([
+    { key: "join",  n: pendingJoinRequests,   text: pendingJoinRequests === 1 ? "join request" : "join requests", page: "Brotherhood", href: "/brothers#join-requests",       tone: "vio" },
+    { key: "excuse", n: pendingExcuses,       text: pendingExcuses === 1 ? "excuse" : "excuses",                  page: "Timeline",    href: "/timeline",                     tone: "warn" },
+    { key: "reimb", n: pendingReimbursements, text: pendingReimbursements === 1 ? "reimbursement" : "reimbursements", page: "Treasury", href: "/treasury?tab=Reimbursements", tone: "rose" },
+  ] satisfies Queue[]).filter(q => q.n > 0 && visibleNavSet.has(q.page));
+  const queueTotal = queues.reduce((a, q) => a + q.n, 0);
+  const queuePages = new Set(queues.map(q => q.page));
+  const [needsPopTop, setNeedsPopTop] = useState<number | null>(null);
+  const showNeedsPop = needsPopTop !== null && rail && queues.length > 0;
+
+  // Admin-chosen sidebar order, applied per-group so reordering stays within
+  // each heading. Empty/absent → default order.
   const navOrder = currentUser?.org?.navOrder ?? [];
 
-  // Reordering the sidebar is an org-wide layout change — gated on org admin
-  // (platform admin OR Membership.isOrgAdmin for the active org), the same
-  // posture the org-config service enforces server-side. Mirrors how /me derives
-  // `elevated`. Members see a normal, non-draggable sidebar.
-  const isOrgAdmin =
-    !!currentUser &&
-    (currentUser.isAdmin ||
-      (currentUser.memberships.find(m => m.organizationId === currentUser.orgId)?.isOrgAdmin ?? false));
+  // Reordering is an org-wide layout change — gated on org admin (platform admin
+  // OR Membership.isOrgAdmin for the active org), the same posture the
+  // org-config service enforces server-side.
+  const activeMembership = currentUser?.memberships.find(m => m.organizationId === currentUser.orgId);
+  const isOrgAdmin = !!currentUser && (currentUser.isAdmin || (activeMembership?.isOrgAdmin ?? false));
+  const myTitle = activeMembership?.title ?? currentUser?.role ?? "";
 
   // ── Drag-to-reorder (org admin only) ──────────────────────────────────────
-  // Native HTML5 DnD, matching the docs drag-into-folders pattern. We track the
-  // label being dragged and the label currently hovered (for the drop-line),
-  // both scoped to one group so a drag can't cross the Overview/Members/
-  // Operations headings. On drop we splice the dragged label in front of the
-  // target within that group, recompute the FULL flattened order across every
-  // group, optimistically patch local state, and PATCH it to persist.
+  // Native HTML5 DnD scoped to one group. On drop we splice the dragged label in
+  // front of the target, recompute the FULL flattened order across every group,
+  // optimistically patch local state, and PATCH it to persist.
   const [dragLabel, setDragLabel] = useState<string | null>(null);
   const [dragOverLabel, setDragOverLabel] = useState<string | null>(null);
   // Guards against a stale PATCH clobbering a newer one if drops happen quickly.
   const navOrderSaveId = useRef(0);
 
-  // The per-group ordered+visible label lists, derived once for both render and
-  // the drop math so they can't drift.
   function persistNavOrder(nextFullOrder: string[]) {
-    setNavOrderLocal(nextFullOrder); // optimistic — paints immediately
+    setNavOrderLocal(nextFullOrder);
     const myId = ++navOrderSaveId.current;
     requestJson("/api/orgs/config", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ navOrder: nextFullOrder }),
     }).catch(() => {
-      // Roll back to the server's truth only if this is still the latest save —
-      // a refetch would also work, but reverting the local patch is cheaper.
       if (navOrderSaveId.current === myId) {
         setNavOrderLocal(currentUser?.org?.navOrder ?? []);
       }
@@ -278,12 +273,6 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     setDragLabel(null);
     setDragOverLabel(null);
     if (!from || from === target) return;
-
-    // Recompose the full order group by group. For the group being edited, pull
-    // `from` out and insert it before `target`; every other group keeps its
-    // current order. We emit ALL groups so a single navOrder array fully
-    // describes the sidebar (the service normalizes; applyNavOrder ignores
-    // out-of-group labels, so an explicit complete list is safe).
     const fullOrder = NAV_GROUPS.flatMap(g => {
       const ordered = applyNavOrder(g.items, navOrder);
       if (g.label !== groupLabel) return ordered;
@@ -292,88 +281,74 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
       next.splice(next.indexOf(target), 0, from);
       return next;
     });
-
     persistNavOrder(fullOrder);
   }
 
+  // ── Rail: `[` toggles it (desktop only), tooltips name the icons ──────────
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "[" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+      if (!window.matchMedia("(min-width: 1024px)").matches) return;
+      setRail(document.documentElement.dataset.sb !== "rail");
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [setRail]);
+
+  const [tip, setTip] = useState<{ text: string; kbd?: string; x: number; y: number } | null>(null);
+  useEffect(() => { if (!rail) setTip(null); }, [rail]);
+  function onTipOver(e: React.MouseEvent) {
+    if (!rail || !window.matchMedia("(min-width: 1024px)").matches) return;
+    const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tip]");
+    if (!el || asideRef.current?.querySelector(".sb-pop")) { setTip(null); return; }
+    const r = el.getBoundingClientRect();
+    setTip({ text: el.dataset.tip ?? "", kbd: el.dataset.tipk, x: r.right + 10, y: r.top + r.height / 2 });
+  }
+
+  // Close the rail's Needs popover on outside click / Escape.
+  useEffect(() => {
+    if (needsPopTop === null) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest(".sb-pop-needs") && !t.closest(".sb-needs-rail")) setNeedsPopTop(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setNeedsPopTop(null); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [needsPopTop]);
+
   function renderNavItem(label: string, groupLabel: string) {
-    const isTimeline    = label === "Timeline";
-    const isTasks       = label === "Tasks";
-    const isTreasury    = label === "Treasury";
-    const isParties     = label === "Parties";
-    const isProgramming = label === "Programming";
-    const isBrotherhood = label === "Brotherhood";
-    const isChapter     = label === "Chapter";
-    const isDocs        = label === "Docs";
-    const isInstagram   = label === "Instagram";
-    const isService     = label === "Service";
-    const isStandalone  = isTimeline || isTasks || isTreasury || isParties || isProgramming || isBrotherhood || isChapter || isDocs || isInstagram || isService;
-    const standaloneSub = isTimeline ? "/timeline" : isTasks ? "/tasks" : isTreasury ? "/treasury" : isParties ? "/parties" : isProgramming ? "/events" : isChapter ? "/chapter" : isDocs ? "/docs" : isInstagram ? "/instagram" : isService ? "/service" : "/brothers";
-    const isActive = isTimeline
-      ? subPath === "/timeline"
-      : isTasks
-        ? subPath.startsWith("/tasks")
-      : isTreasury
-        ? subPath.startsWith("/treasury")
-        : isParties
-          ? subPath.startsWith("/parties")
-          : isProgramming
-            ? subPath.startsWith("/events")
-          : isBrotherhood
-            ? subPath.startsWith("/brothers")
-            : isChapter
-              ? subPath.startsWith("/chapter")
-              : isDocs
-                ? subPath.startsWith("/docs")
-                : isInstagram
-                  ? subPath.startsWith("/instagram")
-                  : isService
-                    ? subPath.startsWith("/service")
-                    : subPath === "/" && activeSection === label;
+    const route = NAV_ROUTES[label];
+    const isActive = route
+      ? (label === "Timeline" ? subPath === route : subPath.startsWith(route))
+      : subPath === "/" && activeSection === label;
+    const text = display(label);
+    const dot = queuePages.has(label) ? <span className="sb-dot" aria-label="needs review" /> : null;
+    const content = (
+      <>
+        <SvgIcon d={NAV_ICONS[label] ?? ""} className="i" />
+        <span className="sb-lbl">{text}</span>
+        {dot}
+      </>
+    );
 
-    const displayLabel = NAV_DISPLAY[label] ?? label;
-
-    const inner = isStandalone ? (
-      <Link
-        href={orgPath(standaloneSub)}
-        onClick={onClose}
-        aria-current={isActive ? "page" : undefined}
-        className={navItemClass(isActive)}
-        draggable={false}
-      >
-        {isActive && <ActiveBar />}
-        <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-        {displayLabel}
-        {isTreasury && pendingReimbursements > 0 && (
-          <NavCountBadge count={pendingReimbursements} label="reimbursement requests awaiting review" />
-        )}
-        {isTimeline && pendingExcuses > 0 && (
-          <NavCountBadge count={pendingExcuses} label="excuses awaiting review" />
-        )}
-        {isBrotherhood && pendingJoinRequests > 0 && (
-          <NavCountBadge count={pendingJoinRequests} label="people waiting to join" />
-        )}
+    const inner = route ? (
+      <Link href={orgPath(route)} onClick={onClose} aria-current={isActive ? "page" : undefined} className="sb-item" data-tip={text} draggable={false}>
+        {content}
       </Link>
     ) : (
-      <button
-        onClick={() => goToDashboardSection(label)}
-        aria-current={isActive ? "page" : undefined}
-        className={navItemClass(isActive)}
-        draggable={false}
-      >
-        {isActive && <ActiveBar />}
-        <SvgIcon d={NAV_ICONS[label] ?? ""} className="h-4 w-4 shrink-0 opacity-75" />
-        {displayLabel}
+      <button type="button" onClick={() => goToDashboardSection(label)} aria-current={isActive ? "page" : undefined} className="sb-item" data-tip={text} draggable={false}>
+        {content}
       </button>
     );
 
-    // Members get a plain item. Admins get a drag-reorderable wrapper: the whole
-    // row is the drag handle (draggable=true), with a drop-line shown above the
-    // hovered target during a drag. We stop the inner Link/button from being
-    // independently draggable so the row-level drag owns the gesture.
     if (!isOrgAdmin) return <div key={label}>{inner}</div>;
 
-    const isDragging = dragLabel === label;
+    // Admins get a drag-reorderable wrapper: the whole row is the handle, with a
+    // drop-line above the hovered target during a drag.
     const isDropTarget = dragOverLabel === label && dragLabel !== null && dragLabel !== label;
     return (
       <div
@@ -383,6 +358,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", label);
           setDragLabel(label);
+          setTip(null);
         }}
         onDragEnd={() => { setDragLabel(null); setDragOverLabel(null); }}
         onDragOver={(e) => {
@@ -392,74 +368,128 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
           if (dragOverLabel !== label) setDragOverLabel(label);
         }}
         onDragLeave={(e) => {
-          // Only clear when actually leaving the row (not entering a child).
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
             setDragOverLabel(prev => (prev === label ? null : prev));
           }
         }}
         onDrop={(e) => { e.preventDefault(); handleNavDrop(groupLabel, label); }}
-        className={`relative cursor-grab rounded-lg transition-opacity ${isDragging ? "opacity-40" : ""}`}
+        className={`sb-drag${dragLabel === label ? " dragging" : ""}`}
       >
-        {isDropTarget && (
-          <span aria-hidden className="absolute -top-[3px] left-2 right-2 h-[2px] rounded-full bg-[color:var(--vio)]" />
-        )}
+        {isDropTarget && <span aria-hidden className="sb-drop" />}
         {inner}
       </div>
     );
   }
 
+  const needs = queues.length > 0 && (
+    <>
+      <section className={`sb-needs${needsOpen ? "" : " closed"}`} aria-label="Needs you">
+        <button type="button" className="sb-needs-h" onClick={() => setNeedsOpen(!needsOpen)} aria-expanded={needsOpen} aria-controls="sb-needs-list">
+          <SvgIcon d={ICON_INBOX} className="i" />Needs you
+          <span className="sb-needs-end">
+            <span className="sb-needs-hint">{needsOpen ? "Hide" : "Show"}</span>
+            <span className="sb-needs-stack" aria-hidden="true">
+              {queues.map(q => <span key={q.key} className={`sb-tone ${q.tone}`} />)}
+            </span>
+            <span className="sb-needs-n">{queueTotal}</span>
+          </span>
+        </button>
+        <div className="sb-needs-body">
+          <ul id="sb-needs-list">
+            {queues.map(q => (
+              <li key={q.key}>
+                <Link href={orgPath(q.href)} onClick={onClose} className="sb-needs-row" tabIndex={needsOpen ? undefined : -1}>
+                  <span className={`sb-num ${q.tone}`}>{q.n}</span>
+                  <span className="sb-what">{q.text}</span>
+                  <span className="sb-where">{display(q.page)}<span className="arr" aria-hidden="true">→</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+      <button
+        type="button"
+        className="sb-item sb-needs-rail"
+        data-tip={`Needs you · ${queueTotal}`}
+        aria-label={`Needs you, ${queueTotal}`}
+        aria-expanded={showNeedsPop}
+        onClick={(e) => {
+          if (needsPopTop !== null) { setNeedsPopTop(null); return; }
+          const top = e.currentTarget.getBoundingClientRect().top - (asideRef.current?.getBoundingClientRect().top ?? 0);
+          setTip(null);
+          setNeedsPopTop(top);
+        }}
+      >
+        <SvgIcon d={ICON_INBOX} className="i" />
+        <span className="sb-dot" />
+      </button>
+    </>
+  );
+
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-[color:var(--scrim)] lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-[rgba(var(--ink-rgb),0.09)] bg-[color:var(--paper-2)] transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:translate-x-0 xl:w-60 2xl:w-64 ${open ? "translate-x-0" : "-translate-x-full"}`}>
-        <Link
-          href={orgPath("/")}
-          onClick={onClose}
-          className="flex h-14 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.06)] px-4 transition-colors hover:bg-[rgba(var(--ink-rgb),0.03)]"
-          aria-label="Go to dashboard home"
-        >
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Org logo" className="h-8 w-8 shrink-0 rounded-lg object-cover shadow-[0_2px_8px_rgba(var(--shade-rgb),calc(0.4*var(--shade-k)))]" />
-          ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[color:var(--vio)] to-[color:var(--vio-deep)] text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(var(--vio-rgb),0.3)]">{orgInitials(orgName)}</div>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold leading-tight text-[color:var(--ink)]" style={{ fontFamily: "var(--font-fraunces), Georgia, serif" }}>{orgName}</p>
-            <p className="mt-0.5 font-mono text-[9px] uppercase leading-tight tracking-[0.14em] text-[color:var(--faint)]">{semesterLabel}</p>
-          </div>
-        </Link>
-        {currentUser && currentUser.memberships.length > 1 && (
-          <div className="border-b border-[rgba(var(--ink-rgb),0.06)] px-4 py-2">
-            <OrgSwitcher />
-          </div>
-        )}
+      {open && <div className="sb-scrim" onClick={onClose} />}
+      <aside
+        ref={asideRef}
+        className={`sb${open ? " open" : ""}`}
+        aria-label="Sidebar"
+        onMouseOver={onTipOver}
+        onMouseLeave={() => setTip(null)}
+        onClick={() => setTip(null)}
+      >
+        <OrgSwitcher termLabel={term} />
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Main navigation">
-          <div className="space-y-5">
-            {NAV_GROUPS.map(group => {
-              const items = applyNavOrder(group.items, navOrder).filter(label => visibleNavSet.has(label));
-              if (items.length === 0) return null;
-              const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
-              return (
-                <section key={group.label} aria-labelledby={headingId}>
-                  <p id={headingId} className="mb-1.5 px-3 font-mono text-[9.5px] font-medium uppercase tracking-[0.18em] text-[color:var(--faint)]">
-                    {group.label}
-                  </p>
-                  <div className="space-y-0.5">
-                    {items.map(label => renderNavItem(label, group.label))}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
+        <nav className="sb-nav" aria-label="Main navigation">
+          {needs}
+          {NAV_GROUPS.map(group => {
+            const items = applyNavOrder(group.items, navOrder).filter(label => visibleNavSet.has(label));
+            if (items.length === 0) return null;
+            const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+            return (
+              <section key={group.label} className="sb-grp" aria-labelledby={headingId}>
+                <div className="sb-grp-h"><span id={headingId}>{group.label}</span></div>
+                <div className="sb-items">
+                  {items.map(label => renderNavItem(label, group.label))}
+                </div>
+              </section>
+            );
+          })}
         </nav>
 
-        <div className="shrink-0 border-t border-[rgba(var(--ink-rgb),0.06)] px-2 py-2">
-          <SidebarProfile onNavigate={onClose} />
-          <p className="px-3 pb-1 pt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[color:var(--faint)]">ChaptOS · v1.0</p>
+        <div className="sb-foot">
+          <SidebarProfile title={myTitle} onNavigate={onClose} />
+          <button
+            type="button"
+            className="sb-iconbtn sb-collapse"
+            onClick={() => { setTip(null); setRail(!rail); }}
+            aria-label={rail ? "Expand sidebar" : "Collapse sidebar"}
+            data-tip={rail ? "Expand" : "Collapse"}
+            data-tipk="["
+          >
+            <SvgIcon d={ICON_COLLAPSE} className="i" />
+          </button>
         </div>
+
+        {showNeedsPop && (
+          <div className="sb-pop sb-pop-needs" style={{ top: needsPopTop ?? 0 }} role="menu" aria-label="Needs you">
+            <div className="sb-cap">Needs you · {queueTotal}</div>
+            {queues.map(q => (
+              <Link key={q.key} href={orgPath(q.href)} role="menuitem" className="sb-row" onClick={() => setNeedsPopTop(null)}>
+                <span className={`sb-tone ${q.tone}`} />
+                <span style={{ fontFamily: "var(--font-geist-mono), monospace" }}>{q.n}</span>
+                {q.text}
+                <span className="sb-sub" style={{ marginLeft: "auto" }}>{display(q.page)}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </aside>
+      {tip && (
+        <div className="sb-tip" style={{ left: tip.x, top: tip.y }} role="tooltip">
+          {tip.text}{tip.kbd && <span className="k">{tip.kbd}</span>}
+        </div>
+      )}
     </>
   );
 }

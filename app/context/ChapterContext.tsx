@@ -81,6 +81,9 @@ export interface MembershipSummary {
   /** Display name in THIS org, or null when it falls back to the account name.
    *  Mirrors MembershipSummary in lib/auth/require-user.ts. */
   name: string | null;
+  orgLogoUrl: string | null;
+  /** Office title in this org (top-ranked role, else Membership.role). */
+  title: string;
 }
 
 export interface CurrentUser {
