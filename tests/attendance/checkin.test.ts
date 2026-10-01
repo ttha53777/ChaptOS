@@ -312,36 +312,36 @@ describe("live check-in window", () => {
     expect(live?.closedByName).toBe("Officer");
   });
 
-  it("keeps an expired, never-closed window in front of officers until they close it", async () => {
+  it("closes an expired window on the next read and records the no-shows", async () => {
     const { org, officer, present, absent, event } = await scenario();
     const officerCtx = ctxFor(org.id, officer.id);
     const memberCtx  = ctxFor(org.id, present.id, { officer: false });
 
     await openCheckIn(officerCtx, event.id);
     await selfCheckIn(memberCtx, event.id);
-    // Expired hours ago — long past the closed-window linger.
-    await testPrisma.calendarEvent.update({
-      where: { id: event.id },
-      data: { checkInOpenedAt: new Date(Date.now() - CHECKIN_WINDOW_MS - 3 * 60 * 60 * 1000) },
-    });
+    const openedAt = new Date(Date.now() - CHECKIN_WINDOW_MS - 2 * 60 * 1000);
+    await testPrisma.calendarEvent.update({ where: { id: event.id }, data: { checkInOpenedAt: openedAt } });
 
-    // Members stop seeing it; officers don't, and it reads as unrecorded.
-    expect(await getLiveCheckIn(memberCtx)).toBeNull();
-    const stale = await getLiveCheckIn(officerCtx);
-    expect(stale?.event.id).toBe(event.id);
-    expect(stale?.state).toBe("closed");
-    expect(stale?.closedAt).toBeNull();
+    // Any viewer's read closes it — a member's dashboard load is enough.
+    const live = await getLiveCheckIn(memberCtx);
+    expect(live?.state).toBe("closed");
+    expect(live?.closedAt).toBe(new Date(openedAt.getTime() + CHECKIN_WINDOW_MS).toISOString());
+    expect(live?.closedByName).toBeNull();
+    expect(live?.presentCount).toBe(1);
 
-    // Closing it directly records the no-shows — no reopen needed.
-    const closed = await closeCheckIn(officerCtx, event.id);
-    expect(closed?.closedAt).toBeTruthy();
-    const absentRow = await testPrisma.attendanceRecord.findUnique({
-      where: { calendarEventId_brotherId: { calendarEventId: event.id, brotherId: absent.id } },
-    });
-    expect(absentRow?.attended).toBe(false);
+    const rows = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: event.id } });
+    const byBrother = new Map(rows.map(r => [r.brotherId, r.attended]));
+    expect(byBrother.get(present.id)).toBe(true);
+    expect(byBrother.get(absent.id)).toBe(false);
+    expect(byBrother.get(officer.id)).toBe(false);
+
+    // Concurrent polls and a late manual close don't double-write.
+    await Promise.all([getLiveCheckIn(officerCtx), getLiveCheckIn(memberCtx)]);
+    expect(await testPrisma.attendanceRecord.count({ where: { calendarEventId: event.id } })).toBe(3);
+    await expect(closeCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it("does not resurface an unclosed window opened before the active semester", async () => {
+  it("auto-closes a window opened before the active semester without recording absences", async () => {
     const { org, officer, event } = await scenario();
     const officerCtx = ctxFor(org.id, officer.id);
     await openCheckIn(officerCtx, event.id);
@@ -352,6 +352,9 @@ describe("live check-in window", () => {
     });
 
     expect(await getLiveCheckIn(officerCtx)).toBeNull();
+    const row = await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: event.id } });
+    expect(row.checkInClosedAt).toBeTruthy();
+    expect(await testPrisma.attendanceRecord.count({ where: { calendarEventId: event.id } })).toBe(0);
   });
 });
 

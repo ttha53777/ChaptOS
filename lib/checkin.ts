@@ -26,11 +26,9 @@ function asTime(value: Date | string | null): number | null {
 /**
  * The window's state, or null when it was never opened (the common case).
  *
- * An expired-but-unclosed window READS as closed without any write. That is
- * deliberate: nobody can still check in, but the absence rows are only written
- * when an officer actually closes it, so a forgotten window fails in the safe
- * direction (attendance simply isn't recorded, rather than everyone being
- * marked absent by a timer nobody watched).
+ * An expired-but-unclosed window READS as closed even before the write that
+ * records its absences lands (closeExpiredCheckIns runs on the next read), so
+ * check-in stops on the clock, not on that write.
  */
 export function checkInState(
   event: CheckInWindow,

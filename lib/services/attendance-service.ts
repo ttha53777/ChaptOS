@@ -3,7 +3,6 @@ import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { CheckInStatus, ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
-import { can } from "@/lib/permissions";
 import { CHECKIN_WINDOW_MS, acceptsCheckIns, checkInMsRemaining, checkInState } from "@/lib/checkin";
 import type { RecordAttendanceInput } from "@/lib/validation/attendance";
 
@@ -209,42 +208,29 @@ const CLOSED_LINGER_MS = 10 * 60 * 1000;
  * on every dashboard load, so it bails after a single indexed query.
  */
 export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn | null> {
+  // An expired window is closed (and its absences written) before anyone sees
+  // it, so nothing below ever has to render an expired-but-unrecorded window.
+  await closeExpiredCheckIns(ctx);
+
   const now = new Date();
 
-  // Officers also need the active semester to bound the stale-window branch
-  // below. Members skip it, so their idle read stays a single query.
-  const officer = can(ctx, "MANAGE_ATTENDANCE");
-  const officerSemester = officer ? await getActiveSemester(ctx.db) : null;
-  const semesterStart = officerSemester ? Date.parse(officerSemester.startDate) : NaN;
-
-  // Most recently opened window, ignoring anything long finished.
-  //
-  // A window that expired without being closed has recorded NOTHING — no-shows
-  // only become absences when an officer closes it. Everyone sees it briefly as
-  // "closed"; officers keep seeing it until they close it, because this band is
-  // the only place that prompts for that close, and letting it vanish after the
-  // linger meant those absences were silently never counted. Bounded to windows
-  // opened this semester: closing one from an earlier term would file its
-  // absences under the current one.
+  // Most recently opened window, ignoring anything long finished. Auto-closed
+  // windows carry closedAt = their expiry, so they linger like a manual close.
   const event = await ctx.db.calendarEvent.findFirst({
     where: {
       mandatory: true,
       OR: [
-        // Open, or expired within the linger.
+        // Open.
         {
-          checkInOpenedAt: { not: null, gte: new Date(now.getTime() - CHECKIN_WINDOW_MS - CLOSED_LINGER_MS) },
+          checkInOpenedAt: { not: null, gte: new Date(now.getTime() - CHECKIN_WINDOW_MS) },
           checkInClosedAt: null,
         },
-        // Closed by an officer within the linger — keyed on the close, so a
-        // late close of an old window still shows its final tally.
+        // Closed within the linger — keyed on the close, so a late close of an
+        // old window still shows its final tally.
         {
           checkInOpenedAt: { not: null },
           checkInClosedAt: { gte: new Date(now.getTime() - CLOSED_LINGER_MS) },
         },
-        ...(Number.isNaN(semesterStart) ? [] : [{
-          checkInOpenedAt: { not: null, gte: new Date(semesterStart) },
-          checkInClosedAt: null,
-        }]),
       ],
     },
     orderBy: { checkInOpenedAt: "desc" },
@@ -254,7 +240,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
   const state = checkInState(event, now);
   if (!state) return null;
 
-  const semester = officerSemester ?? await getActiveSemester(ctx.db);
+  const semester = await getActiveSemester(ctx.db);
   if (!semester) return null;
 
   const [records, excuses, exemptions, brotherIds] = await Promise.all([
@@ -614,11 +600,8 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
 }
 
 /**
- * Officer closes the window — the write that makes the numbers true.
- *
- * Everyone eligible who never checked in gets an `attended: false` row here.
- * Until this runs they have no row at all, and lib/attendance.ts would leave
- * them out of the denominator entirely rather than counting them absent.
+ * Officer closes the window early. A window nobody closes is closed for them
+ * when it expires (closeExpiredCheckIns); both go through writeClose.
  */
 export async function closeCheckIn(ctx: RequestContext, calendarEventId: number): Promise<LiveCheckIn | null> {
   const [event, semester] = await Promise.all([
@@ -630,14 +613,74 @@ export async function closeCheckIn(ctx: RequestContext, calendarEventId: number)
   if (event.checkInClosedAt)  throw new ConflictError("Check-in is already closed for this event");
   if (!semester)              throw new ValidationError("No active semester");
 
+  const won = await writeClose(ctx, event, semester.id, { closedAt: new Date(), closedById: ctx.actorId });
+  if (!won) throw new ConflictError("Check-in is already closed for this event");
+
+  return getLiveCheckIn(ctx);
+}
+
+/**
+ * Closes every window that ran out its hour without an officer closing it,
+ * exactly as if one had — the no-shows become absences. Runs on read (there is
+ * no scheduler), so the first dashboard load after expiry does the write.
+ *
+ * Usually one indexed query that returns nothing. Safe under concurrent polls:
+ * writeClose claims the window with a guarded update, and only the request that
+ * wins it writes absences and emits.
+ */
+export async function closeExpiredCheckIns(ctx: RequestContext): Promise<void> {
+  const expired = await ctx.db.calendarEvent.findMany({
+    where: {
+      mandatory:       true,
+      checkInClosedAt: null,
+      checkInOpenedAt: { not: null, lt: new Date(Date.now() - CHECKIN_WINDOW_MS) },
+    },
+  });
+  if (expired.length === 0) return;
+
+  const semester = await getActiveSemester(ctx.db);
+  const semesterStart = semester ? Date.parse(semester.startDate) : NaN;
+
+  for (const event of expired) {
+    const closedAt = new Date(event.checkInOpenedAt!.getTime() + CHECKIN_WINDOW_MS);
+    // A window opened before the active semester would file its absences under
+    // the wrong term, so it is closed without recording anything.
+    const inTerm = semester && !Number.isNaN(semesterStart) && event.checkInOpenedAt!.getTime() >= semesterStart;
+    if (!inTerm) {
+      await ctx.db.$transaction(tx => tx.calendarEvent.updateMany({
+        where: { id: event.id, organizationId: ctx.orgId, checkInClosedAt: null },
+        data:  { checkInClosedAt: closedAt, checkInClosedById: null },
+      }));
+      continue;
+    }
+    await writeClose(ctx, event, semester.id, { closedAt, closedById: null });
+  }
+}
+
+/**
+ * The close itself: writes an `attended: false` row for everyone eligible who
+ * never checked in, stamps the window closed, and emits the recalc. Until this
+ * runs they have no row at all, and lib/attendance.ts would leave them out of
+ * the denominator entirely rather than counting them absent.
+ *
+ * Returns false when another request closed the window first.
+ */
+async function writeClose(
+  ctx: RequestContext,
+  event: { id: number; title: string },
+  semesterId: number,
+  close: { closedAt: Date; closedById: number | null },
+): Promise<boolean> {
+  const calendarEventId = event.id;
+
   // Same eligibility rule as recordAttendance: roster minus approved excuses
   // minus semester-exempt.
   const [excuses, exemptions, brotherIds, existing] = await Promise.all([
     ctx.db.attendanceExcuse.findMany({
-      where: { calendarEventId, semesterId: semester.id, status: ExcuseStatus.Approved },
+      where: { calendarEventId, semesterId, status: ExcuseStatus.Approved },
       select: { brotherId: true },
     }),
-    ctx.db.attendanceExemption.findMany({ where: { semesterId: semester.id }, select: { brotherId: true } }),
+    ctx.db.attendanceExemption.findMany({ where: { semesterId }, select: { brotherId: true } }),
     ctx.db.member.listIds(),
     ctx.db.attendanceRecord.findMany({
       where: { calendarEventId },
@@ -652,26 +695,33 @@ export async function closeCheckIn(ctx: RequestContext, calendarEventId: number)
   const haveRow = new Set(existing.map(r => r.brotherId));
   const noShows = eligibleIds.filter(id => !haveRow.has(id));
 
-  await ctx.db.$transaction(async tx => {
+  const won = await ctx.db.$transaction(async tx => {
+    // Claim the window first. A concurrent close blocks on this row and then
+    // matches nothing, so the absences are written exactly once.
+    const claimed = await tx.calendarEvent.updateMany({
+      // organizationId is explicit: tx is the raw client, so the org-scoped
+      // delegate's filter does not apply inside the transaction.
+      where: { id: calendarEventId, organizationId: ctx.orgId, checkInClosedAt: null },
+      data:  { checkInClosedAt: close.closedAt, checkInClosedById: close.closedById },
+    });
+    if (claimed.count === 0) return false;
     // createMany, never a per-member upsert loop — that loop is what caused
-    // P2024 transaction timeouts past ~60 members.
+    // P2024 transaction timeouts past ~60 members. skipDuplicates covers an
+    // officer's roll landing between the read above and this write.
     if (noShows.length > 0) {
       await tx.attendanceRecord.createMany({
         data: noShows.map(brotherId => ({
           calendarEventId,
           brotherId,
-          semesterId: semester.id,
-          attended:   false,
+          semesterId,
+          attended: false,
         })),
+        skipDuplicates: true,
       });
     }
-    await tx.calendarEvent.updateMany({
-      // organizationId is explicit: tx is the raw client, so the org-scoped
-      // delegate's filter does not apply inside the transaction.
-      where: { id: calendarEventId, organizationId: ctx.orgId },
-      data:  { checkInClosedAt: new Date(), checkInClosedById: ctx.actorId },
-    });
+    return true;
   }, { timeout: 15_000 });
+  if (!won) return false;
 
   const presentCount = existing.filter(r => r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId)).length;
 
@@ -679,7 +729,7 @@ export async function closeCheckIn(ctx: RequestContext, calendarEventId: number)
   // (lib/events/handlers/recalc-attendance.ts) fires unchanged. No new handler.
   await emit(ctx, "attendance.recorded", { type: "CalendarEvent", id: event.id }, {
     calendarEventId: event.id,
-    semesterId:      semester.id,
+    semesterId,
     eventTitle:      event.title,
     presentCount,
     eligibleCount:   eligibleIds.length,
@@ -690,9 +740,12 @@ export async function closeCheckIn(ctx: RequestContext, calendarEventId: number)
     eventTitle:      event.title,
     presentCount,
     eligibleCount:   eligibleIds.length,
-  });
+  }, close.closedById === null
+    // Whoever's page load triggered the auto-close didn't close anything.
+    ? { activityMessage: `Check-in for ${event.title} closed automatically: ${presentCount}/${eligibleIds.length} present` }
+    : {});
 
-  return getLiveCheckIn(ctx);
+  return true;
 }
 
 /**

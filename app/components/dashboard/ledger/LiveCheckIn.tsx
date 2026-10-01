@@ -96,8 +96,6 @@ export function LiveCheckIn({
   const excuseApproved = me.excuse?.status === "approved";
   const excusePending  = me.excuse?.status === "pending";
   const closed = state === "closed";
-  // Closed by the clock, not by an officer: no absences were ever written.
-  const unrecorded = closed && !data.closedAt;
 
   // One class carries the card's whole temperature. Precedence matters: being
   // accounted for (checked in / excused) outranks the window's urgency, because
@@ -130,8 +128,7 @@ export function LiveCheckIn({
   }
 
   const kicker =
-    unrecorded      ? "Check-in expired"
-    : closed        ? "Check-in closed"
+    closed          ? "Check-in closed"
     : excuseApproved ? "You're excused"
     : me.checkedIn  ? "You're checked in"
     : state === "closing" ? "Check-in closing"
@@ -204,25 +201,12 @@ export function LiveCheckIn({
             </div>
           )}
 
-          {/* The officer nudge. An expired-but-unclosed window records NOTHING —
-              lib/attendance.ts counts only the AttendanceRecord rows that exist,
-              so the no-shows never become absences and every ratio in the
-              chapter reads 100%. Closing is the write that makes the numbers
-              true, and nothing else prompts for it, so the last stretch of the
-              window says so out loud to whoever can act. */}
+          {/* The officer nudge: the window closes itself on the clock and
+              records whoever hasn't checked in as absent, so say so before it
+              happens to whoever could still close or extend it. */}
           {onClose && !closed && state === "closing" && (
             <p className="live-nudge">
-              Closing soon — <b>close it to record attendance</b>. If it just expires, nobody is marked absent.
-            </p>
-          )}
-
-          {/* An expired window that was never closed. It reads as "closed" but
-              no absences were ever written. Officers keep seeing it (see
-              getLiveCheckIn) until they close it — directly, not via reopen,
-              which would hand members a fresh hour to check in after the fact. */}
-          {unrecorded && onClose && (
-            <p className="live-nudge">
-              This window expired without being closed, so <b>no attendance has been recorded yet</b>. Close it to mark everyone who didn&rsquo;t check in absent.
+              Closing soon — <b>anyone who hasn&rsquo;t checked in will be marked absent</b> when it ends.
             </p>
           )}
 
@@ -236,7 +220,7 @@ export function LiveCheckIn({
                 Take attendance
               </button>
             )}
-            {(!closed || unrecorded) && onClose && (
+            {!closed && onClose && (
               <button type="button" className="live-alt live-close" disabled={busy !== null} onClick={() => run("window", onClose, "Could not close check-in.")}>
                 {busy === "window" ? "Closing…" : "Close & record attendance"}
               </button>
@@ -264,7 +248,7 @@ export function LiveCheckIn({
             OWN state change is announced instead, from .live-said below. */}
         <div className="live-count">
           <p className="n">{presentCount}<small>/{eligibleCount}</small></p>
-          <p className="k">{unrecorded ? "checked in" : closed ? "final tally" : "here now"}</p>
+          <p className="k">{closed ? "final tally" : "here now"}</p>
           <span className="track"><i style={{ width: `${pct}%` }} /></span>
         </div>
 
