@@ -208,6 +208,8 @@ html:not([data-theme="ivory"]) .set-page {
    The group header spans the pane; each .set-block below caps its own measure so
    forms read at a comfortable width while the page itself scrolls full-height. */
 .dash .set-group-page .set-detail-head { max-width: 720px; }
+/* A single section opened on its own keeps the same measure as a stacked block. */
+.dash .set-focus-page .set-section { max-width: 720px; margin-top: 30px; }
 .dash .set-block {
   max-width: 720px;
   margin-top: 38px;
@@ -611,4 +613,126 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, var(--faint)); }
 
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-settings * { transition: none !important; animation: none !important; }
+}
+
+/* ── Roles — expandable role list, editor opens under its row ─────────────────── */
+.dash .set-section .rl-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.dash .set-section .rl-bar .sc-note { max-width: 58ch; }
+/* clip (not hidden) so the editor footer can stick to the page scroller. */
+.dash .set-section .rl-list { overflow: clip; }
+.dash .set-section .rl-item { border-bottom: 1px solid var(--line-soft); --rl-c: var(--muted); }
+.dash .set-section .rl-item:last-child { border-bottom: none; }
+.dash .set-section .rl-head {
+  position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 13px 16px; text-align: left; background: none; border: 0; cursor: pointer;
+  transition: background .12s;
+}
+.dash .set-section .rl-head:hover { background: var(--card-2); }
+.dash .set-section .rl-head:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(var(--vio-rgb),.45); }
+.dash .set-section .rl-head-static { cursor: default; }
+.dash .set-section .rl-head-static:hover { background: none; }
+.dash .set-section .rl-item.open > .rl-head,
+.dash .set-section .rl-item.open > .rl-head-static { background: var(--card-2); }
+.dash .set-section .rl-item.open > .rl-head::before {
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--rl-c);
+}
+.dash .set-section .rl-dot { width: 11px; height: 11px; border-radius: 99px; flex-shrink: 0; background: var(--rl-c); }
+.dash .set-section .rl-head-main { flex: 1; min-width: 0; display: block; }
+.dash .set-section .rl-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dash .set-section .rl-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.dash .set-section .rl-sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .set-section .rl-meta {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0;
+  font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.dash .set-section .rl-meta-rank { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.dash .set-section .rl-chev { width: 14px; height: 14px; flex-shrink: 0; color: var(--faint); transition: transform .15s; }
+.dash .set-section .rl-item.open .rl-chev { transform: rotate(180deg); color: var(--ink-soft); }
+.dash .set-section .rl-locked {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
+}
+.dash .set-section .rl-locked svg { width: 11px; height: 11px; }
+
+.dash .set-section .rl-editor {
+  display: flex; flex-direction: column; gap: 20px;
+  padding: 18px 18px 0; border-top: 1px solid var(--line-soft); background: var(--card);
+}
+.dash .set-section .rl-callout {
+  font-size: 12px; line-height: 1.5; color: var(--ink-soft);
+  padding: 9px 12px; border-radius: 9px; background: var(--card-2); border: 1px solid var(--line-soft);
+}
+.dash .set-section .rl-label {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 7px;
+  font-family: var(--mono); font-size: 9.5px; font-weight: 500; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted);
+}
+.dash .set-section .rl-count { letter-spacing: .06em; color: var(--faint); }
+.dash .set-section .rl-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 220px); gap: 16px; }
+.dash .set-section .rl-rank { max-width: 110px; }
+.dash .set-section .rl-rank-note { margin-top: -12px; }
+.dash .set-section .rl-static {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  font-size: 13px; font-weight: 600; color: var(--ink); padding: 6px 0;
+}
+.dash .set-section .rl-static .sc-note { font-weight: 400; }
+
+.dash .set-section .rl-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.dash .set-section .rl-swatch {
+  position: relative; width: 24px; height: 24px; border-radius: 99px; border: 0; padding: 0; cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); transition: transform .1s;
+}
+.dash .set-section .rl-swatch:hover:not(:disabled) { transform: scale(1.08); }
+.dash .set-section .rl-swatch:disabled { cursor: default; opacity: .55; }
+.dash .set-section .rl-swatch.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--ink-soft); }
+.dash .set-section .rl-swatch:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--vio); }
+.dash .set-section .rl-swatch-custom {
+  display: inline-block; overflow: hidden;
+  background: conic-gradient(#ef4444, #f59e0b, #84cc16, #10b981, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444);
+}
+.dash .set-section .rl-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.dash .set-section .rl-swatch-custom:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--vio); }
+
+.dash .set-section .rl-perm-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.dash .set-section .rl-perm-bulk { display: flex; gap: 4px; }
+.dash .set-section .rl-perm-bulk button {
+  font-size: 11px; font-weight: 600; color: var(--vio); background: none; border: 0;
+  padding: 2px 6px; border-radius: 6px; cursor: pointer;
+}
+.dash .set-section .rl-perm-bulk button:hover:not(:disabled) { background: var(--vio-bg); }
+.dash .set-section .rl-perm-bulk button:disabled { color: var(--faint); cursor: default; }
+.dash .set-section .rl-perm-groups { display: flex; flex-direction: column; gap: 14px; }
+.dash .set-section .rl-perm-group { border: 0; margin: 0; padding: 0; min-width: 0; }
+.dash .set-section .rl-perm-group .sc-grp-label { padding: 0; margin-bottom: 6px; }
+.dash .set-section .rl-perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 6px; }
+.dash .set-section .rl-perm {
+  position: relative; padding: 9px 10px; border: 1px solid var(--line-soft); background: var(--paper-2);
+}
+.dash .set-section .rl-perm.on { border-color: rgba(var(--vio-rgb),.3); background: var(--vio-bg); }
+.dash .set-section .rl-perm.ro { cursor: default; }
+.dash .set-section .rl-perm.ro:hover { background: var(--paper-2); }
+.dash .set-section .rl-perm.ro.on:hover { background: var(--vio-bg); }
+
+.dash .set-section .rl-holders { display: flex; flex-wrap: wrap; gap: 6px; max-height: 12rem; overflow-y: auto; }
+.dash .set-section .rl-holder {
+  display: inline-flex; align-items: center; gap: 6px; border-radius: 99px; padding: 3px 9px;
+  font-size: 11.5px; font-weight: 500; color: var(--ink-soft);
+  background: var(--card-2); border: 1px solid var(--line-soft);
+}
+.dash .set-section .rl-holder-dot { width: 6px; height: 6px; border-radius: 99px; background: var(--rl-c); }
+
+.dash .set-section .rl-footer {
+  position: sticky; bottom: 0; z-index: 1;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 -18px; padding: 12px 18px; background: var(--card); border-top: 1px solid var(--line-soft);
+}
+.dash .set-section .rl-footer-gap { flex: 1; }
+
+@media (max-width: 560px) {
+  .dash .set-section .rl-bar { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
+  .dash .set-section .rl-bar .sc-btn { align-self: flex-start; }
+  .dash .set-section .rl-fields { grid-template-columns: minmax(0, 1fr); }
+  .dash .set-section .rl-editor { padding: 16px 14px 0; }
+  .dash .set-section .rl-footer { margin: 0 -14px; padding: 12px 14px; }
+  .dash .set-section .rl-meta-rank { display: none; }
 }

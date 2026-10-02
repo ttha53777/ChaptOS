@@ -24,7 +24,6 @@ import { TransactionCategoriesSection } from "./sections/TransactionCategoriesSe
 import { CalendarSubscription } from "../../components/timeline/CalendarSubscription";
 import { useChapter } from "../../context/ChapterContext";
 import { ConfirmDialog } from "../../components/dashboard/primitives";
-import { scrollIntoViewSafe } from "../../lib/scroll";
 import { SettingsDirtyProvider, useSettingsDirty } from "./SettingsDirtyContext";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./settings-ledger.css";
@@ -259,7 +258,10 @@ function SettingsPageBody() {
   // Navigation held back by an unsaved draft, replayed if the user confirms.
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
   const [dest, setDest] = useState<Destination>("index");
-  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
+  // A single section opened from the index, the filter or a ?section= link.
+  // While set, the group page shows only that section; null shows the whole group.
+  const [focusId, setFocusId] = useState<NavItem["id"] | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -316,6 +318,9 @@ function SettingsPageBody() {
   useEffect(() => {
     if (dest !== "index" && !visibleGroups.includes(dest)) setDest("index");
   }, [dest, visibleGroups]);
+  useEffect(() => {
+    if (focusId && !visibleNavItems.some(n => n.id === focusId)) setFocusId(null);
+  }, [focusId, visibleNavItems]);
 
   // ── Settings nav: drawer semantics below lg ────────────────────────────────
   // The same <nav> is a static column at lg+ and a slide-in drawer below it. A
@@ -379,6 +384,7 @@ function SettingsPageBody() {
 
   function doSelectDest(d: Destination) {
     setDest(d);
+    setFocusId(null);
     setSidebarOpen(false);
     setNavOpen(false);
     setFilter("");
@@ -387,8 +393,8 @@ function SettingsPageBody() {
     guard(() => doSelectDest(d));
   }
 
-  // From the "find a setting" results: open the section's group page, then scroll
-  // to that section's anchor once the group page has rendered.
+  // From the index rows, the "find a setting" results or a deep link: open that
+  // one section on its own — the rest of its group isn't rendered.
   //
   // An item carrying an href leaves Settings entirely instead — there is no
   // in-page section to scroll to.
@@ -399,7 +405,7 @@ function SettingsPageBody() {
       return;
     }
     setDest(item.group);
-    setPendingAnchor(`set-${id}`);
+    setFocusId(id);
     setSidebarOpen(false);
     setNavOpen(false);
     setFilter("");
@@ -408,16 +414,14 @@ function SettingsPageBody() {
     guard(() => doSelectSection(id));
   }
 
-  // After a group page renders, scroll any pending anchor into view.
+  // Each destination starts at the top of the pane rather than inheriting the
+  // previous page's scroll position.
   useEffect(() => {
-    if (!pendingAnchor) return;
-    scrollIntoViewSafe(document.getElementById(pendingAnchor));
-    setPendingAnchor(null);
-  }, [pendingAnchor, dest]);
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [dest, focusId]);
 
   // Deep-link support: a ?section=<id> param (e.g. from the dashboard setup
-  // checklist) opens that section's group page and scrolls to its anchor on
-  // mount, then strips the param so a refresh doesn't re-trigger it. Unknown or
+  // checklist) opens that section on its own on mount, then strips the param so a refresh doesn't re-trigger it. Unknown or
   // not-visible ids are ignored. Read via window.location to avoid wrapping the
   // page in a Suspense boundary for useSearchParams (mirrors the dashboard's
   // welcome-toast param handling).
@@ -451,6 +455,7 @@ function SettingsPageBody() {
   }, [currentUser]);
 
   const activeGroup = dest === "index" ? null : dest;
+  const focusItem = activeGroup && focusId ? BY_ID[focusId] : null;
 
   // Nav filter — substring match on label or blurb. When the filter is active the
   // rail shows matching *sections* (each jumps to its group page + anchor); when
@@ -642,7 +647,22 @@ function SettingsPageBody() {
                   <svg className="h-3 w-3 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
-                  <span className="set-crumb-cur truncate font-serif text-[15px]">{GROUP_TITLE[activeGroup]}</span>
+                  {focusItem ? (
+                    <>
+                      <button
+                        onClick={() => selectDest(activeGroup)}
+                        className="set-crumb-link font-mono text-[10px] uppercase tracking-[0.14em]"
+                      >
+                        {GROUP_TITLE[activeGroup]}
+                      </button>
+                      <svg className="h-3 w-3 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="set-crumb-cur truncate font-serif text-[15px]">{focusItem.label}</span>
+                    </>
+                  ) : (
+                    <span className="set-crumb-cur truncate font-serif text-[15px]">{GROUP_TITLE[activeGroup]}</span>
+                  )}
                 </>
               ) : (
                 <span className="set-crumb-cur font-serif text-[15px]">Index</span>
@@ -651,7 +671,7 @@ function SettingsPageBody() {
           </header>
 
           {/* Scrollable content — dusk ledger pane */}
-          <main className="page-ambient flex-1 overflow-y-auto">
+          <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
             <div className="dash dash-settings" data-dashboard-theme="dusk">
 
               {/* Status band. Sticky (see settings-ledger.css) so a save made
@@ -730,8 +750,32 @@ function SettingsPageBody() {
                 </>
               )}
 
+              {/* ── Single section — opened from the index, filter or a deep link ── */}
+              {focusItem && (
+                <section id={`set-${focusItem.id}`} className="set-group-page set-focus-page">
+                  <button className="set-back" onClick={() => selectDest(focusItem.group)}>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    {GROUP_TITLE[focusItem.group]}
+                  </button>
+                  <div className="set-detail-head">
+                    <h2>{focusItem.label}</h2>
+                    <p className="lede">{focusItem.lede}</p>
+                  </div>
+                  <div className="set-section">
+                    {focusItem.href
+                      ? <Link className="set-linkout" href={orgPath(focusItem.href)}>
+                          Open {focusItem.label.toLowerCase()}
+                          <Chevron />
+                        </Link>
+                      : renderSection(focusItem.id)}
+                  </div>
+                </section>
+              )}
+
               {/* ── Group page — every visible section in this intent, stacked ── */}
-              {activeGroup && (
+              {activeGroup && !focusItem && (
                 <div className="set-group-page">
                   <button className="set-back" onClick={() => selectDest("index")}>
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

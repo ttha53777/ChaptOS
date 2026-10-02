@@ -3,8 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
-import { PERMISSIONS, PERMISSION_LIST, hasPermission, type Permission } from "@/lib/permissions";
+import { PERMISSIONS, PERMISSION_LIST, type Permission } from "@/lib/permissions";
 import { requestJson } from "../../../lib/api";
+import { useDirtyGuard } from "../SettingsDirtyContext";
 
 interface RoleRow {
   id: number;
@@ -16,44 +17,88 @@ interface RoleRow {
   memberCount: number;
 }
 
+interface Draft {
+  name: string;
+  color: string;
+  rank: number;
+  permissions: number;
+  colorTouched: boolean;
+}
+
 const DEFAULT_COLOR = "#5865F2";
 
-// Pretty labels for the permission checkboxes — keep this in sync with PERMISSIONS.
-const PERMISSION_LABELS: Record<Permission, string> = {
-  MANAGE_BROTHERS:   "Manage brothers (create, edit, dues, delete)",
-  MANAGE_TREASURY:   "Manage treasury (transactions, budget, export)",
-  MANAGE_EVENTS:     "Manage events (calendar)",
-  MANAGE_PARTIES:    "Manage parties",
-  MANAGE_INSTAGRAM:  "Manage Instagram content",
-  MANAGE_SERVICE:    "Manage service events",
-  MANAGE_ATTENDANCE: "Record attendance, approve excuses",
-  MANAGE_SEMESTERS:  "Manage semesters",
-  MANAGE_ROLES:      "Manage roles & assignments",
-  MANAGE_DOCS:          "Manage docs (pin/edit/delete links)",
-  MANAGE_ANNOUNCEMENTS: "Manage chapter announcement",
-  MANAGE_SETTINGS:      "Manage org settings & invite links",
-  MANAGE_TASKS:         "Manage tasks & deadlines (create, assign, delete)",
-  MANAGE_POLLS:         "Manage polls (create, assign, close, delete)",
+// Quick picks for the role chip color. The native picker stays available as
+// "custom" for anything else.
+const SWATCHES = [
+  "#F59E0B", "#EF4444", "#EC4899", "#8B5CF6", "#5865F2",
+  "#3B82F6", "#06B6D4", "#10B981", "#84CC16", "#94A3B8",
+];
+
+// Human names + one-line descriptions for each bit, grouped by the part of the
+// app they unlock. The Record type forces copy for a newly added bit; the
+// "Other" group below keeps it on screen if nobody files it into a group.
+const PERMISSION_COPY: Record<Permission, { label: string; desc: string }> = {
+  MANAGE_BROTHERS:      { label: "Roster",        desc: "Edit member details and dues, approve join requests, remove people." },
+  MANAGE_ATTENDANCE:    { label: "Attendance",    desc: "Record attendance and approve excuses." },
+  MANAGE_ROLES:         { label: "Roles",         desc: "Create roles and hand out any role ranked below their own." },
+  MANAGE_SETTINGS:      { label: "Org settings",  desc: "Change org settings and manage invite links." },
+  MANAGE_TREASURY:      { label: "Treasury",      desc: "Record transactions, set budgets, export the books." },
+  MANAGE_EVENTS:        { label: "Events",        desc: "Create and edit calendar events." },
+  MANAGE_PARTIES:       { label: "Parties",       desc: "Create and manage parties." },
+  MANAGE_SERVICE:       { label: "Service",       desc: "Create and manage service events." },
+  MANAGE_SEMESTERS:     { label: "Semesters",     desc: "Create and edit semesters." },
+  MANAGE_ANNOUNCEMENTS: { label: "Announcement",  desc: "Post and edit the chapter announcement." },
+  MANAGE_DOCS:          { label: "Docs",          desc: "Pin, edit and delete shared doc links." },
+  MANAGE_TASKS:         { label: "Tasks",         desc: "Create, assign and delete tasks and deadlines." },
+  MANAGE_POLLS:         { label: "Polls",         desc: "Create, assign, close and delete polls." },
+  MANAGE_INSTAGRAM:     { label: "Instagram",     desc: "Manage Instagram content." },
 };
 
-function permissionSummary(bits: number): string {
-  const names = PERMISSION_LIST.filter(p => (bits & p.bit) !== 0)
-    .map(p => p.name.replace(/^MANAGE_/, "").toLowerCase());
-  if (names.length === 0) return "No permissions";
-  if (names.length === PERMISSION_LIST.length) return "All permissions";
-  if (names.length > 3) return `${names.slice(0, 3).join(" · ")} +${names.length - 3}`;
-  return names.join(" · ");
+const PERMISSION_GROUPS: { label: string; perms: Permission[] }[] = [
+  { label: "People & access", perms: ["MANAGE_BROTHERS", "MANAGE_ATTENDANCE", "MANAGE_ROLES", "MANAGE_SETTINGS"] },
+  { label: "Money",           perms: ["MANAGE_TREASURY"] },
+  { label: "Calendar",        perms: ["MANAGE_EVENTS", "MANAGE_PARTIES", "MANAGE_SERVICE", "MANAGE_SEMESTERS"] },
+  { label: "Communication",   perms: ["MANAGE_ANNOUNCEMENTS", "MANAGE_DOCS", "MANAGE_TASKS", "MANAGE_POLLS", "MANAGE_INSTAGRAM"] },
+];
+// Any bit not placed in a group above still renders, under "Other".
+const UNGROUPED = PERMISSION_LIST.filter(p => !PERMISSION_GROUPS.some(g => g.perms.includes(p.name))).map(p => p.name);
+if (UNGROUPED.length) PERMISSION_GROUPS.push({ label: "Other", perms: UNGROUPED });
+
+const ALL_BITS = PERMISSION_LIST.reduce((acc, p) => acc | p.bit, 0);
+
+function permLabel(p: Permission): string {
+  return PERMISSION_COPY[p]?.label ?? p.replace(/^MANAGE_/, "").toLowerCase();
 }
 
-// Full enumerated list of permission names — used as a native `title` tooltip
-// on row summaries so users can see the contents of the truncated "+N" without
-// having to click into the role. No extra UI dependency.
-function permissionTooltip(bits: number): string {
-  const names = PERMISSION_LIST.filter(p => (bits & p.bit) !== 0)
-    .map(p => p.name.replace(/^MANAGE_/, "").toLowerCase());
-  if (names.length === 0) return "No permissions";
-  return names.join("\n");
+function heldPermissions(bits: number): Permission[] {
+  return PERMISSION_LIST.filter(p => (bits & p.bit) !== 0).map(p => p.name);
 }
+
+function permissionSummary(bits: number): string {
+  const names = heldPermissions(bits).map(permLabel);
+  if (names.length === 0) return "No permissions";
+  if (names.length === PERMISSION_LIST.length) return "All permissions";
+  if (names.length > 3) return `${names.slice(0, 3).join(", ")} +${names.length - 3}`;
+  return names.join(", ");
+}
+
+function peopleCount(n: number): string {
+  return `${n} ${n === 1 ? "person" : "people"}`;
+}
+
+function draftFromRole(role: RoleRow): Draft {
+  return {
+    name: role.name,
+    color: role.color ?? DEFAULT_COLOR,
+    rank: role.rank,
+    permissions: role.permissions,
+    // A persisted null color is "untouched" so saving without picking one keeps
+    // it null instead of writing the DEFAULT_COLOR the picker had to display.
+    colorTouched: role.color !== null,
+  };
+}
+
+const BLANK_DRAFT: Draft = { name: "", color: DEFAULT_COLOR, rank: 0, permissions: 0, colorTouched: true };
 
 export function RolesSection({
   onStatus, onError,
@@ -64,45 +109,27 @@ export function RolesSection({
   const { currentUser, can } = useChapter();
   const canManageRoles = can("MANAGE_ROLES");
   // Super-admin maxRank is Infinity (normalized in ChapterContext); for non-admins
-  // it's the highest role rank they hold. Used to gate edit/delete on individual rows.
+  // it's the highest role rank they hold. Gates edit/delete on individual rows.
   const myMaxRank = currentUser?.maxRank ?? 0;
 
   const [roles, setRoles] = useState<RoleRow[]>([]);
-  // Per-role member lists, derived from /api/auth/accounts on mount and refresh.
-  // Map of roleId → [{ id, name }]. Lets the edit panel show who holds the
-  // selected role without an extra round-trip.
+  // roleId → holders, inverted from /api/auth/accounts so the editor can show
+  // who holds a role without a per-role round trip.
   const [membersByRole, setMembersByRole] = useState<Map<number, { id: number; name: string }[]>>(() => new Map());
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
-  const [savingId, setSavingId] = useState<number | "new" | null>(null);
+  const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<RoleRow | null>(null);
-  // Set when save() paused on the "no permissions selected" warning. Holding it
-  // in state (rather than a blocking window.confirm) is what lets that warning
-  // use the same dusk dialog as every other confirmation on the page.
+  // Set when save() paused on the "no permissions selected" warning.
   const [confirmNoPerms, setConfirmNoPerms] = useState(false);
-
-  // Local form state — mirrors the selected role for editing, or a fresh blank
-  // for creation. We don't write back to `roles` until the server confirms.
-  //
-  // `colorTouched` distinguishes "user picked this color" from "we filled in
-  // DEFAULT_COLOR because the role had `color: null` and the native <input
-  // type=color> can't display nothing." Without this flag, saving an
-  // untouched edit would silently overwrite `null` with `#5865F2`.
-  const [draft, setDraft] = useState<{ name: string; color: string; rank: number; permissions: number; colorTouched: boolean }>({
-    name: "",
-    color: DEFAULT_COLOR,
-    rank: 0,
-    permissions: 0,
-    colorTouched: false,
-  });
+  // A selection change held back by unsaved edits, replayed on "Discard".
+  const [pendingSwitch, setPendingSwitch] = useState<(() => void) | null>(null);
+  const [draft, setDraft] = useState<Draft>(BLANK_DRAFT);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch roles and accounts in parallel — accounts carries each brother's
-      // assigned roles, which we invert into membersByRole below. One round
-      // trip instead of N+1 per-role member queries.
       const [rolesData, accounts] = await Promise.all([
         requestJson<RoleRow[]>("/api/roles"),
         requestJson<Array<{ id: number; name: string; roles: { id: number }[] }>>("/api/auth/accounts"),
@@ -116,7 +143,6 @@ export function RolesSection({
           byRole.set(r.id, list);
         }
       }
-      // Sort each member list by name so the panel renders consistently.
       for (const list of byRole.values()) list.sort((x, y) => x.name.localeCompare(y.name));
       setMembersByRole(byRole);
     } catch (err) {
@@ -128,38 +154,22 @@ export function RolesSection({
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // Load the selected role into the draft form on selection-change OR when
-  // entering create mode. NOT on every `roles` update — that would clobber
-  // unsaved in-progress edits whenever the parent triggers a refresh (e.g.
-  // member grant/revoke from BrotherRoleChips, optimistic save complete, etc.).
-  //
-  // The intentional reload key is `${creating}|${selectedId}` — anything else
-  // about `roles` changing should leave the draft alone.
+  // Load the draft on selection change or entering create mode — NOT on every
+  // `roles` update, which would clobber in-progress edits whenever the list
+  // refreshes underneath.
   const lastSyncedKey = useRef<string | null>(null);
   useEffect(() => {
     const key = creating ? "new" : selectedId != null ? `id:${selectedId}` : null;
     if (key === null) { lastSyncedKey.current = null; return; }
     if (lastSyncedKey.current === key) return;
-
     if (creating) {
-      // New roles default to a real color — picker can't be "unset" anyway and
-      // a created role is more useful with a chip color than without.
-      setDraft({ name: "", color: DEFAULT_COLOR, rank: 0, permissions: 0, colorTouched: true });
+      setDraft(BLANK_DRAFT);
       lastSyncedKey.current = key;
       return;
     }
     const role = roles.find(r => r.id === selectedId);
     if (role) {
-      setDraft({
-        name: role.name,
-        color: role.color ?? DEFAULT_COLOR,
-        rank: role.rank,
-        permissions: role.permissions,
-        // If the persisted color is null, treat it as untouched so saving
-        // without picker interaction keeps it null. If it's a real color,
-        // mark it touched so the save round-trips that color back.
-        colorTouched: role.color !== null,
-      });
+      setDraft(draftFromRole(role));
       lastSyncedKey.current = key;
     }
   }, [selectedId, creating, roles]);
@@ -174,98 +184,106 @@ export function RolesSection({
     [canManageRoles, myMaxRank],
   );
 
-  function togglePermission(bit: number) {
-    setDraft(d => ({ ...d, permissions: d.permissions ^ bit }));
+  const dirty = useMemo(() => {
+    if (creating) return draft.name.trim() !== "" || draft.permissions !== 0 || draft.rank !== 0;
+    if (!selected || !isEditableRow(selected)) return false;
+    return (
+      (!selected.isSystem && draft.name.trim() !== selected.name) ||
+      (draft.colorTouched && draft.color.toLowerCase() !== (selected.color ?? "").toLowerCase()) ||
+      draft.rank !== selected.rank ||
+      draft.permissions !== selected.permissions
+    );
+  }, [creating, draft, selected, isEditableRow]);
+
+  useDirtyGuard("roles", dirty);
+
+  // Every selection change funnels through here so unsaved edits are never
+  // dropped silently by clicking another row.
+  function guarded(fn: () => void) {
+    if (dirty) setPendingSwitch(() => fn);
+    else fn();
   }
 
-  // Entry point for the Save button. A role with zero permissions is technically
-  // valid (you can still pin people to it for visual grouping) but is almost
-  // always a mistake — the server accepts it, so the UI warns first. The warning
-  // has to interrupt the save and resume it, which is why this is split from
-  // performSave() rather than being an inline blocking prompt.
+  function openRole(id: number) {
+    guarded(() => {
+      setCreating(false);
+      setSelectedId(prev => (prev === id ? null : id));
+    });
+  }
+
+  function startCreate() {
+    guarded(() => { setSelectedId(null); setCreating(true); });
+  }
+
+  function closeEditor() {
+    setCreating(false);
+    setSelectedId(null);
+  }
+
+  function discard() {
+    if (creating) { closeEditor(); return; }
+    if (selected) setDraft(draftFromRole(selected));
+  }
+
+  // Entry point for Save. A zero-permission role is valid (a pure label) but
+  // usually a mistake, so the UI asks first.
   function save() {
-    // Validate before warning, so an unnamed role reports the thing that
-    // actually blocks it rather than asking about permissions first.
-    if (!draft.name.trim()) { onError("Name is required."); return; }
-    if (draft.rank >= myMaxRank) { onError("Rank must be below your own."); return; }
+    if (!draft.name.trim()) { onError("Give the role a name."); return; }
+    if (draft.rank >= myMaxRank) { onError(`Rank must be below your own (max ${myMaxRank - 1}).`); return; }
     if (draft.permissions === 0) { setConfirmNoPerms(true); return; }
     void performSave();
   }
 
   async function performSave() {
     const name = draft.name.trim();
+    // Snapshot intent so a selection change mid-await can't misroute the save.
+    const intent: { kind: "create" } | { kind: "update"; target: RoleRow } | null =
+      creating ? { kind: "create" } : selected ? { kind: "update", target: selected } : null;
+    if (!intent) { onError("Nothing selected to save."); return; }
+    const d = draft;
 
-    // Snapshot the intent at function entry so a state change mid-await
-    // (e.g. user clicks a different row) doesn't re-route the response into
-    // the wrong branch and silently misattribute the save.
-    const intent: { kind: "create" } | { kind: "update"; target: RoleRow } =
-      creating ? { kind: "create" } : selected ? { kind: "update", target: selected } : { kind: "create" };
-    if (!creating && !selected) { onError("Nothing selected to save."); return; }
-
-    const draftSnapshot = draft;
-    // Only round-trip `color` when the user actually touched the picker —
-    // otherwise editing a role with color=null would silently overwrite it
-    // with the DEFAULT_COLOR the picker had to display as a placeholder.
-    const body = JSON.stringify({
-      name,
-      ...(draftSnapshot.colorTouched ? { color: draftSnapshot.color } : {}),
-      rank: draftSnapshot.rank,
-      permissions: draftSnapshot.permissions,
-    });
-
+    setSaving(true);
     try {
       if (intent.kind === "create") {
-        setSavingId("new");
         const created = await requestJson<RoleRow>("/api/roles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body,
+          body: JSON.stringify({ name, color: d.color, rank: d.rank, permissions: d.permissions }),
         });
         onStatus(`Created role "${created.name}".`);
+        lastSyncedKey.current = null;
         setCreating(false);
         await refresh();
         setSelectedId(created.id);
       } else {
         const target = intent.target;
-        setSavingId(target.id);
-        // System roles disallow renaming — strip name if unchanged. Color is
-        // only included when the user touched the picker (see save() body
-        // above for rationale).
-        const payload: Record<string, unknown> = {
-          rank: draftSnapshot.rank,
-          permissions: draftSnapshot.permissions,
-        };
-        if (draftSnapshot.colorTouched) payload.color = draftSnapshot.color;
+        const payload: Record<string, unknown> = { rank: d.rank, permissions: d.permissions };
+        if (d.colorTouched) payload.color = d.color;
         if (!target.isSystem && name !== target.name) payload.name = name;
         await requestJson(`/api/roles/${target.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        // Apply changes locally instead of full refresh — edits don't change
-        // the row set or membership, and refetching causes a visible flicker
-        // on the row that was just clicked. refresh() is reserved for create
-        // and delete, which DO change the row set.
+        // Patch locally — edits don't change the row set, and a refetch flickers
+        // the open row.
         const newName = !target.isSystem ? name : target.name;
-        const newColor = draftSnapshot.colorTouched ? draftSnapshot.color : target.color;
+        const newColor = d.colorTouched ? d.color : target.color;
         setRoles(prev => prev.map(r => r.id === target.id ? {
-          ...r,
-          name: newName,
-          color: newColor,
-          rank: draftSnapshot.rank,
-          permissions: draftSnapshot.permissions,
+          ...r, name: newName, color: newColor, rank: d.rank, permissions: d.permissions,
         } : r));
-        onStatus(`Updated role "${newName}".`);
+        setDraft(prev => ({ ...prev, name: newName }));
+        onStatus(`Saved "${newName}".`);
       }
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to save role.");
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   }
 
   async function doDelete(role: RoleRow) {
-    setSavingId(role.id);
+    setSaving(true);
     try {
       await requestJson(`/api/roles/${role.id}`, { method: "DELETE" });
       onStatus(`Deleted role "${role.name}".`);
@@ -274,199 +292,104 @@ export function RolesSection({
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to delete role.");
     } finally {
-      setSavingId(null);
+      setSaving(false);
       setDeleteTarget(null);
     }
   }
 
-  // Defense-in-depth: settings nav already hides this tab when !canManageRoles
-  // (see app/settings/page.tsx). If a stale session lands here anyway, fall
-  // back to a quiet null rather than rendering a wall message.
+  // Defense-in-depth: the settings nav already hides this section without
+  // MANAGE_ROLES; render nothing if a stale session lands here anyway.
   if (!canManageRoles) return null;
+
+  const editorProps = {
+    draft, setDraft, roles, myMaxRank, saving, dirty,
+    onSave: save, onDiscard: discard,
+  };
 
   return (
     <div className="sc-stack-tight">
-      <div className="flex items-start justify-between gap-4">
-        <p className="sc-lede" style={{ margin: 0 }}>
-          Roles bundle permissions. A brother can hold any number — their effective access is the union.
-          Super-admins bypass all checks regardless of roles.
+      <div className="rl-bar">
+        <p className="sc-note">
+          One person can hold several roles; their access is everything those roles grant combined.
+          Org admins have full access regardless of roles.
         </p>
-        <button
-          onClick={() => { setCreating(true); setSelectedId(null); }}
-          className="sc-btn sc-btn-primary sc-btn-sm shrink-0"
-        >
+        <button onClick={startCreate} disabled={creating} className="sc-btn sc-btn-primary sc-btn-sm shrink-0">
           + New role
         </button>
       </div>
 
-      {loading ? (
+      {loading && roles.length === 0 ? (
         <p className="sc-note">Loading roles…</p>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-          {/* ── Role list ──
-              Selected row gets a 2px left accent in the role's color so
-              selection is signaled by hue, not opacity (opacity is reserved
-              for "you can't edit this"). */}
-          <ul className="sc-card">
-            {roles.map((r) => {
-              const editable = isEditableRow(r);
-              const active = !creating && selectedId === r.id;
-              const accent = active ? (r.color ?? "var(--vio)") : "transparent";
-              return (
-                <li key={r.id} className="sc-row" style={{ padding: 0 }}>
-                  <button
-                    onClick={() => { setCreating(false); setSelectedId(r.id); }}
-                    aria-pressed={active}
-                    className="relative flex w-full items-center gap-3 px-4 py-3 text-left transition"
-                    style={{
-                      background: active ? "var(--card-2)" : "transparent",
-                      opacity: editable ? 1 : 0.6,
-                    }}
-                  >
-                    <span className="absolute inset-y-0 left-0 w-[2px]" style={{ background: accent }} aria-hidden="true" />
-                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: r.color ?? "var(--muted)" }} aria-hidden="true" />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2">
-                        <span className="sc-row-key truncate">{r.name}</span>
-                        {r.isSystem && <span className="sc-pill sc-pill-muted">System</span>}
-                      </span>
-                      <span className="block truncate sc-row-sub" title={permissionTooltip(r.permissions)}>
-                        rank {r.rank} · {r.memberCount} member{r.memberCount === 1 ? "" : "s"} · {permissionSummary(r.permissions)}
-                      </span>
+        <ul className="sc-card rl-list">
+          {creating && (
+            <li className="rl-item open">
+              <div className="rl-head rl-head-static">
+                <span className="rl-dot" style={{ background: draft.color }} aria-hidden="true" />
+                <span className="rl-head-main">
+                  <span className="rl-name">{draft.name.trim() || "New role"}</span>
+                </span>
+              </div>
+              <RoleEditor {...editorProps} mode="create" onCancel={() => guarded(closeEditor)} />
+            </li>
+          )}
+
+          {roles.map((r) => {
+            const editable = isEditableRow(r);
+            const open = !creating && selectedId === r.id;
+            const holders = membersByRole.get(r.id) ?? [];
+            return (
+              <li key={r.id} className={`rl-item${open ? " open" : ""}`} style={{ "--rl-c": r.color ?? "var(--muted)" } as React.CSSProperties}>
+                <button
+                  type="button"
+                  onClick={() => openRole(r.id)}
+                  aria-expanded={open}
+                  aria-controls={`role-editor-${r.id}`}
+                  className="rl-head"
+                >
+                  <span className="rl-dot" aria-hidden="true" />
+                  <span className="rl-head-main">
+                    <span className="rl-title">
+                      <span className="rl-name truncate">{r.name}</span>
+                      {r.isSystem && <span className="sc-pill sc-pill-muted">System</span>}
+                      {!editable && (
+                        <span className="rl-locked" title="Ranked at or above your own role — view only">
+                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+                            <rect x="3.5" y="7" width="9" height="6.5" rx="1.5" />
+                            <path d="M5.5 7V5a2.5 2.5 0 015 0v2" />
+                          </svg>
+                          View only
+                        </span>
+                      )}
                     </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {/* ── Edit panel ── */}
-          <div className="sc-card" style={{ padding: 18 }}>
-            {creating || selected ? (
-              <>
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="sc-h">
-                    {creating ? "New role" : `Edit "${selected!.name}"`}
-                  </h3>
-                  {!creating && selected && !selected.isSystem && isEditableRow(selected) && (
-                    <button onClick={() => setDeleteTarget(selected)} className="sc-btn sc-btn-danger sc-btn-sm">
-                      Delete
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <Field label="Name">
-                    <input
-                      type="text"
-                      value={draft.name}
-                      onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-                      disabled={!creating && (selected?.isSystem ?? false)}
-                      maxLength={60}
-                      className="sc-input sc-input-sm disabled:opacity-50"
+                    <span className="rl-sub">
+                      {permissionSummary(r.permissions)}
+                    </span>
+                  </span>
+                  <span className="rl-meta">
+                    <span>{peopleCount(r.memberCount)}</span>
+                    <span className="rl-meta-rank">Rank {r.rank}</span>
+                  </span>
+                  <svg className="rl-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6l4 4 4-4" />
+                  </svg>
+                </button>
+                {open && (
+                  <div id={`role-editor-${r.id}`}>
+                    <RoleEditor
+                      {...editorProps}
+                      mode={editable ? "edit" : "view"}
+                      role={r}
+                      holders={holders}
+                      onCancel={() => guarded(closeEditor)}
+                      onDelete={!r.isSystem && editable ? () => setDeleteTarget(r) : undefined}
                     />
-                    {!creating && selected?.isSystem && (
-                      <p className="mt-1 text-[10px]" style={{ color: "var(--faint)" }}>System roles can't be renamed.</p>
-                    )}
-                  </Field>
-
-                  <Field
-                    label="Color"
-                    hint={
-                      !creating && selected && selected.color === null && !draft.colorTouched
-                        ? "No color set. Pick one to assign, or leave untouched to keep it neutral."
-                        : undefined
-                    }
-                  >
-                    <input
-                      type="color"
-                      value={draft.color}
-                      onChange={e => setDraft(d => ({ ...d, color: e.target.value, colorTouched: true }))}
-                      className="h-8 w-14 cursor-pointer rounded bg-transparent"
-                      style={{ border: "1px solid var(--line)" }}
-                    />
-                  </Field>
-
-                  {(() => {
-                    // Super-admins (Infinity maxRank) can pick any positive rank;
-                    // everyone else is capped one below their own.
-                    const rankCapped = Number.isFinite(myMaxRank);
-                    const maxRank = rankCapped ? myMaxRank - 1 : undefined;
-                    const rankInvalid = rankCapped && draft.rank >= myMaxRank;
-                    const hint = rankCapped
-                      ? `Higher rank = more authority. Max for you: ${myMaxRank - 1}.`
-                      : "Higher rank = more authority.";
-                    return (
-                      <Field label="Rank" hint={rankInvalid ? undefined : hint}>
-                        <input
-                          type="number"
-                          min={0}
-                          max={maxRank}
-                          value={draft.rank}
-                          onChange={e => setDraft(d => ({ ...d, rank: Number(e.target.value) }))}
-                          aria-invalid={rankInvalid}
-                          className="sc-input sc-input-sm w-28"
-                          style={rankInvalid ? { borderColor: "rgba(217,139,163,.6)" } : undefined}
-                        />
-                        {rankInvalid && (
-                          <p className="mt-1 text-[10.5px]" style={{ color: "var(--rose)" }}>
-                            Rank must be below your own (max {myMaxRank - 1}).
-                          </p>
-                        )}
-                      </Field>
-                    );
-                  })()}
-
-                  <Field label="Permissions">
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {PERMISSION_LIST.map(p => (
-                        <label
-                          key={p.name}
-                          className="flex items-start gap-2 rounded-lg p-2 text-[12px]"
-                          style={{ border: "1px solid var(--line-soft)", background: "var(--paper-2)", color: "var(--ink-soft)" }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={hasPermission(draft.permissions, p.name)}
-                            onChange={() => togglePermission(p.bit)}
-                            className="mt-0.5"
-                            style={{ accentColor: "var(--vio)" }}
-                          />
-                          <span>
-                            <span className="block font-medium" style={{ color: "var(--ink)" }}>{p.name.replace(/^MANAGE_/, "").toLowerCase()}</span>
-                            <span className="block text-[10.5px]" style={{ color: "var(--faint)" }}>{PERMISSION_LABELS[p.name]}</span>
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </Field>
-
-                  {/* Members holding this role. Skipped during creation
-                      because the role hasn't been persisted yet. */}
-                  {!creating && selected && (
-                    <MembersList
-                      members={membersByRole.get(selected.id) ?? []}
-                      color={draft.color}
-                    />
-                  )}
-
-                  <div className="flex justify-end gap-2 pt-2">
-                    {creating && (
-                      <button onClick={() => setCreating(false)} className="sc-btn sc-btn-ghost sc-btn-sm">
-                        Cancel
-                      </button>
-                    )}
-                    <button onClick={save} disabled={savingId !== null} className="sc-btn sc-btn-primary sc-btn-sm">
-                      {savingId !== null ? "Saving…" : creating ? "Create role" : "Save changes"}
-                    </button>
                   </div>
-                </div>
-              </>
-            ) : (
-              <p className="sc-note">Select a role to edit, or create a new one.</p>
-            )}
-          </div>
-        </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       {confirmNoPerms && (
@@ -486,12 +409,30 @@ export function RolesSection({
         />
       )}
 
+      {pendingSwitch && (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message={`Your edits to "${creating ? draft.name.trim() || "New role" : selected?.name ?? "this role"}" haven't been saved.`}
+          confirmLabel="Discard"
+          tone="dusk"
+          onConfirm={() => {
+            const fn = pendingSwitch;
+            setPendingSwitch(null);
+            // Reset first so the dirty guard doesn't re-intercept the replay.
+            if (selected) setDraft(draftFromRole(selected));
+            lastSyncedKey.current = null;
+            fn();
+          }}
+          onCancel={() => setPendingSwitch(null)}
+        />
+      )}
+
       {deleteTarget && (
         <ConfirmDialog
           title={`Delete role "${deleteTarget.name}"?`}
           message={
             deleteTarget.memberCount > 0
-              ? `This will revoke the role from ${deleteTarget.memberCount} brother${deleteTarget.memberCount === 1 ? "" : "s"}. This cannot be undone.`
+              ? `This will remove the role from ${peopleCount(deleteTarget.memberCount)}. This cannot be undone.`
               : "This cannot be undone."
           }
           confirmLabel="Delete"
@@ -504,51 +445,235 @@ export function RolesSection({
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function RoleEditor({
+  mode, role, holders, draft, setDraft, roles, myMaxRank, saving, dirty,
+  onSave, onDiscard, onCancel, onDelete,
+}: {
+  mode: "create" | "edit" | "view";
+  role?: RoleRow;
+  holders?: { id: number; name: string }[];
+  draft: Draft;
+  setDraft: React.Dispatch<React.SetStateAction<Draft>>;
+  roles: RoleRow[];
+  myMaxRank: number;
+  saving: boolean;
+  dirty: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+}) {
+  const readOnly = mode === "view";
+  // In view mode show the persisted role, not a draft the user can't save.
+  const shown = readOnly && role ? draftFromRole(role) : draft;
+  const nameLocked = readOnly || (mode === "edit" && !!role?.isSystem);
+
+  const rankCapped = Number.isFinite(myMaxRank);
+  const rankInvalid = !readOnly && rankCapped && draft.rank >= myMaxRank;
+
+  // Where this rank sits among the other roles — a bare number means nothing
+  // until you can see what it lands above and below.
+  const others = roles.filter(r => r.id !== role?.id);
+  const above = others.filter(r => r.rank > shown.rank).sort((a, b) => a.rank - b.rank)[0];
+  const below = others.filter(r => r.rank < shown.rank).sort((a, b) => b.rank - a.rank)[0];
+  const tied = others.filter(r => r.rank === shown.rank).map(r => r.name);
+  const placement = [
+    below && `above ${below.name}`,
+    tied.length > 0 && `level with ${tied.join(", ")}`,
+    above && `below ${above.name}`,
+  ].filter(Boolean).join(" · ");
+
+  const held = PERMISSION_LIST.filter(p => (shown.permissions & p.bit) !== 0).length;
+
   return (
-    <div>
-      <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--muted)", fontFamily: "var(--mono)", letterSpacing: ".1em" }}>{label}</label>
-      {children}
-      {hint && <p className="mt-1 text-[10.5px]" style={{ color: "var(--faint)" }}>{hint}</p>}
+    <div className="rl-editor">
+      {readOnly && (
+        <p className="rl-callout">
+          This role ranks at or above your own, so you can see what it grants but not change it.
+        </p>
+      )}
+
+      <div className="rl-fields">
+        <Field label="Name" htmlFor={`rl-name-${role?.id ?? "new"}`}>
+          {nameLocked ? (
+            <div className="rl-static">
+              {shown.name}
+              {role?.isSystem && <span className="sc-note">System roles keep their name</span>}
+            </div>
+          ) : (
+            <input
+              id={`rl-name-${role?.id ?? "new"}`}
+              type="text"
+              value={draft.name}
+              onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+              maxLength={60}
+              placeholder="e.g. Rush Chair"
+              autoFocus={mode === "create"}
+              className="sc-input sc-input-sm"
+            />
+          )}
+        </Field>
+
+        <Field
+          label="Rank"
+          htmlFor={`rl-rank-${role?.id ?? "new"}`}
+          hint={rankInvalid ? undefined : placement || undefined}
+        >
+          {readOnly ? (
+            <div className="rl-static">{shown.rank}</div>
+          ) : (
+            <input
+              id={`rl-rank-${role?.id ?? "new"}`}
+              type="number"
+              min={0}
+              max={rankCapped ? myMaxRank - 1 : undefined}
+              value={draft.rank}
+              onChange={e => setDraft(d => ({ ...d, rank: Number(e.target.value) }))}
+              aria-invalid={rankInvalid}
+              className="sc-input sc-input-sm sc-input-num rl-rank"
+              style={rankInvalid ? { borderColor: "rgba(var(--rose-rgb),.6)" } : undefined}
+            />
+          )}
+          {rankInvalid && (
+            <p className="mt-1 text-[11px]" style={{ color: "var(--rose)" }}>
+              Must be below your own rank (max {myMaxRank - 1}).
+            </p>
+          )}
+        </Field>
+      </div>
+      <p className="sc-note rl-rank-note">
+        Higher rank = more authority. Officers can only edit and hand out roles ranked below their own.
+      </p>
+
+      <Field label="Color">
+        <div className="rl-swatches" role="radiogroup" aria-label="Role color">
+          {SWATCHES.map(c => {
+            const on = shown.colorTouched && shown.color.toLowerCase() === c.toLowerCase();
+            return (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                aria-label={c}
+                disabled={readOnly}
+                className={`rl-swatch${on ? " on" : ""}`}
+                style={{ background: c }}
+                onClick={() => setDraft(d => ({ ...d, color: c, colorTouched: true }))}
+              />
+            );
+          })}
+          <label className={`rl-swatch rl-swatch-custom${shown.colorTouched && !SWATCHES.some(c => c.toLowerCase() === shown.color.toLowerCase()) ? " on" : ""}`} title="Custom color">
+            <input
+              type="color"
+              value={shown.color}
+              disabled={readOnly}
+              onChange={e => setDraft(d => ({ ...d, color: e.target.value, colorTouched: true }))}
+              aria-label="Custom color"
+            />
+          </label>
+        </div>
+        {mode === "edit" && role?.color === null && !draft.colorTouched && (
+          <p className="sc-note" style={{ marginTop: 6 }}>No color set — the role shows as neutral grey until you pick one.</p>
+        )}
+      </Field>
+
+      <div>
+        <div className="rl-perm-head">
+          <span className="rl-label">Permissions <span className="rl-count">{held} of {PERMISSION_LIST.length}</span></span>
+          {!readOnly && (
+            <span className="rl-perm-bulk">
+              <button type="button" onClick={() => setDraft(d => ({ ...d, permissions: ALL_BITS }))} disabled={draft.permissions === ALL_BITS}>Select all</button>
+              <button type="button" onClick={() => setDraft(d => ({ ...d, permissions: 0 }))} disabled={draft.permissions === 0}>Clear</button>
+            </span>
+          )}
+        </div>
+        <div className="rl-perm-groups">
+          {PERMISSION_GROUPS.map(g => (
+            <fieldset key={g.label} className="rl-perm-group">
+              <legend className="sc-grp-label">{g.label}</legend>
+              <div className="rl-perm-grid">
+                {g.perms.map(name => {
+                  const bit = PERMISSIONS[name];
+                  const on = (shown.permissions & bit) !== 0;
+                  return (
+                    <label key={name} className={`sc-check rl-perm${on ? " on" : ""}${readOnly ? " ro" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={readOnly}
+                        onChange={() => setDraft(d => ({ ...d, permissions: d.permissions ^ bit }))}
+                      />
+                      <span aria-hidden className="sc-box">
+                        <svg viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-6.5 6.5a.75.75 0 0 1-1.06 0l-3-3a.75.75 0 1 1 1.06-1.06L6.75 10.19l5.97-5.97a.75.75 0 0 1 1.06 0Z" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="sc-check-key block">{permLabel(name)}</span>
+                        <span className="sc-check-sub block">{PERMISSION_COPY[name]?.desc ?? name}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ))}
+        </div>
+      </div>
+
+      {mode !== "create" && holders && (
+        <Field label={`Held by (${holders.length})`}>
+          {holders.length === 0 ? (
+            <p className="sc-note">No one holds this role yet.</p>
+          ) : (
+            <div className="rl-holders">
+              {holders.map(m => (
+                <span key={m.id} className="rl-holder" style={{ "--rl-c": shown.color } as React.CSSProperties}>
+                  <span className="rl-holder-dot" aria-hidden="true" />
+                  {m.name}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="sc-note" style={{ marginTop: 6 }}>Give or take away roles from Settings → Accounts.</p>
+        </Field>
+      )}
+
+      {!readOnly && (
+        <div className="rl-footer">
+          {onDelete && (
+            <button type="button" onClick={onDelete} disabled={saving} className="sc-btn sc-btn-danger sc-btn-sm">
+              Delete role
+            </button>
+          )}
+          <span className="rl-footer-gap" />
+          {dirty && mode === "edit" && <span className="sc-dirty">Unsaved</span>}
+          {mode === "create" ? (
+            <button type="button" onClick={onCancel} className="sc-btn sc-btn-ghost sc-btn-sm">Cancel</button>
+          ) : (
+            dirty && <button type="button" onClick={onDiscard} disabled={saving} className="sc-btn sc-btn-ghost sc-btn-sm">Discard</button>
+          )}
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || (mode === "edit" && !dirty)}
+            className="sc-btn sc-btn-primary sc-btn-sm"
+          >
+            {saving ? "Saving…" : mode === "create" ? "Create role" : "Save changes"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-// Members holding the selected role. Renders the same colored chips used in
-// AccountsSection.BrotherRoleChips for visual consistency. Scrolls past ~12
-// names so a heavily-assigned role doesn't blow out the panel height.
-function MembersList({ members, color }: { members: { id: number; name: string }[]; color: string }) {
+function Field({ label, hint, htmlFor, children }: { label: string; hint?: string; htmlFor?: string; children: React.ReactNode }) {
   return (
-    <Field label={`Members (${members.length})`}>
-      {members.length === 0 ? (
-        <p className="text-[11px]" style={{ color: "var(--faint)" }}>No one holds this role yet.</p>
-      ) : (
-        <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto pr-1">
-          {members.map(m => (
-            <span
-              key={m.id}
-              className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium"
-              style={{
-                background: `${color}1a`,
-                color: color,
-              }}
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: color }}
-                aria-hidden="true"
-              />
-              {m.name}
-            </span>
-          ))}
-        </div>
-      )}
-    </Field>
+    <div className="min-w-0">
+      <label htmlFor={htmlFor} className="rl-label">{label}</label>
+      {children}
+      {hint && <p className="sc-note" style={{ marginTop: 5 }}>{hint}</p>}
+    </div>
   );
 }
-
-// Bit-OR is exported from PERMISSIONS already; the trick `permissions ^ bit`
-// for toggle works because each PERMISSIONS value sets exactly one bit.
-// PERMISSIONS itself isn't referenced directly here but the type narrowing
-// flows through `Permission` in PERMISSION_LIST.
-void PERMISSIONS;
