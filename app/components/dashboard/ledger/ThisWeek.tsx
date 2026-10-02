@@ -1,5 +1,5 @@
 import React from "react";
-import { fmtRange, taskAssigneeLabel, type CalendarEvent, type Task } from "../../../data";
+import { fmtRange, taskAssigneeLabel, type CalEventType, type CalendarEvent, type Task } from "../../../data";
 import { SectionError } from "./SectionError";
 import type { WeekPeekTarget } from "./WeekItemPeek";
 import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
@@ -27,6 +27,9 @@ type WeekItem = {
    *  item rather than re-looked-up by id: the two kinds live in different lists,
    *  and an id alone would need a lookup that can miss. */
   target: WeekPeekTarget;
+  /** The event's category, for the tag beside the title. Null for deadlines
+   *  (they already carry DEADLINE) and for a slug the org no longer defines. */
+  category: CalEventType | null;
 };
 
 /**
@@ -45,6 +48,7 @@ export function ThisWeek({
   today,
   onAll,
   onSelect,
+  eventTypes,
   calendarEmpty = false,
   onAddEvent,
   loading = false,
@@ -61,6 +65,8 @@ export function ThisWeek({
    *  the card click (which opens the deadlines drawer), so it stops propagation;
    *  without this handler the rows stay inert text as before. */
   onSelect?: (target: WeekPeekTarget) => void;
+  /** Per-org event categories keyed by slug; drives the category tag. */
+  eventTypes?: Map<string, CalEventType>;
   /** True when the calendar has no events at all, not merely none this week.
    *  "Nothing on the agenda this week" is the right answer for a quiet week and
    *  the wrong one for a calendar nobody has opened yet. */
@@ -86,6 +92,7 @@ export function ThisWeek({
       today: e.date === today,
       over: isEventOver(e),
       target: { kind: "event", event: e },
+      category: eventTypes?.get(e.category) ?? null,
     })),
     ...deadlines
       .filter(d => d.dueDate != null)
@@ -97,6 +104,7 @@ export function ThisWeek({
         today: d.dueDate === today,
         over: false,
         target: { kind: "deadline", task: d },
+        category: null,
       })),
   // Same day: all-day items (deadlines) first, then events by start time.
   ].sort((a, b) => compareEvents(a.target.kind === "event" ? a.target.event : a, b.target.kind === "event" ? b.target.event : b));
@@ -149,6 +157,16 @@ export function ThisWeek({
                 <p className="t">
                   {it.title}
                   {it.kind === "deadline" && <span className="ddl-pill">DEADLINE</span>}
+                  {/* Both theme colors ride along as vars; the stylesheet picks
+                      the one for the active theme. */}
+                  {it.category && (
+                    <span
+                      className="cat-pill"
+                      style={{ "--cat": it.category.color, "--cat-d": it.category.colorDark ?? it.category.color } as React.CSSProperties}
+                    >
+                      {it.category.label.toUpperCase()}
+                    </span>
+                  )}
                   {/* One status pill: a finished event today is ENDED, not TODAY. */}
                   {it.over ? <span className="ended-pill">ENDED</span>
                     : it.today && <span className="today-pill">TODAY</span>}

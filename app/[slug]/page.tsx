@@ -2417,6 +2417,7 @@ export default function Home() {
                     today={todayISO}
                     onAll={() => setWidgetDrawer("deadlines")}
                     onSelect={setWeekPeek}
+                    eventTypes={eventTypeMap}
                     calendarEmpty={calendarLoaded && calendarList.length === 0}
                     /* Same two sections the digest waits on — the agenda merges
                        calendar events with deadlines due this week. */

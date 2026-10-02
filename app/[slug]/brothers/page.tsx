@@ -553,7 +553,7 @@ export default function BrothersPage() {
                   <h2>Standing</h2>
                   <span className="hint">Click a band to filter</span>
                 </div>
-                <div className="seg">
+                <div className="bh-seg">
                   {segments.filter(s => s.count > 0).map(s => (
                     <button
                       key={s.value}

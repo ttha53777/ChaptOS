@@ -62,21 +62,22 @@
 
 /* ── Filter segmented control ────────────────────────────────────────────────── */
 .dash .tl-toolbar { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
-.dash .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); max-width: 100%; overflow-x: auto; }
-.dash .seg button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
-  font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--muted); border: none; background: transparent; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
-.dash .seg button:hover { color: var(--ink-soft); }
-.dash .seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
-.dash .seg button .ct { font-size: 9px; color: var(--faint); }
-.dash .seg button.on .ct { color: var(--vio); }
+.dash .tl-seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); max-width: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.dash .tl-seg::-webkit-scrollbar { display: none; }
+.dash .tl-seg button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); border: none; background: transparent; border-radius: 6px; flex-shrink: 0; height: 32px; padding: 0 13px; cursor: pointer; }
+.dash .tl-seg button:hover { color: var(--ink-soft); }
+.dash .tl-seg button.on { color: var(--ink); background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); }
+.dash .tl-seg button .ct { font-size: 10px; color: var(--faint); }
+.dash .tl-seg button.on .ct { color: var(--vio); }
 .dash .tl-scope { margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; color: var(--faint); white-space: nowrap; }
 
 /* Legend popover — moved off the rail; a "?" disclosure on the toolbar. */
 .dash .tl-legend-wrap { position: relative; flex-shrink: 0; }
 .dash .tl-legend-btn { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono);
-  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
-  border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  border: 1px solid var(--line); background: var(--card); border-radius: 9px; height: 40px; padding: 0 13px; cursor: pointer; }
 .dash .tl-legend-btn:hover, .dash .tl-legend-btn.on { color: var(--ink); border-color: var(--ink-soft); }
 .dash .tl-legend-scrim { position: fixed; inset: 0; z-index: 30; background: none; border: 0; cursor: default; }
 .dash .tl-legend-pop { position: absolute; z-index: 31; top: calc(100% + 7px); right: 0; min-width: 220px;

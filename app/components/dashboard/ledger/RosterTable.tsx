@@ -332,7 +332,7 @@ export function RosterTable({
                         <div className="who">
                           <p className="nm">{b.name}</p>
                           <p className="rl" title={title} style={roleColor ? ({ ["--dot"]: roleColor } as React.CSSProperties) : undefined}>
-                            {roleColor && <i />}{title}
+                            {roleColor && <i />}<span>{title}</span>
                           </p>
                         </div>
                       </div>

@@ -338,14 +338,16 @@
 .dash .rt th.sortable:focus-visible { outline: 2px solid var(--vio); outline-offset: -2px; }
 
 /* Member cell: name over role. Reclaims the ~150px the Role column ate — which
-   is what un-clips Status — and lets "Treasurer · Banquet · Social" render whole
-   instead of truncating to "Treasurer · Banquet · S…" with no tooltip. */
+   is what un-clips Status. A long role ellipsizes (full text in its tooltip)
+   rather than widening the column and shoving the metrics right. */
 .dash .rt .b-name { align-items: center; gap: 11px; }
-.dash .rt .b-name .who { min-width: 0; }
+.dash .rt .b-name .who { min-width: 0; flex: 1 1 auto; }
 .dash .rt .b-name .nm { font-size: 13px; font-weight: 550; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash .rt .b-name .rl { display: flex; align-items: center; gap: 6px; font-size: 10.5px;
-  color: var(--faint); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  color: var(--faint); margin-top: 1px; white-space: nowrap; overflow: hidden;
+  contain: inline-size; } /* adds no width to the Member column — ellipsizes in what the names claim */
+.dash .rt .b-name .rl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .dash .rt .b-name .rl i { width: 5px; height: 5px; border-radius: 2px; flex-shrink: 0;
   background: var(--dot, var(--line)); }
 /* Seat Google's default letter-avatars (full-saturation remote PNGs) in the warm
@@ -487,6 +489,12 @@
 /* A finished event: neutral pill, and the row steps back so what's still ahead leads. */
 .dash .ended-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--muted);
   background: var(--line); border-radius: 4px; padding: 2px 5px; margin-left: 6px; vertical-align: 1px; }
+/* The event's category, in its own calendar color (dusk shade by default). */
+.dash .cat-pill { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .14em; color: var(--cat-d);
+  background: color-mix(in srgb, var(--cat-d) 16%, transparent); border-radius: 4px; padding: 2px 5px; margin-left: 6px;
+  vertical-align: 1px; white-space: nowrap; }
+html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-mix(in srgb, var(--cat) 13%, transparent); }
+.dash .week-item.over .cat-pill { opacity: .55; }
 .dash .week-item.over .what .t { color: var(--muted); }
 .dash .week-item.over .day b { color: var(--faint); }
 .dash .rail-empty { padding: 14px 18px; font-size: 12px; color: var(--faint); line-height: 1.55; }

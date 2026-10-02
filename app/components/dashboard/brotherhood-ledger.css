@@ -5,7 +5,7 @@
    .status-tag/.row-act/.table-foot) — the Brothers page imports BOTH files and
    reuses all of those. This file adds ONLY what the roster page needs on top:
      · editorial page header (.pagehead / .summary)
-     · the interactive status-distribution segmented bar (.seg / .seg-legend)
+     · the interactive status-distribution segmented bar (.bh-seg / .seg-legend)
      · the inline search field on the warm pane
      · the role subline nested under the member name (.b-name .rl)
      · the selected-row highlight that mirrors the open drawer (tbody tr.sel)
@@ -42,13 +42,13 @@
 .dash .dist-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 11px; }
 .dash .dist-head h2 { font-family: var(--serif); font-weight: 500; font-size: 15px; color: var(--ink); }
 .dash .dist-head .hint { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-.dash .seg { display: flex; gap: 3px; height: 14px; }
-.dash .seg button { border: none; border-radius: 4px; cursor: pointer; position: relative; transition: opacity .15s, filter .15s; padding: 0; }
-.dash .seg button:hover { filter: brightness(1.12); }
-.dash .seg button.dim { opacity: .28; }
-.dash .seg .s-good  { background: var(--ok); }
-.dash .seg .s-watch { background: var(--gold); }
-.dash .seg .s-risk  { background: var(--rose); }
+.dash .bh-seg { display: flex; gap: 3px; height: 14px; }
+.dash .bh-seg button { border: none; border-radius: 4px; cursor: pointer; position: relative; transition: opacity .15s, filter .15s; padding: 0; }
+.dash .bh-seg button:hover { filter: brightness(1.12); }
+.dash .bh-seg button.dim { opacity: .28; }
+.dash .bh-seg .s-good  { background: var(--ok); }
+.dash .bh-seg .s-watch { background: var(--gold); }
+.dash .bh-seg .s-risk  { background: var(--rose); }
 .dash .seg-legend { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 12px; }
 .dash .seg-legend button { display: flex; align-items: center; gap: 7px; background: none; border: none; cursor: pointer; font-family: var(--sans); padding: 0; }
 .dash .seg-legend .dot { width: 8px; height: 8px; border-radius: 50%; }

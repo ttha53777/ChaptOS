@@ -1598,7 +1598,7 @@ export default function TimelinePage() {
 
             {/* ── Filter ───────────────────────────────────────────────────── */}
             <div className="tl-toolbar">
-              <div className="seg" role="tablist" aria-label="Filter events">
+              <div className="tl-seg" role="tablist" aria-label="Filter events">
                 {LAYERS.map(layer => {
                   const active = activeLayer === layer.id;
                   const count  = layerCounts[layer.id] ?? 0;
