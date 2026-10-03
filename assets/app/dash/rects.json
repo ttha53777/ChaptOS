@@ -1,0 +1,13 @@
+{
+ "_note": "CSS px in the 1440x900 layout (dashboard.png is 3x). thisWeek + launcher measured from the DOM; the rest read off the capture.",
+ "thisWeek": [1064, 381.2, 338, 315.7],
+ "mixerRow": [1066, 436, 334, 54],
+ "budgetRow": [1066, 493, 334, 65],
+ "greeting": [277, 26, 330, 72],
+ "stats": [279, 264, 1122, 102],
+ "needs": [279, 382, 770, 113],
+ "health": [1064, 29, 336, 144],
+ "ring": [1289, 47, 111, 110],
+ "launcher": [1258.7, 833, 157.3, 43],
+ "sidebar": [0, 0, 240, 900]
+}

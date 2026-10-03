@@ -1,0 +1,639 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ChaptOS Showreel v1</title>
+<style>
+  @font-face { font-family: Brico; src: url(../../assets/fonts/BricolageGrotesque.woff2) format("woff2"); font-weight: 200 800; }
+  @font-face { font-family: InterL; src: url(../../assets/fonts/Inter.woff2) format("woff2"); font-weight: 100 900; }
+  :root { --paper: #FFFCF6; --ink: #26211B; --butter: #FFE5A0; --line: #EBE1CF; }
+  html, body { margin: 0; background: var(--paper); overflow: hidden; }
+  #stage { position: relative; overflow: hidden; background: var(--paper); }
+  .a { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .scene { position: absolute; inset: 0; transform-origin: 0 0; }
+  .d { font-family: Brico; font-weight: 800; color: var(--ink); letter-spacing: -0.045em; line-height: 1; white-space: nowrap; }
+  .mask { overflow: hidden; }
+  .mask > .in { display: inline-block; position: relative; }
+  .ch { display: inline-block; position: relative; }
+  img.a { display: block; }
+  .cover { position: absolute; transform-origin: 100% 50%; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="timeline-v1.js"></script>
+<script src="beats-v1.js" onerror="window.BEATS=null"></script>
+<script type="module">
+await Promise.all([document.fonts.load("800 100px Brico"), document.fonts.load("700 100px Brico"), document.fonts.load("500 40px InterL")]);
+// ───────────────────────── render contract ─────────────────────────
+// window.seek(t) paints frame t. Nothing reads the clock, nothing carries
+// state between frames: every style below is a pure function of t.
+const q = new URLSearchParams(location.search);
+const FMT = q.get("f") || "v";
+const [W, H] = { v: [1080, 1920], s: [1080, 1080], w: [1920, 1080] }[FMT];
+const V = FMT === "v", SQ = FMT === "s", WD = FMT === "w";
+const pick = (v, s, w) => (V ? v : SQ ? s : w);
+const C = TL.c;
+const INK = "#26211B", PAPER = "#FFFCF6", BUTTER = "#FFE5A0", LINE = "#EBE1CF";
+const stage = document.getElementById("stage");
+stage.style.width = W + "px"; stage.style.height = H + "px";
+
+// ── math ──
+const cl = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const P = (t, a, b) => cl((t - a) / (b - a));
+const lerp = (a, b, u) => a + (b - a) * u;
+const E = {
+  outExpo: u => (1 - Math.pow(2, -10 * u)) / (1 - Math.pow(2, -10)),
+  inExpo: u => (Math.pow(2, 10 * u - 10) - Math.pow(2, -10)) / (1 - Math.pow(2, -10)),
+  outCubic: u => 1 - Math.pow(1 - u, 3),
+  inCubic: u => u * u * u,
+  inOutCubic: u => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2),
+  outBack: (u, c1 = 1.9) => { const c3 = c1 + 1; return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2); },
+};
+// damped spring, 0 → 1, dt seconds since release
+const spring = (dt, f = 2.6, z = 0.38) => (dt <= 0 ? 0 : 1 - Math.exp(-z * 2 * Math.PI * f * dt) * Math.cos(2 * Math.PI * f * Math.sqrt(1 - z * z) * dt));
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+// decaying hit shake, deterministic per hit
+function shake(t, hits, amp) {
+  let x = 0, y = 0;
+  hits.forEach(([h, a], i) => { const d = t - h; if (d < 0 || d > 0.5) return; const k = (a || 1) * amp * Math.exp(-d * 14); x += k * Math.sin(d * 85 + i * 1.7); y += k * Math.cos(d * 71 + i * 2.3); });
+  return [x, y];
+}
+
+// ── dom helpers ──
+const el = (tag, cls, parent, css) => { const e = document.createElement(tag); if (cls) e.className = cls; if (css) Object.assign(e.style, css); (parent || stage).appendChild(e); return e; };
+const scene = name => el("div", "scene", stage);
+const tf = (e, s) => { e.style.transform = s; };
+const show = (e, on) => { e.style.visibility = on ? "visible" : "hidden"; };
+
+// images: cropped from chaptos.com at dsf 3 with a 24-css-px transparent pad
+const PAD = 24;
+const IMGS = {};
+function img(name, k, parent) {
+  const i = el("img", "a", parent);
+  i.src = `../../assets/ui/${name}.png`;
+  i.dataset.k = k; IMGS[name] = IMGS[name] || []; IMGS[name].push(i);
+  return { el: i, k, name, get w() { return (i.naturalWidth / 3) * k; }, get h() { return (i.naturalHeight / 3) * k; } };
+}
+
+// text: masked lines, optional per-letter spans
+function measureText(str, size, weight = 800, fam = "Brico", ls = -0.045) {
+  const s = el("span", "", document.body, { position: "absolute", visibility: "hidden", whiteSpace: "nowrap", font: `${weight} ${size}px ${fam}`, letterSpacing: ls + "em" });
+  s.textContent = str; const w = s.getBoundingClientRect().width; s.remove(); return w;
+}
+const fit = (str, maxW, cap, weight) => Math.min(cap || 9999, Math.floor((100 * maxW) / measureText(str, 100, weight)));
+function line(parent, str, size, opt = {}) {
+  const wrap = el("div", "a mask d", parent, { fontSize: size + "px", fontWeight: opt.weight || 800, padding: `${size * 0.08}px ${size * 0.06}px ${size * 0.16}px`, margin: `${-size * 0.08}px ${-size * 0.06}px 0` });
+  if (opt.family) wrap.style.fontFamily = opt.family;
+  if (opt.ls != null) wrap.style.letterSpacing = opt.ls + "em";
+  if (opt.color) wrap.style.color = opt.color;
+  const inner = el("div", "in", wrap);
+  const parts = [];
+  if (opt.letters) [...str].forEach(c => { const s = el("span", "ch", inner); s.textContent = c === " " ? " " : c; parts.push(s); });
+  else if (opt.words) str.split(" ").forEach((w, i, arr) => { const s = el("span", "ch", inner); s.textContent = w + (i < arr.length - 1 ? " " : ""); parts.push(s); });
+  else inner.textContent = str;
+  return { wrap, inner, parts, size };
+}
+const place = (e, x, y) => { e.style.left = x + "px"; e.style.top = y + "px"; };
+
+// ───────────────────────── 1 · HOOK ─────────────────────────
+const s1 = scene();
+const scrapLayer = el("div", "scene", s1);
+const SCRAPS = ["hero-pile-0", "gripe-1", "hero-pile-2", "gripe-0", "hero-pile-1", "gripe-3", "gripe-4", "gripe-2"];
+const scrapK = n => (n.startsWith("hero") ? pick(2.6, 1.9, 2.7) : pick(1.95, 1.45, 2.05));
+// hand-composed landing spots (fx, fy, deg) — chaos with a reading order
+const SPOTS = {
+  v: [[0.30, 0.09, -7], [0.74, 0.16, 5], [0.20, 0.25, 6], [0.80, 0.33, -3], [0.74, 0.70, 8], [0.24, 0.76, -5], [0.70, 0.88, 3], [0.22, 0.95, -6]],
+  s: [[0.18, 0.10, -7], [0.80, 0.10, 5], [0.90, 0.40, 6], [0.10, 0.45, -4], [0.84, 0.74, 8], [0.18, 0.86, -5], [0.56, 0.95, 3], [0.50, 0.04, -6]],
+  w: [[0.66, 0.16, -7], [0.88, 0.30, 5], [0.68, 0.46, 6], [0.90, 0.62, -3], [0.66, 0.78, 8], [0.88, 0.90, -5], [0.30, 0.10, 3], [0.36, 0.92, -6]],
+}[FMT];
+const scraps = SCRAPS.map(n => img(n, scrapK(n), scrapLayer));
+const textLayer = el("div", "scene", s1);
+const hookW = pick(920, 900, 1000), hookX = pick(80, 90, 130);
+const HOOK1 = V ? "Your org" : "Your org is";
+const hs1 = fit(HOOK1, hookW, pick(300, 190, 210)), hs2 = fit("everywhere.", hookW, 999), hs3 = Math.min(fit("Literally.", hookW - 60), hs1);
+const L1 = line(textLayer, HOOK1, hs1, { words: true });
+const L1b = V ? line(textLayer, "is", hs1, { words: true }) : null;
+const L2 = line(textLayer, "everywhere.", hs2, { letters: true });
+const L3wrap = el("div", "a", textLayer);
+const L3block = el("div", "a", L3wrap, { background: BUTTER, transformOrigin: "0 50%" });
+const L3 = line(L3wrap, "Literally.", hs3, { letters: true });
+L3.wrap.style.position = "relative";
+
+// ───────────────────────── 2 · BUILD ─────────────────────────
+const s2 = scene();
+const cardCss = { w: 561.2, h: 458.25 };
+const kc = pick(1000 / 561.2, 1.42, 1.38);
+const s2txtW = pick(920, 920, 860);
+const s2size = Math.min(fit("It already knows", s2txtW), fit("what today needs.", s2txtW), pick(132, 92, 140));
+const S2L = ["Open one page.", "It already knows", "what today needs."].map(s => line(s2, s, s2size));
+const S2hl = el("div", "a", s2, { background: BUTTER, transformOrigin: "0 50%" });
+s2.insertBefore(S2hl, S2L[2].wrap);
+const cardW = cardCss.w * kc, cardH = cardCss.h * kc;
+const cardX = pick((W - cardW) / 2, (W - cardW) / 2, 1440 - cardW / 2);
+const cardY = pick(740, 400, 540 - cardH / 2 - 10);
+const shell = el("div", "a", s2, { width: cardW + "px", height: cardH + "px", background: "#fff", border: `${kc}px solid ${LINE}`, borderRadius: 30 * kc + "px", boxSizing: "border-box", boxShadow: `0 ${2 * kc}px ${4 * kc}px rgba(38,33,27,.05), 0 ${26 * kc}px ${60 * kc}px ${-18 * kc}px rgba(38,33,27,.22)`, transformOrigin: "50% 50%" });
+const PARTS = [
+  ["hero-cardbar", 1, 1], ["hero-brief", 21, 68.2],
+  ["hero-meas-0", 21, 206.8], ["hero-meas-1", 153, 206.8], ["hero-meas-2", 285.1, 206.8], ["hero-meas-3", 417.1, 206.8],
+  ["hero-att-0", 21, 305.9], ["hero-att-1", 21, 375.6],
+].map(([n, x, y]) => { const o = img(n, kc, shell); o.x = (x - PAD - 1) * kc; o.y = (y - PAD - 1) * kc; return o; });
+const pop = img("hero-ask", kc * pick(1.0, 0.95, 0.95), s2);
+
+// ───────────────────────── 3 · ASK ─────────────────────────
+function chatLayout(labelLines) {
+  const k = pick(1000 / 560, 1.42, 1.55);
+  const colW = 560 * k;
+  const colX = pick(40, (W - colW) / 2, 1850 - colW);
+  return { k, colX };
+}
+const PRE = [];
+const s3 = scene();
+const lab3size = pick(fit("Just ask.", 920, 210), 120, fit("Just ask.", 700, 230));
+const LAB3 = line(s3, "Just ask.", lab3size, { letters: true });
+const ch3 = chatLayout();
+const win3 = el("div", "scene", s3);
+const chat3 = el("div", "scene", win3);
+const q1 = img("ask-q1", ch3.k, chat3);
+const q1cover = el("div", "cover", chat3, { background: INK, transformOrigin: "100% 50%" });
+const chk = img("ask-checking", ch3.k, chat3);
+const chkCovers = [[17.7, 45.3, 477, 22.7], [17.7, 75.9, 477, 22.7], [17.7, 106.4, 477, 22.7], [17.7, 152, 460, 36]].map(() => el("div", "cover", chat3, { background: PAPER }));
+const ans = img("ask-answer", ch3.k, chat3);
+const ansHL = el("div", "a", chat3, { background: "rgba(255,229,160,.6)", mixBlendMode: "multiply", borderRadius: 10 * ch3.k + "px", transformOrigin: "50% 50%" });
+
+// ───────────────────────── 4 · SEND ─────────────────────────
+const s4 = scene();
+const lab4W = pick(920, 920, 820);
+const lab4size = Math.min(fit("without your OK.", lab4W), pick(150, 100, 150));
+const LAB4a = line(s4, "Nothing sends", lab4size, { letters: true });
+const LAB4b = line(s4, "without your OK.", lab4size, { letters: true });
+const hl4 = el("div", "a", LAB4b.wrap, { background: BUTTER, transformOrigin: "0 50%", zIndex: 0 });
+LAB4b.inner.style.zIndex = 1;
+const ch4 = chatLayout();
+const win4 = el("div", "scene", s4);
+const chat4 = el("div", "scene", win4);
+const q2 = img("ask-q2", ch4.k, chat4);
+const draft = img("ask-draft", ch4.k, chat4);
+const doneB = img("ask-done-full", (ch4.k * 560) / 650, chat4);
+
+// ───────────────────────── 5 · ROLL ─────────────────────────
+const s5 = scene();
+const k5 = pick(1.55, 1.05, 1.4);
+const win5 = { x: pick(0, 0, 900), y: pick(150, 50, 0), w: pick(W, W, 1020), h: pick(800, 560, 1080) };
+const cardWin = el("div", "a", s5, { width: win5.w + "px", height: win5.h + "px", overflow: "visible" });
+place(cardWin, win5.x, win5.y);
+if (WD) cardWin.style.clipPath = "inset(0 -40px 0 0)";
+const cam5 = el("div", "a", cardWin);
+const roll = img("day-3", k5, cam5);
+const CHIPS = [[21, 108], [156, 108], [292, 108], [427, 108], [562, 108], [21, 155], [156, 155], [292, 155]];
+const chipCovers = CHIPS.map(() => el("div", "cover", cam5, { background: "#fff", transformOrigin: "50% 50%" }));
+const lab5W = pick(920, 920, 720);
+const lab5size = Math.min(fit("40 seconds.", lab5W), fit("Roll call,", lab5W), pick(170, 112, 150));
+const LAB5 = [line(s5, "Roll call,", lab5size, { letters: true }), line(s5, "52 names,", lab5size), line(s5, "40 seconds.", lab5size)];
+// counting numerals: fixed-width slot so the words after them never jitter
+[[LAB5[1], "52", " names,"], [LAB5[2], "40", " seconds."]].forEach(([L, n, rest]) => {
+  L.inner.textContent = "";
+  const num = el("span", "ch", L.inner, { textAlign: "right", width: measureText(n, L.size) + "px" });
+  num.textContent = n; const r = el("span", "ch", L.inner); r.textContent = rest.replace(" ", " ");
+  L.num = num; L.max = +n;
+});
+const flood = el("div", "a", stage, { background: BUTTER, borderRadius: "50%" });
+
+// ───────────────────────── 6 · METRIC ─────────────────────────
+const s6 = scene();
+const R6 = pick(330, 250, 330), cx6 = pick(540, 540, 620), cy6 = pick(760, 420, 540), SW6 = pick(26, 22, 26);
+const svgNS = "http://www.w3.org/2000/svg";
+const ring = document.createElementNS(svgNS, "svg");
+ring.setAttribute("class", "a"); ring.setAttribute("width", 2 * R6 + 2 * SW6); ring.setAttribute("height", 2 * R6 + 2 * SW6);
+s6.appendChild(ring);
+const mkC = (stroke, w) => { const c = document.createElementNS(svgNS, "circle"); c.setAttribute("cx", R6 + SW6); c.setAttribute("cy", R6 + SW6); c.setAttribute("r", R6); c.setAttribute("fill", "none"); c.setAttribute("stroke", stroke); c.setAttribute("stroke-width", w); c.setAttribute("stroke-linecap", "round"); c.setAttribute("transform", `rotate(-90 ${R6 + SW6} ${R6 + SW6})`); ring.appendChild(c); return c; };
+const ringTrack = mkC("rgba(38,33,27,.14)", SW6), ringArc = mkC(INK, SW6);
+const CIRC = 2 * Math.PI * R6;
+ringTrack.setAttribute("stroke-dasharray", CIRC); ringArc.setAttribute("stroke-dasharray", CIRC);
+const numSize = pick(470, 360, 470);
+const digWin = el("div", "a mask d", s6, { fontSize: numSize + "px", width: numSize * 0.7 + "px", height: numSize * 0.86 + "px", textAlign: "center", lineHeight: numSize * 0.86 + "px" });
+const DIG = [1, 2, 3, 4, 5].map(n => { const d = el("div", "a", digWin, { width: "100%" }); d.textContent = n; return d; });
+const secSize = pick(64, 48, 64);
+const SEC = line(s6, "seconds", secSize, { weight: 700, ls: -0.02 });
+const l6W = pick(920, 860, 780);
+const l6size = Math.min(fit("for a member to know", l6W, 999, 700), pick(92, 64, 104));
+const L6 = [line(s6, "for a member to know", l6size, { weight: 700, ls: -0.03 }), line(s6, "what's due next.", l6size, { weight: 700, ls: -0.03 })];
+
+// ───────────────────────── 7 · LOGO ─────────────────────────
+const s7 = scene();
+const MS = pick(300, 190, 270);            // mark rect width (viewBox rect is 35×31)
+const mh = (MS * 31) / 35, mrad = (MS * 9) / 35, mstroke = (MS * 2.4) / 35;
+const wordSize = pick(200, 130, 220);
+const wordW = measureText("ChaptOS", wordSize, 800, "Brico", -0.035);
+const gap7 = MS * 0.22;
+const lock = WD
+  ? { mx: W / 2 - (MS + gap7 + wordW) / 2 + MS / 2, my: 430, wx: W / 2 - (MS + gap7 + wordW) / 2 + MS + gap7, wy: 430 - wordSize * 0.56 }
+  : { mx: W / 2, my: pick(760, 300, 0), wx: (W - wordW) / 2, wy: pick(760, 300, 0) + mh / 2 + pick(70, 40, 0) };
+const morph = el("div", "a", stage, { background: BUTTER, boxSizing: "border-box", borderStyle: "solid", borderColor: INK });
+const mark = document.createElementNS(svgNS, "svg");
+mark.setAttribute("viewBox", "0 0 40 40"); mark.setAttribute("class", "a");
+mark.setAttribute("width", (MS * 40) / 35); mark.setAttribute("height", (MS * 40) / 35);
+mark.innerHTML = `<rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="${BUTTER}" stroke="${INK}" stroke-width="2.4"/>
+  <path id="smile" d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="${INK}" stroke-width="2.4" stroke-linecap="round"/>
+  <circle id="e1" cx="14.6" cy="16" r="1.9" fill="${INK}"/><circle id="e2" cx="25.4" cy="16" r="1.9" fill="${INK}"/>`;
+s7.appendChild(mark);
+const smile = mark.querySelector("#smile"), eyes = [mark.querySelector("#e1"), mark.querySelector("#e2")];
+const WORD = line(s7, "ChaptOS", wordSize, { letters: true, ls: -0.035 });
+const btn = img("btn-setup", pick(2.6, 1.6, 2.3), s7);
+const urlSize = pick(52, 36, 50);
+const URL_ = line(s7, "chaptos.com", urlSize, { weight: 500, family: "InterL", ls: -0.01, color: "rgba(38,33,27,.72)" });
+
+// ───────────────────────── cursor + ripples (screen space) ─────────────────────────
+const ripLayer = el("div", "scene", stage, { pointerEvents: "none" });
+const RIPS = [0, 1, 2, 3].map(() => el("div", "a", ripLayer, { border: `${pick(5, 4, 4)}px solid ${INK}`, borderRadius: "50%", boxSizing: "border-box" }));
+const CUR = 2.3 * pick(1, 0.85, 0.85);
+const cursor = el("div", "a", stage, { width: 24 * CUR + "px", height: 34 * CUR + "px" });
+cursor.innerHTML = `<svg viewBox="-2 -2 26 36" width="100%" height="100%"><path d="M0 0 L0 27 L6.6 20.6 L11 31 L16 28.8 L11.7 18.6 L20.5 18.6 Z" fill="${INK}" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+
+// ───────────────────────── layout (needs fonts + images) ─────────────────────────
+let LAY = {};
+function layout() {
+  // hook block, vertically centered, left-aligned
+  const lh1 = hs1 * (V ? 1.9 : 1.02), lh2 = hs2 * 1.05, lh3 = hs3 * 1.18;
+  const top = (H - (lh1 + lh2 + lh3)) / 2;
+  place(L1.wrap, hookX, top); if (L1b) place(L1b.wrap, hookX, top + hs1 * 0.9);
+  place(L2.wrap, hookX, top + lh1); place(L3wrap, hookX, top + lh1 + lh2 + hs3 * 0.08);
+  const l3w = L3.inner.getBoundingClientRect().width;
+  Object.assign(L3block.style, { left: -hs3 * 0.12 + "px", top: hs3 * 0.02 + "px", width: l3w + hs3 * 0.3 + "px", height: hs3 * 1.08 + "px" });
+  LAY.hookTop = top; LAY.hookMid = top + (lh1 + lh2 + lh3) / 2;
+  scraps.forEach((s, i) => { const [fx, fy, r] = SPOTS[i]; s.tx = fx * W - s.w / 2; s.ty = fy * H - s.h / 2; s.r = r; });
+
+  // build text + card
+  const tx2 = pick(80, 80, 120);
+  const ty2 = pick(170, 60, 540 - (s2size * 3.1) / 2);
+  S2L.forEach((L, i) => place(L.wrap, tx2, ty2 + i * s2size * 1.03));
+  const l3 = S2L[2].inner.getBoundingClientRect();
+  Object.assign(S2hl.style, { left: tx2 - s2size * 0.05 + "px", top: ty2 + 2 * s2size * 1.03 + s2size * 0.5 + "px", width: l3.width + s2size * 0.12 + "px", height: s2size * 0.5 + "px" });
+  place(shell, cardX, cardY);
+  PARTS.forEach(p => place(p.el, p.x, p.y));
+  LAY.popX = cardX + cardW - pop.w + pick(40, 60, 60) * kc; LAY.popY = cardY + cardH - pick(70, 120, 120) * kc;
+  place(pop.el, LAY.popX, LAY.popY);
+
+  // ask
+  const lx3 = pick(80, 80, 120), ly3 = pick(150, 60, 540 - lab3size * 0.6);
+  place(LAB3.wrap, lx3, ly3);
+  const k3 = ch3.k, top3 = pick(ly3 + lab3size * 1.25 + 40, ly3 + lab3size * 1.15 + 20, 110);
+  const y3 = { q1: 0, chk: (56 + 26) * k3, ans: (56 + 26 + 205 + 22) * k3 };
+  LAY.chat3 = { top: top3, y: y3, bottom: y3.ans + 284 * k3 };
+  place(q1.el, ch3.colX - PAD * k3, top3 + y3.q1 - PAD * k3);
+  place(chk.el, ch3.colX - PAD * k3, top3 + y3.chk - PAD * k3);
+  place(ans.el, ch3.colX - PAD * k3, top3 + y3.ans - PAD * k3);
+  Object.assign(q1cover.style, { left: ch3.colX + 14 * k3 + "px", top: top3 + 8 * k3 + "px", width: 532 * k3 + "px", height: 40 * k3 + "px", borderRadius: 4 * k3 + "px" });
+  [[17.7, 45.3, 477, 22.7], [17.7, 75.9, 477, 22.7], [17.7, 106.4, 477, 22.7], [17.7, 150, 470, 38]].forEach(([x, y, w, h], i) =>
+    Object.assign(chkCovers[i].style, { left: ch3.colX + x * k3 + "px", top: top3 + y3.chk + (y - 2) * k3 + "px", width: w * k3 + "px", height: (h + 4) * k3 + "px" }));
+  Object.assign(ansHL.style, { left: ch3.colX + 8 * k3 + "px", top: top3 + y3.ans + 80 * k3 + "px", width: 544 * k3 + "px", height: 46 * k3 + "px" });
+  LAY.maya = { x: ch3.colX + 250 * k3, y: top3 + y3.ans + 103 * k3 };
+  LAY.ansFocus = { x: ch3.colX + 40 * k3, y: top3 + y3.ans + 60 * k3 };
+  LAY.win3top = WD ? 0 : ly3 + lab3size * 1.12;
+
+  // send
+  const lx4 = pick(80, 80, 120), ly4 = pick(H - lab4size * 2.3 - 190, 60, 540 - lab4size * 1.1);
+  place(LAB4a.wrap, lx4, ly4); place(LAB4b.wrap, lx4, ly4 + lab4size * 1.04);
+  const okSpan = [...LAB4b.parts].slice(8); // "your OK."
+  const r0 = okSpan[0].getBoundingClientRect(), r1 = okSpan[okSpan.length - 1].getBoundingClientRect(), rw = LAB4b.wrap.getBoundingClientRect();
+  Object.assign(hl4.style, { left: r0.left - rw.left - lab4size * 0.04 + "px", top: lab4size * 0.62 + "px", width: r1.right - r0.left + lab4size * 0.08 + "px", height: lab4size * 0.5 + "px" });
+  const k4 = ch4.k, top4 = pick(260, ly4 + lab4size * 2.2 + 10, 150);
+  LAY.win4 = V ? `inset(0 0 ${H - ly4 + 40}px 0)` : SQ ? `inset(${ly4 + lab4size * 2.15}px 0 0 0)` : "none";
+  LAY.draftFocus = { x: ch4.colX + 20 * k4, y: top4 + (80 + 26) * k4 + 120 * k4 };
+  const y4 = { q2: 0, draft: (80 + 26) * k4 };
+  LAY.chat4 = { top: top4, y: y4 };
+  place(q2.el, ch4.colX - PAD * k4, top4 - PAD * k4);
+  place(draft.el, ch4.colX - PAD * k4, top4 + y4.draft - PAD * k4);
+  place(doneB.el, ch4.colX - PAD * doneB.k - 70 * doneB.k, top4 + y4.draft - PAD * doneB.k);
+  LAY.send = { x: ch4.colX + 99.5 * k4, y: top4 + y4.draft + 185 * k4 };
+  // once the draft collapses the thread is q2 + "Sent to 4": centre that pair above the label
+  { const threadH = (80 + 26 + 80) * k4, room = ly4 - 60; LAY.pullDy = Math.max(0, (room - threadH) / 2 - top4 + 40); }
+
+  // roll
+  const rw5 = 710.7 * k5, rh5 = 449.3 * k5;
+  LAY.roll = { x0: (win5.w - rw5) / 2, y0: (win5.h - rh5) / 2 };
+  place(roll.el, LAY.roll.x0 - PAD * k5, LAY.roll.y0 - PAD * k5);
+  CHIPS.forEach(([x, y], i) => Object.assign(chipCovers[i].style, { left: LAY.roll.x0 + (x - 2) * k5 + "px", top: LAY.roll.y0 + (y - 2) * k5 + "px", width: 132 * k5 + "px", height: 43 * k5 + "px", borderRadius: 12 * k5 + "px" }));
+  const lx5 = pick(80, 80, 120), ly5 = pick(1010, 640, 540 - lab5size * 1.6);
+  LAB5.forEach((L, i) => place(L.wrap, lx5, ly5 + i * lab5size * 1.04));
+
+  // metric
+  place(ring, cx6 - R6 - SW6, cy6 - R6 - SW6);
+  place(digWin, cx6 - numSize * 0.35, cy6 - numSize * 0.52 - pick(36, 26, 36));
+  const secW = SEC.inner.getBoundingClientRect().width;
+  place(SEC.wrap, cx6 - secW / 2, cy6 + numSize * 0.3);
+  const l6x = pick(80, 110, 1060), l6y = pick(1220, 760, 540 - l6size * 1.1);
+  L6.forEach((L, i) => place(L.wrap, WD ? l6x : (W - L.inner.getBoundingClientRect().width) / 2, l6y + i * l6size * 1.08));
+
+  // logo
+  const ww = WORD.inner.getBoundingClientRect().width;
+  place(mark, lock.mx - (MS * 40) / 35 / 2, lock.my - (MS * 40) / 35 / 2 - ((MS * 40) / 35) * 0.0);
+  place(WORD.wrap, WD ? lock.wx : (W - ww) / 2, WD ? lock.wy : lock.wy);
+  LAY.btn = { x: W / 2, y: pick(1340, 700, 760) };
+  place(btn.el, LAY.btn.x - btn.w / 2 + 1.5 * btn.k, LAY.btn.y - btn.h / 2 + 1.5 * btn.k);
+  const uw = URL_.inner.getBoundingClientRect().width;
+  place(URL_.wrap, (W - uw) / 2, LAY.btn.y + pick(140, 92, 120));
+}
+
+// camera: zoom z about focus (fx,fy), then translate; returns css + a point mapper
+function cam(z, fx, fy, dx = 0, dy = 0) {
+  return { css: `translate(${dx}px,${dy}px) translate(${fx}px,${fy}px) scale(${z}) translate(${-fx}px,${-fy}px)`, map: (x, y) => [dx + fx + (x - fx) * z, dy + fy + (y - fy) * z] };
+}
+// ───────────────────────── seek ─────────────────────────
+function vis(sc, a, b, t) { sc.style.display = t >= a && t < b ? "block" : "none"; }
+function rise(L, t, t0, dur = 0.32, stagger = 0) {
+  // mask-rise for a line or its letters
+  if (L.parts.length && stagger) L.parts.forEach((p, i) => { const u = E.outExpo(P(t, t0 + i * stagger, t0 + i * stagger + dur)); tf(p, `translateY(${(1 - u) * 110}%)`); });
+  else { const u = E.outExpo(P(t, t0, t0 + dur)); tf(L.inner, `translateY(${(1 - u) * 110}%)`); }
+}
+function sink(L, t, t0, dur = 0.25) { const u = E.inExpo(P(t, t0, t0 + dur)); if (u > 0) tf(L.inner, `translateY(${-u * 115}%)`); }
+
+function paint(t) {
+  const S = TL.S;
+  // ── 1 hook
+  vis(s1, -1, 3.05, t);
+  if (t < 3.05) {
+    const hits = C.scraps.map(h => [h, 0.7]).concat([[2.5, 2.2], [0, 0.8], [0.5, 0.6], [1.0, 0.6]]);
+    const [sx, sy] = shake(t, hits, pick(9, 7, 8));
+    tf(s1, `translate(${sx}px,${sy}px)`);
+    { const z = lerp(lerp(lerp(pick(1.95, 1.8, 1.7), pick(1.12, 1.1, 1.08), E.outExpo(P(t, C.words[1] - 0.04, C.words[1] + 0.22))), pick(1.05, 1.04, 1.03), E.outExpo(P(t, C.words[2] - 0.04, C.words[2] + 0.22))), 1, E.outExpo(P(t, C.words[3] - 0.04, C.words[3] + 0.26)));
+      const fx = hookX, fy = LAY.hookTop; const ax = pick(50, 60, 110), ay = pick(H * 0.36, H * 0.3, H * 0.3);
+      const k = (z - 1) / (pick(1.95, 1.8, 1.7) - 1 || 1);
+      tf(textLayer, `translate(${(ax - fx) * k}px,${(ay - fy) * k}px) translate(${fx}px,${fy}px) scale(${z}) translate(${-fx}px,${-fy}px)`); }
+    // "Your" drops, "org" whips in, "is" pops
+    const [w0, w1, w2] = V ? [L1.parts[0], L1.parts[1], L1b.parts[0]] : L1.parts;
+    const d0 = spring(t - C.words[0] + 0.16, 2.4, 0.42);
+    tf(w0, `translateY(${(1 - d0) * -120}%)`);
+    const u1 = E.outExpo(P(t, C.words[1], C.words[1] + 0.26));
+    tf(w1, `translateX(${(1 - u1) * 140}%) skewX(${(1 - u1) * -18}deg)`); w1.style.visibility = t >= C.words[1] ? "visible" : "hidden";
+    const d2 = spring(t - C.words[2], 3, 0.36);
+    tf(w2, `scale(${d2})`); w2.style.transformOrigin = "30% 80%";
+    rise(L2, t, C.words[3], 0.3, 0.028);
+    const bu = E.outExpo(P(t, C.words[4], C.words[4] + 0.16));
+    tf(L3block, `scaleX(${bu}) rotate(${-1.5 * bu}deg)`);
+    L3.parts.forEach((p, i) => { const u = E.outExpo(P(t, C.words[4] + 0.03 + i * 0.018, C.words[4] + 0.3 + i * 0.018)); tf(p, `translateY(${(1 - u) * 110}%)`); });
+    // exit: lines sink in their masks
+    [L1, L1b, L2, L3].filter(Boolean).forEach((L, i) => { const u = E.inCubic(P(t, C.hookOut - 0.06 + i * 0.025, C.hookOut + 0.12 + i * 0.025)); if (u > 0) L.wrap.style.transform = `translateY(${-u * 40}px)`, (L.inner.style.transform = `translateY(${-u * 120}%)`), L.parts.forEach(p => (p.style.transform = "none")); });
+    const bOut = E.inCubic(P(t, C.hookOut, C.hookOut + 0.18));
+    if (bOut > 0) tf(L3block, `scaleX(${1 - bOut}) rotate(-1.5deg)`), (L3block.style.transformOrigin = "100% 50%");
+    else L3block.style.transformOrigin = "0 50%";
+    // scraps slam in from the edges, jolt on "Literally.", then get sucked into the card
+    const cxT = cardX + cardW / 2, cyT = cardY + cardH / 2;
+    scraps.forEach((s, i) => {
+      const t0 = C.scraps[i];
+      if (t < t0) { show(s.el, false); return; }
+      show(s.el, true);
+      const ccx = W / 2, ccy = H / 2;
+      let dx = s.tx + s.w / 2 - ccx, dy = s.ty + s.h / 2 - ccy; const m = Math.hypot(dx, dy) || 1; dx /= m; dy /= m;
+      const u = E.outExpo(P(t, t0, t0 + 0.24));
+      const far = Math.max(W, H) * 0.9;
+      let x = s.tx + dx * far * (1 - u), y = s.ty + dy * far * (1 - u);
+      let r = s.r + (1 - u) * 40 * (i % 2 ? 1 : -1);
+      let sc = 1 + 0.18 * (1 - u) + 0.05 * Math.exp(-(t - t0 - 0.24) * 16) * (t > t0 + 0.24 ? 1 : 0);
+      const j = t - C.words[4]; if (j > 0) r += 5 * Math.exp(-j * 9) * Math.sin(j * 38 + i);
+      const v = E.inExpo(P(t, C.hookOut + i * 0.012, C.hookOut + 0.25 + i * 0.012));
+      x = lerp(x, cxT - s.w / 2, v); y = lerp(y, cyT - s.h / 2, v); sc *= 1 - 0.85 * v; r += v * 160 * (i % 2 ? 1 : -1);
+      s.el.style.transformOrigin = "50% 50%";
+      tf(s.el, `translate(${x}px,${y}px) rotate(${r}deg) scale(${sc})`);
+    });
+  }
+
+  // ── 2 build
+  vis(s2, 2.95, 6.02, t);
+  if (t >= 2.95 && t < 6.02) {
+    const dt = t - C.shell;
+    const sp = spring(dt, 2.1, 0.5), tilt = 1 - E.outExpo(P(t, C.shell, C.shell + 0.55));
+    show(shell, t >= C.shell);
+    tf(shell, `translate(0,0) perspective(${2200 * kc}px) rotateX(${tilt * 32}deg) rotateZ(${tilt * -7}deg) scale(${0.3 + 0.7 * sp})`);
+    // pieces
+    const [bar, brief, ...rest] = PARTS;
+    const ub = E.outExpo(P(t, C.bar, C.bar + 0.3));
+    tf(bar.el, `translateY(${(1 - ub) * -30 * kc}px)`); bar.el.style.clipPath = `inset(0 ${(1 - ub) * 100}% 0 0)`;
+    const ubr = E.outExpo(P(t, C.brief, C.brief + 0.32));
+    tf(brief.el, `translateX(${(1 - ubr) * 40 * kc}px)`); brief.el.style.clipPath = `inset(0 ${(1 - ubr) * 100}% 0 0)`;
+    rest.slice(0, 4).forEach((p, i) => { const s = spring(t - C.meas[i], 3.2, 0.36); show(p.el, t >= C.meas[i]); p.el.style.transformOrigin = "50% 80%"; tf(p.el, `translateY(${(1 - s) * 50 * kc}px) scale(${s})`); });
+    rest.slice(4).forEach((p, i) => { const u = E.outExpo(P(t, C.att[i], C.att[i] + 0.3)); show(p.el, t >= C.att[i]); tf(p.el, `translateX(${(1 - u) * 420 * kc}px) rotate(${(1 - u) * 3}deg)`); });
+    const sp2 = spring(t - C.pop, 2.4, 0.42);
+    show(pop.el, t >= C.pop); pop.el.style.transformOrigin = "80% 80%";
+    tf(pop.el, `translate(${(1 - sp2) * 260}px,${(1 - sp2) * 320}px) rotate(${(1 - sp2) * 14}deg)`);
+    // headline lines
+    S2L.forEach((L, i) => rise(L, t, C.lines2[i], 0.34));
+    { const ho = E.inExpo(P(t, C.zoomIn + 0.01, C.zoomIn + 0.26)); tf(S2hl, `translateY(${-ho * 300}px) scaleX(${E.outExpo(P(t, C.lines2[2] + 0.12, C.lines2[2] + 0.36))})`); }
+    // camera: slow push, then dive into the Ask popover
+    const push = 1 + 0.035 * E.outCubic(P(t, 3, 5.5));
+    const zu = E.inExpo(P(t, C.zoomIn, 6.0));
+    const fx = LAY.popX + pop.w * 0.42, fy = LAY.popY + pop.h * 0.5;
+    const z = push * (1 + zu * 5);
+    s2.style.transformOrigin = `${fx}px ${fy}px`;
+    tf(s2, `scale(${z})`);
+    S2L.forEach((L, i) => { const u = E.inExpo(P(t, C.zoomIn - 0.05 + i * 0.03, C.zoomIn + 0.2 + i * 0.03)); if (u > 0) L.wrap.style.transform = `translateY(${-u * 300}px)`; else L.wrap.style.transform = "none"; });
+  }
+
+  // ── 3 ask
+  vis(s3, 5.98, 9.15, t);
+  if (t >= 5.98 && t < 9.15) {
+    const k = ch3.k, L = LAY.chat3;
+    rise(LAB3, t, C.q1, 0.34, 0.035);
+    const uq = E.outExpo(P(t, C.q1, C.q1 + 0.3));
+    tf(q1.el, `translateY(${(1 - uq) * 140}px)`); show(q1.el, t >= C.q1 - 0.01);
+    // typing: a bubble-coloured cover walks off the text a character at a time
+    const chars = 53, ty = Math.floor(P(t, C.typeA, C.typeB) * chars) / chars;
+    tf(q1cover, `translateY(${(1 - uq) * 140}px) scaleX(${1 - ty})`); show(q1cover, t < C.typeB + 0.02);
+    const uc = E.outExpo(P(t, C.check, C.check + 0.3));
+    show(chk.el, t >= C.check); tf(chk.el, `translateY(${(1 - uc) * 90}px) scale(${0.94 + 0.06 * uc})`); chk.el.style.transformOrigin = "0 0";
+    chkCovers.forEach((c, i) => { const u = E.outCubic(P(t, C.rows[i], C.rows[i] + 0.12)); show(c, t >= C.check && u < 1); tf(c, `translateY(${(1 - uc) * 90}px) scaleX(${1 - u})`); });
+    const ua = E.outExpo(P(t, C.answer, C.answer + 0.34));
+    show(ans.el, t >= C.answer); tf(ans.el, `translateY(${(1 - ua) * 160}px)`);
+    // the thread scrolls when the answer won't fit
+    const over = Math.max(0, L.top + L.bottom - (H - pick(150, 50, 70)));
+    const scr = over * E.outExpo(P(t, C.answer, C.answer + 0.4));
+    win3.style.clipPath = `inset(${LAY.win3top}px 0 0 0)`;
+    const zu = E.inOutCubic(P(t, C.answer + 0.25, C.cur1At - 0.05));
+    const A = LAY.ansFocus;
+    const cm = cam(lerp(1, pick(1.5, 1.35, 1.3), zu), A.x, A.y, 0, -scr + zu * pick(-120, -60, -40));
+    tf(chat3, cm.css);
+    [LAY.maya.sx, LAY.maya.sy] = cm.map(LAY.maya.x, LAY.maya.y);
+    const hu = t >= C.click1 ? 1 : 0;
+    show(ansHL, hu); tf(ansHL, `scale(${0.97 + 0.03 * E.outCubic(P(t, C.click1, C.click1 + 0.12))})`);
+
+    // whip out
+    const wo = E.inExpo(P(t, C.out1, C.out1 + 0.25));
+    tf(s3, `translateX(${-wo * W * 1.15}px)`);
+  }
+
+  // ── 4 send
+  vis(s4, 8.85, 12.2, t);
+  if (t >= 8.85 && t < 12.2) {
+    const k = ch4.k;
+    const wi = E.outExpo(P(t, 8.85, 9.2));
+    const wo = E.inExpo(P(t, C.out2, C.out2 + 0.25));
+    tf(s4, `translate(${(1 - wi) * W * 1.15}px,${-wo * H * 1.1}px)`);
+    rise(LAB4a, t, C.q2, 0.3, 0.022); rise(LAB4b, t, C.q2 + 0.12, 0.3, 0.022);
+    tf(hl4, `scaleX(${E.outExpo(P(t, C.hl2, C.hl2 + 0.2))})`);
+    win4.style.clipPath = LAY.win4;
+    const zu4 = E.inOutCubic(P(t, C.draft + 0.2, C.cur2At));
+    const D = LAY.draftFocus;
+    const zd = E.inOutCubic(P(t, C.click2 + 0.1, C.done + 0.35));
+    const cm4 = cam(lerp(lerp(1, pick(1.45, 1.3, 1.25), zu4), 1, zd), D.x, D.y, 0, lerp(zu4 * pick(60, 0, 0), pick(LAY.pullDy, 0, 0), zd));
+    tf(chat4, cm4.css);
+    [LAY.send.sx, LAY.send.sy] = cm4.map(LAY.send.x, LAY.send.y);
+    const ud = E.outExpo(P(t, C.draft, C.draft + 0.34));
+    show(draft.el, t >= C.draft);
+    const col = E.inExpo(P(t, C.done, C.done + 0.18));
+    draft.el.style.clipPath = `inset(0 0 ${Math.max((1 - ud) * 100, col * 100)}% 0)`;
+    tf(draft.el, `translateY(${(1 - ud) * -30 + col * -20}px) scale(${1 - 0.02 * Math.sin(Math.PI * P(t, C.click2 - 0.04, C.click2 + 0.14))})`);
+    draft.el.style.transformOrigin = "20% 80%";
+    const sd = spring(t - C.done - 0.06, 2.8, 0.4);
+    show(doneB.el, t >= C.done + 0.06); doneB.el.style.transformOrigin = "8% 50%"; tf(doneB.el, `scale(${sd})`);
+  }
+
+  // ── 5 roll
+  vis(s5, 11.85, 15.05, t);
+  if (t >= 11.85 && t < 15.05) {
+    const wi = E.outExpo(P(t, 11.85, 12.2));
+    tf(s5, `translateY(${(1 - wi) * H * 1.1}px)`);
+    rise(LAB5[0], t, C.lines5[0], 0.3, 0.025); rise(LAB5[1], t, C.lines5[1], 0.3); rise(LAB5[2], t, C.lines5[2], 0.3);
+    LAB5.slice(1).forEach((L, i) => { L.num.textContent = Math.round(L.max * E.outCubic(P(t, C.lines5[i + 1], C.lines5[i + 1] + 0.5))); });
+    chipCovers.forEach((c, i) => { const u = E.outBack(P(t, C.chips[i], C.chips[i] + 0.14)); tf(c, `scale(${Math.max(0, 1 - u)})`); show(c, u < 1); });
+    // camera: whole card, then push in on the excuse + Approve
+    const zu = 0;                                   // held wide: the whole roll stays readable to the end
+    const z = pick(0.96, 1.0, 1.0);
+    const R = LAY.roll;
+    const fx = lerp(R.x0 + 355 * k5, R.x0 + 470 * k5, zu), fy = lerp(R.y0 + 225 * k5, R.y0 + 239 * k5, zu);
+    // keep the focus point centred in the window as we zoom
+    const ox = lerp(0, win5.w / 2 - fx, zu), oy = lerp(0, win5.h / 2 - fy, zu);
+    tf(cam5, `translate(${ox}px,${oy}px) translate(${fx}px,${fy}px) scale(${z}) translate(${-fx}px,${-fy}px)`);
+    const ax = R.x0 + 629.3 * k5, ay = R.y0 + 239 * k5;
+    LAY.approve = { x: win5.x + ox + fx + (ax - fx) * z, y: win5.y + oy + fy + (ay - fy) * z + (1 - wi) * H * 1.1 };
+    // flood from the click
+    const fu = E.inOutCubic(P(t, C.flood, 14.875));
+    show(flood, fu > 0 && t < 15.05);
+  }
+  // flood (global, sits above scene 5)
+  {
+    const fu = E.inOutCubic(P(t, C.flood, 14.875));
+    const on = fu > 0 && t < C.morph + 0.02;
+    show(flood, on);
+    if (on) {
+      const ap = LAY.approve || { x: W / 2, y: H / 2 };
+      const R = Math.hypot(Math.max(ap.x, W - ap.x), Math.max(ap.y, H - ap.y)) * 1.05 * fu;
+      Object.assign(flood.style, { width: 2 * R + "px", height: 2 * R + "px" });
+      tf(flood, `translate(${ap.x - R}px,${ap.y - R}px)`);
+      flood.style.zIndex = 1;
+    }
+    stage.style.background = t >= 14.9 && t < C.morph ? BUTTER : PAPER;
+  }
+
+  // ── 6 metric
+  vis(s6, 14.95, 17.6, t);
+  s6.style.zIndex = 2;
+  if (t >= 14.95 && t < 17.6) {
+    const out = E.inExpo(P(t, C.out6, C.out6 + 0.25));
+    tf(s6, `translateY(${-out * H * 0.7}px)`);
+    const draw = E.outExpo(P(t, C.digits[0] - 0.05, C.digits[0] + 0.25));
+    ringTrack.setAttribute("stroke-dashoffset", CIRC * (1 - draw));
+    let prog = 0; C.digits.forEach(d => { prog += 0.2 * E.outBack(P(t, d, d + 0.22), 1.4); });
+    ringArc.setAttribute("stroke-dashoffset", CIRC * (1 - Math.min(prog, 1)) + (prog <= 0.001 ? 1 : 0));
+    ringArc.setAttribute("stroke-width", SW6 * (1 + 0.5 * Math.exp(-Math.max(0, t - C.digits[4]) * 8) * (t >= C.digits[4] ? 1 : 0)));
+    const hD = numSize * 0.86;
+    DIG.forEach((d, i) => {
+      const a = C.digits[i], b = C.digits[i + 1] ?? 99;
+      const uin = E.outExpo(P(t, a, a + 0.2)), uout = E.inExpo(P(t, b - 0.06, b + 0.06));
+      show(d, t >= a - 0.01 && t < b + 0.07);
+      tf(d, `translateY(${(1 - uin) * hD - uout * hD}px)`);
+    });
+    const punch = t >= C.digits[4] ? 1 + 0.14 * Math.exp(-(t - C.digits[4]) * 9) * Math.cos((t - C.digits[4]) * 30) : 1;
+    digWin.style.transformOrigin = "50% 60%"; tf(digWin, `scale(${punch})`);
+    rise(SEC, t, C.digits[0] + 0.1, 0.3);
+    L6.forEach((L, i) => rise(L, t, C.lines6[i], 0.32));
+    const rs = spring(t - C.digits[0] + 0.12, 2.2, 0.5);
+    ring.style.transformOrigin = "50% 50%"; tf(ring, `scale(${0.6 + 0.4 * rs}) rotate(${(1 - rs) * -40}deg)`);
+  }
+
+  // ── morph: the butter field collapses into the mark
+  {
+    const mu = E.inOutCubic(P(t, C.morph, C.mark));
+    const on = t >= C.morph && t < C.mark + 0.02;
+    show(morph, on);
+    if (on) {
+      const w = lerp(W * 1.1, MS, mu), h = lerp(H * 1.1, mh, mu);
+      const cx = lerp(W / 2, lock.mx, mu), cy = lerp(H / 2, lock.my + (MS * 40) / 35 * 0.0 + (mh * 0) , mu);
+      Object.assign(morph.style, { width: w + "px", height: h + "px", borderRadius: lerp(0, mrad, mu) + "px", borderWidth: mstroke * E.outCubic(P(mu, 0.86, 1)) + "px" });
+      tf(morph, `translate(${cx - w / 2}px,${cy - h / 2}px)`);
+      morph.style.zIndex = 1;
+    }
+  }
+
+  // ── 7 logo
+  vis(s7, C.mark - 0.02, 21, t);
+  s7.style.zIndex = 3;
+  if (t >= C.mark - 0.02) {
+    const ms = spring(t - C.mark, 3, 0.32);
+    mark.style.transformOrigin = "50% 55%";
+    const md = Math.max(0, t - C.mark);
+    tf(mark, `scale(${1 + 0.1 * Math.sin(md * 26) * Math.exp(-md * 7)})`);
+    eyes.forEach((e, i) => {
+      const s = spring(t - C.eyes[i], 4, 0.34);
+      const bl = P(t, C.blink, C.blink + 0.12); const sy = 1 - 0.9 * Math.sin(Math.PI * bl);
+      e.setAttribute("transform", `translate(${e.getAttribute("cx")} ${e.getAttribute("cy")}) scale(${s} ${s * sy}) translate(${-e.getAttribute("cx")} ${-e.getAttribute("cy")})`);
+    });
+    const SL = 22; smile.setAttribute("stroke-dasharray", SL); smile.setAttribute("stroke-dashoffset", SL * (1 - E.outCubic(P(t, C.smile, C.smile + 0.22))));
+    rise(WORD, t, C.word, 0.34, 0.035);
+    const sb = spring(t - C.btn, 2.8, 0.4);
+    show(btn.el, t >= C.btn); btn.el.style.transformOrigin = "50% 50%";
+    const press = t >= C.click4 ? 1 - 0.05 * Math.sin(Math.PI * P(t, C.click4, C.click4 + 0.16)) : 1;
+    tf(btn.el, `scale(${Math.max(0, sb) * press})`);
+    rise(URL_, t, C.url, 0.32);
+  }
+
+  // ── cursor
+  const curPath = [
+    [C.cur1, C.cur1At, C.click1, () => [LAY.maya.sx ?? LAY.maya.x, LAY.maya.sy ?? LAY.maya.y], C.out1],
+    [C.cur2, C.cur2At, C.click2, () => [LAY.send.sx ?? LAY.send.x, LAY.send.sy ?? LAY.send.y], C.done + 0.25],
+    [C.cur3, C.cur3At, C.click3, () => [LAY.approve.x, LAY.approve.y], C.flood + 0.2],
+    [C.cur4, C.cur4At, C.click4, () => [LAY.btn.x + 60, LAY.btn.y + 10], 99],
+  ];
+  let cv = null;
+  curPath.forEach(([a, b, c, tgt, end], i) => {
+    if (t < a || t >= end || !LAY.approve && i === 2) return;
+    const [tx, ty] = tgt();
+    const sx = W + 80, sy = H * pick(0.86, 0.9, 0.9);
+    const u = E.inOutCubic(P(t, a, b));
+    const arc = Math.sin(Math.PI * u) * pick(-140, -90, -120);
+    let x = lerp(sx, tx, u), y = lerp(sy, ty, u) + arc;
+    // leave: slide away after the action
+    const lu = E.inCubic(P(t, end - 0.25, end));
+    if (i < 3) { x += lu * 300; y += lu * 260; }
+    const press = 1 - 0.18 * Math.sin(Math.PI * P(t, c - 0.04, c + 0.1));
+    cv = { x, y, press };
+  });
+  show(cursor, !!cv);
+  if (cv) tf(cursor, `translate(${cv.x - 2 * CUR}px,${cv.y - 2 * CUR}px) scale(${cv.press})`);
+  cursor.style.zIndex = 5; ripLayer.style.zIndex = 4;
+  // ripples
+  [[C.click1, () => [LAY.maya.sx ?? LAY.maya.x, LAY.maya.sy ?? LAY.maya.y]], [C.click2, () => [LAY.send.sx ?? LAY.send.x, LAY.send.sy ?? LAY.send.y]], [C.click3, () => [LAY.approve?.x, LAY.approve?.y]], [C.click4, () => [LAY.btn.x + 60, LAY.btn.y + 10]]].forEach(([c, at], i) => {
+    const r = RIPS[i], u = P(t, c, c + 0.4);
+    const on = t >= c && u < 1;
+    show(r, on);
+    if (on) { const [x, y] = at(); const R = lerp(10, pick(90, 70, 80), E.outCubic(u)); Object.assign(r.style, { width: 2 * R + "px", height: 2 * R + "px", opacity: 1 - u }); tf(r, `translate(${x - R}px,${y - R}px)`); }
+  });
+}
+
+// ───────────────────────── boot ─────────────────────────
+window.READY = (async () => {
+  await Promise.all([document.fonts.load("800 100px Brico"), document.fonts.load("700 100px Brico"), document.fonts.load("500 40px InterL")]);
+  await document.fonts.ready;
+  // decode one at a time — two dozen 2880×1800 frames in parallel can reject in Chromium
+  for (const i of [...document.images, ...PRE]) { let ok = false; for (let k = 0; k < 3 && !ok; k++) { try { await i.decode(); ok = true; } catch {} } if (!ok && !i.complete) throw new Error("img " + i.src); }
+  Object.values(IMGS).flat().forEach(i => { i.style.width = (i.naturalWidth / 3) * +i.dataset.k + "px"; });
+  layout();
+  paint(0);
+  return { W, H, FMT };
+})();
+const BEAT_OFF = (window.BEATS && window.BEATS.offset) || 0; // measured grid from beats.json
+window.seek = t => paint(t - BEAT_OFF);
+// preview only (never in render): ?play=1 drives seek from the clock
+if (q.get("play")) window.READY.then(() => { const t0 = performance.now(); const tick = () => { paint(((performance.now() - t0) / 1000) % TL.dur); requestAnimationFrame(tick); }; tick(); });
+</script>
+</body>
+</html>
