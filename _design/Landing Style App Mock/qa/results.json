@@ -1,0 +1,146 @@
+{
+  "routes": [
+    {
+      "route": "dashboard",
+      "width": 1440,
+      "heading": "Good afternoon, Marcus."
+    },
+    {
+      "route": "timeline",
+      "width": 1440,
+      "heading": "The weeks ahead."
+    },
+    {
+      "route": "brothers",
+      "width": 1440,
+      "heading": "The brothers."
+    },
+    {
+      "route": "chapter",
+      "width": 1440,
+      "heading": "The minutes."
+    },
+    {
+      "route": "tasks",
+      "width": 1440,
+      "heading": "Things to get done."
+    },
+    {
+      "route": "docs",
+      "width": 1440,
+      "heading": "The chapter’s reading room."
+    },
+    {
+      "route": "instagram",
+      "width": 1440,
+      "heading": "What’s going out."
+    },
+    {
+      "route": "events",
+      "width": 1440,
+      "heading": "The programme."
+    },
+    {
+      "route": "service",
+      "width": 1440,
+      "heading": "Hours, by the event."
+    },
+    {
+      "route": "parties",
+      "width": 1440,
+      "heading": "The house ledger."
+    },
+    {
+      "route": "treasury",
+      "width": 1440,
+      "heading": "The ledger."
+    },
+    {
+      "route": "settings",
+      "width": 1440,
+      "heading": "Everything, arranged."
+    },
+    {
+      "route": "billing",
+      "width": 1440,
+      "heading": "Your plan"
+    },
+    {
+      "route": "dashboard",
+      "width": 390,
+      "heading": "Good afternoon, Marcus."
+    },
+    {
+      "route": "timeline",
+      "width": 390,
+      "heading": "The weeks ahead."
+    },
+    {
+      "route": "brothers",
+      "width": 390,
+      "heading": "The brothers."
+    },
+    {
+      "route": "chapter",
+      "width": 390,
+      "heading": "The minutes."
+    },
+    {
+      "route": "tasks",
+      "width": 390,
+      "heading": "Things to get done."
+    },
+    {
+      "route": "docs",
+      "width": 390,
+      "heading": "The chapter’s reading room."
+    },
+    {
+      "route": "instagram",
+      "width": 390,
+      "heading": "What’s going out."
+    },
+    {
+      "route": "events",
+      "width": 390,
+      "heading": "The programme."
+    },
+    {
+      "route": "service",
+      "width": 390,
+      "heading": "Hours, by the event."
+    },
+    {
+      "route": "parties",
+      "width": 390,
+      "heading": "The house ledger."
+    },
+    {
+      "route": "treasury",
+      "width": 390,
+      "heading": "The ledger."
+    },
+    {
+      "route": "settings",
+      "width": 390,
+      "heading": "Everything, arranged."
+    },
+    {
+      "route": "billing",
+      "width": 390,
+      "heading": "Your plan"
+    }
+  ],
+  "checks": [
+    "Sidebar collapse",
+    "Profile → Settings",
+    "15 settings sections",
+    "Task creation and persistence",
+    "Check-in window lifecycle",
+    "Four Treasury tabs",
+    "Programming calendar",
+    "Ask dialog",
+    "Mobile navigation"
+  ],
+  "errors": []
+}

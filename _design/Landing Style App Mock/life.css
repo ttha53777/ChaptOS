@@ -1,0 +1,53 @@
+/* Warm paper, hand-drawn marks, and one choreographed entrance per destination. */
+@property --life-sweep{syntax:'<percentage>';inherits:false;initial-value:85%}
+.dw{isolation:isolate}
+.dw .workspace{position:relative;isolation:isolate}
+.dw .workspace:before{content:'';position:absolute;z-index:-1;inset:0;pointer-events:none;background:radial-gradient(ellipse 550px 330px at 90% 2%,#FFF6DCa8,transparent 75%),radial-gradient(ellipse 480px 450px at 0% 36%,#EAF2FF66,transparent 76%),radial-gradient(ellipse 440px 400px at 95% 76%,#F1EDFF66,transparent 76%)}
+.dw .heading{position:relative}
+.dw .heading h1{overflow:visible}
+.dw .life-doodle{display:inline-block;width:22px;height:22px;vertical-align:middle;flex:none;pointer-events:none}
+.dw .life-greeting{width:32px;height:32px;margin-left:12px;color:var(--butter-ink);transform:rotate(8deg);vertical-align:baseline;overflow:visible}
+.dw[data-route="service"] .life-greeting{color:var(--mint-ink)}
+.dw[data-route="brothers"] .life-greeting,.dw[data-route="timeline"] .life-greeting{color:var(--sky-ink)}
+.dw[data-route="events"] .life-greeting,.dw[data-route="settings"] .life-greeting{color:var(--lilac-ink)}
+.dw[data-route="parties"] .life-greeting,.dw[data-route="instagram"] .life-greeting{color:var(--rose-ink)}
+.dw .life-card-glyph{width:17px;height:17px;transition:transform .35s var(--ease-spring)}
+.dw .card:hover .life-card-glyph{transform:rotate(var(--life-rot,-5deg)) scale(1.1)}
+.dw .card{transition:box-shadow .25s ease,border-color .25s ease}
+.dw .card:hover{box-shadow:0 3px 6px #26211b04,0 10px 26px -18px #26211b30;border-color:var(--line-2)}
+.dw .card-head{position:relative}
+.dw .card-head:after{content:'';position:absolute;bottom:-1px;left:18px;width:38px;border-bottom:2px solid var(--t-ink,var(--butter-ink));border-radius:50%;transform:rotate(-2deg);opacity:.45;pointer-events:none}
+.dw .sticky{background:linear-gradient(110deg,var(--butter-soft),#fffae9);box-shadow:2px 4px 0 #ffe5a025;overflow:visible}
+.dw .life-note-pin{position:absolute;right:55px;top:-8px;width:44px;height:15px;background:#ffd5c480;transform:rotate(7deg);border-left:1px dashed #c9542d26;border-right:1px dashed #c9542d26;pointer-events:none}
+.dw .metric{position:relative;transition:background .25s}
+.dw .metric:after{content:'';position:absolute;bottom:0;left:18px;right:18px;height:3px;background:var(--t-base,var(--butter));border-radius:5px 5px 0 0;transform:scaleX(.25);transform-origin:left;opacity:.5;transition:transform .4s var(--ease-spring),opacity .3s}
+.dw .metric:hover{background:var(--t-soft,var(--paper-2))}
+.dw .metric:hover:after{transform:scaleX(1);opacity:1}
+.dw .inline-bar i,.dw .bar>i{transform-origin:left}
+.dw .health .ring{background:conic-gradient(var(--mint-ink) var(--life-sweep),var(--mint-soft) 0)}
+.dw .btn,.dw .tile,.dw .ask-starter{transition:transform .22s var(--ease-spring),box-shadow .22s var(--ease-spring),background .2s,border-color .2s}
+@media(hover:hover){
+.dw .btn:hover{transform:translateY(-2px);box-shadow:2px 4px 0 var(--sky)}
+.dw .btn.primary:hover{box-shadow:3px 5px 0 var(--lilac)}
+.dw .tile:hover{transform:translateY(-3px) rotate(-.35deg);box-shadow:3px 5px 0 var(--t-soft,var(--butter-soft))}
+.dw .nav a:hover .icon{transform:rotate(-7deg)}
+.dw .ask-fab:hover{transform:translateY(-3px) rotate(-1deg);box-shadow:4px 6px 0 var(--butter)}
+}
+.dw .btn:active,.dw .tile:active{transform:translateY(1px) scale(.985);box-shadow:none}
+.dw .nav a .icon{transition:transform .25s var(--ease-spring)}
+.dw .task-check{transition:background .2s,transform .2s,border-color .2s}
+.dw .task-check:hover{transform:rotate(-8deg) scale(1.1);border-color:var(--mint-ink);background:var(--mint-soft)}
+.dw .row{transition:background .2s}
+.dw button.row:hover,.dw tr[data-open]:hover{background:var(--paper-2)}
+.dw .ask-fab{transition:transform .3s var(--ease-spring),box-shadow .3s}
+.dw .ask-fab>span:first-child{display:inline-block;transition:transform .5s var(--ease-spring)}
+.dw .ask-fab:hover>span:first-child{transform:rotate(90deg)}
+.dw .life-confetti{position:fixed;z-index:1000;pointer-events:none;width:7px;height:10px;border-radius:2px}
+.dw .life-arriving h1 em:after{transform-origin:left;animation:life-highlight .85s .15s cubic-bezier(.16,1,.3,1) both}
+.dw .life-arriving .life-greeting{animation:life-wave 1.1s .35s both;transform-origin:60% 80%}
+.dw .life-arriving~.actions{animation:life-enter .6s .08s both}
+@keyframes life-highlight{from{transform:rotate(-1deg) scaleX(0)}to{transform:rotate(-1deg) scaleX(1)}}
+@keyframes life-wave{0%{opacity:0;transform:rotate(-18deg) scale(.6)}35%{opacity:1;transform:rotate(16deg) scale(1.08)}60%{transform:rotate(-9deg)}80%{transform:rotate(12deg)}100%{transform:rotate(8deg) scale(1)}}
+@keyframes life-enter{from{opacity:.2;transform:translateY(9px)}to{opacity:1;transform:none}}
+@media(max-width:540px){.dw .life-greeting{width:23px;height:23px;margin-left:6px}.dw .workspace:before{background:radial-gradient(ellipse 300px 330px at 90% 0%,#FFF6DC99,transparent 75%)}.dw .life-note-pin{right:28px}}
+@media(prefers-reduced-motion:reduce){.dw .life-arriving h1 em:after,.dw .life-arriving .life-greeting,.dw .life-arriving~.actions{animation:none}.dw :is(.btn,.tile,.ask-fab,.task-check):hover{transform:none}.dw .health .ring{background:conic-gradient(var(--mint-ink) calc(var(--score)*1%),var(--mint-soft) 0)}}

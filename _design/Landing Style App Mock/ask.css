@@ -1,0 +1,80 @@
+/* Ask Chapt: a warm working space. Inherits the mock's paper, ink and pigment tokens. */
+.dw dialog.ask-dialog{width:min(900px,calc(100% - 32px));max-height:min(860px,calc(100dvh - 40px));background:var(--paper);border-radius:26px;overflow:hidden;box-shadow:0 30px 120px #0009,5px 5px 0 var(--butter);}
+.dw .ask-dialog[open]{display:flex;flex-direction:column}
+.dw .ask-top{display:flex;align-items:center;gap:12px;padding:20px 26px;border-bottom:1px solid var(--line);flex-shrink:0}
+.dw .ask-brand-mark{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--butter-bd);border-radius:12px;background:var(--butter-soft);color:var(--butter-ink);transform:rotate(-5deg)}
+.dw .ask-brand-mark .icon{width:21px;height:21px}
+.dw .ask-top h2{font:600 19px var(--display);letter-spacing:-.04em}
+.dw .ask-top-copy p{font-size:10px;color:var(--ink-3);margin-top:1px}
+.dw .ask-top-actions{display:flex;gap:12px;align-items:center;margin-left:auto}
+.dw .ask-new{border:0;background:none;font-size:11px;color:var(--ink-2);padding:8px}
+.dw .ask-new:hover{color:var(--butter-ink)}
+.dw #ask-body{padding:0;max-height:none;min-height:0;overflow:auto;overscroll-behavior:contain}
+.dw .ask-welcome{padding:34px 42px 25px}
+.dw .ask-context{display:flex;align-items:center;justify-content:center;gap:8px;color:var(--ink-3);font:10px var(--mono)}
+.dw .ask-context .dot{background:var(--mint-ink);width:5px;height:5px}
+.dw .ask-welcome h3{font:500 clamp(30px,4vw,44px)/1.13 var(--display);letter-spacing:-.045em;text-align:center;margin:22px 0 13px}
+.dw .ask-welcome h3 em{font-style:normal;color:var(--butter-ink);position:relative;white-space:nowrap}
+.dw .ask-welcome h3 em:after{content:'';position:absolute;bottom:-3px;left:0;right:0;height:4px;border-bottom:2px solid var(--butter);border-radius:50%;transform:rotate(-1deg)}
+.dw .ask-welcome>p{text-align:center;color:var(--ink-2);font-size:13px;line-height:1.8;max-width:430px;margin:auto;text-wrap:pretty}
+.dw .ask-composer-wrap{padding:0 42px 22px;flex-shrink:0}
+.dw #ask-form{display:block;margin:0;padding:15px 17px 11px;border:1.5px solid var(--line-2);background:var(--card);border-radius:18px;box-shadow:0 4px 0 var(--paper-2);transition:border-color .2s}
+.dw #ask-form:focus-within{border-color:var(--butter-ink)}
+.dw #ask-form textarea{border:0;outline:none;box-shadow:none;padding:0;resize:none;min-height:50px;height:50px;max-height:120px;background:none;font-size:14px;line-height:1.6;border-radius:0}
+.dw #ask-form textarea::placeholder{opacity:1;color:var(--ink-3)}
+.dw .ask-composer-bottom{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:7px}
+.dw .ask-scope{display:flex;align-items:center;gap:6px;color:var(--ink-3);font-size:10px}
+.dw .ask-scope .icon{width:13px;height:13px;color:var(--mint-ink)}
+.dw .ask-send{display:flex;gap:10px;align-items:center;padding:8px 13px;border:0;border-radius:10px;background:var(--ink);color:var(--paper);font-size:11px;font-weight:600;cursor:pointer}
+.dw .ask-send:disabled{background:var(--paper-3);color:var(--ink-3);cursor:default}
+.dw .ask-send:not(:disabled):hover{background:var(--butter-ink)}
+.dw .ask-starters{padding:0 42px 30px;order:3}
+.dw .ask-starter-label{display:flex;align-items:center;gap:12px;font:10px var(--mono);color:var(--ink-3);margin-bottom:13px}
+.dw .ask-starter-label:after{content:'';flex:1;height:1px;background:var(--line)}
+.dw .ask-starter-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+.dw .ask-starter{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:13px;position:relative;padding:17px;border:1px solid var(--t-border);border-radius:15px;background:var(--t-soft);min-height:130px;transition:transform .17s,border-color .17s}
+.dw .ask-starter:hover{transform:translateY(-3px);border-color:var(--t-ink)}
+.dw .ask-starter .icon{width:19px;height:19px;color:var(--t-ink)}
+.dw .ask-starter b{font:500 15px var(--display);letter-spacing:-.02em;color:var(--ink)}
+.dw .ask-starter small{display:block;font:11px/1.5 var(--sans);color:var(--ink-3);margin-top:5px}
+.dw .ask-starter-arrow{position:absolute;right:15px;top:15px;color:var(--t-ink);font-size:17px}
+.dw .ask-note{order:4;padding:13px 20px;border-top:1px solid var(--line);font-size:10px;background:var(--paper-2);flex-shrink:0}
+.dw .ask-thread #ask-body{flex:1;padding:25px 36px;min-height:220px}
+.dw .ask-thread .ask-composer-wrap{padding:16px 28px 20px;border-top:1px solid var(--line)}
+.dw .ask-thread .ask-starters{display:none}
+.dw .ask-thread{height:min(780px,calc(100dvh - 40px))}
+.dw .ask-question{background:var(--paper-3);border:1px solid var(--line-2);color:var(--ink);padding:11px 16px;border-radius:16px 16px 4px 16px;font-size:13px;max-width:85%;width:fit-content;margin:0 0 25px auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.dw .ask-answer{margin:0 0 30px;animation:ask-arrive .24s var(--ease-out)}
+.dw .ask-byline{display:flex;gap:7px;align-items:center;font:11px var(--display);color:var(--butter-ink);margin-bottom:14px}
+.dw .ask-byline .icon{width:16px;height:16px}
+.dw .ask-answer h3{font:500 25px/1.2 var(--display);letter-spacing:-.035em;margin:0 0 10px}
+.dw .ask-answer>p{font-size:13px;line-height:1.8;color:var(--ink-2);margin:0 0 17px;max-width:65ch}
+.dw .ask-records{border:1px solid var(--line);border-radius:15px;overflow:hidden;margin:18px 0;background:var(--card)}
+.dw .ask-record-row{display:flex;gap:12px;align-items:center;padding:12px 15px;border-top:1px solid var(--line);font-size:12px}
+.dw .ask-record-row:first-child{border-top:0}
+.dw .ask-record-row>div{flex:1;min-width:0}
+.dw .ask-record-row b{font-weight:550;overflow-wrap:anywhere}
+.dw .ask-record-row small{display:block;font-size:10px;color:var(--ink-3);margin-top:3px}
+.dw .ask-record-row .num{color:var(--butter-ink);font-size:12px;white-space:nowrap}
+.dw .ask-source{display:inline-flex;align-items:center;gap:7px;color:var(--ink-3);font-size:10px;text-decoration:none;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:17px}
+.dw .ask-source:hover{color:var(--ink);border-color:var(--ink-3)}
+.dw .ask-source .icon{width:12px;height:12px}
+.dw .ask-followups{display:flex;gap:8px;flex-wrap:wrap}
+.dw .ask-followups button{padding:8px 12px;border:1px solid var(--line-2);border-radius:999px;background:transparent;font-size:11px;color:var(--ink-2)}
+.dw .ask-followups button:hover{background:var(--butter-soft);border-color:var(--butter-bd);color:var(--butter-ink)}
+.dw .ask-draft{padding:20px;border:1px solid var(--mint-bd);background:var(--mint-soft);border-radius:16px;margin:18px 0}
+.dw .ask-draft .eyebrow{color:var(--mint-ink);margin-bottom:10px}
+.dw .ask-draft h3{font-size:19px}
+.dw .ask-draft p{font-size:12px;color:var(--ink-2);margin:10px 0 16px}
+.dw .ask-fab{background:var(--butter-soft);border-color:var(--butter-bd);color:var(--ink);box-shadow:3px 3px 0 var(--butter)}
+.dw .ask-fab>span:first-child{color:var(--butter-ink)}
+@keyframes ask-arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){.dw dialog.ask-dialog{width:calc(100% - 16px);max-height:calc(100dvh - 16px);border-radius:20px;box-shadow:0 20px 60px #0008}.dw .ask-top{padding:15px 17px}.dw .ask-welcome{padding:25px 20px 23px}.dw .ask-welcome h3{font-size:34px;margin-top:20px}.dw .ask-context{font-size:9px;flex-wrap:wrap}.dw .ask-composer-wrap{padding:0 18px 24px}.dw .ask-starters{padding:0 18px 22px;overflow:auto;flex-shrink:1;min-height:100px}.dw .ask-starter-grid{grid-template-columns:1fr;gap:8px}.dw .ask-starter{min-height:0;flex-direction:row;align-items:center;gap:13px;padding:13px 15px}.dw .ask-starter b{font-size:14px}.dw .ask-starter small{font-size:10px;margin-top:2px}.dw .ask-starter-arrow{top:22px}.dw .ask-thread #ask-body{padding:22px 18px}.dw .ask-thread .ask-composer-wrap{padding:12px 14px 16px}.dw .ask-thread{height:calc(100dvh - 16px)}.dw .ask-new{font-size:10px;padding:6px}.dw .ask-top-actions{gap:5px}.dw .ask-note{font-size:9px;padding:10px}.dw .ask-question{max-width:93%}}
+/* Keep welcome copy intact on short windows; allow the whole welcome to scroll. */
+.dw .ask-dialog:not(.ask-thread){overflow:auto}
+.dw .ask-dialog:not(.ask-thread) #ask-body{flex:none;overflow:visible}
+.dw .ask-dialog:not(.ask-thread) .ask-starters{flex:none;overflow:visible}
+.dw .ask-welcome{padding-top:25px;padding-bottom:24px}
+.dw .ask-welcome h3{margin-top:18px;font-size:40px}
+.dw .ask-dialog button:focus-visible,.dw .ask-dialog a:focus-visible{outline:2px solid var(--butter-ink);outline-offset:3px}
+@media(max-width:600px){.dw .ask-welcome h3{font-size:32px}.dw .ask-welcome{padding-top:22px;padding-bottom:24px}}

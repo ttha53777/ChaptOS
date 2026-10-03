@@ -1,0 +1,1876 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS Landing — Short Cut</title>
+<!-- Shortened cut of the live landing (app/components/landing), ~16k px → ~8k px.
+     Built from the live SSR markup + landing.css + LandingMotion engines, so the
+     hero build, sticky-note parallax, pinned ask scene, day dial and pricing depth
+     stack are the real thing. See the SHORT CUT comment in the last <style>. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400..700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   ChaptOS — marketing landing page
+   Ported from _design/ChaptOS Landing Doodle Mock v5.html.
+
+   Direction: Notion-warm (soft pastels, doodles, whitespace) + Klarna motion.
+
+   Everything is scoped under `.lp` so none of these very generic class names
+   (.btn, .card, .pill, .chat, .dot, .chip, .avatar, .seat, .done, .mono) can
+   reach the dashboard or the auth pages. Sibling scopes: `.auth-scope` in
+   app/globals.css, `.crf` in app/create/create-flow.css.
+
+   Motion budget: exactly ONE pinned scrub on the page (§5, the ask scene).
+   Everything else is reveal-and-swap. If a second scene ever wants the pin,
+   something has to give it up. The hero's build is a load-time timeline, not a
+   scrub, so it doesn't spend from that budget.
+
+   Structure
+     0. tokens + base
+     1. primitives  (buttons, pills, eyebrows, doodles)
+     2. chrome      (progress bar, nav)
+     3. hero
+     4. pain marquee
+     5. ask scene   (scroll-scrubbed six-beat conversation — the pinned one)
+     6. day dial    (a clock face; six moments, one product shot at a time)
+     7. modules     (three surfaces a Tuesday can't show + the rest, in a line)
+     8. setup       (the interview + a live blueprint that swaps per org type)
+     9. trust
+    10. pricing    (the band ladder — a row you land on, not a plan you pick;
+                    the page's deepest parallax stack sits behind it)
+    11. cta (semester-aware)
+    12. footer
+    13. motion utilities + reduced-motion + mobile
+
+   Motion contract: elements carrying [data-para] are owned by the JS parallax
+   engine and must never also carry [data-reveal] — nest instead. Mobile clears
+   inline transforms with `transform:none !important` (see §12).
+   ========================================================================== */
+
+/* Registered so the health ring can transition its sweep instead of snapping.
+   @property can't be scoped to a selector; --pct is used nowhere else in the
+   app, so the global registration is harmless. */
+@property --pct{syntax:'<number>'; inherits:false; initial-value:0}
+
+/* ---------- 0. tokens + base ---------------------------------------------- */
+
+/* Page-level rules the scope class can't express. Horizontal clipping lives on
+   <body>, NEVER on <html>: overflow on the root propagates to the viewport and
+   silently kills position:sticky, which the ask scene depends on.
+
+   The paper colour goes on <body> rather than on .lp so that .hi::before
+   (z-index:-1, the hand-drawn highlighter) still paints. Against a background
+   painted by .lp itself, a negative z-index child would sit behind it. */
+html:has(.lp){color-scheme:light; scroll-behavior:smooth; -webkit-text-size-adjust:100%}
+body:has(.lp){
+  overflow-x:hidden;
+  background:#FFFCF6;
+  color:#26211B;
+  font-feature-settings:normal;
+  font-variant-numeric:normal;
+  text-rendering:auto;
+}
+/* globals.css paints a near-invisible light thumb for the dark app */
+html:has(.lp) *::-webkit-scrollbar-thumb{background:rgba(38,33,27,.14)}
+html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
+
+.lp{
+  /* paper + ink */
+  --paper:#FFFCF6;
+  --paper-2:#FBF5EA;
+  --paper-3:#F4ECDD;
+  --card:#FFFFFF;
+  --ink:#26211B;
+  --ink-2:#544A3F;
+  --ink-3:#8A7F71;
+  --line:#EBE1CF;
+  --line-2:#DCD0B9;
+
+  /* pastels — each has a soft fill, a tint, and a legible ink */
+  --peach:#FFD5C4;   --peach-soft:#FFEDE5;  --peach-ink:#C9542D;
+  --sky:#CFE2FF;     --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;
+  --mint:#C7EFDA;    --mint-soft:#E6F8EF;   --mint-ink:#1B815B;
+  --butter:#FFE5A0;  --butter-soft:#FFF6DC; --butter-ink:#9C6B08;
+  --lilac:#E1D8FF;   --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;
+  --rose:#FFD6E6;    --rose-soft:#FFEDF4;   --rose-ink:#C23C77;
+
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px; --r-pill:999px;
+
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+
+  /* next/font faces from ./fonts.ts, with the mock's original fallback stacks */
+  --sans:var(--font-inter), 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:var(--font-bricolage), 'Bricolage Grotesque', var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --mono:var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  --wrap:1180px;
+
+  font-family:var(--sans);
+  color:var(--ink);
+  font-size:17px;
+  line-height:1.6;
+  letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased;
+  /* globals.css turns on Geist's cv11/ss01/ss03 and tabular-nums for the whole
+     app; neither is right under Inter. Same reset .auth-scope does. */
+  font-feature-settings:normal;
+  font-variant-numeric:normal;
+  width:100%;
+}
+
+.lp *,.lp *::before,.lp *::after{box-sizing:border-box}
+.lp h1,.lp h2,.lp h3,.lp h4,.lp h5,.lp p,.lp figure,.lp blockquote,
+.lp ul,.lp ol,.lp dl,.lp dd{margin:0}
+.lp ul,.lp ol{padding:0;list-style:none}
+.lp img,.lp svg{display:block;max-width:100%}
+.lp button,.lp input{font:inherit;color:inherit}
+
+/* the paper itself: faint grain + a couple of huge soft washes */
+.lp::before{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background:
+    radial-gradient(60vw 50vh at 8% 2%,  var(--butter-soft), transparent 62%),
+    radial-gradient(52vw 48vh at 96% 22%, var(--sky-soft),   transparent 60%),
+    radial-gradient(48vw 46vh at 4% 62%,  var(--lilac-soft), transparent 62%),
+    radial-gradient(56vw 50vh at 92% 88%, var(--peach-soft), transparent 62%);
+}
+.lp main,.lp header,.lp footer{position:relative;z-index:1}
+
+.lp .wrap{width:min(100% - 44px, var(--wrap)); margin-inline:auto}
+.lp .wrap--narrow{width:min(100% - 44px, 880px)}
+
+.lp h1,.lp h2,.lp h3,.lp h4,.lp .display{font-family:var(--display); font-weight:600; letter-spacing:-.028em; line-height:1.04}
+.lp h1{font-size:clamp(2.15rem, 4.5vw, 3.5rem)}
+.lp h2{font-size:clamp(1.95rem, 3.9vw, 3rem); line-height:1.06; text-wrap:balance}
+.lp h3{font-size:clamp(1.35rem, 2.2vw, 1.75rem); line-height:1.15; letter-spacing:-.022em}
+.lp h4{font-size:1.06rem; line-height:1.3; letter-spacing:-.015em; font-weight:600}
+.lp .lede{font-size:clamp(1.06rem, 1.55vw, 1.32rem); line-height:1.55; color:var(--ink-2); letter-spacing:-.012em}
+.lp .mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.lp .mute{color:var(--ink-3)}
+.lp section{position:relative}
+.lp .section{padding:clamp(84px, 11vw, 168px) 0}
+.lp .section--tight{padding:clamp(60px, 7vw, 104px) 0}
+
+/* highlighter behind a word — hand-drawn, slightly off-register */
+.lp .hi{position:relative; white-space:nowrap}
+.lp .hi::before{
+  content:''; position:absolute; z-index:-1; left:-.14em; right:-.14em; bottom:.02em; height:.52em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.7deg) scaleX(var(--mark-x, 1)); transform-origin:left center;
+  opacity:.85;
+}
+
+/* ---------- 1. primitives -------------------------------------------------- */
+.lp .eyebrow{
+  display:inline-flex; align-items:center; gap:9px;
+  font-size:.775rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3);
+}
+.lp .eyebrow::before{content:''; width:22px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+.lp .btn{
+  --btn-bg:var(--ink); --btn-fg:#FFFCF6; --btn-shadow:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:14px 24px; border-radius:var(--r-pill); border:1.5px solid var(--ink);
+  background:var(--btn-bg); color:var(--btn-fg);
+  font-weight:600; font-size:.97rem; letter-spacing:-.01em; text-decoration:none; cursor:pointer;
+  box-shadow:3px 3px 0 var(--btn-shadow);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .18s;
+  white-space:nowrap;
+}
+.lp .btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:5.5px 5.5px 0 var(--btn-shadow)}
+.lp .btn:active{transform:translate(1px,1px); box-shadow:1.5px 1.5px 0 var(--btn-shadow)}
+.lp .btn--ghost{--btn-bg:transparent; --btn-fg:var(--ink); --btn-shadow:var(--peach)}
+.lp .btn--sm{padding:9.5px 17px; font-size:.88rem; box-shadow:2.5px 2.5px 0 var(--btn-shadow)}
+.lp .btn--lg{padding:17px 30px; font-size:1.04rem}
+
+.lp .pill{
+  display:inline-flex; align-items:center; gap:7px;
+  padding:5px 12px; border-radius:var(--r-pill);
+  font-size:.78rem; font-weight:600; letter-spacing:-.005em;
+  background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2));
+  border:1px solid var(--p-bd, transparent);
+}
+.lp .pill--paid  {--p-bg:var(--mint-soft);   --p-fg:var(--mint-ink);   --p-bd:#BDE7D2}
+.lp .pill--part  {--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:#F4DFA6}
+.lp .pill--due   {--p-bg:var(--peach-soft);  --p-fg:var(--peach-ink);  --p-bd:#F8D2C2}
+.lp .pill--info  {--p-bg:var(--sky-soft);    --p-fg:var(--sky-ink);    --p-bd:#CCDFFB}
+.lp .pill--calm  {--p-bg:var(--lilac-soft);  --p-fg:var(--lilac-ink);  --p-bd:#DCD2FB}
+.lp .pill--rose  {--p-bg:var(--rose-soft);   --p-fg:var(--rose-ink);   --p-bd:#F8CEE0}
+.lp .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+.lp .card{
+  background:var(--card); border:1.5px solid var(--line);
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+}
+
+/* doodles: hand-drawn strokes */
+.lp .doodle{fill:none; stroke:var(--ink); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round}
+.lp .doodle--thin{stroke-width:1.8}
+.lp .doodle path,.lp .doodle circle,.lp .doodle line,.lp .doodle rect,.lp .doodle polyline{vector-effect:non-scaling-stroke}
+
+.lp .sticky-note{
+  --note:var(--butter);
+  position:relative; padding:18px 20px 20px; border-radius:4px 12px 6px 10px;
+  background:var(--note); color:var(--ink);
+  box-shadow:var(--sh-2);
+  font-size:.95rem; line-height:1.42;
+  transform:rotate(var(--rot, -1.4deg));
+}
+.lp .sticky-note::after{
+  content:''; position:absolute; left:50%; top:-7px; width:52px; height:16px;
+  transform:translateX(-50%) rotate(var(--tape-rot,-2deg));
+  background:rgba(255,255,255,.5); border-inline:1px dashed rgba(38,33,27,.14);
+}
+.lp .sticky-note b{font-weight:600}
+
+/* the blinking caret shared by the hero ask bar and the spotlight scene */
+.lp .caret{
+  display:inline-block; width:2px; height:1.05em; background:var(--peach-ink);
+  vertical-align:-.16em; margin-left:1px; animation:lp-blink 1.05s steps(1,end) infinite;
+}
+@keyframes lp-blink{50%{opacity:0}}
+
+/* ---------- 2. chrome ------------------------------------------------------ */
+.lp .progress{position:fixed; inset:0 0 auto 0; height:3px; z-index:90; background:transparent; pointer-events:none}
+.lp .progress i{
+  display:block; height:100%; width:0;
+  background:linear-gradient(90deg, var(--peach-ink), var(--butter-ink) 34%, var(--mint-ink) 66%, var(--sky-ink));
+  border-radius:0 3px 3px 0;
+}
+
+.lp .nav{
+  position:sticky; top:0; z-index:80;
+  padding:16px 0;
+  transition:padding .3s var(--ease-out), background .3s, box-shadow .3s, border-color .3s;
+  border-bottom:1.5px solid transparent;
+}
+.lp .nav.is-stuck{
+  padding:9px 0; background:rgba(255,252,246,.82); backdrop-filter:blur(14px) saturate(1.3);
+  border-bottom-color:var(--line); box-shadow:0 6px 22px -18px rgba(38,33,27,.5);
+}
+.lp .nav__in{display:flex; align-items:center; gap:26px}
+.lp .brand{display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); font-family:var(--display); font-weight:700; font-size:1.16rem; letter-spacing:-.03em}
+.lp .brand__mark{width:34px;height:34px;flex:none}
+.lp .nav__links{display:flex; gap:4px; margin-left:auto}
+.lp .nav__links a{
+  padding:8px 13px; border-radius:var(--r-pill); text-decoration:none;
+  color:var(--ink-2); font-size:.92rem; font-weight:500;
+  transition:background .18s, color .18s;
+}
+.lp .nav__links a:hover{background:var(--paper-2); color:var(--ink)}
+.lp .nav__cta{display:flex; align-items:center; gap:10px}
+.lp .nav__short{display:none}
+
+/* ---------- 3. hero -------------------------------------------------------- */
+.lp .hero{padding:clamp(48px,7vw,96px) 0 clamp(70px,9vw,124px); position:relative}
+.lp .hero__grid{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(28px,4vw,64px); align-items:center}
+.lp .hero__copy{max-width:620px; position:relative; z-index:6}  /* always above the drifting piles */
+.lp .hero h1{margin:20px 0 0}
+.lp .hero h1 .line{display:block}
+.lp .hero__lede{margin-top:22px; max-width:52ch}
+.lp .hero__actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:32px}
+.lp .hero__fine{margin-top:18px; font-size:.85rem; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center}
+.lp .hero__fine .dot{background:var(--line-2)}
+/* the one link in the fine print — underlined so it reads as a way through,
+   not as emphasis on a claim */
+.lp .hero__fine a{color:var(--ink-2); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .hero__fine a:hover{color:var(--ink); text-decoration-color:var(--mint-ink)}
+
+.lp .hero__stage{position:relative; min-height:470px}
+
+/* the "before" pile — what officers are using today, drifting behind the card */
+.lp .pile{position:absolute; z-index:1; width:190px; will-change:transform}
+.lp .pile--sheet{top:-34px; left:-76px; width:198px}
+.lp .pile--chat{bottom:6px; left:-58px; width:194px}
+/* the third scrap hangs off the card's right edge, high enough to clear the
+   ⌘K spotlight parked at the bottom-right corner */
+.lp .pile--receipt{top:150px; right:-84px; width:172px}
+
+.lp .hero__card{
+  position:relative; z-index:3; background:var(--card);
+  border:1.5px solid var(--line); border-radius:var(--r-xl);
+  box-shadow:var(--sh-3); overflow:hidden; will-change:transform;
+}
+.lp .hero__cardbar{
+  display:flex; align-items:center; gap:8px; padding:13px 16px;
+  border-bottom:1.5px solid var(--line); background:var(--paper-2);
+}
+.lp .hero__cardbar .tl{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
+.lp .hero__cardbar .tl:nth-child(1){background:#F3B7A4}
+.lp .hero__cardbar .tl:nth-child(2){background:#F5D79A}
+.lp .hero__cardbar .tl:nth-child(3){background:#B7DFC6}
+.lp .hero__crumb{margin-left:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
+.lp .hero__cardbody{padding:20px}
+
+/* the floating ⌘K spotlight — hangs off the card's bottom-right corner, far
+   enough down that it clears the last attention row rather than sitting on top
+   of its action button */
+.lp .hero__spot{position:absolute; z-index:5; width:312px; right:-52px; bottom:-84px; will-change:transform}
+.lp .spotmini{
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg);
+  box-shadow:5px 5px 0 var(--lilac); padding:13px 15px 14px;
+}
+.lp .spotmini__hd{display:flex; align-items:center; gap:8px; font-size:.72rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3)}
+.lp .spotmini__hd kbd{margin-left:auto; font-family:var(--mono); font-size:.7rem; border:1px solid var(--line); border-radius:6px; padding:1px 6px; background:var(--paper-2); text-transform:none; letter-spacing:0}
+.lp .spotmini__q{margin-top:9px; font-size:.94rem; color:var(--ink); min-height:1.5em; font-weight:500}
+.lp .spotmini__a{
+  margin-top:10px; padding-top:10px; border-top:1px dashed var(--line-2);
+  font-size:.85rem; color:var(--ink-2); line-height:1.4;
+  opacity:0; transform:translateY(6px); transition:opacity .45s var(--ease-out), transform .5s var(--ease-spring);
+}
+.lp .spotmini.is-live .spotmini__a{opacity:1; transform:none}
+.lp .spotmini__a b{font-weight:650; color:var(--ink)}
+
+.lp .avatar{
+  width:30px;height:30px;flex:none;border-radius:50%;
+  display:grid;place-items:center;
+  font-size:.72rem; font-weight:700; letter-spacing:-.02em;
+  background:var(--av, var(--lilac)); color:rgba(38,33,27,.72);
+  border:1.5px solid rgba(38,33,27,.08);
+  font-style:normal;
+}
+.lp .avatar--sm{width:24px;height:24px;font-size:.64rem}
+
+.lp .trustbar{margin-top:clamp(64px,8vw,104px)}
+.lp .trustbar__label{font-size:.8rem; color:var(--ink-3); font-weight:500; text-align:center}
+.lp .trustbar__row{margin-top:20px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px 12px}
+.lp .orgchip{
+  display:inline-flex; align-items:center; gap:9px; padding:9px 16px 9px 11px;
+  border:1.5px solid var(--line); border-radius:var(--r-pill); background:var(--card);
+  font-size:.87rem; font-weight:550; color:var(--ink-2); box-shadow:var(--sh-1);
+}
+.lp .orgchip svg{width:22px;height:22px;flex:none}
+.lp .orgchip small{color:var(--ink-3); font-weight:500}
+
+/* ---------- 4. pain marquee ------------------------------------------------ */
+.lp .pain{padding:clamp(52px,7vw,92px) 0; overflow:hidden}
+.lp .pain__head{text-align:center; max-width:680px; margin-inline:auto}
+/* ChaptOS is pre-launch — the gripes below are composites of the officer
+   workload it was designed around, not customer quotes, and the page says so. */
+.lp .pain__note{
+  margin-top:20px; font-size:.83rem; line-height:1.5; color:var(--ink-3);
+  max-width:52ch; margin-inline:auto; font-style:italic;
+}
+.lp .marquee{margin-top:44px; display:grid; gap:20px; --dur:52s}
+.lp .marquee__track{display:flex; gap:20px; width:max-content; animation:lp-slide var(--dur) linear infinite}
+.lp .marquee__row:nth-child(2) .marquee__track{animation-direction:reverse; --dur:64s}
+.lp .marquee:hover .marquee__track{animation-play-state:paused}
+/* --shift is measured in JS (half the duplicated content + one gap) so the loop
+   seam is exact; -50% is a close-enough fallback if the script never runs. */
+@keyframes lp-slide{from{transform:translate3d(0,0,0)} to{transform:translate3d(var(--shift,-50%),0,0)}}
+.lp .gripe{
+  flex:none; width:min(74vw, 340px); padding:18px 20px;
+  border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card);
+  box-shadow:var(--sh-1); font-size:.97rem; line-height:1.45; color:var(--ink-2);
+  transform:rotate(var(--rot,0deg));
+}
+.lp .gripe q{font-style:normal}
+.lp .gripe b{color:var(--ink); font-weight:600}
+.lp .gripe footer{margin-top:11px; font-size:.79rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:7px}
+.lp .gripe--tint{background:var(--t, var(--butter-soft))}
+
+/* ---------- 5. ask scene (scroll-scrubbed conversation) -------------------- */
+/* THE pinned scene. The rail is tall, the stage pins, and JS maps rail progress
+   onto beat thresholds — so the reader sets the pace. That matters here and not
+   elsewhere: these beats carry real cognitive load (a reasoning ledger, a table
+   of receipts, a drafted message you have to actually read). Mobile drops the
+   pin and plays through once. */
+.lp .scene{background:linear-gradient(180deg, transparent, var(--paper-2) 12%, var(--paper-2) 88%, transparent); position:relative}
+/* namespaced: a bare --rail would inherit into any future rail on the page */
+.lp .scene__rail{height:var(--ask-rail, 460vh); position:relative}
+.lp .scene__stage{position:sticky; top:0; height:100vh; display:flex; align-items:center; overflow:hidden}
+.lp .scene__in{
+  width:min(100% - 44px, var(--wrap)); margin-inline:auto;
+  display:grid; grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);
+  gap:clamp(24px,4vw,68px); align-items:center; height:100%; padding:76px 0 56px;
+}
+.lp .scene__side{position:relative}
+.lp .scene__side h2{margin-top:16px}
+.lp .scene__side .lede{margin-top:18px; max-width:38ch}
+.lp .scene__doodle{position:absolute; pointer-events:none}
+
+.lp .beatlist{margin-top:30px; display:grid; gap:2px}
+.lp .beatlist li{
+  display:flex; align-items:flex-start; gap:12px; padding:9px 12px; border-radius:var(--r-md);
+  font-size:.93rem; color:var(--ink-3); font-weight:500; line-height:1.35;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+.lp .beatlist li .n{
+  width:22px;height:22px;flex:none;border-radius:50%; margin-top:1px;
+  display:grid;place-items:center; font-family:var(--mono); font-size:.7rem;
+  border:1.5px solid var(--line-2); color:var(--ink-3); background:var(--paper);
+  transition:background .35s, color .35s, border-color .35s, transform .35s var(--ease-spring);
+}
+.lp .beatlist li.is-on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+.lp .beatlist li.is-on .n{background:var(--ink); border-color:var(--ink); color:var(--paper); transform:scale(1.06)}
+.lp .beatlist li.is-done .n{background:var(--mint); border-color:var(--mint-ink); color:var(--mint-ink)}
+
+/* the chat itself: beats grow from the bottom, older ones ride up under a fade */
+.lp .chat{
+  position:relative; height:min(74vh, 640px);
+  display:flex; flex-direction:column; justify-content:flex-end; gap:14px;
+  overflow:hidden; padding:0 6px;
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
+          mask-image:linear-gradient(to bottom, transparent 0, #000 13%, #000 100%);
+}
+
+/* the collapsing step: rows animate their own height so nothing jumps */
+.lp .beat{display:grid; grid-template-rows:0fr; transition:grid-template-rows .62s var(--ease-out)}
+.lp .beat.is-in{grid-template-rows:1fr}
+.lp .beat__in{overflow:hidden; min-height:0}
+.lp .beat__in > *{
+  opacity:0; transform:translate3d(0,16px,0) scale(.985);
+  transition:opacity .45s var(--ease-out) .1s, transform .6s var(--ease-spring) .1s;
+}
+.lp .beat.is-in .beat__in > *{opacity:1; transform:none}
+
+.lp .bubble{
+  max-width:min(100%, 560px); padding:15px 19px; border-radius:20px;
+  border:1.5px solid var(--line); background:var(--card); box-shadow:var(--sh-1);
+  font-size:1rem; line-height:1.5;
+}
+.lp .bubble--me{
+  margin-left:auto; background:var(--ink); color:#FFFCF6; border-color:var(--ink);
+  border-bottom-right-radius:7px; box-shadow:3px 3px 0 var(--lilac);
+}
+.lp .bubble--bot{border-bottom-left-radius:7px}
+.lp .who{display:flex; align-items:center; gap:9px; margin-bottom:7px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.lp .who--right{justify-content:flex-end}
+
+/* reasoning ledger */
+.lp .ledger{border:1.5px dashed var(--line-2); border-radius:var(--r-lg); background:var(--paper); padding:15px 17px; max-width:520px}
+.lp .ledger__t{font-size:.78rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); display:flex; align-items:center; gap:8px}
+.lp .ledger__t .spin{width:13px;height:13px;border-radius:50%;border:2px solid var(--line-2); border-top-color:var(--lilac-ink); animation:lp-spin .9s linear infinite}
+@keyframes lp-spin{to{transform:rotate(360deg)}}
+.lp .ledger ul{margin-top:10px; display:grid; gap:8px}
+.lp .ledger li{display:flex; align-items:center; gap:10px; font-size:.9rem; color:var(--ink-2); opacity:.32; transition:opacity .4s var(--ease-out)}
+.lp .ledger li .tick{
+  width:17px;height:17px;flex:none;border-radius:50%;border:1.5px solid var(--line-2); background:var(--paper-2);
+  display:grid; place-items:center; transition:background .35s, border-color .35s;
+}
+.lp .ledger li .tick svg{width:10px;height:10px;opacity:0;transition:opacity .3s .1s}
+.lp .ledger.is-live li{opacity:1}
+.lp .ledger.is-live li .tick{background:var(--mint); border-color:var(--mint-ink)}
+.lp .ledger.is-live li .tick svg{opacity:1}
+.lp .ledger.is-live li:nth-child(2),.lp .ledger.is-live li:nth-child(2) .tick,.lp .ledger.is-live li:nth-child(2) .tick svg{transition-delay:.18s}
+.lp .ledger.is-live li:nth-child(3),.lp .ledger.is-live li:nth-child(3) .tick,.lp .ledger.is-live li:nth-child(3) .tick svg{transition-delay:.36s}
+.lp .ledger.is-live li:nth-child(4),.lp .ledger.is-live li:nth-child(4) .tick,.lp .ledger.is-live li:nth-child(4) .tick svg{transition-delay:.54s}
+.lp .consulted{margin-top:13px; display:flex; flex-wrap:wrap; gap:6px; padding-top:12px; border-top:1px dashed var(--line-2)}
+
+/* answer card. The cards cap at 560px rather than filling the column: a chat
+   transcript that runs the full width stops reading as a conversation. */
+.lp .acard{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; max-width:560px}
+.lp .acard__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); display:flex; align-items:center; gap:12px}
+/* big figures use the display face — monospace puts a full cell around the comma,
+   which reads as "$1 , 480" at headline sizes. Small values stay mono. */
+.lp .acard__hd .k{font-family:var(--display); font-size:1.75rem; font-weight:600; letter-spacing:-.035em; font-variant-numeric:tabular-nums}
+.lp .acard__hd .sub{font-size:.86rem; color:var(--ink-3); line-height:1.35}
+.lp .acard__rows{display:grid}
+.lp .acard__row{display:flex; align-items:center; gap:11px; padding:11px 18px; border-bottom:1px solid var(--paper-3); font-size:.93rem}
+.lp .acard__row:last-child,.lp .acard__row:last-of-type{border-bottom:0}
+.lp .acard__row .nm{font-weight:550}
+.lp .acard__row .amt{margin-left:auto; font-family:var(--mono); font-size:.88rem}
+.lp .acard__ft{padding:11px 18px; background:var(--paper-2); font-size:.83rem; color:var(--ink-3); display:flex; align-items:center; gap:8px}
+
+/* writ card (a proposal waiting on a human) */
+.lp .draft{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; max-width:560px}
+.lp .draft__hd{display:flex; align-items:center; gap:10px; padding:12px 17px; background:var(--butter-soft); border-bottom:1.5px solid #F4DFA6; font-size:.83rem; font-weight:600; color:var(--butter-ink)}
+.lp .draft__body{padding:17px 19px; font-size:.95rem; line-height:1.55; color:var(--ink-2)}
+.lp .draft__body .msg{border-left:2.5px solid var(--peach); padding-left:14px; font-style:italic}
+.lp .draft__ft{display:flex; align-items:center; gap:10px; padding:13px 17px; border-top:1.5px solid var(--line); background:var(--paper); flex-wrap:wrap}
+.lp .draft__ft .who-ok{margin-left:auto; font-size:.78rem; color:var(--ink-3)}
+.lp .done{display:flex; align-items:center; gap:14px; max-width:560px}
+.lp .done__ic{width:44px;height:44px;flex:none;border-radius:50%; background:var(--mint); display:grid; place-items:center; box-shadow:var(--sh-1)}
+
+/* ---------- 6. day dial (a clock face; six moments, one shot at a time) ---- */
+/* §5 owns the pin, so two pinned scenes back to back would read as the same
+   trick twice — and the day's job is "prove this is a real system", which a
+   dial does in ~1.4 screens with six real product shots.
+
+   The marks sit at even 60° steps, not true 24h angles. 8:12a→11:58p on a real
+   dial crams every moment into a 123°–360° arc with 27° between 7:31 and 9:20,
+   and the labels collide. It reads as a selector, not a chronometer. The one
+   literal touch is the closing segment: the 60° running 11:58 PM back round to
+   8:12 AM is dashed, because that arc IS the part of the day nobody is doing
+   admin — which is the whole argument. */
+.lp .day{background:linear-gradient(180deg, transparent, var(--paper-2) 10%, var(--paper-2) 90%, transparent); position:relative}
+.lp .dial__head{max-width:62ch}
+.lp .dial__head .lede{max-width:56ch}
+.lp .dial__grid{
+  margin-top:clamp(30px,4vw,54px);
+  display:grid; grid-template-columns:minmax(0,.72fr) minmax(0,1.28fr);
+  gap:clamp(24px,4vw,56px); align-items:center;
+}
+.lp .dial__side{position:relative; display:flex; flex-direction:column; justify-content:center}
+.lp .dial__doodle{position:absolute; pointer-events:none}
+
+/* --r is the label orbit; the SVG ring is drawn to land under it. The box adds
+   room for the chips, which are centred ON the ring rather than outside it. */
+.lp .dial{
+  --r:clamp(96px, 12.5vw, 146px);
+  position:relative; width:calc(var(--r) * 2 + 108px); max-width:100%; aspect-ratio:1;
+  margin:0 auto;
+}
+.lp .dial__face{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+.lp .dial__ring,.lp .dial__quiet,.lp .dial__prog{fill:none; stroke-linecap:round}
+.lp .dial__ring{stroke:var(--line-2); stroke-width:1.5; vector-effect:non-scaling-stroke}
+.lp .dial__quiet{stroke:var(--line-2); stroke-width:1.5; stroke-dasharray:3 6; vector-effect:non-scaling-stroke}
+/* Deliberately NO non-scaling-stroke: it makes the browser read stroke-dasharray
+   in rendered px while getTotalLength() reports user units, so the pattern wraps
+   and the progress arc paints in two disconnected places. Width is in user units
+   instead — the dial only spans 300→400px, so 1.4 renders 2.1–2.8px. */
+.lp .dial__prog{stroke:var(--ink); stroke-width:1.4; transition:stroke-dashoffset .72s var(--ease-spring)}
+.lp .dial__hand{transform-box:view-box; transform-origin:50% 50%; transition:transform .72s var(--ease-spring)}
+.lp .dial__hand line{stroke:var(--ink); stroke-width:2.5; stroke-linecap:round; vector-effect:non-scaling-stroke}
+.lp .dial__hand circle{fill:var(--butter); stroke:var(--ink); stroke-width:2; vector-effect:non-scaling-stroke}
+/* drawn over the hand's inner end so the count reads clean at the hub */
+.lp .dial__disc{fill:var(--paper-2)}
+
+.lp .dial__hub{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:grid; place-items:center; gap:2px; text-align:center; pointer-events:none}
+.lp .dial__hub .c{font-family:var(--mono); font-size:1.06rem; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.lp .dial__hub .l{font-size:.63rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+
+.lp .dial__ticks{position:absolute; inset:0}
+/* orbit, then counter-rotate so the label stays upright */
+.lp .dial__tick{
+  position:absolute; left:50%; top:50%; padding:5px 10px;
+  border:1.5px solid var(--line-2); border-radius:var(--r-pill); background:var(--paper);
+  font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:-.02em;
+  color:var(--ink-3); white-space:nowrap; cursor:pointer;
+  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(calc(var(--a) * -1));
+  transition:background .3s var(--ease-out), color .3s, border-color .3s, box-shadow .3s;
+}
+.lp .dial__tick:hover{border-color:var(--ink-3); color:var(--ink)}
+.lp .dial__tick.is-done{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
+.lp .dial__tick.is-on,.lp .dial__tick.is-on:hover{background:var(--ink); border-color:var(--ink); color:#FFFCF6; box-shadow:var(--sh-1)}
+/* On the ring, at the dashed arc's midpoint — the same orbit as the chips. At a
+   shorter radius it drifted inside the 11:58 chip's box, which is 60° away but
+   ~70px wide. No chip background: it's an annotation, not a stop. */
+.lp .dial__quiet-l{
+  position:absolute; left:50%; top:50%; font-size:.68rem; color:var(--ink-3);
+  letter-spacing:.02em; white-space:nowrap; pointer-events:none; font-style:italic;
+  background:var(--paper-2); padding:1px 7px;   /* punch through the dashed arc */
+  transform:translate(-50%,-50%) rotate(var(--a)) translateY(calc(var(--r) * -1)) rotate(calc(var(--a) * -1));
+}
+/* the tick only says a time; this says what the moment IS */
+.lp .dial__cap{
+  margin-top:16px; text-align:center; font-family:var(--display);
+  font-size:1.06rem; font-weight:600; letter-spacing:-.022em; color:var(--ink);
+  line-height:1.35; min-height:2.7em; transition:opacity .22s var(--ease-out);
+}
+.lp .dial__replay{margin-top:clamp(14px,2vw,20px); display:flex; justify-content:center}
+
+.lp .dialdeck{position:relative; height:min(56vh, 440px)}
+.lp .dialcard{
+  position:absolute; inset:0; display:flex; align-items:center;
+  opacity:0; transform:translate3d(0,20px,0) scale(.988); pointer-events:none;
+  transition:opacity .5s var(--ease-out), transform .68s var(--ease-spring);
+}
+.lp .dialcard.is-on{opacity:1; transform:none; pointer-events:auto}
+.lp .dialcard > div{width:100%}
+.lp .dialcard__t{display:none; font-family:var(--mono); font-size:.78rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-3); margin-bottom:10px}
+.lp .dialcard__note{margin-top:12px; font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+.lp .dialcard__note svg{width:16px;height:16px;flex:none;margin-top:2px}
+.lp .dayslide__note{font-size:.88rem; color:var(--ink-3); display:flex; gap:9px; align-items:flex-start; line-height:1.45}
+.lp .dayslide__note svg{width:16px;height:16px;flex:none;margin-top:2px}
+
+/* ---------- 7. modules ----------------------------------------------------- */
+.lp .modules__head{max-width:760px}
+.lp .mod{padding:clamp(56px,7.5vw,116px) 0; position:relative}
+.lp .mod__grid{display:grid; grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr); gap:clamp(30px,5vw,80px); align-items:center}
+.lp .mod--flip .mod__grid{grid-template-columns:minmax(0,1.14fr) minmax(0,.86fr)}
+.lp .mod--flip .mod__copy{order:2}
+.lp .mod__copy h3{margin-top:14px}
+.lp .mod__pain{
+  margin-top:20px; padding:15px 18px; border-radius:var(--r-md) var(--r-md) var(--r-md) 4px;
+  background:var(--pain-bg, var(--peach-soft)); border:1.5px solid var(--pain-bd, #F8D2C2);
+  font-size:.99rem; line-height:1.45; color:var(--ink);
+}
+.lp .mod__pain .src{display:block; margin-top:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
+.lp .mod__fix{margin-top:20px; color:var(--ink-2); font-size:1.03rem; line-height:1.6}
+.lp .mod__list{margin-top:20px; display:grid; gap:11px}
+.lp .mod__list li{display:flex; gap:11px; align-items:flex-start; font-size:.95rem; color:var(--ink-2); line-height:1.45}
+.lp .mod__list svg{width:19px;height:19px;flex:none;margin-top:2px}
+.lp .mod__stage{position:relative; will-change:transform}
+
+/* the fake product window */
+.lp .shot{
+  border:1.5px solid var(--line); border-radius:var(--r-xl); background:var(--card);
+  box-shadow:var(--sh-3); overflow:hidden; position:relative; z-index:2;
+}
+.lp .shot--flat{box-shadow:var(--sh-2)}
+.lp .shot__bar{display:flex; align-items:center; gap:8px; padding:12px 15px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.lp .shot__bar .tl{width:8.5px;height:8.5px;border-radius:50%;background:var(--line-2)}
+.lp .shot__bar .tl:nth-child(1){background:#F3B7A4}
+.lp .shot__bar .tl:nth-child(2){background:#F5D79A}
+.lp .shot__bar .tl:nth-child(3){background:#B7DFC6}
+.lp .shot__path{margin-left:10px; font-size:.77rem; color:var(--ink-3); font-weight:500; display:flex; align-items:center; gap:6px; min-width:0}
+.lp .shot__path .sep{color:var(--line-2)}
+.lp .shot__body{padding:18px 20px 20px}
+.lp .shot__toolbar{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap}
+.lp .shot__title{font-family:var(--display); font-size:1.1rem; font-weight:600; letter-spacing:-.024em}
+.lp .shot__spacer{margin-left:auto}
+.lp .shot__tabs{display:flex; gap:3px; background:var(--paper-2); padding:3px; border-radius:var(--r-pill); border:1px solid var(--line)}
+.lp .shot__tabs span{padding:5px 12px; border-radius:var(--r-pill); font-size:.79rem; font-weight:550; color:var(--ink-3)}
+.lp .shot__tabs span.on{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+
+/* floating callout that hangs off a shot */
+.lp .callout{
+  position:absolute; z-index:4; max-width:250px; padding:12px 15px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md);
+  box-shadow:3px 3px 0 var(--co, var(--butter));
+  font-size:.85rem; line-height:1.4; font-weight:500;
+}
+.lp .callout b{font-weight:650}
+
+/* --- ui kit used inside the shots --- */
+/* briefing header: mono kicker → display greeting → the digest sentence */
+.lp .ui-kick{font-family:var(--mono); font-size:.71rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.lp .ui-greet{font-family:var(--display); font-size:1.5rem; font-weight:600; letter-spacing:-.03em; margin-top:6px; line-height:1.1}
+.lp .ui-brief{display:flex; align-items:flex-start; gap:16px}
+.lp .ui-brief > div:first-child{min-width:0}
+.lp .ui-digest{margin-top:9px; font-size:.92rem; line-height:1.45; color:var(--ink-2); display:flex; gap:9px; align-items:flex-start}
+.lp .ui-digest .aichip{
+  flex:none; display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:var(--r-pill);
+  background:var(--lilac-soft); border:1px solid #DCD2FB; color:var(--lilac-ink);
+  font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; margin-top:2px;
+}
+
+/* wrap, not shrink: these rows carry nowrap buttons and mono figures, so on a
+   narrow shot they must break to a second line instead of setting a min-width
+   the whole page then has to honour */
+.lp .ui-stat{display:flex; align-items:center; gap:16px; padding:16px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--paper); flex-wrap:wrap}
+.lp .ui-ring{
+  width:74px;height:74px;flex:none;border-radius:50%;
+  background:conic-gradient(var(--ring-c, var(--mint-ink)) calc(var(--pct,0) * 1%), var(--paper-3) 0);
+  display:grid; place-items:center; transition:--pct 1.4s var(--ease-out);
+}
+.lp .ui-ring--sm{width:70px;height:70px}
+.lp .ui-ring i{width:56px;height:56px;border-radius:50%;background:var(--card); display:grid; place-items:center; font-family:var(--mono); font-size:.9rem; font-weight:600; font-style:normal}
+.lp .ui-ring--sm i{width:54px;height:54px;font-size:.84rem; line-height:1}
+/* the label has to clear the ring's inner circle — .48rem is the largest that
+   fits "health" inside 54px without touching the sweep */
+.lp .ui-ring--sm i small{display:block; margin-top:1px; font-size:.48rem; letter-spacing:.04em; color:var(--ink-3); text-transform:uppercase; font-family:var(--sans); font-weight:700}
+.lp .ui-stat__k{font-family:var(--display); font-size:1.62rem; font-weight:600; letter-spacing:-.035em; line-height:1.1; font-variant-numeric:tabular-nums}
+.lp .ui-stat__l{font-size:.83rem; color:var(--ink-3); margin-top:3px}
+
+/* KPI ledger strip */
+.lp .ui-meas{display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-top:15px}
+.lp .meas{padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper)}
+.lp .meas__l{font-size:.67rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+.lp .meas__v{margin-top:5px; font-family:var(--display); font-size:1.14rem; font-weight:600; letter-spacing:-.032em; font-variant-numeric:tabular-nums; line-height:1.1}
+.lp .meas__d{margin-top:3px; font-size:.7rem; color:var(--ink-3); font-family:var(--mono); letter-spacing:-.02em}
+.lp .meas__d.up{color:var(--mint-ink)}
+.lp .meas__d.dn{color:var(--peach-ink)}
+
+/* needs-attention queue */
+.lp .ui-att{margin-top:14px; display:grid; gap:8px}
+.lp .att{display:flex; align-items:center; gap:11px; padding:10px 12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card)}
+.lp .att__tag{
+  font-family:var(--mono); font-size:.63rem; letter-spacing:.09em; text-transform:uppercase; font-weight:600;
+  padding:3px 7px; border-radius:5px; flex:none;
+  background:var(--tg-bg, var(--peach-soft)); color:var(--tg-fg, var(--peach-ink));
+}
+.lp .att__tag.gold{--tg-bg:var(--butter-soft); --tg-fg:var(--butter-ink)}
+.lp .att__tag.sky {--tg-bg:var(--sky-soft);    --tg-fg:var(--sky-ink)}
+.lp .att__tag.calm{--tg-bg:var(--lilac-soft);  --tg-fg:var(--lilac-ink)}
+.lp .att__b{min-width:0}
+.lp .att__b .t{font-size:.9rem; font-weight:550; line-height:1.25}
+.lp .att__b .m{font-size:.77rem; color:var(--ink-3); margin-top:2px}
+.lp .att__a{margin-left:auto; flex:none; font-size:.78rem; font-weight:600; color:var(--ink-2); border:1.5px solid var(--line); background:var(--paper-2); border-radius:var(--r-pill); padding:5px 11px; white-space:nowrap}
+
+.lp .ui-table{margin-top:14px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden}
+.lp .ui-th{display:grid; grid-template-columns:1.6fr .8fr .9fr; gap:10px; padding:9px 14px; background:var(--paper-2); border-bottom:1.5px solid var(--line); font-size:.71rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.lp .ui-tr{display:grid; grid-template-columns:1.6fr .8fr .9fr; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--paper-3); font-size:.89rem; background:var(--card)}
+.lp .ui-tr:last-child{border-bottom:0}
+.lp .ui-tr .who{margin:0; display:flex; align-items:center; gap:9px; color:var(--ink); font-size:.89rem; font-weight:500}
+.lp .ui-tr .amt{font-family:var(--mono); font-size:.84rem}
+.lp .ui-tr .txt{font-size:.85rem; color:var(--ink-2)}
+.lp .ui-tr.is-flagged{background:var(--peach-soft)}
+.lp .ui-table--4 .ui-th,.lp .ui-table--4 .ui-tr{grid-template-columns:1.5fr 1fr .8fr .8fr}
+
+.lp .ui-note{margin-top:12px; display:flex; align-items:center; gap:10px; padding:11px 14px; border-radius:var(--r-md); background:var(--lilac-soft); border:1.5px solid #DCD2FB; font-size:.86rem; color:var(--lilac-ink); font-weight:500; flex-wrap:wrap}
+.lp .ui-note b{font-weight:650}
+.lp .ui-note svg{flex:none}
+
+/* attendance roll */
+.lp .ui-roll{display:grid; grid-template-columns:repeat(auto-fill, minmax(122px,1fr)); gap:8px; margin-top:14px}
+.lp .ui-person{display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--card); font-size:.83rem; font-weight:500}
+.lp .ui-person.is-here{background:var(--mint-soft); border-color:#BDE7D2}
+.lp .ui-person.is-late{background:var(--butter-soft); border-color:#F4DFA6}
+.lp .ui-person.is-out{background:var(--paper-2); color:var(--ink-3)}
+.lp .ui-person .mk{width:17px;height:17px;flex:none;border-radius:5px;border:1.5px solid var(--line-2); background:var(--paper); display:grid; place-items:center}
+.lp .ui-person.is-here .mk{background:var(--mint-ink); border-color:var(--mint-ink)}
+.lp .ui-person.is-late .mk{background:var(--butter); border-color:var(--butter-ink)}
+.lp .ui-person svg{width:10px;height:10px}
+
+/* programming stage board */
+.lp .ui-board{margin-top:14px; display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
+.lp .bcol{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:8px; min-height:158px; display:grid; gap:7px; align-content:start}
+.lp .bcol__h{display:flex; align-items:center; gap:7px; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3); padding:2px 2px 3px}
+.lp .bcol__h i{width:7px;height:7px;border-radius:50%;background:var(--s,var(--line-2));flex:none}
+.lp .bcol__h b{margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--ink-3); font-weight:600}
+.lp .bcard{background:var(--card); border:1.5px solid var(--line); border-radius:9px; padding:8px 9px; font-size:.79rem; font-weight:550; line-height:1.25; overflow-wrap:anywhere}
+.lp .bcard small{display:block; margin-top:4px; font-weight:500; color:var(--ink-3); font-size:.7rem; font-family:var(--mono)}
+.lp .bcard.is-moved{border-color:var(--mint-ink); box-shadow:0 0 0 3px var(--mint-soft)}
+
+/* checklists (prep items, action items) */
+.lp .ui-check{margin-top:13px; display:grid; gap:8px}
+.lp .ui-check li{display:flex; align-items:center; gap:11px; padding:10px 13px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); font-size:.89rem}
+.lp .ui-check li .box{width:19px;height:19px;flex:none;border-radius:6px;border:1.5px solid var(--line-2); display:grid;place-items:center; background:var(--paper)}
+.lp .ui-check li.done .box{background:var(--mint-ink); border-color:var(--mint-ink)}
+.lp .ui-check li .lbl{font-weight:500; color:var(--ink)}
+.lp .ui-check li.done .lbl{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.lp .ui-check li .owner{margin-left:auto; flex:none}
+
+/* minutes → summary */
+.lp .ui-split{margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:11px}
+.lp .ui-raw{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--paper); padding:12px 13px; font-size:.82rem; line-height:1.5; color:var(--ink-2)}
+.lp .ui-raw h5{font-size:.66rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin-bottom:8px}
+.lp .ui-raw p + p{margin-top:7px}
+.lp .ui-sum{border:1.5px solid #DCD2FB; border-radius:var(--r-md); background:var(--lilac-soft); padding:12px 13px}
+.lp .ui-sum h5{font-size:.66rem; letter-spacing:.09em; text-transform:uppercase; color:var(--lilac-ink); font-weight:700}
+.lp .ui-sum h5 + ul{margin-top:7px}
+.lp .ui-sum ul{display:grid; gap:6px; margin-bottom:11px}
+.lp .ui-sum li{font-size:.81rem; line-height:1.35; display:flex; gap:8px; align-items:flex-start; color:var(--ink)}
+.lp .ui-sum li .pill{margin-left:auto; flex:none}
+.lp .ui-sum li::before{content:'·'; color:var(--lilac-ink); font-weight:700}
+
+/* docs library */
+.lp .ui-docs{margin-top:14px; display:grid; grid-template-columns:repeat(3,1fr); gap:9px}
+.lp .doccard{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); padding:11px 12px}
+.lp .doccard .fd{font-size:.67rem; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); font-weight:700; display:flex; gap:6px; align-items:center}
+.lp .doccard .fd svg{width:13px;height:13px}
+.lp .doccard .nm{margin-top:8px; font-size:.85rem; font-weight:550; line-height:1.25}
+.lp .doccard .by{margin-top:5px; font-size:.72rem; color:var(--ink-3)}
+
+/* activity log */
+.lp .ui-log{margin-top:12px; display:grid}
+.lp .logrow{display:flex; align-items:center; gap:11px; padding:9px 2px; border-bottom:1px solid var(--paper-3); font-size:.87rem}
+.lp .logrow:last-child{border-bottom:0}
+.lp .logrow .ts{font-family:var(--mono); font-size:.73rem; color:var(--ink-3); width:58px; flex:none}
+.lp .logrow .tx{min-width:0; line-height:1.3}
+.lp .logrow .tx b{font-weight:600}
+.lp .logrow .pill{margin-left:auto; flex:none}
+
+/* The rest of the kit, in one line instead of an eight-cell grid. By this point
+   the page has shown six real product screens in the dial and three more in the
+   modules — a catalogue would be proving something already proved. */
+.lp .mod__rest{margin-top:clamp(30px,4vw,52px); max-width:74ch; font-size:.98rem; line-height:1.62; color:var(--ink-2)}
+/* inline-flex + nowrap or the arrow orphans onto its own line */
+.lp .mod__rest a{
+  display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  border-bottom:1.5px solid var(--line-2); padding-bottom:1px;
+}
+.lp .mod__rest a:hover{border-bottom-color:var(--ink)}
+.lp .mod__rest a svg{flex:none}
+
+/* ---------- 8. setup / blueprint ------------------------------------------- */
+.lp .setup{background:var(--paper-2); border-block:1.5px solid var(--line)}
+.lp .setup__grid{margin-top:clamp(32px,4vw,54px); display:grid; grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr); gap:clamp(26px,4vw,58px); align-items:start}
+.lp .switch{display:flex; flex-wrap:wrap; gap:8px; margin-top:22px}
+.lp .switch button{
+  padding:8px 15px; border-radius:var(--r-pill); border:1.5px solid var(--line-2);
+  background:var(--card); font-size:.86rem; font-weight:600; color:var(--ink-2); cursor:pointer;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s, border-color .2s;
+}
+.lp .switch button:hover{transform:translateY(-1.5px)}
+.lp .switch button.on{background:var(--ink); border-color:var(--ink); color:var(--paper); box-shadow:3px 3px 0 var(--lilac)}
+.lp .setup__fine{margin-top:20px; font-size:.87rem; color:var(--ink-3); line-height:1.5; max-width:44ch}
+
+.lp .qa{display:grid; gap:10px; margin-top:26px}
+.lp .qa__q{font-size:.9rem; color:var(--ink-3); font-weight:500}
+.lp .qa__row{display:flex; flex-wrap:wrap; gap:7px}
+.lp .qa__chip{
+  padding:6px 13px; border-radius:var(--r-pill); border:1.5px solid var(--line-2);
+  background:var(--card); font-size:.83rem; font-weight:550; color:var(--ink-3);
+}
+.lp .qa__chip.picked{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
+
+.lp .bp{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; transition:opacity .26s var(--ease-out)}
+.lp .bp.is-swap{opacity:.18}
+.lp .bp__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); background:var(--paper-2); display:flex; align-items:center; gap:11px; flex-wrap:wrap}
+.lp .bp__hd .k{font-family:var(--display); font-size:1.16rem; font-weight:600; letter-spacing:-.028em}
+.lp .bp__hd .sub{font-size:.8rem; color:var(--ink-3)}
+.lp .bp__sec{padding:14px 18px; border-bottom:1px solid var(--paper-3)}
+.lp .bp__sec:last-child{border-bottom:0}
+.lp .bp__t{font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
+.lp .bp__chips{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px}
+.lp .chip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:var(--r-pill); border:1.5px solid var(--line); background:var(--paper); font-size:.79rem; font-weight:550; color:var(--ink)}
+.lp .chip.off{opacity:.4; text-decoration:line-through; text-decoration-color:var(--line-2)}
+.lp .chip i.sw{width:9px;height:9px;border-radius:3px;background:var(--c,var(--line-2)); flex:none}
+.lp .bp__words{margin-top:10px; display:grid; gap:7px}
+.lp .wordrow{display:flex; align-items:center; gap:10px; font-size:.86rem}
+.lp .wordrow .from{font-family:var(--mono); font-size:.76rem; color:var(--ink-3)}
+.lp .wordrow .to{font-weight:650}
+.lp .seat{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--paper-3); font-size:.86rem}
+.lp .seat:last-child{border-bottom:0}
+.lp .seat .nm{font-weight:600}
+.lp .seat .ab{color:var(--ink-3); font-size:.79rem; min-width:0}
+.lp .seat .rk{font-family:var(--mono); font-size:.71rem; color:var(--ink-3); margin-left:auto; flex:none}
+
+/* The way through to /for/<audience> for whichever shape is on screen. Same
+   affordance as .trust__more — an outlined pill, not a third button — because
+   it's an exit from the section rather than the section's own action. */
+.lp .setup__guide{margin-top:18px}
+.lp .setup__guide a{
+  display:inline-flex; align-items:center; gap:9px;
+  color:var(--ink); font-weight:600; font-size:.9rem; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .setup__guide a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--butter);
+}
+.lp .setup__guide a svg{flex:none; transition:transform .18s var(--ease-out)}
+.lp .setup__guide a:hover svg{transform:translateX(2.5px)}
+
+/* ---------- 9. trust ------------------------------------------------------- */
+.lp .trust__head{text-align:center; max-width:700px; margin-inline:auto}
+
+.lp .guards{margin-top:26px; display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.lp .guard{padding:26px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
+.lp .guard__ic{width:46px;height:46px;border-radius:14px; display:grid; place-items:center; background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB)}
+.lp .guard h4{margin-top:16px}
+.lp .guard p{margin-top:9px; font-size:.94rem; color:var(--ink-2); line-height:1.55}
+
+/* the way through to /trust — the three cards are the summary, that page is the
+   whole disclosure. Centred under the grid, link then caption. */
+.lp .trust__more{
+  margin-top:26px; display:flex; flex-wrap:wrap; gap:6px 16px;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:.9rem; color:var(--ink-3);
+}
+.lp .trust__more a{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .trust__more a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--sky);
+}
+.lp .trust__more a svg{transition:transform .18s var(--ease-out)}
+.lp .trust__more a:hover svg{transform:translateX(2.5px)}
+
+/* ---------- 10. pricing ---------------------------------------------------- */
+/* A tinted band between two sections that sit on bare paper, so price reads as
+   a deliberate interlude rather than another chapter. Hairline rules top and
+   bottom; --paper-2 covers the fixed washes locally, which is the point. */
+.lp .price{
+  position:relative; overflow:hidden;
+  background:var(--paper-2);
+  border-block:1.5px solid var(--line);
+  /* Three links point at #price (nav, hero fine print, CTA fine print) and the
+     nav is sticky, so the jump needs an offset. The other sections get away
+     without one only because .section's padding is larger than the bar —
+     .section--tight isn't, and at ≤860 it drops to 64px against a ~68px nav,
+     which lands the eyebrow underneath it. Mirrors --pub-nav-h. */
+  scroll-margin-top:76px;
+}
+
+/* --- the depth stack ------------------------------------------------------
+   Five parallax layers between the paper and the copy, so the band has a back
+   rather than being a flat tint. All of them are owned by the JS engine (see
+   §13's motion contract): nothing here may set `transform` for layout, which
+   is why the staircase centres on auto margins and the blobs are wrapped
+   spans. Each layer is oversized past the section's overflow:hidden by more
+   than its own drift budget, so no offset can ever expose an edge. */
+.lp .price__depth{position:absolute; inset:0; z-index:0; pointer-events:none}
+
+/* the bloom, slowest. Sized in vw so it stays huge at any width; these are the
+   page's --*-soft tints, which sit a shade off --paper-2 and read as light
+   rather than as colour. */
+.lp .price__wash{
+  position:absolute; inset:-20%;
+  background:
+    radial-gradient(38vw 30vw at 16% 24%, var(--mint-soft),  transparent 64%),
+    radial-gradient(34vw 28vw at 86% 16%, var(--sky-soft),   transparent 62%),
+    radial-gradient(40vw 32vw at 62% 98%, var(--lilac-soft), transparent 64%);
+}
+/* ledger rules — accounting paper under the section about money. The mask is
+   load-bearing: it clears the middle, where the centred copy runs, and only
+   lets the lines build toward the edges. Without it this is a lined notebook
+   behind a paragraph. --line-2 rather than --line: on --paper-2 the lighter
+   one is invisible, which is a texture nobody can see rather than a subtle
+   one. */
+.lp .price__rules{
+  position:absolute; inset:-16% 0; opacity:.42;
+  background:repeating-linear-gradient(to bottom, transparent 0 33px, var(--line-2) 33px 34.5px);
+  -webkit-mask-image:radial-gradient(108% 72% at 50% 50%, transparent 40%, #000 92%);
+  mask-image:radial-gradient(108% 72% at 50% 50%, transparent 40%, #000 92%);
+}
+
+/* the doodles ride in front of the layers, one drifting each way. The span
+   carries the position and the colour; the svg inside just fills it, and
+   inherits `color` for its currentColor stroke. */
+.lp .price__blob{position:absolute; display:block; pointer-events:none; z-index:0}
+.lp .price__blob svg{width:100%; height:auto}
+
+.lp .price > .wrap{position:relative; z-index:1}
+.lp .price__head{text-align:center; max-width:720px; margin-inline:auto}
+.lp .price__head .lede{max-width:54ch; margin-inline:auto}
+.lp .price__head em{font-style:normal; font-weight:650; color:var(--ink)}
+
+/* The deck exists only to give the ghost staircase something to measure
+   against: anchored here it lines up with the rungs at every width, which
+   nothing positioned off the section's own height could manage. */
+.lp .ladder__deck{position:relative}
+/* Hangs below the cards so the bottom tread and the ground line clear them —
+   the rise is legible in the gaps between rungs and under the row, and the
+   cards cover the rest, which is what makes it read as a ghost rather than a
+   second ladder. preserveAspectRatio:none in the markup lets it stretch to the
+   deck instead of letterboxing, so its treads track the grid's columns.
+
+   Overrides .doodle's stroke (--ink is a hard black line at this scale) and its
+   width — vector-effect:non-scaling-stroke means stroke-width is in screen px,
+   so stretching the 640-unit box across the wrap doesn't fatten it. */
+.lp .ladder__ghost{
+  position:absolute; z-index:0; left:-2.5%; top:-10%;
+  /* An <svg> is a replaced element: with height:auto it takes its intrinsic
+     aspect ratio and `bottom` is dropped as over-constrained, which sizes this
+     off the wrap's width instead of the deck's height and sends the staircase
+     a third of a section past the cards. Both axes are stated in % of the deck
+     for that reason, and max-width is cleared because .lp svg's 100% would
+     otherwise clamp the 105% the same way. */
+  width:105%; height:124%; max-width:none;
+  stroke:var(--line-2); stroke-width:2.4; opacity:.9;
+}
+.lp .ladder__ghost-base{stroke-dasharray:5 14; opacity:.6}
+
+/* the ladder: four rungs rising left to right. --i is the rung index; the lift
+   is what makes it a staircase rather than a plan-picker, so it's load-bearing
+   and not decoration. align-items:end pins the bottoms before the lift. */
+.lp .ladder{
+  position:relative; z-index:1;
+  margin-top:clamp(30px,4vw,44px);
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px;
+  align-items:end;
+}
+/* The <li> is the parallax carrier and holds nothing but the cell and the
+   lift — the card lives one level in, because [data-para] and [data-reveal]
+   can't share a node. */
+.lp .rung{
+  margin-bottom:calc(var(--i, 0) * 15px);
+  /* Equal heights are what make the lift read as a staircase: left to content
+     height the four rungs differ by a text line and both edges come out ragged,
+     which looks like a broken grid rather than a rise. Sized for the tallest
+     case (a two-line note at the narrowest 4-col width) with headroom; the note
+     pins to the bottom of the leftover space. Only matters above 1080, where
+     the lift is cleared and the grid stretches instead. */
+  min-height:152px;
+  display:flex;
+}
+.lp .rung__in{
+  flex:1;
+  padding:20px 18px 18px;
+  background:var(--card); border:1.5px solid var(--line);
+  border-top:4px solid var(--bt, var(--mint));
+  border-radius:var(--r-lg); box-shadow:var(--sh-1);
+  display:flex; flex-direction:column;
+}
+.lp .rung--quote .rung__in{background:var(--paper-3); box-shadow:none}
+.lp .rung__range{
+  font-size:.72rem; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--bti, var(--ink-3)); font-weight:600;
+}
+.lp .rung__price{display:flex; align-items:baseline; gap:5px; margin-top:11px}
+.lp .rung__price .n{font-family:var(--display); font-size:clamp(1.75rem,2.6vw,2.2rem); font-weight:600; letter-spacing:-.035em; color:var(--ink)}
+.lp .rung__price .per{font-size:.84rem; color:var(--ink-3)}
+.lp .rung__custom{font-family:var(--display); font-size:clamp(1.2rem,1.8vw,1.45rem); font-weight:600; letter-spacing:-.025em; color:var(--ink)}
+.lp .rung__note{margin-top:auto; padding-top:9px; font-size:.84rem; line-height:1.5; color:var(--ink-3)}
+
+/* The thesis of the section: you don't choose one of these. The gap is wider
+   than the 22px it wants on its own because the ghost's ground line hangs
+   below the deck and drifts another ~30px with the scroll — at 22px the dashes
+   run straight through this sentence at the top of the section's pass. */
+.lp .ladder__cap{
+  margin-top:clamp(34px,3.4vw,48px); display:flex; gap:9px; align-items:flex-start; justify-content:center;
+  text-align:center; max-width:60ch; margin-inline:auto;
+  font-size:.92rem; line-height:1.55; color:var(--ink-2);
+}
+.lp .ladder__cap svg{flex:none; margin-top:2px; color:var(--mint-ink)}
+
+/* three reassurances — no card chrome on purpose, so this doesn't read as a
+   second grid of boxes stacked under the first */
+.lp .assur{margin-top:clamp(34px,4.6vw,52px); display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(20px,3vw,36px)}
+.lp .assur__ic{
+  width:38px; height:38px; border-radius:12px; display:grid; place-items:center;
+  background:var(--g, var(--mint-soft)); border:1.5px solid var(--gb, #BDE7D2);
+}
+.lp .assur__i h4{margin-top:14px}
+/* the cap only bites once this collapses to one column, where the full wrap
+   width would otherwise hand these a ~95ch measure */
+.lp .assur__i p{margin-top:8px; font-size:.92rem; line-height:1.55; color:var(--ink-2); max-width:62ch}
+.lp .assur__i em{font-style:normal; font-weight:600; color:var(--ink)}
+
+/* way through to /pricing. Same shape as .trust__more one section up — the two
+   "there is a whole page about this" affordances should look identical. */
+.lp .price__more{
+  margin-top:clamp(30px,4vw,42px); display:flex; flex-wrap:wrap; gap:6px 16px;
+  align-items:center; justify-content:center; text-align:center;
+  font-size:.9rem; color:var(--ink-3);
+}
+.lp .price__more a{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--ink); font-weight:600; text-decoration:none;
+  padding:9px 17px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
+}
+.lp .price__more a:hover{
+  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
+  box-shadow:3.5px 3.5px 0 var(--mint);
+}
+.lp .price__more a svg{transition:transform .18s var(--ease-out)}
+.lp .price__more a:hover svg{transform:translateX(2.5px)}
+
+/* ---------- 11. semester CTA ----------------------------------------------- */
+.lp .cta{padding:clamp(80px,10vw,150px) 0; position:relative; overflow:hidden}
+.lp .cta__card{
+  position:relative; z-index:2; text-align:center;
+  padding:clamp(38px,6vw,74px) clamp(24px,5vw,64px);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:8px 8px 0 var(--lilac);
+}
+.lp .cta__count{display:inline-flex; align-items:baseline; gap:10px; padding:9px 20px; border-radius:var(--r-pill); background:var(--butter-soft); border:1.5px solid #F4DFA6; color:var(--butter-ink); font-weight:600; font-size:.92rem}
+.lp .cta__count .k{font-family:var(--mono); font-size:1.32rem; letter-spacing:-.04em}
+/* term() picks one of the two wordings. display:contents so the countdown's
+   four pieces stay direct flex children of .cta__count and keep their gap. */
+.lp .cta__count .t-soon{display:contents}
+.lp .cta__count .t-mid{display:none}
+.lp .cta__count.is-midterm .t-soon{display:none}
+.lp .cta__count.is-midterm .t-mid{display:inline}
+.lp .cta h2{margin-top:22px}
+.lp .cta__lede{margin-top:18px; max-width:56ch; margin-inline:auto}
+.lp .cta__actions{margin-top:32px; display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
+.lp .plan{margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; text-align:left}
+.lp .plan__step{padding:20px; border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--paper); position:relative}
+.lp .plan__when{font-family:var(--mono); font-size:.76rem; font-weight:600; color:var(--st, var(--peach-ink)); text-transform:uppercase; letter-spacing:.05em}
+.lp .plan__step h4{margin-top:9px}
+.lp .plan__step p{margin-top:7px; font-size:.89rem; color:var(--ink-2); line-height:1.5}
+.lp .plan__arrow{position:absolute; right:-19px; top:50%; transform:translateY(-50%); width:26px; z-index:3}
+.lp .cta__fine{margin-top:26px; font-size:.85rem; color:var(--ink-3)}
+/* was inheriting the UA's default link blue on a warm cream card */
+.lp .cta__fine a{color:var(--ink-2); font-weight:600; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .cta__fine a:hover{color:var(--ink); text-decoration-color:var(--mint-ink)}
+.lp .cta__blob{position:absolute; pointer-events:none; z-index:1}
+
+/* ---------- 12. footer ----------------------------------------------------- */
+.lp .foot{border-top:1.5px solid var(--line); padding:clamp(48px,6vw,76px) 0 40px; background:var(--paper-2)}
+.lp .foot__grid{display:grid; grid-template-columns:1.5fr repeat(3, 1fr); gap:34px}
+.lp .foot__blurb{margin-top:16px; font-size:.92rem; color:var(--ink-2); max-width:34ch; line-height:1.6}
+.lp .foot h5{font-size:.78rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-bottom:14px}
+.lp .foot ul{display:grid; gap:9px}
+.lp .foot a{color:var(--ink-2); text-decoration:none; font-size:.93rem}
+.lp .foot a:hover{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .foot__base{margin-top:44px; padding-top:22px; border-top:1.5px solid var(--line); display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.83rem; color:var(--ink-3)}
+.lp .foot__base .sp{margin-left:auto}
+
+/* ---------- 13. motion utilities ------------------------------------------ */
+.lp [data-reveal]{
+  opacity:0; transform:translate3d(0, var(--ry, 26px), 0);
+  transition:opacity .72s var(--ease-out) var(--d,0ms), transform .92s var(--ease-spring) var(--d,0ms);
+}
+.lp [data-reveal].is-in{opacity:1; transform:none}
+.lp [data-reveal="scale"]{transform:translate3d(0,34px,0) scale(.965)}
+.lp [data-reveal="left"]{transform:translate3d(-30px,0,0)}
+.lp [data-reveal="right"]{transform:translate3d(30px,0,0)}
+.lp [data-para]{will-change:transform}
+
+/* hero cold open. Same contract as [data-reveal] — hidden by default, forced
+   visible for no-js and reduced motion — but driven by a timeline from load
+   rather than an observer, because the hero is above the fold by definition.
+   The value of [data-hb] IS its delay in ms, so the sequence is retunable in
+   the markup without touching JS.
+
+   These never sit on a [data-para] node: the parallax engine owns inline
+   transform there, so the build hooks nest one level in (.sticky-note inside
+   .pile, .spotmini inside .hero__spot) per the motion contract above.
+
+   The rotate() is not decoration: .sticky-note carries its tilt in transform,
+   and [data-hb] wins on source order at equal specificity, so the build has to
+   compose the tilt back in or the notes land flat. --rot is unset (→ 0deg) on
+   everything inside the card. */
+.lp [data-hb]{
+  opacity:0; transform:translate3d(0, var(--hb-y, 10px), 0) rotate(var(--rot, 0deg));
+  transition:opacity .5s var(--ease-out), transform .62s var(--ease-spring);
+}
+.lp [data-hb].hb-in{opacity:1; transform:translate3d(0,0,0) rotate(var(--rot, 0deg))}
+
+.lp .counter{font-variant-numeric:tabular-nums}
+
+@media (prefers-reduced-motion: reduce){
+  html:has(.lp){scroll-behavior:auto}
+  .lp *,.lp *::before,.lp *::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+  .lp [data-reveal]{opacity:1 !important; transform:none !important}
+  .lp [data-hb]{opacity:1 !important; transform:none !important}
+  .lp [data-para]{transform:none !important}
+  .lp .marquee__track{animation:none; transform:none}
+}
+
+/* ---------- responsive ----------------------------------------------------- */
+/* Below ~1320 the wrap loses its side margin, so anything hanging off the card
+   would get sliced by the viewport. Tuck it in instead. */
+@media (max-width: 1320px){
+  .lp .pile--sheet{left:-40px}
+  .lp .pile--chat{left:-32px}
+  /* no room left of the viewport edge to peek sideways — clear the card's top
+     right corner instead, mirroring the sheet on the left */
+  .lp .pile--receipt{top:-44px; right:-14px; width:164px}
+  .lp .hero__spot{right:-12px; bottom:-92px; width:288px}
+}
+@media (max-width: 1080px){
+  .lp .guards{grid-template-columns:1fr 1fr}
+  .lp .guards .guard:last-child{grid-column:span 2}
+  /* Two up, and the staircase lift goes with the single row that justified it —
+     kept on a 2×2 it reads as a misaligned grid, not a rise. */
+  .lp .ladder{grid-template-columns:repeat(2,minmax(0,1fr)); align-items:stretch}
+  /* min-height existed to equalise the four rungs so the lift read as a rise;
+     with the lift gone the grid equalises them per row on its own, and holding
+     152px just pads dead space into a column that now costs scroll. */
+  .lp .rung{margin-bottom:0; min-height:0}
+  /* The ghost goes with the lift for the same reason, and one more: it draws
+     four treads for four rungs, which is a lie the moment the row wraps to a
+     2×2. The wash and the rules carry the depth from here down. */
+  .lp .ladder__ghost{display:none}
+  /* .assur deliberately does NOT drop to two here the way .guards does: these
+     are bare paragraphs, not cards, so they take a narrow column happily —
+     whereas spanning the third across the full width gives it a ~90ch measure
+     that matches nothing else in the section. It goes straight to one at 900. */
+  .lp .foot__grid{grid-template-columns:1fr 1fr 1fr}
+  .lp .foot__brand{grid-column:span 3}
+}
+@media (max-width: 900px){
+  .lp .nav__links{display:none}
+  /* The mock hid the ghost button here ("one CTA only — the bar is 390px
+     wide"), but the ghost is Sign in now, and a returning officer needs it on a
+     phone. Both stay; the primary drops to its short label instead. */
+  .lp .nav__long{display:none}
+  .lp .nav__short{display:inline}
+  .lp .nav__cta{gap:8px}
+  .lp .mod--flip .mod__copy{order:0}
+  /* minmax(0,1fr), not 1fr: a single wide child (the eyebrow's tracked caps)
+     would otherwise stretch the column past the viewport */
+  .lp .hero__grid{grid-template-columns:minmax(0,1fr); gap:44px}
+  .lp .hero__stage{min-height:0; margin-top:8px}
+  .lp .pile--sheet{top:-30px; left:-8px; width:150px}
+  .lp .pile--chat{bottom:-24px; left:-14px; width:150px}
+  /* one column now — mirror the sheet across the top edge rather than sitting
+     the scrap on top of the spotlight */
+  .lp .pile--receipt{top:-26px; right:-8px; width:150px}
+  .lp .scene__in,.lp .dial__grid,.lp .setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
+  .lp .dial__side{margin-inline:auto}
+  .lp .scene__in{padding:0}
+  .lp .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}
+  .lp .guards{grid-template-columns:minmax(0,1fr)}
+  .lp .guards .guard:last-child{grid-column:auto}
+  .lp .assur{grid-template-columns:minmax(0,1fr)}
+  .lp .plan{grid-template-columns:minmax(0,1fr)}
+  .lp .plan__arrow{display:none}
+  .lp .foot__grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .lp .foot__brand{grid-column:span 2}
+}
+@media (max-width: 860px){
+  /* Mobile motion budget: no pinning, no parallax, no inline transforms left
+     behind by a desktop→mobile resize. Reveals stay (short, one-handed-friendly). */
+  .lp .scene__rail{height:auto !important}
+  .lp .scene__stage{position:static; height:auto; overflow:visible; padding:8px 0 40px}
+  /* beats keep collapsing on mobile — an unplayed beat that reserved its full
+     height would leave a screen of empty cream to scroll through */
+  .lp .chat{height:auto; overflow:visible; -webkit-mask-image:none; mask-image:none; padding:0}
+  .lp .dialdeck{height:min(52vh, 400px)}
+  .lp [data-para]{transform:none !important}
+  .lp .pile,.lp .hero__card,.lp .hero__spot,.lp .mod__stage,.lp .dial__doodle,.lp .cta__blob{transform:none !important}
+  .lp .pile--sheet,.lp .pile--chat,.lp .pile--receipt{position:relative; inset:auto; width:auto}
+  .lp .hero__spot{position:relative; inset:auto; width:auto; margin-top:18px}
+  .lp .hero__piles{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; margin-top:24px}
+  .lp .hero__piles .pile--receipt{grid-column:span 2}
+  .lp .sticky-note b{overflow-wrap:anywhere}   /* dues_FALL_v4_FINAL.xlsx is one long token */
+  .lp .callout{position:static; max-width:none; margin-top:14px}
+  .lp .marquee{--dur:38s}
+  .lp .marquee__row:nth-child(2){display:none}
+  .lp .section{padding:64px 0}
+}
+/* The dial's own breakpoint, deliberately not the page's 860. Below ~600 a
+   labelled circle stops being legible at any radius that still fits, so the
+   shape is abandoned rather than shrunk: the marks become a time-chip row and
+   the deck becomes a native scroll-snap carousel. */
+@media (max-width: 600px){
+  .lp .dial{width:auto; aspect-ratio:auto; margin:22px 0 0}
+  /* .dial__ticks becomes a horizontal chip scroller below. A scroll container
+     still reports its contents as its min-content size, so the six chips
+     (~466px) floored every ancestor — and .dial__side can't absorb that,
+     because the `margin-inline:auto` it picks up at ≤900 opts it out of grid
+     stretch and makes it fit-content, i.e. never narrower than min-content.
+     The page bottomed out at 488px and gave <body> a horizontal scrollbar
+     under that. An explicit width beats fit-content and lets the chips scroll
+     inside the track instead of widening it. (Present in the v5 mock too.) */
+  .lp .dial__side{width:100%; min-width:0; margin-inline:0}
+  .lp .dial,.lp .dial__ticks{min-width:0}
+  .lp .dial__face,.lp .dial__hub,.lp .dial__quiet-l,.lp .dial__replay{display:none}
+  .lp .dial__ticks{position:static; display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:none; -webkit-overflow-scrolling:touch}
+  .lp .dial__ticks::-webkit-scrollbar{display:none}
+  .lp .dial__tick{position:static; transform:none !important; flex:none}
+  .lp .dialdeck{height:auto; display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; padding-bottom:4px}
+  .lp .dialdeck::-webkit-scrollbar{display:none}
+  .lp .dialcard{
+    position:static; inset:auto; display:block; flex:0 0 86%; scroll-snap-align:center;
+    opacity:1 !important; transform:none !important; pointer-events:auto;
+  }
+  .lp .dialcard__t{display:block}
+}
+@media (max-width: 640px){
+  .lp .ui-split,.lp .ui-docs{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width: 560px){
+  .lp{font-size:16px}
+  .lp .wrap,.lp .wrap--narrow{width:calc(100% - 32px)}
+  .lp .nav__in{gap:12px; justify-content:space-between}
+  .lp .nav__cta{gap:6px}
+  .lp .nav__cta .btn{padding-inline:10px}
+  .lp .hero__actions .btn{width:100%}
+  .lp .ladder{grid-template-columns:minmax(0,1fr)}
+  /* one column of centred copy is too narrow to have anything drifting behind
+     it, even at .26 — the CTA's blobs survive because that card is opaque */
+  .lp .price__blob{display:none}
+  .lp .ui-roll{grid-template-columns:1fr 1fr}
+  .lp .ui-meas{grid-template-columns:1fr 1fr}
+  .lp .ui-board{grid-template-columns:1fr 1fr}
+  .lp .ui-th,.lp .ui-tr{grid-template-columns:1.4fr .9fr}
+  .lp .ui-th span:nth-child(3),.lp .ui-tr .amt{display:none}  /* drop the balance col, keep its header honest */
+  .lp .ui-table--4 .ui-th,.lp .ui-table--4 .ui-tr{grid-template-columns:1.4fr .9fr}
+  .lp .ui-table--4 .ui-th span:nth-child(4),.lp .ui-table--4 .ui-tr .txt{display:none}
+  .lp .acard__hd{flex-wrap:wrap; row-gap:9px}
+  .lp .acard__hd .pill{margin-left:0 !important; order:3}
+  .lp .ui-brief{flex-wrap:wrap}
+  /* the shots' widest rows: let the trailing controls take their own line
+     rather than pinning a min-width the viewport can't honour */
+  .lp .ui-stat > span:last-child,.lp .ui-note > span:last-child{margin-left:0 !important; width:100%}
+  .lp .att{flex-wrap:wrap; row-gap:8px}
+  .lp .att__a{margin-left:auto}
+  .lp .logrow{flex-wrap:wrap; row-gap:4px}
+  .lp .logrow .pill{margin-left:auto}
+  .lp .shot__body{padding:15px 14px 16px}
+  .lp .seat{flex-wrap:wrap; row-gap:2px}
+  .lp .seat .ab{width:100%; order:3}
+  .lp .foot__grid{grid-template-columns:1fr}
+  .lp .foot__brand{grid-column:auto}
+}
+</style><style>
+/* ---- mock-only shims ------------------------------------------------------ */
+body{margin:0}
+.lp{--font-inter:'Inter'; --font-bricolage:'Bricolage Grotesque'; --font-plex-mono:'IBM Plex Mono'}
+
+/* ---- SHORT CUT: what changed vs the live page ------------------------------
+   1. Pain keeps its headline + ONE marquee row (no composites footnote).
+   2. Ask scene keeps the pin, rail 460vh → 300vh (same six beats, brisker).
+   3. Both payoff interstitials are gone; the dial lands straight on Modules.
+   4. Modules: three stacked surfaces → one stage behind three tabs. Each
+      panel keeps its pain quote, fix line, shot and parallax drift.
+   5. Setup is cut — the CTA's "Describe your org" step carries it.
+   6. Trust is tight: headline + three cards, no lede.                       */
+
+.lp .pain--short{padding:clamp(44px,5.5vw,76px) 0}
+.lp .pain--short .marquee{margin-top:clamp(28px,3.5vw,44px)}
+
+.lp .modtabs{display:flex; flex-wrap:wrap; gap:10px; margin-top:clamp(28px,3.5vw,40px)}
+.lp .modtab{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 16px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  font-size:.95rem; font-weight:550; color:var(--ink-2); cursor:pointer;
+  transition:background .2s var(--ease-out), color .2s var(--ease-out), border-color .2s var(--ease-out), box-shadow .2s var(--ease-out), transform .2s var(--ease-out);
+}
+.lp .modtab svg{width:16px; height:16px}
+.lp .modtab:hover{border-color:var(--ink-3); color:var(--ink); transform:translateY(-1px)}
+.lp .modtab.is-on{background:var(--ink); border-color:var(--ink); color:var(--paper); box-shadow:3px 3px 0 var(--lilac)}
+.lp .modtab:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px}
+
+.lp .moddeck{position:relative}
+.lp .mod--tab{display:none; padding-top:clamp(36px,4.5vw,64px); padding-bottom:clamp(40px,5vw,72px)}
+.lp .mod--tab.is-on{display:block; animation:modIn .45s var(--ease-out)}
+@keyframes modIn{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+.lp #modules{padding-bottom:clamp(56px,7vw,104px)}
+.lp #modules .mod__rest{margin-top:0}
+
+.lp #trust .trust__head h2{margin-bottom:clamp(28px,3.5vw,44px)}
+
+@media (prefers-reduced-motion: reduce){.lp .mod--tab.is-on{animation:none}}
+</style></head><body>
+<div class="landing-desktop lp bricolage_grotesque_b9ce9477-module__hFPjMa__variable inter_1b545fac-module__b8QJrq__variable ibm_plex_mono_658c9b3c-module__JWnb0a__variable"><svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"></path></symbol><symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-shield" viewBox="0 0 24 24"><path d="M12 2.8 4.6 5.7c-.3 6.6 1.6 12 7.4 15.5 5.8-3.5 7.7-8.9 7.4-15.5L12 2.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M8.6 12.1 11 14.6l4.6-4.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-export" viewBox="0 0 24 24"><path d="M12 15.4V3.6m0 0L8.2 7.4M12 3.6l3.8 3.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path><path d="M4.4 14v5.2c0 .8.6 1.4 1.4 1.4h12.4c.8 0 1.4-.6 1.4-1.4V14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"></path><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path></symbol><symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-swirl" viewBox="0 0 120 46"><path d="M2 34c14-16 34-28 52-28 12 0 18 7 15 14-3 6-13 7-16 1-4-7 4-16 17-18 12-2 26 3 34 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path><path d="m97 8 8 7-9 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></symbol><symbol id="d-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"></path><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path></symbol><symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"></path><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M20.4 3.2v4.4h-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></symbol><symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"></path></symbol><symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-phone" viewBox="0 0 24 24"><rect x="6.4" y="2.6" width="11.2" height="18.8" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></rect><path d="M10.6 18.4h2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"></path></symbol><symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"></path></symbol><symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"></rect><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"></circle><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol><symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></circle><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"></circle></symbol><symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"></path></symbol></defs></svg><div class="progress" aria-hidden="true"><i data-progress="true"></i></div><header class="nav" data-nav="true"><div class="wrap nav__in"><a class="brand" href="#top"><svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"></rect><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"></path><circle cx="14.6" cy="16" r="1.9" fill="#26211B"></circle><circle cx="25.4" cy="16" r="1.9" fill="#26211B"></circle></svg>ChaptOS</a><nav class="nav__links"><a href="#ask">Just ask</a><a href="#day">A Tuesday</a><a href="#modules">What's in it</a><a href="#trust">Trust</a><a href="#price">Pricing</a></nav><div class="nav__cta"><a href="/login" class="btn btn--ghost btn--sm">Sign in</a><a class="btn btn--sm" href="/create"><span class="nav__long">Set up your org</span><span class="nav__short">Set up</span></a></div></div></header><main id="top"><section class="hero"><div class="wrap hero__grid"><div class="hero__copy"><span class="eyebrow" style="--eb:var(--peach)" data-reveal="true">For chapters · clubs · teams · councils · volunteer corps</span><h1 data-reveal="true" style="--d:60ms"><span class="line">Open one page.</span><span class="line">It already knows</span><span class="line"><span class="hi" style="--mark:var(--butter)">what today needs.</span></span></h1><p class="lede hero__lede" data-reveal="true" style="--d:140ms">ChaptOS holds the whole org — roster, dues, meetings, events, service, docs — and opens on a briefing: what's late, what's this week, who's slipping. Everything else is one <em>question</em> away.</p><div class="hero__actions" data-reveal="true" style="--d:200ms"><a class="btn btn--lg" href="/create">Set up your org — free</a><a class="btn btn--ghost btn--lg" href="#ask">Ask it something first<svg width="17" height="17" aria-hidden="true"><use href="#d-arrow-r"></use></svg></a></div><p class="hero__fine" data-reveal="true" style="--d:260ms"><span>Built around your org, not a template</span><span class="dot"></span><span>Free up to <!-- -->4<!-- --> people, no card — <a href="#price">what it costs</a></span><span class="dot"></span><span>Export everything, any time</span></p></div><div class="hero__stage"><div class="hero__card" data-para="true" data-speed="-0.05"><div class="hero__cardbar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="hero__crumb mono">chaptos.app / oozma-kappa</span></div><div class="hero__cardbody"><div class="ui-brief"><div><p class="ui-kick" data-hb="780">Tue · Oct 14 · week 8 of Fall '26</p><p class="ui-greet" data-hb="840">Good evening, Priya</p><p class="ui-digest" data-hb="1100"><span class="aichip"><svg width="9" height="9" aria-hidden="true"><use href="#d-spark"></use></svg>Digest</span><span>Three deadlines land this week, dues are 76% in, and two members just dropped below attendance standing.</span></p></div><span class="ui-ring ui-ring--sm" data-ring="82" data-hb="1100" style="--ring-c:var(--mint-ink)"><i class="mono"><span class="counter" data-count="82">82</span><small>health</small></i></span></div><div class="ui-meas"><div class="meas" data-hb="1420"><p class="meas__l">Attendance</p><p class="meas__v"><span class="counter" data-count="92" data-suffix="%">92%</span></p><p class="meas__d up">▲ 4.2</p></div><div class="meas" data-hb="1485"><p class="meas__l">Dues in</p><p class="meas__v"><span class="counter" data-count="4820" data-prefix="$">$4,820</span></p><p class="meas__d">of $6,300</p></div><div class="meas" data-hb="1550"><p class="meas__l">Service</p><p class="meas__v"><span class="counter" data-count="312">312</span> <!-- -->hrs</p><p class="meas__d up">▲ 38</p></div><div class="meas" data-hb="1615"><p class="meas__l">Balance</p><p class="meas__v"><span class="counter" data-count="12480" data-prefix="$">$12,480</span></p><p class="meas__d">net</p></div></div><div class="ui-att"><div class="att" data-hb="1880" style="--hb-y:14px"><span class="att__tag">Overdue</span><div class="att__b"><p class="t">Submit the fall budget to the advisor</p><p class="m">Due Oct 10 · Treasurer · 4 days late</p></div><span class="att__a">Mark done</span></div><div class="att" data-hb="1975" style="--hb-y:14px"><span class="att__tag sky">Request</span><div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div><span class="att__a">Review</span></div></div></div></div><div class="hero__spot" data-para="true" data-speed="0.085"><div class="spotmini" data-spotmini="true" data-hb="2290" style="--hb-y:18px"><p class="spotmini__hd"><svg width="13" height="13" style="color:var(--lilac-ink)" aria-hidden="true"><use href="#d-spark"></use></svg>Ask Chapt <kbd>⌘K</kbd></p><p class="spotmini__q"><span data-typer="true" data-lines="who still owes dues?|is anyone double-booked next week?|who missed the last two meetings?"></span></p><p class="spotmini__a" data-spotmini-a="true"></p></div></div><div class="hero__piles"><div class="pile pile--sheet" data-para="true" data-speed="0.075"><div class="sticky-note" data-hb="220" style="--note:var(--mint);--rot:-3.2deg;--hb-y:-14px"><b>dues_FALL_v4_FINAL.xlsx</b><br><span style="font-size:.83rem;color:var(--ink-2)">last edited by an officer who graduated</span></div></div><div class="pile pile--chat" data-para="true" data-speed="0.115"><div class="sticky-note" data-hb="330" style="--note:var(--rose);--rot:2.6deg;--tape-rot:3deg;--hb-y:18px"><b>"did anyone take attendance??"</b><br><span style="font-size:.83rem;color:var(--ink-2)">group chat, 11:52 PM</span></div></div><div class="pile pile--receipt" data-para="true" data-speed="0.095"><div class="sticky-note" data-hb="440" style="--note:var(--sky);--rot:-2deg;--tape-rot:-4deg;--hb-y:-16px"><b>47 Venmo notes</b><br><span style="font-size:.83rem;color:var(--ink-2)">🍕 🎉 "dues i think"</span></div></div></div></div></div><div class="wrap trustbar" data-reveal="true"><p class="trustbar__label">There's a place here for every kind of org.</p><div class="trustbar__row"><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--peach-ink)" aria-hidden="true"><use href="#d-star"></use></svg>Greek Life</span><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--lilac-ink)" aria-hidden="true"><use href="#d-people"></use></svg>Cultural orgs</span><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--sky-ink)" aria-hidden="true"><use href="#d-flag"></use></svg>Club team</span><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-heart"></use></svg>Volunteer corps</span><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--rose-ink)" aria-hidden="true"><use href="#d-note"></use></svg>Theatre &amp; band</span><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--butter-ink)" aria-hidden="true"><use href="#d-clip"></use></svg>Student government</span><span class="orgchip"><svg viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--lilac-ink)" aria-hidden="true"><use href="#d-mug"></use></svg>Honor society</span></div></div></section><section class="pain pain--short" id="pain"><div class="wrap pain__head"><span class="eyebrow" style="--eb:var(--rose)" data-reveal="true">The 11 p.m. problem</span><h2 data-reveal="true" style="margin-top:16px;--d:60ms">Nobody signed up to be an admin.</h2><p class="lede" style="margin-top:18px" data-reveal="true">You ran for this because you cared about the org. Then the org turned out to be a filing system with a social calendar attached.</p></div><div class="marquee" data-reveal="true" style="--d:120ms"><div class="marquee__row"><div class="marquee__track" data-marquee="true"><div class="gripe" style="--rot:-.6deg"><q>I spent <b>two hours</b> <!-- -->matching Venmo notes to a spreadsheet. One said "🍕".</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"></use></svg>Treasurer, 60-member chapter</footer></div><div class="gripe gripe--tint" style="--t:var(--butter-soft);--rot:.5deg"><q>Attendance is a <b>notebook</b>. The notebook is in someone's car. The car is in Ohio.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-clip"></use></svg>Secretary, service club</footer></div><div class="gripe" style="--rot:.8deg"><q>Minutes live in <b>three people's Notes app</b>. Nobody agrees what we decided.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-pencil"></use></svg>Secretary, 90-member org</footer></div><div class="gripe gripe--tint" style="--t:var(--sky-soft);--rot:-.9deg"><q>New treasurer asked where the money was. Honestly? <b>Four places.</b></q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-receipt"></use></svg>Outgoing president</footer></div><div class="gripe" style="--rot:.4deg"><q>Our whole system was <b>one senior's Google Drive</b>. She graduated in May.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-people"></use></svg>Incoming exec board</footer></div><div class="gripe" style="--rot:-.6deg"><q>I spent <b>two hours</b> <!-- -->matching Venmo notes to a spreadsheet. One said "🍕".</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"></use></svg>Treasurer, 60-member chapter</footer></div><div class="gripe gripe--tint" style="--t:var(--butter-soft);--rot:.5deg"><q>Attendance is a <b>notebook</b>. The notebook is in someone's car. The car is in Ohio.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-clip"></use></svg>Secretary, service club</footer></div><div class="gripe" style="--rot:.8deg"><q>Minutes live in <b>three people's Notes app</b>. Nobody agrees what we decided.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-pencil"></use></svg>Secretary, 90-member org</footer></div><div class="gripe gripe--tint" style="--t:var(--sky-soft);--rot:-.9deg"><q>New treasurer asked where the money was. Honestly? <b>Four places.</b></q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-receipt"></use></svg>Outgoing president</footer></div><div class="gripe" style="--rot:.4deg"><q>Our whole system was <b>one senior's Google Drive</b>. She graduated in May.</q><footer><svg width="14" height="14" aria-hidden="true"><use href="#d-people"></use></svg>Incoming exec board</footer></div></div></div></div></section><section class="scene" id="ask" data-scene="true" style="--ask-rail: 300vh;"><div class="scene__rail"><div class="scene__stage"><div class="scene__in"><div class="scene__side"><span class="eyebrow" style="--eb:var(--lilac)">The part that changes everything</span><h2>Ask your org<br>a question.</h2><p class="lede">No more digging through spreadsheets. Just ask Chapt — it finds the answer, or handles the task for you.</p><ol class="beatlist" data-beatlist="true"><li data-beat-nav="0"><span class="n">1</span><span>You ask, in plain words</span></li><li data-beat-nav="1"><span class="n">2</span><span>It checks the real records</span></li><li data-beat-nav="2"><span class="n">3</span><span>You get an answer with receipts</span></li><li data-beat-nav="3"><span class="n">4</span><span>You ask it to do something</span></li><li data-beat-nav="4"><span class="n">5</span><span>Nothing sends without your OK</span></li><li data-beat-nav="5"><span class="n">6</span><span>It follows up so you don't</span></li></ol><svg viewBox="0 0 120 46" class="scene__doodle" style="width:118px;bottom:-16px;right:8px;color:var(--lilac-ink);opacity:.5" aria-hidden="true"><use href="#d-swirl"></use></svg></div><div class="chat" data-chat="true"><div class="beat" data-beat="0"><div class="beat__in"><div><p class="who who--right">Priya · Treasurer<!-- --> <span class="avatar avatar--sm" style="--av:var(--peach)">PS</span></p><div class="bubble bubble--me">who still owes dues this semester, and how bad is it?</div></div></div></div><div class="beat" data-beat="1"><div class="beat__in"><div><p class="who"><span class="avatar avatar--sm" style="--av:var(--butter)">✳</span> <!-- -->ChaptOS</p><div class="ledger" data-ledger="true"><p class="ledger__t"><i class="spin"></i> Checking before answering</p><ul><li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg></i>Read 52 dues records for Fall 2026</li><li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg></i>Matched 6 unlabeled payments to members</li><li><i class="tick"><svg viewBox="0 0 24 24" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg></i>Applied your Oct 1 late-fee rule</li></ul><div class="consulted"><span class="pill pill--calm">Dues ledger</span><span class="pill pill--calm">Roster</span><span class="pill pill--calm">Payment imports</span><span class="pill pill--calm">Chapter bylaws §4</span></div></div></div></div></div><div class="beat" data-beat="2"><div class="beat__in"><div class="acard"><div class="acard__hd"><span class="k">$1,480</span><span class="sub"><b>9 of 52 members</b> still owe.<br>4 are past the late-fee date.</span><span class="pill pill--due" style="margin-left:auto"><i class="dot"></i>Needs a nudge</span></div><div class="acard__rows"><div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--peach)">MR</span><span class="nm">Maya R.</span><span class="pill pill--due">21 days late</span><span class="amt">$140</span></div><div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--sky)">DO</span><span class="nm">Dev O.</span><span class="pill pill--part">Partial</span><span class="amt">$65</span></div><div class="acard__row"><span class="avatar avatar--sm" style="--av:var(--lilac)">JT</span><span class="nm">Jordan T.</span><span class="pill pill--due">9 days late</span><span class="amt">$140</span></div></div><p class="acard__ft"><svg width="13" height="13" aria-hidden="true"><use href="#d-receipt"></use></svg> 6 more · every row opens the payment it came from</p></div></div></div><div class="beat" data-beat="3"><div class="beat__in"><div><p class="who who--right">Priya · Treasurer<!-- --> <span class="avatar avatar--sm" style="--av:var(--peach)">PS</span></p><div class="bubble bubble--me">draft a reminder for the 4 late ones. keep it kind — half of them are broke, not avoiding me</div></div></div></div><div class="beat" data-beat="4"><div class="beat__in"><div class="draft"><p class="draft__hd"><svg width="14" height="14" aria-hidden="true"><use href="#d-shield"></use></svg> Waiting on you — ChaptOS never sends on its own</p><div class="draft__body"><p class="msg">Hey Maya — no stress, just a heads up that Fall dues ($140) are open past the Oct 1 date. Payment plans are totally fine; reply here and we'll split it into three. 💛 — Priya</p></div><div class="draft__ft"><button class="btn btn--sm" type="button">Send to 4 members</button><button class="btn btn--ghost btn--sm" type="button">Edit</button><span class="who-ok">Logged to the audit trail either way</span></div></div></div></div><div class="beat" data-beat="5"><div class="beat__in"><div class="done"><span class="done__ic"><svg width="22" height="22" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg></span><div class="bubble bubble--bot" style="box-shadow:3px 3px 0 var(--mint)">Sent to 4. I'll re-check Friday and only nudge whoever's still open — and I'll leave the two on payment plans alone.</div></div></div></div></div></div></div></div></section><section class="day" id="day" data-dial="true"><div class="wrap section" style="padding-top:clamp(64px,8vw,104px)"><div class="dial__head"><span class="eyebrow" style="--eb:var(--sky)" data-reveal="true">Tuesday, October 14</span><h2 data-reveal="true" style="margin-top:16px;--d:60ms">Nobody logs in to use software.</h2><p class="lede" data-reveal="true" style="margin-top:18px;--d:110ms">They log in because something's due, someone paid, roll needs taking, and the minutes have to say what we decided. Here's an ordinary day, in the order it actually happens.</p></div><div class="dial__grid"><div class="dial__side"><div class="dial" data-reveal="true" style="--d:170ms"><svg class="dial__face" viewBox="0 0 200 200" aria-hidden="true"><path class="dial__ring" d="M100 28 A72 72 0 1 1 37.65 64"></path><path class="dial__quiet" d="M37.65 64 A72 72 0 0 1 100 28"></path><path class="dial__prog" d="M100 28 A72 72 0 1 1 37.65 64" data-dial-prog="true"></path><g class="dial__hand" data-dial-hand="true"><line x1="100" y1="100" x2="100" y2="44"></line><circle cx="100" cy="41" r="4"></circle></g><circle class="dial__disc" cx="100" cy="100" r="27"></circle></svg><div class="dial__hub"><span class="c" data-dial-count="true">01</span><span class="l">of six</span></div><span class="dial__quiet-l" style="--a:330deg">8 quiet hours</span><div class="dial__ticks"><button type="button" class="dial__tick" style="--a:0deg" data-dial-tick="0" data-dial-cap-text="The briefing says what's late">8:12 AM</button><button type="button" class="dial__tick" style="--a:60deg" data-dial-tick="1" data-dial-cap-text="An idea becomes a real event">12:40 PM</button><button type="button" class="dial__tick" style="--a:120deg" data-dial-tick="2" data-dial-cap-text="A payout gets approved — and booked">3:05 PM</button><button type="button" class="dial__tick" style="--a:180deg" data-dial-tick="3" data-dial-cap-text="Roll call, 52 names, 40 seconds">7:31 PM</button><button type="button" class="dial__tick" style="--a:240deg" data-dial-tick="4" data-dial-cap-text="Notes that members actually read">9:20 PM</button><button type="button" class="dial__tick" style="--a:300deg" data-dial-tick="5" data-dial-cap-text="The day writes its own record">11:58 PM</button></div></div><p class="dial__cap" data-dial-cap="true">The briefing says what's late</p><div class="dial__replay"><button class="btn btn--ghost btn--sm" type="button" data-dial-replay="true"><svg width="15" height="15" aria-hidden="true"><use href="#d-loop"></use></svg> Play the day again</button></div><svg viewBox="0 0 120 46" class="dial__doodle" style="width:112px;bottom:-30px;right:-6px;color:var(--sky-ink);opacity:.4" aria-hidden="true"><use href="#d-swirl"></use></svg></div><div class="dialdeck" data-dial-deck="true"><div class="dialcard" data-dial-card="0"><div><p class="dialcard__t">8:12 AM · Dashboard</p><figure class="shot"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Dashboard <span class="sep">/</span> Fall 2026</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Needs attention</span><span class="pill pill--due"><i class="dot"></i>4</span><span class="shot__spacer"></span><span class="mono" style="font-size:.78rem;color:var(--ink-3)">resolved items drop off</span></div><div class="ui-att" style="margin-top:0"><div class="att"><span class="att__tag">Overdue</span><div class="att__b"><p class="t">Submit the fall budget to the advisor</p><p class="m">Due Oct 10 · Treasurer · 4 days late</p></div><span class="att__a">Mark done</span></div><div class="att"><span class="att__tag gold">Dues</span><div class="att__b"><p class="t">Maya Rivera — $140 outstanding</p><p class="m">21 days past the Oct 1 date</p></div><span class="att__a">Open profile</span></div><div class="att"><span class="att__tag sky">Request</span><div class="att__b"><p class="t">Reimbursement — $84.20, service supplies</p><p class="m">Nia Brooks · waiting on a treasurer</p></div><span class="att__a">Review</span></div><div class="att"><span class="att__tag calm">Standing</span><div class="att__b"><p class="t">Jordan Tao is one absence from review</p><p class="m">2 of 8 missed · policy is 3</p></div><span class="att__a">Open profile</span></div></div></div></figure><p class="dialcard__note"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg><span>Nobody built a report to find these. The queue is what the dashboard opens on, and rows leave it the moment they're handled.</span></p></div></div><div class="dialcard" data-dial-card="1"><div><p class="dialcard__t">12:40 PM · Programming</p><figure class="shot"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Programming <span class="sep">/</span> Fall 2026</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Alumni mixer</span><span class="pill pill--paid"><i class="dot"></i>Moved to Confirmed</span><span class="shot__spacer"></span><span class="shot__tabs"><span class="on">Board</span><span>Table</span><span>Calendar</span></span></div><div class="ui-board"><div class="bcol"><p class="bcol__h"><i style="--s:var(--rose-ink)"></i>Idea <b>3</b></p><div class="bcard">Casino night<small>no owner yet</small></div><div class="bcard">Intramural league<small>needs budget</small></div></div><div class="bcol"><p class="bcol__h"><i style="--s:var(--butter-ink)"></i>Planning <b>2</b></p><div class="bcard">Beach cleanup<small>Sat · service</small></div></div><div class="bcol"><p class="bcol__h"><i style="--s:var(--mint-ink)"></i>Confirmed <b>2</b></p><div class="bcard is-moved">Alumni mixer<small>Fri 6:30 · D. Reyes</small></div><div class="bcard">Fall formal<small>Oct 23 · social</small></div></div><div class="bcol"><p class="bcol__h"><i style="--s:var(--line-2)"></i>Done <b>6</b></p><div class="bcard" style="opacity:0.62">Fundraiser night<small>Sep 28</small></div></div></div><ul class="ui-check"><li class="done"><i class="box"><svg viewBox="0 0 24 24" style="color:#fff;width:11px;height:11px" aria-hidden="true"><use href="#d-check"></use></svg></i><span class="lbl">Venue confirmed — the Union, room 204</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li><li class="done"><i class="box"><svg viewBox="0 0 24 24" style="color:#fff;width:11px;height:11px" aria-hidden="true"><use href="#d-check"></use></svg></i><span class="lbl">Budget line approved — $340</span><span class="owner pill pill--paid"><i class="dot"></i>Done</span></li><li><i class="box"></i><span class="lbl">Alumni list pulled + emailed</span><span class="owner pill pill--part"><i class="dot"></i>Due Thu</span></li></ul><p class="ui-note" style="background:var(--mint-soft);border-color:#BDE7D2;color:var(--mint-ink)"><svg width="15" height="15" aria-hidden="true"><use href="#d-cal"></use></svg><span>Confirmed events land on the org timeline —<!-- --> <b>everyone sees Friday 6:30</b> without a single group-chat post</span></p></div></figure><p class="dialcard__note"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg><span>The social chair dragged one card. That's the whole announcement.</span></p></div></div><div class="dialcard" data-dial-card="2"><div><p class="dialcard__t">3:05 PM · Treasury</p><figure class="shot"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Treasury <span class="sep">/</span> Reimbursements</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Waiting on you</span><span class="pill pill--part"><i class="dot"></i>2 pending</span><span class="shot__spacer"></span><span class="mono" style="font-size:.9rem;font-weight:600">$12,480<span style="color:var(--ink-3)"> balance</span></span></div><div class="ui-stat" style="gap:14px"><span class="avatar" style="--av:var(--mint)">NB</span><div style="min-width:0"><p class="ui-stat__k">$84.20<!-- --> <span style="font-size:.9rem;color:var(--ink-3);font-family:var(--sans);font-weight:500">— service supplies</span></p><p class="ui-stat__l">Nia Brooks · Oct 12 · receipt attached · category: Service</p></div><span style="margin-left:auto;display:flex;gap:8px;flex:none"><span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span><span class="btn btn--ghost btn--sm">Decline</span></span></div><p class="ui-note" style="background:var(--butter-soft);border-color:#F4DFA6;color:var(--butter-ink)"><svg width="15" height="15" aria-hidden="true"><use href="#d-receipt"></use></svg><span>Approving writes the expense row <b>and</b> moves the balance — one transaction, both books</span></p><div class="ui-table ui-table--4"><div class="ui-th"><span>Entry</span><span>Category</span><span>Date</span><span>Amount</span></div><div class="ui-tr" style="background:var(--mint-soft)"><span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Service supplies</span><span class="txt">Service</span><span class="txt mono">Oct 14</span><span class="amt">−$84.20</span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dues — Dev Okafor</span><span class="txt">Dues</span><span class="txt mono">Oct 13</span><span class="amt">+$75.00</span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">FF</i>Formal deposit</span><span class="txt">Events</span><span class="txt mono">Oct 11</span><span class="amt">−$400.00</span></div></div></div></figure><p class="dialcard__note"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg><span>Dues payments and payouts are <em>requests</em> <!-- -->until a treasurer approves them. Nothing edits the balance behind anyone's back.</span></p></div></div><div class="dialcard" data-dial-card="3"><div><p class="dialcard__t">7:31 PM · Chapter meeting</p><figure class="shot"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Chapter <span class="sep">/</span> General Meeting <span class="sep">/</span> Oct 14</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Taking roll</span><span class="pill pill--paid"><i class="dot"></i>Live</span><span class="shot__spacer"></span><span class="mono" style="font-size:.9rem;font-weight:600">47<span style="color:var(--ink-3)">/52 here</span></span></div><div class="ui-roll" style="margin-top:0"><span class="ui-person is-here"><i class="mk"><svg viewBox="0 0 24 24" style="color:#fff" aria-hidden="true"><use href="#d-check"></use></svg></i>Ana C.</span><span class="ui-person is-here"><i class="mk"><svg viewBox="0 0 24 24" style="color:#fff" aria-hidden="true"><use href="#d-check"></use></svg></i>Dev O.</span><span class="ui-person is-late"><i class="mk"></i>Maya R.</span><span class="ui-person is-here"><i class="mk"><svg viewBox="0 0 24 24" style="color:#fff" aria-hidden="true"><use href="#d-check"></use></svg></i>Sam W.</span><span class="ui-person is-here"><i class="mk"><svg viewBox="0 0 24 24" style="color:#fff" aria-hidden="true"><use href="#d-check"></use></svg></i>Priya S.</span><span class="ui-person is-out"><i class="mk"></i>Jordan T.</span><span class="ui-person is-here"><i class="mk"><svg viewBox="0 0 24 24" style="color:#fff" aria-hidden="true"><use href="#d-check"></use></svg></i>Leo M.</span><span class="ui-person is-here"><i class="mk"><svg viewBox="0 0 24 24" style="color:#fff" aria-hidden="true"><use href="#d-check"></use></svg></i>Nia B.</span></div><p class="ui-note" style="background:var(--butter-soft);border-color:#F4DFA6;color:var(--butter-ink)"><svg width="15" height="15" aria-hidden="true"><use href="#d-hand"></use></svg><span>Jordan T. filed an excuse — <b>lab conflict</b>, 2nd this term</span><span style="margin-left:auto;display:flex;gap:6px"><span class="btn btn--sm" style="--btn-shadow:var(--mint)">Approve</span></span></p><div class="ui-table"><div class="ui-th"><span>Standing</span><span>Missed</span><span>Status</span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--lilac)">JT</i>Jordan Tao</span><span class="amt">2 of 8</span><span><span class="pill pill--part"><i class="dot"></i>1 from review</span></span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">AC</i>Ana Chen</span><span class="amt">0 of 8</span><span><span class="pill pill--paid"><i class="dot"></i>Good standing</span></span></div></div></div></figure><p class="dialcard__note"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg><span>Standing updates itself as the roll closes — so the attendance policy is finally a number, not an argument.</span></p></div></div><div class="dialcard" data-dial-card="4"><div><p class="dialcard__t">9:20 PM · Minutes</p><figure class="shot"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Chapter <span class="sep">/</span> Minutes <span class="sep">/</span> Oct 14</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Meeting notes</span><span class="pill pill--calm"><svg width="13" height="13" aria-hidden="true"><use href="#d-spark"></use></svg> Summarized</span><span class="shot__spacer"></span><span class="mono" style="font-size:.78rem;color:var(--ink-3)">saved · 52 members notified</span></div><div class="ui-split" style="margin-top:0"><div class="ui-raw"><h5>What the secretary typed</h5><p>ok so formal — voted, 31 yes 6 no, we're doing the 23rd not the 30th…</p><p>maya asked about payment plans, priya says fine, 3 splits, needs a vote next week</p><p>dev has to send the budget to advisor by friday!! also someone confirm the van</p><p>alumni mixer moved to confirmed, dr owns it</p></div><div class="ui-sum"><h5>Decisions</h5><ul><li>Fall formal set for Oct 23 <span class="pill pill--paid">31–6</span></li><li>Alumni mixer confirmed, owner D. Reyes</li></ul><h5>Action items</h5><ul><li>Budget to the advisor by Fri<!-- --> <span class="pill pill--info">Treasurer</span></li><li>Confirm the van + 2 drivers<!-- --> <span class="pill pill--info">Social</span></li></ul><h5>Discussed</h5><ul><li>Three-split payment plans — vote next week</li></ul></div></div><p class="ui-note"><svg width="15" height="15" aria-hidden="true"><use href="#d-clip"></use></svg><span>Action items were handed to <b>the seat, not the person</b> — whoever holds Treasurer next month inherits them</span></p></div></figure><p class="dialcard__note"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg><span>Two of those action items are now dated tasks. They'll be on tomorrow's briefing whether anyone remembers or not.</span></p></div></div><div class="dialcard" data-dial-card="5"><div><p class="dialcard__t">11:58 PM · Timeline</p><figure class="shot"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Timeline <span class="sep">/</span> Activity</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Today</span><span class="pill pill--info">14 entries</span><span class="shot__spacer"></span><span class="shot__tabs"><span class="on">Today</span><span>Term</span><span>All</span></span></div><div class="ui-log"><div class="logrow"><span class="ts">11:41 PM</span><span class="tx">Minutes published — <b>General Meeting, Oct 14</b></span><span class="pill pill--calm">Priya S.</span></div><div class="logrow"><span class="ts">9:24 PM</span><span class="tx">2 tasks created from action items</span><span class="pill">auto</span></div><div class="logrow"><span class="ts">7:58 PM</span><span class="tx">Attendance closed — <b>47 of 52</b>, 1 excused</span><span class="pill pill--calm">Priya S.</span></div><div class="logrow"><span class="ts">7:44 PM</span><span class="tx">Excuse approved — Jordan T., lab conflict</span><span class="pill pill--calm">Ana C.</span></div><div class="logrow"><span class="ts">3:06 PM</span><span class="tx">Reimbursement approved — <b>$84.20</b>, expense row minted</span><span class="pill pill--calm">Dev O.</span></div><div class="logrow"><span class="ts">12:41 PM</span><span class="tx">Alumni mixer → <b>Confirmed</b>, published to timeline</span><span class="pill pill--calm">D. Reyes</span></div><div class="logrow"><span class="ts">8:15 AM</span><span class="tx">Deadline completed — fall budget draft</span><span class="pill pill--calm">Dev O.</span></div></div><p class="ui-note" style="background:var(--sky-soft);border-color:#CCDFFB;color:var(--sky-ink)"><svg width="15" height="15" aria-hidden="true"><use href="#d-loop"></use></svg><span>Nobody wrote a status update. <b>This is just what happened, in order.</b></span></p></div></figure><p class="dialcard__note"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg><span>Next May, the incoming board reads this instead of interviewing whoever still answers texts.</span></p></div></div></div></div></div></section><section class="section" id="modules"><div class="wrap"><div class="modules__head"><span class="eyebrow" style="--eb:var(--mint)" data-reveal="true">The part a Tuesday can't show you</span><h2 data-reveal="true" style="margin-top:16px;--d:60ms">A day runs itself.<br>A semester is what piles up.</h2><p class="lede" data-reveal="true" style="margin-top:18px;--d:110ms;max-width:62ch">Every moment on that dial took one person a few seconds. These three are what those seconds add up to by April — the money, the people and the record — and what the next board opens on their first day.</p></div></div><div class="modtabs wrap" role="tablist" data-reveal=""><button type="button" class="modtab is-on" data-modtab="0" role="tab"><svg width="14" height="14" aria-hidden="true"><use href="#d-wallet"></use></svg>Treasury, dues &amp; budget</button><button type="button" class="modtab" data-modtab="1" role="tab"><svg width="14" height="14" aria-hidden="true"><use href="#d-people"></use></svg>Roster, standing &amp; roles</button><button type="button" class="modtab" data-modtab="2" role="tab"><svg width="14" height="14" aria-hidden="true"><use href="#d-folder"></use></svg>Docs, activity &amp; terms</button></div><div class="moddeck"><div class="mod mod--tab is-on" data-modpanel="0"><div class="wrap mod__grid"><div class="mod__copy"><h3 data-reveal="true" style="--d:50ms">Two sets of books that can't disagree.</h3><div class="mod__pain" data-reveal="true" style="--d:90ms;--pain-bg:var(--peach-soft);--pain-bd:#F8D2C2">"Someone Venmo'd $70 with a pizza emoji. Dues are $140. Is that half, or a different thing entirely? And did I ever write down the $84 I paid back?"            <span class="src">— every treasurer, week three</span></div><p class="mod__fix" data-reveal="true" style="--d:130ms">A running balance for every member, and one ledger for the whole org — wired together so they move at the same time. A dues payment or a reimbursement is a<!-- --> <em>request</em> until a treasurer approves it; approval mints the matching row and adjusts the balance in a single write. Nothing gets hard-deleted.</p></div><div class="mod__stage" data-para="true" data-speed="-0.045"><figure class="shot" data-reveal="scale"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Treasury <span class="sep">/</span> Overview <span class="sep">/</span> Fall 2026</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">The ledger</span><span class="pill pill--paid"><i class="dot"></i>+$340 this week</span><span class="shot__spacer"></span><span class="shot__tabs"><span class="on">Overview</span><span>Budget</span><span>Reimbursements</span></span></div><div class="ui-meas" style="margin-top:2px"><div class="meas"><p class="meas__l">Balance</p><p class="meas__v">$4,820</p><p class="meas__d">→ $6,266 proj.</p></div><div class="meas"><p class="meas__l">Income</p><p class="meas__v">$5,940</p><p class="meas__d">11 txns</p></div><div class="meas"><p class="meas__l">Expenses</p><p class="meas__v">$1,120</p><p class="meas__d">$300 scheduled</p></div><div class="meas"><p class="meas__l">Dues out</p><p class="meas__v">$1,480</p><p class="meas__d up">9 owing</p></div></div><div class="ui-table ui-table--4" style="margin-top:14px"><div class="ui-th"><span>Entry</span><span>Category</span><span>Date</span><span>Amount</span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dues — Dev Okafor</span><span class="txt">Dues</span><span class="txt mono">Oct 13</span><span class="amt">+$75.00</span></div><div class="ui-tr is-flagged"><span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Service supplies</span><span class="txt">Service</span><span class="txt mono">Oct 12</span><span class="amt">−$84.20</span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">FF</i>Fall social — door</span><span class="txt">Events</span><span class="txt mono">Oct 11</span><span class="amt">+$210.00</span></div></div><p class="ui-note"><svg width="15" height="15" aria-hidden="true"><use href="#d-receipt"></use></svg><span>1 reimbursement waiting on you — approving posts the expense <b>and</b> <!-- -->moves the balance, one write</span></p></div></figure><div class="callout" data-reveal="true" style="top:-26px;right:-22px;--co:var(--peach);--d:220ms"><b>The pizza-emoji problem, solved.</b> <!-- -->Money arrives attached to a person, not to somebody's memory.</div></div></div></div><div class="mod mod--tab" data-modpanel="1"><div class="wrap mod__grid"><div class="mod__copy"><h3 data-reveal="true" style="--d:50ms">Everyone's whole story, one row each.</h3><div class="mod__pain" data-reveal="true" style="--d:90ms;--pain-bg:var(--sky-soft);--pain-bd:#CCDFFB">"Three misses and you're out — that's the policy. Nobody can prove who's at three, so the policy has never once been enforced."  <span class="src">— secretary, 90-member org</span></div><p class="mod__fix" data-reveal="true" style="--d:130ms">Attendance, dues, service hours, GPA and anything else you decide to track, per member, per term — with the bands you set for on-track, watch, and at-risk. Open anyone and you get their history, not a number somebody typed.</p></div><div class="mod__stage" data-para="true" data-speed="-0.045"><figure class="shot" data-reveal="scale"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Brotherhood <span class="sep">/</span> Roster <span class="sep">/</span> Fall 2026</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Roster</span><span class="pill pill--info">52 members · 7 seats</span><span class="shot__spacer"></span><span class="shot__tabs"><span class="on">All</span><span>At risk</span><span>Exec</span></span></div><div class="ui-table ui-table--4" style="margin-top:0"><div class="ui-th"><span>Member</span><span>Seat</span><span>Attendance</span><span>Dues</span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--butter)">AC</i>Ana Chen</span><span class="txt"><span class="pill pill--part">President</span></span><span class="txt mono">100%</span><span><span class="pill pill--paid"><i class="dot"></i>Paid</span></span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--sky)">DO</i>Dev Okafor</span><span class="txt"><span class="pill pill--info">Treasurer</span></span><span class="txt mono">94%</span><span><span class="pill pill--part"><i class="dot"></i>Plan</span></span></div><div class="ui-tr is-flagged"><span class="who"><i class="avatar avatar--sm" style="--av:var(--lilac)">JT</i>Jordan Tao</span><span class="txt">—</span><span class="txt mono">75%</span><span><span class="pill pill--due"><i class="dot"></i>$140</span></span></div><div class="ui-tr"><span class="who"><i class="avatar avatar--sm" style="--av:var(--mint)">NB</i>Nia Brooks</span><span class="txt"><span class="pill pill--calm">Service chair</span></span><span class="txt mono">97%</span><span><span class="pill pill--paid"><i class="dot"></i>Paid</span></span></div></div><div class="ui-meas" style="margin-top:14px"><div class="meas"><p class="meas__l">Service hrs</p><p class="meas__v">14 / 12</p><p class="meas__d up">on track</p></div><div class="meas"><p class="meas__l">GPA</p><p class="meas__v">3.42</p><p class="meas__d">steady</p></div><div class="meas"><p class="meas__l">Section</p><p class="meas__v" style="font-size:1rem">Trumpet</p><p class="meas__d">custom field</p></div><div class="meas"><p class="meas__l">Standing</p><p class="meas__v" style="font-size:1rem">Watch</p><p class="meas__d dn">2 of 8 missed</p></div></div><p class="ui-note" style="background:var(--butter-soft);border-color:#F4DFA6;color:var(--butter-ink)"><svg width="15" height="15" aria-hidden="true"><use href="#d-key"></use></svg><span>Treasurer sees money + roster · Service chair sees her committee ·<!-- --> <b>nobody sees more than their seat</b></span></p></div></figure><div class="callout" data-reveal="true" style="bottom:-42px;left:-32px;--co:var(--sky);--d:220ms"><b>Standing stops being a rumor.</b> The policy finally has a number behind it.</div></div></div></div><div class="mod mod--tab" data-modpanel="2"><div class="wrap mod__grid"><div class="mod__copy"><h3 data-reveal="true" style="--d:50ms">The org shouldn't reset every May.</h3><div class="mod__pain" data-reveal="true" style="--d:90ms;--pain-bg:var(--butter-soft);--pain-bd:#F4DFA6">"Everything our last president knew — the vendor, the form, the deadline, the login — left with her. We rebuilt it from scratch. Badly."<span class="src">— incoming exec board, spring transition</span></div><p class="mod__fix" data-reveal="true" style="--d:130ms">Bylaws, forms, vendor links and minutes live in a foldered library anyone can search. Every change writes an entry with who and when. Terms archive instead of vanishing — last year is still readable while this year starts clean.</p></div><div class="mod__stage" data-para="true" data-speed="-0.045"><figure class="shot" data-reveal="scale"><div class="shot__bar"><i class="tl"></i><i class="tl"></i><i class="tl"></i><span class="shot__path mono">Docs <span class="sep">/</span> Library</span></div><div class="shot__body"><div class="shot__toolbar"><span class="shot__title">Library</span><span class="pill pill--info">4 folders · 38 links</span><span class="shot__spacer"></span><span class="shot__tabs"><span class="on">Newest</span><span>Name</span><span>Kind</span></span></div><div class="ui-docs" style="margin-top:0"><div class="doccard"><p class="fd"><svg style="color:var(--butter-ink)" aria-hidden="true"><use href="#d-folder"></use></svg>Governance</p><p class="nm">Chapter bylaws (2026 rev.)</p><p class="by">pinned · added by Ana C.</p></div><div class="doccard"><p class="fd"><svg style="color:var(--sky-ink)" aria-hidden="true"><use href="#d-folder"></use></svg>Forms</p><p class="nm">Campus event request</p><p class="by">used 9× this term</p></div><div class="doccard"><p class="fd"><svg style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-folder"></use></svg>Vendors</p><p class="nm">Formal venue — contract + contact</p><p class="by">added by Priya S.</p></div></div><div class="ui-log" style="margin-top:16px"><div class="logrow"><span class="ts">Oct 14</span><span class="tx">Minutes published — <b>General Meeting</b></span><span class="pill pill--calm">Priya S.</span></div><div class="logrow"><span class="ts">Oct 13</span><span class="tx">Bylaws replaced — v2026.1</span><span class="pill pill--calm">Ana C.</span></div><div class="logrow"><span class="ts">Oct 11</span><span class="tx">Spring 2026 archived — 41 events, 214 records</span><span class="pill">term</span></div></div><p class="ui-note" style="background:var(--mint-soft);border-color:#BDE7D2;color:var(--mint-ink)"><svg width="15" height="15" aria-hidden="true"><use href="#d-export"></use></svg><span>Roster, ledger, attendance and docs export to CSV any time —<!-- --> <b>including on the way out</b></span></p></div></figure><div class="callout" data-reveal="true" style="bottom:-26px;right:-22px;--co:var(--butter);--d:220ms"><b>Year four still works.</b> The org keeps its memory even when everyone graduates.</div></div></div></div></div><div class="wrap"><p class="mod__rest" data-reveal="true">Plus tasks, polls, service hours, party books, a social calendar, role permissions, several orgs on one login, and a phone app that isn't a squeezed dashboard. A 12-person committee and a 200-member chapter run the same pages — just fewer of them, and turning one on mid-term doesn't cost you the history.<!-- --> <a href="/create">See every page <svg width="15" height="15" aria-hidden="true"><use href="#d-arrow-r"></use></svg></a></p></div></section><section class="section section--tight" id="trust"><div class="wrap"><div class="trust__head"><span class="eyebrow" style="--eb:var(--sky);justify-content:center" data-reveal="true">What earns it the keys</span><h2 data-reveal="true" style="margin-top:16px;--d:60ms;max-width:22ch;margin-inline:auto">An assistant holding your org's money should be boring about it.</h2></div><div class="guards"><div class="guard" data-reveal="true" style="--d:0ms"><span class="guard__ic" style="--g:var(--butter-soft);--gb:#F4DFA6"><svg width="24" height="24" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--butter-ink)" aria-hidden="true"><use href="#d-shield"></use></svg></span><h4>It can't act alone</h4><p>Anything that touches money, members or the outside world arrives as a proposal with an Approve button — and it's checked against your seat before you ever see it. If your role can't do it, the card says so and names who can.</p></div><div class="guard" data-reveal="true" style="--d:90ms"><span class="guard__ic" style="--g:var(--sky-soft);--gb:#CCDFFB"><svg width="24" height="24" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--sky-ink)" aria-hidden="true"><use href="#d-receipt"></use></svg></span><h4>Every answer shows its work</h4><p>No confident guesses. It reads your actual records, posts what it read as it goes, and every figure opens the payment, the meeting or the member it came from — so "where did this number come from" is a click, not an argument.</p></div><div class="guard" data-reveal="true" style="--d:180ms"><span class="guard__ic" style="--g:var(--mint-soft);--gb:#BDE7D2"><svg width="24" height="24" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-export"></use></svg></span><h4>Your org, your data</h4><p>One org can't read another — that's enforced at the database, not just in the UI. Inside yours, seats decide who sees what. Roster and ledger export to CSV any time, and deleting the whole workspace is one confirmation away.</p></div></div><p class="trust__more" data-reveal="true" style="--d:240ms"><a href="/trust">Read the full trust &amp; privacy page<svg width="18" height="18" viewBox="0 0 24 24" class="doodle doodle--thin" aria-hidden="true"><use href="#d-arrow-r"></use></svg></a><span>Every mechanism named, plus the things we don't claim yet.</span></p></div></section><section class="section section--tight price" id="price"><div class="price__depth" aria-hidden="true"><div class="price__wash" data-para="true" data-speed="-0.085"></div><div class="price__rules" data-para="true" data-speed="0.05"></div></div><span class="price__blob" aria-hidden="true" data-para="true" data-speed="0.095" style="top:13%;left:3%;width:78px;color:var(--mint-ink);opacity:.3"><svg viewBox="0 0 24 24" class="doodle" aria-hidden="true"><use href="#d-wallet"></use></svg></span><span class="price__blob" aria-hidden="true" data-para="true" data-speed="-0.07" style="bottom:6%;right:3.5%;width:72px;color:var(--sky-ink);opacity:.28"><svg viewBox="0 0 24 24" class="doodle" aria-hidden="true"><use href="#d-receipt"></use></svg></span><span class="price__blob" aria-hidden="true" data-para="true" data-speed="0.115" style="top:9%;right:8%;width:46px;color:var(--lilac-ink);opacity:.24"><svg viewBox="0 0 24 24" class="doodle" aria-hidden="true"><use href="#d-star"></use></svg></span><div class="wrap"><div class="price__head"><span class="eyebrow" style="--eb:var(--mint);justify-content:center" data-reveal="true">What it costs</span><h2 data-reveal="true" style="margin-top:16px;--d:60ms;max-width:20ch;margin-inline:auto">One price for the whole org. No per-person math.</h2><p class="lede" data-reveal="true" style="margin-top:18px;--d:110ms">Free while there are <!-- -->4<!-- --> or fewer of you, then<!-- --> <!-- -->$25<!-- --> a month for <em>everyone</em> — not each. Every feature is in every row.</p></div><div class="ladder__deck"><svg class="doodle ladder__ghost" viewBox="0 0 640 200" preserveAspectRatio="none" aria-hidden="true" data-para="true" data-speed="0.06"><line class="ladder__ghost-base" x1="6" y1="190" x2="634" y2="190"></line><polyline points="12,189 13,169 159,167 161,150 319,151 321,132 479,134 481,114 628,113"></polyline></svg><ol class="ladder"><li class="rung" data-para="true" data-speed="-0.02" data-para-min="1081" style="--i:0;--bt:var(--mint);--bti:var(--mint-ink)"><div class="rung__in" data-reveal="true" style="--d:0ms"><p class="rung__range mono">1–4 people</p><p class="rung__price"><span class="n">$0</span><span class="per">/month</span></p><p class="rung__note">Free forever at this size.</p></div></li><li class="rung" data-para="true" data-speed="-0.042" data-para-min="1081" style="--i:1;--bt:var(--sky);--bti:var(--sky-ink)"><div class="rung__in" data-reveal="true" style="--d:70ms"><p class="rung__range mono">5–50 people</p><p class="rung__price"><span class="n">$25</span><span class="per">/month</span></p><p class="rung__note">Flat, for the whole org.</p></div></li><li class="rung" data-para="true" data-speed="-0.064" data-para-min="1081" style="--i:2;--bt:var(--lilac);--bti:var(--lilac-ink)"><div class="rung__in" data-reveal="true" style="--d:140ms"><p class="rung__range mono">51–120 people</p><p class="rung__price"><span class="n">$65</span><span class="per">/month</span></p><p class="rung__note">Still flat, still everything.</p></div></li><li class="rung rung--quote" data-para="true" data-speed="-0.086" data-para-min="1081" style="--i:3;--bt:var(--butter);--bti:var(--butter-ink)"><div class="rung__in" data-reveal="true" style="--d:210ms"><p class="rung__range mono">121+ people</p><p class="rung__price"><span class="rung__custom">Let's talk</span></p><p class="rung__note">Priced with you, not off a table.</p></div></li></ol></div><p class="ladder__cap" data-reveal="true" style="--d:120ms"><svg width="17" height="17" class="doodle doodle--thin" aria-hidden="true"><use href="#d-loop"></use></svg>You never pick a row. Your roster lands you on one, and it moves you between them on its own — in both directions.</p><div class="assur"><div class="assur__i" data-reveal="true" style="--d:0ms"><span class="assur__ic" style="--g:var(--mint-soft);--gb:#BDE7D2"><svg width="19" height="19" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--mint-ink)" aria-hidden="true"><use href="#d-check"></use></svg></span><h4>Every feature at every price</h4><p>The roster, dues and the ledger, attendance, the timeline, docs, the assistant, exports, the audit log — on the free plan too. No screen tells you to upgrade to see it.</p></div><div class="assur__i" data-reveal="true" style="--d:90ms"><span class="assur__ic" style="--g:var(--sky-soft);--gb:#CCDFFB"><svg width="19" height="19" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--sky-ink)" aria-hidden="true"><use href="#d-shield"></use></svg></span><h4>Nothing is taken away at the limit</h4><p>Cross the free line and the <em>next</em> person you add waits for a card. Nobody is removed, every page keeps working, your exports keep working. It only ever pauses growth.</p></div><div class="assur__i" data-reveal="true" style="--d:180ms"><span class="assur__ic" style="--g:var(--lilac-soft);--gb:#DCD2FB"><svg width="19" height="19" viewBox="0 0 24 24" class="doodle doodle--thin" style="color:var(--lilac-ink)" aria-hidden="true"><use href="#d-people"></use></svg></span><h4>It follows you back down</h4><p>Seniors graduate, your headcount drops, and next month's invoice is smaller. You don't have to ask, and there's no plan to downgrade.</p></div></div><p class="price__more" data-reveal="true" style="--d:240ms"><a href="/pricing">See the full pricing page<svg width="18" height="18" viewBox="0 0 24 24" class="doodle doodle--thin" aria-hidden="true"><use href="#d-arrow-r"></use></svg></a><span>Work out your own number, who counts as a person, and what happens above<!-- --> <!-- -->120<!-- -->.</span></p></div></section><section class="cta" id="start"><svg viewBox="0 0 24 24" class="cta__blob" style="top:9%;left:2%;width:104px;color:var(--peach-ink);opacity:.32" aria-hidden="true"><use href="#d-mug"></use></svg><svg viewBox="0 0 24 24" class="cta__blob" style="bottom:13%;right:2%;width:98px;color:var(--mint-ink);opacity:.32" aria-hidden="true"><use href="#d-plant"></use></svg><svg viewBox="0 0 24 24" class="cta__blob" style="top:16%;right:9%;width:74px;color:var(--lilac-ink);opacity:.3" aria-hidden="true"><use href="#d-star"></use></svg><div class="wrap"><div class="cta__card" data-reveal="scale"><p class="cta__count" data-term-card="true"><svg width="16" height="16" style="align-self:center" aria-hidden="true"><use href="#d-cal"></use></svg><span class="t-soon"><span data-term-label="true">Fall term</span> starts in<!-- --> <span class="k" data-term-days="true">—</span> <span data-term-unit="true">days</span></span><span class="t-mid">Mid-term is the second-best time to start</span></p><h2>Be the board that<br>didn't inherit a mess.</h2><p class="lede cta__lede">Setup takes an afternoon. Describe the org, bring your people in, and walk into your first meeting with the roster, the dues, the calendar and the record already in one place.</p><div class="cta__actions"><a class="btn btn--lg" href="/create">Set up your org — free</a><a class="btn btn--ghost btn--lg" href="#ask">Ask it something first</a></div><div class="plan"><div class="plan__step" style="--st:var(--peach-ink)"><p class="plan__when" data-term-w1="true">This week</p><h4>Describe your org</h4><p>A short interview drafts your pages, seats, vocabulary and first term. You edit the blueprint, then sign in. ~20 minutes.</p><svg viewBox="0 0 24 24" class="plan__arrow doodle doodle--thin" style="color:var(--line-2)" aria-hidden="true"><use href="#d-arrow-r"></use></svg></div><div class="plan__step" style="--st:var(--sky-ink)"><p class="plan__when" data-term-w2="true">Before day one</p><h4>Bring your people in</h4><p>Paste the roster from whatever sheet you have, or send one invite link. Seats already carry their powers, so exec is exec on day one.</p><svg viewBox="0 0 24 24" class="plan__arrow doodle doodle--thin" style="color:var(--line-2)" aria-hidden="true"><use href="#d-arrow-r"></use></svg></div><div class="plan__step" style="--st:var(--mint-ink)"><p class="plan__when" data-term-w3="true">Week one</p><h4>Just open the dashboard</h4><p>It tells you what's late and what's this week. You spend the term on the org instead of on the spreadsheet about the org.</p></div></div><p class="cta__fine">Free for orgs of <!-- -->4<!-- --> or fewer, forever · Every feature on every plan ·<!-- --> <a href="#price">What it costs</a></p></div></div></section></main><footer class="foot"><div class="wrap"><div class="foot__grid"><div class="foot__brand"><a class="brand" href="#top"><svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"></rect><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"></path><circle cx="14.6" cy="16" r="1.9" fill="#26211B"></circle><circle cx="25.4" cy="16" r="1.9" fill="#26211B"></circle></svg>ChaptOS</a><p class="foot__blurb">The operating system for student orgs. The roster, the money, the week and the record — in one place you can just ask.</p></div><div><h5>Product</h5><ul><li><a href="#ask">Ask Chapt</a></li><li><a href="#modules">Treasury &amp; dues</a></li><li><a href="#modules">Roster &amp; standing</a></li><li><a href="#day">Timeline &amp; meetings</a></li><li><a href="#modules">Docs &amp; activity</a></li></ul></div><div><h5>For</h5><ul><li><a href="/for/fraternities-sororities">Fraternities &amp; sororities</a></li><li><a href="/for/club-teams">Club &amp; intramural teams</a></li><li><a href="/for/service-orgs">Service &amp; volunteer orgs</a></li><li><a href="/for/performing-arts">Bands, choirs &amp; theatre</a></li><li><a href="/for/student-government">Student government</a></li><li><a href="/for/custom">Custom &amp; anything else</a></li></ul></div><div><h5>Company</h5><ul><li><a href="/trust">Trust &amp; privacy</a></li><li><a href="/pricing">Pricing</a></li><li><a href="/help">Help center</a></li><li><a href="/contact">Talk to a human</a></li></ul></div></div><div class="foot__base"><span>© 2026 ChaptOS</span><span class="sp"></span><span>Made by people who ran the meeting, took the minutes, and chased the dues.</span></div></div></footer></div><script>
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+function modtabs() {
+  const tabs = Array.from(document.querySelectorAll("[data-modtab]"));
+  const panels = Array.from(document.querySelectorAll("[data-modpanel]"));
+  const go = (i) => {
+    tabs.forEach((t, k) => {
+      t.classList.toggle("is-on", k === i);
+      t.setAttribute("aria-selected", String(k === i));
+    });
+    panels.forEach((p, k) => {
+      p.classList.toggle("is-on", k === i);
+      if (k === i) p.querySelectorAll("[data-reveal]").forEach((el) => {
+        el.classList.remove("is-in");
+        void el.offsetWidth;
+        el.classList.add("is-in");
+      });
+    });
+    dispatchEvent(new Event("scroll"));
+  };
+  tabs.forEach((t, i) => t.addEventListener("click", () => go(i)));
+  return () => {
+  };
+}
+function boot() {
+  const root = document.querySelector(".lp");
+  if (!root) return;
+  const q = (s, r = root) => r.querySelector(s);
+  const qa = (s, r = root) => Array.from(r.querySelectorAll(s));
+  const mqReduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const mqMobile = matchMedia("(max-width: 860px)");
+  const isCalm = () => mqReduce.matches;
+  const rafIds = /* @__PURE__ */ new Set();
+  function runCount(el) {
+    const to = parseFloat(el.getAttribute("data-count") ?? "") || 0;
+    const dec = parseInt(el.getAttribute("data-decimals") ?? "0", 10);
+    const pre = el.getAttribute("data-prefix") ?? "";
+    const suf = el.getAttribute("data-suffix") ?? "";
+    const fmt = (v) => pre + (dec ? v.toFixed(dec) : Math.round(v).toLocaleString("en-US")) + suf;
+    if (isCalm()) {
+      el.textContent = fmt(to);
+      return;
+    }
+    const t0 = performance.now();
+    const dur = 1500;
+    const step = (t) => {
+      const p = clamp((t - t0) / dur, 0, 1);
+      el.textContent = fmt(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) rafIds.add(requestAnimationFrame(step));
+    };
+    rafIds.add(requestAnimationFrame(step));
+  }
+  function runRing(el) {
+    const pct = parseFloat(el.getAttribute("data-ring") ?? "") || 0;
+    rafIds.add(requestAnimationFrame(() => el.style.setProperty("--pct", String(pct))));
+  }
+  function reveal() {
+    const els = qa("[data-reveal]");
+    if (isCalm() || !("IntersectionObserver" in window)) {
+      els.forEach((el) => el.classList.add("is-in"));
+      return () => {
+      };
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          e.target.classList.add("is-in");
+          io.unobserve(e.target);
+        }
+      },
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.08 }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }
+  function parallax() {
+    const items = qa("[data-para]").map((el) => ({
+      el,
+      speed: parseFloat(el.getAttribute("data-speed") ?? "") || 0.06,
+      /* Opt-in floor for drift that only makes sense in one layout. The price
+         rungs stagger against each other while the ladder is a single row;
+         the moment it wraps to 2×2 the same offsets read as a misaligned
+         grid, which is exactly why the CSS lift is dropped there too. Below
+         the floor the target is pinned to 0 rather than the item being
+         skipped, so a resize lerps it home instead of snapping. */
+      min: parseFloat(el.getAttribute("data-para-min") ?? "") || 0,
+      cur: 0,
+      target: 0
+    }));
+    if (!items.length) return () => {
+    };
+    let vh = innerHeight;
+    let running = false;
+    let idleFrames = 0;
+    let raf = 0;
+    function measure() {
+      vh = innerHeight;
+      for (const it of items) {
+        if (innerWidth < it.min) {
+          it.target = 0;
+          continue;
+        }
+        const r = it.el.getBoundingClientRect();
+        it.target = (r.top + r.height / 2 - vh / 2) * it.speed;
+      }
+    }
+    function frame() {
+      if (mqMobile.matches || isCalm()) {
+        running = false;
+        return;
+      }
+      let moving = false;
+      for (const it of items) {
+        it.cur += (it.target - it.cur) * 0.11;
+        if (Math.abs(it.target - it.cur) > 0.08) moving = true;
+        it.el.style.transform = `translate3d(0,${it.cur.toFixed(2)}px,0)`;
+      }
+      idleFrames = moving ? 0 : idleFrames + 1;
+      if (idleFrames > 12) {
+        running = false;
+        return;
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    function wake() {
+      if (mqMobile.matches || isCalm()) return;
+      measure();
+      idleFrames = 0;
+      if (!running) {
+        running = true;
+        raf = requestAnimationFrame(frame);
+      }
+    }
+    function clear() {
+      for (const it of items) {
+        it.cur = it.target = 0;
+        it.el.style.transform = "";
+      }
+      running = false;
+    }
+    const sync = () => mqMobile.matches || isCalm() ? clear() : wake();
+    addEventListener("scroll", wake, { passive: true });
+    addEventListener("resize", sync);
+    mqMobile.addEventListener("change", sync);
+    sync();
+    return () => {
+      cancelAnimationFrame(raf);
+      removeEventListener("scroll", wake);
+      removeEventListener("resize", sync);
+      mqMobile.removeEventListener("change", sync);
+      clear();
+    };
+  }
+  function chrome() {
+    const nav = q("[data-nav]");
+    const bar = q("[data-progress]");
+    function tick() {
+      const y = scrollY;
+      nav?.classList.toggle("is-stuck", y > 18);
+      if (bar) {
+        const max = document.documentElement.scrollHeight - innerHeight;
+        bar.style.width = `${(max > 0 ? clamp(y / max, 0, 1) : 0) * 100}%`;
+      }
+    }
+    addEventListener("scroll", tick, { passive: true });
+    addEventListener("resize", tick);
+    tick();
+    return () => {
+      removeEventListener("scroll", tick);
+      removeEventListener("resize", tick);
+    };
+  }
+  function marquee() {
+    const sizers = qa("[data-marquee]").map((track) => {
+      const size = () => {
+        const gap = parseFloat(getComputedStyle(track).columnGap || "20") || 20;
+        track.style.setProperty("--shift", `-${(track.scrollWidth + gap) / 2}px`);
+      };
+      size();
+      return size;
+    });
+    if (!sizers.length) return () => {
+    };
+    const onResize = () => sizers.forEach((f) => f());
+    addEventListener("resize", onResize);
+    return () => removeEventListener("resize", onResize);
+  }
+  function scene() {
+    const sceneRoot = q("[data-scene]");
+    if (!sceneRoot) return () => {
+    };
+    const rail = q(".scene__rail", sceneRoot);
+    const stage = q(".scene__stage", sceneRoot);
+    const beats = qa(".beat", sceneRoot);
+    const navs = qa("[data-beat-nav]", sceneRoot);
+    const ledger = q("[data-ledger]", sceneRoot);
+    if (!rail || !stage) return () => {
+    };
+    const AT = [0, 0.13, 0.29, 0.47, 0.63, 0.8];
+    const LEDGER_AT = AT[1] + 0.05;
+    let timers = [];
+    let io = null;
+    function paint(active, ledgerLive) {
+      beats.forEach((b, i) => b.classList.toggle("is-in", i <= active));
+      navs.forEach((n, i) => {
+        n.classList.toggle("is-on", i === active);
+        n.classList.toggle("is-done", i < active);
+      });
+      ledger?.classList.toggle("is-live", ledgerLive);
+    }
+    const railY = () => rail.getBoundingClientRect().top + scrollY;
+    const span = () => rail.offsetHeight - stage.offsetHeight;
+    function scrub() {
+      const s = span();
+      const p = s > 0 ? clamp(-rail.getBoundingClientRect().top / s, 0, 1) : 0;
+      let active = -1;
+      for (let i = 0; i < AT.length; i++) if (p >= AT[i]) active = i;
+      paint(active, p >= LEDGER_AT);
+    }
+    function playOnce() {
+      timers.forEach(clearTimeout);
+      timers = [];
+      beats.forEach((_, i) => {
+        timers.push(setTimeout(() => paint(i, i >= 1), 200 + i * 760));
+      });
+    }
+    let mode = null;
+    function setMode() {
+      const next = isCalm() ? "all" : mqMobile.matches ? "mobile" : "scrub";
+      if (next === mode) return;
+      mode = next;
+      removeEventListener("scroll", scrub);
+      timers.forEach(clearTimeout);
+      io?.disconnect();
+      if (mode === "all") return paint(beats.length - 1, true);
+      if (mode === "scrub") {
+        addEventListener("scroll", scrub, { passive: true });
+        scrub();
+        return;
+      }
+      paint(0, false);
+      if (!("IntersectionObserver" in window)) return paint(beats.length - 1, true);
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            io?.disconnect();
+            playOnce();
+          }
+        },
+        { threshold: 0.22 }
+      );
+      io.observe(sceneRoot);
+    }
+    const onNavClick = (i) => () => {
+      if (mode !== "scrub") return;
+      scrollTo({ top: railY() + span() * (AT[i] + 0.02), behavior: "smooth" });
+    };
+    const bound = navs.map((n, i) => {
+      const h = onNavClick(i);
+      n.style.cursor = "pointer";
+      n.addEventListener("click", h);
+      return [n, h];
+    });
+    addEventListener("resize", setMode);
+    mqMobile.addEventListener("change", setMode);
+    mqReduce.addEventListener("change", setMode);
+    setMode();
+    return () => {
+      removeEventListener("scroll", scrub);
+      removeEventListener("resize", setMode);
+      mqMobile.removeEventListener("change", setMode);
+      mqReduce.removeEventListener("change", setMode);
+      timers.forEach(clearTimeout);
+      io?.disconnect();
+      bound.forEach(([n, h]) => n.removeEventListener("click", h));
+    };
+  }
+  function dial() {
+    const dialRoot = q("[data-dial]");
+    if (!dialRoot) return () => {
+    };
+    const ticks = qa("[data-dial-tick]", dialRoot);
+    const cards = qa("[data-dial-card]", dialRoot);
+    const hand = q("[data-dial-hand]", dialRoot);
+    const prog = q("[data-dial-prog]", dialRoot);
+    const count = q("[data-dial-count]", dialRoot);
+    const cap = q("[data-dial-cap]", dialRoot);
+    const replay = q("[data-dial-replay]", dialRoot);
+    const mqFlat = matchMedia("(max-width: 600px)");
+    const n = ticks.length;
+    if (!n) return () => {
+    };
+    const STEP = 360 / n;
+    const DWELL = 3200;
+    let timers = [];
+    let io = null;
+    let acc = 0;
+    let prev = 0;
+    let at = 0;
+    const CAPS = ticks.map((t) => t.getAttribute("data-dial-cap-text") ?? "");
+    let len = 0;
+    if (prog?.getTotalLength) {
+      len = prog.getTotalLength();
+      prog.style.strokeDasharray = String(len);
+      prog.style.strokeDashoffset = String(len);
+    }
+    const clearTimers = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
+    };
+    function rotTo(deg) {
+      const d = (deg - prev + 540) % 360 - 180;
+      acc += d;
+      prev = deg;
+      if (hand) hand.style.transform = `rotate(${acc}deg)`;
+    }
+    function go(i) {
+      at = i;
+      ticks.forEach((t, k) => {
+        t.classList.toggle("is-on", k === i);
+        t.classList.toggle("is-done", k < i);
+      });
+      cards.forEach((c, k) => c.classList.toggle("is-on", k === i));
+      rotTo(i * STEP);
+      if (prog && len) prog.style.strokeDashoffset = String(len * (1 - i / (n - 1)));
+      if (count) count.textContent = `0${i + 1}`.slice(-2);
+      if (cap && CAPS[i]) {
+        cap.style.opacity = "0";
+        timers.push(
+          setTimeout(() => {
+            cap.textContent = CAPS[i];
+            cap.style.opacity = "1";
+          }, 170)
+        );
+      }
+    }
+    function showAll() {
+      clearTimers();
+      ticks.forEach((t) => {
+        t.classList.remove("is-on");
+        t.classList.add("is-done");
+      });
+      cards.forEach((c) => c.classList.add("is-on"));
+    }
+    function play(from) {
+      clearTimers();
+      go(from);
+      for (let i = from + 1; i < n; i++) {
+        const k = i;
+        timers.push(setTimeout(() => go(k), DWELL * (k - from)));
+      }
+    }
+    const tickHandlers = ticks.map((t, i) => {
+      const h = () => {
+        clearTimers();
+        go(i);
+      };
+      t.addEventListener("click", h);
+      return [t, h];
+    });
+    const onReplay = () => play(0);
+    replay?.addEventListener("click", onReplay);
+    let armed = false;
+    function setMode() {
+      clearTimers();
+      io?.disconnect();
+      if (isCalm() || mqFlat.matches) {
+        showAll();
+        armed = false;
+        return;
+      }
+      if (armed) return go(at);
+      go(0);
+      if (!("IntersectionObserver" in window)) {
+        play(0);
+        armed = true;
+        return;
+      }
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            io?.disconnect();
+            play(0);
+          }
+        },
+        { threshold: 0.35 }
+      );
+      io.observe(dialRoot);
+      armed = true;
+    }
+    addEventListener("resize", setMode);
+    mqFlat.addEventListener("change", setMode);
+    mqReduce.addEventListener("change", setMode);
+    setMode();
+    return () => {
+      removeEventListener("resize", setMode);
+      mqFlat.removeEventListener("change", setMode);
+      mqReduce.removeEventListener("change", setMode);
+      clearTimers();
+      io?.disconnect();
+      tickHandlers.forEach(([t, h]) => t.removeEventListener("click", h));
+      replay?.removeEventListener("click", onReplay);
+    };
+  }
+  function typer() {
+    const el = q("[data-typer]");
+    const mini = q("[data-spotmini]");
+    const out = q("[data-spotmini-a]");
+    if (!el) return () => {
+    };
+    const SETS = [
+      {
+        q: "who still owes dues?",
+        a: "<b>9 of 52</b> still owe \u2014 $1,480 total, 4 past the late-fee date."
+      },
+      {
+        q: "is anyone double-booked next week?",
+        a: "Thursday 8 PM: <b>the formal and the food drive</b> overlap for 9 volunteers."
+      },
+      {
+        q: "who missed the last two meetings?",
+        a: "<b>Jordan T.</b> (2 unexcused) and <b>Sam W.</b> (1 excused, lab conflict)."
+      }
+    ];
+    const txt = document.createElement("span");
+    const caret = document.createElement("i");
+    caret.className = "caret";
+    el.textContent = "";
+    el.append(txt, caret);
+    if (isCalm()) {
+      txt.textContent = SETS[0].q;
+      if (out) out.innerHTML = SETS[0].a;
+      mini?.classList.add("is-live");
+      return () => {
+      };
+    }
+    let cancelled = false;
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    void (async () => {
+      let i = 0;
+      await sleep(2650);
+      while (!cancelled) {
+        const set = SETS[i % SETS.length];
+        for (let c = 1; c <= set.q.length; c++) {
+          if (cancelled) return;
+          txt.textContent = set.q.slice(0, c);
+          await sleep(30 + Math.random() * 46);
+        }
+        await sleep(430);
+        if (cancelled) return;
+        if (out) out.innerHTML = set.a;
+        mini?.classList.add("is-live");
+        await sleep(3600);
+        if (cancelled) return;
+        mini?.classList.remove("is-live");
+        await sleep(420);
+        for (let d = set.q.length; d >= 0; d--) {
+          if (cancelled) return;
+          txt.textContent = set.q.slice(0, d);
+          await sleep(15);
+        }
+        await sleep(280);
+        i++;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }
+  function counters() {
+    const notHero = (el) => !el.closest(".hero");
+    const nodes = qa(".counter").filter(notHero);
+    const rings = qa("[data-ring]").filter(notHero);
+    if (!("IntersectionObserver" in window)) {
+      nodes.forEach(runCount);
+      rings.forEach(runRing);
+      return () => {
+      };
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue;
+          io.unobserve(e.target);
+          const el = e.target;
+          (el.classList.contains("counter") ? runCount : runRing)(el);
+        }
+      },
+      { threshold: 0.4 }
+    );
+    [...nodes, ...rings].forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }
+  function heroBuild() {
+    const hero = q(".hero");
+    if (!hero) return () => {
+    };
+    const steps = qa("[data-hb]", hero);
+    const ring = q("[data-ring]", hero);
+    const nums = qa(".counter", hero);
+    if (!steps.length) return () => {
+    };
+    if (isCalm()) {
+      if (ring) runRing(ring);
+      nums.forEach(runCount);
+      return () => {
+      };
+    }
+    const timers = steps.map((el) => {
+      const at = parseInt(el.getAttribute("data-hb") ?? "0", 10) || 0;
+      return setTimeout(() => {
+        el.classList.add("hb-in");
+        if (el === ring) runRing(el);
+        qa(".counter", el).forEach(runCount);
+      }, at);
+    });
+    return () => timers.forEach(clearTimeout);
+  }
+  function term() {
+    const days = q("[data-term-days]");
+    if (!days) return () => {
+    };
+    const label = q("[data-term-label]");
+    const unit = q("[data-term-unit]");
+    const now = /* @__PURE__ */ new Date();
+    const y = now.getFullYear();
+    const starts = [
+      { name: "Spring term", d: new Date(y, 0, 12) },
+      { name: "Fall term", d: new Date(y, 7, 24) },
+      { name: "Spring term", d: new Date(y + 1, 0, 12) }
+    ];
+    const next = starts.find((s) => s.d > now) ?? starts[starts.length - 1];
+    const n = Math.max(0, Math.ceil((next.d.getTime() - now.getTime()) / 864e5));
+    if (label) label.textContent = next.name;
+    days.textContent = String(n);
+    if (unit) unit.textContent = n === 1 ? "day" : "days";
+    if (n > 120) q("[data-term-card]")?.classList.add("is-midterm");
+    const w1 = q("[data-term-w1]");
+    const w2 = q("[data-term-w2]");
+    if (w1) w1.textContent = n <= 21 ? "This week" : "Any afternoon";
+    if (w2) w2.textContent = n <= 21 ? "Before day one" : `${n} days out`;
+    return () => {
+    };
+  }
+  const disposers = [
+    reveal(),
+    parallax(),
+    chrome(),
+    marquee(),
+    scene(),
+    dial(),
+    typer(),
+    counters(),
+    heroBuild(),
+    term(),
+    modtabs()
+  ];
+}
+boot();
+</script></body></html>
