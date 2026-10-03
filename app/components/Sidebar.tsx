@@ -15,6 +15,7 @@ import { SidebarProfile } from "./SidebarProfile";
 import { SvgIcon } from "./SvgIcon";
 import { useSemesters } from "../hooks/useActiveSemester";
 import "./sidebar.css";
+import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -191,6 +192,10 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   // rather than the generic "Communications"/"Social".
   const NAV_DISPLAY: Record<string, string> = {
     Brotherhood: v("Member", true),
+  // Confirmed events that have already happened and still need a wrap-up.
+  // Empty for anyone without MANAGE_EVENTS (gated in the hook and on /me).
+  const wrapUps = useWrapUpsDue();
+
     Chapter:     v("Meetings"),
     Treasury:    v("Treasury"),
     Service:     v("Service"),
@@ -236,6 +241,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
   // Admin-chosen sidebar order, applied per-group so reordering stays within
   // each heading. Empty/absent → default order.
+    // One event: straight into its wrap-up. Several: the board, where each
+    // carries its own dot.
+    { key: "wrap",  n: wrapUps.length,        text: wrapUps.length === 1 ? "event to wrap up" : "events to wrap up", page: "Programming", href: wrapUps.length === 1 ? `/events?open=${wrapUps[0].id}&wrap=1` : "/events", tone: "rose" },
   const navOrder = currentUser?.org?.navOrder ?? [];
 
   // Reordering is an org-wide layout change — gated on org admin (platform admin

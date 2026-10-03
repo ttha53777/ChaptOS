@@ -73,4 +73,17 @@ describe("deriveNeedsAttention", () => {
     const tasks = [task({ id: 1, dueDate: "2026-07-01", status: "open" })];
     expect(deriveNeedsAttention(brothers, tasks, TODAY)).toEqual([]);
   });
+
+  it("lists each event to wrap up after overdue deadlines and before aggregates", () => {
+    const brothers = [brother({ id: 1, name: "Owes", duesOwed: 50 })];
+    const tasks = [task({ id: 9, dueDate: "2026-06-01", status: "open" })];
+    const wrapUps = [
+      { id: 4, title: "Fall Mixer", dueDate: "2026-06-10" },
+      { id: 5, title: "Retreat", dueDate: null },
+    ];
+    const items = deriveNeedsAttention(brothers, tasks, TODAY, [], undefined, wrapUps);
+    expect(items.map(i => i.kind)).toEqual(["deadline-overdue", "wrap-up", "wrap-up", "dues"]);
+    expect(items[1]).toMatchObject({ kind: "wrap-up", id: 4, title: "Fall Mixer", daysAgo: 3 });
+    expect(items[2]).toMatchObject({ kind: "wrap-up", id: 5, daysAgo: null });
+  });
 });

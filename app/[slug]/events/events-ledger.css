@@ -240,6 +240,12 @@ header.dash-toolbar .ev-crumb {
 .dash .ev-card .ec-block.ok { color: var(--ok); }
 .dash .ev-card .ec-block.quiet { color: var(--muted); }
 .dash .ev-card .ec-block > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* Happened, never wrapped up. Same dot as the sidebar's (.sb-dot), so the eye
+   carries it from the nav straight to the card. Absolute, not in the title row,
+   so the title keeps its full two-line width. */
+.dash .ev-card { position: relative; }
+.dash .ev-card .ec-dot { position: absolute; top: 9px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--rose); box-shadow: 0 0 0 3px var(--rose-bg); }
+.dash .ev-card:has(.ec-dot) .ec-t { padding-right: 12px; }
 .dash .ev-card.ghost { opacity: .66; }
 .dash .ev-card.ghost:hover { opacity: 1; }
 .dash .ev-card.ghost:hover { opacity: 1; }

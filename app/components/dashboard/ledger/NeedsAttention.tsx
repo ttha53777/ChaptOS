@@ -21,6 +21,7 @@ export function NeedsAttention({
   onSendReminder,
   onOpenReimbursements,
   hideButton,
+  onWrapUp,
   hasData = true,
   loading = false,
   error = false,
@@ -31,6 +32,8 @@ export function NeedsAttention({
   onSendReminder: () => void;
   onOpenReimbursements: () => void;
   hideButton?: React.ReactNode;
+  /** Open that event's wrap-up on the events page. */
+  onWrapUp: (eventId: number) => void;
   /** False when no tracked measure has a single record behind it. An empty queue
    *  then means "nothing has been measured", not "nothing is wrong" — and praise
    *  requires evidence. */
@@ -97,6 +100,23 @@ export function NeedsAttention({
           }
           if (it.kind === "reimbursement") {
             return (
+          if (it.kind === "wrap-up") {
+            return (
+              <div className="att-row" data-kind="wrap-up" key={`w-${it.id}`}>
+                <span className="dot bg-rose" />
+                <span className="tag rose">WRAP UP</span>
+                <div className="body">
+                  <p className="t">{it.title}</p>
+                  <p className="m">
+                    {it.dueDate ? `Happened ${fmtDate(it.dueDate)}` : "Happened"}
+                    {it.daysAgo != null && it.daysAgo > 0 ? ` · ${it.daysAgo} day${it.daysAgo === 1 ? "" : "s"} ago` : ""}
+                    {" · "}not wrapped up yet
+                  </p>
+                </div>
+                <button type="button" className="act" onClick={() => onWrapUp(it.id)}>Wrap up</button>
+              </div>
+            );
+          }
               <div className="att-row" key="reimbursement">
                 <span className="dot bg-rose" />
                 <span className="tag rose">REIMBURSE</span>

@@ -572,6 +572,7 @@ export function getBrotherStatus(
 
 export type AttentionItem =
   | { kind: "deadline-overdue"; id: number; title: string; assignees: string; dueDate: string; daysLate: number }
+  | { kind: "wrap-up"; id: number; title: string; dueDate: string | null; daysAgo: number | null }
   | { kind: "reimbursement"; count: number; total: number; requests: { id: number; name: string; amount: number }[] }
   | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] };
 
@@ -598,6 +599,9 @@ export function deriveNeedsAttention(
   today: string = new Date().toISOString().slice(0, 10),
   pendingReimbursements: Reimbursement[] = [],
   tracked: TrackedMetrics = ALL_TRACKED,
+  /** Confirmed events that already happened, from useWrapUpsDue() — already
+   *  filtered to the viewer's local date and to MANAGE_EVENTS holders. */
+  wrapUps: { id: number; title: string; dueDate: string | null }[] = [],
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -611,6 +615,17 @@ export function deriveNeedsAttention(
       kind: "deadline-overdue",
       id: t.id, title: t.title, assignees: taskAssigneeLabel(t), dueDate: t.dueDate as string,
       daysLate: isoDaysBetween(t.dueDate as string, today),
+    });
+  }
+
+  // Events to wrap up (rose): one row each, like overdue deadlines, because each
+  // is its own decision — how did THIS one go. After deadlines: those are work
+  // still owed to someone, while a wrap-up only gets less accurate with time.
+  for (const e of wrapUps) {
+    items.push({
+      kind: "wrap-up",
+      id: e.id, title: e.title, dueDate: e.dueDate,
+      daysAgo: e.dueDate ? isoDaysBetween(e.dueDate, today) : null,
     });
   }
 

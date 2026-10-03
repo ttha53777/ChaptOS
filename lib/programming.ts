@@ -367,6 +367,40 @@ export interface ProgrammingTaskLike {
   spendingCents: number;
 }
 
+/** What /api/auth/me ships per wrap-up candidate — just enough to name it and judge it. */
+export interface WrapUpCandidate {
+  id: number;
+  title: string;
+  dueDate: string | null;
+  schedule: Schedule | null;
+  stage: "confirmed";
+}
+
+/**
+ * A confirmed event whose last day is behind `today` — it happened, and nobody
+ * has wrapped it up yet.
+ *
+ * Confirmed is the only lane that can go stale this way: Done is already closed,
+ * and Idea/Planning events never reached the chapter, so a past date on one of
+ * those is a scheduling gap (eventsNeedingAttention's job), not a missing wrap-up.
+ *
+ * The LAST day, not the start: an all-day schedule's `end` is exclusive, so a
+ * Fri–Sun retreat ends "Mon" and is over once today reaches Monday. A timed
+ * event is judged by its start date — one running past midnight is still over
+ * by the following morning, which is when anyone would wrap it up.
+ *
+ * `today` is the VIEWER's local date. The server can't know it, which is why
+ * /api/auth/me ships candidates and leaves the final cut to this function.
+ */
+export function needsWrapUp(
+  task: { stage: string; dueDate: string | null; schedule?: Schedule | null },
+  today: string,
+): boolean {
+  if (task.stage !== "confirmed") return false;
+  if (task.schedule?.kind === "allDay") return task.schedule.end <= today;
+  return task.dueDate != null && task.dueDate < today;
+}
+
 /** Soonest dated, not-done event on or after `today`. Null if none (hero hides). */
 export function nextOnDeckEvent<T extends ProgrammingTaskLike>(tasks: T[], today: string): T | null {
   const upcoming = tasks

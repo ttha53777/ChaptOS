@@ -36,6 +36,7 @@ import {
   missingFor,
   canEnter,
   needsConfirmFirst,
+  needsWrapUp,
 } from "@/lib/programming";
 import { STAGES } from "@/lib/state/programming-stage";
 import type { ProgrammingStage } from "@/lib/state/programming-stage";
@@ -435,9 +436,15 @@ export default function ProgrammingPage() {
     () => events.filter(e => e.stage === "planning" && canEnter(e, "confirmed")).length,
     [events],
   );
+  // Confirmed events whose date has passed. Officers only: wrapping up is a
+  // MANAGE_EVENTS move, and a member can't act on the nudge.
+  const toWrapUp = useMemo(
+    () => (canManage ? events.filter(e => needsWrapUp(e, today)).length : 0),
+    [events, today, canManage],
+  );
   const status = useMemo(
-    () => statusBits(onDeck, readyToConfirm, stats.unownedIdeas, today),
-    [onDeck, readyToConfirm, stats.unownedIdeas, today],
+    () => statusBits(onDeck, readyToConfirm, stats.unownedIdeas, today, toWrapUp),
+    [onDeck, readyToConfirm, stats.unownedIdeas, today, toWrapUp],
   );
 
   // The kicker's second half. The active term is the more useful of the two —
@@ -546,11 +553,18 @@ export default function ProgrammingPage() {
   useEffect(() => {
     const openId = searchParams.get("open");
     if (!openId || loading || openedDeepLinkRef.current === openId) return;
-    if (events.some(e => e.id === Number(openId))) {
+    const target = events.find(e => e.id === Number(openId));
+    if (target) {
       openedDeepLinkRef.current = openId;
-      selectCard(Number(openId));
+      selectCard(target.id);
+      // ?wrap=1 — from the sidebar's or dashboard's "wrap it up" — goes straight
+      // to the wrap-up dialog, but only if it still applies: a stale link to an
+      // event someone already wrapped just opens the card.
+      if (searchParams.get("wrap") === "1" && canManage && needsWrapUp(target, todayStr())) {
+        setWrapTarget(target);
+      }
     }
-  }, [searchParams, loading, events, selectCard]);
+  }, [searchParams, loading, events, selectCard, canManage]);
 
   // The drawer stays mounted through its slide-out so the animation can run.
   const panelOpen = selected || isClosingDrawer;

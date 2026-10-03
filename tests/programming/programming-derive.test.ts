@@ -18,6 +18,7 @@ import {
   fieldsFor,
   hasRequiredField,
   missingFor,
+  needsWrapUp,
   needsConfirmFirst,
   nextOnDeckEvent,
   REQUIRED_FIELDS,
@@ -307,5 +308,46 @@ describe("nextOnDeckEvent", () => {
 
   it("returns null when nothing is coming up", () => {
     expect(nextOnDeckEvent([task({ stage: "idea", dueDate: null })], TODAY)).toBeNull();
+  });
+});
+
+describe("needsWrapUp", () => {
+  const TODAY = "2026-10-02";
+
+  it("flags a confirmed event once its date is behind today", () => {
+    expect(needsWrapUp({ stage: "confirmed", dueDate: "2026-10-01" }, TODAY)).toBe(true);
+  });
+
+  it("leaves today's event alone — it may not have started yet", () => {
+    expect(needsWrapUp({ stage: "confirmed", dueDate: TODAY }, TODAY)).toBe(false);
+  });
+
+  it("only applies to Confirmed: Done is closed, Idea/Planning never reached the chapter", () => {
+    for (const stage of ["idea", "planning", "done"]) {
+      expect(needsWrapUp({ stage, dueDate: "2026-09-01" }, TODAY)).toBe(false);
+    }
+  });
+
+  it("ignores an undated event", () => {
+    expect(needsWrapUp({ stage: "confirmed", dueDate: null }, TODAY)).toBe(false);
+  });
+
+  it("waits for the LAST day of a multi-day all-day event (end is exclusive)", () => {
+    const retreat = {
+      stage: "confirmed",
+      dueDate: "2026-09-30",
+      schedule: { kind: "allDay" as const, start: "2026-09-30", end: "2026-10-03" },
+    };
+    expect(needsWrapUp(retreat, TODAY)).toBe(false);        // still on day 3 of 3
+    expect(needsWrapUp(retreat, "2026-10-03")).toBe(true);  // the morning after
+  });
+
+  it("judges a timed event by its start date", () => {
+    const party = {
+      stage: "confirmed",
+      dueDate: "2026-10-01",
+      schedule: { kind: "timed" as const, start: "2026-10-02T02:00:00Z", timeZone: "America/New_York" },
+    };
+    expect(needsWrapUp(party, TODAY)).toBe(true);
   });
 });

@@ -1002,6 +1002,10 @@ function scopedProgrammingEvent(orgId: number, run: Run) {
       return run(p => p.programmingEvent.delete({ where: { id } }));
     },
     count:      (args?: Prisma.ProgrammingEventCountArgs)     => run(p => p.programmingEvent.count({ ...args, where: org(args?.where) })),
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedProgrammingEvent(orgId, fn => fn(tx as P)),
   };
 }
 

@@ -23,6 +23,7 @@ import { useFeature } from "../hooks/useFeature";
 import { useTrackedMetrics } from "../hooks/useTrackedMetrics";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { useRollingToday } from "../hooks/useRollingToday";
+import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
 import { useSharedLiveCheckIn } from "../context/LiveCheckInContext";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import { trackedCount } from "@/lib/tracked-metrics";
@@ -86,6 +87,9 @@ type KPIDrawerKey = "attendance" | "dues" | "gpa" | "service" | "treasury" | "do
 
 // `tone` selects the warm dusk accent (info/gold/vio/ok) used for the header icon
 // tile and headline stat — mirroring the dashboard's category palette.
+/** Stable empty list, so a disabled Events page doesn't re-derive the queue every render. */
+const NO_WRAP_UPS: { id: number; title: string; dueDate: string | null }[] = [];
+
 const DRAWER_CONFIGS: Record<KPIDrawerKey, { title: string; tone: string; iconKey: string }> = {
   attendance: { title: "Avg Attendance",   tone: "info", iconKey: "attendance" },
   dues:       { title: "Dues",             tone: "gold", iconKey: "dues"       },
@@ -1383,10 +1387,14 @@ export default function Home() {
   }), [brotherList, THRESHOLDS, measured]);
 
   // ── Needs-attention queue ───────────────────────────────────────────────────
-  // Overdue deadlines, pending reimbursements, and outstanding dues (aggregated).
+  // Overdue deadlines, events to wrap up, pending reimbursements, and
+  // outstanding dues (aggregated). Wrap-ups only while the Events page is
+  // switched on — the row's button leads there.
+  const wrapUpsDue = useWrapUpsDue();
+  const wrapUps = eventsEnabled ? wrapUpsDue : NO_WRAP_UPS;
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, taskList, todayISO, reimbursementList, measured),
-    [brotherList, taskList, todayISO, reimbursementList, measured],
+    () => deriveNeedsAttention(brotherList, taskList, todayISO, reimbursementList, measured, wrapUps),
+    [brotherList, taskList, todayISO, reimbursementList, measured, wrapUps],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
@@ -2370,6 +2378,7 @@ export default function Home() {
                     onFilter={setStatusFilter}
                     search={search}
                     onSearch={setSearch}
+                    onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={toggleSort}

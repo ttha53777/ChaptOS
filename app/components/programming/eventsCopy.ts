@@ -38,8 +38,9 @@ export type StatusBit = { text: string; tone?: "warn" };
  * The status line under the greeting — derived clauses, not a model call.
  *
  * This replaced an "AI"-chipped digest paragraph that said the same facts in
- * prose. The facts are the ones the board's gates make actionable: what's next,
- * what could be confirmed right now, and what nobody has picked up. Each is a
+ * prose. The facts are the ones the board's gates make actionable: what already
+ * happened and still needs wrapping up, what's next, what could be confirmed
+ * right now, and what nobody has picked up. Each is a
  * count you can go and change, so the line is a to-do rather than a summary.
  *
  * Returns the pieces rather than a string because the counts are tinted and the
@@ -50,8 +51,17 @@ export function statusBits(
   readyToConfirm: number,
   unownedIdeas: number,
   today: string,
+  toWrapUp = 0,
 ): { lead: { title: string; when: string } | null; bits: StatusBit[] } {
   const bits: StatusBit[] = [];
+  // First: it's the only clause about something already late. The red dots on
+  // the board say which ones; this says how many.
+  if (toWrapUp > 0) {
+    bits.push({
+      text: `${toWrapUp} already happened and ${toWrapUp === 1 ? "needs" : "need"} wrapping up.`,
+      tone: "warn",
+    });
+  }
   if (readyToConfirm > 0) {
     bits.push({ text: `${readyToConfirm} ready to confirm.`, tone: "warn" });
   }

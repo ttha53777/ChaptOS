@@ -5,7 +5,7 @@ import { fmtDate } from "../../data";
 import { TypeBadge, StarRating } from "./ProgrammingChips";
 import { OwnerAvatar } from "./OwnerPicker";
 import type { TypeVisual } from "./typeColor";
-import { missingFor } from "@/lib/programming";
+import { missingFor, needsWrapUp } from "@/lib/programming";
 import { ownerShortLabel } from "@/lib/event-owner";
 import { todayStr } from "../../lib/dates";
 import { cardWhen } from "./eventsCopy";
@@ -22,10 +22,13 @@ const URGENT_DAYS = 14;
  * fraction told you how much was left but never what, and three of the four
  * things it counted were self-attested. A card with one gap now names that gap.
  *
- * Confirmed and Done return null: they are settled, and printing "published to
- * the chapter" on every one of them buries the cards that need a person.
+ * Done returns null, and so does a Confirmed event that hasn't happened yet: they
+ * are settled, and printing "published to the chapter" on every one of them
+ * buries the cards that need a person. A Confirmed event whose date has PASSED
+ * is the exception — it's waiting on a wrap-up, and nothing else will say so.
  */
 function cardBlocker(task: ProgrammingTask): { text: string; tone: "rose" | "gold" | "ok" } | null {
+  if (needsWrapUp(task, TODAY)) return { text: "Happened — wrap it up", tone: "rose" };
   if (task.stage === "done" || task.stage === "confirmed") return null;
   const days = task.dueDate
     ? Math.round((new Date(task.dueDate + "T00:00:00").getTime() - new Date(TODAY + "T00:00:00").getTime()) / 86_400_000)
@@ -204,6 +207,7 @@ function DuskCard({
   const isDone = task.stage === "done";
   const when = cardWhen(task.dueDate, TODAY);
   const blocker = cardBlocker(task);
+  const wrapDue = needsWrapUp(task, TODAY);
   // Idea and Planning are officer-private: the dashed left rail is the board's
   // standing reminder of which lanes the chapter cannot see.
   const isPrivate = task.stage === "idea" || task.stage === "planning";
@@ -220,6 +224,9 @@ function DuskCard({
       className={`ev-card animate-fade-slide-in${isDone || task.stage === "idea" ? " ghost" : ""}${isPrivate ? " private" : ""}${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
       style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms`, ["--tc" as string]: visual.hex }}
     >
+      {/* The same red dot the sidebar puts on Events, so the card it was
+          pointing at is findable on a full Confirmed lane. */}
+      {wrapDue && <span className="ec-dot" role="img" aria-label="Needs a wrap-up" />}
       <div className="ec-t">{task.title}</div>
       <div className="ec-meta">
         <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>

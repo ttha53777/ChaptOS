@@ -13,6 +13,8 @@ import { resolveThresholds } from "@/lib/thresholds";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import { resolveProgrammingDisplay } from "@/lib/programming";
+import type { Schedule } from "@/lib/calendar-feed/schedule";
 
 export async function GET() {
   const user = await requireUser();
@@ -35,6 +37,15 @@ export async function GET() {
     // it decides whether to add a query to that same fan-out.
     const roles = user.roleRows.filter(r => r.organizationId === user.orgId);
     const canManageBrothers = elevated || hasPermission(computePermissions(roles), "MANAGE_BROTHERS");
+    // Same again for the wrap-up queue: MANAGE_EVENTS is what moving an event to
+    // Done requires, so nobody else is told an event is waiting on them.
+    const canManageEvents = elevated || hasPermission(computePermissions(roles), "MANAGE_EVENTS");
+
+    // Wrap-up candidates are cut on the SERVER's date plus a day of slack, and
+    // the client's needsWrapUp() makes the final call against the viewer's own
+    // local date. UTC runs ahead of the Americas and behind Asia/Oceania; the
+    // slack keeps every event that's past for ANY viewer in the candidate set.
+    const wrapUpHorizon = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
     // One transaction for the whole bootstrap fan-out, not seven.
     //
@@ -56,10 +67,10 @@ export async function GET() {
     //
     // resolvePermissions is deliberately NOT in here: it does no I/O (it filters
     // roleRows that requireUser already loaded), so it needs no transaction.
-    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription } =
+    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows } =
       await db(user.orgId).$transaction(async tx => {
         const scoped = db(user.orgId);
-        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription] = await Promise.all([
+        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows] = await Promise.all([
           scoped.identity.onTx(tx).findByBrotherId(user.id),
           scoped.organization.onTx(tx).findUnique({
             where: { id: user.orgId },
@@ -106,8 +117,26 @@ export async function GET() {
           elevated
             ? scoped.subscription.onTx(tx).findFirst({ select: { status: true, billableMembers: true } })
             : null,
+          // Confirmed events whose date has come and gone — the sidebar's Events
+          // dot and the dashboard's "Needs attention" rows. Same ride-along
+          // argument as the counts above, but rows rather than a count because
+          // the dashboard names each event. Chapter/Party rows are excluded the
+          // way the events board excludes them (isProgrammingManagedType): a
+          // dot pointing at a card the board doesn't show helps nobody.
+          canManageEvents
+            ? scoped.programmingEvent.onTx(tx).findMany({
+                where: {
+                  stage: "confirmed",
+                  date: { not: null, lte: wrapUpHorizon },
+                  category: { notIn: ["chapter", "party"] },
+                },
+                orderBy: [{ date: "asc" }, { id: "asc" }],
+                select: { id: true, title: true, collabOrg: true, date: true, schedule: true },
+                take: 50,
+              })
+            : [],
         ]);
-        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription };
+        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows };
       });
 
     const perms = await resolvePermissions(user);
@@ -209,6 +238,16 @@ export async function GET() {
             // Join requests awaiting review. Always 0 for viewers without
             // MANAGE_BROTHERS, so the badge never advertises work they can't do.
             pendingJoinRequestCount,
+            // Confirmed events that may be over and still need wrapping up.
+            // Always [] without MANAGE_EVENTS. Candidates only — the client
+            // filters with needsWrapUp() against the viewer's local date.
+            wrapUpsDue: wrapUpRows.map(r => ({
+              id: r.id,
+              title: resolveProgrammingDisplay(r).title,
+              dueDate: r.date,
+              schedule: (r.schedule ?? null) as Schedule | null,
+              stage: "confirmed" as const,
+            })),
             // Whether the founder has finished the setup wizard. Drives the
             // dashboard "finish setting up" checklist (shown only once setup is
             // complete) and is the same signal the server onboarding guard gates

@@ -11,6 +11,7 @@ import { hasDevImpersonationCookie } from "@/lib/auth/dev-bypass-client";
 import { hasPermission, type Permission } from "@/lib/permissions";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
+import type { WrapUpCandidate } from "@/lib/programming";
 import { orgFetch } from "../lib/api";
 import { isDashboardRoute } from "../lib/routes";
 
@@ -28,7 +29,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, pendingReimbursementCount: me.org.pendingReimbursementCount ?? 0, pendingJoinRequestCount: me.org.pendingJoinRequestCount ?? 0, onboardingComplete: me.org.onboardingComplete ?? true, billingAlert: me.org.billingAlert ?? null } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, pendingReimbursementCount: me.org.pendingReimbursementCount ?? 0, pendingJoinRequestCount: me.org.pendingJoinRequestCount ?? 0, wrapUpsDue: me.org.wrapUpsDue ?? [], onboardingComplete: me.org.onboardingComplete ?? true, billingAlert: me.org.billingAlert ?? null } : null,
   };
 }
 
@@ -115,7 +116,12 @@ export interface CurrentUser {
   org: { name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; navOrder: string[]; metricDefinitionCount: number; pendingReimbursementCount: number;
     /** People waiting on an officer to admit them. Server-zeroed for viewers
      *  without MANAGE_BROTHERS, so the sidebar badge can render it unguarded. */
-    pendingJoinRequestCount: number; onboardingComplete: boolean;
+    pendingJoinRequestCount: number;
+    /** Confirmed events that may be over and still need wrapping up. Server-
+     *  emptied without MANAGE_EVENTS. CANDIDATES — read via useWrapUpsDue(),
+     *  which makes the final cut against the viewer's local date. */
+    wrapUpsDue: WrapUpCandidate[];
+    onboardingComplete: boolean;
     /** Billing state needing an admin's attention. Server sends null to everyone
      *  who isn't an org/platform admin — see /api/auth/me. */
     billingAlert: "past_due" | "unpaid" | "canceled" | null } | null;
