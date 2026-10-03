@@ -13,7 +13,6 @@ export function Nav() {
           <a href="#ask">Just ask</a>
           <a href="#day">A Tuesday</a>
           <a href="#modules">What&apos;s in it</a>
-          <a href="#setup">Setup</a>
           <a href="#trust">Trust</a>
           {/* In-page, not /pricing: the section answers it in five seconds and
               links through, so a visitor asking the price doesn't leave the

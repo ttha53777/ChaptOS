@@ -32,7 +32,6 @@ export function PublicNav({ here = null }: { here?: PublicNavHere }) {
         <nav className="nav__links">
           <a href="/#ask">Just ask</a>
           <a href="/#modules">What&apos;s in it</a>
-          <a href="/#setup">Setup</a>
           <a href="/for" {...mark("for")}>
             Who it&apos;s for
           </a>

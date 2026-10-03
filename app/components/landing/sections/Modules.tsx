@@ -10,19 +10,11 @@ import { Sep, ShotBar } from "./shot";
  * catalogue would be proving something already proved.
  */
 
-function Bullet({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <li>
-      <Doodle
-        id="check"
-        className="doodle doodle--thin"
-        viewBox="0 0 24 24"
-        style={sx({ color })}
-      />{" "}
-      {children}
-    </li>
-  );
-}
+const TABS = [
+  { id: "money", icon: "wallet", label: "Treasury, dues & budget" },
+  { id: "people", icon: "people", label: "Roster, standing & roles" },
+  { id: "record", icon: "folder", label: "Docs, activity & terms" },
+] as const;
 
 export function Modules() {
   return (
@@ -48,13 +40,32 @@ export function Modules() {
         </div>
       </div>
 
+      {/* The three surfaces share one stage — a tab per surface rather than three
+          screen-tall blocks stacked. Server-rendered with the first panel on;
+          modtabs() in LandingMotion swaps them. With JS off the noscript rule in
+          LandingPage shows all three. */}
+      <div className="wrap modtabs" role="tablist" aria-label="What piles up over a term" data-reveal>
+        {TABS.map((t, i) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`modtab-${t.id}`}
+            aria-controls={`modpanel-${t.id}`}
+            aria-selected={i === 0}
+            className={i === 0 ? "modtab is-on" : "modtab"}
+            data-modtab={i}
+          >
+            <Doodle id={t.icon} size={15} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="moddeck">
       {/* ---- module 1: money ---- */}
-      <div className="mod">
+      <div className="mod is-on" role="tabpanel" id="modpanel-money" aria-labelledby="modtab-money" data-modpanel={0}>
         <div className="wrap mod__grid">
           <div className="mod__copy">
-            <span className="pill pill--paid" data-reveal>
-              <Doodle id="wallet" size={14} /> Treasury, dues &amp; budget
-            </span>
             <h3 data-reveal style={sx({ "--d": "50ms" })}>
               Two sets of books that can&apos;t disagree.
             </h3>
@@ -80,21 +91,6 @@ export function Modules() {
               <em>request</em> until a treasurer approves it; approval mints the matching row
               and adjusts the balance in a single write. Nothing gets hard-deleted.
             </p>
-
-            <ul className="mod__list" data-reveal style={sx({ "--d": "170ms" })}>
-              <Bullet color="var(--mint-ink)">
-                Reimbursements and dues payments sit in one approval queue — approve to mint
-                the ledger row, decline with a reason
-              </Bullet>
-              <Bullet color="var(--mint-ink)">
-                A semester budget split by category as a percent of the pool, with a reserve
-                target and burn-rate per bucket
-              </Bullet>
-              <Bullet color="var(--mint-ink)">
-                Charge or waive a balance with a reason attached, never a silent overwrite —
-                plus a CSV export your advisor accepts without a screenshot
-              </Bullet>
-            </ul>
           </div>
 
           <div className="mod__stage" data-para data-speed="-0.045">
@@ -203,12 +199,9 @@ export function Modules() {
       </div>
 
       {/* ---- module 2: people ---- */}
-      <div className="mod mod--flip">
+      <div className="mod" role="tabpanel" id="modpanel-people" aria-labelledby="modtab-people" data-modpanel={1}>
         <div className="wrap mod__grid">
           <div className="mod__copy">
-            <span className="pill pill--info" data-reveal>
-              <Doodle id="people" size={14} /> Roster, standing &amp; roles
-            </span>
             <h3 data-reveal style={sx({ "--d": "50ms" })}>
               Everyone&apos;s whole story, one row each.
             </h3>
@@ -232,20 +225,6 @@ export function Modules() {
               member, per term — with the bands you set for on-track, watch, and at-risk. Open
               anyone and you get their history, not a number somebody typed.
             </p>
-
-            <ul className="mod__list" data-reveal style={sx({ "--d": "170ms" })}>
-              <Bullet color="var(--sky-ink)">
-                Your own member fields and your own metrics — jersey number, section, major,
-                anything
-              </Bullet>
-              <Bullet color="var(--sky-ink)">
-                Roles carry fourteen permission switches and a rank, so nobody can promote
-                themselves
-              </Bullet>
-              <Bullet color="var(--sky-ink)">
-                Excuses and exemptions are requests with a paper trail, approved in one tap
-              </Bullet>
-            </ul>
           </div>
 
           <div className="mod__stage" data-para data-speed="-0.045">
@@ -396,12 +375,9 @@ export function Modules() {
       </div>
 
       {/* ---- module 3: the record ---- */}
-      <div className="mod">
+      <div className="mod" role="tabpanel" id="modpanel-record" aria-labelledby="modtab-record" data-modpanel={2}>
         <div className="wrap mod__grid">
           <div className="mod__copy">
-            <span className="pill pill--part" data-reveal>
-              <Doodle id="folder" size={14} /> Docs, activity &amp; terms
-            </span>
             <h3 data-reveal style={sx({ "--d": "50ms" })}>
               The org shouldn&apos;t reset every May.
             </h3>
@@ -425,18 +401,6 @@ export function Modules() {
               search. Every change writes an entry with who and when. Terms archive instead of
               vanishing — last year is still readable while this year starts clean.
             </p>
-
-            <ul className="mod__list" data-reveal style={sx({ "--d": "170ms" })}>
-              <Bullet color="var(--butter-ink)">
-                Drag-and-drop filing, pinned essentials, link previews, contributor credit
-              </Bullet>
-              <Bullet color="var(--butter-ink)">
-                An activity log the whole board can read — no &quot;who changed this?&quot;
-              </Bullet>
-              <Bullet color="var(--butter-ink)">
-                Ask about last year: &quot;what did we spend on formal in 2025?&quot;
-              </Bullet>
-            </ul>
           </div>
 
           <div className="mod__stage" data-para data-speed="-0.045">
@@ -534,6 +498,8 @@ export function Modules() {
             </div>
           </div>
         </div>
+      </div>
+
       </div>
 
       {/* ---- the rest, in a line ---- */}

@@ -25,9 +25,7 @@ import { useEffect, useState } from "react";
      counters()   count-up + health ring on first view (everything below the hero)
      heroBuild()  the hero card's cold open — [data-hb] delays, one shot
      term()       semester-aware countdown + CTA plan labels
-
-   The setup/blueprint switcher is the one piece that isn't here: it generated
-   markup, so it lives in sections/Setup.tsx as real React state.
+     modtabs()    the modules stage — one surface on at a time
 
    Every engine returns a disposer. The mock was a fire-and-forget IIFE, but
    StrictMode runs this effect twice in dev — without teardown you get two
@@ -670,6 +668,41 @@ export function LandingMotion() {
       return () => {};
     }
 
+    /* -------- modules tabs ------------------------------------------------- */
+    /* Markup ships with the first tab and panel on, so this only swaps
+       classes. A switched-in panel replays its reveals (the shot lands again)
+       and the parallax engine is nudged to re-measure the new stage, which
+       was display:none — and so unmeasurable — until now. */
+    function modtabs(): Dispose {
+      const tabs = qa<HTMLButtonElement>("[data-modtab]");
+      const panels = qa<HTMLElement>("[data-modpanel]");
+      if (!tabs.length) return () => {};
+
+      function go(i: number) {
+        tabs.forEach((t, k) => {
+          t.classList.toggle("is-on", k === i);
+          t.setAttribute("aria-selected", String(k === i));
+        });
+        panels.forEach((p, k) => {
+          p.classList.toggle("is-on", k === i);
+          if (k !== i || isCalm()) return;
+          qa<HTMLElement>("[data-reveal]", p).forEach(el => {
+            el.classList.remove("is-in");
+            void el.offsetWidth; // restart the transition from the hidden state
+            el.classList.add("is-in");
+          });
+        });
+        dispatchEvent(new Event("scroll"));
+      }
+
+      const bound = tabs.map((t, i) => {
+        const h = () => go(i);
+        t.addEventListener("click", h);
+        return [t, h] as const;
+      });
+      return () => bound.forEach(([t, h]) => t.removeEventListener("click", h));
+    }
+
     const disposers = [
       reveal(),
       parallax(),
@@ -681,6 +714,7 @@ export function LandingMotion() {
       counters(),
       heroBuild(),
       term(),
+      modtabs(),
     ];
 
     return () => {

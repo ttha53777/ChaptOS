@@ -15,16 +15,15 @@ import { MobileLandingPage } from "./MobileLandingPage";
 import { DoodleSprite } from "./DoodleSprite";
 import { LandingMotion } from "./LandingMotion";
 import { landingFontClass } from "./fonts";
-import { AskPayoff, AskScene } from "./sections/AskScene";
+import { AskScene } from "./sections/AskScene";
 import { Cta } from "./sections/Cta";
-import { DayDial, DayPayoff } from "./sections/DayDial";
+import { DayDial } from "./sections/DayDial";
 import { Footer } from "./sections/Footer";
 import { Hero } from "./sections/Hero";
 import { Modules } from "./sections/Modules";
 import { Nav } from "./sections/Nav";
 import { Pain } from "./sections/Pain";
 import { Price } from "./sections/Price";
-import { Setup } from "./sections/Setup";
 import { Trust } from "./sections/Trust";
 
 // With JS off everything is present and readable, just static. Opening the beat
@@ -45,6 +44,8 @@ const NO_JS_CSS = `
 .lp .dialcard__t{display:block}
 .lp .dial{display:none}
 .lp .spotmini__a{opacity:1; transform:none}
+.lp .modtabs{display:none}
+.lp .mod{display:block}
 `;
 
 export function LandingPage() {
@@ -68,11 +69,8 @@ export function LandingPage() {
           <Hero />
           <Pain />
           <AskScene />
-          <AskPayoff />
           <DayDial />
-          <DayPayoff />
           <Modules />
-          <Setup />
           <Trust />
           <Price />
           <Cta />

@@ -42,8 +42,7 @@
    980 rather than 925 leaves cushion for a wider fallback face; below 900 the
    whole row is hidden by landing.css anyway. */
 @media (max-width: 980px){
-  .lp.pub .nav__links a[href="/#modules"],
-  .lp.pub .nav__links a[href="/#setup"]{display:none}
+  .lp.pub .nav__links a[href="/#modules"]{display:none}
 }
 
 /* ---------- 2. page head -------------------------------------------------- */

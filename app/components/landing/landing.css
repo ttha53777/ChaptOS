@@ -22,8 +22,8 @@
      4. pain marquee
      5. ask scene   (scroll-scrubbed six-beat conversation — the pinned one)
      6. day dial    (a clock face; six moments, one product shot at a time)
-     7. modules     (three surfaces a Tuesday can't show + the rest, in a line)
-     8. setup       (the interview + a live blueprint that swaps per org type)
+     7. modules     (three surfaces a Tuesday can't show, one tab each + the rest)
+     8. blueprint   (the setup card — used by /for/<audience>, not the landing)
      9. trust
     10. pricing    (the band ladder — a row you land on, not a plan you pick;
                     the page's deepest parallax stack sits behind it)
@@ -337,7 +337,7 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .orgchip small{color:var(--ink-3); font-weight:500}
 
 /* ---------- 4. pain marquee ------------------------------------------------ */
-.lp .pain{padding:clamp(52px,7vw,92px) 0; overflow:hidden}
+.lp .pain{padding:clamp(44px,5.5vw,76px) 0; overflow:hidden}
 .lp .pain__head{text-align:center; max-width:680px; margin-inline:auto}
 /* ChaptOS is pre-launch — the gripes below are composites of the officer
    workload it was designed around, not customer quotes, and the page says so. */
@@ -347,7 +347,6 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 }
 .lp .marquee{margin-top:44px; display:grid; gap:20px; --dur:52s}
 .lp .marquee__track{display:flex; gap:20px; width:max-content; animation:lp-slide var(--dur) linear infinite}
-.lp .marquee__row:nth-child(2) .marquee__track{animation-direction:reverse; --dur:64s}
 .lp .marquee:hover .marquee__track{animation-play-state:paused}
 /* --shift is measured in JS (half the duplicated content + one gap) so the loop
    seam is exact; -50% is a close-enough fallback if the script never runs. */
@@ -371,7 +370,7 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
    pin and plays through once. */
 .lp .scene{background:linear-gradient(180deg, transparent, var(--paper-2) 12%, var(--paper-2) 88%, transparent); position:relative}
 /* namespaced: a bare --rail would inherit into any future rail on the page */
-.lp .scene__rail{height:var(--ask-rail, 460vh); position:relative}
+.lp .scene__rail{height:var(--ask-rail, 300vh); position:relative}
 .lp .scene__stage{position:sticky; top:0; height:100vh; display:flex; align-items:center; overflow:hidden}
 .lp .scene__in{
   width:min(100% - 44px, var(--wrap)); margin-inline:auto;
@@ -570,10 +569,26 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 
 /* ---------- 7. modules ----------------------------------------------------- */
 .lp .modules__head{max-width:760px}
-.lp .mod{padding:clamp(56px,7.5vw,116px) 0; position:relative}
+/* The three surfaces sit behind tabs on one stage instead of stacking three
+   screen-tall blocks. Panels are display:none until .is-on; modtabs() in
+   LandingMotion swaps the class and replays the panel's reveals. */
+.lp .modtabs{display:flex; flex-wrap:wrap; gap:10px; margin-top:clamp(28px,3.5vw,40px)}
+.lp .modtab{
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 16px; border-radius:var(--r-pill);
+  border:1.5px solid var(--line-2); background:var(--card);
+  font-size:.95rem; font-weight:550; color:var(--ink-2); cursor:pointer;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s, border-color .2s;
+}
+.lp .modtab:hover{border-color:var(--ink-3); color:var(--ink); transform:translateY(-1.5px)}
+.lp .modtab.is-on{background:var(--ink); border-color:var(--ink); color:var(--paper); box-shadow:3px 3px 0 var(--lilac)}
+.lp .modtab:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px}
+.lp .moddeck{position:relative}
+.lp .mod{display:none; padding:clamp(36px,4.5vw,64px) 0 clamp(40px,5vw,72px); position:relative}
+.lp .mod.is-on{display:block; animation:lp-mod-in .45s var(--ease-out)}
+@keyframes lp-mod-in{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+.lp #modules{padding-bottom:clamp(56px,7vw,104px)}
 .lp .mod__grid{display:grid; grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr); gap:clamp(30px,5vw,80px); align-items:center}
-.lp .mod--flip .mod__grid{grid-template-columns:minmax(0,1.14fr) minmax(0,.86fr)}
-.lp .mod--flip .mod__copy{order:2}
 .lp .mod__copy h3{margin-top:14px}
 .lp .mod__pain{
   margin-top:20px; padding:15px 18px; border-radius:var(--r-md) var(--r-md) var(--r-md) 4px;
@@ -582,9 +597,6 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 }
 .lp .mod__pain .src{display:block; margin-top:8px; font-size:.79rem; color:var(--ink-3); font-weight:500}
 .lp .mod__fix{margin-top:20px; color:var(--ink-2); font-size:1.03rem; line-height:1.6}
-.lp .mod__list{margin-top:20px; display:grid; gap:11px}
-.lp .mod__list li{display:flex; gap:11px; align-items:flex-start; font-size:.95rem; color:var(--ink-2); line-height:1.45}
-.lp .mod__list svg{width:19px;height:19px;flex:none;margin-top:2px}
 .lp .mod__stage{position:relative; will-change:transform}
 
 /* the fake product window */
@@ -750,7 +762,7 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 /* The rest of the kit, in one line instead of an eight-cell grid. By this point
    the page has shown six real product screens in the dial and three more in the
    modules — a catalogue would be proving something already proved. */
-.lp .mod__rest{margin-top:clamp(30px,4vw,52px); max-width:74ch; font-size:.98rem; line-height:1.62; color:var(--ink-2)}
+.lp .mod__rest{margin-top:0; max-width:74ch; font-size:.98rem; line-height:1.62; color:var(--ink-2)}
 /* inline-flex + nowrap or the arrow orphans onto its own line */
 .lp .mod__rest a{
   display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
@@ -760,28 +772,9 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .mod__rest a:hover{border-bottom-color:var(--ink)}
 .lp .mod__rest a svg{flex:none}
 
-/* ---------- 8. setup / blueprint ------------------------------------------- */
-.lp .setup{background:var(--paper-2); border-block:1.5px solid var(--line)}
-.lp .setup__grid{margin-top:clamp(32px,4vw,54px); display:grid; grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr); gap:clamp(26px,4vw,58px); align-items:start}
-.lp .switch{display:flex; flex-wrap:wrap; gap:8px; margin-top:22px}
-.lp .switch button{
-  padding:8px 15px; border-radius:var(--r-pill); border:1.5px solid var(--line-2);
-  background:var(--card); font-size:.86rem; font-weight:600; color:var(--ink-2); cursor:pointer;
-  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s, border-color .2s;
-}
-.lp .switch button:hover{transform:translateY(-1.5px)}
-.lp .switch button.on{background:var(--ink); border-color:var(--ink); color:var(--paper); box-shadow:3px 3px 0 var(--lilac)}
-.lp .setup__fine{margin-top:20px; font-size:.87rem; color:var(--ink-3); line-height:1.5; max-width:44ch}
-
-.lp .qa{display:grid; gap:10px; margin-top:26px}
-.lp .qa__q{font-size:.9rem; color:var(--ink-3); font-weight:500}
-.lp .qa__row{display:flex; flex-wrap:wrap; gap:7px}
-.lp .qa__chip{
-  padding:6px 13px; border-radius:var(--r-pill); border:1.5px solid var(--line-2);
-  background:var(--card); font-size:.83rem; font-weight:550; color:var(--ink-3);
-}
-.lp .qa__chip.picked{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
-
+/* ---------- 8. blueprint -------------------------------------------------- */
+/* The landing's own setup section is gone (its job moved to the CTA's first
+   step), but /for/<audience> still renders the blueprint card, so these stay. */
 .lp .bp{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; transition:opacity .26s var(--ease-out)}
 .lp .bp.is-swap{opacity:.18}
 .lp .bp__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); background:var(--paper-2); display:flex; align-items:center; gap:11px; flex-wrap:wrap}
@@ -804,28 +797,10 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .seat .ab{color:var(--ink-3); font-size:.79rem; min-width:0}
 .lp .seat .rk{font-family:var(--mono); font-size:.71rem; color:var(--ink-3); margin-left:auto; flex:none}
 
-/* The way through to /for/<audience> for whichever shape is on screen. Same
-   affordance as .trust__more — an outlined pill, not a third button — because
-   it's an exit from the section rather than the section's own action. */
-.lp .setup__guide{margin-top:18px}
-.lp .setup__guide a{
-  display:inline-flex; align-items:center; gap:9px;
-  color:var(--ink); font-weight:600; font-size:.9rem; text-decoration:none;
-  padding:9px 17px; border-radius:var(--r-pill);
-  border:1.5px solid var(--line-2); background:var(--card);
-  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s;
-}
-.lp .setup__guide a:hover{
-  border-color:var(--ink); transform:translate(-1.5px,-1.5px);
-  box-shadow:3.5px 3.5px 0 var(--butter);
-}
-.lp .setup__guide a svg{flex:none; transition:transform .18s var(--ease-out)}
-.lp .setup__guide a:hover svg{transform:translateX(2.5px)}
-
 /* ---------- 9. trust ------------------------------------------------------- */
 .lp .trust__head{text-align:center; max-width:700px; margin-inline:auto}
 
-.lp .guards{margin-top:26px; display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.lp .guards{margin-top:clamp(44px,5vw,64px); display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
 .lp .guard{padding:26px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
 .lp .guard__ic{width:46px;height:46px;border-radius:14px; display:grid; place-items:center; background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, #CCDFFB)}
 .lp .guard h4{margin-top:16px}
@@ -1148,7 +1123,6 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
   .lp .nav__long{display:none}
   .lp .nav__short{display:inline}
   .lp .nav__cta{gap:8px}
-  .lp .mod--flip .mod__copy{order:0}
   /* minmax(0,1fr), not 1fr: a single wide child (the eyebrow's tracked caps)
      would otherwise stretch the column past the viewport */
   .lp .hero__grid{grid-template-columns:minmax(0,1fr); gap:44px}
@@ -1158,7 +1132,7 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
   /* one column now — mirror the sheet across the top edge rather than sitting
      the scrap on top of the spotlight */
   .lp .pile--receipt{top:-26px; right:-8px; width:150px}
-  .lp .scene__in,.lp .dial__grid,.lp .setup__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
+  .lp .scene__in,.lp .dial__grid{grid-template-columns:minmax(0,1fr); gap:26px; align-items:start}
   .lp .dial__side{margin-inline:auto}
   .lp .scene__in{padding:0}
   .lp .mod__grid{grid-template-columns:minmax(0,1fr) !important; gap:28px}

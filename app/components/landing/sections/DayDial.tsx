@@ -719,27 +719,3 @@ export function DayDial() {
     </section>
   );
 }
-
-/** The payoff line that sits under the day. */
-export function DayPayoff() {
-  return (
-    <section className="section--tight">
-      <div className="wrap--narrow" style={{ marginInline: "auto", textAlign: "center" }}>
-        <p
-          className="lede"
-          data-reveal
-          style={{
-            fontSize: "clamp(1.2rem,2.4vw,1.7rem)",
-            color: "var(--ink)",
-            lineHeight: 1.4,
-          }}
-        >
-          Five officers, six surfaces, one ordinary day — and not one of them{" "}
-          <span className="hi" style={sx({ "--mark": "var(--mint)" })}>
-            opened a spreadsheet.
-          </span>
-        </p>
-      </div>
-    </section>
-  );
-}

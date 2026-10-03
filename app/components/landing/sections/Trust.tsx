@@ -2,7 +2,7 @@ import { Doodle, sx } from "../Doodle";
 
 export function Trust() {
   return (
-    <section className="section" id="trust">
+    <section className="section section--tight" id="trust">
       <div className="wrap">
         <div className="trust__head">
           <span
@@ -23,10 +23,6 @@ export function Trust() {
           >
             An assistant holding your org&apos;s money should be boring about it.
           </h2>
-          <p className="lede" data-reveal style={sx({ marginTop: "18px", "--d": "110ms" })}>
-            ChaptOS proposes; officers decide. Every number traces back to a record, every
-            action lands in a log, and nothing writes without a human who&apos;s allowed to.
-          </p>
         </div>
 
         <div className="guards">

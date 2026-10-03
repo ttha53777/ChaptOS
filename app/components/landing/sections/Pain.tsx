@@ -67,52 +67,6 @@ const ROW_ONE: Gripe[] = [
   },
 ];
 
-const ROW_TWO: Gripe[] = [
-  {
-    rot: ".7deg",
-    tint: "var(--mint-soft)",
-    quote: (
-      <>
-        I approved an <b>$84 reimbursement over text</b> and never wrote it down. The
-        balance lied for a month.
-      </>
-    ),
-    icon: "wallet",
-    who: "Treasurer, 4 committees",
-  },
-  {
-    rot: "-.5deg",
-    quote: (
-      <>
-        Half the exec board <b>can&apos;t find</b>{" "}
-        last year&apos;s event budget. It exists. Somewhere.
-      </>
-    ),
-    icon: "folder",
-    who: "President, 120-member org",
-  },
-  {
-    rot: ".9deg",
-    tint: "var(--lilac-soft)",
-    quote: (
-      <>
-        Every term we rebuild the same roster sheet <b>from scratch.</b>
-      </>
-    ),
-    icon: "loop",
-    who: "Membership chair",
-  },
-  {
-    rot: "-.8deg",
-    quote: (
-      <>
-        Sent dues reminders to <b>nine people who&apos;d already paid.</b> Great look.
-      </>
-    ),
-    icon: "chat",
-    who: "Treasurer, honor society",
-  },
-];
 
 function GripeCard({ g }: { g: Gripe }) {
   return (
@@ -170,7 +124,6 @@ export function Pain() {
 
       <div className="marquee" data-reveal style={sx({ "--d": "120ms" })}>
         <MarqueeRow cards={ROW_ONE} />
-        <MarqueeRow cards={ROW_TWO} />
       </div>
     </section>
   );

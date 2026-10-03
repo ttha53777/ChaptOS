@@ -247,27 +247,3 @@ export function AskScene() {
     </section>
   );
 }
-
-/** The payoff line that sits under the scene. */
-export function AskPayoff() {
-  return (
-    <section className="section--tight">
-      <div className="wrap--narrow" style={{ marginInline: "auto", textAlign: "center" }}>
-        <p
-          className="lede"
-          data-reveal
-          style={{
-            fontSize: "clamp(1.2rem,2.4vw,1.7rem)",
-            color: "var(--ink)",
-            lineHeight: 1.4,
-          }}
-        >
-          That&apos;s four tabs, two spreadsheets and a guilt-ridden group text —{" "}
-          <span className="hi" style={sx({ "--mark": "var(--mint)" })}>
-            collapsed into one sentence.
-          </span>
-        </p>
-      </div>
-    </section>
-  );
-}

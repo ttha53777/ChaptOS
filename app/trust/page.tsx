@@ -85,7 +85,6 @@ export default function TrustPage() {
           <nav className="nav__links">
             <a href="/#ask">Just ask</a>
             <a href="/#modules">What&apos;s in it</a>
-            <a href="/#setup">Setup</a>
             <a href="/help">Help</a>
             <a className="is-here" href="/trust" aria-current="page">
               Trust &amp; privacy
