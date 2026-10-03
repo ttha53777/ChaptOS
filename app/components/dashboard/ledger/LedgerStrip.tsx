@@ -1,4 +1,5 @@
 import React from "react";
+import { PaperIcon, type PaperIconName } from "../../paper/PaperIcon";
 
 /** Container for the ledger strip. Auto-flows columns so hidden measures simply
  *  collapse the grid (no empty gaps). */
@@ -29,6 +30,10 @@ export function LedgerStrip({ children }: { children: React.ReactNode }) {
  */
 export function Measure({
   label,
+  icon,
+  tone,
+  meter,
+  meterLabel,
   value,
   unit,
   unitLeading,
@@ -45,6 +50,16 @@ export function Measure({
   onRetry,
 }: {
   label: string;
+  /** Paper aesthetic only: the doodle beside the label, and the colour it and
+   *  the card's accents take (a CSS colour, e.g. "var(--pp-mint-ink)"). */
+  icon?: PaperIconName;
+  tone?: string;
+  /** Paper aesthetic only: a 0–100 meter under the number, drawn from the same
+   *  data as the headline (never a trend — the app keeps no metric history).
+   *  Omit when there's nothing measured and the card draws no meter. */
+  meter?: number;
+  /** Accessible reading of the meter, e.g. "7 of 9 paid up". */
+  meterLabel?: string;
   value: string;
   unit?: string;
   unitLeading?: string;
@@ -66,10 +81,12 @@ export function Measure({
   error?: boolean;
   onRetry?: () => void;
 }) {
+  const toneStyle = tone ? ({ "--c": tone } as React.CSSProperties) : undefined;
+
   if (error) {
     return (
-      <div className="measure">
-        <p className="k">{label}</p>
+      <div className="measure" style={toneStyle}>
+        <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
         <p className="v unset">—</p>
         <p className="note warn">
           Couldn&apos;t load.
@@ -89,8 +106,8 @@ export function Measure({
 
   if (loading) {
     return (
-      <div className="measure" aria-busy="true" aria-label={`${label}, loading`}>
-        <p className="k">{label}</p>
+      <div className="measure" style={toneStyle} aria-busy="true" aria-label={`${label}, loading`}>
+        <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
         {/* Inside the real `.v` box so the tile keeps its height and the strip
             doesn't jump a row when the number lands. */}
         <p className="v"><i className="skel val" /></p>
@@ -103,6 +120,7 @@ export function Measure({
   return (
     <div
       className="measure"
+      style={toneStyle}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -113,9 +131,9 @@ export function Measure({
         }
       }}
     >
-      <p className="k">{label}</p>
+      <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
       <p className={unset ? "v unset" : "v"}>
-        {!unset && unitLeading && <small>{unitLeading}</small>}
+        {!unset && unitLeading && <small className="lead">{unitLeading}</small>}
         {value}
         {!unset && unit && <small>{unit}</small>}
       </p>
@@ -137,6 +155,11 @@ export function Measure({
         </p>
       )}
       {spark}
+      {meter != null && !unset && (
+        <span className="pp-meter pp-only" role="img" aria-label={meterLabel}>
+          <i style={{ width: `${Math.max(0, Math.min(100, meter))}%` }} />
+        </span>
+      )}
       {hideButton}
     </div>
   );

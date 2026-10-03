@@ -1,6 +1,6 @@
 import React from "react";
 import { useVocab } from "../../../hooks/useVocab";
-import type { Announcement } from "../AnnouncementCard";
+import { relativeTime, type Announcement } from "../AnnouncementCard";
 
 /**
  * Quiet editorial replacement for the big AnnouncementCard. Same data + edit
@@ -51,6 +51,10 @@ export function PinnedAnnouncement({
           </span>
         )}
       </p>
+      {/* Paper's byline, as on the mock's taped note. */}
+      {announcement?.authorName && (
+        <span className="pin-by pp-only">— {announcement.authorName.split(" ")[0]} · {relativeTime(announcement.updatedAt)}</span>
+      )}
       {hasCta && (
         <a className="pin-edit" href={announcement!.ctaUrl!} target="_blank" rel="noopener noreferrer">
           {announcement!.ctaLabel}

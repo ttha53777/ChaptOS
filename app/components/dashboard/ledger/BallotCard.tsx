@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { fmtDate, type Poll } from "../../../data";
 import { apiErrorMessage } from "../../../lib/api";
+import { PaperTile } from "../../paper/PaperIcon";
 
 /** Whole calendar days between two ISO dates (to - from). */
 function daysBetween(fromISO: string, toISO: string): number {
@@ -170,6 +171,7 @@ export function BallotCard({
       aria-label="Poll awaiting your vote"
     >
       <div className="card-h">
+        <PaperTile icon="chat" tone="lilac" />
         <h2>Your vote</h2>
         <div className="right">
           <span className="sub">

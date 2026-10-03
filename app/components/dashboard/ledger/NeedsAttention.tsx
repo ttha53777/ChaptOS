@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { fmt$, fmtDate, type AttentionItem } from "../../../data";
 import { useVocab } from "../../../hooks/useVocab";
 import { SectionError } from "./SectionError";
+import { PaperTile } from "../../paper/PaperIcon";
 
 /** Rows shown before the list collapses behind "Show all". */
 const VISIBLE_LIMIT = 6;
@@ -20,8 +21,8 @@ export function NeedsAttention({
   onMarkDone,
   onSendReminder,
   onOpenReimbursements,
-  hideButton,
   onWrapUp,
+  hideButton,
   hasData = true,
   loading = false,
   error = false,
@@ -31,9 +32,9 @@ export function NeedsAttention({
   onMarkDone: (deadlineId: number) => void;
   onSendReminder: () => void;
   onOpenReimbursements: () => void;
-  hideButton?: React.ReactNode;
   /** Open that event's wrap-up on the events page. */
   onWrapUp: (eventId: number) => void;
+  hideButton?: React.ReactNode;
   /** False when no tracked measure has a single record behind it. An empty queue
    *  then means "nothing has been measured", not "nothing is wrong" — and praise
    *  requires evidence. */
@@ -57,6 +58,7 @@ export function NeedsAttention({
     <section className="card dash-group" aria-label="Needs attention">
       {hideButton}
       <div className="card-h">
+        <PaperTile icon="flag" tone="peach" />
         <h2>
           Needs attention
           {!loading && !error && items.length > 0 && <span className="count-chip">{items.length}</span>}
@@ -85,7 +87,7 @@ export function NeedsAttention({
         visible.map((it) => {
           if (it.kind === "deadline-overdue") {
             return (
-              <div className="att-row" key={`d-${it.id}`}>
+              <div className="att-row" data-kind="deadline-overdue" key={`d-${it.id}`}>
                 <span className="dot bg-rose" />
                 <span className="tag rose">OVERDUE</span>
                 <div className="body">
@@ -98,8 +100,6 @@ export function NeedsAttention({
               </div>
             );
           }
-          if (it.kind === "reimbursement") {
-            return (
           if (it.kind === "wrap-up") {
             return (
               <div className="att-row" data-kind="wrap-up" key={`w-${it.id}`}>
@@ -117,7 +117,9 @@ export function NeedsAttention({
               </div>
             );
           }
-              <div className="att-row" key="reimbursement">
+          if (it.kind === "reimbursement") {
+            return (
+              <div className="att-row" data-kind="reimbursement" key="reimbursement">
                 <span className="dot bg-rose" />
                 <span className="tag rose">REIMBURSE</span>
                 <div className="body">
@@ -133,7 +135,7 @@ export function NeedsAttention({
           }
           if (it.kind === "dues") {
             return (
-              <div className="att-row" key="dues">
+              <div className="att-row" data-kind="dues" key="dues">
                 <span className="dot bg-gold" />
                 <span className="tag gold">DUES</span>
                 <div className="body">

@@ -163,7 +163,7 @@ export function QuickActionsMenu({
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 2L4.5 13.5h6L11 22l8.5-11.5h-6L13 2z" />
           </svg>
-          Quick Actions
+          Quick actions
           <svg className="ba-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 9l6 6 6-6" />
           </svg>

@@ -1,6 +1,7 @@
 import React from "react";
 import { fmtRange, taskAssigneeLabel, type CalEventType, type CalendarEvent, type Task } from "../../../data";
 import { SectionError } from "./SectionError";
+import { PaperTile } from "../../paper/PaperIcon";
 import type { WeekPeekTarget } from "./WeekItemPeek";
 import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
 
@@ -117,6 +118,7 @@ export function ThisWeek({
       onClick={loading || error ? undefined : onAll}
     >
       <div className="card-h">
+        <PaperTile icon="cal" tone="butter" />
         <h2>This week</h2>
         <div className="right">
           {/* The week range is computed from the clock, not fetched — it is

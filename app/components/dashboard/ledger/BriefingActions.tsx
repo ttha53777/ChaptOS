@@ -1,5 +1,6 @@
 import React from "react";
 import { QuickActionsMenu, type QuickActionKey } from "../QuickActionsMenu";
+import { PaperIcon } from "../../paper/PaperIcon";
 
 /**
  * The dashboard's primary action bar, in the warm "Chapter Ledger" (dusk) idiom.
@@ -59,11 +60,11 @@ export function BriefingActions({
   return (
     <div className="brief-actions">
       {onMyStanding && (
-        <button type="button" className="ba-chip" onClick={onMyStanding}>
+        <button type="button" className="ba-chip standing" onClick={onMyStanding}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
-          My Standing
+          My standing
         </button>
       )}
 
@@ -73,17 +74,18 @@ export function BriefingActions({
             <path d="M9 11l3 3L22 4" />
             <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
           </svg>
-          Log Attendance
+          Log attendance
         </button>
       )}
 
       {onOpenCheckIn && (
-        <button type="button" className="ba-chip" onClick={onOpenCheckIn} disabled={openCheckInBusy}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <button type="button" className="ba-chip checkin" onClick={onOpenCheckIn} disabled={openCheckInBusy}>
+          <PaperIcon name="check" className="pp-only" />
+          <svg className="lg-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 2" />
           </svg>
-          {openCheckInBusy ? "Opening…" : "Open Check-in"}
+          {openCheckInBusy ? "Opening…" : "Open check-in"}
         </button>
       )}
 

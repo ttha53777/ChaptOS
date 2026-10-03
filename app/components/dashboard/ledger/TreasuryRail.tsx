@@ -2,6 +2,7 @@ import React from "react";
 import { fmt$ } from "../../../data";
 import { useVocab } from "../../../hooks/useVocab";
 import { SectionError } from "./SectionError";
+import { PaperIcon, PaperTile } from "../../paper/PaperIcon";
 import { MiniAreaChart } from "./MiniAreaChart";
 
 /**
@@ -55,6 +56,7 @@ export function TreasuryRail({
     return (
       <section id="sec-treasury" className="card" aria-label={v("Treasury")}>
         <div className="card-h">
+          <PaperTile icon="receipt" tone="mint" />
           <h2>{v("Treasury")}</h2>
         </div>
         <SectionError what="the books" onRetry={onRetry} />
@@ -66,6 +68,7 @@ export function TreasuryRail({
     return (
       <section id="sec-treasury" className="card" aria-label={v("Treasury")}>
         <div className="card-h">
+          <PaperTile icon="receipt" tone="mint" />
           <h2>{v("Treasury")}</h2>
         </div>
         <div className="rail-skel" aria-busy="true" aria-label={`Loading ${v("Treasury").toLowerCase()}`}>
@@ -80,6 +83,7 @@ export function TreasuryRail({
     return (
       <section id="sec-treasury" className="card" aria-label={v("Treasury")}>
         <div className="card-h">
+          <PaperTile icon="receipt" tone="mint" />
           <h2>{v("Treasury")}</h2>
         </div>
         <div className="rail-empty">
@@ -99,6 +103,7 @@ export function TreasuryRail({
   return (
     <section id="sec-treasury" className="card" aria-label={v("Treasury")}>
       <div className="card-h">
+        <PaperTile icon="receipt" tone="mint" />
         <h2>{v("Treasury")}</h2>
         <span className="sub">Net balance</span>
       </div>
@@ -111,14 +116,21 @@ export function TreasuryRail({
         </div>
         <p className="treasury-note">Projected {fmt$(projected)} by end of period</p>
         <div className="tchart">
-          <MiniAreaChart trend={trend} projected={projected} />
+          <MiniAreaChart trend={trend} projected={projected} stroke="var(--tchart-stroke, var(--vio))" />
           <div className="months">
             {months.map((m, i) => (
-              <span key={m + i} style={i === months.length - 1 ? { color: "var(--vio)" } : undefined}>{m}</span>
+              <span key={m + i} style={i === months.length - 1 ? { color: "var(--tchart-stroke, var(--vio))" } : undefined}>{m}</span>
             ))}
           </div>
         </div>
       </div>
+      {onLogTransaction && (
+        <div className="card-f pp-only">
+          <button type="button" onClick={onLogTransaction}>
+            <PaperIcon name="pencil" />Log a transaction<PaperIcon name="arrow-r" />
+          </button>
+        </div>
+      )}
     </section>
   );
 }

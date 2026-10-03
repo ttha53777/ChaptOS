@@ -1,12 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
+import "./paper-aesthetic.css";
 import { ChapterProvider } from "./context/ChapterContext";
 import { ChatWidgetGate } from "./components/ChatWidgetGate";
 import { SemesterGate } from "./components/SemesterGate";
 import { LiveCheckInGate } from "./components/LiveCheckInGate";
 import { ToastProvider } from "./components/dashboard/Toast";
 import { APP_THEME_BOOT } from "@/lib/theme";
+import { APP_AESTHETIC_BOOT } from "@/lib/aesthetic";
+import { landingFontClass } from "./components/landing/fonts";
+import { PaperSprite } from "./components/paper/PaperIcon";
 import { SIDEBAR_RAIL_BOOT } from "@/lib/sidebar-rail";
 
 const geistSans = Geist({
@@ -57,15 +61,15 @@ export default function RootLayout({
       // /create's theme boot script stamps data-crf-theme here before hydration
       // (see lib/onboarding/create-theme.ts), which React would otherwise report
       // as a server/client attribute mismatch, and APP_THEME_BOOT (lib/theme.ts)
-      // does the same with data-theme (and SIDEBAR_RAIL_BOOT with data-sb). Same reason next-themes requires this.
+      // does the same with data-theme (APP_AESTHETIC_BOOT with data-aesthetic, SIDEBAR_RAIL_BOOT with data-sb). Same reason next-themes requires this.
       // Only ever affects attributes on <html> itself.
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${landingFontClass} h-full antialiased`}
     >
       {/* Blocking, before any paint: stamps data-theme so ivory never flashes
           dusk, and data-sb so a collapsed sidebar never flashes open. */}
-      <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT + SIDEBAR_RAIL_BOOT }} /></head>
-      <body suppressHydrationWarning className="min-h-full flex flex-col"><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
+      <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT + APP_AESTHETIC_BOOT + SIDEBAR_RAIL_BOOT }} /></head>
+      <body suppressHydrationWarning className="min-h-full flex flex-col"><PaperSprite /><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
     </html>
   );
 }

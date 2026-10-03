@@ -54,15 +54,15 @@ export function HealthDial({
       title="View health detail"
     >
       <div className="meta">
-        <p className="label">{title}</p>
+        <p className="label"><span className="lg-only">{title}</span><span className="pp-only">Chapter health</span></p>
         <p className="state">{label}</p>
         <div className="bk">
           {rows.map(([key, abbr]) => {
             const value = Math.round(breakdown[key] ?? 0);
             return (
               <React.Fragment key={key}>
-                <span className="k">{abbr}</span>
-                <span className="bar"><i style={{ width: `${value}%` }} /></span>
+                <span className="k"><span className="lg-only">{abbr}</span><span className="pp-only">{key}</span></span>
+                <span className="bar"><i data-k={key} style={{ width: `${value}%` }} /></span>
                 <span className="v">{value}</span>
               </React.Fragment>
             );
@@ -83,7 +83,7 @@ export function HealthDial({
             strokeDasharray={`${dash.toFixed(1)} ${CIRC.toFixed(1)}`}
           />
         </svg>
-        <div className="num"><span>{score}</span></div>
+        <div className="num"><span>{score}<small className="pp-only">health</small></span></div>
       </div>
     </button>
   );

@@ -1,10 +1,9 @@
-// Typefaces for the marketing landing page only.
+// Typefaces for the marketing landing page and the app's Paper aesthetic.
 //
-// Declared here rather than in app/layout.tsx on purpose: next/font scopes its
-// preload hints to the routes that import the module, so the dashboard doesn't
-// pay for three faces it never renders. The .variable class names are applied
-// to the .lp wrapper in LandingPage.tsx, and landing.css points --display /
-// --sans / --mono at them.
+// The .variable class names are applied to the .lp wrapper in LandingPage.tsx
+// (landing.css points --display / --sans / --mono at them) and to <html> in
+// app/layout.tsx, where app/paper-aesthetic.css re-points the app's own font
+// variables at them when html[data-aesthetic="paper"].
 import { Bricolage_Grotesque, IBM_Plex_Mono, Inter } from "next/font/google";
 
 export const bricolage = Bricolage_Grotesque({

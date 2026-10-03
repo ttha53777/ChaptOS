@@ -2248,6 +2248,10 @@ export default function Home() {
                 {feature("operations", "kpi-attendance") && (
                   <Measure
                     label="Attendance"
+                    icon="people"
+                    tone="var(--pp-mint-ink)"
+                    meter={hasAttendanceData ? avgAttendance : undefined}
+                    meterLabel={`${avgAttendance.toFixed(1)}% average attendance`}
                     loading={!rosterLoaded}
                     error={rosterFailed}
                     onRetry={retrySections}
@@ -2265,6 +2269,10 @@ export default function Home() {
                 {feature("operations", "kpi-dues") && (
                   <Measure
                     label={`${v("Dues")} outstanding`}
+                    icon="wallet"
+                    tone="var(--pp-butter-ink)"
+                    meter={duesKnown && hasDuesData && brotherList.length > 0 ? ((brotherList.length - owingCount) / brotherList.length) * 100 : undefined}
+                    meterLabel={`${brotherList.length - owingCount} of ${brotherList.length} paid up`}
                     /* Two sections, per duesKnown above — the roster holds the
                        balances and the books are the tiebreak. */
                     loading={!duesKnown}
@@ -2287,6 +2295,10 @@ export default function Home() {
                 {feature("operations", "kpi-gpa") && (
                   <Measure
                     label="Average GPA"
+                    icon="star"
+                    tone="var(--pp-lilac-ink)"
+                    meter={hasGpaData ? (chapterGPA / 4) * 100 : undefined}
+                    meterLabel={`${chapterGPA.toFixed(2)} of 4.00`}
                     loading={!rosterLoaded}
                     error={rosterFailed}
                     onRetry={retrySections}
@@ -2302,6 +2314,10 @@ export default function Home() {
                 {feature("operations", "kpi-service") && (
                   <Measure
                     label={v("Service")}
+                    icon="heart"
+                    tone="var(--pp-sky-ink)"
+                    meter={hasServiceData && brotherList.length > 0 ? (onTrackSvc / brotherList.length) * 100 : undefined}
+                    meterLabel={`${onTrackSvc} of ${brotherList.length} on track`}
                     loading={!rosterLoaded}
                     error={rosterFailed}
                     onRetry={retrySections}
@@ -2331,6 +2347,8 @@ export default function Home() {
                     <Measure
                       key={snap.definitionId}
                       label={snap.name}
+                      icon="bars"
+                      tone="var(--pp-rose-ink)"
                       value={headline}
                       note={note}
                       onClick={() => setActiveCustomMetricId(snap.definitionId)}
@@ -2360,6 +2378,7 @@ export default function Home() {
                     onMarkDone={completeDeadline}
                     onSendReminder={() => setActiveDrawer("dues")}
                     onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
+                    onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
                     hasData={hasAnyData}
                     loading={!attentionLoaded}
                     error={attentionFailed}
@@ -2378,7 +2397,6 @@ export default function Home() {
                     onFilter={setStatusFilter}
                     search={search}
                     onSearch={setSearch}
-                    onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
                     sortKey={sortKey}
                     sortDir={sortDir}
                     onSort={toggleSort}

@@ -13,7 +13,7 @@ export type Announcement = {
 
 const PIN_PATH = "M5 11l5-5 7 7-5 5-7-7zm12 6l4 4M9 7l8 8";
 
-function relativeTime(iso: string): string {
+export function relativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   if (isNaN(then)) return "";
   const diff = Date.now() - then;

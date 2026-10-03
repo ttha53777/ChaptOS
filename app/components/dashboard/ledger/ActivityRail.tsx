@@ -1,6 +1,7 @@
 import React from "react";
 import type { ActivityEntry } from "../../../data";
 import { SectionError } from "./SectionError";
+import { PaperTile } from "../../paper/PaperIcon";
 
 const DOT: Record<ActivityEntry["type"], string> = {
   success: "bg-sage",
@@ -37,6 +38,7 @@ export function ActivityRail({
       onClick={inert ? undefined : onAll}
     >
       <div className="card-h">
+        <PaperTile icon="clock" tone="rose" />
         <h2>Activity</h2>
         <div className="right">
           <span className="sub">Recent</span>

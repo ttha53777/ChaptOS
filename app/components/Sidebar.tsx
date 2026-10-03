@@ -13,9 +13,10 @@ import { useNeedsOpen, useSidebarRail } from "../hooks/useSidebarPrefs";
 import { OrgSwitcher } from "./OrgSwitcher";
 import { SidebarProfile } from "./SidebarProfile";
 import { SvgIcon } from "./SvgIcon";
+import { PaperIcon, type PaperIconName } from "./paper/PaperIcon";
 import { useSemesters } from "../hooks/useActiveSemester";
-import "./sidebar.css";
 import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
+import "./sidebar.css";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -98,6 +99,14 @@ export { SvgIcon };
 
 const ICON_INBOX = "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4";
 const ICON_COLLAPSE = "M11 19l-7-7 7-7m8 14l-7-7 7-7";
+
+// The Paper aesthetic draws the nav in the mock's doodle glyphs. Both icon sets
+// render; app/paper-aesthetic.css shows whichever matches html[data-aesthetic].
+const PAPER_NAV_ICONS: Record<string, PaperIconName> = {
+  Dashboard: "home", Timeline: "timeline", Brotherhood: "people", Brothers: "people",
+  Chapter: "gavel", Tasks: "box", Docs: "folder", Instagram: "camera",
+  Programming: "board", Service: "heart", Parties: "note", Treasury: "wallet", Settings: "gear",
+};
 
 // Where each standalone nav label routes, within the org. Dashboard is absent:
 // it's the in-page section on "/" (scrolled to via onNavClick).
@@ -183,6 +192,10 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     return () => { cancelled = true; };
   }, [canManageAttendance, pathname]);
 
+  // Confirmed events that have already happened and still need a wrap-up.
+  // Empty for anyone without MANAGE_EVENTS (gated in the hook and on /me).
+  const wrapUps = useWrapUpsDue();
+
   const { active: activeSemester, loaded: semestersLoaded } = useSemesters(!!currentUser?.org?.slug);
   const term = activeSemester ? termLabel(activeSemester) : semestersLoaded ? "" : " ";
 
@@ -192,10 +205,6 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   // rather than the generic "Communications"/"Social".
   const NAV_DISPLAY: Record<string, string> = {
     Brotherhood: v("Member", true),
-  // Confirmed events that have already happened and still need a wrap-up.
-  // Empty for anyone without MANAGE_EVENTS (gated in the hook and on /me).
-  const wrapUps = useWrapUpsDue();
-
     Chapter:     v("Meetings"),
     Treasury:    v("Treasury"),
     Service:     v("Service"),
@@ -232,6 +241,9 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   const queues: Queue[] = ([
     { key: "join",  n: pendingJoinRequests,   text: pendingJoinRequests === 1 ? "join request" : "join requests", page: "Brotherhood", href: "/brothers#join-requests",       tone: "vio" },
     { key: "excuse", n: pendingExcuses,       text: pendingExcuses === 1 ? "excuse" : "excuses",                  page: "Timeline",    href: "/timeline",                     tone: "warn" },
+    // One event: straight into its wrap-up. Several: the board, where each
+    // carries its own dot.
+    { key: "wrap",  n: wrapUps.length,        text: wrapUps.length === 1 ? "event to wrap up" : "events to wrap up", page: "Programming", href: wrapUps.length === 1 ? `/events?open=${wrapUps[0].id}&wrap=1` : "/events", tone: "rose" },
     { key: "reimb", n: pendingReimbursements, text: pendingReimbursements === 1 ? "reimbursement" : "reimbursements", page: "Treasury", href: "/treasury?tab=Reimbursements", tone: "rose" },
   ] satisfies Queue[]).filter(q => q.n > 0 && visibleNavSet.has(q.page));
   const queueTotal = queues.reduce((a, q) => a + q.n, 0);
@@ -241,9 +253,6 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
   // Admin-chosen sidebar order, applied per-group so reordering stays within
   // each heading. Empty/absent → default order.
-    // One event: straight into its wrap-up. Several: the board, where each
-    // carries its own dot.
-    { key: "wrap",  n: wrapUps.length,        text: wrapUps.length === 1 ? "event to wrap up" : "events to wrap up", page: "Programming", href: wrapUps.length === 1 ? `/events?open=${wrapUps[0].id}&wrap=1` : "/events", tone: "rose" },
   const navOrder = currentUser?.org?.navOrder ?? [];
 
   // Reordering is an org-wide layout change — gated on org admin (platform admin
@@ -337,7 +346,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     const dot = queuePages.has(label) ? <span className="sb-dot" aria-label="needs review" /> : null;
     const content = (
       <>
-        <SvgIcon d={NAV_ICONS[label] ?? ""} className="i" />
+        <SvgIcon d={NAV_ICONS[label] ?? ""} className="i lg-only" />
+        {PAPER_NAV_ICONS[label] && <PaperIcon name={PAPER_NAV_ICONS[label]} className="i pp-only" />}
         <span className="sb-lbl">{text}</span>
         {dot}
       </>
@@ -393,7 +403,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     <>
       <section className={`sb-needs${needsOpen ? "" : " closed"}`} aria-label="Needs you">
         <button type="button" className="sb-needs-h" onClick={() => setNeedsOpen(!needsOpen)} aria-expanded={needsOpen} aria-controls="sb-needs-list">
-          <SvgIcon d={ICON_INBOX} className="i" />Needs you
+          <SvgIcon d={ICON_INBOX} className="i lg-only" /><PaperIcon name="flag" className="i pp-only" />Needs you
           <span className="sb-needs-end">
             <span className="sb-needs-hint">{needsOpen ? "Hide" : "Show"}</span>
             <span className="sb-needs-stack" aria-hidden="true">
@@ -455,7 +465,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             if (items.length === 0) return null;
             const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
             return (
-              <section key={group.label} className="sb-grp" aria-labelledby={headingId}>
+              <section key={group.label} className="sb-grp" data-grp={group.label} aria-labelledby={headingId}>
                 <div className="sb-grp-h"><span id={headingId}>{group.label}</span></div>
                 <div className="sb-items">
                   {items.map(label => renderNavItem(label, group.label))}
@@ -475,7 +485,8 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
             data-tip={rail ? "Expand" : "Collapse"}
             data-tipk="["
           >
-            <SvgIcon d={ICON_COLLAPSE} className="i" />
+            <SvgIcon d={ICON_COLLAPSE} className="i lg-only" />
+            <PaperIcon name="rail" className="i pp-only" />
           </button>
         </div>
 

@@ -2,11 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { fmtRange } from "../../../data";
+import { PaperIcon } from "../../paper/PaperIcon";
 
 function greetingFor(hour: number): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
+}
+
+/** "Sun · Oct 4" — the Paper aesthetic's date chip. */
+function fmtShort(d: Date): string {
+  return `${d.toLocaleDateString("en-US", { weekday: "short" })} · ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 }
 
 function fmtDate(d: Date): string {
@@ -25,6 +31,10 @@ function fmtDate(d: Date): string {
  * gate + hide affordance stay in Home). Carries `id="sec-dashboard"` so the
  * sidebar scroll-spy/jump still resolves the Dashboard anchor.
  */
+function Wave() {
+  return <span className="wave pp-only" aria-hidden="true"><PaperIcon name="hand" /></span>;
+}
+
 export function BriefingHeader({
   firstName,
   weekStart,
@@ -63,13 +73,13 @@ export function BriefingHeader({
   // So we seed from `weekStart` — a server-provided snapshot that's identical on
   // both sides — and swap in the viewer's actual local date/greeting only after
   // mount, where it's client-only and can't mismatch.
-  const [clock, setClock] = useState<{ label: string; greeting: string }>(() => ({
-    label: fmtDate(new Date(`${weekStart}T00:00:00`)),
-    greeting: "Welcome",
-  }));
+  const [clock, setClock] = useState<{ label: string; short: string; greeting: string }>(() => {
+    const seed = new Date(`${weekStart}T00:00:00`);
+    return { label: fmtDate(seed), short: fmtShort(seed), greeting: "Welcome" };
+  });
   useEffect(() => {
     const now = new Date();
-    setClock({ label: fmtDate(now), greeting: greetingFor(now.getHours()) });
+    setClock({ label: fmtDate(now), short: fmtShort(now), greeting: greetingFor(now.getHours()) });
   }, []);
 
   const dateLabel = clock.label;
@@ -77,12 +87,16 @@ export function BriefingHeader({
   return (
     <section id="sec-dashboard" className="briefing" aria-label="Briefing">
       <div>
+        {/* Ledger and Paper word the date differently; both render and
+            app/paper-aesthetic.css shows the one for html[data-aesthetic]. */}
         <p className="kicker">
-          <span className="today">{dateLabel}</span>
-          &ensp;·&ensp;Week of {fmtRange(weekStart, weekEnd)}
+          <span className="today"><span className="lg-only">{dateLabel}</span><span className="pp-only">{clock.short}</span></span>
+          <span className="lg-only">&ensp;·&ensp;</span>Week of {fmtRange(weekStart, weekEnd)}
         </p>
         <h1 className="greeting">
-          {firstName ? <>{clock.greeting}, <em>{firstName}</em>.</> : <>{clock.greeting}.</>}
+          {/* .greet-tail keeps the name, its period and Paper's waving hand on
+              one line; under Ledger it is a plain inline span. */}
+          {clock.greeting}{firstName ? <>, <span className="greet-tail"><em>{firstName}</em>.<Wave /></span></> : <span className="greet-tail">.<Wave /></span>}
         </h1>
         {(digest || digestLoading || digestQuiet) && (
           <div
@@ -99,7 +113,12 @@ export function BriefingHeader({
                 }
               : {})}
           >
-            {!digestQuiet && <span className="ai-chip">AI</span>}
+            {!digestQuiet && (
+              <span className="ai-chip">
+                <span className="lg-only">AI</span>
+                <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+              </span>
+            )}
             {digestLoading
               ? <p className="digest-loading">Summarizing this week…</p>
               : digestQuiet

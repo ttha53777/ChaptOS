@@ -6,11 +6,12 @@ import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { useVocab } from "../../../hooks/useVocab";
 import { BrotherAvatar } from "../../BrotherAvatar";
 import { SectionError } from "./SectionError";
+import { PaperTile } from "../../paper/PaperIcon";
 
-const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
-  "Good":    { cls: "st-good",  label: "GOOD" },
-  "Watch":   { cls: "st-watch", label: "WATCH" },
-  "At Risk": { cls: "st-risk",  label: "AT RISK" },
+const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string; paper: string }> = {
+  "Good":    { cls: "st-good",  label: "GOOD",    paper: "On track" },
+  "Watch":   { cls: "st-watch", label: "WATCH",   paper: "Watch" },
+  "At Risk": { cls: "st-risk",  label: "AT RISK", paper: "At risk" },
 };
 
 /** Rows shown on phone before the list collapses behind "Show all". Touch
@@ -202,7 +203,11 @@ export function RosterTable({
     <section id="sec-brothers" className="card rt dash-group" aria-label="Roster">
       {hideButton}
       <div className="card-h">
+        <PaperTile icon="people" tone="sky" />
         <h2>Roster</h2>
+        {!loading && !error && total > 0 && (
+          <span className="pp-count pp-only">{total} {v("Member", total !== 1).toLowerCase()}</span>
+        )}
         {(showSearch || statusKnown) && (
         <div className="right">
           {showSearch && (
@@ -314,6 +319,7 @@ export function RosterTable({
                     key={b.id}
                     tabIndex={0}
                     className={selectedId === b.id ? "sel" : undefined}
+                    data-st={statusKnown ? tag.cls : undefined}
                     onClick={() => onRowClick(b.id)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(b.id); }
@@ -368,7 +374,7 @@ export function RosterTable({
                     )}
                     <td className="num c-status">
                       {statusKnown
-                        ? <span className={`status-tag ${tag.cls}`}>{tag.label}</span>
+                        ? <span className={`status-tag ${tag.cls}`}><span className="lg-only">{tag.label}</span><span className="pp-only">{tag.paper}</span></span>
                         : <span className="mono muted">—</span>}
                     </td>
                   </tr>
