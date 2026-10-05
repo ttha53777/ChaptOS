@@ -16,6 +16,8 @@ import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue 
 import { scheduleDate, type Schedule } from "@/lib/calendar-feed/schedule";
 import "../../components/dashboard/dashboard-ledger.css";
 import "./service-ledger.css";
+import "./service-paper.css";
+import { PaperService, DeskDate, dayLabel, r1, localToday, standing } from "./PaperService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +102,13 @@ export default function ServicePage() {
       .then(rows => setPartByEvent(prev => ({ ...prev, [eventId]: rows })))
       .catch(() => toast.error("Could not load attendees."));
   }
+
+  // Each row's "here · hours" needs its sheet, so fetch them all once the list lands
+  // rather than showing dashes until a row is opened.
+  useEffect(() => {
+    if (eventsLoading) return;
+    for (const ev of serviceEvents) loadParticipation(ev.id);
+  }, [eventsLoading]);
 
   function toggleExpand(eventId: number) {
     setExpandedId(prev => (prev === eventId ? null : eventId));
@@ -349,6 +358,19 @@ export default function ServicePage() {
         {/* ── Scrollable dusk ledger pane ── */}
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="dash dash-service" data-dashboard-theme="dusk">
+            <div className="pp-only">
+              <PaperService
+                orgName={orgName} semesterLabel={activeSemester?.label ?? null} goal={goal}
+                roster={roster} events={serviceEvents} eventsLoading={eventsLoading} rosterLoading={isLoading}
+                selfId={selfId} canService={canService}
+                view={view} setView={k => { setView(k); setSearch(""); }} search={search} setSearch={setSearch}
+                expandedId={expandedId} toggleExpand={toggleExpand} partByEvent={partByEvent}
+                avatar={(b, size = "xs") => <BrotherAvatar brother={b} selfId={selfId} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size={size} />}
+                onNew={openAddEvent} onLogMine={openLogMine} onLog={openLog} onEdit={openEditEvent}
+                onDelete={handleDeleteEvent} onRemove={removeAttendee} onMember={openMemberDetail}
+              />
+            </div>
+            <div className="lg-only">
 
             {/* ── Briefing ── */}
             <section className="svc-briefing" aria-label="Service log">
@@ -525,14 +547,15 @@ export default function ServicePage() {
                 </div>
               )
             )}
+            </div>
           </div>
         </main>
       </div>
 
       {/* ── Add / Edit service event modal ── */}
       {eventModal && (
-        <Modal title={eventModal === "add" ? "Log service event" : "Edit service event"} tone="dusk" onClose={() => setEventModal(null)}>
-          <div className="cef-root cef">
+        <Modal title={eventModal === "add" ? "Log service event" : "Edit service event"} tone="dusk" icon="heart" accent="mint" onClose={() => setEventModal(null)}>
+          <div className="cef-root cef svc-wide">
             <div className="cef-field">
               <label className="cef-label" htmlFor="svc-title">Title</label>
               <input id="svc-title" className="cef-input" value={eventForm.title} autoFocus
@@ -557,7 +580,8 @@ export default function ServicePage() {
                 onChange={e => setEventForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Details, dress code, what to bring…" />
             </div>
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="svc-foot flex justify-end gap-2 pt-1">
+              <span className="note pp-only">{activeSemester ? `Dates stay inside ${activeSemester.label}. ` : ""}It lands on the Timeline as a service event.</span>
               <button onClick={() => setEventModal(null)} className="svc-btn ghost">Cancel</button>
               <button onClick={handleSaveEvent} disabled={!eventForm.title} className="svc-btn primary">
                 {eventModal === "add" ? "Log event" : "Save changes"}
@@ -569,7 +593,8 @@ export default function ServicePage() {
 
       {/* ── Log hours picker ── */}
       {logFor && (
-        <Modal title={`Log hours · ${logFor.title}`} tone="dusk" onClose={() => !logBusy && setLogFor(null)}>
+        <Modal title={`Log hours · ${logFor.title}`} tone="dusk" icon="clock" accent="mint" onClose={() => !logBusy && setLogFor(null)}>
+          <div className="svc-wide">
           <p className="svc-log-hint">Enter hours for everyone who showed up. Leave a member blank to skip them.</p>
           <label className="svc-search inmodal">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
@@ -584,7 +609,7 @@ export default function ServicePage() {
                 return (
                   <div key={b.id} className={`svc-log-row${active ? " on" : ""}`}>
                     <BrotherAvatar brother={b} selfId={selfId} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" />
-                    <span className="nm">{b.name}</span>
+                    <span className="nm">{b.name}<small className="pp-only">{r1(b.serviceHours)}h total</small></span>
                     <input
                       type="number" min="0" step="0.5" inputMode="decimal"
                       className="hrin"
@@ -597,16 +622,59 @@ export default function ServicePage() {
                 );
               })}
           </div>
-          <div className="flex justify-end gap-2 pt-3">
+          <div className="svc-foot flex justify-end gap-2 pt-3">
+            <span className="note pp-only">{logTally(logDraft)}</span>
             <button onClick={() => setLogFor(null)} disabled={logBusy} className="svc-btn ghost">Cancel</button>
             <button onClick={submitLog} disabled={logBusy} className="svc-btn primary">{logBusy ? "Saving…" : "Save hours"}</button>
+          </div>
           </div>
         </Modal>
       )}
 
       {/* ── Log my hours (self-service) ── */}
       {logMineOpen && (
-        <Modal title="Log my hours" tone="dusk" onClose={() => !logMineBusy && setLogMineOpen(false)}>
+        <Modal title="Log my hours" tone="dusk" icon="clock" accent="mint" onClose={() => !logMineBusy && setLogMineOpen(false)}>
+          <div className="svc-wide svc-mine pp-only">
+            <div className="svc-mine-pick">
+              <p className="svc-mine-k">Which event?</p>
+              <div className="svc-mine-list" role="radiogroup" aria-label="Service event">
+                {[...serviceEvents].sort((a, b) => b.date.localeCompare(a.date)).map(ev => {
+                  const mineH = (partByEvent[ev.id] ?? []).find(p => p.brotherId === selfId)?.hours;
+                  return (
+                    <button key={ev.id} type="button" role="radio" aria-checked={logMineEventId === ev.id}
+                      className={`svc-mine-ev${logMineEventId === ev.id ? " on" : ""}`} onClick={() => setLogMineEventId(ev.id)}>
+                      <DeskDate date={ev.date} up={ev.date > localToday()} />
+                      <span className="t">{ev.title}<small>{dayLabel(ev.date)}{ev.location ? ` · ${ev.location}` : ""}</small></span>
+                      {mineH != null && <span className="had">{r1(mineH)}h</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="svc-mine-hours">
+              <p className="svc-mine-k">How many hours?</p>
+              <label className="svc-mine-big">
+                <input type="number" min="0" step="0.5" inputMode="decimal" value={logMineHours} placeholder="0"
+                  onChange={e => setLogMineHours(e.target.value)} aria-label="Hours" />
+                <span>h</span>
+              </label>
+              <div className="svc-chips">
+                {[1, 2, 3, 4, 6].map(n => (
+                  <button key={n} type="button" className={logMineHours === String(n) ? "on" : ""} onClick={() => setLogMineHours(String(n))}>{n}h</button>
+                ))}
+              </div>
+              <p className="svc-mine-hint">
+                You’re at <b>{r1(currentUser ? (roster.find(b => b.id === selfId)?.serviceHours ?? 0) : 0)}h</b> of {goal}. Logging again for the same event replaces your hours there.
+              </p>
+            </div>
+            <div className="svc-foot flex justify-end gap-2">
+              <button onClick={() => setLogMineOpen(false)} disabled={logMineBusy} className="svc-btn ghost">Cancel</button>
+              <button onClick={submitLogMine} disabled={logMineBusy || logMineEventId == null || logMineHours === ""} className="svc-btn primary">
+                {logMineBusy ? "Saving…" : "Log my hours"}
+              </button>
+            </div>
+          </div>
+          <div className="lg-only">
           <p className="svc-log-hint">Pick the service event you showed up to and enter how many hours you earned.</p>
           <div className="space-y-3">
             <div>
@@ -638,12 +706,37 @@ export default function ServicePage() {
               </button>
             </div>
           </div>
+          </div>
         </Modal>
       )}
 
       {/* ── Member detail drawer ── */}
       {memberDetail && (
-        <Modal title={memberDetail.name} tone="dusk" onClose={() => setMemberDetail(null)}>
+        <Modal title={memberDetail.name} tone="dusk" icon="heart" accent="mint" onClose={() => setMemberDetail(null)}>
+          <div className="pp-only svc-pmd">
+            <div className="svc-pmd-big">
+              <b>{r1(memberDetail.serviceHours)}</b>
+              <span>of {goal}h goal · {standing(memberDetail.serviceHours, goal) === "ok" ? "on track" : `${r1(goal - memberDetail.serviceHours)}h to go`}</span>
+            </div>
+            {(() => {
+              const logged = memberEvents.reduce((s, x) => s + x.hours, 0);
+              // Until every event's sheet has loaded, the remainder would read as "before tracking".
+              const loaded = serviceEvents.every(e => partByEvent[e.id]);
+              if (!loaded) return <p className="svc-pmd-none">Reading the sign-in sheets…</p>;
+              const early = Math.round((memberDetail.serviceHours - logged) * 10) / 10;
+              if (memberEvents.length === 0 && early <= 0) return <p className="svc-pmd-none">No event-logged hours yet.</p>;
+              return (
+                <ul className="svc-pmd-l">
+                  {memberEvents.map(({ event, hours }) => (
+                    <li key={event.id}><span>{event.title}</span><span className="d">{dayLabel(event.date)}</span><span className="h">{r1(hours)}h</span></li>
+                  ))}
+                  {early > 0 && <li className="early"><span>Recorded before per-event tracking</span><span className="d">—</span><span className="h">{r1(early)}h</span></li>}
+                </ul>
+              );
+            })()}
+            <div className="svc-foot flex justify-end"><button className="svc-btn primary" onClick={() => setMemberDetail(null)}>Done</button></div>
+          </div>
+          <div className="lg-only">
           <div className="svc-md-head">
             <span className="big">{round(memberDetail.serviceHours)}<i>h</i></span>
             <span className="goal">of {goal}h goal</span>
@@ -661,6 +754,7 @@ export default function ServicePage() {
               ))}
             </ul>
           )}
+          </div>
         </Modal>
       )}
     </div>
@@ -672,6 +766,13 @@ export default function ServicePage() {
 /** Trim trailing .0 so "3" not "3.0", but keep "3.5". */
 function round(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+/** "3 members · 7.5h on this sheet" — the Log hours footer's running tally. */
+function logTally(draft: Record<number, string>): string {
+  let n = 0, h = 0;
+  for (const v of Object.values(draft)) { const x = parseFloat(v) || 0; if (x > 0) { n++; h += x; } }
+  return `${n} ${n === 1 ? "member" : "members"} · ${round(h)}h on this sheet`;
 }
 
 /** One-line AI-style digest derived from the live roster + events. */
