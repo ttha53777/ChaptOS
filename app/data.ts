@@ -155,6 +155,13 @@ export interface Task {
   createdAt: string;
   assignments: TaskAssignment[];
 }
+  /** Live "Everyone" target (no assignment rows): "any" = one person finishes it
+   *  for the chapter, "each" = every member does their own. null = assignments. */
+  everyone: "any" | "each" | null;
+  /** "each" tasks only: members who've ticked their part, of the active roster.
+   *  `status` is then the VIEWER's own part (see task-service toDTOs). */
+  doneCount: number | null;
+  memberCount: number | null;
 
 // A poll is task-shaped (members/roles + optional date) with a question and 2-10
 // options that attached members vote on. Single-choice. It's a BLIND ballot: the
@@ -322,13 +329,13 @@ export const brothers: Brother[] = [
 // Mock seed tasks (all dated → all "deadlines"). Assignments are empty in the
 // mock layer; the live app resolves real member/role assignees server-side.
 export const tasks: Task[] = [
-  { id: 1, title: "Nationals Chapter Fee Deadline",   dueDate: "2026-06-01", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
-  { id: 2, title: "Risk Management Form Submission",  dueDate: "2026-05-16", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
-  { id: 3, title: "Spring Roster Update",             dueDate: "2026-05-25", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
-  { id: 4, title: "Banquet Planning Final Submission",dueDate: "2026-05-14", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
-  { id: 5, title: "Brotherhood Event Proposal",       dueDate: "2026-06-10", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
-  { id: 6, title: "Academic Standing Report",         dueDate: "2026-05-13", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
-  { id: 7, title: "IFC Chapter Report",               dueDate: "2026-06-15", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [] },
+  { id: 1, title: "Nationals Chapter Fee Deadline",   dueDate: "2026-06-01", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 2, title: "Risk Management Form Submission",  dueDate: "2026-05-16", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 3, title: "Spring Roster Update",             dueDate: "2026-05-25", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 4, title: "Banquet Planning Final Submission",dueDate: "2026-05-14", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 5, title: "Brotherhood Event Proposal",       dueDate: "2026-06-10", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 6, title: "Academic Standing Report",         dueDate: "2026-05-13", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 7, title: "IFC Chapter Report",               dueDate: "2026-06-15", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
 ];
 
 export const instagramTasks: InstagramTask[] = [
@@ -592,6 +599,8 @@ function isoDaysBetween(from: string, to: string): number {
 export function taskAssigneeLabel(task: Task, max = 2): string {
   const names = task.assignments.map(a =>
     a.brother ? a.brother.name.split(" ")[0] : a.role ? a.role.name : "?",
+  if (task.everyone === "each") return "Everyone";
+  if (task.everyone === "any") return "Anyone";
   );
   if (names.length === 0) return "Unassigned";
   if (names.length <= max) return names.join(", ");

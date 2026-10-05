@@ -9,6 +9,8 @@ import { TaskForm, type RoleOption, type TaskFormValue } from "../../components/
 import { PollForm, type PollFormValue } from "../../components/dashboard/PollForm";
 import { useChapter } from "../../context/ChapterContext";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
+import { useAppAesthetic } from "../../hooks/useAppAesthetic";
+import { PaperTasks, PaperTaskSheet, PaperTaskView, PaperBallot } from "./PaperTasks";
 import { Task, Poll, fmtDate } from "../../data";
 import { requestJson } from "../../lib/api";
 import { taskUrgency, type TaskUrgency, URGENCY_ORDER } from "@/lib/tasks/urgency";
@@ -18,11 +20,11 @@ import "./tasks-ledger.css";
 type AssigneeFilter = "all" | "mine";
 
 const URGENCY_LABEL: Record<TaskUrgency, string> = {
-  overdue: "Overdue", urgent: "Urgent", "due-soon": "Due soon", upcoming: "Upcoming", none: "No date",
+  overdue: "Overdue", urgent: "Urgent", upcoming: "Upcoming", none: "No date",
 };
 // Tone drives the group label color AND the row's left status spine (s-*).
 const URGENCY_TONE: Record<TaskUrgency, string> = {
-  overdue: "rose", urgent: "rose", "due-soon": "gold", upcoming: "", none: "",
+  overdue: "rose", urgent: "rose", upcoming: "", none: "",
 };
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -41,14 +43,18 @@ function relWhen(dueDate: string | null, today: Date): { txt: string; cls: strin
   const n = daysUntil(dueDate, today);
   if (n < 0) return { txt: `${Math.abs(n)}d late`, cls: "late" };
   if (n === 0) return { txt: "Due today", cls: "late" };
-  if (n === 1) return { txt: "Due tomorrow", cls: "soon" };
-  if (n <= 7) return { txt: `Due in ${n}d`, cls: "soon" };
+  if (n === 1) return { txt: "Due tomorrow", cls: "late" };
+  if (n <= 7) return { txt: `Due in ${n}d`, cls: "" };
   return { txt: `Due ${fmtDate(dueDate)}`, cls: "" };
 }
 /** A done task is no longer "late" — show a neutral completed label. */
 function whenLabel(t: Task, today: Date): { txt: string; cls: string } {
   if (t.status === "done") return { txt: t.dueDate ? `Done · was due ${fmtDate(t.dueDate)}` : "Done", cls: "" };
   return relWhen(t.dueDate, today);
+}
+/** Plain-language read of an Everyone task's rule. */
+function everyoneLabel(t: Task): string {
+  return t.everyone === "each" ? "Everyone — each member does their own" : "Anyone — one person does it for the chapter";
 }
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -86,6 +92,15 @@ export default function TasksPage() {
   );
 
   const activeSemester = useActiveSemester();
+  // Modals open after mount, so they can pick their look from the stored choice;
+  // the page body switches by CSS (.pp-only / .lg-only) so first paint is right.
+  const paper = useAppAesthetic().aesthetic === "paper";
+  // The row a create/edit just saved — Paper scrolls to it and glows it once.
+  const [freshId, setFreshId] = useState<number | null>(null);
+  const markFresh = useCallback((id: number) => {
+    setFreshId(id);
+    window.setTimeout(() => setFreshId(f => f === id ? null : f), 2800);
+  }, []);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>("all");
   const [showDone, setShowDone] = useState(false);
@@ -112,7 +127,7 @@ export default function TasksPage() {
     requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
   }, []);
 
-  const isMine = useCallback((t: Task) => t.assignments.some(a =>
+  const isMine = useCallback((t: Task) => t.everyone != null || t.assignments.some(a =>
     (a.brotherId != null && a.brotherId === selfId) || (a.roleId != null && myRoleIds.has(a.roleId)),
   ), [selfId, myRoleIds]);
 
@@ -190,16 +205,17 @@ export default function TasksPage() {
   const counts = useMemo(() => {
     const open = taskList.filter(t => t.status !== "done");
     const overdueTasks = open.filter(t => taskUrgency(t.dueDate, today) === "overdue");
-    const dueSoon = open.filter(t => ["urgent", "due-soon"].includes(taskUrgency(t.dueDate, today))).length;
+    const urgent = open.filter(t => taskUrgency(t.dueDate, today) === "urgent").length;
     // Oldest overdue, for the glance note.
     const oldestLate = overdueTasks.reduce(
       (max, t) => Math.max(max, t.dueDate ? Math.abs(daysUntil(t.dueDate, today)) : 0), 0);
     const owners = new Set<string>();
+    for (const t of open) if (t.everyone) owners.add("everyone");
     for (const t of open) for (const a of t.assignments) {
       if (a.roleId != null) owners.add(`r${a.roleId}`);
       else if (a.brotherId != null) owners.add(`b${a.brotherId}`);
     }
-    return { overdue: overdueTasks.length, dueSoon, open: open.length, done: taskList.length - open.length, oldestLate, owners: owners.size };
+    return { overdue: overdueTasks.length, urgent, open: open.length, done: taskList.length - open.length, oldestLate, owners: owners.size };
   }, [taskList, today]);
 
   // Polls pinned above the task list. Filters mirror the task filters: "mine"
@@ -238,16 +254,18 @@ export default function TasksPage() {
         const saved = await requestJson<Task>(`/api/tasks/${modal.task.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...base, dueDate: value.dueDate || null, notes: value.notes || null }),
+          body: JSON.stringify({ ...base, everyone: value.everyone, dueDate: value.dueDate || null, notes: value.notes || null }),
         });
         setTaskList(prev => prev.map(x => x.id === saved.id ? saved : x));
+        markFresh(saved.id);
       } else {
         const saved = await requestJson<Task>("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...base, dueDate: value.dueDate || undefined, notes: value.notes || undefined }),
+          body: JSON.stringify({ ...base, everyone: value.everyone ?? undefined, dueDate: value.dueDate || undefined, notes: value.notes || undefined }),
         });
         setTaskList(prev => [...prev, saved]);
+        markFresh(saved.id);
       }
       setModal(null);
     } catch {
@@ -375,7 +393,7 @@ export default function TasksPage() {
   // Glance measures. note tone keys off the same semantics as the spines.
   const measures = [
     { k: "Overdue", v: counts.overdue, tone: "rose", note: counts.overdue > 0 ? `oldest is ${counts.oldestLate}d late` : "all clear", noteTone: counts.overdue > 0 ? "bad" : "" },
-    { k: "Due soon", v: counts.dueSoon, tone: "gold", note: "within 7 days", noteTone: counts.dueSoon > 0 ? "warn" : "" },
+    { k: "Urgent", v: counts.urgent, tone: "rose", note: "due today or tomorrow", noteTone: counts.urgent > 0 ? "bad" : "" },
     { k: "Open", v: counts.open, tone: "", note: `across ${counts.owners} ${counts.owners === 1 ? "owner" : "owners"}`, noteTone: "" },
     { k: "Done", v: counts.done, tone: "sage", note: "this semester", noteTone: "" },
   ] as const;
@@ -401,6 +419,44 @@ export default function TasksPage() {
 
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="dash dash-tasks" data-dashboard-theme="dusk">
+            {/* ── Paper (_design/Dashboard Paper Mock.html #tasks) ── */}
+            <div className="pp-only ptk-page">
+              {error && <div className="ptk-notice bad" role="alert">{error}<button type="button" className="ptk-link" onClick={() => setError(null)}>Dismiss</button></div>}
+              {missingLink && (
+                <div className="ptk-notice" role="status">
+                  {missingLink === "task"
+                    ? "This deadline was removed. If you came from your calendar, it disappears there the next time your calendar refreshes."
+                    : "This poll was removed."}
+                  <button type="button" className="ptk-link" onClick={() => setMissingLink(null)}>Dismiss</button>
+                </div>
+              )}
+              <PaperTasks
+                taskList={taskList}
+                pollList={pollList}
+                today={today}
+                me={{ selfId, myRoleIds }}
+                semesterLabel={activeSemester?.label ?? null}
+                canManage={canManage}
+                canManagePolls={canManagePolls}
+                assigneeFilter={assigneeFilter}
+                setAssigneeFilter={setAssigneeFilter}
+                showDone={showDone}
+                setShowDone={setShowDone}
+                freshId={freshId}
+                isMine={isMine}
+                canVote={canVote}
+                canComplete={canCompleteTask}
+                onNewTask={openAdd}
+                onNewPoll={openAddPoll}
+                onOpenTask={t => canManage ? openEdit(t) : setTaskViewId(t.id)}
+                onEditTask={openEdit}
+                onDeleteTask={t => setConfirmDelete({ id: t.id, title: t.title })}
+                onToggleTask={t => setStatus(t, t.status === "done" ? "open" : "done")}
+                onOpenPoll={openPollView}
+              />
+            </div>
+
+            <div className="lg-only">
             {/* ── Briefing ── */}
             <header className="tk-briefing">
               <div>
@@ -550,11 +606,38 @@ export default function TasksPage() {
                 )}
               </div>
             )}
+            </div>
           </div>
         </main>
       </div>
 
-      {modal && (
+      {modal && paper && (
+        <Modal ariaLabel={modal.kind === "edit" ? "Edit task" : "New task"} hideHeader tone="dusk" maxWidthClass="max-w-[640px]" accent="lilac" onClose={() => setModal(null)}>
+          <PaperTaskSheet
+            brothers={brotherList}
+            roles={roles}
+            selfId={selfId}
+            today={today}
+            minDate={activeSemester?.startDate}
+            maxDate={activeSemester?.endDate}
+            editing={modal.kind === "edit"}
+            error={formError}
+            initial={modal.kind === "edit" ? {
+              title: modal.task.title,
+              dueDate: modal.task.dueDate ?? "",
+              notes: modal.task.notes ?? "",
+              brotherIds: modal.task.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
+              roleIds: modal.task.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+              everyone: modal.task.everyone,
+            } : undefined}
+            onSubmit={submitForm}
+            onDelete={modal.kind === "edit" ? () => { const t = modal.task; setModal(null); setConfirmDelete({ id: t.id, title: t.title }); } : undefined}
+            onCancel={() => setModal(null)}
+          />
+        </Modal>
+      )}
+
+      {modal && !paper && (
         <Modal title={modal.kind === "edit" ? "Edit task" : "New task"} tone="dusk" onClose={() => setModal(null)}>
           <TaskForm
             brothers={brotherList}
@@ -569,13 +652,21 @@ export default function TasksPage() {
               notes: modal.task.notes ?? "",
               brotherIds: modal.task.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
               roleIds: modal.task.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+              everyone: modal.task.everyone,
             } : undefined}
             onSubmit={submitForm}
           />
         </Modal>
       )}
 
-      {taskView && (
+      {taskView && paper && (
+        <Modal ariaLabel="Task" hideHeader tone="dusk" maxWidthClass="max-w-[560px]" accent="lilac" onClose={() => setTaskViewId(null)}>
+          <PaperTaskView task={taskView} today={today} selfId={selfId} myRoleIds={myRoleIds} canComplete={canCompleteTask(taskView)}
+            onToggle={() => setStatus(taskView, taskView.status === "done" ? "open" : "done")} onClose={() => setTaskViewId(null)} />
+        </Modal>
+      )}
+
+      {taskView && !paper && (
         <Modal title="Task" tone="dusk" onClose={() => setTaskViewId(null)}>
           <TaskSheet task={taskView} today={today} canComplete={canCompleteTask(taskView)}
             onToggle={() => setStatus(taskView, taskView.status === "done" ? "open" : "done")} />
@@ -625,7 +716,18 @@ export default function TasksPage() {
         />
       )}
 
-      {pollView && (
+      {pollView && paper && (
+        <Modal ariaLabel="Poll" tone="dusk" hideHeader maxWidthClass="max-w-[600px]" accent="lilac" onClose={() => setPollViewId(null)}>
+          <PaperBallot poll={pollView} today={today} brothers={brotherList} canManage={canManagePolls} canVote={canVote(pollView)}
+            onVote={(optionId) => vote(pollView, optionId)}
+            onClosePoll={() => setPollStatus(pollView, "closed")} onReopen={() => setPollStatus(pollView, "open")}
+            onEdit={() => { setPollViewId(null); openEditPoll(pollView); }}
+            onDelete={() => { setPollViewId(null); setConfirmDeletePoll({ id: pollView.id, title: pollView.question }); }}
+            onDone={() => setPollViewId(null)} />
+        </Modal>
+      )}
+
+      {pollView && !paper && (
         <Modal tone="dusk" hideHeader maxWidthClass="max-w-lg" onClose={() => setPollViewId(null)}>
           <PollCard poll={pollView} today={today} canManage={canManagePolls} canVote={canVote(pollView)}
             onVote={(optionId) => vote(pollView, optionId)}
@@ -657,9 +759,11 @@ function TaskSheet({ task, today, canComplete, onToggle }: {
         <dt>Status</dt>
         <dd>{done ? "Done" : "Open"}</dd>
         <dt>Assigned to</dt>
-        <dd>{task.assignments.length
-          ? task.assignments.map(a => a.role?.name ?? a.brother?.name).filter(Boolean).join(", ")
-          : "No one yet"}</dd>
+        <dd>{task.everyone
+          ? <>{everyoneLabel(task)}{task.everyone === "each" && task.doneCount != null && <span className="when"> · {task.doneCount} of {task.memberCount} done</span>}</>
+          : task.assignments.length
+            ? task.assignments.map(a => a.role?.name ?? a.brother?.name).filter(Boolean).join(", ")
+            : "No one yet"}</dd>
         {task.notes && <><dt>Notes</dt><dd className="notes">{task.notes}</dd></>}
       </dl>
       {canComplete && (
@@ -705,7 +809,22 @@ function TaskRow({ task, today, spine, canManage, canComplete, onComplete, onReo
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" /></svg>
             {when.txt}
           </span>
-          {task.assignments.length > 0 && (
+          {task.everyone && (
+            <>
+              <span className="tk-sep">·</span>
+              <span className="tk-chips">
+                <span className="tk-chip all" title={everyoneLabel(task)}>
+                  {task.everyone === "each" ? "Everyone" : "Anyone"}
+                </span>
+                {task.everyone === "each" && task.doneCount != null && task.memberCount != null && (
+                  <span className="tk-progress" title={`${task.doneCount} of ${task.memberCount} members have done their part`}>
+                    {task.doneCount}/{task.memberCount} done
+                  </span>
+                )}
+              </span>
+            </>
+          )}
+          {!task.everyone && task.assignments.length > 0 && (
             <>
               <span className="tk-sep">·</span>
               <span className="tk-chips">

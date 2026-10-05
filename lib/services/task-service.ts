@@ -3,7 +3,7 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { hasPermission } from "@/lib/permissions";
-import { TaskStatus } from "@/lib/state";
+import { TaskEveryone, TaskStatus } from "@/lib/state";
 import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateTaskInput, UpdateTaskInput } from "@/lib/validation/task";
 
@@ -19,9 +19,47 @@ const TASK_INCLUDE = {
       role:    { select: { id: true, name: true, color: true } },
     },
   },
+  completions: { select: { brotherId: true, completedAt: true } },
 } satisfies Prisma.TaskInclude;
 
 type TaskRow = Prisma.TaskGetPayload<{ include: typeof TASK_INCLUDE }>;
+
+/**
+ * What the client gets. For an `everyone = "each"` task, `status` and
+ * `completedAt` are the VIEWER'S: done once they've ticked their part (or the
+ * whole task closed), so every surface that reads `status` — the board, the
+ * dashboard, the Timeline — shows each member their own copy. `doneCount` of
+ * `memberCount` is the chapter-wide progress; both are null on other tasks.
+ */
+export type TaskDTO = Omit<TaskRow, "completions"> & {
+  doneCount:   number | null;
+  memberCount: number | null;
+};
+
+/** Active roster (not ghosts, not archived) — who an Everyone task resolves to. */
+function activeMemberIds(ctx: RequestContext): Promise<number[]> {
+  return ctx.db.member.listIds({ archivedAt: null });
+}
+
+async function toDTOs(ctx: RequestContext, rows: TaskRow[]): Promise<TaskDTO[]> {
+  const needsRoster = rows.some(r => r.everyone === TaskEveryone.Each);
+  const active = needsRoster ? new Set(await activeMemberIds(ctx)) : null;
+  return rows.map(({ completions, ...r }) => {
+    if (r.everyone !== TaskEveryone.Each || !active) return { ...r, doneCount: null, memberCount: null };
+    // Only current members count toward progress: someone archived after
+    // ticking shouldn't hold the bar above what the roster can reach.
+    const counted = completions.filter(c => active.has(c.brotherId));
+    const mine = completions.find(c => c.brotherId === ctx.actorId);
+    const allDone = r.status === TaskStatus.Done;
+    return {
+      ...r,
+      status:      allDone || mine ? TaskStatus.Done : TaskStatus.Open,
+      completedAt: mine?.completedAt ?? (allDone ? r.completedAt : null),
+      doneCount:   counted.length,
+      memberCount: active.size,
+    };
+  });
+}
 
 async function loadTasks(ctx: RequestContext, where?: { status?: string; ids?: number[] }): Promise<TaskRow[]> {
   const rows = await ctx.db.task.findMany({
@@ -77,6 +115,8 @@ async function actorRoleIds(ctx: RequestContext): Promise<Set<number>> {
  * their "mine" list without rewriting any TaskAssignment row.
  */
 function isAssignee(task: TaskRow, actorId: number, heldRoleIds: Set<number>): boolean {
+  // An Everyone task belongs to every member, including ones who joined after it.
+  if (task.everyone != null) return true;
   return task.assignments.some(a =>
     (a.brotherId != null && a.brotherId === actorId) ||
     (a.roleId != null && heldRoleIds.has(a.roleId)),
@@ -90,9 +130,15 @@ function isAssignee(task: TaskRow, actorId: number, heldRoleIds: Set<number>): b
  */
 export async function listTasks(ctx: RequestContext, filter?: { mine?: boolean; status?: string }) {
   const rows = await loadTasks(ctx, { status: filter?.status });
-  if (!filter?.mine) return rows;
+  if (!filter?.mine) return toDTOs(ctx, rows);
   const held = await actorRoleIds(ctx);
-  return rows.filter(t => isAssignee(t, ctx.actorId, held));
+  return toDTOs(ctx, rows.filter(t => isAssignee(t, ctx.actorId, held)));
+}
+
+/** One task as the viewer sees it — the shape every mutation returns. */
+async function loadOne(ctx: RequestContext, id: number): Promise<TaskDTO> {
+  const [row] = await toDTOs(ctx, await loadTasks(ctx, { ids: [id] }));
+  return row;
 }
 
 // Resolve + validate assignee ids against the current org (the tenant wrapper
@@ -120,7 +166,11 @@ export async function createTask(ctx: RequestContext, input: CreateTaskInput) {
   // Only dated tasks are bound to the active semester; undated to-dos are not.
   if (input.dueDate) await assertWithinActiveSemester(ctx, input.dueDate);
 
-  const { brotherIds, roleIds } = await resolveAssignees(ctx, input.assigneeBrotherIds, input.assigneeRoleIds);
+  // An Everyone task carries no assignment rows: it resolves to the roster live.
+  const everyone = input.everyone ?? null;
+  const { brotherIds, roleIds } = everyone
+    ? { brotherIds: [], roleIds: [] }
+    : await resolveAssignees(ctx, input.assigneeBrotherIds, input.assigneeRoleIds);
 
   // Use the raw `tx` client so the task row and its assignments commit
   // atomically. The tx client is NOT org-scoped (see lib/db/tenant.ts), so every
@@ -133,27 +183,29 @@ export async function createTask(ctx: RequestContext, input: CreateTaskInput) {
         title:       input.title,
         dueDate:     input.dueDate ?? null,
         notes:       input.notes ?? null,
+        everyone,
         status:      TaskStatus.Open,
         createdById: ctx.actorId,
       },
     });
-    await tx.taskAssignment.createMany({
-      data: [
-        ...brotherIds.map(brotherId => ({ organizationId: orgId, taskId: task.id, brotherId, roleId: null })),
-        ...roleIds.map(roleId => ({ organizationId: orgId, taskId: task.id, brotherId: null, roleId })),
-      ],
-    });
+    if (!everyone) {
+      await tx.taskAssignment.createMany({
+        data: [
+          ...brotherIds.map(brotherId => ({ organizationId: orgId, taskId: task.id, brotherId, roleId: null })),
+          ...roleIds.map(roleId => ({ organizationId: orgId, taskId: task.id, brotherId: null, roleId })),
+        ],
+      });
+    }
     return task;
   });
 
   await emit(ctx, "task.created", { type: "Task", id: created.id }, {
     title: created.title,
     dueDate: created.dueDate,
-    assigneeCount: brotherIds.length + roleIds.length,
+    assigneeCount: everyone ? (await activeMemberIds(ctx)).length : brotherIds.length + roleIds.length,
   });
 
-  const [row] = await loadTasks(ctx, { ids: [created.id] });
-  return row;
+  return loadOne(ctx, created.id);
 }
 
 export async function updateTask(ctx: RequestContext, id: number, input: UpdateTaskInput) {
@@ -168,8 +220,17 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
     input.dueDate !== undefined ||
     input.notes !== undefined ||
     input.assigneeBrotherIds !== undefined ||
-    input.assigneeRoleIds !== undefined;
-  const changesStatus = input.status !== undefined && input.status !== existing.status;
+    input.assigneeRoleIds !== undefined ||
+    input.everyone !== undefined;
+  // Switching to Everyone drops the assignment rows; picking members or roles
+  // (or `everyone: null`) turns an Everyone task back into a targeted one.
+  const nextEveryone = input.everyone !== undefined
+    ? input.everyone
+    : input.assigneeBrotherIds !== undefined || input.assigneeRoleIds !== undefined ? null : existing.everyone;
+  // An "each" task's status is per member, so a status in the payload is the
+  // caller ticking their own part — handled after the field edits below.
+  const perMember = existing.everyone === TaskEveryone.Each && nextEveryone === TaskEveryone.Each;
+  const changesStatus = !perMember && input.status !== undefined && input.status !== existing.status;
 
   // Field edits + reassignment require MANAGE_TASKS. A plain status flip is
   // allowed for an assignee (so a member can mark their own task done) — see the
@@ -200,11 +261,17 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
     else                                  { data.completedById = null; data.completedAt = null; }
   }
 
-  // Resolve the new assignee set (when either array is present) and assert the
-  // ≥1-assignee invariant BEFORE any write, so a wipe can't be the first thing
-  // the transaction does. Assignee arrays, when present, REPLACE that side of
-  // the set; an absent array keeps the existing rows for that side.
-  const reassigning = input.assigneeBrotherIds !== undefined || input.assigneeRoleIds !== undefined;
+  if (nextEveryone !== existing.everyone) {
+    data.everyone = nextEveryone;
+    changedFields.push("everyone");
+  }
+
+  // Resolve the new assignee set (when either array is present, or when leaving
+  // Everyone) and assert the ≥1-assignee invariant BEFORE any write, so a wipe
+  // can't be the first thing the transaction does. Assignee arrays, when present,
+  // REPLACE that side of the set; an absent array keeps the existing rows.
+  const reassigning = !nextEveryone && (
+    input.assigneeBrotherIds !== undefined || input.assigneeRoleIds !== undefined || existing.everyone != null);
   let nextAssignees: { brotherIds: number[]; roleIds: number[] } | null = null;
   if (reassigning) {
     nextAssignees = await resolveAssignees(
@@ -225,6 +292,14 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
   await ctx.db.$transaction(async (tx) => {
     if (Object.keys(data).length) await tx.task.update({ where: { id }, data });
 
+    // Per-member ticks only mean something on an "each" task.
+    if (existing.everyone === TaskEveryone.Each && nextEveryone !== TaskEveryone.Each) {
+      await tx.taskCompletion.deleteMany({ where: { taskId: id, organizationId: orgId } });
+    }
+    if (nextEveryone && existing.everyone == null) {
+      await tx.taskAssignment.deleteMany({ where: { taskId: id, organizationId: orgId } });
+      changedFields.push("assignees");
+    }
     if (nextAssignees) {
       const { brotherIds, roleIds } = nextAssignees;
       await tx.taskAssignment.deleteMany({ where: { taskId: id, organizationId: orgId } });
@@ -238,10 +313,12 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
     }
   });
 
-  await emit(ctx, "task.updated", { type: "Task", id }, { title: existing.title, changedFields });
+  if (changedFields.length) await emit(ctx, "task.updated", { type: "Task", id }, { title: existing.title, changedFields });
 
-  const [row] = await loadTasks(ctx, { ids: [id] });
-  return row;
+  if (perMember && input.status !== undefined) {
+    return setStatus(ctx, id, input.status);
+  }
+  return loadOne(ctx, id);
 }
 
 // Status transitions an assignee is allowed to make on their own task, exposed
@@ -259,6 +336,12 @@ async function setStatus(ctx: RequestContext, id: number, status: string) {
   }
 
   const done = status === TaskStatus.Done;
+
+  if (existing.everyone === TaskEveryone.Each) {
+    await setMyPart(ctx, existing, done);
+    return loadOne(ctx, id);
+  }
+
   await ctx.db.task.update({
     where: { id },
     data: {
@@ -270,8 +353,37 @@ async function setStatus(ctx: RequestContext, id: number, status: string) {
 
   await emit(ctx, done ? "task.completed" : "task.reopened", { type: "Task", id }, { title: existing.title });
 
-  const [row] = await loadTasks(ctx, { ids: [id] });
-  return row;
+  return loadOne(ctx, id);
+}
+
+/**
+ * Tick (or untick) the actor's own part of an "each" task, then keep the shared
+ * status honest: done once every current member has ticked, open again the
+ * moment anyone unticks. Members who join later don't reopen a closed task.
+ */
+async function setMyPart(ctx: RequestContext, task: TaskRow, done: boolean) {
+  const mineNow = task.completions.some(c => c.brotherId === ctx.actorId);
+  if (done === mineNow && (done || task.status !== TaskStatus.Done)) return;
+
+  if (done) await ctx.db.taskCompletion.createMany({ data: [{ taskId: task.id, brotherId: ctx.actorId }] });
+  else      await ctx.db.taskCompletion.deleteMany({ where: { taskId: task.id, brotherId: ctx.actorId } });
+
+  const [active, ticked] = await Promise.all([
+    activeMemberIds(ctx),
+    ctx.db.taskCompletion.findMany({ where: { taskId: task.id }, select: { brotherId: true } }),
+  ]);
+  const tickedIds = new Set(ticked.map(c => c.brotherId));
+  const allDone = active.length > 0 && active.every(bid => tickedIds.has(bid));
+  if (allDone !== (task.status === TaskStatus.Done)) {
+    await ctx.db.task.update({
+      where: { id: task.id },
+      data: allDone
+        ? { status: TaskStatus.Done, completedById: ctx.actorId, completedAt: new Date() }
+        : { status: TaskStatus.Open, completedById: null, completedAt: null },
+    });
+  }
+
+  await emit(ctx, done ? "task.completed" : "task.reopened", { type: "Task", id: task.id }, { title: task.title });
 }
 
 export function completeTask(ctx: RequestContext, id: number) {

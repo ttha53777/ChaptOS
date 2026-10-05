@@ -47,6 +47,7 @@ model Organization {
   partyEvents               PartyEvent[]
   tasks                     Task[]
   taskAssignments           TaskAssignment[]
+  taskCompletions           TaskCompletion[]
   polls                     Poll[]
   pollOptions               PollOption[]
   pollAssignments           PollAssignment[]
@@ -270,6 +271,7 @@ model Brother {
   taskAssignments       TaskAssignment[]
   pollAssignments       PollAssignment[]
   pollVotes             PollVote[]
+  taskCompletions       TaskCompletion[]
   // Programming events this person owns. SetNull, not Cascade: leaving one org
   // must never delete another org's events (see ProgrammingEvent.ownerBrotherId).
   ownedProgramming      ProgrammingEvent[]     @relation("ProgrammingOwner")
@@ -547,14 +549,21 @@ model Task {
   status         String    @default("open") // TaskStatus union in @/lib/state: "open" | "done"
   notes          String?
   createdById    Int? // Brother who created it; null for rows migrated from legacy Deadlines
+  // Live "Everyone" target (TaskEveryone in @/lib/state), resolved to the roster
+  // at READ time like role targets, so members who join later get it too. null =
+  // assigned to the TaskAssignment rows. "any" = one person finishes it for the
+  // chapter (shared status). "each" = every member does it: per-member ticks
+  // live in TaskCompletion, and status flips to done once all have.
+  everyone       String?
   completedById  Int?
   completedAt    DateTime?
   createdAt      DateTime  @default(now())
 
-  organization Organization     @relation(fields: [organizationId], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id])
   assignments  TaskAssignment[]
 
   @@index([organizationId])
+  completions  TaskCompletion[]
   @@index([organizationId, status])
 }
 
@@ -582,6 +591,23 @@ model TaskAssignment {
 
 // A poll is task-shaped (attach members/roles + an optional date) but adds a
 // question with 2-10 options that attached members vote on. Single-choice: one
+// One row per member who has done their part of an `everyone = "each"` task.
+// Unused for other tasks, whose single shared status says it all.
+model TaskCompletion {
+  id             Int      @id @default(autoincrement())
+  taskId         Int
+  organizationId Int
+  brotherId      Int
+  completedAt    DateTime @default(now())
+
+  task         Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([taskId, brotherId])
+  @@index([organizationId, brotherId])
+}
+
 // vote per voter (PollVote @@unique). Results are live; closing locks voting but
 // keeps results visible. status is open/closed (PollStatus union in @/lib/state).
 model Poll {

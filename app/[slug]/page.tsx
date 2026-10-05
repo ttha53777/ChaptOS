@@ -653,17 +653,16 @@ function WidgetDetailDrawer({
         const buckets: { key: string; label: string; tone: string; items: Task[] }[] = [
           { key: "overdue",  label: "Overdue",  tone: "rose", items: open.filter(d => urgencyOf(d) === "overdue") },
           { key: "urgent",   label: "Urgent",   tone: "rose", items: open.filter(d => urgencyOf(d) === "urgent") },
-          { key: "due-soon", label: "Due soon", tone: "gold", items: open.filter(d => urgencyOf(d) === "due-soon") },
           { key: "upcoming", label: "Upcoming", tone: "",     items: open.filter(d => urgencyOf(d) === "upcoming") },
           { key: "none",     label: "No date",  tone: "",     items: open.filter(d => urgencyOf(d) === "none") },
           { key: "done",     label: "Done",     tone: "ok",   items: done },
         ];
         const overdueCt = buckets[0].items.length;
-        const dueSoonCt = buckets[1].items.length + buckets[2].items.length;
+        const urgentCt = buckets[1].items.length;
         return (
           <>
             <div className="dd-stats c4">
-              {([["Overdue", overdueCt, "rose"], ["Due soon", dueSoonCt, "gold"], ["Open", open.length, ""], ["Done", done.length, "ok"]] as const).map(([label, count, tone]) => (
+              {([["Overdue", overdueCt, "rose"], ["Urgent", urgentCt, "rose"], ["Open", open.length, ""], ["Done", done.length, "ok"]] as const).map(([label, count, tone]) => (
                 <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
@@ -1663,6 +1662,7 @@ export default function Home() {
           notes: value.notes || undefined,
           assigneeBrotherIds: value.assigneeBrotherIds,
           assigneeRoleIds: value.assigneeRoleIds,
+          everyone: value.everyone ?? undefined,
         }),
       }),
       "Task could not be saved. Please try again.",

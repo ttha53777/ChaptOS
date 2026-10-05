@@ -246,7 +246,9 @@ async function taskPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
 
   // Role targets stay as one chip ("Role: Recruitment") rather than expanding to
   // holders — same as the timeline's own assignee display.
-  const assignees = task.assignments
+  const assignees: PeekRow[] = task.everyone
+    ? [{ title: task.everyone === "each" ? "Everyone" : "Anyone", subtitle: task.everyone === "each" ? "Each member does their own" : "One person does it for the chapter" }]
+    : task.assignments
     .map<PeekRow | null>(a =>
       a.brother ? { title: a.brother.name }
       : a.role   ? { title: a.role.name, subtitle: "Role" }

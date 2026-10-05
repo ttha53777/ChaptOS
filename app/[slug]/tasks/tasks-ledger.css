@@ -252,7 +252,6 @@
 }
 .dash.dash-tasks .tk-row.s-overdue::before { background: var(--rose); }
 .dash.dash-tasks .tk-row.s-urgent::before  { background: var(--rose); opacity: .7; }
-.dash.dash-tasks .tk-row.s-due-soon::before { background: var(--gold); }
 .dash.dash-tasks .tk-row:hover { border-color: rgba(var(--ink-rgb),.2); transform: translateX(1px); }
 
 .dash.dash-tasks .tk-circle {
@@ -332,6 +331,9 @@
   color: var(--ink);
 }
 .dash.dash-tasks .tk-chip.role .pip { width: 7px; height: 7px; border-radius: 2px; background: var(--rc, var(--vio)); flex-shrink: 0; }
+.dash.dash-tasks .tk-chip.all { padding-left: 9px; color: var(--ink); border-color: rgba(var(--vio-rgb),.4); }
+/* "each" Everyone tasks: chapter-wide progress beside the chip. */
+.dash.dash-tasks .tk-progress { font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; }
 
 .dash.dash-tasks .tk-row-acts { display: flex; gap: 3px; flex-shrink: 0; align-self: center; opacity: 0; transition: opacity .14s; }
 .dash.dash-tasks .tk-row:hover .tk-row-acts,

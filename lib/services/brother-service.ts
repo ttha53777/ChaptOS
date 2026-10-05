@@ -420,6 +420,7 @@ async function eraseOrgScopedRecords(ctx: RequestContext, brotherId: number): Pr
     await tx.pollVote.deleteMany({ where: scoped });
     await tx.pollAssignment.deleteMany({ where: scoped });
     await tx.taskAssignment.deleteMany({ where: scoped });
+    await tx.taskCompletion.deleteMany({ where: scoped });
     await tx.brotherRole.deleteMany({ where: scoped });
     // ChatApproval names the approver, not a member: its FK is approvedById.
     await tx.chatApproval.deleteMany({ where: { approvedById: brotherId, organizationId: orgId } });

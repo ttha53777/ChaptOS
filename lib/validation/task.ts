@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { TASK_STATUSES } from "@/lib/state";
+import { TASK_EVERYONE_MODES, TASK_STATUSES } from "@/lib/state";
 import { isValidCalendarDate } from "@/lib/dates";
 
 const idArray = z.array(z.number().int().positive());
+const everyoneMode = z.enum(TASK_EVERYONE_MODES as readonly [string, ...string[]]);
 
 // A real "YYYY-MM-DD" calendar date: rejects impossible dates (2026-02-31) that
 // the shape-only DATE_RE would let through and that downstream urgency math
@@ -16,9 +17,11 @@ export const createTaskInput = z
     notes:              z.string().trim().max(2000).optional(),
     assigneeBrotherIds: idArray.default([]),
     assigneeRoleIds:    idArray.default([]),
+    // "any" | "each" assigns the whole roster live (assignee ids are ignored).
+    everyone:           everyoneMode.optional(),
   })
-  .refine(d => d.assigneeBrotherIds.length + d.assigneeRoleIds.length > 0, {
-    message: "A task needs at least one assignee (a member or a role)",
+  .refine(d => d.everyone != null || d.assigneeBrotherIds.length + d.assigneeRoleIds.length > 0, {
+    message: "A task needs at least one assignee (a member, a role, or everyone)",
     path: ["assigneeBrotherIds"],
   });
 export type CreateTaskInput = z.infer<typeof createTaskInput>;
@@ -27,6 +30,8 @@ export type CreateTaskInput = z.infer<typeof createTaskInput>;
 // any subset of the editable fields (manager edit). When an assignee-id array is
 // present it REPLACES that side of the assignment set; absent = leave untouched.
 // `dueDate: null` explicitly clears the date (turns a deadline into a loose to-do).
+// `everyone` set → assign the whole roster; `everyone: null` (or an assignee
+// array) → back to the members/roles given.
 export const updateTaskInput = z.object({
   title:              z.string().trim().min(1).max(200).optional(),
   dueDate:            dateString.nullable().optional(),
@@ -34,5 +39,6 @@ export const updateTaskInput = z.object({
   status:             z.enum(TASK_STATUSES as readonly [string, ...string[]]).optional(),
   assigneeBrotherIds: idArray.optional(),
   assigneeRoleIds:    idArray.optional(),
+  everyone:           everyoneMode.nullable().optional(),
 });
 export type UpdateTaskInput = z.infer<typeof updateTaskInput>;

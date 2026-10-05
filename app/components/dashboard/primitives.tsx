@@ -21,7 +21,7 @@ export function TaskBadge({ status }: { status: TaskStatus }) {
 }
 
 // Badge for the unified Task model: "done" tasks read Done; open tasks read their
-// computed urgency (overdue/urgent/due soon/upcoming/open).
+// computed urgency (overdue/urgent/upcoming/open).
 export function TaskUrgencyBadge({ task }: { task: Pick<Task, "status" | "dueDate"> }) {
   const key = task.status === "done" ? "done" : taskUrgency(task.dueDate);
   const { label, cls } = TASK_URGENCY_STYLES[key];

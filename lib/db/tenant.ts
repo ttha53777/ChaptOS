@@ -778,6 +778,21 @@ function scopedTaskAssignment(orgId: number, run: Run) {
   };
 }
 
+// Per-member ticks on an `everyone = "each"` task. Keyed by (taskId, brotherId);
+// createMany skips duplicates so a double tick is a no-op, not a unique error.
+function scopedTaskCompletion(orgId: number, run: Run) {
+  type W = Prisma.TaskCompletionWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   (args?: Prisma.TaskCompletionFindManyArgs) => run(p => p.taskCompletion.findMany({ ...args, where: org(args?.where) })),
+    createMany: (args: { data: Omit<Prisma.TaskCompletionUncheckedCreateInput, "organizationId">[] }) =>
+      run(p => p.taskCompletion.createMany({ data: args.data.map(d => ({ ...d, organizationId: orgId })), skipDuplicates: true })),
+    deleteMany: (args?: Prisma.TaskCompletionDeleteManyArgs) => run(p => p.taskCompletion.deleteMany({ ...args, where: org(args?.where) })),
+    count:      (args?: Prisma.TaskCompletionCountArgs)     => run(p => p.taskCompletion.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedAttendanceExemption(orgId: number, run: Run) {
   type W = Prisma.AttendanceExemptionWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1932,6 +1947,7 @@ export function db(orgId: number) {
     partyEvent:          scopedPartyEvent(orgId, run),
     task:                scopedTask(orgId, run),
     taskAssignment:      scopedTaskAssignment(orgId, run),
+    taskCompletion:      scopedTaskCompletion(orgId, run),
     poll:                scopedPoll(orgId, run),
     pollOption:          scopedPollOption(orgId, run),
     pollAssignment:      scopedPollAssignment(orgId, run),
@@ -2049,6 +2065,7 @@ export function _dbWithClient(orgId: number, client: P) {
     partyEvent:          scopedPartyEvent(orgId, run),
     task:                scopedTask(orgId, run),
     taskAssignment:      scopedTaskAssignment(orgId, run),
+    taskCompletion:      scopedTaskCompletion(orgId, run),
     poll:                scopedPoll(orgId, run),
     pollOption:          scopedPollOption(orgId, run),
     pollAssignment:      scopedPollAssignment(orgId, run),

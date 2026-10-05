@@ -53,6 +53,7 @@ export async function resetDb(): Promise<void> {
       "DocFolder",
       "InstagramTask",
       "TaskAssignment",
+      "TaskCompletion",
       "Task",
       "ServiceParticipation",
       "ServiceEvent",

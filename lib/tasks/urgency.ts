@@ -7,16 +7,15 @@
  * and server. String comparison works because the format is zero-padded ISO.
  */
 
-export type TaskUrgency = "overdue" | "urgent" | "due-soon" | "upcoming" | "none";
+export type TaskUrgency = "overdue" | "urgent" | "upcoming" | "none";
 
 // Day windows (inclusive) measured from `today`:
-//   < today        → overdue
-//   0..2 days out  → urgent
-//   3..7 days out  → due-soon
-//   > 7 days out   → upcoming
-//   no due date    → none
-const URGENT_WINDOW_DAYS = 2;
-const DUE_SOON_WINDOW_DAYS = 7;
+//   < today                → overdue
+//   0..1 (today, tomorrow) → urgent
+//   > 1 day out            → upcoming
+//   no due date            → none
+// Deliberately four plain buckets — there is no "due soon" middle band.
+const URGENT_WINDOW_DAYS = 1;
 
 function toISO(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -42,9 +41,8 @@ export function taskUrgency(dueDate: string | null | undefined, today: Date = ne
   const delta = daysBetween(todayISO, dueDate);
   if (delta < 0) return "overdue";
   if (delta <= URGENT_WINDOW_DAYS) return "urgent";
-  if (delta <= DUE_SOON_WINDOW_DAYS) return "due-soon";
   return "upcoming";
 }
 
 // Sort order for grouping open tasks in the UI (most pressing first).
-export const URGENCY_ORDER: readonly TaskUrgency[] = ["overdue", "urgent", "due-soon", "upcoming", "none"];
+export const URGENCY_ORDER: readonly TaskUrgency[] = ["overdue", "urgent", "upcoming", "none"];

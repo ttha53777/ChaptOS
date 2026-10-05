@@ -21,7 +21,7 @@ function task(over: Partial<Task> & { id: number }): Task {
   return {
     title: "Task", dueDate: "2026-05-14", status: "open", notes: null,
     createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01",
-    assignments: [], ...over,
+    assignments: [], everyone: null, doneCount: null, memberCount: null, ...over,
   };
 }
 

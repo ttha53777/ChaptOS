@@ -20,7 +20,6 @@ export const TASK_URGENCY_STYLES: Record<string, { label: string; cls: string }>
   done:       { label: "Done",     cls: "bg-emerald-500/15 text-emerald-400 ring-1 ring-inset ring-emerald-500/25" },
   overdue:    { label: "Overdue",  cls: "bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25" },
   urgent:     { label: "Urgent",   cls: "bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/25" },
-  "due-soon": { label: "Due soon", cls: "bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/25" },
   upcoming:   { label: "Upcoming", cls: "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20" },
   none:       { label: "Open",     cls: "bg-slate-500/15 text-slate-400 ring-1 ring-inset ring-slate-500/20" },
 };

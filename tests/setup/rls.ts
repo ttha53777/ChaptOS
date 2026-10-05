@@ -44,7 +44,7 @@ const ORG_COLUMN_TABLES = [
   "OperationalEvent", "OrgInvite", "OrgMetricDefinition", "OrganizationConfig",
   "PartyEvent", "Poll", "PollAssignment", "PollOption", "PollVote", "ProgrammingEvent",
   "ProgrammingEventDoc", "Reimbursement", "Role", "Semester", "ServiceEvent",
-  "ServiceParticipation", "Subscription", "Task", "TaskAssignment", "Transaction",
+  "ServiceParticipation", "Subscription", "Task", "TaskAssignment", "TaskCompletion", "Transaction",
   "TransactionCategory",
   // SalesLead's organizationId is NULLABLE (ON DELETE SET NULL keeps a lead alive
   // after its org is deleted). `NULL = <int>` is NULL, not true, so an orphaned

@@ -17,12 +17,23 @@ export type TaskFormValue = {
   notes: string;
   assigneeBrotherIds: number[];
   assigneeRoleIds: number[];
+  /** Set when assigned to Everyone (the ids are then empty): who has to finish it. */
+  everyone: TaskEveryoneMode | null;
 };
 
+// "any" = one person finishes it for the whole chapter; "each" = every member
+// does it and ticks their own. Mirrors TaskEveryone in @/lib/state.
+export type TaskEveryoneMode = "any" | "each";
+
 // The assignment target is a single mutually-exclusive mode, matching the
-// "choose either individuals, roles, or everyone" UX. "Everyone" carries no
-// stored flag: it expands to every current member id at submit time.
+// "choose either individuals, roles, or everyone" UX. "Everyone" is a live
+// target on the task, not a snapshot — members who join later get it too.
 type AssignMode = "individuals" | "roles" | "everyone";
+
+const EVERYONE_CHOICES: { key: TaskEveryoneMode; label: string; hint: string }[] = [
+  { key: "each", label: "Every member does it", hint: "Each person ticks off their own. It’s done when everyone has." },
+  { key: "any",  label: "One person does it",   hint: "Anyone can pick it up. The first to finish ticks it off for the chapter." },
+];
 
 const MODES: { key: AssignMode; label: string }[] = [
   { key: "individuals", label: "Individuals" },
@@ -36,9 +47,10 @@ export type TaskFormInitial = {
   notes: string;
   brotherIds: number[];
   roleIds: number[];
+  everyone?: TaskEveryoneMode | null;
 };
 
-const EMPTY: TaskFormInitial = { title: "", dueDate: "", notes: "", brotherIds: [], roleIds: [] };
+const EMPTY: TaskFormInitial = { title: "", dueDate: "", notes: "", brotherIds: [], roleIds: [], everyone: null };
 
 function toggleId(list: number[], id: number): number[] {
   return list.includes(id) ? list.filter(x => x !== id) : [...list, id];
@@ -72,9 +84,12 @@ export function TaskForm({
   const [notes,      setNotes]      = useState(init.notes);
   const [brotherIds, setBrotherIds] = useState<number[]>(init.brotherIds);
   const [roleIds,    setRoleIds]    = useState<number[]>(init.roleIds);
-  // Editing: infer the mode from existing assignments (roles present → Roles).
-  // New tasks default to Individuals.
-  const [mode, setMode] = useState<AssignMode>(init.roleIds.length > 0 ? "roles" : "individuals");
+  // Editing: infer the mode from the task (Everyone flag, else roles present →
+  // Roles). New tasks default to Individuals.
+  const [mode, setMode] = useState<AssignMode>(init.everyone ? "everyone" : init.roleIds.length > 0 ? "roles" : "individuals");
+  // No default: "every member" vs "one person" changes what done means, so the
+  // officer says which out loud.
+  const [everyoneMode, setEveryoneMode] = useState<TaskEveryoneMode | null>(init.everyone ?? null);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const everyoneCount = brothers.length;
@@ -83,16 +98,20 @@ export function TaskForm({
   // The effective assignee arrays for the current mode — only the active mode
   // contributes, so switching modes doesn't silently carry the other's picks.
   const resolved = useMemo((): { brotherIds: number[]; roleIds: number[] } => {
-    if (mode === "everyone")    return { brotherIds: brothers.map(b => b.id), roleIds: [] };
+    if (mode === "everyone")    return { brotherIds: [], roleIds: [] };
     if (mode === "roles")       return { brotherIds: [], roleIds };
     return { brotherIds, roleIds: [] };
-  }, [mode, brothers, brotherIds, roleIds]);
+  }, [mode, brotherIds, roleIds]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { setLocalError("A task needs a title."); return; }
-    if (resolved.brotherIds.length + resolved.roleIds.length === 0) {
-      setLocalError(mode === "everyone" ? "There are no members to assign yet." : "Assign at least one member or role.");
+    if (mode === "everyone" && !everyoneMode) {
+      setLocalError("Say whether every member does it, or one person does it for the chapter.");
+      return;
+    }
+    if (mode !== "everyone" && resolved.brotherIds.length + resolved.roleIds.length === 0) {
+      setLocalError("Assign at least one member or role.");
       return;
     }
     setLocalError(null);
@@ -102,6 +121,7 @@ export function TaskForm({
       notes: notes.trim(),
       assigneeBrotherIds: resolved.brotherIds,
       assigneeRoleIds: resolved.roleIds,
+      everyone: mode === "everyone" ? everyoneMode : null,
     });
   }
 
@@ -172,11 +192,25 @@ export function TaskForm({
         )}
 
         {mode === "everyone" && (
-          <p className="tk-opt" style={{ marginTop: 8 }}>
-            {everyoneCount > 0
-              ? `All ${everyoneCount} ${everyoneCount === 1 ? "member" : "members"} will be assigned.`
-              : brothersLoading ? "Loading members…" : "There are no members to assign yet."}
-          </p>
+          <>
+            <div className="tk-everyone" role="radiogroup" aria-label="Who has to do it">
+              {EVERYONE_CHOICES.map(c => (
+                <button key={c.key} type="button" role="radio" aria-checked={everyoneMode === c.key}
+                  className={`tk-ev-opt${everyoneMode === c.key ? " on" : ""}`}
+                  onClick={() => { setEveryoneMode(c.key); setLocalError(null); }}>
+                  <span className="tk-ev-dot" aria-hidden />
+                  <span className="tk-ev-txt"><b>{c.label}</b><small>{c.hint}</small></span>
+                </button>
+              ))}
+            </div>
+            <p className="tk-opt" style={{ marginTop: 8 }}>
+              {brothersLoading
+                ? "Loading members…"
+                : everyoneCount <= 1
+                  ? "Just you for now — everyone who joins gets it too."
+                  : `All ${everyoneCount} members, and anyone who joins later.`}
+            </p>
+          </>
         )}
       </div>
 

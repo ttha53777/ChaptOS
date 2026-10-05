@@ -1447,7 +1447,7 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   // Status is now binary open/done; an "open_only" flag (or any non-done status)
-  // narrows to incomplete tasks. Urgency (urgent/due-soon) is computed from the
+  // narrows to incomplete tasks. Urgency (overdue/urgent/upcoming) is computed from the
   // due date, not a stored status, so a date window is the way to ask for it.
   const status = typeof args.status === "string" ? args.status : undefined;
   const openOnly = args.open_only === true;
@@ -1481,7 +1481,9 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
     title: r.title,
     dueDate: r.dueDate,
     status: r.status,
-    assignees: r.assignments.map(a => a.brother?.name ?? a.role?.name).filter(Boolean).join(", ") || "Unassigned",
+    assignees: r.everyone === "each" ? "Everyone (each member does their own)"
+      : r.everyone === "any" ? "Anyone (one person does it for the chapter)"
+      : r.assignments.map(a => a.brother?.name ?? a.role?.name).filter(Boolean).join(", ") || "Unassigned",
   }));
   return listResult(shaped, !!(start || end || status || openOnly));
 }
@@ -2966,7 +2968,7 @@ async function proposeCompleteTask(args: ToolArgs, scoped: Scoped, pctx: Proposa
       where: { status: "open" },
       orderBy: { dueDate: "asc" },
       take: 300,
-      select: { id: true, title: true, dueDate: true, assignments: { select: { brotherId: true, roleId: true } } },
+      select: { id: true, title: true, dueDate: true, everyone: true, assignments: { select: { brotherId: true, roleId: true } } },
     }),
     actorHeldRoleIds(scoped, pctx.actorId),
   ]);
@@ -2974,7 +2976,7 @@ async function proposeCompleteTask(args: ToolArgs, scoped: Scoped, pctx: Proposa
   // anyone else needs MANAGE_TASKS. Matching only within that set means a
   // member's words can never land on somebody else's task.
   const manages = pctx.isPlatformAdmin || pctx.isOrgAdmin || hasPermission(pctx.permissions, "MANAGE_TASKS");
-  const mine = manages ? open : open.filter(t => assignedTo(t.assignments, pctx.actorId, held));
+  const mine = manages ? open : open.filter(t => t.everyone != null || assignedTo(t.assignments, pctx.actorId, held));
   if (mine.length === 0) return badProposal(manages ? "There are no open tasks." : "You have no open tasks assigned to you.");
 
   const hits = bestMatches(mine, words, t => t.title);
