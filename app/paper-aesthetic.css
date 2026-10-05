@@ -561,7 +561,7 @@ html[data-aesthetic="paper"] .dash .pp-meter i {
 @keyframes pp-grow { from { transform: scaleX(0); } }
 
 /* grid + cards --------------------------------------------------------------- */
-html[data-aesthetic="paper"] .dash .grid { margin-top: 22px; }
+html[data-aesthetic="paper"] .dash > .grid { margin-top: 22px; }
 html[data-aesthetic="paper"] .dash .card {
   background: var(--card); border: 1.5px solid var(--line); border-radius: 22px; box-shadow: var(--pp-sh-1);
 }

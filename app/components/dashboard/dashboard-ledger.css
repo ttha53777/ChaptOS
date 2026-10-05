@@ -192,7 +192,10 @@
    regardless of how tall the right side is. The inner `.area-*` wrappers are
    themselves flex columns (see below) so multi-card regions keep their rhythm;
    on tablet they're promoted to direct grid items and reordered. */
-.dash .grid {
+/* A child combinator (`.dash > .grid`), not a descendant one: Settings mounts Modals inside its own
+   .dash wrapper, and a descendant selector gave every Tailwind `grid` in those
+   forms this page's 1fr + rail columns. */
+.dash > .grid {
   margin-top: 14px;
   display: grid;
   grid-template-columns: 1fr var(--dash-rail-width);
@@ -613,7 +616,7 @@ html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-
      with the rest of the rail last. `display: contents` reorders nothing on its
      own — the order comes from the area map — and visual order still matches the
      reading order of the regions, so focus order stays sensible. */
-  .dash .grid {
+  .dash > .grid {
     grid-template-columns: 1fr;
     grid-template-areas:
       "needs"
@@ -621,19 +624,19 @@ html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-
       "roster"
       "rail";
   }
-  .dash .grid > .col-main,
-  .dash .grid > .col-rail { display: contents; }
-  .dash .grid > .col-main > .area-needs    { grid-area: needs; }
-  .dash .grid > .col-main > .area-roster   { grid-area: roster; }
-  .dash .grid > .col-rail > .area-priority { grid-area: priority; }
-  .dash .grid > .col-rail > .area-rail     { grid-area: rail; }
+  .dash > .grid > .col-main,
+  .dash > .grid > .col-rail { display: contents; }
+  .dash > .grid > .col-main > .area-needs    { grid-area: needs; }
+  .dash > .grid > .col-main > .area-roster   { grid-area: roster; }
+  .dash > .grid > .col-rail > .area-priority { grid-area: priority; }
+  .dash > .grid > .col-rail > .area-rail     { grid-area: rail; }
   /* The priority pair and the remaining rail each become their own wrapping row
      so cards pair up 2-up rather than forming one tall stack. The 340px floor
      keeps them at 2 columns across the whole 768–1279 band (a 3rd column needs
      ~1040px of content width, which this band — minus the pushed sidebar — never
      reaches), so they read as balanced 2-up rather than a lopsided 3+2. */
-  .dash .grid > .col-rail > .area-priority,
-  .dash .grid > .col-rail > .area-rail {
+  .dash > .grid > .col-rail > .area-priority,
+  .dash > .grid > .col-rail > .area-rail {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
     gap: var(--dash-section-gap);
@@ -683,8 +686,8 @@ html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-
     font-size: 13px;
   }
   /* Stack the priority pair and the rail one card per row. */
-  .dash .grid > .col-rail > .area-priority,
-  .dash .grid > .col-rail > .area-rail {
+  .dash > .grid > .col-rail > .area-priority,
+  .dash > .grid > .col-rail > .area-rail {
     grid-template-columns: 1fr;
   }
   /* KPI strip: 2-up tiles read fine at phone width and keep the strip compact
