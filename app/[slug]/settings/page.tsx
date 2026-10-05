@@ -600,6 +600,7 @@ function SettingsPageBody() {
                 {visibleGroups.map(group => (
                   <button
                     key={group}
+                    data-group={group.toLowerCase()}
                     className={`set-nav-item${dest === group ? " active" : ""}`}
                     aria-current={dest === group ? "page" : undefined}
                     onClick={() => selectDest(group)}
@@ -722,11 +723,14 @@ function SettingsPageBody() {
                   {visibleGroups.map(group => {
                     const items = visibleNavItems.filter(n => n.group === group);
                     return (
-                      <React.Fragment key={group}>
+                      // The wrapper is inert in Ledger; Paper lays the four out as
+                      // tabbed binder dividers (paper-settings.css).
+                      <div key={group} className="set-ix-grp" data-group={group.toLowerCase()}>
                         <button className="grp-label grp-label-btn" onClick={() => selectDest(group)}>
                           {group}
                         </button>
                         <div className="ix-ledger">
+                          <p className="set-ix-lede pp-only">{GROUP_LEDE[group]}</p>
                           {items.map(item => (
                             <button key={item.id} className={`ix-row ${item.tint}`} onClick={() => selectSection(item.id)}>
                               <span className="ic"><PathIcon d={item.icon} /></span>
@@ -752,7 +756,7 @@ function SettingsPageBody() {
                             </button>
                           ))}
                         </div>
-                      </React.Fragment>
+                      </div>
                     );
                   })}
                 </>
@@ -760,7 +764,7 @@ function SettingsPageBody() {
 
               {/* ── Single section — opened from the index, filter or a deep link ── */}
               {focusItem && (
-                <section id={`set-${focusItem.id}`} className="set-group-page set-focus-page">
+                <section id={`set-${focusItem.id}`} className="set-group-page set-focus-page" data-group={focusItem.group.toLowerCase()}>
                   <button className="set-back" onClick={() => selectDest(focusItem.group)}>
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -784,7 +788,7 @@ function SettingsPageBody() {
 
               {/* ── Group page — every visible section in this intent, stacked ── */}
               {activeGroup && !focusItem && (
-                <div className="set-group-page">
+                <div className="set-group-page" data-group={activeGroup.toLowerCase()}>
                   <button className="set-back" onClick={() => selectDest("index")}>
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />

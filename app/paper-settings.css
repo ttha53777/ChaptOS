@@ -1,0 +1,449 @@
+/* ── Paper: Settings (/[slug]/settings) ──────────────────────────────────────
+   The mock's #settings (_design/Dashboard Paper Mock.html, "settings"): a
+   binder. The settings nav is the paper sidebar; the index is four tabbed
+   dividers (Identity peach, Membership sky, Operations mint, System lilac),
+   each a ruled sheet of what's behind it; a group page stacks its sections as
+   loose-leaf sheets with a punched margin; a single section is one inked sheet.
+
+   Markup hooks (page.tsx): data-group on the nav items, the index wrappers
+   (.set-ix-grp) and the group/focus page; .set-ix-lede is pp-only. Section
+   bodies are restyled through the shared .sc-* control layer, so every section
+   component picks this up without its own paper markup. Buttons and inputs
+   come from paper-overlays.css.
+
+   Everything is behind html[data-aesthetic="paper"], which also out-specifies
+   settings-ledger.css (`.dash .x`) even though that loads later.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+html[data-aesthetic="paper"] .set-page {
+  --serif: var(--font-fraunces), Georgia, serif;
+  --sans:  var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono:  var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --tb: var(--pp-butter); --tc: var(--ink); --ts: var(--card-2); --tbd: var(--line);
+}
+/* Ledger lifts --muted/--faint for dusk contrast; the paper night palette
+   already clears AA, so inherit the paper values back from <html>. */
+html[data-aesthetic="paper"]:not([data-theme="ivory"]) .set-page { --muted: inherit; --faint: inherit; }
+
+/* group tints */
+html[data-aesthetic="paper"] .set-page [data-group="identity"]   { --tb: var(--pp-peach);  --tc: var(--pp-peach-ink);  --ts: var(--pp-peach-soft);  --tbd: var(--pp-peach-bd); }
+html[data-aesthetic="paper"] .set-page [data-group="membership"] { --tb: var(--pp-sky);    --tc: var(--pp-sky-ink);    --ts: var(--pp-sky-soft);    --tbd: var(--pp-sky-bd); }
+html[data-aesthetic="paper"] .set-page [data-group="operations"] { --tb: var(--pp-mint);   --tc: var(--pp-mint-ink);   --ts: var(--pp-mint-soft);   --tbd: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .set-page [data-group="system"]     { --tb: var(--pp-lilac);  --tc: var(--pp-lilac-ink);  --ts: var(--pp-lilac-soft);  --tbd: var(--pp-lilac-bd); }
+
+html[data-aesthetic="paper"] .set-page :is(a, button, [role="button"], summary):focus-visible {
+  outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 8px;
+}
+
+/* ── Nav column = the paper sidebar ─────────────────────────────────────────── */
+html[data-aesthetic="paper"] .set-nav {
+  background: var(--paper-2); border-right: 1.5px solid var(--line); font-family: var(--sans);
+}
+@media (min-width: 1024px) { html[data-aesthetic="paper"] .set-nav-drawer { width: 252px; } }
+html[data-aesthetic="paper"] .set-nav .set-nav-head { padding: 16px 16px 14px; border-bottom: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .set-nav .set-back-app {
+  gap: 6px; margin: 0 0 0 -4px; padding: 4px 8px 4px 4px; border-radius: 8px;
+  font-family: var(--sans); font-size: .8rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .set-nav .set-back-app svg { width: 14px; height: 14px; }
+html[data-aesthetic="paper"] .set-nav .set-back-app:hover { background: var(--card); color: var(--ink); }
+html[data-aesthetic="paper"] .set-nav .set-nav-head .kicker {
+  margin-top: 14px; font-family: var(--sans); font-size: .64rem; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .set-nav .set-nav-head h1 {
+  margin-top: 2px; font-family: var(--serif); font-weight: 600; font-size: 1.6rem; letter-spacing: -.035em; line-height: 1.1;
+}
+html[data-aesthetic="paper"] .set-navfilter {
+  margin: 12px 12px 4px; padding: 7px 11px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--paper);
+  color: var(--muted); transition: border-color .15s;
+}
+html[data-aesthetic="paper"] .set-navfilter:focus-within { border-color: var(--muted); }
+html[data-aesthetic="paper"] .set-navfilter svg { width: 14px; height: 14px; }
+html[data-aesthetic="paper"] .set-navfilter input { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
+html[data-aesthetic="paper"] .set-navfilter input::placeholder { color: var(--muted); }
+html[data-aesthetic="paper"] .set-navscroll { padding: 10px 10px 16px; }
+html[data-aesthetic="paper"] .set-nav-label {
+  padding: 14px 10px 6px; font-family: var(--sans); font-size: .64rem; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .set-nav-item {
+  position: relative; gap: 11px; padding: 8px 10px; margin: 2px 0; border-radius: 12px; border: 1.5px solid transparent;
+  font-family: var(--sans); font-size: .9rem; font-weight: 500; color: var(--ink-soft);
+  transition: background .16s, color .16s, border-color .16s, box-shadow .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .set-nav-item svg { width: 17px; height: 17px; color: var(--muted); transition: color .16s, transform .3s var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .set-nav-item:hover { background: var(--card); color: var(--ink); }
+html[data-aesthetic="paper"] .set-nav-item:hover svg { color: var(--ink); transform: rotate(-6deg) scale(1.06); }
+html[data-aesthetic="paper"] .set-nav-item.active {
+  background: var(--card); color: var(--ink); font-weight: 600; border-color: var(--ink);
+  box-shadow: 2.5px 2.5px 0 var(--tb);
+}
+html[data-aesthetic="paper"] .set-nav-item.active svg { color: var(--ink); }
+/* The dot becomes the group's swatch — the colour its divider and sheets carry. */
+html[data-aesthetic="paper"] .set-nav-item[data-group] .dot {
+  display: block; margin-left: auto; width: 9px; height: 9px; border-radius: 3px;
+  background: var(--tb); border: 1.5px solid var(--pp-note-ink); opacity: .8; filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .set-nav-item:not([data-group]) .dot { display: none; }
+html[data-aesthetic="paper"] .set-nav-empty { font-size: .84rem; color: var(--muted); }
+
+/* ── Content wrapper ─────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash.dash-settings { padding: 34px 44px 90px; font-family: var(--sans); }
+@media (max-width: 640px) { html[data-aesthetic="paper"] .dash.dash-settings { padding: 22px 16px 64px; } }
+
+/* ── Index: heading + org card ──────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .set-briefing { align-items: flex-end; }
+html[data-aesthetic="paper"] .dash .set-briefing .kicker {
+  font-family: var(--sans); font-size: .66rem; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .set-briefing h1 {
+  margin-top: 6px; font-family: var(--serif); font-weight: 600; font-size: clamp(2rem, 3.4vw, 2.8rem); letter-spacing: -.035em; line-height: 1.05;
+}
+/* the highlighter swipe the dashboard greeting uses */
+html[data-aesthetic="paper"] .dash .set-briefing h1 em {
+  font-style: normal; color: inherit; padding: 0 .08em;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-butter) calc(var(--pp-mark-op) * 100%), transparent) 58% 92%, transparent 92%);
+}
+html[data-aesthetic="paper"] .dash .set-briefing .sub {
+  margin-top: 10px; font-family: var(--serif); font-weight: 500; font-style: italic; font-size: 1.08rem; letter-spacing: -.01em;
+  line-height: 1.45; color: var(--ink-soft); max-width: 58ch; text-wrap: pretty;
+}
+html[data-aesthetic="paper"] .dash .org-strip {
+  gap: 14px; padding: 12px 18px 12px 12px; border: 1.5px solid var(--ink); border-radius: 16px; background: var(--card);
+  box-shadow: 3px 3px 0 var(--pp-butter);
+}
+html[data-aesthetic="paper"] .dash .org-strip .org-mark {
+  width: 48px; height: 48px; border-radius: 14px; border: 1.5px solid var(--ink);
+  background: var(--pp-lilac); color: var(--pp-note-ink); filter: var(--pp-note-filter);
+  font-family: var(--serif); font-weight: 700; font-size: 1rem; letter-spacing: -.02em; transform: rotate(-3deg);
+}
+html[data-aesthetic="paper"] .dash .org-strip img.org-mark { filter: none; }
+html[data-aesthetic="paper"] .dash .org-strip .nm { font-family: var(--serif); font-weight: 600; font-size: 1.1rem; letter-spacing: -.022em; }
+html[data-aesthetic="paper"] .dash .org-strip .mt { margin-top: 2px; font-size: .68rem; letter-spacing: .04em; text-transform: none; color: var(--muted); }
+
+/* ── Index: the binder ──────────────────────────────────────────────────────────
+   Four dividers. Operations is the long one, so it takes the right column and
+   the other three stack on the left (the mock's "a c / b c / d c"). */
+html[data-aesthetic="paper"] .set-ix-grp { position: relative; min-width: 0; }
+@media (min-width: 1100px) {
+  html[data-aesthetic="paper"] .dash-settings:has(> .set-ix-grp) {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px;
+    grid-template-areas: "brief brief" "a c" "b c" "d c" "x c";
+    grid-template-rows: auto auto auto auto 1fr; align-items: start;
+  }
+  html[data-aesthetic="paper"] .dash-settings:has(> .set-ix-grp) > .set-toast { grid-column: 1 / -1; }
+  html[data-aesthetic="paper"] .dash-settings > .set-briefing { grid-area: brief; }
+  html[data-aesthetic="paper"] .set-ix-grp[data-group="identity"]   { grid-area: a; }
+  html[data-aesthetic="paper"] .set-ix-grp[data-group="membership"] { grid-area: b; }
+  html[data-aesthetic="paper"] .set-ix-grp[data-group="operations"] { grid-area: c; }
+  html[data-aesthetic="paper"] .set-ix-grp[data-group="system"]     { grid-area: d; }
+}
+html[data-aesthetic="paper"] .set-ix-grp { margin-top: 34px; padding-top: 28px; }
+/* the divider tab */
+html[data-aesthetic="paper"] .dash .set-ix-grp .grp-label {
+  position: absolute; left: 18px; top: 0; z-index: 1; width: auto; height: 30px; margin: 0;
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 16px 4px;
+  border: 1.5px solid var(--ink); border-bottom: 0; border-radius: 12px 12px 0 0;
+  background: var(--tb); color: var(--pp-note-ink); filter: var(--pp-note-filter);
+  font-family: var(--serif); font-weight: 600; font-size: .95rem; letter-spacing: -.015em; text-transform: none;
+  transition: transform .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .set-ix-grp .grp-label::after { display: none; }
+html[data-aesthetic="paper"] .dash .set-ix-grp .grp-label:hover { color: var(--pp-note-ink); transform: translateY(-3px); }
+html[data-aesthetic="paper"] .set-ix-grp[data-group="membership"] .grp-label { left: 92px; }
+html[data-aesthetic="paper"] .set-ix-grp[data-group="operations"] .grp-label { left: 46px; }
+html[data-aesthetic="paper"] .set-ix-grp[data-group="system"]     .grp-label { left: 138px; }
+/* the sheet behind it */
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-ledger {
+  position: relative; background: var(--card); border: 1.5px solid var(--ink); border-radius: 6px 18px 10px 16px;
+  box-shadow: 4px 4px 0 var(--tb);
+}
+html[data-aesthetic="paper"] .dash .set-ix-lede {
+  padding: 14px 18px 10px; font-size: .84rem; line-height: 1.45; color: var(--muted); border-bottom: 1.5px solid var(--ts);
+}
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) 18px; gap: 13px; padding: 11px 18px;
+  border-bottom: 1px solid var(--tbd); transition: background .15s;
+}
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row:last-child { border-bottom: 0; }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row:hover { background: var(--ts); }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .ic,
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row:is(.t-gold, .t-rose, .t-sage) .ic {
+  width: 34px; height: 34px; border-radius: 10px; background: var(--ts); color: var(--tc);
+  border: 1.5px solid color-mix(in srgb, var(--tc) 35%, transparent);
+}
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .ic svg { width: 16px; height: 16px; }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .ic-txt .t { font-size: .94rem; font-weight: 600; letter-spacing: -.01em; }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .ic-txt .h {
+  margin-top: 1px; font-size: .8rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .ic-txt .t .ix-dot { background: var(--pp-rose-ink); box-shadow: 0 0 0 3px var(--pp-rose-soft); }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .go { color: var(--muted); transition: transform .2s var(--pp-ease-spring), color .15s; }
+html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row:hover .go { color: var(--ink); transform: translateX(3px); }
+
+/* ── Group + single-section pages ───────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .set-back {
+  margin-bottom: 14px; gap: 7px; font-family: var(--sans); font-size: .66rem; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+  border-bottom: 1.5px solid transparent; padding-bottom: 1px;
+}
+html[data-aesthetic="paper"] .dash .set-back svg { width: 11px; height: 11px; }
+html[data-aesthetic="paper"] .dash .set-back:hover { color: var(--ink); border-bottom-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .set-group-page .set-detail-head { max-width: 860px; }
+/* the kicker becomes the divider tab this page was pulled from */
+html[data-aesthetic="paper"] .dash .set-detail-head .kicker {
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px;
+  border: 1.5px solid var(--ink); border-bottom-width: 3px; border-radius: 10px 10px 0 0;
+  background: var(--tb); color: var(--pp-note-ink); filter: var(--pp-note-filter);
+  font-family: var(--sans); font-size: .62rem; font-weight: 700; letter-spacing: .12em;
+}
+html[data-aesthetic="paper"] .dash .set-detail-head h2 {
+  margin-top: 12px; font-family: var(--serif); font-weight: 600; font-size: clamp(2rem, 3.4vw, 2.8rem); letter-spacing: -.035em; line-height: 1.05;
+}
+html[data-aesthetic="paper"] .dash .set-detail-head .lede {
+  margin-top: 8px; font-family: var(--serif); font-weight: 500; font-style: italic; font-size: 1.08rem; letter-spacing: -.01em;
+  line-height: 1.45; color: var(--ink-soft); max-width: 62ch; text-wrap: pretty;
+}
+
+/* a loose-leaf sheet: three punched holes and a rose margin rule */
+html[data-aesthetic="paper"] .dash .set-block,
+html[data-aesthetic="paper"] .dash .set-group-page > .set-block:first-of-type,
+html[data-aesthetic="paper"] .dash .set-focus-page > .set-section {
+  position: relative; max-width: 860px; margin-top: 22px; padding: 20px 24px 22px 58px;
+  background: var(--card); border: 1.5px solid var(--line); border-radius: 6px 16px 10px 14px; box-shadow: var(--pp-sh-1);
+}
+html[data-aesthetic="paper"] .dash .set-group-page > .set-block:first-of-type { margin-top: 26px; }
+html[data-aesthetic="paper"] .dash :is(.set-block, .set-focus-page > .set-section)::before {
+  content: ""; position: absolute; left: 20px; top: 0; bottom: 0; width: 16px; pointer-events: none;
+  background:
+    radial-gradient(circle 6px at 8px 44px, var(--card-3) 5px, var(--line-med) 5.5px, transparent 6.5px),
+    radial-gradient(circle 6px at 8px 50%, var(--card-3) 5px, var(--line-med) 5.5px, transparent 6.5px),
+    radial-gradient(circle 6px at 8px calc(100% - 44px), var(--card-3) 5px, var(--line-med) 5.5px, transparent 6.5px);
+}
+html[data-aesthetic="paper"] .dash :is(.set-block, .set-focus-page > .set-section)::after {
+  content: ""; position: absolute; left: 44px; top: 0; bottom: 0; width: 1.5px; background: var(--pp-rose-ink); opacity: .45; pointer-events: none;
+}
+/* the one section you opened is the sheet on top */
+html[data-aesthetic="paper"] .dash .set-focus-page > .set-section { margin-top: 26px; border-color: var(--ink); box-shadow: 4px 4px 0 var(--tb); }
+html[data-aesthetic="paper"] .dash .set-block .set-section { margin-top: 16px; }
+
+html[data-aesthetic="paper"] .dash .set-block-head { gap: 12px; align-items: center; }
+html[data-aesthetic="paper"] .dash .set-block-ic,
+html[data-aesthetic="paper"] .dash .set-block-ic:is(.t-gold, .t-rose, .t-sage) {
+  width: 34px; height: 34px; border-radius: 10px; background: var(--ts); color: var(--tc);
+  border: 1.5px solid color-mix(in srgb, var(--tc) 35%, transparent);
+}
+html[data-aesthetic="paper"] .dash .set-block-ic svg { width: 16px; height: 16px; }
+html[data-aesthetic="paper"] .dash .set-block-title { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; letter-spacing: -.026em; line-height: 1.2; }
+html[data-aesthetic="paper"] .dash .set-block-lede {
+  margin-top: 3px; font-family: var(--sans); font-style: normal; font-weight: 400; font-size: .86rem; line-height: 1.5; color: var(--muted); max-width: 64ch;
+}
+
+/* ── Status band ─────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .set-toast {
+  border-radius: 12px; padding: 11px 15px; font-size: .86rem; font-weight: 500; color: var(--ink);
+  border: 1.5px solid var(--ink); background: var(--card);
+}
+html[data-aesthetic="paper"] .dash .set-toast.ok  { background: var(--pp-mint-soft); box-shadow: 3px 3px 0 var(--pp-mint); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .set-toast.err { background: var(--pp-rose-soft); box-shadow: 3px 3px 0 var(--pp-rose); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .set-toast.err .msg::before { content: "Couldn't save — "; font-weight: 700; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .set-toast + .set-toast { top: 56px; }
+
+html[data-aesthetic="paper"] .dash .set-empty { border: 1.5px dashed var(--line-med); border-radius: 14px; background: var(--paper); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .set-empty .t { font-family: var(--serif); font-weight: 600; letter-spacing: -.018em; }
+
+/* ── Section bodies: the shared .sc-* layer ─────────────────────────────────── */
+html[data-aesthetic="paper"] .set-section { font-family: var(--sans); }
+html[data-aesthetic="paper"] .dash .set-section .sc-lede {
+  font-family: var(--sans); font-style: normal; font-weight: 400; font-size: .86rem; line-height: 1.55; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-note { font-size: .8rem; line-height: 1.5; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .sc-err { font-size: .8rem; font-weight: 600; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .set-section .sc-grp-label {
+  margin: 0 0 8px 2px; font-family: var(--sans); font-size: .64rem; font-weight: 700; letter-spacing: .09em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-h { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; letter-spacing: -.018em; }
+html[data-aesthetic="paper"] .dash .set-section .sc-divider { height: 0; background: none; border-top: 1px dashed var(--line-med); }
+
+/* lists: the mock's .se-list — a ruled card on paper */
+html[data-aesthetic="paper"] .dash .set-section .sc-card {
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper); box-shadow: none;
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-row { gap: 12px; padding: 10px 14px; min-height: 52px; border-bottom: 1px solid var(--card-3); }
+html[data-aesthetic="paper"] .dash .set-section .sc-card-pad > .sc-row { padding-inline: 0; }
+html[data-aesthetic="paper"] .dash .set-section .sc-row .sc-row-key { font-size: .9rem; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .set-section .sc-row .sc-row-sub { font-size: .78rem; color: var(--muted); overflow-wrap: anywhere; }
+
+/* inputs (shape comes from paper-overlays.css) */
+html[data-aesthetic="paper"] .dash .set-section :is(.sc-input, .sc-select, .sc-textarea) { padding: 8px 11px; --acc: var(--tb); }
+html[data-aesthetic="paper"] .dash .set-section .sc-input-num { font-family: var(--mono); font-weight: 500; }
+html[data-aesthetic="paper"] .dash .set-section .sc-input-sm { padding: 5px 8px; font-size: .84rem; }
+html[data-aesthetic="paper"] .dash .set-section .sc-mlabel { font-size: .74rem; font-weight: 600; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .set-section select.sc-select {
+  appearance: none; -webkit-appearance: none; padding-right: 32px; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+
+/* inline value you click to edit (Thresholds) */
+html[data-aesthetic="paper"] .dash .set-section .sc-edit-btn {
+  gap: 7px; padding: 4px 10px; border-radius: 9px; border: 1.5px dashed var(--line-med); background: var(--card);
+  transition: border-color .15s, transform .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-edit-btn:hover { background: var(--card); border-color: var(--ink); transform: translateY(-1px); }
+html[data-aesthetic="paper"] .dash .set-section .sc-edit-btn .v { font-family: var(--mono); font-size: .88rem; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .set-section .sc-edit-btn .pen { color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .sc-edit-btn:hover .pen { color: var(--ink); }
+html[data-aesthetic="paper"] .dash .set-section .sc-unit { font-size: .76rem; color: var(--muted); }
+
+/* buttons: primary/ghost/danger come from paper-overlays.css; size + the rest here */
+html[data-aesthetic="paper"] .dash .set-section .sc-btn { font-family: var(--sans); }
+html[data-aesthetic="paper"] .dash .set-section .sc-btn svg { width: 14px; height: 14px; }
+html[data-aesthetic="paper"] .dash .set-section .sc-btn:is(.sc-btn-primary, .sc-btn-ghost, .sc-btn-danger) { --acc: var(--tb); padding: 8px 15px; font-size: .84rem; }
+html[data-aesthetic="paper"] .dash .set-section .sc-btn.sc-btn-sm,
+html[data-aesthetic="paper"] .dash .set-section .sc-btn-accent {
+  padding: 4px 11px; font-size: .76rem; font-weight: 600; border-radius: 999px; box-shadow: none;
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-btn.sc-btn-sm.sc-btn-primary { box-shadow: 2px 2px 0 var(--tb); }
+/* row-level delete/unlink: the mock's .se-mini.danger, not a solid rose pill */
+html[data-aesthetic="paper"] .dash .set-section .sc-btn.sc-btn-sm.sc-btn-danger {
+  --bg: var(--card); --fg: var(--pp-rose-ink); border-color: var(--pp-rose-bd);
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-btn.sc-btn-sm.sc-btn-danger:hover:not(:disabled) {
+  --bg: var(--pp-rose-soft); border-color: var(--pp-rose-ink); transform: none; box-shadow: none;
+}
+/* accent = the mock's .se-mini chip */
+html[data-aesthetic="paper"] .dash .set-section .sc-btn-accent {
+  border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-btn-accent:hover:not(:disabled) { background: var(--card); border-color: var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .set-section .sc-btn:disabled:not(.sc-btn-primary) { opacity: .4; }
+html[data-aesthetic="paper"] .dash .set-section .sc-actions { gap: 10px; }
+html[data-aesthetic="paper"] .dash .set-section .sc-dirty {
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--pp-butter-bd); background: var(--pp-butter-soft); color: var(--pp-butter-ink);
+  font-family: var(--sans); font-size: .62rem; font-weight: 700; letter-spacing: .08em;
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-dirty::before { background: var(--pp-butter-ink); }
+
+/* checkboxes: an inked box that fills with ink */
+html[data-aesthetic="paper"] .dash .set-section .sc-check { border-radius: 10px; padding: 5px 6px; }
+html[data-aesthetic="paper"] .dash .set-section .sc-check:hover { background: var(--card-2); }
+html[data-aesthetic="paper"] .dash .set-section .sc-box { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--muted); background: var(--card); }
+html[data-aesthetic="paper"] .dash .set-section .sc-check input:checked + .sc-box { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .dash .set-section .sc-check input:focus-visible + .sc-box { box-shadow: 2px 2px 0 var(--tb); }
+html[data-aesthetic="paper"] .dash .set-section .sc-check .sc-check-key { font-size: .88rem; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .set-section .sc-check .sc-check-sub { font-size: .78rem; color: var(--muted); }
+
+/* picked cards (Workflows) and radio cards */
+html[data-aesthetic="paper"] .dash .set-section :is(.sc-pick, .sc-choice) {
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--card);
+  transition: border-color .15s, box-shadow .2s var(--pp-ease-spring), transform .2s var(--pp-ease-spring), background .15s;
+}
+html[data-aesthetic="paper"] .dash .set-section :is(.sc-pick, .sc-choice):hover { background: var(--card); border-color: var(--line-med); }
+/* a radio card is one-of-few, so the pick is inked; workflow pages are
+   many-of-many (usually all on), so on is a plain sheet and off is dashed */
+html[data-aesthetic="paper"] .dash .set-section .sc-choice.on { background: var(--card); border-color: var(--ink); box-shadow: 3px 3px 0 var(--tb); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pick.on { background: var(--card); border-color: var(--line-med); box-shadow: var(--pp-sh-1); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pick:not(.on) { background: var(--paper); border-style: dashed; border-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pick:not(.on) .sc-check-key { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pick-features { border-left: 1.5px dashed var(--line-med); }
+html[data-aesthetic="paper"] .dash .set-section .sc-choice .t { font-size: .9rem; }
+html[data-aesthetic="paper"] .dash .set-section .sc-choice .h { font-size: .78rem; color: var(--muted); }
+
+/* pills */
+html[data-aesthetic="paper"] .dash .set-section .sc-pill {
+  padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line); background: var(--paper-2); color: var(--muted);
+  font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .08em;
+}
+html[data-aesthetic="paper"] .dash .set-section .sc-pill-vio  { background: var(--pp-lilac-soft);  color: var(--pp-lilac-ink);  border-color: var(--pp-lilac-bd); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pill-gold { background: var(--pp-butter-soft); color: var(--pp-butter-ink); border-color: var(--pp-butter-bd); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pill-rose { background: var(--pp-rose-soft);   color: var(--pp-rose-ink);   border-color: var(--pp-rose-bd); }
+html[data-aesthetic="paper"] .dash .set-section .sc-pill-ok   { background: var(--pp-mint-soft);   color: var(--pp-mint-ink);   border-color: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .dash .set-section :is(.sc-locked, .sc-reorder-hidden) { font-family: var(--sans); font-size: .6rem; font-weight: 700; letter-spacing: .09em; color: var(--muted); }
+
+/* reorder / icon buttons */
+html[data-aesthetic="paper"] .dash .set-section .sc-iconbtn { width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .sc-iconbtn:hover:not(:disabled) { background: var(--card); color: var(--ink); border-color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .sc-iconbtn svg { width: 13px; height: 13px; }
+
+html[data-aesthetic="paper"] .dash .set-section .sc-avatar {
+  width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid rgba(38,33,27,.08);
+  background: var(--pp-peach); color: rgba(38,33,27,.72); filter: var(--pp-note-filter);
+  font-family: var(--sans); font-size: .72rem; font-weight: 700; letter-spacing: -.02em;
+}
+html[data-aesthetic="paper"] .dash .set-section img.sc-avatar { filter: none; }
+
+html[data-aesthetic="paper"] .dash .set-section .sc-empty { border: 1.5px dashed var(--line-med); border-radius: 14px; background: var(--paper); }
+html[data-aesthetic="paper"] .dash .set-section .sc-empty .t { font-family: var(--serif); font-weight: 600; letter-spacing: -.018em; }
+html[data-aesthetic="paper"] .dash .set-section .sc-empty .h { font-size: .8rem; color: var(--muted); }
+
+/* invitations */
+html[data-aesthetic="paper"] .dash .set-section .sc-invite-row { padding: 14px 16px; }
+html[data-aesthetic="paper"] .dash .set-section .sc-meter { height: 8px; border-radius: 4px; background: var(--card-3); }
+html[data-aesthetic="paper"] .dash .set-section .sc-meter i { border-radius: 4px; background: var(--pp-sky-ink); }
+html[data-aesthetic="paper"] .dash .set-section .sc-joins li { font-size: .84rem; }
+html[data-aesthetic="paper"] .dash .set-section .sc-joins .d { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+@keyframes sc-flash-pp { 0%, 22% { border-color: var(--ink); box-shadow: 3px 3px 0 var(--tb); } 100% { border-color: var(--line); box-shadow: none; } }
+html[data-aesthetic="paper"] .dash .set-section .sc-invite-row.flash { animation-name: sc-flash-pp; }
+
+/* coloured rows (event types, money categories) */
+html[data-aesthetic="paper"] .dash .set-section .et-dot { width: 12px; height: 12px; margin-top: 3px; border: 1.5px solid var(--pp-note-ink); }
+html[data-aesthetic="paper"] .dash .set-section .et-swatch { width: 24px; height: 24px; border: 1.5px solid var(--line-med); }
+html[data-aesthetic="paper"] .dash .set-section .et-swatch.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ink); }
+
+/* link-out (Billing) */
+html[data-aesthetic="paper"] .dash .set-section .set-linkout {
+  gap: 8px; padding: 8px 15px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card);
+  font-size: .86rem; font-weight: 600; color: var(--ink); box-shadow: 2.5px 2.5px 0 var(--tb);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .set-section .set-linkout:hover { border-color: var(--ink); transform: translate(-1.5px, -1.5px); box-shadow: 4px 4px 0 var(--tb); }
+html[data-aesthetic="paper"] .dash .set-section .set-linkout svg { opacity: 1; }
+
+/* ── Roles ──────────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .set-section .rl-item { border-bottom: 1px solid var(--card-3); }
+html[data-aesthetic="paper"] .dash .set-section .rl-head { gap: 12px; padding: 12px 14px; }
+html[data-aesthetic="paper"] .dash .set-section .rl-head:hover { background: var(--card); }
+html[data-aesthetic="paper"] .dash .set-section .rl-head:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+html[data-aesthetic="paper"] .dash .set-section .rl-item.open { background: var(--card); }
+html[data-aesthetic="paper"] .dash .set-section .rl-item.open > :is(.rl-head, .rl-head-static) { background: var(--card); border-bottom: 1px dashed var(--line-med); }
+html[data-aesthetic="paper"] .dash .set-section .rl-item.open > .rl-head::before { width: 3px; }
+html[data-aesthetic="paper"] .dash .set-section .rl-dot { width: 14px; height: 14px; border: 1.5px solid var(--pp-note-ink); }
+html[data-aesthetic="paper"] .dash .set-section .rl-name { font-size: .92rem; }
+html[data-aesthetic="paper"] .dash .set-section .rl-sub { font-size: .76rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .rl-meta { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .rl-meta-rank { font-size: .62rem; }
+html[data-aesthetic="paper"] .dash .set-section .rl-chev { color: var(--muted); transition: transform .25s var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .dash .set-section .rl-locked { font-family: var(--sans); font-size: .6rem; font-weight: 700; letter-spacing: .09em; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .set-section .rl-editor { gap: 18px; padding: 16px 16px 0 40px; border-top: 0; background: var(--card); }
+html[data-aesthetic="paper"] .dash .set-section .rl-callout { border-radius: 10px; border: 1.5px dashed var(--line-med); background: var(--paper); font-size: .82rem; }
+html[data-aesthetic="paper"] .dash .set-section .rl-label {
+  font-family: var(--sans); font-size: .64rem; font-weight: 700; letter-spacing: .09em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .set-section .rl-count { font-family: var(--mono); }
+html[data-aesthetic="paper"] .dash .set-section .rl-swatch { width: 26px; height: 26px; box-shadow: inset 0 0 0 1.5px rgba(38,33,27,.25); }
+html[data-aesthetic="paper"] .dash .set-section .rl-swatch.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ink); }
+html[data-aesthetic="paper"] .dash .set-section .rl-perm-bulk button { color: var(--ink-soft); border-bottom: 1.5px solid var(--line-med); border-radius: 0; padding: 0; margin-left: 10px; }
+html[data-aesthetic="paper"] .dash .set-section .rl-perm-bulk button:hover:not(:disabled) { background: none; color: var(--ink); border-bottom-color: var(--ink); }
+html[data-aesthetic="paper"] .dash .set-section .rl-perm { border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); }
+html[data-aesthetic="paper"] .dash .set-section .rl-perm.on { border-color: var(--ink); background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .dash .set-section .rl-perm.ro:hover { background: var(--paper); }
+html[data-aesthetic="paper"] .dash .set-section .rl-perm.ro.on:hover { background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .dash .set-section .rl-holder { border: 1.5px solid var(--line); background: var(--card); color: var(--ink-soft); font-size: .78rem; }
+html[data-aesthetic="paper"] .dash .set-section .rl-footer { margin: 0 -16px 0 -40px; padding: 12px 16px 12px 40px; background: var(--card); border-top: 1px dashed var(--line-med); }
+@media (max-width: 560px) {
+  html[data-aesthetic="paper"] .dash .set-section .rl-editor { padding: 14px 12px 0; }
+  html[data-aesthetic="paper"] .dash .set-section .rl-footer { margin: 0 -12px; padding: 12px; }
+}
+
+/* ── Phone: the sheets lose their punched margin ────────────────────────────── */
+@media (max-width: 640px) {
+  html[data-aesthetic="paper"] .dash .set-block,
+  html[data-aesthetic="paper"] .dash .set-group-page > .set-block:first-of-type,
+  html[data-aesthetic="paper"] .dash .set-focus-page > .set-section { padding: 16px 14px 18px; }
+  html[data-aesthetic="paper"] .dash :is(.set-block, .set-focus-page > .set-section)::before,
+  html[data-aesthetic="paper"] .dash :is(.set-block, .set-focus-page > .set-section)::after { display: none; }
+  html[data-aesthetic="paper"] .dash .set-ix-grp .ix-row .ic-txt .h { white-space: normal; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-aesthetic="paper"] .set-page * { transition: none !important; animation: none !important; }
+}
