@@ -1,0 +1,489 @@
+/* ── Paper aesthetic: Programming (app/[slug]/events) ───────────────────────────
+   The #programming page of _design/Dashboard Paper Mock.html, applied to the
+   real board. Same rules as paper-aesthetic.css: everything hangs off
+   html[data-aesthetic="paper"], which also out-specifies events-ledger.css (it
+   loads later, from the page). Markup only paper shows is .pp-only.
+
+   The four lanes each cost something to enter, and the paper says so:
+     Idea       a taped sticky note, a little askew (title + type)
+     Planning   an index card with a dashed edge (someone owns it)
+     Confirmed  an ink-bordered card sitting up off the page (on the Timeline)
+     Done       a flat filed card with its stars
+   A bracket over the lanes says which half is on the Timeline. The published
+   strip under the board is a row of ticket stubs.
+
+   Org event types only carry one hex (--tc), so the mock's pastel fill (--tf)
+   and soft wash (--ts) are mixed from it. Lane colour is --sc (ink) / --sf
+   (fill), set per [data-stage].
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Declared on whatever carries its own --tc (cards, chips, stubs, the rail): a
+   custom property resolves var() where it's declared, so mixing these once on
+   the page wrapper would freeze every card at the fallback. */
+html[data-aesthetic="paper"] :is(.dash-events, .ui-modal-body) [style*="--tc"],
+html[data-aesthetic="paper"] .ev-panel {
+  --tf: color-mix(in srgb, var(--tc, var(--muted)) 32%, var(--card));
+  --ts: color-mix(in srgb, var(--tc, var(--muted)) 13%, var(--card));
+}
+/* By day, mixing a dark type ink with white comes out beige; the mock's pastels
+   are the same hue lifted, so lift it in OKLCH where the browser can. */
+@supports (color: oklch(from red l c h)) {
+  html[data-aesthetic="paper"]:not([data-theme="dusk"]) :is(.dash-events, .ui-modal-body) [style*="--tc"],
+  html[data-aesthetic="paper"]:not([data-theme="dusk"]) .ev-panel {
+    --tf: oklch(from var(--tc, var(--muted)) .87 calc(c * .6) h);
+    --ts: oklch(from var(--tc, var(--muted)) .96 calc(c * .25) h);
+  }
+}
+html[data-aesthetic="paper"] :is(.ev-lane, .ev-ru-card, .ev-panel, .rung)[data-stage="idea"]      { --sc: var(--muted);         --sf: var(--card-3); }
+html[data-aesthetic="paper"] :is(.ev-lane, .ev-ru-card, .ev-panel, .rung)[data-stage="planning"]  { --sc: var(--pp-butter-ink); --sf: var(--pp-butter); }
+html[data-aesthetic="paper"] :is(.ev-lane, .ev-ru-card, .ev-panel, .rung)[data-stage="confirmed"] { --sc: var(--pp-lilac-ink);  --sf: var(--pp-lilac); }
+html[data-aesthetic="paper"] :is(.ev-lane, .ev-ru-card, .ev-panel, .rung)[data-stage="done"]      { --sc: var(--pp-mint-ink);   --sf: var(--pp-mint); }
+
+/* ── Briefing ──────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash.dash-events { max-width: 1280px; }
+html[data-aesthetic="paper"] .dash-events h1.greeting em::before { background: var(--pp-lilac); }
+html[data-aesthetic="paper"] .dash .status-line {
+  margin-top: 14px; max-width: 62ch; font-family: var(--font-geist-sans); font-size: 1.02rem; line-height: 1.55; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .status-line b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .status-line .warn { color: var(--pp-butter-ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .status-line .sl-act {
+  border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--pp-butter-ink); cursor: pointer;
+  border-bottom: 1.5px dashed var(--pp-butter-bd); line-height: 1.35; text-align: left;
+}
+html[data-aesthetic="paper"] .dash .status-line .sl-act:hover { border-bottom-style: solid; border-bottom-color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .status-line .sl-act:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; border-radius: 3px; }
+
+html[data-aesthetic="paper"] .dash .ev-briefing-actions { gap: 10px; align-self: center; }
+html[data-aesthetic="paper"] .dash .ev-add {
+  --hs: var(--pp-lilac);
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 17px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper);
+  font-family: var(--font-geist-sans); font-size: .88rem; font-weight: 600; letter-spacing: -.01em; text-transform: none;
+  box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .ev-add:hover { border-color: var(--ink); transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .ev-add:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .ev-add svg { width: 15px; height: 15px; stroke: currentColor; }
+html[data-aesthetic="paper"] .dash .ev-add.ghost { --hs: var(--pp-butter); background: var(--card); color: var(--ink); border-color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ev-help-btn {
+  width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line-med); background: var(--card);
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 1.05rem; color: var(--ink-soft);
+  transition: border-color .15s, color .15s, transform .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .ev-help-btn:hover { border-color: var(--ink); color: var(--ink); transform: rotate(-8deg); }
+
+@media (max-width: 760px) {
+  html[data-aesthetic="paper"] .dash-events .briefing { grid-template-columns: minmax(0,1fr); gap: 18px; }
+  html[data-aesthetic="paper"] .dash .ev-briefing-actions { align-self: start; flex-wrap: wrap; }
+  html[data-aesthetic="paper"] .dash .ev-search { width: 100%; }
+}
+html[data-aesthetic="paper"] .dash-events .kicker .today { white-space: nowrap; }
+
+/* ── Toolbar ───────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ev-toolbar { margin-top: 28px; margin-bottom: 0; gap: 8px; }
+html[data-aesthetic="paper"] .dash .ev-views {
+  margin-right: 6px; gap: 3px; padding: 3px; border-radius: 999px; background: var(--paper-2); border: 1.5px solid var(--line);
+}
+html[data-aesthetic="paper"] .dash .ev-views button {
+  padding: 6px 14px; border-radius: 999px; font-family: var(--font-geist-sans); font-size: .82rem; font-weight: 550;
+  letter-spacing: 0; text-transform: capitalize; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .ev-views button.on { background: var(--card); color: var(--ink); box-shadow: var(--pp-sh-1); }
+html[data-aesthetic="paper"] .dash .ev-toolbar .chip {
+  gap: 7px; padding: 5px 12px 5px 10px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card);
+  font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 550; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
+  transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .ev-toolbar .chip .cdot { width: 8px; height: 8px; opacity: 1; }
+html[data-aesthetic="paper"] .dash .ev-toolbar .chip:hover:not(.on) { border-color: var(--muted); color: var(--ink); }
+/* Pressed: ink border, the type's wash, and a hard shadow in its colour. The
+   inline colour the Ledger chip sets is overridden — paper keeps the text ink. */
+html[data-aesthetic="paper"] .dash .ev-toolbar .chip.on {
+  color: var(--ink) !important; border-color: var(--ink) !important; transform: translateY(-1px);
+  background: color-mix(in srgb, var(--chip-c, var(--muted)) 13%, var(--card));
+  box-shadow: 2px 2px 0 color-mix(in srgb, var(--chip-c, var(--muted)) 32%, var(--card));
+}
+html[data-aesthetic="paper"] .dash .ev-search { width: 230px; min-width: 0; }
+html[data-aesthetic="paper"] .dash .ev-search svg { left: 13px; width: 15px; height: 15px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-search input {
+  padding: 9px 14px 9px 36px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card);
+  font-family: var(--font-geist-sans); font-size: .86rem; letter-spacing: 0;
+}
+html[data-aesthetic="paper"] .dash .ev-search input::placeholder { text-transform: none; letter-spacing: 0; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-search input:focus { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac); }
+
+/* ── Which half the chapter sees ───────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ev-vis-bracket { margin-top: 22px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+html[data-aesthetic="paper"] .dash .ev-vis-bracket > span {
+  grid-column: span 2; position: relative; display: flex; align-items: center; gap: 8px; padding: 0 10px 8px;
+  font-family: var(--mono); font-size: .64rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); border-bottom: 1.5px dashed var(--line-med);
+}
+html[data-aesthetic="paper"] .dash .ev-vis-bracket > span::before,
+html[data-aesthetic="paper"] .dash .ev-vis-bracket > span::after { content: ""; position: absolute; bottom: -8px; width: 1.5px; height: 8px; background: var(--line-med); }
+html[data-aesthetic="paper"] .dash .ev-vis-bracket > span::before { left: 0; }
+html[data-aesthetic="paper"] .dash .ev-vis-bracket > span::after { right: 0; }
+html[data-aesthetic="paper"] .dash .ev-vis-bracket svg { width: 13px; height: 13px; flex: none; }
+html[data-aesthetic="paper"] .dash .ev-vis-bracket .pub { color: var(--pp-lilac-ink); border-bottom: 1.5px solid var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .ev-vis-bracket .pub::before,
+html[data-aesthetic="paper"] .dash .ev-vis-bracket .pub::after { background: var(--pp-lilac-ink); }
+@media (max-width: 900px) { html[data-aesthetic="paper"] .dash .ev-vis-bracket { display: none; } }
+
+/* ── The board ─────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ev-pipeline { margin-top: 14px; align-items: start; }
+html[data-aesthetic="paper"] .dash .ev-lane {
+  overflow: visible; padding: 12px 10px; border-radius: 18px; box-shadow: none;
+  border: 1.5px dashed var(--line-med); background: color-mix(in srgb, var(--paper-2) 62%, transparent);
+  transition: border-color .15s, background .15s, box-shadow .2s;
+}
+html[data-aesthetic="paper"] .dash .ev-lane:is([data-stage="confirmed"], [data-stage="done"]) { border-style: solid; border-color: var(--line); background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .ev-lane.drop { border: 1.5px solid var(--ink); background: color-mix(in srgb, var(--sf) 20%, var(--paper)); box-shadow: 4px 4px 0 var(--sf); }
+html[data-aesthetic="paper"] .dash .ev-lane.drop.gated { border: 1.5px dashed var(--pp-rose-ink); background: var(--pp-rose-soft); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .ev-lane.flash { animation: pp-ev-flash 1.4s var(--pp-ease-out); }
+@keyframes pp-ev-flash { 0%, 45% { border-color: var(--pp-butter-ink); box-shadow: 0 0 0 6px var(--pp-butter-soft); } }
+
+html[data-aesthetic="paper"] .dash .ev-lane-head { gap: 9px; padding: 2px 6px 10px; border-bottom: 0; }
+html[data-aesthetic="paper"] .dash .ev-lane-head .dot { width: 10px; height: 10px; flex: none; background: var(--sf); border: 1.5px solid var(--sc); }
+html[data-aesthetic="paper"] .dash .ev-lane[data-stage="idea"] .ev-lane-head .dot { background: transparent; border-style: dashed; }
+html[data-aesthetic="paper"] .dash .ev-lane-head .lh {
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 1.08rem; letter-spacing: -.022em; text-transform: none; color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash .ev-lane-head .lv { display: inline-flex; color: var(--muted); opacity: .7; }
+html[data-aesthetic="paper"] .dash .ev-lane-head .lv svg { width: 12px; height: 12px; }
+html[data-aesthetic="paper"] .dash .ev-lane:is([data-stage="confirmed"], [data-stage="done"]) .lv { color: var(--pp-lilac-ink); opacity: 1; }
+html[data-aesthetic="paper"] .dash .ev-lane-head .lc {
+  margin-left: auto; font-family: var(--mono); font-size: .7rem; color: var(--muted); padding: 1px 8px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line);
+}
+html[data-aesthetic="paper"] .dash .ev-lane-cue {
+  margin: -2px 2px 10px; padding: 7px 10px; border-radius: 10px; background: var(--card); border: 1.5px solid var(--ink);
+  font-family: var(--font-geist-sans); font-size: .76rem; font-weight: 600; letter-spacing: 0; text-transform: none; line-height: 1.35; color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash .ev-lane-cue.gated { border-color: var(--pp-rose-ink); color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .ev-lane-body { gap: 11px; padding: 6px 4px 8px; margin: 0 -4px; max-height: 640px; overflow-x: hidden; }
+html[data-aesthetic="paper"] .dash .ev-lane-body .empty {
+  padding: 24px 8px; text-align: center; font-family: var(--font-geist-sans); font-size: .8rem; font-style: normal; color: var(--muted);
+  border: 1.5px dashed var(--line-med); border-radius: 14px;
+}
+html[data-aesthetic="paper"] .dash .ev-done-more {
+  border: 1.5px dashed var(--line-med); background: none; border-radius: 12px; padding: 8px;
+  font-family: var(--font-geist-sans); font-size: .78rem; font-weight: 550; letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .ev-done-more:hover { border-color: var(--muted); color: var(--ink); }
+
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card[data-stage] {
+  position: relative; display: block; min-width: 0; padding: 11px 12px 10px 15px; opacity: 1;
+  border-radius: 5px 13px 7px 12px; background: var(--card); border: 1.5px solid var(--line-med); box-shadow: var(--pp-sh-1);
+  cursor: pointer; text-align: left; color: var(--ink);
+  transition: transform .2s var(--pp-ease-spring), box-shadow .2s, border-color .2s, opacity .2s;
+}
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card[data-stage]::before {
+  content: ""; display: block; position: absolute; left: -1.5px; top: 11px; bottom: 11px; width: 4px; height: auto;
+  border: 0; border-radius: 0 3px 3px 0; background: var(--tc); opacity: 1;
+}
+html[data-aesthetic="paper"] .dash .ev-card[data-stage]:hover { transform: translateY(-2px); border-color: var(--line-med); }
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-t {
+  font-family: var(--font-geist-sans); font-weight: 600; font-size: .9rem; letter-spacing: -.01em; line-height: 1.3; color: var(--ink);
+  text-wrap: pretty; overflow-wrap: anywhere;
+}
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; font-size: .74rem; color: var(--muted); min-width: 0;
+}
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-when {
+  font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: 0; font-style: normal; padding: 1px 7px; border-radius: 6px;
+  background: var(--paper-2); border: 1px solid var(--line); color: var(--ink-soft); white-space: nowrap;
+}
+html[data-aesthetic="paper"] .dash .ev-card .ec-when.today { background: var(--pp-rose-soft); color: var(--pp-rose-ink); border-color: var(--pp-rose-bd); }
+html[data-aesthetic="paper"] .dash .ev-card .ec-when.soon  { background: var(--pp-butter-soft); color: var(--pp-butter-ink); border-color: var(--pp-butter-bd); }
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-when.nodate { background: transparent; border-style: dashed; border-color: var(--line-med); color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .dash .ev-card .ec-where {
+  display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; font-size: .74rem; color: var(--muted);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+html[data-aesthetic="paper"] .dash .ev-card .ec-where::before { content: none; }
+html[data-aesthetic="paper"] .dash .ev-card .ec-where svg { width: 11px; height: 11px; flex: none; }
+html[data-aesthetic="paper"] .dash .ev-card .ec-mand { font-family: var(--mono); font-size: .58rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--pp-sky-ink); background: none; border: 0; padding: 0; }
+html[data-aesthetic="paper"] .dash .ev-card .stars { margin-left: 0; color: var(--pp-butter-ink); letter-spacing: 1px; font-size: .78rem; }
+html[data-aesthetic="paper"] .dash .ev-card .stars .off { color: var(--line-med); opacity: 1; }
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-block {
+  display: flex; align-items: center; gap: 7px; margin-top: 9px; padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--ink) 15%, transparent);
+  font-family: var(--font-geist-sans); font-size: .76rem; font-weight: 600; color: var(--ink-soft); min-width: 0;
+}
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-block.rose  { color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card .ec-block.gold  { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .ev-card .ec-block.ok    { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .ev-card .ec-block.quiet { color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .dash .ev-card .ec-pub { margin-left: auto; color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .ev-card .ec-pub svg { width: 15px; height: 15px; }
+html[data-aesthetic="paper"] .dash .ev-card .ec-dot {
+  top: -5px; right: -5px; width: 13px; height: 13px; border-radius: 50%; background: var(--pp-rose-ink); border: 2.5px solid var(--card);
+  animation: pp-ev-pulse 2s var(--pp-ease-out) infinite;
+}
+html[data-aesthetic="paper"] .dash .ev-card:has(.ec-dot) .ec-t { padding-right: 0; }
+@keyframes pp-ev-pulse { 0% { box-shadow: 0 0 0 0 var(--pp-rose); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* the lanes' paper */
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card[data-stage="idea"] {
+  margin-top: 6px; border-color: transparent; border-radius: 3px; transform: rotate(var(--rot, 0deg));
+  background: color-mix(in srgb, var(--tf) 62%, var(--card));
+  box-shadow: 0 1px 1px rgba(var(--shade-rgb),.06), 0 9px 14px -10px rgba(var(--shade-rgb),.35);
+}
+html[data-aesthetic="paper"][data-theme="dusk"] :is(.dash, .ev-ni-prev) .ev-card[data-stage="idea"] { background: color-mix(in srgb, var(--tc) 18%, var(--card)); box-shadow: 0 9px 16px -10px rgba(0,0,0,.7); }
+/* the tape */
+html[data-aesthetic="paper"] :is(.dash, .ev-ni-prev) .ev-card[data-stage="idea"]::before {
+  left: 50%; top: -8px; bottom: auto; width: 58px; height: 16px; transform: translateX(-50%) rotate(-2.5deg); border-radius: 2px;
+  background: color-mix(in srgb, var(--pp-butter) 70%, transparent); border-inline: 1px dashed rgba(38,33,27,.16);
+}
+html[data-aesthetic="paper"][data-theme="dusk"] :is(.dash, .ev-ni-prev) .ev-card[data-stage="idea"]::before { background: rgba(242,234,220,.16); }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="idea"]:hover { transform: rotate(0deg) translateY(-2px); border-color: transparent; }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="planning"] { border-style: dashed; }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="planning"]:hover { border-color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="confirmed"] { border-color: var(--ink); box-shadow: 3px 3px 0 var(--tf); }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="confirmed"]:hover { border-color: var(--ink); box-shadow: 5px 5px 0 var(--tf); transform: translate(-1.5px,-1.5px); }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="done"] { background: var(--paper); border-color: var(--line); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="done"]::before { opacity: .45; }
+html[data-aesthetic="paper"] .dash .ev-card[data-stage="done"] .ec-t { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .ev-card.sel,
+html[data-aesthetic="paper"] .dash .ev-card:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 3px; }
+html[data-aesthetic="paper"] .dash .ev-card.dragging { opacity: .3; }
+
+/* the owner avatar inside a card */
+html[data-aesthetic="paper"] .dash .ev-card .ev-av { width: 20px; height: 20px; border-width: 1px; font-size: .5rem; }
+
+/* ── Calendar ──────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ev-cal-wrap { margin-top: 16px; grid-template-columns: minmax(0,1fr) 262px; gap: 16px; }
+html[data-aesthetic="paper"] .dash .ev-cal {
+  border: 1.5px solid var(--ink); border-radius: 18px; background: var(--card); box-shadow: 5px 5px 0 var(--pp-lilac); overflow: hidden; min-width: 0;
+}
+html[data-aesthetic="paper"] .dash .ev-cal-head { gap: 10px; padding: 10px 14px; border-bottom: 1.5px solid var(--line); flex-wrap: wrap; justify-content: flex-start; }
+html[data-aesthetic="paper"] .dash .ev-cal-head .mo { order: 2; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.2rem; letter-spacing: -.026em; min-width: 150px; text-align: center; }
+html[data-aesthetic="paper"] .dash .ev-cal-nav { display: contents; }
+html[data-aesthetic="paper"] .dash .ev-cal-nav button {
+  display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 10px; border-radius: 10px;
+  border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink-soft);
+  font-family: var(--font-geist-sans); font-size: .82rem; font-weight: 600; letter-spacing: 0; text-transform: none;
+}
+html[data-aesthetic="paper"] .dash .ev-cal-nav button:hover { border-color: var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ev-cal-nav button:nth-child(1) { order: 1; }
+html[data-aesthetic="paper"] .dash .ev-cal-nav button:nth-child(3) { order: 3; }
+html[data-aesthetic="paper"] .dash .ev-cal-nav button:nth-child(2) { order: 4; border-radius: 999px; background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .ev-cal-key { order: 5; margin-left: auto; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: .76rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-cal-key i { display: inline-block; width: 18px; height: 10px; border-radius: 3px; border: 1.5px solid var(--muted); vertical-align: -1px; margin-right: 5px; }
+html[data-aesthetic="paper"] .dash .ev-cal-key i.d { border-style: dashed; }
+html[data-aesthetic="paper"] .dash .ev-cal-dow { border-bottom: 1.5px solid var(--line); background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .ev-cal-dow span { padding: 7px 8px; text-align: left; font-family: var(--mono); font-size: .6rem; font-weight: 600; letter-spacing: .1em; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-cal-cell { min-height: 108px; padding: 5px 5px 6px; display: flex; flex-direction: column; gap: 3px; min-width: 0; border-color: var(--card-3); transition: background .12s, box-shadow .12s; }
+html[data-aesthetic="paper"] .dash .ev-cal-cell:nth-child(7n + 1) { border-left: 0; }
+html[data-aesthetic="paper"] .dash .ev-cal-cell:nth-child(7n) { border-right: 0; }
+html[data-aesthetic="paper"] .dash .ev-cal-cell.past { background: color-mix(in srgb, var(--paper-2) 55%, transparent); }
+html[data-aesthetic="paper"] .dash .ev-cal-cell.out { background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--line) 55%, transparent) 6px 7px); }
+html[data-aesthetic="paper"] .dash .ev-cal-cell.drop { background: var(--pp-lilac-soft); box-shadow: inset 0 0 0 2px var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .ev-cal-dnum { align-self: flex-start; margin-bottom: 2px; font-family: var(--mono); font-size: .7rem; color: var(--muted); padding: 1px 5px; border-radius: 6px; }
+html[data-aesthetic="paper"] .dash .ev-cal-dnum.today { background: var(--ink); color: var(--paper); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .ev-cal-chips { gap: 3px; }
+html[data-aesthetic="paper"] .dash .ev-cal-chip {
+  position: relative; gap: 5px; padding: 3px 6px; border-radius: 6px; border: 1.5px solid var(--tc);
+  background: var(--ts); color: var(--ink); font-family: var(--font-geist-sans); font-size: .7rem; font-weight: 600;
+  transition: transform .15s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .ev-cal-chip:hover { background: var(--ts); transform: translateY(-1px); }
+html[data-aesthetic="paper"] .dash .ev-cal-chip.pencil { border-style: dashed; background: transparent; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .ev-cal-chip[data-stage="done"] { opacity: .55; }
+html[data-aesthetic="paper"] .dash .ev-cal-chip.sel { outline: 2px solid var(--pp-lilac-ink); outline-offset: 1px; background: var(--ts); }
+html[data-aesthetic="paper"] .dash .ev-cal-chip.wrap::after { content: ""; position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--pp-rose-ink); border: 2px solid var(--card); }
+html[data-aesthetic="paper"] .dash .ev-cal-chip .cdot { background: var(--tc) !important; }
+
+/* No date yet */
+html[data-aesthetic="paper"] .dash .ev-rail-undated {
+  position: sticky; top: 16px; padding: 12px 12px 10px; border: 1.5px dashed var(--line-med); border-radius: 18px;
+  background: color-mix(in srgb, var(--paper-2) 70%, transparent); box-shadow: none;
+}
+html[data-aesthetic="paper"] .dash .ev-ru-head { align-items: center; padding: 0 2px; }
+html[data-aesthetic="paper"] .dash .ev-ru-lbl { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.05rem; letter-spacing: -.02em; text-transform: none; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ev-ru-count { font-family: var(--mono); font-size: .7rem; padding: 1px 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); }
+html[data-aesthetic="paper"] .dash .ev-ru-hint { margin: 4px 2px 0; font-size: .76rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-ru-body { gap: 8px; max-height: none; overflow: visible; }
+html[data-aesthetic="paper"] .dash .ev-ru-card {
+  display: block; width: 100%; padding: 9px 10px 8px 12px; border-radius: 4px 10px 6px 10px; background: var(--card);
+  border: 1.5px solid var(--line-med); border-left: 4px solid var(--tc); cursor: grab;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s;
+}
+html[data-aesthetic="paper"] .dash .ev-ru-card:hover { background: var(--card); border-color: var(--line-med); border-left-color: var(--tc); transform: translateY(-2px) rotate(-.6deg); box-shadow: 2.5px 2.5px 0 var(--tf); }
+html[data-aesthetic="paper"] .dash .ev-ru-card.sel { box-shadow: none; outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; }
+html[data-aesthetic="paper"] .dash .ev-ru-card .t { font-weight: 600; font-size: .84rem; line-height: 1.3; }
+html[data-aesthetic="paper"] .dash .ev-ru-card .m { gap: 8px; font-size: .7rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-ru-card .st { font-family: var(--mono); font-size: .6rem; font-weight: 600; letter-spacing: .08em; color: var(--sc); }
+html[data-aesthetic="paper"] .dash .ev-ru-foot { margin: 10px 2px 0; padding-top: 9px; border-top: 1px dashed var(--line-med); font-size: .76rem; line-height: 1.4; color: var(--ink-soft); }
+@media (max-width: 900px) { html[data-aesthetic="paper"] .dash .ev-cal-wrap { grid-template-columns: 1fr; } html[data-aesthetic="paper"] .dash .ev-rail-undated { position: static; } }
+
+/* ── The published strip: ticket stubs ─────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ev-tl { margin-top: 30px; border-top: 0; padding-top: 0; }
+html[data-aesthetic="paper"] .dash .ev-tl-head { gap: 12px; margin-bottom: 10px; flex-wrap: nowrap; }
+html[data-aesthetic="paper"] .dash .ev-tl-lbl { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.25rem; letter-spacing: -.026em; text-transform: none; color: var(--ink); white-space: nowrap; }
+html[data-aesthetic="paper"] .dash .ev-tl-sub { font-size: .86rem; font-style: normal; color: var(--muted); white-space: nowrap; }
+/* the dashed rule runs from the sub-title to the count */
+html[data-aesthetic="paper"] .dash .ev-tl-count { flex: 1; display: flex; align-items: baseline; gap: 12px; font-size: .72rem; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+html[data-aesthetic="paper"] .dash .ev-tl-count::before { content: ""; flex: 1; border-top: 1.5px dashed var(--line-med); transform: translateY(-4px); }
+html[data-aesthetic="paper"] .dash .ev-tl-empty { padding: 18px 20px; border: 1.5px dashed var(--line-med); border-radius: 18px; font-size: .88rem; font-style: normal; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-tl-body { margin-top: 0; display: flex; flex-wrap: nowrap; gap: 14px; overflow-x: auto; padding: 8px 6px 14px; margin-inline: -6px; scroll-snap-type: x proximity; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip {
+  position: relative; flex: none; display: grid; grid-template-columns: 54px minmax(0,1fr); align-items: stretch; gap: 0;
+  width: 236px; max-width: none; padding: 0; border: 1.5px solid var(--ink); border-radius: 10px; background: var(--card);
+  box-shadow: 3px 3px 0 var(--tf); color: var(--ink); scroll-snap-align: start; opacity: 1;
+  transition: transform .2s var(--pp-ease-spring), box-shadow .2s;
+}
+html[data-aesthetic="paper"] .dash .ev-tl-chip:hover { border-color: var(--ink); transform: translate(-1.5px,-1.5px) rotate(-.6deg); box-shadow: 5px 5px 0 var(--tf); }
+/* the notches either side of the perforation */
+html[data-aesthetic="paper"] .dash .ev-tl-chip::before,
+html[data-aesthetic="paper"] .dash .ev-tl-chip::after { content: ""; position: absolute; left: 47px; width: 12px; height: 12px; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--ink); z-index: 1; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip::before { top: -7px; clip-path: inset(50% 0 0 0); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip::after { bottom: -7px; clip-path: inset(0 0 50% 0); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip .tk-d {
+  display: grid; align-content: center; justify-items: center; padding: 8px 0; line-height: 1.05;
+  border-right: 1.5px dashed var(--ink); border-radius: 9px 0 0 9px; background: color-mix(in srgb, var(--tf) 42%, var(--card));
+}
+html[data-aesthetic="paper"] .dash .ev-tl-chip .tk-d small { font-family: var(--mono); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip .tk-d b { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.3rem; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip .tk-x { display: block; grid-column: 2; padding: 9px 12px 9px 14px; min-width: 0; text-align: left; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip .tk-x .t { display: block; max-width: none; font-weight: 600; font-size: .86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip .tk-x .l { display: block; max-width: none; margin-top: 2px; font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.done { border-color: var(--line-med); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.done::before,
+html[data-aesthetic="paper"] .dash .ev-tl-chip.done::after { border-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.done .tk-d { background: var(--paper-2); border-right-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.done .tk-x .t { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.wrap .tk-d { box-shadow: inset 0 -3px 0 var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.enter { animation: pp-ev-tk .7s var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .dash .ev-tl-chip.leave { display: none; }
+@keyframes pp-ev-tk { from { transform: translateY(-14px) rotate(-3deg); opacity: 0; } }
+
+/* ── Empty board ───────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ev-empty-pp { margin-top: 24px; padding: 30px 30px 28px; text-align: center; border: 1.5px dashed var(--line-med); border-radius: 22px; }
+html[data-aesthetic="paper"] .dash .ev-ladder { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
+html[data-aesthetic="paper"] .dash .ev-ladder-step { display: inline-flex; align-items: center; gap: 8px; }
+html[data-aesthetic="paper"] .dash .ev-ladder-step > svg { width: 16px; height: 16px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung { width: 132px; padding: 12px 10px 10px; text-align: left; border-radius: 5px 13px 7px 12px; background: var(--card); border: 1.5px solid var(--line-med); }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung b { display: flex; align-items: center; gap: 7px; font-family: var(--font-fraunces); font-weight: 600; font-size: 1rem; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung b i { width: 9px; height: 9px; border-radius: 50%; background: var(--sf); border: 1.5px solid var(--sc); }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung small { display: block; margin-top: 5px; font-size: .74rem; line-height: 1.35; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="idea"] { background: var(--pp-butter-soft); border-color: transparent; border-radius: 3px; transform: rotate(-2deg); box-shadow: 0 8px 14px -10px rgba(var(--shade-rgb),.35); }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="idea"] b i { background: transparent; border-style: dashed; }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="planning"] { border-style: dashed; }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="confirmed"] { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="done"] { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .ev-empty-pp h3 { margin-top: 22px; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.5rem; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .dash .ev-empty-pp > p { margin: 8px auto 0; max-width: 58ch; color: var(--ink-soft); font-size: .92rem; }
+html[data-aesthetic="paper"] .dash .ev-empty-pp .acts { margin-top: 18px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+html[data-aesthetic="paper"] .dash .ev-starters { margin: 24px auto 0; max-width: 640px; padding-top: 16px; border-top: 1px dashed var(--line-med); }
+html[data-aesthetic="paper"] .dash .ev-starters .k { font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-starters .chips { margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+html[data-aesthetic="paper"] .dash .ev-starters button {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 9px; border-radius: 999px; border: 1.5px dashed var(--line-med);
+  background: var(--ts); font-size: .82rem; font-weight: 550; color: var(--ink-soft); transition: transform .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .ev-starters button:hover { transform: translateY(-2px); border-style: solid; border-color: var(--tc); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ev-starters button i { width: 7px; height: 7px; border-radius: 50%; background: var(--tc); }
+
+html[data-aesthetic="paper"] .dash .ev-nomatch { margin-top: 22px; padding: 26px 20px; border: 1.5px dashed var(--line-med); border-radius: 22px; text-align: center; }
+html[data-aesthetic="paper"] .dash .ev-nomatch .nm-t { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.3rem; letter-spacing: -.026em; }
+html[data-aesthetic="paper"] .dash .ev-nomatch .nm-s { font-size: .9rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .ev-skel { border-radius: 18px; border: 1.5px dashed var(--line-med); background: var(--paper-2); }
+
+/* ── The detail rail ───────────────────────────────────────────────────────────
+   An inset card floating over the board rather than a full-height drawer, with
+   its event's colour as the hard shadow. Mobile keeps the bottom sheet. */
+@media (min-width: 641px) {
+  html[data-aesthetic="paper"] .ev-panel {
+    top: 12px; right: 12px; bottom: 12px; width: min(448px, calc(100vw - 24px));
+    border: 1.5px solid var(--ink); border-radius: 22px; background: var(--card);
+    transform: translateX(calc(100% + 30px)); transition: transform .34s var(--pp-ease-spring);
+  }
+  html[data-aesthetic="paper"] .ev-panel.open { transform: none; box-shadow: -6px 6px 0 var(--tf, var(--pp-lilac)); }
+}
+html[data-aesthetic="paper"] .ev-pn-head { padding: 14px 22px 16px; }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-stage:first-child { color: var(--sc) !important; border-color: var(--sc); background: var(--card) !important; }
+html[data-aesthetic="paper"] .ev-panel[data-stage="idea"] .ev-pn-stage:first-child { border-style: dashed; }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-lead { border: 1.5px dashed var(--pp-rose-bd); background: var(--pp-rose-soft); border-radius: 12px; }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-lead .pl-k { color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-lead button { border: 0; border-radius: 0; padding: 0; background: none; color: var(--pp-rose-ink); border-bottom: 1.5px solid var(--pp-rose-bd); }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-lead button:hover { border-bottom-color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .ev-vis { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 9px; border-radius: 999px; font-size: .78rem; }
+html[data-aesthetic="paper"] .ev-vis.private { color: var(--muted); background: var(--paper-2); border: 1px dashed var(--line-med); }
+html[data-aesthetic="paper"] .ev-vis svg { width: 14px; height: 14px; }
+
+/* the stage ladder: a dotted track, inked as far as this event has come */
+html[data-aesthetic="paper"] .ev-stage-row { position: relative; }
+html[data-aesthetic="paper"] .ev-stage-row::before {
+  content: ""; position: absolute; left: 12.5%; right: 12.5%; top: 14px; height: 2px;
+  background: repeating-linear-gradient(90deg, var(--line-med) 0 5px, transparent 5px 9px);
+}
+html[data-aesthetic="paper"] .ev-stage-row::after {
+  content: ""; position: absolute; left: 12.5%; top: 14px; height: 2px; width: var(--w, 0%); background: var(--ink);
+  transition: width .45s var(--pp-ease-out);
+}
+html[data-aesthetic="paper"] .ev-stage-step { gap: 6px; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-stage-step:not(:last-child)::after { content: none; }
+html[data-aesthetic="paper"] .ev-stage-node {
+  width: 30px; height: 30px; border: 1.5px solid var(--line-med); background: var(--card); color: var(--muted);
+  transition: transform .25s var(--pp-ease-spring), box-shadow .2s, border-color .2s, background .2s;
+}
+html[data-aesthetic="paper"] .ev-stage-node svg { width: 13px; height: 13px; }
+html[data-aesthetic="paper"] .ev-stage-step.past .ev-stage-node { background: color-mix(in srgb, var(--sc) 30%, var(--card)); border-color: var(--sc); color: var(--ink); }
+html[data-aesthetic="paper"] .ev-stage-step.on .ev-stage-node {
+  background: color-mix(in srgb, var(--sc) 30%, var(--card)); border-color: var(--ink); transform: scale(1.08); box-shadow: 2.5px 2.5px 0 var(--ink);
+}
+html[data-aesthetic="paper"] .ev-stage-step.locked .ev-stage-node { border-style: dashed; border-color: var(--line-med); }
+html[data-aesthetic="paper"] .ev-stage-step:not(:disabled):hover .ev-stage-node { border-color: var(--ink); transform: translateY(-2px); }
+html[data-aesthetic="paper"] .ev-stage-lbl { font-size: .72rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-stage-step.on .ev-stage-lbl { color: var(--ink); }
+html[data-aesthetic="paper"] .ev-stage-step.locked .ev-stage-lbl { color: var(--muted); }
+html[data-aesthetic="paper"] .ev-stage-say { margin-top: 14px; color: var(--ink-soft); line-height: 1.55; }
+html[data-aesthetic="paper"] .ev-stage-gap {
+  display: inline-flex; align-items: center; padding: 0 8px; border-radius: 999px; border: 1px dashed var(--pp-rose-bd);
+  background: var(--pp-rose-soft); color: var(--pp-rose-ink); font-size: .78rem; font-weight: 600; line-height: 1.6;
+}
+html[data-aesthetic="paper"] .ev-stage-gap:hover { border-style: solid; border-color: var(--pp-rose-ink); }
+
+/* the wrap-up record, with its stamp */
+html[data-aesthetic="paper"] .ev-panel .ev-pn-wrap {
+  position: relative; overflow: hidden; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 6px 14px 8px 12px; background: var(--paper);
+}
+html[data-aesthetic="paper"] .ev-panel .ev-pn-wrap .pw-k { color: var(--muted); }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-wrap .pw-stars { color: var(--pp-butter-ink); font-size: 1.05rem; }
+html[data-aesthetic="paper"] .ev-panel .ev-pn-wrap .pw-notes { position: relative; z-index: 1; max-width: 34ch; font-size: .88rem; line-height: 1.55; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .ev-panel .pw-stamp {
+  position: absolute; right: 14px; bottom: 12px; font-family: var(--mono); font-weight: 700; font-size: .78rem; letter-spacing: .14em;
+  color: var(--pp-mint-ink); border: 2.5px solid var(--pp-mint-ink); border-radius: 8px; padding: 3px 9px; transform: rotate(-12deg);
+  opacity: .8; mix-blend-mode: multiply; background: color-mix(in srgb, var(--pp-mint-soft) 60%, transparent);
+  animation: pp-ev-thud .5s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"][data-theme="dusk"] .ev-panel .pw-stamp { mix-blend-mode: normal; }
+@keyframes pp-ev-thud { 0% { transform: rotate(-12deg) scale(1.6); opacity: 0; } 60% { transform: rotate(-12deg) scale(.94); opacity: .9; } }
+
+/* ── Dialogs ───────────────────────────────────────────────────────────────── */
+/* New idea: the sticky note it will become */
+html[data-aesthetic="paper"] .ev-ni-prev { padding: 12px 18% 4px; }
+html[data-aesthetic="paper"] .ev-ni-prev .ev-card { cursor: default; }
+html[data-aesthetic="paper"] .ev-ni-cat {
+  gap: 7px; padding: 6px 12px 6px 10px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card);
+  font-size: .82rem; font-weight: 550; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .ev-ni-cat .cdot { width: 8px; height: 8px; }
+html[data-aesthetic="paper"] .ev-ni-cat.on { color: var(--ink); border-color: var(--ink); background: color-mix(in srgb, var(--c) 13%, var(--card)); box-shadow: 2px 2px 0 color-mix(in srgb, var(--c) 32%, var(--card)); }
+html[data-aesthetic="paper"] :is(.ev-ni-remain, .ev-ov-remain) { font-size: .8rem; font-weight: 600; color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] :is(.ev-ni-remain, .ev-ov-remain).ready { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .ev-ov-sub { font-size: .9rem; line-height: 1.55; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .ev-ov-sub b { color: var(--ink); }
+/* wrap-up spend */
+html[data-aesthetic="paper"] .ev-wu-hint { margin-left: 4px; font-weight: 400; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-wu-amt { position: relative; max-width: 180px; }
+html[data-aesthetic="paper"] .ev-wu-amt > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 600; pointer-events: none; }
+html[data-aesthetic="paper"] .ev-wu-amt input { padding-left: 24px !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-aesthetic="paper"] :is(.dash .ev-card, .dash .ev-tl-chip, .ev-panel, .ev-panel .pw-stamp, .dash .ev-lane.flash, .dash .ev-card .ec-dot) { animation: none !important; transition: none !important; }
+}

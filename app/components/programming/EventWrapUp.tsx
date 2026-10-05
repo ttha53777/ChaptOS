@@ -85,17 +85,21 @@ export function EventWrapUp({
 }: {
   event: ProgrammingTask;
   onCancel: () => void;
-  onCommit: (patch: { successRating: number | null; wrapUpNotes: string | null }) => Promise<void>;
+  onCommit: (patch: { successRating: number | null; wrapUpNotes: string | null; spendingCents?: number }) => Promise<void>;
 }) {
   const [stars, setStars] = useState<number | null>(event.successRating ?? null);
   const [notes, setNotes] = useState(event.wrapUpNotes ?? "");
+  // Paper asks for the manual spend here too. Blank leaves it as it was.
+  const [spent, setSpent] = useState(event.spendingCents ? (event.spendingCents / 100).toFixed(2) : "");
   const [saving, setSaving] = useState(false);
 
   async function commit() {
     if (saving) return;
     setSaving(true);
     try {
-      await onCommit({ successRating: stars, wrapUpNotes: notes.trim() || null });
+      const cents = spent.trim() ? Math.round(parseFloat(spent) * 100) : NaN;
+      const spendingCents = Number.isFinite(cents) && cents !== event.spendingCents ? Math.max(0, cents) : undefined;
+      await onCommit({ successRating: stars, wrapUpNotes: notes.trim() || null, ...(spendingCents !== undefined ? { spendingCents } : {}) });
     } finally {
       setSaving(false);
     }
@@ -135,6 +139,26 @@ export function EventWrapUp({
             className={`${inputDuskCls} resize-none`}
           />
           <p className="ev-ov-hint text-right">{notes.length}/{MAX_NOTES}</p>
+        </div>
+
+        <div className="space-y-2 pp-only">
+          <label htmlFor="wrapup-spent" className="ev-ov-lbl block">
+            Spent <span className="ev-wu-hint">optional · the manual total</span>
+          </label>
+          <div className="ev-wu-amt">
+            <span aria-hidden>$</span>
+            <input
+              id="wrapup-spent"
+              type="number"
+              min={0}
+              step={0.01}
+              inputMode="decimal"
+              value={spent}
+              placeholder="0"
+              onChange={e => setSpent(e.target.value)}
+              className={`${inputDuskCls} tabular-nums`}
+            />
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-2 pt-1">

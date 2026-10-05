@@ -20,15 +20,18 @@ import type { CategoryOption } from "../timeline/CalendarEventForm";
 
 export function NewIdeaComposer({
   categoryOptions,
+  initial,
   onCancel,
   onCommit,
 }: {
   categoryOptions: CategoryOption[];
+  /** Pre-fill, from a starter idea on the empty board. */
+  initial?: { title: string; category: string };
   onCancel: () => void;
   onCommit: (input: { title: string; category: string }) => Promise<void>;
 }) {
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<string>("");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [category, setCategory] = useState<string>(initial?.category ?? "");
   const [saving, setSaving] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -100,9 +103,25 @@ export function NewIdeaComposer({
           </div>
         </div>
 
+        {/* Paper only: the sticky note this will become on the board. */}
+        <div className="ev-ni-prev pp-only" aria-hidden>
+          <div
+            className="ev-card"
+            data-stage="idea"
+            style={{
+              ["--tc" as string]: categoryOptions.find(o => o.slug === category)?.color ?? "var(--faint)",
+              ["--rot" as string]: "-1.1deg",
+            }}
+          >
+            <div className="ec-t">{trimmed || "Your idea"}</div>
+            <div className="ec-meta"><span className="ec-when nodate">No date yet</span></div>
+            <div className="ec-block gold"><span>Needs an owner</span></div>
+          </div>
+        </div>
+
         <div className="flex items-center justify-between gap-3 pt-1">
           <span className={`ev-ni-remain${ready ? " ready" : ""}`}>
-            {ready ? "Ready" : "Needs a title + a category"}
+            {ready ? "Ready" : !trimmed && !category ? "Needs a title + a category" : !trimmed ? "Needs a title" : "Needs a category"}
           </span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onCancel} className="ev-ni-cancel">

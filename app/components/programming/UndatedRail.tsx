@@ -76,7 +76,8 @@ export function UndatedRail({
                 if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(t.id); }
               }}
               className={`ev-ru-card${selectedId === t.id ? " sel" : ""}`}
-              style={{ borderLeftColor: typeVisual(visuals, t.category).hex }}
+              data-stage={t.stage}
+              style={{ borderLeftColor: typeVisual(visuals, t.category).hex, ["--tc" as string]: typeVisual(visuals, t.category).hex }}
             >
               <span className="t">{t.title}</span>
               <span className="m">

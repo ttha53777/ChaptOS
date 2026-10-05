@@ -227,6 +227,47 @@ describe("setStage", () => {
     await expect(setStage(ctx, task.id, { stage: "done" })).rejects.toThrow(/confirm/i);
   });
 
+  it("moves a published event off the Timeline and onto a new date in one step", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Moved", dueDate: "2026-09-15", location: "EMU", category: "program",
+    });
+    const calId = confirmed.calendarEventId!;
+
+    const moved = await setStage(ctx, confirmed.id, { stage: "planning", dueDate: "2026-09-22" });
+    expect(moved.stage).toBe("planning");
+    expect(moved.dueDate).toBe("2026-09-22");
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe?.calendarEventId).toBeNull();
+    expect(await testPrisma.calendarEvent.findUnique({ where: { id: calId } })).toBeNull();
+  });
+
+  it("leaves a published event untouched when its new date is out of term", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Stays", dueDate: "2026-09-15", location: "EMU", category: "program",
+    });
+
+    await expect(setStage(ctx, confirmed.id, { stage: "planning", dueDate: "2027-03-01" })).rejects.toThrow();
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe?.stage).toBe("confirmed");
+    expect(pe?.date).toBe("2026-09-15");
+    expect(pe?.calendarEventId).toBe(confirmed.calendarEventId);
+  });
+
+  it("refuses a date on any move that isn't a demotion off the Timeline", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const owner = await seedOwner(org.id);
+    const task = await createProgrammingTask(ctx, {
+      title: "Idea", dueDate: "2026-09-15", category: "program", ownerBrotherId: owner.id,
+    });
+
+    await expect(setStage(ctx, task.id, { stage: "planning", dueDate: "2026-09-22" })).rejects.toThrow(ValidationError);
+  });
+
   it("allows Confirmed → Done", async () => {
     const { org, admin } = await seedOrg();
     const ctx = ctxFor(org.id, admin.id);

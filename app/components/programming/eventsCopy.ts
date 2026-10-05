@@ -32,7 +32,8 @@ export function cardWhen(dueDate: string | null, today: string): { label: string
 }
 
 /** One clause of the status line: plain text, or text the page tints. */
-export type StatusBit = { text: string; tone?: "warn" };
+/** `kind` names what the clause counts, so a clickable clause knows where to go. */
+export type StatusBit = { text: string; tone?: "warn"; kind: "wrap" | "ready" | "unowned" };
 
 /**
  * The status line under the greeting — derived clauses, not a model call.
@@ -60,15 +61,17 @@ export function statusBits(
     bits.push({
       text: `${toWrapUp} already happened and ${toWrapUp === 1 ? "needs" : "need"} wrapping up.`,
       tone: "warn",
+      kind: "wrap",
     });
   }
   if (readyToConfirm > 0) {
-    bits.push({ text: `${readyToConfirm} ready to confirm.`, tone: "warn" });
+    bits.push({ text: `${readyToConfirm} ready to confirm.`, tone: "warn", kind: "ready" });
   }
   if (unownedIdeas > 0) {
     bits.push({
       text: `${unownedIdeas} idea${unownedIdeas === 1 ? "" : "s"} with no one on ${unownedIdeas === 1 ? "it" : "them"}.`,
       tone: "warn",
+      kind: "unowned",
     });
   }
   if (!next) return { lead: null, bits };
@@ -82,4 +85,28 @@ function statusWhen(dueDate: string | null, today: string): string {
   if (d === 0) return "today";
   if (d === 1) return "tomorrow";
   return new Date(dueDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long" });
+}
+
+/**
+ * Paper's empty board offers a few ideas to start from. Keyed by the words an
+ * org's own category slugs and labels tend to use, since every org names its
+ * types itself — only the categories this org actually has get chips, and an
+ * unmatched category gets none rather than a generic guess.
+ */
+const STARTER_IDEAS: { match: RegExp; titles: string[] }[] = [
+  { match: /social|mixer|party/i,                       titles: ["Alumni mixer", "Game night"] },
+  { match: /fund|philanthrop|charity/i,                 titles: ["Bake sale", "Charity 5K"] },
+  { match: /service|volunteer|community/i,              titles: ["Food bank shift", "Beach cleanup"] },
+  { match: /program|professional|career|academic|educ/i, titles: ["Speaker night", "Study hall"] },
+  { match: /rush|recruit/i,                             titles: ["Rush info night"] },
+  { match: /brotherhood|sisterhood|bond|retreat/i,      titles: ["Camping trip"] },
+];
+
+export function starterIdeas(categories: { slug: string; label: string; color?: string | null }[]) {
+  const out: { title: string; category: string; color: string | null }[] = [];
+  for (const c of categories) {
+    const hit = STARTER_IDEAS.find(s => s.match.test(c.slug) || s.match.test(c.label));
+    for (const title of hit?.titles ?? []) out.push({ title, category: c.slug, color: c.color ?? null });
+  }
+  return out.slice(0, 6);
 }

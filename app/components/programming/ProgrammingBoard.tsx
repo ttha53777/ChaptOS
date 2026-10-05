@@ -6,6 +6,7 @@ import { STAGES, STAGE_LABELS, STAGE_PILL, type ProgrammingStage } from "@/lib/s
 import { canEnter, missingFor, needsConfirmFirst } from "@/lib/programming";
 import { ProgrammingCard } from "./ProgrammingCard";
 import { typeVisual, type TypeVisual } from "./typeColor";
+import { PaperIcon } from "../paper/PaperIcon";
 
 /**
  * A lane's scroll region.
@@ -44,6 +45,7 @@ export function ProgrammingBoard({
   selectedId,
   canManage,
   variant = "default",
+  flashStage = null,
   onSelect,
   onMoveStage,
 }: {
@@ -54,6 +56,8 @@ export function ProgrammingBoard({
   canManage: boolean;
   /** "dusk" renders dusk lanes + prep-ring cards for the redesigned events page. */
   variant?: "default" | "dusk";
+  /** A lane to highlight briefly — the one a status clause just pointed at. */
+  flashStage?: ProgrammingStage | null;
   onSelect: (id: number) => void;
   /** Returns false if the move was rejected (e.g. promote without a date). */
   onMoveStage: (id: number, stage: ProgrammingStage) => Promise<boolean>;
@@ -108,6 +112,7 @@ export function ProgrammingBoard({
       return { text: `Needs ${miss} — drop to fill in`, blocked: true };
     }
     if (stage === "confirmed") return { text: "Drop to confirm — the chapter will see it", blocked: false };
+    if (stage === "done") return { text: "Drop to wrap it up", blocked: false };
     // Demoting a published event pulls it back off everyone's calendar. That is
     // allowed and sometimes correct, but it should never be a surprise.
     if ((dragTask.stage === "confirmed" || dragTask.stage === "done") && !forward) {
@@ -118,6 +123,14 @@ export function ProgrammingBoard({
 
   if (variant === "dusk") {
     return (
+      <>
+      {/* Paper only: which half of the board the chapter can see. Idea and
+          Planning aren't secret (members can open this page), they're just not
+          on the Timeline yet — so the bracket says that, not "officers only". */}
+      <div className="ev-vis-bracket pp-only" aria-hidden>
+        <span className="priv"><PaperIcon name="lock" />Not on the Timeline yet</span>
+        <span className="pub"><PaperIcon name="eye" />On the chapter Timeline · everyone sees these</span>
+      </div>
       <div className="ev-pipeline">
         {STAGES.map(stage => {
           const items = byStage[stage];
@@ -129,7 +142,8 @@ export function ProgrammingBoard({
               onDragOver={dndEnabled ? e => { e.preventDefault(); setOverStage(stage); } : undefined}
               onDragLeave={() => setOverStage(s => (s === stage ? null : s))}
               onDrop={dndEnabled ? () => handleDrop(stage) : undefined}
-              className={`ev-lane${isOver ? " drop" : ""}${cue?.blocked ? " gated" : ""}`}
+              className={`ev-lane${isOver ? " drop" : ""}${cue?.blocked ? " gated" : ""}${flashStage === stage ? " flash" : ""}`}
+              data-stage={stage}
             >
               {/* Name and count, and nothing else. A lane that permanently prints
                   its entry rule, its meaning, and its visibility is a paragraph
@@ -139,6 +153,9 @@ export function ProgrammingBoard({
               <div className="ev-lane-head">
                 <span className={`dot ${stage}`} />
                 <span className="lh">{STAGE_LABELS[stage]}</span>
+                <span className="pp-only lv" title={stage === "confirmed" || stage === "done" ? "On the chapter Timeline" : "Not on the Timeline yet"}>
+                  <PaperIcon name={stage === "confirmed" || stage === "done" ? "eye" : "lock"} />
+                </span>
                 <span className="lc">{items.length}</span>
               </div>
               {cue && <p className={`ev-lane-cue${cue.blocked ? " gated" : ""}`}>{cue.text}</p>}
@@ -182,6 +199,7 @@ export function ProgrammingBoard({
           );
         })}
       </div>
+      </>
     );
   }
 

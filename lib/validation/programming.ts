@@ -82,5 +82,8 @@ export type AttachProgrammingDocInput = z.infer<typeof attachProgrammingDocInput
 
 export const setStageInput = z.object({
   stage: z.enum(STAGES),
+  // Reschedule a published event: taking it off the Timeline and moving its date
+  // land together or not at all. Only accepted on a move out of Confirmed/Done.
+  dueDate: dateSchema.optional(),
 });
 export type SetStageInput = z.infer<typeof setStageInput>;

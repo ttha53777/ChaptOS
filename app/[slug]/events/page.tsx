@@ -15,10 +15,12 @@ import { EventFixStep } from "../../components/programming/EventFixStep";
 import { EventWrapUp } from "../../components/programming/EventWrapUp";
 import { EventsHelp } from "../../components/programming/EventsHelp";
 import { NewIdeaComposer } from "../../components/programming/NewIdeaComposer";
+import { EventDemoteStep } from "../../components/programming/EventDemoteStep";
+import { PaperIcon } from "../../components/paper/PaperIcon";
 import { makeTypeVisuals, typeVisual } from "../../components/programming/typeColor";
 import { TimelineStrip } from "../../components/programming/TimelineStrip";
 import { UndatedRail } from "../../components/programming/UndatedRail";
-import { statusBits } from "../../components/programming/eventsCopy";
+import { statusBits, starterIdeas, type StatusBit } from "../../components/programming/eventsCopy";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import type { CalEventType, ProgrammingTask, TaskStatus } from "../../data";
 import { fmtDate } from "../../data";
@@ -105,6 +107,12 @@ export default function ProgrammingPage() {
   // The Confirmed → Done wrap-up.
   const [wrapTarget, setWrapTarget] = useState<ProgrammingTask | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Paper's calendar reschedule of a published event: which one, and to when.
+  const [demoteTarget, setDemoteTarget] = useState<{ event: ProgrammingTask; date: string } | null>(null);
+  // A starter idea from the empty board pre-fills the composer.
+  const [ideaPreset, setIdeaPreset] = useState<{ title: string; category: string } | undefined>(undefined);
+  // Briefly highlights a lane a status clause pointed at.
+  const [flashStage, setFlashStage] = useState<ProgrammingStage | null>(null);
 
   // Animate the inspector drawer out before unmounting.
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,6 +208,11 @@ export default function ProgrammingPage() {
       .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
     [eventTypes, enabledWorkflows],
   );
+  const starters = useMemo(
+    () => starterIdeas(programmingFormOptions.map(o => ({ slug: o.slug, label: o.label, color: o.color }))),
+    [programmingFormOptions],
+  );
+
   // slug → colour/glyph for every type the org defines. Built once here and
   // passed down, replacing four label-keyed lookup tables that rendered any
   // renamed or org-defined type grey.
@@ -264,16 +277,18 @@ export default function ProgrammingPage() {
    * ALREADY collected what their gate wanted — can complete the move without
    * being intercepted by the same check a second time.
    */
-  const commitStage = useCallback(async (id: number, stage: ProgrammingStage): Promise<boolean> => {
+  const commitStage = useCallback(async (id: number, stage: ProgrammingStage, dueDate?: string): Promise<boolean> => {
     const target = events.find(e => e.id === id);
     if (!target) return false;
     const prevStage = target.stage;
     syncEvents(prev => prev.map(e => e.id === id ? { ...e, stage } : e));
     try {
+      // `dueDate` rides along only when taking a published event back off the
+      // Timeline: the server demotes and re-dates in one transaction.
       const saved = await requestJson<ProgrammingTask>(`/api/programming/${id}/stage`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage }),
+        body: JSON.stringify(dueDate ? { stage, dueDate } : { stage }),
       });
       syncEvents(prev => prev.map(e => e.id === id ? saved : e));
       return true;
@@ -349,17 +364,18 @@ export default function ProgrammingPage() {
     if (!target) return;
 
     if (target.stage === "confirmed" || target.stage === "done") {
+      // Paper asks in a dialog; Ledger keeps its toast. Same one-step move.
+      if (document.documentElement.dataset.aesthetic === "paper") {
+        setDemoteTarget({ event: target, date });
+        return;
+      }
       toast.info(
         `“${target.title}” is on the chapter's timeline for ${target.dueDate ?? "a set date"}. Moving it takes that back first.`,
         {
           action: {
             label: "Move to Planning",
             onClick: () => {
-              void (async () => {
-                // Sequential: the demote deletes the CalendarEvent, and the
-                // date write is only legal once it's gone.
-                if (await commitStage(id, "planning")) await patchEvent(id, { dueDate: date });
-              })();
+              void commitStage(id, "planning", date);
             },
           },
         },
@@ -446,6 +462,26 @@ export default function ProgrammingPage() {
     () => statusBits(onDeck, readyToConfirm, stats.unownedIdeas, today, toWrapUp),
     [onDeck, readyToConfirm, stats.unownedIdeas, today, toWrapUp],
   );
+
+  /** Where a clickable status clause goes (Paper). */
+  const actOnClause = useCallback((kind: StatusBit["kind"]) => {
+    if (kind === "wrap") {
+      const next = events.filter(e => needsWrapUp(e, today)).sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))[0];
+      if (next) { setSelectedId(next.id); setWrapTarget(next); }
+      return;
+    }
+    setView("board");
+    if (kind === "ready") {
+      const next = events.find(e => e.stage === "planning" && canEnter(e, "confirmed"));
+      if (!next) return;
+      setSelectedId(next.id);
+      requestAnimationFrame(() => document.querySelector(`.ev-card[data-id="${next.id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+      return;
+    }
+    setFlashStage("idea");
+    requestAnimationFrame(() => document.querySelector('.ev-lane[data-stage="idea"]')?.scrollIntoView({ block: "center", behavior: "smooth" }));
+    setTimeout(() => setFlashStage(null), 1400);
+  }, [events, today]);
 
   // The kicker's second half. The active term is the more useful of the two —
   // the org's name is already at the top of the sidebar — so it leads, and the
@@ -612,8 +648,17 @@ export default function ProgrammingPage() {
                         </>
                       )}
                       {status.bits.map(bit => (
-                        <span key={bit.text} className={bit.tone === "warn" ? "warn" : undefined}>
-                          {" "}{bit.text}
+                        <span key={bit.text}>
+                          {" "}
+                          <span className={`lg-only${bit.tone === "warn" ? " warn" : ""}`}>{bit.text}</span>
+                          {/* Paper: each clause is a link to the thing it counts.
+                              Wrapping is an officer move, so that one only
+                              becomes a button for someone who can do it. */}
+                          {bit.kind !== "wrap" || canManage ? (
+                            <button type="button" className="sl-act pp-only" onClick={() => actOnClause(bit.kind)}>{bit.text}</button>
+                          ) : (
+                            <span className="pp-only warn">{bit.text}</span>
+                          )}
                         </span>
                       ))}
                     </>
@@ -627,7 +672,7 @@ export default function ProgrammingPage() {
                   <>
                     {/* The cheap way in. Sits before "New event" because holding a
                         thought should cost less than scheduling one. */}
-                    <button className="ev-add ghost" onClick={() => setModal("idea")}>
+                    <button className="ev-add ghost" onClick={() => { setIdeaPreset(undefined); setModal("idea"); }}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                       New idea
                     </button>
@@ -725,7 +770,7 @@ export default function ProgrammingPage() {
                         className={`chip${on ? " on" : ""}`}
                         aria-pressed={on}
                         onClick={() => toggleType(t.slug)}
-                        style={on ? { color: hex, borderColor: `${hex}80` } : undefined}
+                        style={on ? { color: hex, borderColor: `${hex}80`, ["--chip-c" as string]: hex } : { ["--chip-c" as string]: hex }}
                       >
                         <span className="cdot" style={{ background: hex }} />
                         {t.label}
@@ -745,13 +790,64 @@ export default function ProgrammingPage() {
                 </div>
 
                 {events.length === 0 ? (
-                  <div className="ev-empty">
+                  <>
+                  {/* Paper: the four lanes as a ladder, each with its price,
+                      and a few starter ideas in this org's own categories. */}
+                  <div className="ev-empty-pp pp-only">
+                    <div className="ev-ladder" aria-hidden>
+                      {STAGES.map((s, i) => (
+                        <span key={s} className="ev-ladder-step">
+                          <span className="rung" data-stage={s}>
+                            <b><i />{STAGE_LADDER[s].label}</b>
+                            <small>{STAGE_LADDER[s].cost}</small>
+                          </span>
+                          {i < STAGES.length - 1 && <PaperIcon name="arrow-r" />}
+                        </span>
+                      ))}
+                    </div>
+                    <h3>Nothing on the slate yet.</h3>
+                    <p>
+                      Every event starts as an idea — a title and a type is all it costs. Give it an
+                      owner to start planning; a date and a place confirm it onto the chapter&apos;s Timeline.
+                    </p>
+                    {canManage && (
+                      <>
+                        <div className="acts">
+                          <button className="ev-add" onClick={() => { setIdeaPreset(undefined); setModal("idea"); }}>
+                            <PaperIcon name="plus" />New idea
+                          </button>
+                          <button className="ev-add ghost" onClick={() => setModal("add")}>
+                            <PaperIcon name="plus" />New event
+                          </button>
+                        </div>
+                        {starters.length > 0 && (
+                          <div className="ev-starters">
+                            <p className="k">Ideas to start with</p>
+                            <div className="chips">
+                              {starters.map(st => (
+                                <button
+                                  key={st.title}
+                                  type="button"
+                                  style={{ ["--tc" as string]: st.color ?? "var(--faint)" }}
+                                  onClick={() => { setIdeaPreset({ title: st.title, category: st.category }); setModal("idea"); }}
+                                >
+                                  <i />{st.title}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <div className="ev-empty lg-only">
                     <span className="ic">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
                     </span>
                     <div className="t">No events yet</div>
                     <div className="h">{canManage ? "Add your first event to start the programme." : "Nothing on the slate yet."}</div>
                   </div>
+                  </>
                 ) : filtered.length === 0 ? (
                   // Distinct from the empty state above: the slate isn't empty,
                   // the filters just don't match it. Without this the board
@@ -773,6 +869,7 @@ export default function ProgrammingPage() {
                     selectedId={selectedId}
                     canManage={canManage}
                     variant="dusk"
+                    flashStage={flashStage}
                     onSelect={selectCard}
                     onMoveStage={moveStage}
                   />
@@ -822,6 +919,8 @@ export default function ProgrammingPage() {
           <aside
             ref={panelRef}
             className={`ev-panel${isClosingDrawer ? "" : " open"}`}
+            style={selected ? { ["--tc" as string]: typeVisual(typeVisuals, selected.category).hex } : undefined}
+            data-stage={selected?.stage}
             role="dialog"
             aria-label="Event details"
           >
@@ -861,6 +960,7 @@ export default function ProgrammingPage() {
       {modal === "idea" && (
         <NewIdeaComposer
           categoryOptions={programmingFormOptions}
+          initial={ideaPreset}
           onCancel={() => setModal(null)}
           onCommit={handleAddIdea}
         />
@@ -930,6 +1030,21 @@ export default function ProgrammingPage() {
 
       {helpOpen && <EventsHelp onClose={() => setHelpOpen(false)} />}
 
+      {demoteTarget && (
+        <EventDemoteStep
+          event={demoteTarget.event}
+          date={demoteTarget.date}
+          onCancel={() => setDemoteTarget(null)}
+          onCommit={async () => {
+            const { event, date } = demoteTarget;
+            setDemoteTarget(null);
+            if (await commitStage(event.id, "planning", date)) {
+              toast.success(`“${event.title}” came off the Timeline — back in Planning for ${fmtDate(date)}.`);
+            }
+          }}
+        />
+      )}
+
       {wrapTarget && (
         <EventWrapUp
           event={wrapTarget}
@@ -951,3 +1066,11 @@ export default function ProgrammingPage() {
 }
 
 // ─── Helpers + on-deck hero ──────────────────────────────────────────────────
+
+/** Paper's empty-board ladder: each lane and what it costs to enter. */
+const STAGE_LADDER: Record<ProgrammingStage, { label: string; cost: string }> = {
+  idea:      { label: "Idea",      cost: "A title and a type." },
+  planning:  { label: "Planning",  cost: "Plus an owner — one person or role." },
+  confirmed: { label: "Confirmed", cost: "Plus a date and a place. Publishes it." },
+  done:      { label: "Done",      cost: "It happened. Rate it and file it." },
+};

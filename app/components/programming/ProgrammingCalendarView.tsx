@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { typeVisual, type TypeVisual } from "./typeColor";
 import { todayStr } from "../../lib/dates";
+import { needsWrapUp } from "@/lib/programming";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -113,6 +114,10 @@ export function ProgrammingCalendarView({
             <button onClick={() => setYm(TODAY.slice(0, 7))}>Today</button>
             <button onClick={() => shift(1)} aria-label="Next month">›</button>
           </div>
+          <span className="ev-cal-key pp-only" aria-hidden>
+            <span><i className="d" />not on the Timeline</span>
+            <span><i />on the Timeline</span>
+          </span>
         </div>
         <div className="ev-cal-dow">
           {WEEKDAYS.map(d => <span key={d}>{d}</span>)}
@@ -128,7 +133,7 @@ export function ProgrammingCalendarView({
                 onDragOver={day && accepts ? e => { e.preventDefault(); setOverDay(day); } : undefined}
                 onDragLeave={() => setOverDay(d => (d === day ? null : d))}
                 onDrop={day && accepts ? () => handleDrop(day) : undefined}
-                className={`ev-cal-cell${isOver && accepts ? " drop" : ""}`}
+                className={`ev-cal-cell${isOver && accepts ? " drop" : ""}${day && day < TODAY ? " past" : ""}${day == null ? " out" : ""}`}
               >
                 {day && (
                   <>
@@ -153,7 +158,9 @@ export function ProgrammingCalendarView({
                           onClick={() => onSelect(t.id)}
                           className={`ev-cal-chip${selectedId === t.id ? " sel" : ""}${
                             t.stage === "confirmed" || t.stage === "done" ? "" : " pencil"
-                          }`}
+                          }${needsWrapUp(t, TODAY) ? " wrap" : ""}`}
+                          data-stage={t.stage}
+                          style={{ ["--tc" as string]: typeVisual(visuals, t.category).hex }}
                         >
                           <span className="cdot" style={{ background: typeVisual(visuals, t.category).hex }} />
                           <span className="ct">{t.title}</span>

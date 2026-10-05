@@ -60,7 +60,7 @@ export function StageControl({
 
   return (
     <div className="ev-stage">
-      <div className="ev-stage-row" role="group" aria-label="Stage">
+      <div className="ev-stage-row" role="group" aria-label="Stage" style={{ "--w": `${at * 25}%` } as React.CSSProperties}>
         {STAGES.map((s, i) => {
           const isOn = s === event.stage;
           const isPast = i < at;

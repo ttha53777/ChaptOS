@@ -9,6 +9,7 @@ import { missingFor, needsWrapUp } from "@/lib/programming";
 import { ownerShortLabel } from "@/lib/event-owner";
 import { todayStr } from "../../lib/dates";
 import { cardWhen } from "./eventsCopy";
+import { PaperIcon } from "../paper/PaperIcon";
 
 const TODAY = todayStr();
 
@@ -222,7 +223,9 @@ function DuskCard({
       onDragStart={draggable ? onDragStart : undefined}
       onClick={onClick}
       className={`ev-card animate-fade-slide-in${isDone || task.stage === "idea" ? " ghost" : ""}${isPrivate ? " private" : ""}${selected ? " sel" : ""}${isDragging ? " dragging" : ""}`}
-      style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms`, ["--tc" as string]: visual.hex }}
+      data-stage={task.stage}
+      data-id={task.id}
+      style={{ animationDelay: `${Math.min(animIndex, 6) * 40}ms`, ["--tc" as string]: visual.hex, ["--rot" as string]: `${ideaTilt(task.id)}deg` }}
     >
       {/* The same red dot the sidebar puts on Events, so the card it was
           pointing at is findable on a full Confirmed lane. */}
@@ -230,7 +233,7 @@ function DuskCard({
       <div className="ec-t">{task.title}</div>
       <div className="ec-meta">
         <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
-        {sub && <span className="ec-where">{sub}</span>}
+        {sub && <span className="ec-where">{task.location && <PaperIcon name="pin" className="pp-only" />}{sub}</span>}
         {task.mandatory && <span className="ec-mand" title="Required of every member">Required</span>}
         {isDone && task.successRating != null && <CardStars value={task.successRating} />}
       </div>
@@ -256,6 +259,12 @@ function DuskCard({
       </div>
     </div>
   );
+}
+
+/** Paper's Idea cards are pinned-up sticky notes, each a little askew. Derived
+ *  from the id so a card keeps its tilt across renders and reloads. */
+function ideaTilt(id: number): number {
+  return ((id % 5) - 2) * 1.1;
 }
 
 /**

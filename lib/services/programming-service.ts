@@ -510,6 +510,20 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   const promoting = willPublish && pe.calendarEventId == null;
   const demoting  = !willPublish && pe.calendarEventId != null;
 
+  // A new date rides along only on the way off the Timeline: that's the one move
+  // where a plain PATCH can't follow (the date is frozen while published), and
+  // doing it as two requests could strand the event demoted on its old date.
+  const reschedule = input.dueDate !== undefined && input.dueDate !== pe.date
+    ? { date: input.dueDate, ...(followDateChange(pe.schedule, input.dueDate) ?? {}) }
+    : null;
+  if (input.dueDate !== undefined && !demoting) {
+    throw new ValidationError("A new date can only come with taking a published event back off the Timeline. Use the event's date field instead.");
+  }
+  if (reschedule) await assertWithinActiveSemester(ctx, reschedule.date);
+  const rescheduleData = reschedule
+    ? { date: reschedule.date, ...(reschedule.schedule ? { schedule: reschedule.schedule, time: reschedule.time } : {}) }
+    : {};
+
   // Promotion puts the event on the chapter's calendar — its date (set while in
   // Idea or Planning, where the bound isn't enforced) must fall in the active
   // semester. canEnter already guarantees a date exists by this point.
@@ -551,7 +565,7 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
         // that no longer exists. Releasing the link is what earns the delete.
         const released = await tx.programmingEvent.updateMany({
           where: { id, organizationId: ctx.orgId, calendarEventId: calId },
-          data:  { stage: next, calendarEventId: null },
+          data:  { stage: next, calendarEventId: null, ...rescheduleData },
         });
         if (released.count === 0) { lostRace = true; throw RACE_LOST; }
         await tx.calendarEvent.delete({ where: { id: calId } });
@@ -574,6 +588,11 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   await emit(ctx, "programming.stage_changed", { type: "ProgrammingEvent", id }, {
     title: pe.title, from: pe.stage, to: next, published: stageIsPublished(next),
   });
+  if (reschedule) {
+    await emit(ctx, "programming.updated", { type: "ProgrammingEvent", id }, {
+      title: pe.title, stage: next, changedFields: reschedule.schedule ? ["date", "schedule", "time"] : ["date"],
+    });
+  }
   if (createdCalendarId != null) {
     await emit(ctx, "calendar.created", { type: "CalendarEvent", id: createdCalendarId }, {
       title: pe.title, date: pe.date ?? "", category: pe.category,

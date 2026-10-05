@@ -17,6 +17,19 @@ import { useEffect, useRef, useState } from "react";
 import type { ProgrammingTask } from "../../data";
 import { fmtDate } from "../../data";
 import { typeVisual, type TypeVisual } from "./typeColor";
+import { needsWrapUp } from "@/lib/programming";
+import { formatEventTime } from "@/lib/event-time";
+import { todayStr } from "../../lib/dates";
+
+const MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Paper's stub line: how it went once wrapped, the nudge while it's owed,
+ *  otherwise when and where. */
+function stubLine(t: ProgrammingTask, today: string): string {
+  if (t.stage === "done") return `${t.successRating ? "★".repeat(t.successRating) + " · " : ""}wrapped`;
+  if (needsWrapUp(t, today)) return "happened · not wrapped";
+  return [formatEventTime(t.time, t.schedule), t.location].filter(Boolean).join(" · ");
+}
 
 /** How long a departing chip stays on screen before the list settles. */
 const LEAVE_MS = 300;
@@ -30,6 +43,7 @@ export function TimelineStrip({
   visuals: Map<string, TypeVisual>;
   onSelect: (id: number) => void;
 }) {
+  const today = todayStr();
   const published = tasks
     .filter(t => t.stage === "confirmed" || t.stage === "done")
     .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""));
@@ -72,17 +86,30 @@ export function TimelineStrip({
           {published.map(t => {
             const v = typeVisual(visuals, t.category);
             const isNew = !prevIds.current.has(t.id) && seededRef.current;
+            const wrap = needsWrapUp(t, today);
             return (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => onSelect(t.id)}
-                className={`ev-tl-chip${isNew ? " enter" : ""}${t.stage === "done" ? " done" : ""}`}
+                className={`ev-tl-chip${isNew ? " enter" : ""}${t.stage === "done" ? " done" : ""}${wrap ? " wrap" : ""}`}
+                style={{ ["--tc" as string]: v.hex }}
               >
-                <span className="cdot" style={{ background: v.hex }} />
-                <span className="t">{t.title}</span>
-                {t.location && <span className="l">{t.location}</span>}
-                <span className="d">{t.dueDate ? fmtDate(t.dueDate) : "—"}</span>
+                {/* Paper renders each published event as a ticket stub. */}
+                {t.dueDate && (
+                  <span className="tk-d pp-only" aria-hidden>
+                    <small>{MON3[Number(t.dueDate.slice(5, 7)) - 1]}</small>
+                    <b>{Number(t.dueDate.slice(8, 10))}</b>
+                  </span>
+                )}
+                <span className="tk-x pp-only">
+                  <span className="t">{t.title}</span>
+                  <span className="l">{stubLine(t, today)}</span>
+                </span>
+                <span className="cdot lg-only" style={{ background: v.hex }} />
+                <span className="t lg-only">{t.title}</span>
+                {t.location && <span className="l lg-only">{t.location}</span>}
+                <span className="d lg-only">{t.dueDate ? fmtDate(t.dueDate) : "—"}</span>
               </button>
             );
           })}
