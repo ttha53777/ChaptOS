@@ -154,7 +154,6 @@ export interface Task {
   completedAt: string | null;
   createdAt: string;
   assignments: TaskAssignment[];
-}
   /** Live "Everyone" target (no assignment rows): "any" = one person finishes it
    *  for the chapter, "each" = every member does their own. null = assignments. */
   everyone: "any" | "each" | null;
@@ -162,6 +161,7 @@ export interface Task {
    *  `status` is then the VIEWER's own part (see task-service toDTOs). */
   doneCount: number | null;
   memberCount: number | null;
+}
 
 // A poll is task-shaped (members/roles + optional date) with a question and 2-10
 // options that attached members vote on. Single-choice. It's a BLIND ballot: the
@@ -597,10 +597,10 @@ function isoDaysBetween(from: string, to: string): number {
 
 /** Short, comma-joined assignee labels for a task ("Alex, Recruitment, +2"). */
 export function taskAssigneeLabel(task: Task, max = 2): string {
-  const names = task.assignments.map(a =>
-    a.brother ? a.brother.name.split(" ")[0] : a.role ? a.role.name : "?",
   if (task.everyone === "each") return "Everyone";
   if (task.everyone === "any") return "Anyone";
+  const names = task.assignments.map(a =>
+    a.brother ? a.brother.name.split(" ")[0] : a.role ? a.role.name : "?",
   );
   if (names.length === 0) return "Unassigned";
   if (names.length <= max) return names.join(", ");

@@ -547,23 +547,23 @@ model Task {
   title          String
   dueDate        String? // ISO YYYY-MM-DD; null = undated to-do
   status         String    @default("open") // TaskStatus union in @/lib/state: "open" | "done"
-  notes          String?
-  createdById    Int? // Brother who created it; null for rows migrated from legacy Deadlines
   // Live "Everyone" target (TaskEveryone in @/lib/state), resolved to the roster
   // at READ time like role targets, so members who join later get it too. null =
   // assigned to the TaskAssignment rows. "any" = one person finishes it for the
   // chapter (shared status). "each" = every member does it: per-member ticks
   // live in TaskCompletion, and status flips to done once all have.
   everyone       String?
+  notes          String?
+  createdById    Int? // Brother who created it; null for rows migrated from legacy Deadlines
   completedById  Int?
   completedAt    DateTime?
   createdAt      DateTime  @default(now())
 
   organization Organization      @relation(fields: [organizationId], references: [id])
   assignments  TaskAssignment[]
+  completions  TaskCompletion[]
 
   @@index([organizationId])
-  completions  TaskCompletion[]
   @@index([organizationId, status])
 }
 
@@ -589,8 +589,6 @@ model TaskAssignment {
   @@index([organizationId, roleId])
 }
 
-// A poll is task-shaped (attach members/roles + an optional date) but adds a
-// question with 2-10 options that attached members vote on. Single-choice: one
 // One row per member who has done their part of an `everyone = "each"` task.
 // Unused for other tasks, whose single shared status says it all.
 model TaskCompletion {
@@ -608,6 +606,8 @@ model TaskCompletion {
   @@index([organizationId, brotherId])
 }
 
+// A poll is task-shaped (attach members/roles + an optional date) but adds a
+// question with 2-10 options that attached members vote on. Single-choice: one
 // vote per voter (PollVote @@unique). Results are live; closing locks voting but
 // keeps results visible. status is open/closed (PollStatus union in @/lib/state).
 model Poll {
