@@ -27,6 +27,9 @@ import {
 import { apiErrorMessage, requestJson } from "../../lib/api";
 import { type SeatWall } from "../../lib/seat-wall";
 import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
+import { useTrackedMetrics } from "../../hooks/useTrackedMetrics";
+import { PaperIcon, PaperTile, type PaperIconName } from "../../components/paper/PaperIcon";
+import { InviteLinkSheet, InviteLinkChip, useActiveInvites } from "../../components/members/InviteLinkSheet";
 import { todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/brotherhood-ledger.css";
@@ -42,14 +45,26 @@ type ServiceEventOption = { id: number; title: string; date: string };
 /** Shape of GET /api/brothers/ghost-accounts (lib/services/brother-service). */
 type GhostAccount = { brotherId: number; name: string; email: string | null; joinedAt: string };
 
-// Warm "Chapter Ledger" KPI cell — non-interactive (no per-KPI drawer on this page).
-// `note` carries the optional gold "needs attention" subline.
-function Measure({ label, prefix, value, unit, note, noteTone }: {
+// Warm "Chapter Ledger" KPI cell. There's no per-KPI drawer on this page: a click
+// re-sorts or filters the roster below to the people behind the number.
+// `note` carries the optional gold "needs attention" subline; `icon`/`color` are
+// the Paper aesthetic's glyph and its ink.
+function Measure({ label, prefix, value, unit, note, noteTone, icon, color, onClick }: {
   label: string; prefix?: string; value: string; unit?: string; note: string; noteTone?: "warn" | "ok";
+  icon?: PaperIconName; color?: string; onClick?: () => void;
 }) {
   return (
-    <div className="measure">
-      <p className="k">{label}</p>
+    <div
+      className="measure"
+      style={color ? ({ "--c": color } as React.CSSProperties) : undefined}
+      {...(onClick && {
+        role: "button",
+        tabIndex: 0,
+        onClick,
+        onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } },
+      })}
+    >
+      <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
       <p className="v">{prefix && <small>{prefix}</small>}{value}{unit && <small>{unit}</small>}</p>
       <p className={`note${noteTone ? ` ${noteTone}` : ""}`}>{note}</p>
     </div>
@@ -67,14 +82,14 @@ const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
 type SortKey = "attendance" | "gpa" | "serviceHours" | "duesOwed" | "name";
 
 // Sortable table header cell (mono caps, violet active arrow).
-function SortHead({ label, sortKey, activeKey, dir, onClick, numeric }: {
+function SortHead({ label, sortKey, activeKey, dir, onClick, numeric, className }: {
   label: string; sortKey: SortKey; activeKey: SortKey | null; dir: "asc" | "desc";
-  onClick: (k: SortKey) => void; numeric?: boolean;
+  onClick: (k: SortKey) => void; numeric?: boolean; className?: string;
 }) {
   const active = activeKey === sortKey;
   return (
     <th
-      className={`sortable${numeric ? " num" : ""}`}
+      className={`sortable${numeric ? " num" : ""}${className ? ` ${className}` : ""}`}
       onClick={() => onClick(sortKey)}
       aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
     >
@@ -97,6 +112,9 @@ export default function BrothersPage() {
   const orgPath = useOrgPath();
   const isOrgAdmin = useIsOrgAdmin();
   const THRESHOLDS = useThresholds();
+  // A metric the org switched off is a stored 0, not a measurement: no column,
+  // no measure, and it never moves anyone's standing.
+  const tracked = useTrackedMetrics();
   const canBrothers = can("MANAGE_BROTHERS");
   const canTreasury = can("MANAGE_TREASURY");
   // Invite links are gated on MANAGE_SETTINGS, not MANAGE_BROTHERS — roster CRUD
@@ -139,6 +157,8 @@ export default function BrothersPage() {
   // Members with access to this org who can't appear on its roster — see the
   // effect below.
   const [ghostAccounts,   setGhostAccounts]   = useState<GhostAccount[]>([]);
+  const [inviteOpen,      setInviteOpen]      = useState(false);
+  const rosterRef = React.useRef<HTMLElement | null>(null);
 
   // ?section=invitations is read on mount by the settings page, which opens the
   // Membership group and scrolls to the invitations block.
@@ -240,25 +260,25 @@ export default function BrothersPage() {
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     if (!brotherList.length) return null;
-    const attRisk  = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "At Risk").length;
-    const watching = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS) === "Watch").length;
+    const attRisk  = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "At Risk").length;
+    const watching = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "Watch").length;
     const duesTotal = brotherList.reduce((s, b) => s + b.duesOwed, 0);
     const svcMet   = brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length;
     return { avgAtt: avg(brotherList.map(b => b.attendance)), avgGpa: avg(brotherList.map(b => b.gpa)), attRisk, watching, duesTotal, svcMet, total: brotherList.length };
-  }, [brotherList, THRESHOLDS]);
+  }, [brotherList, THRESHOLDS, tracked]);
 
   const statusCounts = useMemo(() => {
     const counts = { All: brotherList.length, Good: 0, Watch: 0, "At Risk": 0 };
-    brotherList.forEach(b => { counts[getBrotherStatus(b, THRESHOLDS)]++; });
+    brotherList.forEach(b => { counts[getBrotherStatus(b, THRESHOLDS, tracked)]++; });
     return counts;
-  }, [brotherList, THRESHOLDS]);
+  }, [brotherList, THRESHOLDS, tracked]);
 
   // ── Filtered + sorted list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let result = brotherList.filter(b => {
       const q = search.toLowerCase();
       const matchQ = !q || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q);
-      const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS) === statusFilter;
+      const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, tracked) === statusFilter;
       return matchQ && matchS;
     });
     if (sortKey) {
@@ -269,7 +289,7 @@ export default function BrothersPage() {
       });
     }
     return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS]);
+  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, tracked]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -342,7 +362,7 @@ export default function BrothersPage() {
         b.gpa.toFixed(2),
         String(b.serviceHours),
         b.duesOwed.toFixed(2),
-        getBrotherStatus(b, THRESHOLDS),
+        getBrotherStatus(b, THRESHOLDS, tracked),
       ]),
     ];
     const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -368,10 +388,32 @@ export default function BrothersPage() {
     { value: "At Risk", cls: "s-risk",  dotCls: "bg-rose", label: "At risk", count: statusCounts["At Risk"] },
   ];
   const toggleStatus = (s: BrotherStatus) => setStatusFilter(statusFilter === s ? "All" : s);
+  const colCount = 2 + [tracked.attendance, tracked.gpa, tracked.serviceHours, tracked.duesOwed].filter(Boolean).length + customFieldDefs.length;
 
   // Live "needs attention" sentence for the editorial header.
-  const duesOwingCount = brotherList.filter(b => b.duesOwed > 0).length;
-  const belowAttend    = brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length;
+  const duesOwingCount = tracked.duesOwed ? brotherList.filter(b => b.duesOwed > 0).length : 0;
+  const belowAttend    = tracked.attendance ? brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length : 0;
+
+  // Day one: the founder is pinned to the roster at creation, so "nobody yet" is
+  // a one-row roster, not an empty one. Standing for one person says nothing;
+  // Paper shows how joining works there instead.
+  const dayOne = !isLoading && brotherList.length <= 1;
+  const dayOneInvites = useActiveInvites(canSettings && dayOne);
+  const seats = currentUser?.org?.seats ?? null;
+  const seatsLeft = seats ? Math.max(0, seats.capacity - seats.used) : null;
+  const memberPlural = v("Member", true).toLowerCase();
+
+  // A measure points at the people behind it: the money owed sorts largest-first,
+  // the averages sort worst-first, good standing filters. Then bring the roster up.
+  const focusRoster = (k: "attendance" | "gpa" | "serviceHours" | "duesOwed" | "good") => {
+    if (k === "good") setStatusFilter("Good");
+    else { setSortKey(k); setSortDir(k === "duesOwed" ? "desc" : "asc"); }
+    rosterRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const askWhoIsSlipping = () => {
+    window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: `Which ${memberPlural} are slipping, and why?` } }));
+  };
+  const todayChip = new Date().toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
@@ -408,8 +450,8 @@ export default function BrothersPage() {
             </button>
             {canSettings && (
               <button
-                onClick={goToInvites}
-                title="Create an invite link"
+                onClick={() => setInviteOpen(true)}
+                title="Invite with a link"
                 className="tb-btn flex h-8 items-center gap-1.5 rounded-full border border-indigo-500/20 bg-[rgba(var(--ink-rgb),0.04)] px-3.5 text-[12px] font-semibold text-[color:var(--vio)] transition-all hover:border-indigo-400/35 hover:bg-indigo-500/[0.08] hover:text-white"
               >
                 <svg className="h-3.5 w-3.5 text-indigo-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -483,10 +525,16 @@ export default function BrothersPage() {
             {/* ── Editorial header ── */}
             <div className="pagehead">
               <div>
-                <p className="kicker">{currentUser?.org?.name ?? "ChaptOS"} &ensp;·&ensp; {v("Member")} Roster</p>
-                <h1>The <em>{v("Member", true)}</em></h1>
+                <p className="kicker"><span className="today pp-only">{todayChip}</span>{currentUser?.org?.name ?? "ChaptOS"} &ensp;·&ensp; {v("Member")} Roster</p>
+                <h1>The <em>{v("Member", true)}<span className="pp-only">.</span></em></h1>
+                {dayOne && (
+                  <p className="summary pp-only">
+                    It&rsquo;s just you so far. Share an invite link &mdash; people sign in with Google,
+                    ask to join, and you approve them right here.
+                  </p>
+                )}
                 {kpis && (
-                  <p className="summary">
+                  <p className={`summary${dayOne ? " lg-only" : ""}`}>
                     {kpis.total} {v("Member", true).toLowerCase()} active.{" "}
                     <b>{statusCounts["At Risk"]} at risk</b> and <b>{statusCounts.Watch} on watch</b>
                     {(duesOwingCount > 0 || belowAttend > 0) && <>
@@ -499,19 +547,24 @@ export default function BrothersPage() {
               </div>
               <div className="head-actions">
                 {isOrgAdmin && <a className="btn" href={orgPath("/billing")}>Upgrade early</a>}
-                <button className="btn" onClick={handleExport} title="Export CSV">
-                  <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <button className="btn bh-export" onClick={handleExport} title="Export CSV">
+                  <svg className="lg-only" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  <PaperIcon name="out" className="pp-only" />
                   Export
                 </button>
                 {/* The roster is where anyone goes to think about adding people,
                     but inviting used to live only in Settings → Membership with
                     nothing here pointing at it. */}
                 {canSettings && (
-                  <button className="btn primary" onClick={goToInvites} title="Create an invite link">
-                    <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M10 5H6a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
+                  <button className="btn primary" onClick={() => setInviteOpen(true)} title="Invite with a link">
+                    <svg className="lg-only" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M10 5H6a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
+                    <PaperIcon name="envelope" className="pp-only" />
                     Invite {v("Member", true)}
                   </button>
                 )}
+                <button className="askbar pp-only" onClick={askWhoIsSlipping}>
+                  <PaperIcon name="spark" />Ask who&rsquo;s slipping<kbd>⌘K</kbd>
+                </button>
               </div>
             </div>
 
@@ -520,38 +573,82 @@ export default function BrothersPage() {
               <div className="ledger-skel" style={{ marginTop: 22 }}>{[...Array(5)].map((_, i) => <i key={i} />)}</div>
             ) : kpis && (
               <section className="ledger" style={{ marginTop: 22 }}>
-                <Measure
+                {tracked.attendance && <Measure
                   label="Attendance" value={kpis.avgAtt.toFixed(1)} unit="%"
                   note={belowAttend > 0 ? `${belowAttend} below ${THRESHOLDS.attendanceWatch}%` : "all on track"}
                   noteTone={belowAttend > 0 ? "warn" : "ok"}
-                />
-                <Measure
+                  icon="check" color="var(--pp-mint-ink)" onClick={() => focusRoster("attendance")}
+                />}
+                {tracked.gpa && <Measure
                   label={`${v("Meetings")} GPA`} value={kpis.avgGpa.toFixed(2)}
                   note={`${brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length} below ${THRESHOLDS.gpaWatch.toFixed(1)}`}
-                />
-                <Measure
+                  icon="star" color="var(--pp-lilac-ink)" onClick={() => focusRoster("gpa")}
+                />}
+                {tracked.duesOwed && <Measure
                   label={`${v("Dues")} outstanding`} prefix="$" value={kpis.duesTotal.toLocaleString()}
-                  note={duesOwingCount > 0 ? `${duesOwingCount} ${v("Member", true).toLowerCase()} owe` : "all paid up"}
+                  note={duesOwingCount > 0 ? `${duesOwingCount} ${memberPlural} owe` : "all paid up"}
                   noteTone={duesOwingCount > 0 ? "warn" : "ok"}
-                />
-                <Measure
+                  icon="wallet" color="var(--pp-butter-ink)" onClick={() => focusRoster("duesOwed")}
+                />}
+                {tracked.serviceHours && <Measure
                   label={`${v("Service")} hours`} value={String(brotherList.reduce((s, b) => s + b.serviceHours, 0))} unit="h"
                   note={`${kpis.svcMet} of ${kpis.total} on track`}
-                />
+                  icon="heart" color="var(--pp-sky-ink)" onClick={() => focusRoster("serviceHours")}
+                />}
                 <Measure
                   label="In good standing" value={String(statusCounts.Good)} unit={` / ${kpis.total}`}
-                  note={`${Math.round((statusCounts.Good / Math.max(1, kpis.total)) * 100)}% of ${v("Meetings").toLowerCase()}`}
+                  note={`${Math.round((statusCounts.Good / Math.max(1, kpis.total)) * 100)}% of ${memberPlural}`}
                   noteTone="ok"
+                  icon="people" color="var(--pp-mint-ink)" onClick={() => focusRoster("good")}
                 />
               </section>
             )}
 
             {/* ── Standing — interactive segmented bar ── */}
+            {dayOne && (
+              <section className="bh-inv pp-only" aria-label="How joining works">
+                <div>
+                  <p className="bh-eyebrow">How joining works</p>
+                  <h2>Joining is reviewed &mdash; a link isn&rsquo;t access.</h2>
+                  <p>
+                    Anyone with the link can ask. Their request waits here until you approve
+                    it, and you can hand them a role as you do.
+                  </p>
+                  {canSettings && (dayOneInvites.links[0] ? (
+                    <InviteLinkChip
+                      link={dayOneInvites.links[0]}
+                      onCopied={() => toast.success("Invite link copied")}
+                      onError={setPageError}
+                    />
+                  ) : dayOneInvites.loaded && (
+                    <button type="button" className="bh-btn" onClick={() => setInviteOpen(true)}>
+                      <PaperIcon name="link" />Get an invite link
+                    </button>
+                  ))}
+                </div>
+                <ol className="bh-steps">
+                  <li><span><b>Share the link</b><span>Drop it in the group chat or the recruitment email.</span></span></li>
+                  <li><span><b>They sign in with Google</b><span>&hellip;and ask to join. Nothing is created yet.</span></span></li>
+                  <li><span><b>You approve them here</b><span>One tap puts them on the roster &mdash; with a role if they hold one.</span></span></li>
+                </ol>
+              </section>
+            )}
+
             {!isLoading && kpis && (
-              <section className="dist">
+              <section className={`dist${dayOne ? " lg-only" : ""}`}>
                 <div className="dist-head">
                   <h2>Standing</h2>
-                  <span className="hint">Click a band to filter</span>
+                  <span className="hint lg-only">Click a band to filter</span>
+                  <span className="hint pp-only">
+                    Click a band or a face &mdash;{" "}
+                    {[
+                      tracked.attendance && `attendance under ${THRESHOLDS.attendanceWatch}%`,
+                      tracked.gpa && `GPA under ${THRESHOLDS.gpaWatch.toFixed(2)}`,
+                      tracked.duesOwed && `${v("Dues").toLowerCase()} owed`,
+                      tracked.serviceHours && `${v("Service").toLowerCase()} under ${THRESHOLDS.serviceHoursGoal}h`,
+                    ].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " or $1")}{" "}
+                    puts someone on watch.
+                  </span>
                 </div>
                 <div className="bh-seg">
                   {segments.filter(s => s.count > 0).map(s => (
@@ -562,7 +659,9 @@ export default function BrothersPage() {
                       onClick={() => toggleStatus(s.value)}
                       title={`${s.label} · ${s.count} — click to filter`}
                       aria-label={`Filter ${s.label}`}
-                    />
+                    >
+                      <span className="pp-only">{s.count > 2 ? s.count : ""}</span>
+                    </button>
                   ))}
                 </div>
                 <div className="seg-legend">
@@ -577,6 +676,34 @@ export default function BrothersPage() {
                       <span className="ct">{s.count}</span>
                     </button>
                   ))}
+                </div>
+                {/* Paper's class photo: every face, ringed by standing. A face opens
+                    that member's card; a band/legend filter dims everyone else. */}
+                <div className="bh-photo pp-only" aria-label={`Every ${v("Member").toLowerCase()}, ringed by standing`}>
+                  {brotherList.map(b => {
+                    const st = getBrotherStatus(b, THRESHOLDS, tracked);
+                    const ring = st === "Good" ? "ph-good" : st === "Watch" ? "ph-watch" : "ph-risk";
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        className={`${ring}${b.id === selfId ? " you" : ""}${statusFilter !== "All" && statusFilter !== st ? " dim" : ""}`}
+                        title={`${b.name} · ${STATUS_TAG[st].label.toLowerCase()}`}
+                        aria-label={`Open ${b.name}`}
+                        onClick={() => setSelectedId(b.id)}
+                      >
+                        <BrotherAvatar
+                          brother={b}
+                          selfId={selfId}
+                          selfAvatarUrl={currentUser?.avatarUrl}
+                          avatarRevision={avatarRevision}
+                          size="xs"
+                          ringClassName="bg-[var(--vio-bg)] text-[var(--vio)] text-[10px]"
+                        />
+                      </button>
+                    );
+                  })}
+                  <p className="cap">Everyone at a glance &mdash; {brotherList.length} {brotherList.length === 1 ? "face" : "faces"}, one ring each.</p>
                 </div>
               </section>
             )}
@@ -607,8 +734,9 @@ export default function BrothersPage() {
             )}
 
             {/* ── Roster ── */}
-            <section className="card roster" style={{ marginTop: 14 }} aria-label="Roster">
+            <section ref={rosterRef} className="card roster" style={{ marginTop: 14 }} aria-label="Roster">
               <div className="card-h">
+                <PaperTile icon="people" tone="sky" />
                 <h2>Roster <span className="count-chip" style={{ color: "var(--muted)", background: "var(--card-2)" }}>{filtered.length} shown</span></h2>
                 <div className="roster-tools">
                   <div className="filters">
@@ -634,27 +762,27 @@ export default function BrothersPage() {
                   <thead>
                     <tr>
                       <th>{v("Member")}</th>
-                      <SortHead label="Attendance" sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} />
-                      <SortHead label="GPA"        sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric />
-                      <SortHead label={v("Service")} sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric />
-                      <SortHead label={v("Dues")}  sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric />
+                      {tracked.attendance   && <SortHead label="Attendance" sortKey="attendance"   activeKey={sortKey} dir={sortDir} onClick={toggleSort} className="c-att" />}
+                      {tracked.gpa          && <SortHead label="GPA"        sortKey="gpa"          activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric className="c-gpa" />}
+                      {tracked.serviceHours && <SortHead label={v("Service")} sortKey="serviceHours" activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric className="c-svc" />}
+                      {tracked.duesOwed     && <SortHead label={v("Dues")}  sortKey="duesOwed"     activeKey={sortKey} dir={sortDir} onClick={toggleSort} numeric className="c-dues" />}
                       <th className="num">Status</th>
                       {customFieldDefs.map(f => (
-                        <th key={f.id} className="num">{f.label}</th>
+                        <th key={f.id} className="num c-cf">{f.label}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {isLoading ? (
                       [...Array(6)].map((_, i) => (
-                        <tr key={i}><td colSpan={6 + customFieldDefs.length} style={{ padding: 0 }}><div className="row-skel" /></td></tr>
+                        <tr key={i}><td colSpan={colCount} style={{ padding: 0 }}><div className="row-skel" /></td></tr>
                       ))
                     ) : brotherList.length === 0 ? (
                       /* A brand-new org used to be told its members didn't
                          "match your filters" — the one moment the page should be
                          handing over a way to get people in. */
                       <tr className="empty-row">
-                        <td colSpan={6 + customFieldDefs.length}>
+                        <td colSpan={colCount}>
                           <div className="roster-empty">
                             <div className="t">No one&rsquo;s on the roster yet</div>
                             <div className="h">
@@ -672,10 +800,10 @@ export default function BrothersPage() {
                         </td>
                       </tr>
                     ) : filtered.length === 0 ? (
-                      <tr className="empty-row"><td colSpan={6 + customFieldDefs.length}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
+                      <tr className="empty-row"><td colSpan={colCount}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
                     ) : (
                       filtered.map(b => {
-                        const status = getBrotherStatus(b, THRESHOLDS);
+                        const status = getBrotherStatus(b, THRESHOLDS, tracked);
                         const tag = STATUS_TAG[status];
                         const attCls = b.attendance >= THRESHOLDS.attendanceWatch ? "sage" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "gold" : "rose";
                         const attBar = b.attendance >= THRESHOLDS.attendanceWatch ? "bg-sage" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "bg-gold" : "bg-rose";
@@ -684,6 +812,7 @@ export default function BrothersPage() {
                         return (
                           <tr
                             key={b.id}
+                            data-st={tag.cls}
                             className={selectedId === b.id ? "sel" : undefined}
                             onClick={() => setSelectedId(selectedId === b.id ? null : b.id)}
                           >
@@ -702,7 +831,7 @@ export default function BrothersPage() {
                                     {b.name}
                                     {canAttendance && (pendingCounts[b.id] ?? 0) > 0 && (
                                       <span className="excuse-chip" title={`${pendingCounts[b.id]} pending excuse ${pendingCounts[b.id] === 1 ? "review" : "reviews"}`}>
-                                        {pendingCounts[b.id]}
+                                        <PaperIcon name="clip" className="pp-only" />{pendingCounts[b.id]}
                                       </span>
                                     )}
                                   </div>
@@ -710,15 +839,15 @@ export default function BrothersPage() {
                                 </div>
                               </div>
                             </td>
-                            <td>
+                            {tracked.attendance && <td className="c-att">
                               <div className="attb">
                                 <span className="track"><i className={attBar} style={{ width: `${clamp(b.attendance, 0, 100)}%` }} /></span>
                                 <span className={attCls}>{b.attendance}%</span>
                               </div>
-                            </td>
-                            <td className="num"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(2)}</span></td>
-                            <td className="num"><span className={`mono ${svcCls}`}>{b.serviceHours}h</span></td>
-                            <td className="num">
+                            </td>}
+                            {tracked.gpa && <td className="num c-gpa"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(2)}</span></td>}
+                            {tracked.serviceHours && <td className="num c-svc"><span className={`mono ${svcCls}`}>{b.serviceHours}h</span></td>}
+                            {tracked.duesOwed && <td className="num c-dues">
                               {b.duesOwed > 0 ? (
                                 <>
                                   <span className="mono gold">{fmt$(b.duesOwed)}</span>
@@ -729,10 +858,10 @@ export default function BrothersPage() {
                               ) : (
                                 <span className="mono muted">—</span>
                               )}
-                            </td>
+                            </td>}
                             <td className="num"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
                             {customFieldDefs.map(f => (
-                              <td key={f.id} className="num"><span className="mono muted">{b.customFields?.[f.id] != null ? String(b.customFields[f.id]) : "—"}</span></td>
+                              <td key={f.id} className="num c-cf"><span className="mono muted">{b.customFields?.[f.id] != null ? String(b.customFields[f.id]) : "—"}</span></td>
                             ))}
                           </tr>
                         );
@@ -752,6 +881,16 @@ export default function BrothersPage() {
           </div>
         </main>
       </div>
+
+      {inviteOpen && (
+        <InviteLinkSheet
+          memberWord={memberPlural}
+          seatsLeft={seatsLeft}
+          onClose={() => { setInviteOpen(false); if (dayOne) void dayOneInvites.reload(); }}
+          onCopied={() => toast.success("Invite link copied")}
+          onOpenSettings={() => { setInviteOpen(false); goToInvites(); }}
+        />
+      )}
 
       {/* ── Member card. Writes go straight to the API and patch brotherList;
           ←/→ follow the table's current filter + sort. ── */}

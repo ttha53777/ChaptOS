@@ -315,6 +315,19 @@ export function ChatWidget() {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [open, peek, idea, openSpotlight, closeSpotlight]);
 
+  // Pages open the spotlight with a question staged in the composer — staged,
+  // not sent, so the asker can still edit it. Fired as window "chapt:ask" with
+  // detail { q } (the roster's "Ask who's slipping").
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const q = (e as CustomEvent<{ q?: string }>).detail?.q;
+      openSpotlight();
+      if (q) setInput(q);
+    };
+    window.addEventListener("chapt:ask", onAsk);
+    return () => window.removeEventListener("chapt:ask", onAsk);
+  }, [openSpotlight]);
+
   // On open: dismiss the pulse for good; focus the composer.
   useEffect(() => {
     if (!open) return;

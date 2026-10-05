@@ -6,6 +6,7 @@ import { inputDuskCls, btnDuskActionCls, btnDuskGhostCls } from "./styles";
 import { Modal, ConfirmDialog } from "./primitives";
 import { ApiError, apiErrorCode, apiErrorMessage, requestJson } from "../../lib/api";
 import { seatWallFrom, type SeatWall } from "../../lib/seat-wall";
+import { PaperIcon } from "../paper/PaperIcon";
 
 /**
  * The review queue: people who opened an invite link and are waiting to be let in.
@@ -187,18 +188,31 @@ export function JoinRequestsPanel({
   // Strictly below, matching canGrantRank server-side: a Treasurer must not be
   // able to mint another Treasurer through the approval dialog.
   const grantable = roles.filter(r => r.rank < maxRank);
+  // Admins only (null otherwise) — /api/auth/me withholds plan headroom from officers.
+  const seats = currentUser?.org?.seats ?? null;
+  const seatsLeft = seats ? Math.max(0, seats.capacity - seats.used) : null;
 
   return (
     <>
       <section id="join-requests" className="jr-band" aria-label={`${total} people waiting to join`}>
         <div className="jr-head">
-          <span className="jr-dot" aria-hidden />
+          <span className="jr-dot lg-only" aria-hidden />
+          <PaperIcon name="envelope" className="jr-ic pp-only" />
           <h2 className="jr-title">
-            {total === 1
-              ? `1 person is waiting to join`
-              : `${total} people are waiting to join`}
+            <span className="lg-only">
+              {total === 1
+                ? `1 person is waiting to join`
+                : `${total} people are waiting to join`}
+            </span>
+            <span className="pp-only">{total === 1 ? "1 person wants in" : `${total} people want in`}</span>
           </h2>
-          <span className="jr-sub">They can&rsquo;t see anything until you approve them.</span>
+          <span className="jr-sub">
+            <span className="lg-only">They can&rsquo;t see anything until you approve them.</span>
+            <span className="pp-only">They opened an invite link. Nothing is created until you approve.</span>
+          </span>
+          {seatsLeft != null && (
+            <span className="jr-seats pp-only">{seatsLeft} seat{seatsLeft === 1 ? "" : "s"} left on your plan</span>
+          )}
         </div>
 
         <div className="jr-tools">
@@ -222,13 +236,23 @@ export function JoinRequestsPanel({
               </span>
 
               <span className="jr-meta">
-                {row.inviteLabel && <span className="jr-chip">{row.inviteLabel}</span>}
+                {row.inviteLabel && <span className="jr-chip lg-only">{row.inviteLabel}</span>}
+                <span className="jr-via pp-only">
+                  <PaperIcon name="link" />
+                  {row.inviteLabel ? <>via <b>{row.inviteLabel}</b> link</> : "via an invite link"}
+                </span>
                 <span className="jr-when">{waitedFor(row.createdAt)}</span>
               </span>
 
-              <button className="btn primary jr-review" disabled={busy} onClick={() => openReview(row)}>
-                Review
-              </button>
+              <span className="jr-acts">
+                <button className="btn primary jr-review" disabled={busy} onClick={() => openReview(row)}>
+                  <PaperIcon name="check" className="pp-only" />
+                  <span className="lg-only">Review</span><span className="pp-only">Review &amp; approve</span>
+                </button>
+                <button className="btn jr-decline pp-only" disabled={busy} onClick={() => setRejectTarget(row)}>
+                  Decline
+                </button>
+              </span>
             </li>
           ))}
         </ul>

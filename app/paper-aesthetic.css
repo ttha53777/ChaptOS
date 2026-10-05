@@ -1282,6 +1282,324 @@ html[data-aesthetic="paper"] .dash .gd-empty { padding: 16px 18px; border: 0; bo
 .pp-bit { position: fixed; z-index: 90; width: 9px; height: 12px; border-radius: 2px; pointer-events: none; animation: pp-bit .9s var(--pp-ease-out) forwards; }
 @keyframes pp-bit { to { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 0; } }
 
+/* ── 3d. Brotherhood (app/[slug]/brothers) ──────────────────────────────────────
+   The mock's #brotherhood: join requests as calling cards on a dashed guest-book
+   band → editorial header → five measure cards → Standing (ink-bordered bar,
+   pill legend, a class photo ringed by standing) → the roster as a register.
+   Day one swaps Standing for "How joining works". Measures, cards, filters and
+   status pills inherit from 3b because the page reuses the dashboard's .dash. */
+
+/* header ------------------------------------------------------------------- */
+html[data-aesthetic="paper"] .dash .pagehead { align-items: flex-end; gap: 20px 28px; }
+html[data-aesthetic="paper"] .dash .pagehead .kicker { font-size: .72rem; letter-spacing: .08em; }
+html[data-aesthetic="paper"] .dash .pagehead h1 {
+  font-family: var(--font-fraunces); font-weight: 600; letter-spacing: -.032em; line-height: 1.04;
+  font-size: clamp(2.05rem, 3.7vw, 3.05rem); margin-top: 14px; color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash .pagehead h1 em { font-style: normal; color: var(--ink); position: relative; white-space: nowrap; z-index: 0; }
+html[data-aesthetic="paper"] .dash .pagehead h1 em::before {
+  content: ""; position: absolute; z-index: -1; left: -.12em; right: -.12em; bottom: .04em; height: .5em;
+  background: var(--pp-peach); border-radius: .4em .55em .38em .6em;
+  transform: rotate(-.8deg); transform-origin: left center; opacity: var(--pp-mark-op);
+  animation: pp-mark .8s var(--pp-ease-spring) .35s both;
+}
+html[data-aesthetic="paper"] .dash .pagehead .summary {
+  margin-top: 14px; max-width: 62ch; font-family: var(--font-geist-sans); font-style: normal; font-weight: 400;
+  font-size: 1.02rem; line-height: 1.55; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .pagehead .summary b { font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .pagehead > div:first-child { flex: 1 1 440px; }
+html[data-aesthetic="paper"] .dash .head-actions { flex: 0 1 470px; gap: 10px; justify-content: flex-end; align-items: center; }
+html[data-aesthetic="paper"] .dash > .jr-note { font-size: .82rem; color: var(--muted); }
+
+/* the mock's .btn family: Invite is the ink button, Export the card ghost,
+   the billing link the quiet outline */
+html[data-aesthetic="paper"] .dash .btn,
+html[data-aesthetic="paper"] .bh-btn {
+  --bg: var(--card); --fg: var(--ink); --hs: var(--pp-peach);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: auto;
+  padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink);
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-geist-sans); font-weight: 600; font-size: .88rem; letter-spacing: -.01em; text-transform: none;
+  box-shadow: 2.5px 2.5px 0 var(--hs); white-space: nowrap; text-decoration: none;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), background .2s, color .2s;
+}
+html[data-aesthetic="paper"] .dash .btn:hover:not(:disabled),
+html[data-aesthetic="paper"] .bh-btn:hover:not(:disabled) {
+  transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); background: var(--bg); color: var(--fg); border-color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash .btn:active:not(:disabled),
+html[data-aesthetic="paper"] .bh-btn:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .btn:disabled { opacity: .55; cursor: default; }
+html[data-aesthetic="paper"] .dash .btn svg,
+html[data-aesthetic="paper"] .bh-btn svg { width: 15px; height: 15px; stroke: none; }
+html[data-aesthetic="paper"] .dash .btn.primary { --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-lilac); }
+html[data-aesthetic="paper"] .dash .head-actions a.btn { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .head-actions a.btn:hover { border-color: var(--muted); color: var(--ink); box-shadow: none; transform: translateY(-1px); }
+html[data-aesthetic="paper"] .bh-btn.sm { padding: 6px 12px; font-size: .8rem; box-shadow: 2px 2px 0 var(--hs); --hs: var(--pp-sky); }
+
+html[data-aesthetic="paper"] .dash .askbar {
+  display: inline-flex; align-items: center; gap: 9px; padding: 8px 10px 8px 14px; min-width: 230px;
+  border: 1.5px dashed var(--line-med); border-radius: 999px; background: transparent; color: var(--muted);
+  font-family: var(--font-geist-sans); font-size: .86rem; cursor: pointer;
+  transition: border-color .18s, color .18s, background .18s;
+}
+html[data-aesthetic="paper"] .dash .askbar:hover { border-color: var(--pp-lilac-ink); color: var(--ink); background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .dash .askbar svg { width: 14px; height: 14px; color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .askbar kbd {
+  margin-left: auto; font-family: var(--mono); font-size: .68rem; border: 1px solid var(--line-med); border-radius: 6px;
+  padding: 1px 6px; background: var(--paper-2); color: var(--muted);
+}
+
+/* measures: five cards (3b draws the card; here the grid and the ok tone) */
+html[data-aesthetic="paper"] .dash .ledger { margin-top: 26px; }
+html[data-aesthetic="paper"] .dash .measure .note.ok { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .measure[role="button"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+html[data-aesthetic="paper"] .dash .ledger-skel { margin-top: 26px; gap: 14px; border: 0; border-radius: 0; overflow: visible; }
+html[data-aesthetic="paper"] .dash .ledger-skel i { height: 96px; border-radius: 22px; border: 1.5px solid var(--line); }
+
+/* bands: notes, errors, the seat wall */
+html[data-aesthetic="paper"] .dash .page-note,
+html[data-aesthetic="paper"] .dash .page-err,
+html[data-aesthetic="paper"] .dash .seat-wall { border-radius: 16px; border-width: 1.5px; }
+html[data-aesthetic="paper"] .dash .page-note { background: var(--pp-lilac-soft); border-color: var(--pp-lilac-bd); }
+html[data-aesthetic="paper"] .dash .page-err { background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); }
+html[data-aesthetic="paper"] .dash .page-err p { color: var(--pp-peach-ink); font-size: .86rem; }
+html[data-aesthetic="paper"] .dash .page-err.warn { background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); }
+html[data-aesthetic="paper"] .dash .page-err.warn p { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .seat-wall { background: var(--card); border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--pp-lilac); }
+
+/* join requests: calling cards on a dashed guest-book band -------------------- */
+html[data-aesthetic="paper"] .dash .jr-band {
+  margin-bottom: 28px; padding: 16px 18px 18px; border-radius: 22px;
+  background: var(--pp-lilac-soft); border: 1.5px dashed var(--pp-lilac-bd);
+}
+html[data-aesthetic="paper"] .dash .jr-head { align-items: center; gap: 10px; }
+html[data-aesthetic="paper"] .dash .jr-head .jr-ic { width: 18px; height: 18px; color: var(--pp-lilac-ink); flex: none; }
+html[data-aesthetic="paper"] .dash .jr-title { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.12rem; letter-spacing: -.022em; }
+html[data-aesthetic="paper"] .dash .jr-sub { font-size: .82rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .jr-seats { margin-left: auto; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .jr-tools { padding: 12px 0 2px; }
+html[data-aesthetic="paper"] .dash .jr-tools input { flex: 0 1 280px; border-radius: 999px; border: 1.5px solid var(--pp-lilac-bd); background: var(--card); }
+html[data-aesthetic="paper"] .dash .jr-tools button { border-radius: 999px; }
+html[data-aesthetic="paper"] .dash .jr-list {
+  margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
+}
+html[data-aesthetic="paper"] .dash .jr-row {
+  --rot: -.5deg;
+  display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 12px; align-items: center;
+  padding: 14px 15px 13px; background: var(--card); border: 1.5px solid var(--ink);
+  border-radius: 6px 12px 7px 11px; box-shadow: 3px 3px 0 var(--pp-lilac);
+  transform: rotate(var(--rot)); transition: transform .25s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .jr-row:nth-child(2n) { --rot: .5deg; }
+html[data-aesthetic="paper"] .dash .jr-row:hover { transform: rotate(0); }
+html[data-aesthetic="paper"] .dash .jr-av { width: 40px; height: 40px; grid-row: span 1; border: 1.5px solid rgba(38,33,27,.08); }
+html[data-aesthetic="paper"] .dash .jr-av-fb { background: var(--pp-sky); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-weight: 700; font-size: .82rem; }
+html[data-aesthetic="paper"] .dash .jr-name { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.04rem; letter-spacing: -.02em; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-aesthetic="paper"] .dash .jr-mail { font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .jr-meta {
+  grid-column: 1 / -1; display: flex; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line-med);
+  font-size: .76rem; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .jr-via { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+html[data-aesthetic="paper"] .dash .jr-via svg { width: 13px; height: 13px; flex: none; }
+html[data-aesthetic="paper"] .dash .jr-via b { color: var(--ink-soft); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .jr-when { margin-left: auto; font-family: var(--mono); font-size: .68rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .jr-acts { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 10px; }
+html[data-aesthetic="paper"] .dash .jr-acts .btn { flex: 1; padding: 6px 12px; font-size: .8rem; box-shadow: 2px 2px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .jr-acts .jr-decline { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .jr-acts .jr-decline:hover:not(:disabled) { border-color: var(--muted); color: var(--ink); box-shadow: none; transform: translateY(-1px); }
+@media (max-width: 640px) {
+  html[data-aesthetic="paper"] .dash .jr-meta { display: flex; }
+}
+
+/* Standing --------------------------------------------------------------------- */
+html[data-aesthetic="paper"] .dash .dist {
+  --good: var(--pp-mint); --watch: var(--pp-butter); --risk: var(--pp-peach);
+  margin-top: 22px; padding: 18px 20px 20px; background: var(--card); border: 1.5px solid var(--line); border-radius: 22px; box-shadow: var(--pp-sh-1);
+}
+html[data-aesthetic="paper"] .dash .dist-head { justify-content: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 0; }
+html[data-aesthetic="paper"] .dash .dist-head h2 { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.2rem; letter-spacing: -.024em; }
+html[data-aesthetic="paper"] .dash .dist-head .hint { font-family: var(--font-geist-sans); font-size: .78rem; letter-spacing: 0; text-transform: none; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .bh-seg {
+  margin-top: 14px; gap: 0; height: 30px; border: 1.5px solid var(--ink); border-radius: 10px; overflow: hidden; box-shadow: 3px 3px 0 var(--line-med);
+}
+html[data-aesthetic="paper"] .dash .bh-seg button {
+  border-radius: 0; min-width: 0; padding: 0 10px; text-align: left; color: var(--pp-note-ink); filter: var(--pp-note-filter);
+  font-family: var(--mono); font-size: .72rem; font-weight: 600; white-space: nowrap; overflow: hidden; transition: opacity .2s;
+}
+html[data-aesthetic="paper"] .dash .bh-seg button + button { border-left: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .dash .bh-seg button:hover { filter: var(--pp-note-filter); opacity: 1; }
+html[data-aesthetic="paper"] .dash .bh-seg .s-good  { background: var(--good); }
+html[data-aesthetic="paper"] .dash .bh-seg .s-watch { background: var(--watch); }
+html[data-aesthetic="paper"] .dash .bh-seg .s-risk  { background: var(--risk); }
+html[data-aesthetic="paper"] .dash .seg-legend { margin-top: 10px; gap: 8px; }
+html[data-aesthetic="paper"] .dash .seg-legend button {
+  gap: 7px; padding: 5px 11px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--paper);
+  transition: border-color .15s, background .15s;
+}
+html[data-aesthetic="paper"] .dash .seg-legend button:hover { border-color: var(--muted); }
+html[data-aesthetic="paper"] .dash .seg-legend button.active { border-color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .dash .seg-legend .dot { width: 9px; height: 9px; border-radius: 3px; border: 1.5px solid currentColor; }
+html[data-aesthetic="paper"] .dash .seg-legend .bg-sage { background: var(--pp-mint);   color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .seg-legend .bg-gold { background: var(--pp-butter); color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .seg-legend .bg-rose { background: var(--pp-peach);  color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .seg-legend button:has(.bg-sage).active { box-shadow: 2px 2px 0 var(--pp-mint); }
+html[data-aesthetic="paper"] .dash .seg-legend button:has(.bg-gold).active { box-shadow: 2px 2px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .dash .seg-legend button:has(.bg-rose).active { box-shadow: 2px 2px 0 var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .seg-legend .lbl { font-size: .8rem; font-weight: 550; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .seg-legend .ct { font-size: .7rem; font-weight: 400; color: var(--muted); }
+
+/* the class photo: every face, ringed by standing */
+html[data-aesthetic="paper"] .dash .bh-photo { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line-med); display: flex; flex-wrap: wrap; gap: 6px; }
+html[data-aesthetic="paper"] .dash .bh-photo button {
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: none; position: relative; cursor: pointer;
+  transition: transform .18s var(--pp-ease-spring), opacity .2s;
+}
+html[data-aesthetic="paper"] .dash .bh-photo .ph-good  { --sb: var(--pp-mint); }
+html[data-aesthetic="paper"] .dash .bh-photo .ph-watch { --sb: var(--pp-butter); }
+html[data-aesthetic="paper"] .dash .bh-photo .ph-risk  { --sb: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .bh-photo button > * { width: 30px !important; height: 30px !important; border-radius: 50%; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--sb); }
+html[data-aesthetic="paper"] .dash .bh-photo button.you > * { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--sb), 0 0 0 5.5px var(--ink); }
+html[data-aesthetic="paper"] .dash .bh-photo button:hover { transform: translateY(-3px) scale(1.12); z-index: 2; }
+html[data-aesthetic="paper"] .dash .bh-photo button.dim { opacity: .22; }
+html[data-aesthetic="paper"] .dash .bh-photo button:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+html[data-aesthetic="paper"] .dash .bh-photo .cap { width: 100%; margin-top: 4px; font-size: .74rem; color: var(--muted); }
+
+/* day one: how joining works */
+html[data-aesthetic="paper"] .dash .bh-inv {
+  margin-top: 26px; display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 28px; align-items: center;
+  padding: clamp(20px,2.6vw,30px); background: var(--card); border: 1.5px solid var(--ink); border-radius: 28px; box-shadow: 7px 7px 0 var(--pp-sky);
+}
+html[data-aesthetic="paper"] .dash .bh-eyebrow {
+  display: inline-flex; align-items: center; gap: 9px; font-size: .7rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .bh-eyebrow::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: var(--pp-sky); }
+html[data-aesthetic="paper"] .dash .bh-inv h2 { font-family: var(--font-fraunces); font-weight: 600; letter-spacing: -.03em; font-size: clamp(1.4rem,2.2vw,1.8rem); line-height: 1.1; margin-top: 10px; }
+html[data-aesthetic="paper"] .dash .bh-inv > div > p:not(.bh-eyebrow) { font-size: .92rem; color: var(--ink-soft); margin-top: 8px; max-width: 48ch; }
+html[data-aesthetic="paper"] .dash .bh-inv .bh-linkchip,
+html[data-aesthetic="paper"] .dash .bh-inv > div > .bh-btn { margin-top: 16px; }
+html[data-aesthetic="paper"] .dash .bh-steps { display: grid; gap: 10px; counter-reset: s; list-style: none; margin: 0; padding: 0; }
+html[data-aesthetic="paper"] .dash .bh-steps li {
+  counter-increment: s; display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 12px; align-items: start;
+  padding: 12px 14px; border-radius: 16px; background: var(--paper); border: 1.5px solid var(--line);
+}
+html[data-aesthetic="paper"] .dash .bh-steps li::before {
+  content: counter(s); width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px;
+  background: var(--pp-sky); color: var(--pp-note-ink); border: 1.5px solid var(--pp-note-ink);
+  font-family: var(--font-fraunces); font-weight: 700; transform: rotate(-4deg); filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .dash .bh-steps li:nth-child(2)::before { background: var(--pp-butter); transform: rotate(3deg); }
+html[data-aesthetic="paper"] .dash .bh-steps li:nth-child(3)::before { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .dash .bh-steps b { display: block; font-size: .9rem; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .bh-steps b + span { display: block; font-size: .8rem; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+
+/* a copyable link — the day-one card and the Invite sheet */
+html[data-aesthetic="paper"] .bh-linkchip { padding: 6px 6px 6px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); }
+html[data-aesthetic="paper"] .bh-linkchip code { font-family: var(--mono); font-size: .8rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .bh-invite-meta b { color: var(--ink-soft); font-weight: 600; }
+
+/* the roster: a register --------------------------------------------------------- */
+html[data-aesthetic="paper"] .dash .roster { margin-top: 22px !important; overflow: hidden; }
+html[data-aesthetic="paper"] .dash .roster .card-h { align-items: center; row-gap: 12px; }
+html[data-aesthetic="paper"] .dash .roster .card-h h2 { margin-right: auto; }
+html[data-aesthetic="paper"] .dash .roster .count-chip { background: var(--pp-sky-soft); color: var(--pp-sky-ink); border-color: var(--pp-sky-bd); }
+html[data-aesthetic="paper"] .dash .roster .count-chip::before { display: none; }
+html[data-aesthetic="paper"] .dash .roster-tools { gap: 10px; }
+html[data-aesthetic="paper"] .dash .roster-tools .filters { flex-wrap: nowrap; }
+html[data-aesthetic="paper"] .dash .search svg { left: 12px; width: 14px; height: 14px; stroke: var(--muted); }
+html[data-aesthetic="paper"] .dash .search input {
+  width: 220px; padding: 7px 12px 7px 32px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--paper);
+  font-family: var(--font-geist-sans); font-size: .82rem; color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash .search input:focus { border-color: var(--muted); }
+html[data-aesthetic="paper"] .dash .roster thead th {
+  padding-block: 9px; background: var(--paper-2); border-top: 1.5px solid var(--line); border-bottom: 1.5px solid var(--line);
+  font-family: var(--font-geist-sans); font-size: .62rem; font-weight: 700; letter-spacing: .1em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .roster thead th.sortable:hover,
+html[data-aesthetic="paper"] .dash .roster thead th[aria-sort="ascending"],
+html[data-aesthetic="paper"] .dash .roster thead th[aria-sort="descending"] { color: var(--ink); }
+html[data-aesthetic="paper"] .dash .roster thead th .arrow { font-family: var(--mono); color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .roster tbody td { padding-block: 9px; border-bottom: 1px solid var(--pp-sky-bd); font-size: .86rem; }
+html[data-aesthetic="paper"] .dash .roster tbody tr { transition: background .15s; }
+html[data-aesthetic="paper"] .dash .roster tbody tr:hover { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .roster tbody tr[data-st="st-risk"] { background: color-mix(in srgb, var(--pp-peach-soft) 55%, transparent); }
+html[data-aesthetic="paper"] .dash .roster tbody tr[data-st="st-risk"]:hover { background: var(--pp-peach-soft); }
+html[data-aesthetic="paper"] .dash .roster tbody tr.sel { background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .dash .roster tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .roster .b-name { gap: 10px; }
+html[data-aesthetic="paper"] .dash .roster .b-name .nm { display: flex; align-items: center; gap: 7px; font-size: .88rem; font-weight: 600; letter-spacing: -.01em; }
+html[data-aesthetic="paper"] .dash .roster .b-name .rl { font-size: .74rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .b-name .excuse-chip {
+  display: inline-flex; align-items: center; gap: 3px; margin: 0; padding: 0 6px; height: 18px; border-radius: 999px;
+  border: 1px solid var(--pp-butter-bd); background: var(--pp-butter-soft); color: var(--pp-butter-ink); font-size: .62rem;
+}
+html[data-aesthetic="paper"] .dash .b-name .excuse-chip svg { width: 11px; height: 11px; }
+html[data-aesthetic="paper"] .dash .roster .attb { gap: 9px; font-family: var(--mono); font-size: .76rem; }
+html[data-aesthetic="paper"] .dash .roster .attb .track { flex: 1; max-width: 96px; height: 6px; border-radius: 4px; background: var(--card-3); }
+html[data-aesthetic="paper"] .dash .roster .attb .track i { border-radius: 4px; }
+html[data-aesthetic="paper"] .dash .roster .attb .track .bg-sage { background: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .roster .attb .track .bg-gold { background: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .roster .attb .track .bg-rose { background: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .roster .attb .sage { color: var(--ink); }
+html[data-aesthetic="paper"] .dash .roster .attb .gold { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .roster .attb .rose { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .roster td .mono { font-size: .8rem; }
+html[data-aesthetic="paper"] .dash .roster td .mono.gold { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash .roster td .mono.rose { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .roster td .mono.muted { color: var(--muted); }
+/* Pay: a small ink pill with a mint shadow — always there on owing rows */
+html[data-aesthetic="paper"] .dash .roster .pay-act {
+  opacity: 1; margin-left: 8px; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); border-radius: 999px;
+  padding: 2px 9px; font-family: var(--font-geist-sans); font-size: .72rem; font-weight: 600; letter-spacing: 0; text-transform: none;
+  box-shadow: 1.5px 1.5px 0 var(--pp-mint); transition: transform .15s var(--pp-ease-spring), box-shadow .15s;
+}
+html[data-aesthetic="paper"] .dash .roster .pay-act:hover { transform: translate(-1px,-1px); box-shadow: 2.5px 2.5px 0 var(--pp-mint); color: var(--ink); border-color: var(--ink); }
+html[data-aesthetic="paper"] .dash .roster .c-cf .mono { font-family: var(--font-geist-sans); font-size: .78rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .roster .table-foot {
+  padding: 11px 18px; border-top: 1.5px solid var(--line); background: var(--paper-2);
+  font-family: var(--mono); font-size: .7rem; letter-spacing: 0; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .roster .empty-row td { font-family: var(--font-geist-sans); font-style: normal; font-size: .88rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .roster .roster-empty .t { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.12rem; letter-spacing: -.022em; }
+html[data-aesthetic="paper"] .dash .roster .roster-empty .h { font-size: .86rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .roster .row-skel { background: var(--card); }
+
+/* columns give way as the page narrows: custom fields, then GPA/service, then attendance */
+@media (max-width: 1180px) {
+  html[data-aesthetic="paper"] .dash .ledger { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(3, minmax(0,1fr)); }
+  html[data-aesthetic="paper"] .dash .roster .c-cf { display: none; }
+}
+@media (max-width: 900px) {
+  html[data-aesthetic="paper"] .dash .roster .c-gpa,
+  html[data-aesthetic="paper"] .dash .roster .c-svc { display: none; }
+  html[data-aesthetic="paper"] .dash .bh-inv { grid-template-columns: minmax(0,1fr); }
+  html[data-aesthetic="paper"] .dash .roster .card-h h2 { margin-right: 0; }
+  html[data-aesthetic="paper"] .dash .head-actions { flex-basis: 100%; justify-content: flex-start; }
+}
+@media (max-width: 640px) {
+  html[data-aesthetic="paper"] .dash .ledger { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  html[data-aesthetic="paper"] .dash .roster .c-att { display: none; }
+  html[data-aesthetic="paper"] .dash .roster-tools { width: 100%; }
+  html[data-aesthetic="paper"] .dash .roster-tools .filters { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  html[data-aesthetic="paper"] .dash .roster-tools .filters button { flex: none; }
+  html[data-aesthetic="paper"] .dash .roster-tools .search,
+  html[data-aesthetic="paper"] .dash .search input { width: 100%; }
+  html[data-aesthetic="paper"] .dash .askbar { min-width: 0; }
+  html[data-aesthetic="paper"] .dash .roster thead th,
+  html[data-aesthetic="paper"] .dash .roster tbody td { padding-inline: 6px; }
+  html[data-aesthetic="paper"] .dash .roster thead th:first-child,
+  html[data-aesthetic="paper"] .dash .roster tbody td:first-child { padding-left: 14px; }
+  html[data-aesthetic="paper"] .dash .roster thead th:last-child,
+  html[data-aesthetic="paper"] .dash .roster tbody td:last-child { padding-right: 12px; }
+  html[data-aesthetic="paper"] .dash .roster .b-name .nm { white-space: normal; }
+  html[data-aesthetic="paper"] .dash .roster .status-tag { padding: 2px 7px; font-size: .68rem; }
+  html[data-aesthetic="paper"] .dash .roster .status-tag::before { display: none; }
+  html[data-aesthetic="paper"] .dash .roster .pay-act { display: table; margin: 4px 0 0 auto; }
+}
+
 /* ── 3c. Ask Chapt launcher ─────────────────────────────────────────────────── */
 html[data-aesthetic="paper"] .chat-launcher {
   background: var(--card); border: 1.5px solid var(--ink); color: var(--ink); border-radius: 999px;
