@@ -30,7 +30,7 @@ import type { EventIdeaInput } from "@/lib/validation/ai";
 export interface EventIdeaCategory {
   slug: string;
   label: string;
-  /** Chapter events must be mandatory — the card enforces it, so it must know. */
+  /** The type's default for the card's Mandatory toggle. */
   mandatoryDefault: boolean;
 }
 

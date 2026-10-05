@@ -193,7 +193,7 @@ async function main() {
   await prisma.partyEvent.createMany({ data: partyData });
   console.log(`Seeded ${partyData.length} party events.`);
 
-  const calData = calendarEvents.map(({ id: _id, schedule: _schedule, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
+  const calData = calendarEvents.map(({ id: _id, schedule: _schedule, notesSummaryData: _summary, ...rest }) => ({ ...rest, organizationId: ORG_ID }));
   const createdEvents = await prisma.calendarEvent.createManyAndReturn({ data: calData });
   console.log(`Seeded ${calData.length} calendar events.`);
 

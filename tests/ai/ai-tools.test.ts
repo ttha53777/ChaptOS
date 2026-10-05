@@ -175,10 +175,10 @@ describe("argument validation rejects malformed input as {error}", () => {
     expect(out).toHaveProperty("error");
   });
 
-  it("chapter calendar event cannot be non-mandatory", async () => {
+  it("chapter calendar event may be optional", async () => {
     const { scoped } = mockScoped();
     const out = await runProposal("propose_add_calendar_event", { title: "x", date: "2026-07-01", category: "chapter", mandatory: false }, scoped, PCTX);
-    expect(out).toHaveProperty("error");
+    expect(out).not.toHaveProperty("error");
   });
 });
 

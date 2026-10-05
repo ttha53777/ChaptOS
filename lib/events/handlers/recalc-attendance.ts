@@ -38,3 +38,11 @@ on("calendar.deleted", async (ctx) => {
   const semester = await ctx.db.semester.findFirst({ where: { isActive: true } });
   if (semester) await recalcAllBrothersInSemester(ctx.db, semester.id);
 });
+
+// Flipping an event between required and optional moves it in or out of every
+// member's ratio (lib/attendance.ts counts mandatory events only).
+on("calendar.updated", async (ctx, { metadata }) => {
+  if (!metadata.changedFields.includes("mandatory")) return;
+  const semester = await ctx.db.semester.findFirst({ where: { isActive: true } });
+  if (semester) await recalcAllBrothersInSemester(ctx.db, semester.id);
+});

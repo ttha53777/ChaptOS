@@ -101,15 +101,10 @@ export function EventDraftCard({ card, categories, draft, onChange, onConfirm, o
   const missing = useMemo(() => draftMissing(draft), [draft]);
   const set = (patch: Partial<EventDraft>) => onChange({ ...draft, ...patch });
 
-  // Picking a category adopts that type's mandatory default — chapter events
-  // must be mandatory (the server refuses otherwise), so the toggle follows the
-  // chip rather than stranding the user on a combination that can't post.
+  // Picking a category adopts that type's mandatory default.
   const pickCategory = (c: DraftCategory) => {
-    set(c.slug === "chapter"
-      ? { category: c.slug, mandatory: true }
-      : { category: c.slug, mandatory: c.mandatoryDefault });
+    set({ category: c.slug, mandatory: c.slug === "chapter" || c.mandatoryDefault });
   };
-  const lockedMandatory = draft.category === "chapter";
 
   if (settled) {
     const approved = card.state === "approved";
@@ -203,14 +198,12 @@ export function EventDraftCard({ card, categories, draft, onChange, onConfirm, o
           className={`etoggle${draft.mandatory ? " on" : ""}`}
           role="switch"
           aria-checked={draft.mandatory}
-          disabled={lockedMandatory}
           onClick={() => set({ mandatory: !draft.mandatory })}
         >
           <span className="knob" />
         </button>
         <span className="elbl">
           Mandatory
-          {lockedMandatory && <em> — chapter events always are</em>}
         </span>
       </div>
 

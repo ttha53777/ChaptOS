@@ -789,6 +789,10 @@ model CalendarEvent {
   notesDocSeq       Int                          @default(0)
   notesContentRevision Int                       @default(0)
   notesSummaryRevision Int?
+  // Structured AI summary: { gist, decisions[], actions[] } — action items carry
+  // an owner and a done flag officers tick off. notesSummary keeps the rendered
+  // markdown for every other reader (Timeline, Ask Chapt). lib/meeting-summary.ts.
+  notesSummaryData  Json?
   notesProtocolVersion Int                       @default(1)
   // Used by the Programming page (events workflow). Chapter/Timeline rows keep defaults.
   owner             String                     @default("")

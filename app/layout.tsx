@@ -4,6 +4,7 @@ import "./globals.css";
 import "./paper-aesthetic.css";
 import "./paper-overlays.css";
 import "./paper-programming.css";
+import "./paper-chapter.css";
 import { ChapterProvider } from "./context/ChapterContext";
 import { ChatWidgetGate } from "./components/ChatWidgetGate";
 import { SemesterGate } from "./components/SemesterGate";

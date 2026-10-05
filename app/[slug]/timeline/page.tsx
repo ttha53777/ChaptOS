@@ -1420,6 +1420,17 @@ export default function TimelinePage() {
     requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
+  // Deep link: /timeline?review=1 (the Chapter page's "N excuses waiting")
+  // opens the review panel once there is something in it.
+  const wantsReview = searchParams.get("review") === "1";
+  const didOpenReview = useRef(false);
+  useEffect(() => {
+    if (!wantsReview || didOpenReview.current || pendingExcuses.length === 0) return;
+    didOpenReview.current = true;
+    openReviewPanel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantsReview, pendingExcuses.length]);
+
   // Scroll-spy: show "Jump to today" only when the Today marker is off-screen,
   // and point the arrow toward it. Re-attaches whenever the marker remounts
   // (the list emptying and refilling under a filter).

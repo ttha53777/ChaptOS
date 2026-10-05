@@ -17,9 +17,6 @@ export const createCalendarInput = z.object({
   location:    z.string().nullable().optional(),
   owner:       z.string().max(200).optional(),
   status:      z.string().max(50).optional(),
-}).refine(d => d.category !== "chapter" || d.mandatory, {
-  message: "Chapter events must be mandatory",
-  path: ["mandatory"],
 });
 export type CreateCalendarInput = z.infer<typeof createCalendarInput>;
 

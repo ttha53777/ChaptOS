@@ -10,6 +10,11 @@ export type AttendanceSummaryRow = {
   calendarEventId: number;
   present:         number;
   eligible:        number;
+  /** Approved excuses for this event (exempt members aside). */
+  excused:         number;
+  /** Who the roll will cover: roster minus exempt minus excused. What an
+   *  untaken event expects; once taken, eligible is the real denominator. */
+  expected:        number;
 };
 
 /**
@@ -46,10 +51,10 @@ export async function summarizeAttendance(
   if (eventIds.length === 0 || !semester) {
     // No semester → no records to count; return zeroed rows so the caller still
     // learns which events exist.
-    return eventIds.map(id => ({ calendarEventId: id, present: 0, eligible: 0 }));
+    return eventIds.map(id => ({ calendarEventId: id, present: 0, eligible: 0, excused: 0, expected: 0 }));
   }
 
-  const [records, excuses, exemptions] = await Promise.all([
+  const [records, excuses, exemptions, rosterIds] = await Promise.all([
     ctx.db.attendanceRecord.findMany({
       where: { semesterId: semester.id, calendarEventId: { in: eventIds } },
       select: { calendarEventId: true, brotherId: true, attended: true },
@@ -62,6 +67,7 @@ export async function summarizeAttendance(
       where: { semesterId: semester.id },
       select: { brotherId: true },
     }),
+    ctx.db.member.listIds(),
   ]);
   // Semester-exempt members are dropped from every event's numerator and
   // denominator (they hold no eligible-attendance obligation this term).
@@ -89,7 +95,11 @@ export async function summarizeAttendance(
     if (r.attended) c.present += 1;
   }
 
-  return eventIds.map(id => ({ calendarEventId: id, ...counts.get(id)! }));
+  const rosterCount = rosterIds.filter(id => !exemptBrotherIds.has(id)).length;
+  return eventIds.map(id => {
+    const excused = [...(excusedByEvent.get(id) ?? [])].filter(b => !exemptBrotherIds.has(b)).length;
+    return { calendarEventId: id, ...counts.get(id)!, excused, expected: Math.max(rosterCount - excused, 0) };
+  });
 }
 
 export async function recordAttendance(ctx: RequestContext, input: RecordAttendanceInput) {

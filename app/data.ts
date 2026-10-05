@@ -279,6 +279,8 @@ export interface CalendarEvent {
   description?: string;
   location?: string;
   notesSummary?: string | null;
+  /** Structured summary (lib/meeting-summary.ts); parse before reading. */
+  notesSummaryData?: unknown;
   notesSummaryAt?: string | null;
   notesUpdatedAt?: string | null;
   notesContentRevision?: number;

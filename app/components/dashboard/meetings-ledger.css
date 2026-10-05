@@ -106,3 +106,90 @@
 
 /* Empty-state line inside the ledger list. */
 .dash .r-locked { padding: 13px 16px; font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); text-align: center; }
+
+/* ── Briefing actions ────────────────────────────────────────────────────────── */
+.dash .ch-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+/* ── On deck: messages, excuse link, optional meetings ───────────────────────── */
+.dash .ondeck .od-progress .p-msg { margin-top: 8px; font-size: 12px; color: var(--muted); }
+.dash .ondeck .od-progress .p-lbl.ok { color: var(--ok); }
+.dash .ondeck .p-legend .li.ex { color: var(--gold); }
+.dash .ondeck .od-exc { margin-top: 14px; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--gold); background: none; border: 0; padding: 0; cursor: pointer; }
+.dash .ondeck .od-exc:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Past-meetings filter tabs ───────────────────────────────────────────────── */
+.dash .mt-tabs { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+.dash .mt-tabs button { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 6px 11px; border-radius: 6px; background: none; border: 0; cursor: pointer; }
+.dash .mt-tabs button:hover { color: var(--ink); }
+.dash .mt-tabs button.on { background: var(--vio-bg); color: var(--vio); }
+.dash .mt-tabs .ct { opacity: .7; margin-left: 3px; }
+.dash .led-main .t .opt { font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
+.dash .led-row.fresh { animation: mt-fresh 2.4s ease-out; }
+@keyframes mt-fresh { from { background: var(--vio-bg); } }
+
+/* ── The minutes overlay: legal pad + margin column ──────────────────────────── */
+.dash.mt-ov .mt-meta .mt-req { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); }
+.dash.mt-ov .mt-meta .mt-req.on { color: var(--vio); background: var(--vio-bg); border-color: transparent; }
+.dash.mt-ov .mt-meta .mt-attchip { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; background: var(--card); }
+.dash.mt-ov .mt-meta button.mt-attchip:hover { border-color: var(--vio); color: var(--ink); }
+.dash.mt-ov .mt-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,300px); gap: 28px; max-width: 1000px; margin: 0 auto; padding: 28px 28px 60px; }
+.dash.mt-ov .mt-side { display: grid; gap: 16px; align-content: start; }
+.dash.mt-ov .mt-err { margin-bottom: 16px; border: 1px solid rgba(var(--rose-rgb),.2); background: rgba(var(--rose-rgb),.1); color: var(--rose); border-radius: 8px; padding: 8px 12px; font-size: 12px; }
+.dash.mt-ov .mt-pad-h { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.dash.mt-ov .mt-pad-h .lbl { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.dash.mt-ov .mt-pad-h .hint { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.dash.mt-ov .mt-pad-text { display: block; width: 100%; min-height: 55vh; resize: none; overflow: hidden; border: 1px solid rgba(var(--ink-rgb),.12); border-radius: 8px; background: var(--paper); color: var(--ink); padding: 14px 16px; font: 13px/1.75 var(--mono); outline: none; }
+.dash.mt-ov .mt-pad-text:focus { border-color: var(--vio); }
+.dash.mt-ov .mt-pad-text::placeholder { color: var(--faint); }
+
+.dash.mt-ov .mt-sum { border: 1px solid rgba(var(--vio-rgb),.2); background: rgba(var(--vio-rgb),.04); border-radius: 12px; padding: 14px 16px; font-size: 13px; color: var(--ink-soft); }
+.dash.mt-ov .mt-sum.stale { border-color: rgba(var(--gold-rgb),.3); background: rgba(var(--gold-rgb),.04); }
+.dash.mt-ov .mt-sum.empty { border-style: dashed; border-color: var(--line); background: transparent; }
+.dash.mt-ov .mt-sum.empty p { margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.dash.mt-ov .mt-sum .hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dash.mt-ov .mt-sum .ai-chip { margin: 0; }
+.dash.mt-ov .mt-sum .at { font-size: 10px; color: var(--faint); }
+.dash.mt-ov .mt-sum .stl { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--gold); }
+.dash.mt-ov .mt-sum .stl button { color: inherit; text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; }
+.dash.mt-ov .mt-sum .gist { margin-top: 10px; font-family: var(--serif); font-size: 16px; line-height: 1.4; color: var(--ink); }
+.dash.mt-ov .mt-sum h5, .dash.mt-ov .mt-sum .mt-sum-h5 { margin: 14px 0 6px; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); }
+.dash.mt-ov .mt-sum .mt-sum-md { margin-top: 10px; }
+.dash.mt-ov .mt-sum .mt-sum-md .mt-sum-h5:first-child { margin-top: 0; }
+.dash.mt-ov .mt-sum .dec { list-style: disc; margin-left: 18px; display: grid; gap: 4px; }
+.dash.mt-ov .mt-sum .none { font-size: 12px; color: var(--faint); }
+.dash.mt-ov .mt-sum-run { margin-top: 10px; display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--muted); }
+.dash.mt-ov .mt-sum-run .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: mt-spin .8s linear infinite; flex: none; }
+@keyframes mt-spin { to { transform: rotate(360deg); } }
+.dash.mt-ov .aitem { display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 9px; align-items: start; width: 100%; padding: 5px 4px; border: 0; background: none; text-align: left; border-radius: 8px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.35; cursor: pointer; }
+.dash.mt-ov .aitem:disabled { cursor: default; }
+.dash.mt-ov .aitem:not(:disabled):hover { background: rgba(var(--ink-rgb),.05); }
+.dash.mt-ov .aitem .bx { width: 16px; height: 16px; margin-top: 1px; border-radius: 5px; border: 1.5px solid currentColor; display: grid; place-items: center; opacity: .75; }
+.dash.mt-ov .aitem .bx svg { width: 10px; height: 10px; opacity: 0; }
+.dash.mt-ov .aitem.done .bx { background: var(--vio); border-color: var(--vio); color: var(--paper); opacity: 1; }
+.dash.mt-ov .aitem.done .bx svg { opacity: 1; }
+.dash.mt-ov .aitem.done .tx { text-decoration: line-through; opacity: .55; }
+.dash.mt-ov .aitem small { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+.dash.mt-ov .aitem small .late { color: var(--rose); font-weight: 700; }
+
+.dash.mt-ov .mt-att { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 14px 16px; }
+.dash.mt-ov .mt-att .hd { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.dash.mt-ov .mt-att .hd h5 { flex: 1; font-size: 10px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dash.mt-ov .mt-att .hd button { font-size: 11px; font-weight: 600; color: var(--vio); background: none; border: 0; cursor: pointer; }
+.dash.mt-ov .mt-att .none { font-size: 12px; color: var(--muted); }
+.dash.mt-ov .mt-att .ev-att-group + .ev-att-group { margin-top: 10px; }
+.dash.mt-ov .mt-att .gh { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-size: 11px; font-weight: 600; }
+.dash.mt-ov .mt-att .gh .d { width: 7px; height: 7px; border-radius: 50%; }
+.dash.mt-ov .mt-att .gh .gc { color: var(--muted); font-family: var(--mono); }
+.dash.mt-ov .mt-att .nms { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.dash.mt-ov .mt-att .nm { font-size: 12px; color: var(--ink-soft); background: none; border: 0; padding: 0; cursor: pointer; }
+.dash.mt-ov .mt-att .nm:hover { color: var(--ink); text-decoration: underline; }
+
+/* the shared (collaborative) editor brings its own label row and host */
+.dash.mt-ov .mt-pad.shared .collaborative-notes { min-width: 0; }
+
+@media (max-width: 900px) {
+  .dash.mt-ov .mt-grid { grid-template-columns: minmax(0,1fr); padding: 18px 16px 50px; }
+  .dash.mt-ov .mt-side { order: -1; }
+}
+/* the ledger-only meta run joins the row's flex gap instead of collapsing it */
+.dash .ondeck .od-meta .od-lg { display: contents; }

@@ -10,3 +10,9 @@ export const saveNotesInput = z.object({
   lastSeenSeq: z.number().int().nonnegative(),
 }).strict();
 export type SaveNotesInput = z.infer<typeof saveNotesInput>;
+
+/** PATCH /api/calendar/[id]/action-items — tick one summary action item. */
+export const toggleActionItemInput = z.object({
+  itemId: z.string().min(1).max(40),
+  done:   z.boolean(),
+}).strict();

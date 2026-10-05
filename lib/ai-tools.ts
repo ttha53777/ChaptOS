@@ -2555,9 +2555,8 @@ async function proposeAddCalendarEvent(args: ToolArgs, scoped: Scoped): Promise<
   if (!type) return badProposal(`Unknown event type "${rawCategory}" — this chapter's types are: ${describeTypes(types)}.`);
   if (!type.creatable || type.hidden) return badProposal(`The "${type.label}" event type isn't available for new events.`);
   const category = type.slug;
-  // mandatory is optional: default true for chapter (which must be mandatory anyway), false otherwise.
+  // mandatory is optional: default true for chapter, false otherwise.
   const mandatory = typeof args.mandatory === "boolean" ? args.mandatory : category === "chapter";
-  if (category === "chapter" && !mandatory) return badProposal("Chapter events must be mandatory.");
   const payload: Record<string, unknown> = { title, date, category, mandatory };
   if (typeof args.time === "string" && args.time.trim()) payload.time = String(args.time).trim();
   if (typeof args.location === "string" && args.location.trim()) payload.location = String(args.location).trim();
