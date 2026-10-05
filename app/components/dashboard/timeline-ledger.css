@@ -84,7 +84,7 @@
   border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); padding: 14px 16px; }
 .dash .tl-legend-pop .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
 .dash .tl-legend-pop .li { display: flex; align-items: center; gap: 8px; }
-.dash .tl-legend-pop .li .d { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dash .tl-legend-pop .li .d { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--catc); }
 .dash .tl-legend-pop .li span { font-size: 11.5px; color: var(--ink-soft); }
 .dash .tl-legend-pop .li .req-key { font-family: var(--mono); font-size: 7.5px; font-weight: 600; letter-spacing: .12em;
   color: var(--gold); background: var(--gold-bg); border-radius: 3px; padding: 1px 4px; }
@@ -384,6 +384,38 @@
 .dash .ev-deadline.done .state .d { background: var(--ok); }
 .dash .ev-deadline .ev-btn-primary,
 .dash .ev-deadline .ev-btn-ghost { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; }
+
+/* The viewer's own excuse inside the Attendance card: the decision + officer's note */
+.dash .ev-my-excuse { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.dash .ev-my-excuse .st { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.dash .ev-my-excuse .st .d { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.dash .ev-my-excuse.approved .st { color: var(--ok); }
+.dash .ev-my-excuse.rejected .st { color: var(--rose); }
+.dash .ev-my-excuse .reason { font-size: 11.5px; color: var(--muted); font-style: italic; }
+.dash .ev-my-excuse .note { font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+.dash .ev-my-excuse .note .lab { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+
+/* Attendance names are buttons (they open the member card) but read as the plain list. */
+.dash .ev-att-group .nm { display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; font-family: inherit; }
+.dash .ev-att-group .nm:hover { color: var(--vio); }
+
+/* Day one: nothing on the calendar at all */
+.dash .tl-empty { text-align: center; padding: 72px 0; color: var(--faint); }
+.dash .tl-empty h3 { font-family: var(--serif); font-style: italic; font-weight: 400; font-size: 16px; color: var(--muted); }
+.dash .tl-empty:not(.filter) p { max-width: 44ch; margin: 8px auto 0; font-size: 12px; }
+.dash .tl-empty .tl-empty-add { margin-top: 16px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: var(--vio-bg); border: 1px solid var(--vio-bg); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+.dash .tl-empty .tl-empty-add:hover { border-color: var(--vio); }
+
+/* Below lg the rail has no column: a selected event (or a measure's breakdown)
+   rises as a bottom sheet over a scrim instead of opening nowhere. */
+.dash .tl-scrim { display: none; }
+@media (max-width: 1023px) {
+  .dash .tl-rail.has-sel { display: flex; flex-direction: column; gap: 14px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 72;
+    max-height: 84vh; overflow-y: auto; padding: 16px 14px 22px; background: var(--paper); border-top: 1px solid var(--line);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.25); }
+  .dash .tl-scrim { display: block; position: fixed; inset: 0; z-index: 71; background: var(--scrim, rgba(0,0,0,.4)); border: 0; }
+}
 
 /* ── Small-screen tuning (single-column spine) ───────────────────────────────── */
 @media (max-width: 640px) {

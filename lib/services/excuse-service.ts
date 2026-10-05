@@ -70,6 +70,44 @@ export async function listExcuses(
   }));
 }
 
+export interface MyExcuseItem {
+  id:              number;
+  calendarEventId: number;
+  eventTitle:      string;
+  eventDate:       string;
+  reason:          string;
+  status:          string;
+  submittedAt:     string;
+  decidedAt:       string | null;
+  rejectionNote:   string | null;
+}
+
+/**
+ * The caller's own excuses for the active semester, newest first. Any signed-in
+ * member may read this — it is always pinned to ctx.actorId, never a request
+ * parameter — so a member learns an officer's decision and rejection note.
+ */
+export async function listMyExcuses(ctx: RequestContext): Promise<MyExcuseItem[]> {
+  const semester = await getActiveSemester(ctx.db);
+  if (!semester) return [];
+  const excuses = await ctx.db.attendanceExcuse.findMany({
+    where: { brotherId: ctx.actorId, semesterId: semester.id },
+    orderBy: { submittedAt: "desc" },
+    include: { calendarEvent: { select: { title: true, date: true } } },
+  });
+  return excuses.map(e => ({
+    id:              e.id,
+    calendarEventId: e.calendarEventId,
+    eventTitle:      e.calendarEvent.title,
+    eventDate:       e.calendarEvent.date,
+    reason:          e.reason,
+    status:          e.status,
+    submittedAt:     e.submittedAt.toISOString(),
+    decidedAt:       e.decidedAt?.toISOString() ?? null,
+    rejectionNote:   e.rejectionNote,
+  }));
+}
+
 /**
  * Pending-excuse counts grouped by brotherId for the active org. Powers the
  * /brothers roster review chip. Org isolation comes through ctx.db (same as

@@ -8,6 +8,7 @@ import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
 import React, { useState, useMemo, useEffect, useRef, useContext } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
+import { MemberSpotlight } from "../../components/members/MemberSpotlight";
 import { CalendarEvent, CalEventType, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, taskAssigneeLabel } from "../../data";
 import { isEventTypeVisibleInPicker } from "../../../lib/event-types";
 import { CalendarCategory } from "../../../lib/state/calendar-category";
@@ -32,6 +33,7 @@ const MONTH_NAMES = [
   "July","August","September","October","November","December",
 ];
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DAY_NAMES_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const _now = new Date();
 const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getDate() };
 
@@ -60,6 +62,47 @@ interface PendingExcuse {
   submittedAt:     string;
   isRetroactive:   boolean;
   rejectionNote:   string | null;
+}
+
+/** The viewer's own excuse (GET /api/excuses/mine) — how a member hears an officer's decision. */
+interface MyExcuse {
+  id:              number;
+  calendarEventId: number;
+  eventTitle:      string;
+  eventDate:       string;
+  reason:          string;
+  status:          string;
+  submittedAt:     string;
+  decidedAt:       string | null;
+  rejectionNote:   string | null;
+}
+
+// Dismissed rejection notices, per device. Keyed by id + decidedAt so a
+// resubmitted-then-rejected-again excuse comes back.
+const SEEN_REJECTIONS_KEY = "chaptos:excuse-rejections-seen:v1";
+const rejectionKey = (x: MyExcuse) => `${x.id}@${x.decidedAt ?? ""}`;
+function readSeenRejections(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(SEEN_REJECTIONS_KEY) ?? "[]") as string[]); }
+  catch { return new Set(); }
+}
+function writeSeenRejections(seen: Set<string>) {
+  try { localStorage.setItem(SEEN_REJECTIONS_KEY, JSON.stringify([...seen])); } catch {}
+}
+
+/** Paper only: the mock's pastel confetti when something is marked done. */
+function paperBurst(from: HTMLElement) {
+  if (document.documentElement.dataset.aesthetic !== "paper") return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = from.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const cols = ["--pp-peach", "--pp-sky", "--pp-mint", "--pp-butter", "--pp-lilac", "--pp-rose"];
+  for (let i = 0; i < 18; i++) {
+    const b = document.createElement("i");
+    const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 90;
+    b.className = "pp-bit";
+    b.style.cssText = `left:${x}px;top:${y}px;background:var(${cols[i % 6]});--x:${Math.cos(a) * d}px;--y:${Math.sin(a) * d - 40}px;--r:${Math.random() * 540 - 270}deg`;
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 950);
+  }
 }
 
 // Glance-strip measures — clicking one opens its breakdown in the rail.
@@ -95,9 +138,24 @@ function catColorOf(types: Map<string, CalEventType>, category: string): string 
   return t ? (t.colorDark ?? t.color) : FALLBACK_CAT_COLOR;
 }
 
-/** Per-row color: drive the `--catc` custom property the spine/rail read. */
+// Paper aesthetic: the mock's categories get its exact pastel family; any other
+// type gets ink/fill/soft mixed from its own colour (app/paper-aesthetic.css).
+const PAPER_HUE: Record<string, string> = {
+  chapter: "sky", social: "butter", service: "mint", fundraiser: "mint",
+  program: "lilac", party: "rose", deadline: "peach",
+};
+
+/** Per-row color: drive the `--catc` custom property the spine/rail read, plus
+ *  the paper triplet (--pcc ink, --pcf fill, --pcs soft) only paper reads. */
 function catStyleOf(types: Map<string, CalEventType>, category: string): React.CSSProperties {
-  return { ["--catc" as string]: catColorOf(types, category) } as React.CSSProperties;
+  const c = catColorOf(types, category);
+  const hue = PAPER_HUE[category];
+  return {
+    ["--catc" as string]: c,
+    ["--pcc" as string]: hue ? `var(--pp-${hue}-ink)` : `color-mix(in srgb, ${c} 82%, var(--ink))`,
+    ["--pcf" as string]: hue ? `var(--pp-${hue})`     : `color-mix(in srgb, ${c} 38%, var(--card))`,
+    ["--pcs" as string]: hue ? `var(--pp-${hue}-soft)` : `color-mix(in srgb, ${c} 10%, var(--card))`,
+  } as React.CSSProperties;
 }
 
 function catLabelOf(types: Map<string, CalEventType>, category: string): string {
@@ -303,13 +361,15 @@ function TodayMarker({ markerRef }: { markerRef?: React.Ref<HTMLDivElement> }) {
 // ─── TimelineRow ──────────────────────────────────────────────────────────────
 
 function TimelineRow({
-  event, isToday, isPast, done, selected, onSelect,
+  event, isToday, isPast, done, owner, selected, onSelect,
 }: {
   event: CalendarEvent;
   isToday: boolean;
   isPast: boolean;
   /** For task/post rows: whether it's been completed. Undefined for plain events. */
   done?: boolean;
+  /** For dated tasks: who it's assigned to. */
+  owner?: string;
   selected: boolean;
   onSelect: (e: CalendarEvent) => void;
 }) {
@@ -326,7 +386,7 @@ function TimelineRow({
     <div
       /* Scroll target for the ?event= deep link (see the effect in the page). */
       data-event-id={event.id}
-      className={`tl-row ${stateCls}${selected ? " selected" : ""}`}
+      className={`tl-row ${stateCls}${overdue ? " overdue-row" : ""}${done ? " done-row" : ""}${selected ? " selected" : ""}`}
       style={catStyleOf(types, event.category)}
       role="button"
       tabIndex={0}
@@ -349,6 +409,7 @@ function TimelineRow({
               {done && <span className="done">✓ Done</span>}
               {formatEventTime(event.time, event.schedule) && <span>{formatEventTime(event.time, event.schedule)}</span>}
               {event.location && <span>{event.location}</span>}
+              {owner && <span className="owner pp-only">{owner}</span>}
             </div>
           </div>
           <span className="when">{when}</span>
@@ -371,6 +432,43 @@ type AttendanceDetail = {
   exempt:    number[];
 };
 
+/** One attendance bucket. Names are buttons that open the member's card; paper
+ *  shows them as avatar chips (the mock's .agrp), ledger as the plain name list. */
+function AttGroup({ label, tone, people, onOpenMember }: {
+  label: string;
+  tone: "ok" | "gold" | "rose";
+  people: { brotherId: number; brotherName: string; reason?: string }[];
+  onOpenMember: (brotherId: number) => void;
+}) {
+  const { brotherList, currentUser, avatarRevision } = useChapter();
+  if (people.length === 0) return null;
+  return (
+    <div className={`ev-att-group ${tone}`}>
+      <div className="gh">
+        <span className="d" style={{ background: `var(--${tone})` }} />
+        <span className="gl" style={{ color: `var(--${tone})` }}>{label}</span>
+        <span className="gc">{people.length}</span>
+      </div>
+      <div className="nms">
+        {people.map(p => {
+          const b = brotherList.find(x => x.id === p.brotherId);
+          return (
+            <button key={p.brotherId} type="button" className="nm" title={p.reason ?? p.brotherName} onClick={() => onOpenMember(p.brotherId)}>
+              {b && (
+                <span className="pp-only">
+                  <BrotherAvatar brother={b} selfId={currentUser?.id ?? null} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" />
+                </span>
+              )}
+              <span className="lg-only">{p.brotherName}</span>
+              <span className="pp-only">{p.brotherName.split(" ")[0]}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function EventDetail({
   event,
   onClose,
@@ -390,6 +488,9 @@ function EventDetail({
   onToggleDeadline,
   exportable,
   onSubscribe,
+  myExcuse,
+  onExcuseSubmitted,
+  onOpenMember,
 }: {
   event: CalendarEvent;
   onClose: () => void;
@@ -415,6 +516,11 @@ function EventDetail({
   exportable: boolean;
   /** Present while members can subscribe: the sheet points there too. */
   onSubscribe?: () => void;
+  /** The viewer's own excuse for this event, if they filed one. */
+  myExcuse?: MyExcuse;
+  onExcuseSubmitted: () => void;
+  /** Open a member's card from an attendance name. */
+  onOpenMember: (brotherId: number) => void;
 }) {
   const isDeadline = event.category === "deadline";
   const isMeeting  = isMeetingEvent(event);
@@ -480,6 +586,7 @@ function EventDetail({
       }
       const updated = await requestJson<AttendanceDetail>(`/api/attendance/${event.id}`);
       setAttDetail(updated);
+      onExcuseSubmitted();
       setExcuseOpen(false);
       setExcuseBrother("");
       setExcuseReason("");
@@ -629,7 +736,7 @@ function EventDetail({
               isComplete ? (
                 <button className="ev-btn-ghost" onClick={() => onToggleDeadline(false)}>Reopen</button>
               ) : (
-                <button className="ev-btn-primary" onClick={() => onToggleDeadline(true)}>
+                <button className="ev-btn-primary" onClick={(e) => { paperBurst(e.currentTarget); onToggleDeadline(true); }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
@@ -661,6 +768,25 @@ function EventDetail({
             )}
           </div>
 
+          {/* The viewer's own excuse — the only place a member sees the decision. */}
+          {myExcuse && !excuseOpen && (
+            <div className={`ev-my-excuse ${myExcuse.status}`}>
+              <p className="st">
+                <span className="d" />
+                {myExcuse.status === "rejected" ? "Your excuse wasn’t accepted"
+                  : myExcuse.status === "approved" ? "Your excuse was approved"
+                  : "Your excuse is waiting for review"}
+              </p>
+              <p className="reason">“{myExcuse.reason}”</p>
+              {myExcuse.status === "rejected" && (
+                <>
+                  {myExcuse.rejectionNote && <p className="note"><span className="lab">Officer’s note</span>{myExcuse.rejectionNote}</p>}
+                  <button type="button" className="ev-btn-ghost" onClick={() => setExcuseOpen(true)}>Resubmit</button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Summary */}
           {!logAttOpen && !excuseOpen && (
             attLoading ? (
@@ -669,36 +795,9 @@ function EventDetail({
               <p className="ev-att-empty">{isPast ? "No attendance recorded." : "No attendance logged yet."}</p>
             ) : (
               <div className="ev-att-body">
-                {attDetail.attended.length > 0 && (
-                  <div className="ev-att-group">
-                    <div className="gh">
-                      <span className="d" style={{ background: "var(--ok)" }} />
-                      <span className="gl" style={{ color: "var(--ok)" }}>Attended</span>
-                      <span className="gc">{attDetail.attended.length}</span>
-                    </div>
-                    {attDetail.attended.map(e => <p key={e.brotherId} className="nm">{e.brotherName}</p>)}
-                  </div>
-                )}
-                {attDetail.excused.length > 0 && (
-                  <div className="ev-att-group">
-                    <div className="gh">
-                      <span className="d" style={{ background: "var(--gold)" }} />
-                      <span className="gl" style={{ color: "var(--gold)" }}>Excused</span>
-                      <span className="gc">{attDetail.excused.length}</span>
-                    </div>
-                    {attDetail.excused.map(e => <p key={e.brotherId} className="nm" title={e.reason}>{e.brotherName}</p>)}
-                  </div>
-                )}
-                {attDetail.unexcused.length > 0 && (
-                  <div className="ev-att-group">
-                    <div className="gh">
-                      <span className="d" style={{ background: "var(--rose)" }} />
-                      <span className="gl" style={{ color: "var(--rose)" }}>Absent</span>
-                      <span className="gc">{attDetail.unexcused.length}</span>
-                    </div>
-                    {attDetail.unexcused.map(e => <p key={e.brotherId} className="nm">{e.brotherName}</p>)}
-                  </div>
-                )}
+                <AttGroup label="Attended" tone="ok"   people={attDetail.attended}  onOpenMember={onOpenMember} />
+                <AttGroup label="Excused"  tone="gold" people={attDetail.excused}   onOpenMember={onOpenMember} />
+                <AttGroup label="Absent"   tone="rose" people={attDetail.unexcused} onOpenMember={onOpenMember} />
               </div>
             )
           )}
@@ -846,19 +945,23 @@ function GlanceDetail({
  * dues / reimbursements / member-risk. Every action routes to an existing handler.
  */
 function TimelineTodo({
-  overdue, dueThisWeek, pendingExcuseCount, isAdmin,
-  onMarkDone, onOpenEvent, onReviewExcuses,
+  overdue, dueThisWeek, pendingExcuseCount, isAdmin, rejected,
+  onMarkDone, onOpenEvent, onReviewExcuses, onOpenRejected, onDismissRejected,
 }: {
   overdue: CalendarEvent[];
   dueThisWeek: CalendarEvent[];
   pendingExcuseCount: number;
   isAdmin: boolean;
+  /** The viewer's own rejected excuses they haven't dismissed yet. */
+  rejected: MyExcuse[];
   onMarkDone: (deadlineId: number) => void;
   onOpenEvent: (event: CalendarEvent) => void;
   onReviewExcuses: () => void;
+  onOpenRejected: (excuse: MyExcuse) => void;
+  onDismissRejected: (excuse: MyExcuse) => void;
 }) {
   const showExcuses = isAdmin && pendingExcuseCount > 0;
-  const count = overdue.length + dueThisWeek.length + (showExcuses ? 1 : 0);
+  const count = overdue.length + dueThisWeek.length + (showExcuses ? 1 : 0) + rejected.length;
 
   return (
     <div>
@@ -868,6 +971,16 @@ function TimelineTodo({
           <p className="tl-todo-empty">Nothing needs you right now — all clear.</p>
         ) : (
           <>
+            {rejected.map(x => (
+              <div key={`r-${x.id}`} className="tl-todo-row">
+                <span className="tag rose">Excuse</span>
+                <button type="button" className="body" onClick={() => onOpenRejected(x)}>
+                  <p className="t">Not accepted · {x.eventTitle}</p>
+                  <p className="m">{x.rejectionNote ? `“${x.rejectionNote}”` : `${fmtDate(x.eventDate)} · no note left`}</p>
+                </button>
+                <button type="button" className="act" onClick={() => onDismissRejected(x)}>Dismiss</button>
+              </div>
+            ))}
             {overdue.map(ev => {
               const late = -daysFromToday(ev.date);
               return (
@@ -877,7 +990,7 @@ function TimelineTodo({
                     <p className="t">{ev.title}</p>
                     <p className="m">{late} day{late === 1 ? "" : "s"} late · {fmtDate(ev.date)}</p>
                   </button>
-                  <button type="button" className="act" onClick={() => { const id = deadlineIdOf(ev); if (id != null) onMarkDone(id); }}>Mark done</button>
+                  <button type="button" className="act" onClick={(e) => { const id = deadlineIdOf(ev); if (id != null) { paperBurst(e.currentTarget); onMarkDone(id); } }}>Mark done</button>
                 </div>
               );
             })}
@@ -1012,6 +1125,27 @@ export default function TimelinePage() {
       ? [...categoryOptions, { slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault }]
       : categoryOptions;
   }, [categoryOptions, selectedEvent, typeMap]);
+
+  // Member card opened from an attendance name.
+  const [spotlightId, setSpotlightId] = useState<number | null>(null);
+
+  // Every viewer: their own excuses, so a rejection (and its note) reaches them.
+  const [myExcuses, setMyExcuses] = useState<MyExcuse[]>([]);
+  const [seenRejections, setSeenRejections] = useState<Set<string>>(() => new Set());
+  const loadMyExcuses = () => {
+    requestJson<MyExcuse[]>("/api/excuses/mine").then(setMyExcuses).catch(() => {});
+  };
+  useEffect(() => { setSeenRejections(readSeenRejections()); loadMyExcuses(); }, []);
+  const myExcuseByEvent = useMemo(() => new Map(myExcuses.map(x => [x.calendarEventId, x])), [myExcuses]);
+  const unseenRejections = useMemo(
+    () => myExcuses.filter(x => x.status === "rejected" && !seenRejections.has(rejectionKey(x))),
+    [myExcuses, seenRejections],
+  );
+  function dismissRejection(x: MyExcuse) {
+    const next = new Set(seenRejections).add(rejectionKey(x));
+    setSeenRejections(next);
+    writeSeenRejections(next);
+  }
 
   // Admin-only: load pending excuses for the review banner.
   useEffect(() => {
@@ -1176,6 +1310,11 @@ export default function TimelinePage() {
     for (const t of igTaskList) m.set(IG_ID_BASE + t.id, t.status === "posted");
     return m;
   }, [taskList, igTaskList]);
+  // Who a dated task is on ("Treasurer", "Everyone") — shown on its row, as in the mock.
+  const ownerById = useMemo(
+    () => new Map(taskList.filter(d => d.dueDate != null).map(d => [DEADLINE_ID_BASE + d.id, taskAssigneeLabel(d)])),
+    [taskList],
+  );
   const overduePast = useMemo(
     () => timeline.past.reduce((n, g) => n + g.events.filter(e => doneById.get(e.id) === false).length, 0),
     [timeline, doneById],
@@ -1244,22 +1383,35 @@ export default function TimelinePage() {
     }
   }, [glanceFocus, weekEvents, requiredEvents, deadlineEvents, overdueEvents]);
 
-  const digest = useMemo(() => {
-    if (allEvents.length === 0) return "No events scheduled yet.";
-    const clauses: string[] = [];
-    if (upNext) {
-      const diff = daysFromToday(upNext.date);
-      const t = formatEventTime(upNext.time, upNext.schedule) ? ` at ${formatEventTime(upNext.time, upNext.schedule)}` : "";
-      if (diff === 0)       clauses.push(`${upNext.title} is today${t}`);
-      else if (diff === 1)  clauses.push(`${upNext.title} is tomorrow${t}`);
-      else                  clauses.push(`next up is ${upNext.title} on ${fmtDate(upNext.date)}`);
+  // The briefing line, read off the calendar (no model): what's left this week,
+  // each with its day, then anything overdue — "3 things left this week —
+  // Chapter meeting tonight at 7:30, Risk forms due Thursday and …".
+  const digest = useMemo<React.ReactNode>(() => {
+    if (allEvents.length === 0) return null;
+    const now = new Date();
+    const left = weekEvents.filter(e => !isEventOver(e, now));
+    const dayOf = (e: CalendarEvent) => {
+      const diff = daysFromToday(e.date);
+      const start = formatEventTime(e.time, e.schedule)?.split(" – ")[0] ?? null;
+      const evening = start != null && / PM$/.test(start) && Number(start.split(":")[0]) % 12 >= 5;
+      const day = diff <= 0 ? (evening ? "tonight" : "today") : diff === 1 ? "tomorrow" : DAY_NAMES_LONG[new Date(`${e.date}T12:00:00`).getDay()];
+      return diff <= 1 && start ? `${day} at ${start.replace(/ (AM|PM)$/, "")}` : day;
+    };
+    const phrases = left.slice(0, 4).map((e, i) => (
+      <React.Fragment key={e.id}>
+        {i > 0 && (i === Math.min(left.length, 4) - 1 ? " and " : ", ")}
+        {e.title}{e.category === "deadline" ? " due " : " "}<b>{dayOf(e)}</b>
+      </React.Fragment>
+    ));
+    const more = left.length > 4 ? `, plus ${left.length - 4} more` : "";
+    const overdue = overdueCount > 0
+      ? <> <b>{overdueCount} deadline{overdueCount === 1 ? " is" : "s are"} overdue.</b></> : null;
+    if (left.length > 0) {
+      return <>{left.length} thing{left.length === 1 ? "" : "s"} left this week — {phrases}{more}.{overdue}</>;
     }
-    if (deadlinesThisWeek > 0) clauses.push(`${deadlinesThisWeek} deadline${deadlinesThisWeek === 1 ? "" : "s"} due this week`);
-    if (overdueCount > 0)      clauses.push(`${overdueCount} ${overdueCount === 1 ? "is" : "are"} overdue`);
-    else if (lastEvent)        clauses.push(`nothing's on the books past ${fmtDate(lastEvent.date)}`);
-    const s = clauses.join(", ");
-    return s ? s.charAt(0).toUpperCase() + s.slice(1) + "." : "";
-  }, [allEvents.length, upNext, deadlinesThisWeek, overdueCount, lastEvent]);
+    if (upNext) return <>Nothing else this week — next up is {upNext.title} on <b>{fmtDate(upNext.date)}</b>.{overdue}</>;
+    return <>{lastEvent ? `Nothing’s on the books past ${fmtDate(lastEvent.date)}.` : "Nothing coming up."}{overdue}</>;
+  }, [allEvents.length, weekEvents, overdueCount, upNext, lastEvent]);
 
   // Open the admin excuse-review panel and scroll it into view (it lives above
   // the spine/rail layout). Triggered from the rail's "Needs attention" block.
@@ -1527,10 +1679,14 @@ export default function TimelinePage() {
                   &ensp;·&ensp;Week of {fmtRange(weekStart, weekEnd)}
                 </p>
                 <h1 className="greeting">The weeks <em>ahead</em>.</h1>
-                {digest && (
+                {digest ? (
                   <div className="digest">
-                    <span className="ai-chip">AI</span>
+                    <span className="ai-chip">Digest</span>
                     <p>{digest}</p>
+                  </div>
+                ) : !calendarLoading && (
+                  <div className="digest">
+                    <p className="digest-quiet">Everything {currentUser?.org?.name ?? "your chapter"} has on — meetings, events, deadlines — on one line through the term. It starts filling in with your first event.</p>
                   </div>
                 )}
               </div>
@@ -1629,8 +1785,8 @@ export default function TimelinePage() {
                     <div className="tl-legend-pop" role="dialog" aria-label="Category legend">
                       <div className="grid2">
                         {legendTypes.map(t => (
-                          <div key={t.slug} className="li">
-                            <span className="d" style={{ background: t.colorDark ?? t.color }} />
+                          <div key={t.slug} className="li" style={catStyleOf(typeMap, t.slug)}>
+                            <span className="d" />
                             <span>{t.label}</span>
                           </div>
                         ))}
@@ -1717,8 +1873,16 @@ export default function TimelinePage() {
                       <div key={i} style={{ height: 56, borderRadius: 10, border: "1px solid var(--line-soft)", background: "var(--card)", opacity: 0.5 }} />
                     ))}
                   </div>
+                ) : allEvents.length === 0 ? (
+                  /* Day one: nothing on the calendar at all, not just under this filter. */
+                  <div className="tl-empty">
+                    <span className="art pp-only"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg></span>
+                    <h3>Nothing on the calendar yet.</h3>
+                    <p>Your first chapter meeting is the best first entry — make it required and check-in counts attendance for you.</p>
+                    {canManageEvents && <button type="button" className="tl-empty-add" onClick={() => setActiveModal("create")}>Add your first event</button>}
+                  </div>
                 ) : !hasEvents ? (
-                  <div style={{ textAlign: "center", padding: "72px 0", color: "var(--faint)" }}>
+                  <div className="tl-empty filter" style={{ textAlign: "center", padding: "72px 0", color: "var(--faint)" }}>
                     <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 16, color: "var(--muted)" }}>No events on this filter.</p>
                     {activeLayer !== "all" && (
                       <button onClick={() => setActiveLayer("all")} className="jump" style={{ display: "inline-flex", marginTop: 14 }}>Show all events</button>
@@ -1751,6 +1915,7 @@ export default function TimelinePage() {
                             isToday={false}
                             isPast
                             done={doneById.get(e.id)}
+                            owner={ownerById.get(e.id)}
                             selected={selectedEvent?.id === e.id}
                             onSelect={setSelectedEvent}
                           />
@@ -1780,7 +1945,7 @@ export default function TimelinePage() {
                     return (
                       <div key={group.id}>
                         <button className={`tl-month${group.isCurrentMonth ? " now" : ""}`} onClick={() => toggleMonth(group.id)}>
-                          <h2>{group.monthLabel}<span className="yr">{group.year}</span></h2>
+                          <h2><span className="mo">{group.monthLabel}</span><span className="yr">{group.year}</span></h2>
                           <span className="rule" />
                           <span className="cnt">
                             {count} {group.isCurrentMonth ? "left" : `event${count === 1 ? "" : "s"}`}
@@ -1797,6 +1962,7 @@ export default function TimelinePage() {
                               isToday={e.date === todayStr}
                               isPast={false}
                               done={doneById.get(e.id)}
+                            owner={ownerById.get(e.id)}
                               selected={selectedEvent?.id === e.id}
                               onSelect={setSelectedEvent}
                             />
@@ -1818,7 +1984,7 @@ export default function TimelinePage() {
               </div>
 
               {/* Rail */}
-              <aside className="tl-rail">
+              <aside className={`tl-rail${selectedEvent || glanceFocus ? " has-sel" : ""}`}>
                 {selectedEvent ? (
                   <EventDetail
                     event={selectedEvent}
@@ -1853,6 +2019,9 @@ export default function TimelinePage() {
                     onToggleDeadline={(complete) => { if (selectedDeadline) setDeadlineComplete(selectedDeadline.id, complete); }}
                     exportable={apiEventIds.has(selectedEvent.id)}
                     onSubscribe={calendarLive ? () => setSubscribeOpen({}) : undefined}
+                    myExcuse={apiEventIds.has(selectedEvent.id) ? myExcuseByEvent.get(selectedEvent.id) : undefined}
+                    onExcuseSubmitted={loadMyExcuses}
+                    onOpenMember={setSpotlightId}
                   />
                 ) : glanceFocus ? (
                   <GlanceDetail
@@ -1870,9 +2039,12 @@ export default function TimelinePage() {
                       dueThisWeek={deadlinesDueThisWeek}
                       pendingExcuseCount={pendingExcuses.length}
                       isAdmin={isAdmin}
+                      rejected={unseenRejections}
                       onMarkDone={(id) => setDeadlineComplete(id, true)}
                       onOpenEvent={setSelectedEvent}
                       onReviewExcuses={openReviewPanel}
+                      onOpenRejected={(x) => { const ev = allEvents.find(e => e.id === x.calendarEventId && apiEventIds.has(e.id)); if (ev) setSelectedEvent(ev); }}
+                      onDismissRejected={dismissRejection}
                     />
 
                     {upNext && (
@@ -1918,10 +2090,23 @@ export default function TimelinePage() {
                   </>
                 )}
               </aside>
+              {/* Below lg the rail is a bottom sheet over this scrim. */}
+              {(selectedEvent || glanceFocus) && (
+                <button type="button" className="tl-scrim" aria-label="Close" tabIndex={-1}
+                  onClick={() => { setSelectedEvent(null); setGlanceFocus(null); }} />
+              )}
             </div>
           </div>
         </main>
       </div>
+
+      <MemberSpotlight
+        brotherId={spotlightId}
+        onNavigate={setSpotlightId}
+        onClose={() => setSpotlightId(null)}
+        onPayDues={() => router.push(orgPath("/treasury"))}
+        onLogServiceHours={() => router.push(orgPath("/service"))}
+      />
 
       {activeModal === "create" && (
         <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => setActiveModal(null)}>
