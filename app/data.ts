@@ -1,5 +1,6 @@
 import { fmtUsd, money } from "@/lib/money";
 import type { OwnerRef } from "@/lib/event-owner";
+import type { ActivityCategory } from "@/lib/activity-category";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -464,6 +465,8 @@ export interface ActivityEntry {
   message: string;
   timestamp: string;
   type: "success" | "warning" | "info";
+  /** From GET /api/activity: what the row is about, or null when unknown. */
+  category?: ActivityCategory | null;
 }
 
 export const seedActivity: ActivityEntry[] = [

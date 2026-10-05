@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse, ValidationError } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import { listRecentActivity } from "@/lib/services/activity-service";
 
 const TYPES = ["success", "warning", "info"] as const;
 
@@ -17,8 +18,7 @@ export async function GET() {
   const { ctx, error } = await buildContext({ rateLimit: false });
   if (error) return error;
   try {
-    const logs = await ctx.db.activityLog.findMany({ orderBy: { timestamp: "desc" }, take: 20 });
-    return Response.json(logs.map(l => ({ ...l, timestamp: relativeTime(l.timestamp) })));
+    return Response.json(await listRecentActivity(ctx));
   } catch (e) {
     logError(e, { route: "/api/activity", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

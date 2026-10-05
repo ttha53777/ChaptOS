@@ -1,5 +1,8 @@
 import React from "react";
 import type { ActivityEntry } from "../../../data";
+import type { ActivityCategory } from "@/lib/activity-category";
+import { useVocab } from "../../../hooks/useVocab";
+import type { PaperTone } from "../../paper/PaperIcon";
 import { SectionError } from "./SectionError";
 import { PaperTile } from "../../paper/PaperIcon";
 
@@ -7,6 +10,28 @@ const DOT: Record<ActivityEntry["type"], string> = {
   success: "bg-sage",
   warning: "bg-gold",
   info: "", // violet via inline style below
+};
+
+type Vocab = ReturnType<typeof useVocab>;
+
+/** Category pill label + Paper tone. Labels run through vocab where the org
+ *  can rename the concept. */
+const CATEGORY: Record<ActivityCategory, { label: (v: Vocab) => string; tone: PaperTone }> = {
+  attendance:   { label: () => "Attendance",           tone: "mint" },
+  dues:         { label: v => v("Dues"),               tone: "butter" },
+  treasury:     { label: v => v("Treasury"),           tone: "butter" },
+  request:      { label: () => "Request",              tone: "sky" },
+  announcement: { label: v => v("Announcement"),       tone: "lilac" },
+  programming:  { label: () => "Programming",          tone: "mint" },
+  calendar:     { label: () => "Calendar",             tone: "sky" },
+  members:      { label: v => v("Member", true),       tone: "lilac" },
+  service:      { label: v => v("Service"),            tone: "rose" },
+  parties:      { label: () => "Parties",              tone: "rose" },
+  tasks:        { label: () => "Tasks",                tone: "peach" },
+  docs:         { label: v => v("Doc", true),          tone: "sky" },
+  instagram:    { label: () => "Instagram",            tone: "rose" },
+  metrics:      { label: () => "Metrics",              tone: "lilac" },
+  settings:     { label: () => "Settings",             tone: "peach" },
 };
 
 /**
@@ -30,6 +55,7 @@ export function ActivityRail({
   error?: boolean;
   onRetry?: () => void;
 }) {
+  const v = useVocab();
   const inert = loading || error;
   return (
     <section
@@ -64,7 +90,13 @@ export function ActivityRail({
         entries.slice(0, 6).map((e) => (
           <div key={e.id} className="act-row">
             <span className={`dot ${DOT[e.type]}`} style={e.type === "info" ? { background: "var(--vio)" } : undefined} />
-            <p>{e.message}</p>
+            <p>
+              {e.message}
+              {/* Paper only: what the row is about, as on the mock's feed. */}
+              {e.category && CATEGORY[e.category] && (
+                <span className={`act-tag pp-only pp-t-${CATEGORY[e.category].tone}`}>{CATEGORY[e.category].label(v)}</span>
+              )}
+            </p>
             <time>{e.timestamp.replace(/\s*ago$/, "")}</time>
           </div>
         ))

@@ -748,6 +748,10 @@ html[data-aesthetic="paper"] .dash .act-row:last-child { border-bottom: 0; margi
 html[data-aesthetic="paper"] .dash .act-row .dot { display: none; }
 html[data-aesthetic="paper"] .dash .act-row time { order: -1; padding-top: 2px; font-size: .7rem; color: var(--muted); }
 html[data-aesthetic="paper"] .dash .act-row p { font-size: .84rem; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .act-row .act-tag {
+  display: block; width: fit-content; margin-top: 5px; padding: 1px 8px; border-radius: 999px;
+  font-size: .66rem; font-weight: 600; background: var(--p-bg); color: var(--p-fg); border: 1px solid var(--p-bd);
+}
 
 /* ballot */
 html[data-aesthetic="paper"] .dash .bl-body { padding: 0 18px 18px; }

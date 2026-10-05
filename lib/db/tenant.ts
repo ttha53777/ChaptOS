@@ -1162,9 +1162,14 @@ function scopedBudget(orgId: number, run: Run) {
 }
 
 function scopedOperationalEvent(orgId: number, run: Run) {
+  type W = Prisma.OperationalEventWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
   return {
     create: (args: { data: Omit<Prisma.OperationalEventUncheckedCreateInput, "organizationId"> }) =>
       run(p => p.operationalEvent.create({ data: { ...args.data, organizationId: orgId } })),
+    // Read side for the activity feed's category pill (lib/services/activity-service.ts).
+    findMany: <T extends Prisma.OperationalEventFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.OperationalEventFindManyArgs>) =>
+      run(p => p.operationalEvent.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.OperationalEventFindManyArgs>)),
   };
 }
 
