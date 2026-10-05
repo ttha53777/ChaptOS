@@ -619,6 +619,7 @@ html[data-aesthetic="paper"] .dash .pp-count {
   display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: .74rem; font-weight: 600;
   background: var(--pp-sky-soft); color: var(--pp-sky-ink); border: 1px solid var(--pp-sky-bd);
 }
+html[data-aesthetic="paper"] .dash .pp-count.full { background: var(--pp-peach-soft); color: var(--pp-peach-ink); border-color: var(--pp-peach-bd); }
 html[data-aesthetic="paper"] .dash .rt .card-h .right {
   flex-basis: 100%; margin-left: 0; flex-direction: row-reverse; justify-content: space-between; gap: 10px;
 }

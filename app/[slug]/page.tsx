@@ -2414,6 +2414,7 @@ export default function Home() {
                     avatarRevision={avatarRevision}
                     tracked={tracked}
                     measured={measured}
+                    seats={currentUser?.org?.seats ?? null}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
                   </div>

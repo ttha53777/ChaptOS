@@ -107,6 +107,7 @@ export function RosterTable({
   inviteLabel,
   tracked = ALL_TRACKED,
   measured,
+  seats = null,
 }: {
   brothers: Brother[];
   /** Roster size before search/status filtering — distinguishes "no members at
@@ -147,6 +148,9 @@ export function RosterTable({
    *  has recorded anything, where a column of "—" is right but a status chip
    *  derived from those blanks is a fabrication. Defaults to `tracked`. */
   measured?: TrackedMetrics;
+  /** Billing seats, admins only (null otherwise): Paper's count pill adds
+   *  "· N seats left". */
+  seats?: { used: number; capacity: number } | null;
 }) {
   const v = useVocab();
   const [expanded, setExpanded] = React.useState(false);
@@ -163,6 +167,7 @@ export function RosterTable({
   }, []);
 
   const total = statusCounts.Good + statusCounts.Watch + statusCounts["At Risk"];
+  const seatsLeft = seats ? Math.max(0, seats.capacity - seats.used) : null;
   const filters: [string, number][] = [
     ["All", total],
     ["Good", statusCounts.Good],
@@ -206,7 +211,10 @@ export function RosterTable({
         <PaperTile icon="people" tone="sky" />
         <h2>Roster</h2>
         {!loading && !error && total > 0 && (
-          <span className="pp-count pp-only">{total} {v("Member", total !== 1).toLowerCase()}</span>
+          <span className={`pp-count pp-only${seatsLeft === 0 ? " full" : ""}`}>
+            {total} {v("Member", total !== 1).toLowerCase()}
+            {seatsLeft !== null && <> · {seatsLeft === 0 ? "no seats left" : `${seatsLeft} ${seatsLeft === 1 ? "seat" : "seats"} left`}</>}
+          </span>
         )}
         {(showSearch || statusKnown) && (
         <div className="right">

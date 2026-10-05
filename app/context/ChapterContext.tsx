@@ -29,7 +29,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
     // Defensive: an older/cached /me payload may omit enabledWorkflows. Default
     // to an empty array so the sidebar filter never reads `.includes` of
     // undefined — the Sidebar treats the always-on surfaces as visible regardless.
-    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, pendingReimbursementCount: me.org.pendingReimbursementCount ?? 0, pendingJoinRequestCount: me.org.pendingJoinRequestCount ?? 0, wrapUpsDue: me.org.wrapUpsDue ?? [], onboardingComplete: me.org.onboardingComplete ?? true, billingAlert: me.org.billingAlert ?? null } : null,
+    org: me.org ? { ...me.org, logoUrl: me.org.logoUrl ?? null, enabledWorkflows: me.org.enabledWorkflows ?? [], vocabularyOverrides: me.org.vocabularyOverrides ?? {}, thresholds: me.org.thresholds ?? DEFAULT_THRESHOLDS, disabledFeatures: me.org.disabledFeatures ?? {}, customMemberFields: me.org.customMemberFields ?? [], navOrder: me.org.navOrder ?? [], metricDefinitionCount: me.org.metricDefinitionCount ?? 0, pendingReimbursementCount: me.org.pendingReimbursementCount ?? 0, pendingJoinRequestCount: me.org.pendingJoinRequestCount ?? 0, wrapUpsDue: me.org.wrapUpsDue ?? [], onboardingComplete: me.org.onboardingComplete ?? true, billingAlert: me.org.billingAlert ?? null, seats: me.org.seats ?? null } : null,
   };
 }
 
@@ -124,7 +124,10 @@ export interface CurrentUser {
     onboardingComplete: boolean;
     /** Billing state needing an admin's attention. Server sends null to everyone
      *  who isn't an org/platform admin — see /api/auth/me. */
-    billingAlert: "past_due" | "unpaid" | "canceled" | null } | null;
+    billingAlert: "past_due" | "unpaid" | "canceled" | null;
+    /** Seats filled vs. seats the org can hold without a billing change. Null
+     *  for anyone who isn't an org/platform admin (see /api/auth/me). */
+    seats: { used: number; capacity: number } | null } | null;
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];

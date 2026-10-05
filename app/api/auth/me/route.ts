@@ -5,6 +5,8 @@ import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
 import { BillingTier } from "@/lib/state/billing-tier";
 import { tierForCount } from "@/lib/billing/tiers";
+import { seatCapacity } from "@/lib/billing/plans";
+import { countBillableMembers } from "@/lib/billing/seats";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { ReimbursementStatus, JoinRequestStatus } from "@/lib/state";
@@ -67,10 +69,10 @@ export async function GET() {
     //
     // resolvePermissions is deliberately NOT in here: it does no I/O (it filters
     // roleRows that requireUser already loaded), so it needs no transaction.
-    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows } =
+    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers } =
       await db(user.orgId).$transaction(async tx => {
         const scoped = db(user.orgId);
-        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows] = await Promise.all([
+        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers] = await Promise.all([
           scoped.identity.onTx(tx).findByBrotherId(user.id),
           scoped.organization.onTx(tx).findUnique({
             where: { id: user.orgId },
@@ -115,7 +117,7 @@ export async function GET() {
           // Stripe call: this runs on every page load. The billing page still owns
           // the authoritative pull (refreshIfStale).
           elevated
-            ? scoped.subscription.onTx(tx).findFirst({ select: { status: true, billableMembers: true } })
+            ? scoped.subscription.onTx(tx).findFirst({ select: { status: true, billableMembers: true, billingMode: true, selectedPlan: true } })
             : null,
           // Confirmed events whose date has come and gone — the sidebar's Events
           // dot and the dashboard's "Needs attention" rows. Same ride-along
@@ -135,8 +137,14 @@ export async function GET() {
                 take: 50,
               })
             : [],
+          // Live billable headcount for the seats line, admins only. Live rather
+          // than Subscription.billableMembers because a free org may have no
+          // subscription row at all, and the cache lags a just-approved member.
+          elevated
+            ? countBillableMembers({ member: scoped.member.onTx(tx) })
+            : null,
         ]);
-        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows };
+        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers };
       });
 
     const perms = await resolvePermissions(user);
@@ -256,6 +264,13 @@ export async function GET() {
             // Billing trouble worth a banner, or null. Admin-only by
             // construction: `subscription` above is only read when elevated.
             billingAlert,
+            // Seats filled / seats the org can hold without a billing change —
+            // the dashboard roster's "52 members · 68 seats left". Admin-only
+            // for the same reason as billingAlert; null for everyone else.
+            seats: billableMembers === null ? null : {
+              used: billableMembers,
+              capacity: seatCapacity(billableMembers, subscription),
+            },
           }
         : null,
       orgId: user.orgId,
