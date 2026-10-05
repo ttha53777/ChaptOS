@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { DocMenu, docMenuItems } from "./DocMenu";
-import { KIND_ICON, hostOf, kindOf, type Doc } from "./lib";
+import { KIND_ICON, KIND_LABEL, hostOf, kindOf, type Doc } from "./lib";
+import { PaperIcon } from "../../components/paper/PaperIcon";
 
 /**
  * A violet-edged card on the pinned shelf. Pinned docs live here exclusively —
@@ -68,14 +69,20 @@ export function PinnedCard({
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>{KIND_ICON[kind]}</svg>
           )}
         </div>
-        <div className="meta">
+        <div className="meta lg-only">
           <div className="t">{doc.title}</div>
           <div className="h">{hostOf(doc.url)}</div>
         </div>
+        <span className="dx-kind pp-only">{KIND_LABEL[kind]}</span>
       </div>
+      <div className="pt pp-only">{doc.title}</div>
       <p className={`note${doc.description ? "" : " none"}`}>
         {doc.description || "No description yet."}
       </p>
+      <div className="f pp-only">
+        <span className="h">{hostOf(doc.url)}</span>
+        <span className="go">Open <PaperIcon name="out" /></span>
+      </div>
       <DocMenu
         label="Doc actions"
         items={docMenuItems({ pinned: true, canManage, onCopy, onPin, onEdit, onMove, onRefresh, onDelete })}

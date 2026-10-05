@@ -109,7 +109,8 @@ export function EventDraftCard({ card, categories, draft, onChange, onConfirm, o
   if (settled) {
     const approved = card.state === "approved";
     return (
-      <div className="writ edraft">
+      <div className={`writ edraft ${approved ? "done" : "off"}`}>
+        <span className="rubber pp-only" aria-hidden>{approved ? "Booked" : card.state === "error" ? "Not posted" : "Discarded"}</span>
         <div className={`settled${approved ? "" : " declined"}`}>
           <span className="tk">{approved ? <IcTick /> : <>—</>}</span>
           <span className="txt">{card.resultMessage}</span>
@@ -120,7 +121,7 @@ export function EventDraftCard({ card, categories, draft, onChange, onConfirm, o
   }
 
   return (
-    <div className="writ edraft" data-writ="">
+    <div className={`writ edraft${blocked ? " blocked" : ""}`} data-writ="">
       <div className="wh">
         <span className="chip-tag">Proposal</span>
         <span className="what">Add a calendar event</span>

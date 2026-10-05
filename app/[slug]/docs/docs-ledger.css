@@ -320,3 +320,7 @@
 @media (min-width: 1280px) {
   .dash.dash-docs { max-width: min(calc(1180px + 22vw), 1760px); }
 }
+
+/* The folder-tab group is only a box in the paper look (paper-docs.css); here
+   its children lay out in the header row as they always did. */
+.dash .dx-sec-head .dx-tab { display: contents; }

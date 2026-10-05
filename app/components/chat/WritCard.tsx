@@ -196,8 +196,17 @@ export function WritCard({ card, onApprove, onDiscard, onEdit, choices }: {
     );
   }
 
+  const approved = card.state === "approved";
+  // The paper look stamps a settled card the way a clerk would. Ledger hides it.
+  const stampWord = approved ? (self ? "Filed" : "Approved")
+    : card.state === "error" ? "Not posted"
+    : card.state === "dismissed" || blocked ? "Dismissed" : "Discarded";
+
   return (
-    <div className="writ" data-writ={card.state === "pending" ? "" : undefined}>
+    <div
+      className={`writ${blocked ? " blocked" : ""}${self ? " self" : ""}${approved ? " done" : settled ? " off" : ""}${card.state === "error" ? " err" : ""}`}
+      data-writ={card.state === "pending" ? "" : undefined}
+    >
       <div className="wh">
         <span className="chip-tag">Proposal</span>
         <span className="what">{card.display.title}</span>
@@ -255,11 +264,13 @@ export function WritCard({ card, onApprove, onDiscard, onEdit, choices }: {
           <button type="button" className="wbtn quiet" data-w="decline" onClick={() => onDiscard(card)}>
             {blocked ? "Dismiss" : "Discard"}
           </button>
+          {canEdit && <span className="whint pp-only">Click any underlined value to correct it.</span>}
         </div>
       )}
       {card.state === "confirming" && (
         <div className="wfoot"><span className="wbusy"><span className="arc sm" />{self ? "Submitting…" : "Approving…"}</span></div>
       )}
+      {settled && <span className="rubber pp-only" aria-hidden>{stampWord}</span>}
       {settled && <SettledBar card={card} />}
     </div>
   );

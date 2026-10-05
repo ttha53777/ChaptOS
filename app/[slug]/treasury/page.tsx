@@ -31,6 +31,7 @@ import { netBalance } from "../../../lib/treasury-balance";
 import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
 import { TreasuryLocked } from "../../components/treasury/TreasuryLocked";
 import { GhostBalanceChart, GhostDonut } from "../../components/treasury/TreasuryGhosts";
+import { PaperIcon, PaperTile, type PaperIconName } from "../../components/paper/PaperIcon";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,17 @@ function fmtReimb(n: number): string {
 }
 
 // "submitted 3 days ago" cue — gives the treasurer a sense of how stale a request is.
+/** "2026-10-14" → the paper look's date block: day, month, weekday. */
+const PP_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function ppDay(s: string): { d: number; m: string; w: string } {
+  const [y, m, d] = s.split("-").map(Number);
+  const w = new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" });
+  return { d, m: PP_MONTHS[m - 1] ?? "", w };
+}
+const PP_TAB_ICON: Record<string, PaperIconName> = {
+  Overview: "home", Transactions: "receipt", Reports: "bars", Reimbursements: "hand", Budget: "wallet",
+};
+
 function relativeAge(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
@@ -309,6 +321,11 @@ function ReimbursementsView({
           <div className="tr-reimb-amount"><span className="tr-reimb-cur">$</span>{fmtReimb(r.amount).slice(1)}</div>
           <p className="tr-reimb-desc">{r.description}</p>
           <span className="tr-reimb-age">submitted {relativeAge(r.createdAt)}</span>
+          {r.status !== "pending" && (
+            <span className={`rubber pp-only ${r.status === "approved" ? "paid" : "no"}`} aria-hidden>
+              {r.status === "approved" ? "Paid" : "Declined"}
+            </span>
+          )}
         </div>
 
         {/* Perforated tear between the request and the decision. */}
@@ -1205,7 +1222,10 @@ export default function TreasuryPage() {
                     the $0 cockpit was still reachable. */}
                 {treasuryLoaded && !lockedForMember && !statedUnstarted && (
                   <div className="digest">
-                    <span className="ai-chip">AI</span>
+                    <span className="ai-chip">
+                      <span className="lg-only">AI</span>
+                      <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+                    </span>
                     <p>{digest}</p>
                   </div>
                 )}
@@ -1248,6 +1268,12 @@ export default function TreasuryPage() {
                     New txn
                   </button>
                 )}
+                <button
+                  className="tr-ask pp-only"
+                  onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "How are the books looking this term?" } }))}
+                >
+                  <PaperIcon name="spark" />Ask about the books<kbd>⌘K</kbd>
+                </button>
               </div>}
             </section>
 
@@ -1258,7 +1284,8 @@ export default function TreasuryPage() {
             {/* ── Tab nav (kept) ── */}
             <nav className="tr-tabs">
               {NAV_TABS.map(tab => (
-                <button key={tab} className={navTab === tab ? "on" : ""} onClick={() => setNavTab(tab)}>
+                <button key={tab} data-tab={tab} className={navTab === tab ? "on" : ""} aria-selected={navTab === tab} onClick={() => setNavTab(tab)}>
+                  <PaperIcon name={PP_TAB_ICON[tab] ?? "home"} className="pp-ic pp-only" />
                   {tab}
                   {tab === "Reimbursements" && pendingReimbCount > 0 && (
                     <span className="tr-tab-badge" aria-label={`${pendingReimbCount} requests awaiting review`}>{pendingReimbCount > 9 ? "9+" : pendingReimbCount}</span>
@@ -1353,11 +1380,11 @@ export default function TreasuryPage() {
             {navTab === "Overview" && <div className="tr-hero">
 
               {/* ── Hero Balance Card ──────────────────────────────────────── */}
-              <FinanceCard className="flex flex-col overflow-hidden">
+              <FinanceCard className="tr-bal-card flex flex-col overflow-hidden">
                 {/* Card header */}
                 <div className="tr-bal-top">
                   <div>
-                    <p className="tr-bal-label">{v("Treasury")} Balance</p>
+                    <p className="tr-bal-label"><PaperIcon name="wallet" className="pp-ic pp-only" /><span className="lg-only">{v("Treasury")} Balance</span><span className="pp-only">In the account</span></p>
                     <div className="tr-bal-row">
                       <span className={`tr-bal-num${balance < 0 ? " neg" : ""}`}>{fmt$(Math.round(balance))}</span>
                       {bwDelta !== null && (
@@ -1413,12 +1440,26 @@ export default function TreasuryPage() {
                     />
                   </div>
                 )}
+                {/* Paper: money in vs money out as one bar, two inks — both halves are
+                    the term's own totals, so the split is the data, not decoration. */}
+                {!statedUnstarted && totalIncome + totalExpenses > 0 && (
+                  <div className="tr-io pp-only">
+                    <span className="s"><i style={{ background: "var(--pp-mint-ink)" }} /><span>Money in</span><b>{fmt$(Math.round(totalIncome))}</b></span>
+                    <span className="s r"><span>Money out</span><b>{fmt$(Math.round(totalExpenses))}</b><i style={{ background: "var(--pp-peach)" }} /></span>
+                    <span className="bar">
+                      <i style={{ width: `${(totalIncome / (totalIncome + totalExpenses)) * 100}%`, background: "var(--pp-mint-ink)" }} />
+                      <i style={{ width: `${(totalExpenses / (totalIncome + totalExpenses)) * 100}%`, background: "var(--pp-peach)" }} />
+                    </span>
+                    <span className="cap"><span>{incomeTxns.length} {incomeTxns.length === 1 ? "deposit" : "deposits"}</span><span>{expenseTxns.length} {expenseTxns.length === 1 ? "payment" : "payments"}</span></span>
+                  </div>
+                )}
               </FinanceCard>
 
               {/* ── Category Donut Card ────────────────────────────────────── */}
-              <FinanceCard className="flex flex-col overflow-hidden">
+              <FinanceCard className="tr-brk-card flex flex-col overflow-hidden">
                 <div className="card-h">
-                  <h2>Breakdown</h2>
+                  <PaperTile icon="bars" tone="peach" />
+                  <h2><span className="lg-only">Breakdown</span><span className="pp-only">Where it went</span></h2>
                   <div className="tr-donut-toggle">
                     {(["expense", "income"] as const).map(m => (
                       <button key={m} onClick={() => setDonutMode(m)} className={donutMode === m ? "on" : ""}>
@@ -1492,9 +1533,10 @@ export default function TreasuryPage() {
             {navTab === "Overview" && <div className="tr-lower">
 
               {/* ── Brothers with Dues ───────────────────────────────────── */}
-              <FinanceCard>
+              <FinanceCard className="tr-dues-card">
                 <div className="card-h">
-                  <h2>{v("Member", true)} with {v("Dues")}</h2>
+                  <PaperTile icon="wallet" tone="butter" />
+                  <h2><span className="lg-only">{v("Member", true)} with {v("Dues")}</span><span className="pp-only">Who still owes</span></h2>
                   <span className="sub">{duesUnassigned ? "none assigned" : <>{owingCount} owing · {fmt$(duesTotal)}</>}</span>
                 </div>
                 {/* "No brothers yet" was wrong on any roster whose members simply
@@ -1542,9 +1584,10 @@ export default function TreasuryPage() {
               </FinanceCard>
 
               {/* ── Upcoming ──────────────────────────────────────────────── */}
-              <FinanceCard>
+              <FinanceCard className="tr-up-card">
                 <div className="card-h">
-                  <h2>Upcoming</h2>
+                  <PaperTile icon="clock" tone="sky" />
+                  <h2><span className="lg-only">Upcoming</span><span className="pp-only">Coming up</span></h2>
                   <span className="sub">Events & txns</span>
                 </div>
                 {upcomingParties.length === 0 && upcomingTxns.length === 0 ? (
@@ -1556,7 +1599,8 @@ export default function TreasuryPage() {
                   <div>
                     {upcomingParties.map(p => (
                       <div key={`party-${p.id}`} className="tr-ev-row">
-                        <div className="glyph party">
+                        <div className="tr-dd pp-only"><small>{ppDay(p.date).w}</small><b>{ppDay(p.date).d}</b><small>{ppDay(p.date).m}</small></div>
+                        <div className="glyph party lg-only">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
                         </div>
                         <div className="body">
@@ -1568,7 +1612,8 @@ export default function TreasuryPage() {
                     ))}
                     {upcomingTxns.map(t => (
                       <div key={`tx-${t.id}`} className="tr-ev-row">
-                        <div className={`glyph ${t.type === "income" ? "inc" : "exp"}`}>
+                        <div className="tr-dd pp-only"><small>{ppDay(t.date).w}</small><b>{ppDay(t.date).d}</b><small>{ppDay(t.date).m}</small></div>
+                        <div className={`glyph lg-only ${t.type === "income" ? "inc" : "exp"}`}>
                           {t.category.slice(0, 2).toUpperCase()}
                         </div>
                         <div className="body">
@@ -1586,9 +1631,10 @@ export default function TreasuryPage() {
               </FinanceCard>
 
               {/* ── Reports ───────────────────────────────────────────────── */}
-              <FinanceCard className="flex flex-col">
+              <FinanceCard className="tr-rep-card flex flex-col">
                 <div className="card-h">
-                  <h2>Reports</h2>
+                  <PaperTile icon="sheet" tone="lilac" />
+                  <h2><span className="lg-only">Reports</span><span className="pp-only">{semester} so far</span></h2>
                   <span className="sub">{semester}</span>
                 </div>
                 {/* Same rule as the glance strip: the three summed lines and the
@@ -1615,9 +1661,9 @@ export default function TreasuryPage() {
             {/* ── Full Transaction Log ── Overview + Transactions tabs ────── */}
             {(navTab === "Overview" || navTab === "Transactions") && <>
 
-            <div className="tr-secnote">— The record —</div>
+            <div className="tr-secnote"><span className="lg-only">— The record —</span><span className="pp-only">Recent entries</span></div>
 
-            <FinanceCard className="overflow-hidden">
+            <FinanceCard className="tr-log-card overflow-hidden">
               <div className="tr-log-h">
                 <h2>Transaction Log</h2>
                 <div className="tr-txtabs">
@@ -1672,7 +1718,7 @@ export default function TreasuryPage() {
                     <tbody>
                       {txnsWithRunning.map(t => (
                         <tr key={t.id}>
-                          <td className="date">{fmtDate(t.date)}</td>
+                          <td className="date"><span className="lg-only">{fmtDate(t.date)}</span><span className="tr-dt pp-only"><b>{ppDay(t.date).d}</b><small>{ppDay(t.date).m}</small></span></td>
                           <td>
                             <span className="tr-pill"><span className={`pdot ${t.type === "income" ? "inc" : "exp"}`} />{catalog.labelFor(t.type, t.category)}</span>
                             {t.status === "scheduled" && <span className="tr-sched-tag">Sched</span>}
@@ -1713,8 +1759,58 @@ export default function TreasuryPage() {
             {navTab === "Overview" && (() => {
               const sortedParties = [...partyList].sort((a, b) => b.date.localeCompare(a.date));
               const totalDoorRev  = partyList.reduce((s, p) => s + p.doorRevenue, 0);
-              return (
-                <FinanceCard className="overflow-hidden" style={{ marginTop: 18 }}>
+              return (<>
+                {/* Paper: each party as a ticket stub — the door take on the tear-off. */}
+                <section className="tr-door pp-only" aria-label="Party events">
+                  <div className="tr-secnote">
+                    <span>At the door</span>
+                    <span className="sum">{sortedParties.length} {sortedParties.length === 1 ? "party" : "parties"} · {fmt$(Math.round(totalDoorRev))} at the door</span>
+                  </div>
+                  <div className="tr-tix">
+                    {sortedParties.map(p => {
+                      const up = p.date >= today;
+                      const day = ppDay(p.date);
+                      return (
+                        <div
+                          key={p.id}
+                          role="button"
+                          tabIndex={0}
+                          className={`tix${up ? " up" : ""}`}
+                          onClick={() => setPartyModal({ kind: "editParty", event: p })}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPartyModal({ kind: "editParty", event: p }); } }}
+                        >
+                          <span className="l">
+                            <span className="k">{up ? "Coming up" : "Party"} · {day.w} {day.m} {day.d}</span>
+                            <span className="t">{p.name}</span>
+                            <span className="m">
+                              {p.attendance > 0 ? `${p.attendance} through the door` : "No headcount"}
+                              {p.notes ? ` · ${p.notes}` : ""}
+                            </span>
+                          </span>
+                          <span className="r">
+                            <b>{up && !p.doorRevenue ? "—" : fmt$(Math.round(p.doorRevenue))}</b>
+                            <small>{p.attendance > 0 && p.doorRevenue > 0 ? `${fmt$(round2(p.doorRevenue / p.attendance))}/head` : "door"}</small>
+                          </span>
+                          {canTreasury && (
+                            <button
+                              className="tix-del"
+                              aria-label={`Delete ${p.name}`}
+                              onClick={e => { e.stopPropagation(); setDeleteModal({ kind: "party", event: p }); }}
+                            >
+                              <PaperIcon name="trash" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {canTreasury && (
+                      <button className="tix add" onClick={() => setPartyModal({ kind: "addParty" })}>
+                        <PaperIcon name="plus" />Add a party
+                      </button>
+                    )}
+                  </div>
+                </section>
+                <FinanceCard className="tr-party-card lg-only overflow-hidden" style={{ marginTop: 18 }}>
                   <div className="tr-log-h">
                     <h2>Party Events</h2>
                     <span className="sub">{sortedParties.length === 0 ? "Door revenue" : <>Door revenue · {sortedParties.length} events · {fmt$(Math.round(totalDoorRev))} total</>}</span>
@@ -1756,12 +1852,50 @@ export default function TreasuryPage() {
                     </div>
                   )}
                 </FinanceCard>
-              );
+              </>);
             })()}
 
             {/* ── Reports tab: full-width summary ──────────────────────────── */}
-            {navTab === "Reports" && (
-              <FinanceCard className="flex flex-col gap-4 p-6" style={{ marginTop: 18 }}>
+            {navTab === "Reports" && (<div className="tr-rep-tab">
+              {/* Paper: the term as a printed statement, every line a sum of the ledger. */}
+              {(() => {
+                const byCat = (list: typeof activeTxns, type: "income" | "expense") => {
+                  const m = new Map<string, number>();
+                  for (const t of list) m.set(t.category, (m.get(t.category) ?? 0) + t.amount);
+                  return [...m.entries()].sort((x, y) => y[1] - x[1]).map(([slug, amt]) => ({ label: catalog.labelFor(type, slug), amt }));
+                };
+                const ins = byCat(incomeTxns, "income");
+                const outs = byCat(expenseTxns, "expense");
+                return (
+                  <article className="stmt pp-only">
+                    <header className="stmt-h">
+                      <div>
+                        <h2>{semester} statement</h2>
+                        <p>{v("Treasury")} · as of {dateLabel}</p>
+                      </div>
+                    </header>
+                    <h5 style={{ "--eb": "var(--pp-mint-ink)" } as React.CSSProperties}>Money in</h5>
+                    {ins.length === 0 ? <p className="ldr"><span>Nothing in yet</span><span className="dots" /><span className="v un">—</span></p> : ins.map(r => (
+                      <p key={r.label} className="ldr sub"><span>{r.label}</span><span className="dots" /><span className="v in">+{fmt$(round2(r.amt))}</span></p>
+                    ))}
+                    <h5 style={{ "--eb": "var(--pp-peach)" } as React.CSSProperties}>Money out</h5>
+                    {outs.length === 0 ? <p className="ldr"><span>Nothing out yet</span><span className="dots" /><span className="v un">—</span></p> : outs.map(r => (
+                      <p key={r.label} className="ldr sub"><span>{r.label}</span><span className="dots" /><span className="v out">−{fmt$(round2(r.amt))}</span></p>
+                    ))}
+                    <p className="ldr tot"><span>Balance today</span><span className="dots" /><span className="v">{fmt$(Math.round(balance))}</span></p>
+                    {!statedUnstarted && <p className="ldr"><span>Projected</span><span className="dots" /><span className="v">{fmt$(Math.round(projected))}</span></p>}
+                    <p className="ldr"><span>Door revenue <span className="note">· {filteredParties.length} {filteredParties.length === 1 ? "party" : "parties"}</span></span><span className="dots" /><span className="v">{statedUnstarted ? "—" : fmt$(Math.round(totalDoorRev))}</span></p>
+                    {canTreasury && (
+                      <div className="stmt-acts">
+                        <button className="tr-exp-btn" onClick={handleExport}>
+                          <PaperIcon name="sheet" />Export CSV
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })()}
+              <FinanceCard className="tr-report-card flex flex-col gap-4 p-6" style={{ marginTop: 18 }}>
                 <div className="card-h" style={{ padding: 0, border: 0 }}>
                   <h2>Semester Report — {semester}</h2>
                 </div>
@@ -1791,7 +1925,7 @@ export default function TreasuryPage() {
                   )}
                 </div>
               </FinanceCard>
-            )}
+            </div>)}
 
             {navTab === "Reimbursements" && (
               <ReimbursementsView

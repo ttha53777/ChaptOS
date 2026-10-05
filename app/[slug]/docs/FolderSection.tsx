@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { DocMenu } from "./DocMenu";
 import type { Folder } from "./lib";
+import { PaperIcon } from "../../components/paper/PaperIcon";
 
 /**
  * A collapsible ledger section — one per folder, plus "Unfiled" (folder=null)
@@ -76,7 +77,7 @@ export function FolderSection({
   }
 
   return (
-    <section className={`dx-section${open ? "" : " closed"}`}>
+    <section className={`dx-section${open ? "" : " closed"}${folder ? "" : " unfiled"}`}>
       {/* Not a <button>: the folder menu renders nested <button>s, which is
           invalid inside a real button and breaks hydration. */}
       <div
@@ -103,18 +104,23 @@ export function FolderSection({
         onDragLeave={canManage ? (e) => e.currentTarget.classList.remove("drag-over", "drag-over-folder") : undefined}
         onDrop={canManage ? handleHeadDrop : undefined}
       >
-        <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-        <span className="name">{name}</span>
-        <span className="ct">{totalCount === 1 ? "1 doc" : `${totalCount} docs`}</span>
-        {pinned && (
-          <span className="pin" title="Pinned" aria-label="Pinned">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z" />
-            </svg>
-          </span>
-        )}
+        {/* The paper look draws this group as a manila folder tab; Ledger lays
+            it out flat (display: contents). */}
+        <span className="dx-tab">
+          <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          <PaperIcon name="folder" className="fi pp-only" />
+          <span className="name">{name}</span>
+          <span className="ct">{totalCount === 1 ? "1 doc" : `${totalCount} docs`}</span>
+          {pinned && (
+            <span className="pin" title="Pinned" aria-label="Pinned">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z" />
+              </svg>
+            </span>
+          )}
+        </span>
         <span className="rule" />
         {!forceOpen && <span className="fold-hint">{collapsed ? "Expand" : "Collapse"}</span>}
         {canManage && folder && (
@@ -181,6 +187,7 @@ export function FolderSection({
           )}
         </div>
       )}
+      {!open && <div className="dx-lip pp-only" aria-hidden />}
     </section>
   );
 }

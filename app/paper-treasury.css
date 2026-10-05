@@ -1,0 +1,544 @@
+/* ── Paper aesthetic: Treasury (/[slug]/treasury) ──────────────────────────────
+   The "#treasury" page of _design/Dashboard Paper Mock.html over the real
+   page: folder index tabs standing on an ink rule, the balance as an
+   ink-bordered hero on a mint hard shadow (mint line, peach expenses), a
+   ruled ledger book with a rose margin and big day numbers, parties as
+   notched ticket stubs, reimbursement requests as zig-zag receipts that get a
+   PAID / DECLINED rubber stamp, and Reports as a printed statement with dotted
+   leaders. Markup only paper shows is .pp-only (see treasury/page.tsx).
+
+   Everything hangs off html[data-aesthetic="paper"], which also out-specifies
+   treasury-ledger.css (`.dash .tr-*`), loaded after this file.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+html[data-aesthetic="paper"] .dash-treasury { --tz-r-xl: 30px; }
+
+/* The four-measure strip repeats the hero's own numbers; the mock goes straight
+   from the briefing to the tabs. */
+html[data-aesthetic="paper"] .dash-treasury .tr-glance { display: none; }
+
+/* ── Briefing actions ───────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash-treasury .briefing { flex-wrap: wrap; row-gap: 18px; }
+html[data-aesthetic="paper"] .dash-treasury .briefing > div:first-child { flex: 1 1 440px; }
+html[data-aesthetic="paper"] .dash .tr-head-actions { flex-wrap: wrap; justify-content: flex-end; gap: 10px; align-self: flex-end; }
+html[data-aesthetic="paper"] .dash .tr-sem-pill {
+  font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  border: 1.5px solid var(--line-med); background: var(--card); color: var(--muted); padding: 6px 11px;
+}
+html[data-aesthetic="paper"] .dash .tr-sem-pill:hover { border-color: var(--muted); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-sem-pill.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .dash .tr-icon-btn { width: 38px; height: 38px; border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-icon-btn:hover { border-color: var(--ink); color: var(--ink); }
+
+/* Ink pill with a hard pastel shadow (the mock's .btn) */
+html[data-aesthetic="paper"] .dash :is(.tr-add, .tr-ask) {
+  --hs: var(--pp-lilac);
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 17px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper);
+  font-family: var(--font-geist-sans); font-size: 14px; font-weight: 600; letter-spacing: -.01em; text-transform: none;
+  box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash :is(.tr-add, .tr-ask):hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); border-color: var(--ink); }
+html[data-aesthetic="paper"] .dash :is(.tr-add, .tr-ask):active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .tr-add svg { stroke: currentColor; width: 15px; height: 15px; }
+html[data-aesthetic="paper"] .dash .tr-add.tr-add-reimb { --hs: var(--pp-peach); background: var(--card); color: var(--ink); border-color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-add.tr-add-reimb svg { stroke: currentColor; }
+html[data-aesthetic="paper"] .dash .tr-head-actions .tr-add:not(.tr-add-reimb) { order: 5; }
+html[data-aesthetic="paper"] .dash .tr-ask {
+  order: 6; background: transparent; color: var(--muted); border: 1.5px dashed var(--line-med); box-shadow: none; font-weight: 500;
+}
+html[data-aesthetic="paper"] .dash .tr-ask:hover { color: var(--ink); border-color: var(--pp-lilac-ink); background: var(--pp-lilac-soft); box-shadow: none; transform: translateY(-1px); }
+html[data-aesthetic="paper"] .dash .tr-ask svg { width: 13px; height: 13px; color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .tr-ask kbd {
+  font-family: var(--font-geist-mono); font-size: 10.5px; border: 1px solid var(--line-med); border-radius: 6px; padding: 1px 6px;
+  background: var(--paper-2); color: var(--muted);
+}
+
+/* ── Index tabs: folder tabs on an ink rule; the open one breaks the rule ─────── */
+html[data-aesthetic="paper"] .dash .tr-tabs {
+  margin-top: 30px; align-items: flex-end; gap: 6px; padding: 0 6px; border-bottom: 0;
+  box-shadow: inset 0 -1.5px 0 var(--ink); overflow-x: auto; scrollbar-width: none;
+}
+html[data-aesthetic="paper"] .dash .tr-tabs::-webkit-scrollbar { display: none; }
+html[data-aesthetic="paper"] .dash .tr-tabs button {
+  --tb: var(--pp-mint);
+  flex: none; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 1.5px; padding: 10px 16px 9px;
+  border: 1.5px solid var(--line-med); border-bottom: 0; border-radius: 13px 13px 0 0; background: var(--paper-2);
+  font-family: var(--font-geist-sans); font-size: 14px; font-weight: 600; letter-spacing: -.01em; text-transform: none; color: var(--muted);
+  transition: color .15s, background .15s, padding .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tr-tabs button::before {
+  content: ''; position: absolute; left: 12px; right: 12px; top: -1.5px; height: 4px; border-radius: 0 0 4px 4px; background: var(--tb); opacity: .9;
+}
+html[data-aesthetic="paper"] .dash .tr-tabs button[data-tab="Transactions"]   { --tb: var(--pp-sky); }
+html[data-aesthetic="paper"] .dash .tr-tabs button[data-tab="Reimbursements"] { --tb: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .tr-tabs button[data-tab="Reports"]        { --tb: var(--pp-butter); }
+html[data-aesthetic="paper"] .dash .tr-tabs button .pp-ic { width: 15px; height: 15px; }
+html[data-aesthetic="paper"] .dash .tr-tabs button:hover { color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .dash .tr-tabs button.on {
+  margin-bottom: 0; padding: 12px 18px 11px; background: var(--paper); color: var(--ink); border-color: var(--ink); z-index: 1;
+}
+html[data-aesthetic="paper"] .dash .tr-tabs button.on::after { display: none; }
+html[data-aesthetic="paper"] .dash .tr-tabs .tr-tab-badge {
+  margin-left: 0; min-width: 19px; height: 19px; font-size: 10.5px; font-weight: 600; box-shadow: none;
+  background: var(--pp-peach); color: var(--pp-note-ink); border: 1.5px solid var(--pp-note-ink);
+}
+
+/* ── Hero: the balance + where it went ─────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-hero { margin-top: 24px; grid-template-columns: minmax(0,1.5fr) minmax(0,1fr); gap: 22px; align-items: stretch; }
+html[data-aesthetic="paper"] .dash .tr-bal-card {
+  border: 1.5px solid var(--ink); border-radius: 30px; box-shadow: 7px 7px 0 var(--pp-mint); padding-bottom: 16px;
+}
+html[data-aesthetic="paper"] .dash .tr-bal-top { padding: 22px 24px 4px; }
+html[data-aesthetic="paper"] .dash .tr-bal-label {
+  display: flex; align-items: center; gap: 8px; font-family: var(--font-geist-sans); font-size: 10.5px; font-weight: 700; letter-spacing: .1em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tr-bal-label .pp-ic { width: 15px; height: 15px; color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-bal-row { margin-top: 6px; flex-wrap: wrap; }
+html[data-aesthetic="paper"] .dash .tr-bal-num {
+  font-family: var(--font-fraunces); font-weight: 600; font-size: clamp(42px, 4.6vw, 58px); letter-spacing: -.05em; line-height: .95;
+}
+html[data-aesthetic="paper"] .dash .tr-bal-num.neg { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-bal-chip {
+  font-family: var(--font-geist-sans); font-size: 12px; font-weight: 600; letter-spacing: 0; padding: 3px 10px; border: 1px solid;
+}
+html[data-aesthetic="paper"] .dash .tr-bal-chip.up { color: var(--pp-mint-ink); background: var(--pp-mint-soft); border-color: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .dash .tr-bal-chip.down { color: var(--pp-peach-ink); background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); }
+html[data-aesthetic="paper"] .dash .tr-bal-sched {
+  font-family: var(--font-geist-mono); font-size: 11px; color: var(--pp-peach-ink); background: var(--pp-peach-soft); border: 1px solid var(--pp-peach-bd);
+}
+html[data-aesthetic="paper"] .dash .tr-bal-meta { font-size: 13.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-bal-meta b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tr-ranges {
+  gap: 2px; padding: 3px; border-radius: 999px; background: var(--paper-2); border: 1.5px solid var(--line);
+}
+html[data-aesthetic="paper"] .dash .tr-ranges button { font-family: var(--font-geist-mono); font-size: 11px; color: var(--muted); padding: 4px 10px; border-radius: 999px; }
+html[data-aesthetic="paper"] .dash .tr-ranges button.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
+/* The income / expense pair moves under the chart, where the in-vs-out bar
+   lives in the paper look. */
+html[data-aesthetic="paper"] .dash .tr-bal-card .tr-kpi { display: none; }
+
+/* the chart: mint balance, peach expenses, dashed grid */
+html[data-aesthetic="paper"] .dash .tr-chart { --vio: var(--pp-mint-ink); --rose: var(--pp-peach-ink); --ok: var(--pp-mint-ink); padding: 8px 10px 0; }
+html[data-aesthetic="paper"] .dash .tr-chart .recharts-cartesian-grid line { stroke: var(--line-med); stroke-dasharray: 3 4; }
+html[data-aesthetic="paper"] .dash .tr-chart .recharts-text { fill: var(--muted); font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .dash .tr-chart [class*="border-t"] { border-top: 1.5px dashed var(--line-med) !important; }
+html[data-aesthetic="paper"] .dash .tr-chart p { font-family: var(--font-geist-sans); font-weight: 700; letter-spacing: .1em; color: var(--muted); }
+html[data-aesthetic="paper"] .dash :is(.tr-chart, .tr-donut-wrap) .recharts-tooltip-wrapper > div {
+  background: var(--card) !important; backdrop-filter: none !important; border: 1.5px solid var(--ink) !important; border-radius: 12px !important;
+  box-shadow: 3px 3px 0 var(--pp-mint) !important; color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash :is(.tr-chart, .tr-donut-wrap) .recharts-tooltip-wrapper span { color: var(--ink) !important; }
+
+/* in vs out: one bar, two inks */
+html[data-aesthetic="paper"] .dash .tr-io {
+  margin: 12px 24px 0; padding-top: 14px; border-top: 1.5px dashed var(--line-med);
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 6px 18px;
+}
+html[data-aesthetic="paper"] .dash .tr-io .s { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+html[data-aesthetic="paper"] .dash .tr-io .s.r { justify-content: flex-end; text-align: right; }
+html[data-aesthetic="paper"] .dash .tr-io .s i { width: 9px; height: 9px; border-radius: 3px; flex: none; align-self: center; }
+html[data-aesthetic="paper"] .dash .tr-io .s span { font-size: 12.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-io .s b { font-family: var(--font-fraunces); font-weight: 600; font-size: 20px; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .dash .tr-io .bar { grid-column: 1 / -1; display: flex; gap: 3px; height: 12px; border-radius: 7px; overflow: hidden; background: var(--card-3); }
+html[data-aesthetic="paper"] .dash .tr-io .bar i { display: block; height: 100%; }
+html[data-aesthetic="paper"] .dash .tr-io .cap {
+  grid-column: 1 / -1; display: flex; justify-content: space-between; font-family: var(--font-geist-mono); font-size: 11px; color: var(--muted);
+}
+
+/* where it went */
+html[data-aesthetic="paper"] .dash .tr-brk-card .card-h { gap: 10px; }
+html[data-aesthetic="paper"] .dash .tr-donut-toggle {
+  margin-left: auto; padding: 3px; gap: 2px; border-radius: 999px; background: var(--paper-2); border: 1.5px solid var(--line);
+}
+html[data-aesthetic="paper"] .dash .tr-donut-toggle button {
+  font-family: var(--font-geist-sans); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  padding: 4px 11px; border-radius: 999px; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tr-donut-toggle button.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
+/* The ring sits on an ink disc with seams between slices */
+html[data-aesthetic="paper"] .dash .tr-donut-wrap { max-width: 230px; }
+html[data-aesthetic="paper"] .dash .tr-donut-wrap .recharts-pie-sector path { stroke: var(--ink); stroke-width: 1.5px; }
+html[data-aesthetic="paper"] .dash .tr-donut-wrap::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 202px; height: 202px; transform: translate(-50%,-50%);
+  border-radius: 50%; box-shadow: 3px 3px 0 var(--line-med); pointer-events: none;
+}
+html[data-aesthetic="paper"] .dash .tr-donut-center .lbl { font-family: var(--font-geist-sans); font-size: 9.5px; font-weight: 700; letter-spacing: .09em; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-donut-center .amt { font-family: var(--font-fraunces); font-weight: 600; font-size: 27px; letter-spacing: -.035em; }
+html[data-aesthetic="paper"] .dash .tr-cat-list { padding: 6px 14px 16px; gap: 2px; }
+html[data-aesthetic="paper"] .dash .tr-cat { padding: 7px 8px; border-radius: 11px; gap: 11px; transition: background .15s; }
+html[data-aesthetic="paper"] .dash .tr-cat:hover { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tr-cat .rank { display: none; }
+html[data-aesthetic="paper"] .dash .tr-cat .swatch { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid var(--pp-note-ink); align-self: flex-start; margin-top: 3px; }
+html[data-aesthetic="paper"] .dash .tr-cat .body .nm { font-size: 14px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-cat .body .amt { font-size: 12.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-cat .body .pct { order: 2; margin: 0; font-size: 10.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-cat .body .top > span:last-child { display: inline-flex; align-items: baseline; gap: 6px; }
+html[data-aesthetic="paper"] .dash .tr-cat .bar { height: 5px; border-radius: 3px; background: var(--card-3); margin-top: 6px; }
+
+/* ── Row 2: who still owes · coming up · the term so far ──────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-lower { margin-top: 22px; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) minmax(0,.9fr); gap: 22px; }
+html[data-aesthetic="paper"] .dash .tr-lower .card-h { gap: 10px; }
+html[data-aesthetic="paper"] .dash .tr-lower .card-h .sub { margin-left: auto; font-family: var(--font-geist-mono); font-size: 11.5px; color: var(--muted); letter-spacing: 0; text-transform: none; }
+html[data-aesthetic="paper"] .dash .tr-dues-card > div:last-child { border-top: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .dash .tr-row { padding: 9px 18px; border-bottom: 1px solid var(--line-soft); gap: 11px; }
+html[data-aesthetic="paper"] .dash .tr-row:hover { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tr-row .who .nm { font-size: 14px; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tr-row .who .rl { font-family: var(--font-geist-sans); font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-row .owe { font-family: var(--font-geist-mono); font-size: 13.5px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-row .owe.zero { color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .dash .tr-row .acts { gap: 6px; align-items: center; }
+html[data-aesthetic="paper"] .dash .tr-mini-btn {
+  --hs: var(--pp-mint);
+  font-family: var(--font-geist-sans); font-size: 12.5px; font-weight: 600; letter-spacing: -.01em; text-transform: none;
+  padding: 5px 12px; border-radius: 999px; background: var(--ink); color: var(--paper); border: 1.5px solid var(--ink);
+  box-shadow: 2px 2px 0 var(--hs); transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tr-mini-btn:hover { border-color: var(--ink); transform: translate(-1px,-1px); box-shadow: 3.5px 3.5px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .tr-mini-btn.ghost {
+  background: transparent; color: var(--ink-soft); border-color: var(--line-med); box-shadow: none;
+}
+html[data-aesthetic="paper"] .dash .tr-mini-btn.ghost:hover { color: var(--ink); border-color: var(--muted); transform: translateY(-1px); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .tr-empty-stack p { font-size: 13.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-empty-stack button {
+  font-family: var(--font-geist-sans); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink);
+  border: 1.5px dashed var(--line-med); border-radius: 999px; padding: 6px 13px;
+}
+html[data-aesthetic="paper"] .dash .tr-empty-stack button:hover { border-color: var(--ink); }
+
+/* coming up: date blocks */
+html[data-aesthetic="paper"] .dash .tr-up-card > div:last-child { padding: 4px 10px 10px; }
+html[data-aesthetic="paper"] .dash .tr-ev-row { gap: 12px; padding: 8px 6px; border-bottom: 0; border-radius: 12px; }
+html[data-aesthetic="paper"] .dash .tr-ev-row:hover { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tr-dd {
+  width: 44px; flex: none; text-align: center; line-height: 1.05; padding: 4px 0 5px;
+  border: 1.5px solid var(--line); border-radius: 11px; background: var(--paper);
+}
+html[data-aesthetic="paper"] .dash .tr-dd small { display: block; font-family: var(--font-geist-mono); font-size: 9px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-dd b { font-family: var(--font-fraunces); font-size: 18px; font-weight: 600; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .dash .tr-ev-row .body .t { font-size: 14px; font-weight: 600; white-space: normal; line-height: 1.25; }
+html[data-aesthetic="paper"] .dash .tr-ev-row .body .m { font-family: var(--font-geist-sans); font-size: 12px; letter-spacing: 0; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-ev-row .amt { font-size: 13px; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tr-ev-row .amt.inc { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-ev-row :is(.amt.exp, .amt.party) { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-ev-row .tag {
+  font-family: var(--font-geist-sans); font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  color: var(--pp-peach-ink); background: var(--pp-peach-soft); border: 1px solid var(--pp-peach-bd); padding: 1px 8px;
+}
+
+/* the term so far: statement lines with dotted leaders */
+html[data-aesthetic="paper"] .dash .tr-rep { padding: 8px 18px 16px; gap: 0; }
+html[data-aesthetic="paper"] .dash .tr-rep .line { gap: 8px; padding: 6px 0; font-size: 14px; }
+html[data-aesthetic="paper"] .dash .tr-rep .line .k { display: flex; flex: 1; align-items: baseline; gap: 8px; min-width: 0; font-size: 14px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-rep .line .k::after { content: ''; flex: 1; min-width: 16px; border-bottom: 2px dotted var(--line-med); transform: translateY(-4px); }
+html[data-aesthetic="paper"] .dash .tr-rep .line .v { font-family: var(--font-geist-mono); font-size: 13px; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-rep .line .v.sage { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-rep .line :is(.v.rose, .v.party) { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-rep .line .v.unset { color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-rep hr { display: none; }
+html[data-aesthetic="paper"] .dash .tr-rep .line.total { margin-top: 4px; padding-top: 10px; border-top: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-rep .line.total .k { font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-rep .line.total .v { font-family: var(--font-fraunces); font-size: 19px; font-weight: 600; letter-spacing: -.03em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-rep .line.total .v.rose { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-exp-btn {
+  margin-top: 12px; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line-med); background: transparent;
+  font-family: var(--font-geist-sans); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .tr-exp-btn:hover { border-color: var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-exp-btn svg { width: 15px; height: 15px; }
+
+/* ── The ledger book ────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-secnote {
+  display: flex; align-items: baseline; gap: 14px; margin: 40px 0 14px;
+  font-family: var(--font-fraunces); font-size: 22px; font-weight: 600; letter-spacing: -.03em; text-transform: none; color: var(--ink);
+}
+html[data-aesthetic="paper"] .dash .tr-secnote::after { content: ''; flex: 1; border-top: 1.5px dashed var(--line-med); transform: translateY(-6px); }
+html[data-aesthetic="paper"] .dash .tr-secnote .sum { order: 2; font-family: var(--font-geist-mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-log-card { position: relative; border: 1.5px solid var(--line); border-radius: 22px; overflow: hidden; }
+html[data-aesthetic="paper"] .dash .tr-log-h { padding: 12px 16px; gap: 10px; border-bottom: 1.5px solid var(--line); background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tr-log-h h2 { font-family: var(--font-fraunces); font-weight: 600; font-size: 17px; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .dash .tr-txtabs { gap: 2px; padding: 3px; border-radius: 999px; background: var(--card); border: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .dash .tr-txtabs button {
+  font-family: var(--font-geist-sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  padding: 4px 11px; border-radius: 999px; border: 0; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tr-txtabs button.on { background: var(--ink); color: var(--paper); border: 0; }
+html[data-aesthetic="paper"] .dash :is(.tr-select, .tr-log-search input) {
+  font-family: var(--font-geist-sans); font-size: 13px; letter-spacing: 0; border: 1.5px solid var(--line-med); border-radius: 999px; background: var(--card);
+}
+html[data-aesthetic="paper"] .dash .tr-select { padding: 6px 12px; }
+html[data-aesthetic="paper"] .dash .tr-log-search input { padding: 7px 12px 7px 30px; width: 220px; }
+html[data-aesthetic="paper"] .dash :is(.tr-select, .tr-log-search input):focus { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-sky); width: 220px; }
+html[data-aesthetic="paper"] .dash .tr-log-total {
+  font-family: var(--font-geist-mono); font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card);
+}
+html[data-aesthetic="paper"] .dash .tr-log-total.sage { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-log-total.rose { color: var(--pp-peach-ink); }
+
+/* the rose margin line, just right of the date column */
+html[data-aesthetic="paper"] .dash .tr-log-card .tr-table-wrap { position: relative; }
+html[data-aesthetic="paper"] .dash .tr-log-card .tr-table-wrap::before {
+  content: ''; position: absolute; left: 76px; top: 0; bottom: 0; width: 1.5px; background: var(--pp-rose-ink); opacity: .45; pointer-events: none; z-index: 1;
+}
+html[data-aesthetic="paper"] .dash .tr-table thead th {
+  font-family: var(--font-geist-sans); font-size: 10px; font-weight: 700; letter-spacing: .1em; color: var(--muted);
+  padding: 9px 14px; border-bottom: 1.5px solid var(--line); background: var(--paper-2);
+}
+html[data-aesthetic="paper"] .dash .tr-log-card .tr-table thead th:first-child { width: 76px; text-align: center; }
+html[data-aesthetic="paper"] .dash .tr-table tbody td { padding: 9px 14px; border-bottom: 1px solid var(--line-soft); }
+html[data-aesthetic="paper"] .dash .tr-table tbody tr:hover td { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tr-log-card .tr-table .date { text-align: center; width: 76px; }
+html[data-aesthetic="paper"] .dash .tr-dt { display: block; line-height: 1.05; }
+html[data-aesthetic="paper"] .dash .tr-dt b { display: block; font-family: var(--font-fraunces); font-size: 20px; font-weight: 600; letter-spacing: -.03em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-dt small { display: block; font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-pill {
+  font-family: var(--font-geist-sans); font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  padding: 1px 9px; color: var(--ink-soft); border: 1px solid var(--line-med); background: var(--paper);
+}
+html[data-aesthetic="paper"] .dash .tr-pill .pdot { box-shadow: 0 0 0 1px rgba(38,33,27,.2); }
+html[data-aesthetic="paper"] .dash .tr-pill .pdot.inc { background: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-pill .pdot.exp { background: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-sched-tag {
+  font-family: var(--font-geist-sans); font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  color: var(--pp-peach-ink); background: var(--pp-peach-soft); border: 1px solid var(--pp-peach-bd);
+}
+html[data-aesthetic="paper"] .dash .tr-table .desc { font-size: 14.5px; font-weight: 600; color: var(--ink); max-width: 320px; }
+html[data-aesthetic="paper"] .dash .tr-ev-link { font-family: var(--font-geist-sans); font-size: 12px; font-weight: 550; color: var(--pp-sky-ink); }
+html[data-aesthetic="paper"] .dash .tr-table .method {
+  font-family: var(--font-geist-mono); font-size: 11.5px; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tr-table .amt { font-size: 14px; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tr-table .amt.inc { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-table .amt.exp { color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-table .run { font-size: 12px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-table .run.neg { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-row-acts { opacity: 1; }
+html[data-aesthetic="paper"] .dash .tr-iconbtn { width: 30px; height: 30px; border-radius: 9px; color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .tr-table tbody tr:hover .tr-iconbtn { color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-iconbtn.edit:hover { color: var(--ink); background: var(--card-3); }
+html[data-aesthetic="paper"] .dash .tr-iconbtn.del:hover { color: var(--pp-rose-ink); background: var(--pp-rose-soft); }
+html[data-aesthetic="paper"] .dash .tr-markpaid {
+  font-family: var(--font-geist-sans); font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none;
+  border-radius: 999px; padding: 2px 9px; color: var(--pp-mint-ink); background: var(--pp-mint-soft); border: 1.5px solid var(--pp-mint-bd);
+}
+html[data-aesthetic="paper"] .dash .tr-markpaid:hover { border-color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-table-empty {
+  padding: 34px 20px 34px 96px; text-align: left; font-size: 14px; color: var(--muted);
+  background: repeating-linear-gradient(transparent 0 29px, var(--pp-sky-bd) 29px 30px);
+}
+
+/* ── At the door: ticket stubs ─────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-tix { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+html[data-aesthetic="paper"] .dash .tix {
+  position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; text-align: left; padding: 0; cursor: pointer;
+  border: 1.5px solid var(--ink); border-radius: 14px; background: var(--card); box-shadow: 4px 4px 0 var(--pp-rose); color: inherit;
+  transition: transform .2s var(--pp-ease-spring), box-shadow .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tix:hover { transform: translate(-1.5px,-1.5px) rotate(-.4deg); box-shadow: 6px 6px 0 var(--pp-rose); }
+html[data-aesthetic="paper"] .dash .tix .l { display: block; padding: 13px 14px 12px; min-width: 0; }
+html[data-aesthetic="paper"] .dash .tix .k { display: block; font-family: var(--font-geist-mono); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .tix .t { display: block; margin-top: 3px; font-family: var(--font-fraunces); font-weight: 600; font-size: 17px; letter-spacing: -.022em; line-height: 1.15; }
+html[data-aesthetic="paper"] .dash .tix .m { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tix .r {
+  position: relative; display: grid; align-content: center; justify-items: end; text-align: right;
+  padding: 13px 14px 12px 16px; border-left: 1.5px dashed var(--line-med);
+}
+html[data-aesthetic="paper"] .dash .tix .r::before,
+html[data-aesthetic="paper"] .dash .tix .r::after {
+  content: ''; position: absolute; left: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--ink);
+}
+html[data-aesthetic="paper"] .dash .tix .r::before { top: -9px; clip-path: inset(50% 0 0 0); }
+html[data-aesthetic="paper"] .dash .tix .r::after { bottom: -9px; clip-path: inset(0 0 50% 0); }
+html[data-aesthetic="paper"] .dash .tix .r b { font-family: var(--font-fraunces); font-weight: 600; font-size: 21px; letter-spacing: -.035em; }
+html[data-aesthetic="paper"] .dash .tix .r small { font-family: var(--font-geist-mono); font-size: 10px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tix.up { box-shadow: 4px 4px 0 var(--pp-lilac); border-style: dashed; }
+html[data-aesthetic="paper"] .dash .tix.up .k { color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .tix .tix-del {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px;
+  border: 0; background: var(--card); color: var(--muted); opacity: 0; transition: opacity .15s, color .15s, background .15s;
+}
+html[data-aesthetic="paper"] .dash .tix:is(:hover, :focus-within) .tix-del { opacity: 1; }
+html[data-aesthetic="paper"] .dash .tix .tix-del:hover { color: var(--pp-rose-ink); background: var(--pp-rose-soft); }
+html[data-aesthetic="paper"] .dash .tix .tix-del svg { width: 14px; height: 14px; }
+html[data-aesthetic="paper"] .dash .tix.add {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 86px;
+  border: 1.5px dashed var(--line-med); box-shadow: none; background: transparent; color: var(--ink-soft); font-weight: 600; font-size: 14px;
+}
+html[data-aesthetic="paper"] .dash .tix.add:hover { border-color: var(--ink); color: var(--ink); background: var(--card); box-shadow: none; transform: none; }
+html[data-aesthetic="paper"] .dash .tix.add svg { width: 16px; height: 16px; }
+
+/* ── Reimbursements: receipts that get stamped ─────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-reimb-title { font-family: var(--font-fraunces); font-weight: 600; font-size: 22px; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .dash .tr-reimb-summary-total { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-reimb-list { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 26px 22px; align-items: start; }
+html[data-aesthetic="paper"] .dash .tr-reimb-card {
+  overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  filter: drop-shadow(1.5px 0 0 var(--line-med)) drop-shadow(-1.5px 0 0 var(--line-med)) drop-shadow(0 -1.5px 0 var(--line-med)) drop-shadow(0 1.5px 0 var(--line-med)) drop-shadow(0 10px 14px rgba(38,33,27,.09));
+  transition: transform .25s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tr-reimb-card:nth-child(odd) { transform: rotate(-.6deg); }
+html[data-aesthetic="paper"] .dash .tr-reimb-card:nth-child(even) { transform: rotate(.5deg); }
+html[data-aesthetic="paper"] .dash .tr-reimb-card:hover { transform: none; }
+html[data-aesthetic="paper"] .dash .tr-reimb-card.tr-reimb-pending {
+  filter: drop-shadow(1.5px 0 0 var(--ink)) drop-shadow(-1.5px 0 0 var(--ink)) drop-shadow(0 -1.5px 0 var(--ink)) drop-shadow(0 1.5px 0 var(--ink)) drop-shadow(5px 5px 0 var(--pp-sky));
+}
+html[data-aesthetic="paper"] .dash .tr-reimb-card.tr-reimb-archived { opacity: .86; }
+/* the paper itself: zig-zag bottom edge */
+html[data-aesthetic="paper"] .dash .tr-reimb-card > * { background: var(--card); }
+html[data-aesthetic="paper"] .dash .tr-reimb-foot {
+  padding: 14px 18px 26px;
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+          mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+}
+html[data-aesthetic="paper"] .dash :is(.tr-reimb-rejected, .tr-reimb-approved) .tr-reimb-foot { background: var(--card); }
+html[data-aesthetic="paper"] .dash .tr-reimb-body { position: relative; padding: 18px 18px 6px; gap: 2px; border-radius: 2px 2px 0 0; }
+html[data-aesthetic="paper"] .dash .tr-reimb-top { margin-bottom: 4px; }
+html[data-aesthetic="paper"] .dash .tr-reimb-avatar { background: var(--pp-lilac); border: 1.5px solid rgba(38,33,27,.08); }
+html[data-aesthetic="paper"] .dash .tr-reimb-avatar span { color: var(--pp-note-ink); font-weight: 700; }
+html[data-aesthetic="paper"] .dash .tr-reimb-name { font-size: 14.5px; font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tr-reimb-you { background: none; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-reimb-date { font-size: 11px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-reimb-pill { font-family: var(--font-geist-sans); font-size: 11.5px; font-weight: 600; letter-spacing: 0; text-transform: none; border: 1px solid; padding: 2px 9px; }
+html[data-aesthetic="paper"] .dash .tr-reimb-pill-pending  { color: var(--pp-sky-ink);   background: var(--pp-sky-soft);   border-color: var(--pp-sky-bd); }
+html[data-aesthetic="paper"] .dash .tr-reimb-pill-approved { color: var(--pp-mint-ink);  background: var(--pp-mint-soft);  border-color: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .dash .tr-reimb-pill-rejected { color: var(--pp-rose-ink);  background: var(--pp-rose-soft);  border-color: var(--pp-rose-bd); }
+html[data-aesthetic="paper"] .dash .tr-reimb-amount {
+  margin-top: 14px; padding-top: 12px; border-top: 1.5px dashed var(--line-med); text-align: center;
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 42px; letter-spacing: -.05em;
+}
+html[data-aesthetic="paper"] .dash .tr-reimb-cur { font-size: 21px; color: var(--muted); vertical-align: .7em; }
+html[data-aesthetic="paper"] .dash .tr-reimb-desc { margin-top: 8px; text-align: center; font-size: 14.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-reimb-age { text-align: center; font-size: 11px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-reimb-tearwrap { height: 14px; }
+html[data-aesthetic="paper"] .dash .tr-reimb-tear { border-top: 2px dashed var(--line-med); }
+html[data-aesthetic="paper"] .dash .tr-reimb-tear::before,
+html[data-aesthetic="paper"] .dash .tr-reimb-tear::after { display: none; }
+html[data-aesthetic="paper"] .dash .tr-reimb-act {
+  --hs: var(--pp-mint);
+  height: auto; padding: 9px 14px; border-radius: 999px; font-family: var(--font-geist-sans); font-size: 13.5px; font-weight: 600;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tr-reimb-act-approve { background: var(--ink); color: var(--paper); border: 1.5px solid var(--ink); box-shadow: 2.5px 2.5px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .tr-reimb-act-approve:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); transform: translate(-1.5px,-1.5px); box-shadow: 4px 4px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .tr-reimb-act-reject { --hs: var(--pp-rose); background: var(--card); color: var(--pp-rose-ink); border: 1.5px solid var(--pp-rose-ink); box-shadow: 2.5px 2.5px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .tr-reimb-act-reject:hover { background: var(--card); transform: translate(-1.5px,-1.5px); box-shadow: 4px 4px 0 var(--hs); }
+html[data-aesthetic="paper"] :is(.dash .tr-reimb-btn-confirm-approve, .dash .tr-reimb-btn-confirm-reject) {
+  --hs: var(--pp-mint); border-radius: 999px; padding: 7px 14px; font-size: 13px; background: var(--ink); color: var(--paper); border: 1.5px solid var(--ink); box-shadow: 2px 2px 0 var(--hs);
+}
+html[data-aesthetic="paper"] .dash .tr-reimb-btn-confirm-reject { --hs: var(--pp-rose); background: var(--card); color: var(--pp-rose-ink); border-color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .tr-reimb-btn-confirm-approve:hover { background: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .dash .tr-reimb-btn-confirm-reject:hover { background: var(--pp-rose-soft); color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .tr-reimb-outcome { font-family: var(--font-geist-sans); font-size: 13px; letter-spacing: 0; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-reimb-outcome svg { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-reimb-rejnote-k { font-family: var(--font-geist-sans); font-weight: 700; letter-spacing: .1em; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .tr-reimb-rejnote p { font-size: 13px; }
+html[data-aesthetic="paper"] .dash .tr-reimb-empty {
+  padding: 28px 22px; border: 1.5px dashed var(--line-med); border-radius: 22px; font-size: 14px; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tr-reimb-empty svg { color: var(--pp-mint-ink); opacity: 1; }
+html[data-aesthetic="paper"] .dash .tr-reimb-archive-toggle { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+/* the rubber stamp (reimbursements here; the writ has its own in paper-chat.css) */
+html[data-aesthetic="paper"] .dash .rubber {
+  --st: var(--muted);
+  position: absolute; right: 14px; top: 96px; z-index: 2; padding: 5px 12px;
+  border: 2.5px solid var(--st); border-radius: 8px; color: var(--st);
+  font-family: var(--font-geist-mono); font-weight: 600; font-size: 14px; letter-spacing: .16em; text-transform: uppercase;
+  transform: rotate(-9deg); opacity: .85; pointer-events: none;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--st) 25%, transparent);
+}
+html[data-aesthetic="paper"] .dash .rubber.paid { --st: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .rubber.no { --st: var(--pp-rose-ink); }
+
+/* ── Reports: a printed statement beside the cells ──────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-rep-tab { margin-top: 24px; display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 24px; align-items: start; }
+html[data-aesthetic="paper"] .dash .tr-rep-tab .tr-report-card { margin-top: 0 !important; padding: 0 !important; border: 0; background: none; box-shadow: none; }
+html[data-aesthetic="paper"] .dash .tr-rep-tab .tr-report-card .card-h { display: none; }
+html[data-aesthetic="paper"] .dash .tr-rep-tab .tr-report-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+html[data-aesthetic="paper"] .dash .tr-rep-tab .tr-report-card .tr-exp-btn { display: none; }
+html[data-aesthetic="paper"] .dash .tr-report-cell { border: 1.5px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--pp-sh-1); }
+html[data-aesthetic="paper"] .dash .tr-report-cell .k { font-family: var(--font-geist-sans); font-size: 10px; font-weight: 700; letter-spacing: .09em; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-report-cell .v { font-family: var(--font-fraunces); font-weight: 600; font-size: 26px; letter-spacing: -.04em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-report-cell .v.sage { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-report-cell :is(.v.rose, .v.party) { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tr-report-cell .v.vio { color: var(--ink); }
+
+html[data-aesthetic="paper"] .dash .stmt {
+  position: relative; background: var(--card); border: 1.5px solid var(--ink); border-radius: 6px 18px 8px 16px;
+  box-shadow: 7px 7px 0 var(--pp-butter); padding: 26px 28px 24px;
+}
+html[data-aesthetic="paper"] .dash .stmt::after {
+  content: ''; position: absolute; right: 60px; top: -9px; width: 66px; height: 18px; transform: rotate(4deg);
+  background: color-mix(in srgb, var(--pp-sky) 70%, transparent); border-inline: 1px dashed rgba(38,33,27,.16);
+}
+html[data-aesthetic="paper"] .dash .stmt-h { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 14px; border-bottom: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .dash .stmt-h h2 { font-family: var(--font-fraunces); font-weight: 600; font-size: 26px; letter-spacing: -.035em; line-height: 1.1; }
+html[data-aesthetic="paper"] .dash .stmt-h p { font-family: var(--font-geist-mono); font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+html[data-aesthetic="paper"] .dash .stmt h5 {
+  margin: 18px 0 4px; display: flex; align-items: center; gap: 8px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .stmt h5::before { content: ''; width: 14px; height: 2px; border-radius: 2px; background: var(--eb); }
+html[data-aesthetic="paper"] .dash .ldr { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 14px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .ldr .dots { flex: 1; min-width: 16px; border-bottom: 2px dotted var(--line-med); transform: translateY(-4px); }
+html[data-aesthetic="paper"] .dash .ldr .v { font-family: var(--font-geist-mono); font-size: 13px; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ldr .v.in { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .ldr .v.out { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .ldr .v.un { color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ldr.sub { padding-left: 16px; font-size: 13.5px; }
+html[data-aesthetic="paper"] .dash .ldr.tot { margin-top: 8px; padding-top: 10px; border-top: 1.5px solid var(--ink); font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ldr.tot .v { font-family: var(--font-fraunces); font-size: 19px; font-weight: 600; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .dash .ldr .note { font-size: 11.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .stmt-acts { margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+html[data-aesthetic="paper"] .dash .stmt-acts .tr-exp-btn { margin-top: 0; }
+
+/* ── Day one + locked ───────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-first-entry {
+  align-items: center; padding: 16px 18px; border-radius: 22px; border: 1.5px dashed var(--pp-mint-ink);
+  background: color-mix(in srgb, var(--pp-mint-soft) 70%, transparent); box-shadow: none;
+}
+html[data-aesthetic="paper"] .dash .tr-first-entry .bglyph {
+  width: 44px; height: 44px; border-radius: 14px; background: var(--pp-mint); color: var(--pp-note-ink);
+  border: 1.5px solid var(--pp-note-ink); transform: rotate(-4deg); filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .dash .tr-first-entry .btxt h4 { font-family: var(--font-fraunces); font-weight: 600; font-size: 17px; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .dash .tr-first-entry .btxt p { color: var(--ink-soft); font-size: 14px; }
+html[data-aesthetic="paper"] .dash .tr-state-chip { font-family: var(--font-geist-sans); font-size: 10.5px; font-weight: 700; letter-spacing: .07em; border-radius: 999px; padding: 2px 9px; margin-top: 4px; }
+html[data-aesthetic="paper"] .dash .tr-locked {
+  position: relative; border: 1.5px solid var(--ink); border-radius: 30px; box-shadow: 8px 8px 0 var(--pp-mint); padding: 40px 30px 34px;
+}
+html[data-aesthetic="paper"] .dash .tr-locked::after {
+  content: ''; position: absolute; left: 50%; top: -9px; width: 70px; height: 18px; transform: translateX(-50%) rotate(-3deg);
+  background: color-mix(in srgb, var(--pp-butter) 75%, transparent); border-inline: 1px dashed rgba(38,33,27,.16);
+}
+html[data-aesthetic="paper"] .dash .tr-locked h2 { font-family: var(--font-fraunces); font-weight: 600; font-size: 30px; letter-spacing: -.04em; }
+html[data-aesthetic="paper"] .dash .tr-locked p { color: var(--ink-soft); font-size: 15px; }
+html[data-aesthetic="paper"] .dash .tr-skel { border: 1.5px solid var(--line); border-radius: 22px; }
+html[data-aesthetic="paper"] .dash .tr-anchor-dot { background: var(--pp-mint-ink); }
+
+@media (max-width: 1180px) {
+  html[data-aesthetic="paper"] .dash .tr-lower { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  html[data-aesthetic="paper"] .dash .tr-lower > :first-child { grid-row: span 2; }
+}
+@media (max-width: 1000px) {
+  html[data-aesthetic="paper"] .dash .tr-hero,
+  html[data-aesthetic="paper"] .dash .tr-rep-tab { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 820px) {
+  html[data-aesthetic="paper"] .dash .tr-lower { grid-template-columns: minmax(0,1fr); }
+  html[data-aesthetic="paper"] .dash .tr-lower > :first-child { grid-row: auto; }
+  html[data-aesthetic="paper"] .dash .tr-log-card .tr-table-wrap::before { left: 64px; }
+  html[data-aesthetic="paper"] .dash .tr-log-card .tr-table .date,
+  html[data-aesthetic="paper"] .dash .tr-log-card .tr-table thead th:first-child { width: 64px; }
+}
+@media (max-width: 560px) {
+  html[data-aesthetic="paper"] .dash .tr-bal-card { box-shadow: 5px 5px 0 var(--pp-mint); border-radius: 22px; }
+  html[data-aesthetic="paper"] .dash .tr-bal-top { padding: 18px 16px 4px; flex-wrap: wrap; }
+  html[data-aesthetic="paper"] .dash .tr-io { margin-inline: 16px; }
+  html[data-aesthetic="paper"] .dash .tr-log-search,
+  html[data-aesthetic="paper"] .dash .tr-log-search input,
+  html[data-aesthetic="paper"] .dash .tr-log-search input:focus { width: 100%; }
+  html[data-aesthetic="paper"] .dash .stmt { padding: 20px 16px; }
+  html[data-aesthetic="paper"] .dash .tr-rep-tab .tr-report-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+}
