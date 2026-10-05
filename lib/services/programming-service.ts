@@ -97,7 +97,7 @@ function isServiceCategory(category: string) {
 
 /**
  * The org's programming-managed event types (see isProgrammingManagedType):
- * everything creatable except chapter — built-ins and customs alike. Fetched
+ * everything creatable — built-ins and customs alike. Fetched
  * once per service call; used for the board's category filter, input
  * validation, and slug→label resolution on the DTO.
  */
@@ -196,6 +196,48 @@ async function syncServiceEvent(
       location: row.location ?? "",
     },
   });
+}
+
+function isPartyCategory(category: string) {
+  return category === "party";
+}
+
+/**
+ * A Party confirmed from Programming gets the same ledger a Party created on
+ * the Timeline does (calendar-service creates one there), so it shows up on the
+ * Parties page for door, guest list and wrap-up. Reuses a ledger already linked
+ * to this calendar entry rather than minting a second one.
+ */
+async function attachPartyLedger(
+  tx: Prisma.TransactionClient,
+  orgId: number,
+  calendarEventId: number,
+  row: { title: string; collabOrg: string; date: string | null },
+) {
+  const linked = await tx.partyEvent.findFirst({ where: { attendanceEventId: calendarEventId, organizationId: orgId }, select: { id: true } });
+  if (linked) return null;
+  const { title } = resolveProgrammingDisplay({ title: row.title, collabOrg: row.collabOrg });
+  return tx.partyEvent.create({
+    data: { organizationId: orgId, name: title, date: row.date ?? "", collabOrg: row.collabOrg ?? "", attendanceEventId: calendarEventId },
+    select: { id: true, name: true, date: true },
+  });
+}
+
+/**
+ * Taking a Party off the Timeline drops its ledger with it — but only while the
+ * ledger is still blank. Once the Parties page has door money, spend, a head
+ * count or a wrap-up on it, demoting here would silently throw that away, so
+ * it's refused and the error says where the records live.
+ */
+async function releasePartyLedger(tx: Prisma.TransactionClient, orgId: number, calendarEventId: number) {
+  const party = await tx.partyEvent.findFirst({ where: { attendanceEventId: calendarEventId, organizationId: orgId } });
+  if (!party) return null;
+  const hasRecords = party.completed || party.doorRevenue !== 0 || party.expenses !== 0 || party.attendance !== 0 || party.notes.trim() !== "";
+  if (hasRecords) {
+    throw new ValidationError("This party already has door, spending or wrap-up records on the Parties page. Remove it there if it isn't happening.");
+  }
+  await tx.partyEvent.deleteMany({ where: { id: party.id, organizationId: orgId } });
+  return { id: party.id, name: party.name };
 }
 
 async function removeServiceEvent(tx: Prisma.TransactionClient, calendarEventId: number) {
@@ -531,6 +573,10 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
 
   let createdCalendarId: number | null = null;
   let deletedCalendarId: number | null = null;
+  // Cast, not annotate: they're assigned inside the transaction callback, which
+  // TS's narrowing can't see, so a plain `= null` would read as `never` below.
+  let createdParty = null as { id: number; name: string; date: string } | null;
+  let deletedParty = null as { id: number; name: string } | null;
   // Set when a concurrent request already performed this exact transition. Not an
   // error for the user — the event IS confirmed, just not by this request — so the
   // transaction unwinds and we fall through to returning the winner's state.
@@ -556,10 +602,12 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
         if (isServiceCategory(pe.category)) {
           await syncServiceEvent(tx, ctx.orgId, ce.id, pe);
         }
+        if (isPartyCategory(pe.category)) createdParty = await attachPartyLedger(tx, ctx.orgId, ce.id, pe);
         createdCalendarId = ce.id;
       } else if (demoting) {
         const calId = pe.calendarEventId!;
         if (isServiceCategory(pe.category)) await removeServiceEvent(tx, calId);
+        if (isPartyCategory(pe.category)) deletedParty = await releasePartyLedger(tx, ctx.orgId, calId);
         // Same one-shot claim on the way down: two concurrent demotes would both
         // try to delete the same CalendarEvent, and the loser would fail on a row
         // that no longer exists. Releasing the link is what earns the delete.
@@ -601,15 +649,19 @@ export async function setStage(ctx: RequestContext, id: number, input: SetStageI
   if (deletedCalendarId != null) {
     await emit(ctx, "calendar.deleted", { type: "CalendarEvent", id: deletedCalendarId }, { title: pe.title });
   }
+  if (createdParty) await emit(ctx, "party.created", { type: "PartyEvent", id: createdParty.id }, { name: createdParty.name, date: createdParty.date });
+  if (deletedParty) await emit(ctx, "party.deleted", { type: "PartyEvent", id: deletedParty.id }, { name: deletedParty.name });
   return loadTask(ctx, id, deps);
 }
 
 export async function deleteProgrammingTask(ctx: RequestContext, id: number) {
   const { row: target } = await requireProgrammingEvent(ctx, id);
 
-  await ctx.db.$transaction(async (tx) => {
+  const deletedParty = await ctx.db.$transaction(async (tx) => {
+    let party: { id: number; name: string } | null = null;
     if (target.calendarEventId != null) {
       if (isServiceCategory(target.category)) await removeServiceEvent(tx, target.calendarEventId);
+      if (isPartyCategory(target.category)) party = await releasePartyLedger(tx, ctx.orgId, target.calendarEventId);
       // Deleting the PE first would SET NULL then orphan the CalendarEvent; null
       // the link, delete the calendar row, then delete the PE (docs cascade).
       //
@@ -621,12 +673,14 @@ export async function deleteProgrammingTask(ctx: RequestContext, id: number) {
       await tx.calendarEvent.delete({ where: { id: target.calendarEventId } });
     }
     await tx.programmingEvent.delete({ where: { id } });
+    return party;
   });
 
   await emit(ctx, "programming.deleted", { type: "ProgrammingEvent", id }, { title: target.title });
   if (target.calendarEventId != null) {
     await emit(ctx, "calendar.deleted", { type: "CalendarEvent", id: target.calendarEventId }, { title: target.title });
   }
+  if (deletedParty) await emit(ctx, "party.deleted", { type: "PartyEvent", id: deletedParty.id }, { name: deletedParty.name });
 }
 
 /* ---------------------------------------------------------------- */

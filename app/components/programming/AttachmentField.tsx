@@ -147,7 +147,7 @@ export function AttachmentField({
         onBlur={handleBlur}
       />
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--paper)] py-1 shadow-xl">
+        <div className="ev-att-menu absolute z-50 mt-1 w-full rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[color:var(--paper)] py-1 shadow-xl">
           {filtered.length === 0 ? (
             <p className="px-3 py-2 text-[12px] text-[color:var(--faint)]">No docs match — add one in Resources first.</p>
           ) : (
@@ -155,7 +155,7 @@ export function AttachmentField({
               <button
                 key={doc.id}
                 onMouseDown={() => pickDoc(doc)}
-                className="flex w-full flex-col px-3 py-2 text-left hover:bg-[rgba(var(--ink-rgb),0.06)]"
+                className="ev-att-opt flex w-full flex-col px-3 py-2 text-left hover:bg-[rgba(var(--ink-rgb),0.06)]"
               >
                 <span className="truncate text-[12px] text-[color:var(--ink-soft)]">{doc.title}</span>
                 <span className="truncate text-[11px] text-[color:var(--faint)]">{hostname(doc.url)}</span>

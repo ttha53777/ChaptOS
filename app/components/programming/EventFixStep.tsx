@@ -141,9 +141,9 @@ export function EventFixStep({
           <span className="k">Event:</span> {event.title}
         </p>
 
-        <div className="divide-y divide-[rgba(var(--ink-rgb),0.06)] overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.015)]">
+        <div className="ev-ov-list divide-y divide-[rgba(var(--ink-rgb),0.06)] overflow-hidden rounded-xl border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.015)]">
           {gaps.map(f => (
-            <div key={f.key} className="px-3 py-3">
+            <div key={f.key} className="ev-ov-row px-3 py-3">
               <div className="mb-1 flex items-baseline justify-between gap-3">
                 <label className="ev-ov-lbl">{f.label}</label>
                 {answered(f, draft, event) && (

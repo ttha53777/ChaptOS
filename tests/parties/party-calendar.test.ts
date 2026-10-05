@@ -35,11 +35,13 @@ const calendarInput = {
 };
 
 describe("Party calendar category", () => {
-  it("is selectable on Timeline but remains owned by the Parties page", () => {
+  it("is selectable on Timeline and plannable on the Programming board", () => {
     const type = BUILTIN_EVENT_TYPES.find(t => t.slug === "party")!;
     expect(isEventTypeVisibleInPicker({ ...type, hidden: false }, ["parties"])).toBe(true);
     expect(isEventTypeVisibleInPicker({ ...type, hidden: false }, [])).toBe(false);
-    expect(isProgrammingManagedType(type)).toBe(false);
+    // Programming can plan a party too; confirming it creates the Parties-page
+    // ledger (see programming-service.test.ts).
+    expect(isProgrammingManagedType(type)).toBe(true);
   });
 
   it("creates a calendar event and attached ledger with real IDs and scheduling fields", async () => {

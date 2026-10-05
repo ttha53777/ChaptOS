@@ -122,15 +122,12 @@ export async function GET() {
           // Confirmed events whose date has come and gone — the sidebar's Events
           // dot and the dashboard's "Needs attention" rows. Same ride-along
           // argument as the counts above, but rows rather than a count because
-          // the dashboard names each event. Chapter/Party rows are excluded the
-          // way the events board excludes them (isProgrammingManagedType): a
-          // dot pointing at a card the board doesn't show helps nobody.
+          // the dashboard names each event.
           canManageEvents
             ? scoped.programmingEvent.onTx(tx).findMany({
                 where: {
                   stage: "confirmed",
                   date: { not: null, lte: wrapUpHorizon },
-                  category: { notIn: ["chapter", "party"] },
                 },
                 orderBy: [{ date: "asc" }, { id: "asc" }],
                 select: { id: true, title: true, collabOrg: true, date: true, schedule: true },

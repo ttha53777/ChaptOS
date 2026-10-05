@@ -1958,7 +1958,7 @@ async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<To
     ? args.order_by as "date" | "title" | "stage" : "date";
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
-  // Programming manages the org's own event types (creatable minus chapter);
+  // Programming manages the org's own event types (everything creatable);
   // the type filter accepts a slug or a display label.
   const managed = (await orgEventTypes(scoped)).filter(isProgrammingManagedType);
   const labelBySlug = new Map(managed.map(t => [t.slug, t.label]));

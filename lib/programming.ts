@@ -7,10 +7,11 @@ import { STAGES, type ProgrammingStage } from "@/lib/state/programming-stage";
 /**
  * Which of an org's CalendarEventType rows the Programming (events) page
  * manages. No fixed category list anymore — programming runs on the org's own
- * event types: everything creatable from the timeline except Chapter (owned by
- * the meetings workflow) and Party (owned by the Parties page). Deadlines
- * fall out via `creatable: false`. Covers built-ins (service) and
- * customs alike, so an org's added types flow through the pipeline.
+ * event types: everything creatable from the timeline, Chapter and Party
+ * included (a confirmed Party gets its ledger on the Parties page, the same
+ * way a Service event gets its sign-up sheet). Deadlines fall out via
+ * `creatable: false`. Covers built-ins and customs alike, so an org's added
+ * types flow through the pipeline.
  *
  * `hidden` types stay managed: a retired type's existing events must keep
  * listing on the board — creation-time gating is the service's job.
@@ -21,7 +22,7 @@ export interface ProgrammingTypeLike {
 }
 
 export function isProgrammingManagedType(type: ProgrammingTypeLike): boolean {
-  return type.creatable && type.slug !== "chapter" && type.slug !== "party";
+  return type.creatable;
 }
 
 /** slug → display label lookup, with the slug itself as the fallback. */

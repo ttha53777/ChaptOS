@@ -776,3 +776,61 @@ describe("attachment", () => {
   });
 
 });
+
+describe("Party and Chapter on the board", () => {
+  it("accepts every creatable type, Chapter and Party included", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+
+    const party   = await createProgrammingTask(ctx, { title: "Spring Formal", category: "party" });
+    const chapter = await createProgrammingTask(ctx, { title: "Retreat Meeting", category: "chapter" });
+    expect(party.type).toBe("Party");
+    expect(chapter.type).toBe("Chapter");
+    // Deadlines are still synthesized from tasks, never programmed.
+    await expect(createProgrammingTask(ctx, { title: "Dues", category: "deadline" })).rejects.toThrow();
+  });
+
+  it("gives a confirmed Party its Parties-page ledger, and drops a blank one on demote", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Spring Formal", dueDate: "2026-04-18", location: "House", category: "party", collab: "KDF",
+    });
+
+    const ledger = await testPrisma.partyEvent.findFirst({ where: { attendanceEventId: confirmed.calendarEventId! } });
+    expect(ledger).toMatchObject({ organizationId: org.id, name: "Spring Formal", date: "2026-04-18", collabOrg: "KDF" });
+
+    await setStage(ctx, confirmed.id, { stage: "planning" });
+    expect(await testPrisma.partyEvent.count({ where: { organizationId: org.id } })).toBe(0);
+
+    // Re-confirming mints exactly one fresh ledger, never a second one.
+    await setStage(ctx, confirmed.id, { stage: "confirmed" });
+    expect(await testPrisma.partyEvent.count({ where: { organizationId: org.id } })).toBe(1);
+  });
+
+  it("refuses to take a Party off the Timeline once its ledger has records", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Kickback", dueDate: "2026-04-18", location: "House", category: "party",
+    });
+    await testPrisma.partyEvent.updateMany({ where: { attendanceEventId: confirmed.calendarEventId! }, data: { doorRevenue: 240 } });
+
+    await expect(setStage(ctx, confirmed.id, { stage: "planning" })).rejects.toThrow(ValidationError);
+    await expect(deleteProgrammingTask(ctx, confirmed.id)).rejects.toThrow(ValidationError);
+    const pe = await testPrisma.programmingEvent.findUnique({ where: { id: confirmed.id } });
+    expect(pe?.stage).toBe("confirmed");
+    expect(await testPrisma.partyEvent.count({ where: { organizationId: org.id, doorRevenue: 240 } })).toBe(1);
+  });
+
+  it("deletes a blank ledger along with the event", async () => {
+    const { org, admin } = await seedOrg();
+    const ctx = ctxFor(org.id, admin.id);
+    const confirmed = await createConfirmed(ctx, {
+      title: "Kickback", dueDate: "2026-04-18", location: "House", category: "party",
+    });
+
+    await deleteProgrammingTask(ctx, confirmed.id);
+    expect(await testPrisma.partyEvent.count({ where: { organizationId: org.id } })).toBe(0);
+  });
+});

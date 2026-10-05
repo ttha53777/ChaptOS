@@ -484,6 +484,147 @@ html[data-aesthetic="paper"] .ev-wu-amt { position: relative; max-width: 180px; 
 html[data-aesthetic="paper"] .ev-wu-amt > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 600; pointer-events: none; }
 html[data-aesthetic="paper"] .ev-wu-amt input { padding-left: 24px !important; }
 
+/* Fix-step + help: the gap list is a stack of index cards, not a tinted box */
+html[data-aesthetic="paper"] .ev-ov-list { display: grid; gap: 10px; border: 0; background: none; border-radius: 0; overflow: visible; }
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row {
+  border: 1.5px solid var(--line-med); border-radius: 5px 13px 7px 12px; background: var(--card); padding: 12px 14px;
+}
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row:has(.ev-ov-ok) { border-style: solid; border-color: var(--pp-mint-bd); background: color-mix(in srgb, var(--pp-mint-soft) 55%, var(--card)); }
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row:not(:has(.ev-ov-ok)):has(input, select, .ev-ownpick, .ev-ov-choice) { border-style: dashed; }
+html[data-aesthetic="paper"] .ev-ov-lbl { font-size: .86rem; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .ev-ov-hint { font-size: .8rem; line-height: 1.5; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-ov-lead { font-size: .88rem; color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .ev-ov-lead .k { color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .ev-ov-strong { color: var(--ink); }
+html[data-aesthetic="paper"] .ev-ov-ok {
+  font-family: var(--font-geist-sans); font-size: .72rem; font-weight: 600; letter-spacing: 0; text-transform: none;
+  padding: 1px 9px; border-radius: 999px; background: var(--pp-mint-soft); border: 1px solid var(--pp-mint-bd); color: var(--pp-mint-ink);
+}
+html[data-aesthetic="paper"] .ev-ov-choice {
+  padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card);
+  font-family: var(--font-geist-sans); font-size: .82rem; font-weight: 550; color: var(--ink-soft);
+  transition: border-color .15s, color .15s, background .15s, transform .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .ev-ov-choice:hover:not(.on) { border-color: var(--muted); color: var(--ink); }
+html[data-aesthetic="paper"] .ev-ov-choice.on {
+  color: var(--ink); border-color: var(--ink); background: var(--pp-lilac-soft); box-shadow: 2px 2px 0 var(--pp-lilac); transform: translateY(-1px);
+}
+/* help: each lane row wears its lane's paper */
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row[data-stage="idea"]      { background: var(--pp-butter-soft); border-color: transparent; border-radius: 3px; transform: rotate(-.5deg); box-shadow: 0 8px 14px -10px rgba(var(--shade-rgb),.35); }
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row[data-stage="planning"]  { border-style: dashed; }
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row[data-stage="confirmed"] { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-ov-list > .ev-ov-row[data-stage="done"]      { background: var(--paper-2); border-color: var(--line); }
+html[data-aesthetic="paper"] .ev-help-dot { width: 10px; height: 10px; border: 1.5px solid var(--sc, var(--muted)); background: var(--sf, transparent); }
+html[data-aesthetic="paper"] .ev-help-dot.idea      { --sc: var(--muted);         --sf: transparent; border-style: dashed; }
+html[data-aesthetic="paper"] .ev-help-dot.planning  { --sc: var(--pp-butter-ink); --sf: var(--pp-butter); }
+html[data-aesthetic="paper"] .ev-help-dot.confirmed { --sc: var(--pp-lilac-ink);  --sf: var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-help-dot.done      { --sc: var(--pp-mint-ink);   --sf: var(--pp-mint); }
+
+/* New idea: the sub-line reads as body copy, not a caption */
+html[data-aesthetic="paper"] .ev-ni-sub { font-size: .88rem; line-height: 1.55; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .ev-ni-sub b { color: var(--ink); }
+html[data-aesthetic="paper"] .ev-ni-field { display: grid; gap: 7px; }
+
+/* Owner picker (detail panel + fix step): pill tabs over a list of name cards */
+html[data-aesthetic="paper"] .ev-ownpick { border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--paper); }
+html[data-aesthetic="paper"] .ev-ownpick-tabs { gap: 3px; padding: 7px; border-bottom: 1.5px dashed var(--line); }
+html[data-aesthetic="paper"] .ev-ownpick-tabs button {
+  padding: 5px 13px; border-radius: 999px; font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 550;
+  letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+html[data-aesthetic="paper"] .ev-ownpick-tabs button:hover:not(:disabled) { color: var(--ink); }
+html[data-aesthetic="paper"] .ev-ownpick-tabs button.on { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink), 2px 2px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-ownpick-tabs .ev-ownpick-clear { color: var(--pp-rose-ink) !important; }
+html[data-aesthetic="paper"] .ev-ownpick-tabs .ev-ownpick-clear:hover { background: var(--pp-rose-soft); }
+html[data-aesthetic="paper"] .ev-ownpick-grid { gap: 4px; padding: 7px; }
+html[data-aesthetic="paper"] .ev-ownpick-opt {
+  gap: 10px; padding: 7px 9px; border-radius: 10px; border: 1.5px solid transparent;
+  transition: background .12s, border-color .12s, transform .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .ev-ownpick-opt:hover:not(:disabled) { background: var(--card); border-color: var(--line-med); }
+html[data-aesthetic="paper"] .ev-ownpick-opt.on { background: var(--pp-lilac-soft); border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-ownpick-txt b { font-family: var(--font-geist-sans); font-size: .86rem; font-weight: 600; }
+html[data-aesthetic="paper"] .ev-ownpick-txt i { font-size: .74rem; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-ownpick-empty { padding: 14px 10px; font-size: .82rem; font-style: normal; color: var(--muted); text-align: center; }
+
+/* Detail panel: section titles are headings (the mock's .pg-sec-h .t), field
+   keys stay small caps */
+html[data-aesthetic="paper"] .ev-pn-sec .ps-t { font-family: var(--font-fraunces); font-size: 1rem; font-weight: 600; letter-spacing: -.02em; text-transform: none; color: var(--ink); }
+html[data-aesthetic="paper"] .ev-pn-h { font-family: var(--font-fraunces); font-size: 1rem; font-weight: 600; letter-spacing: -.02em; text-transform: none; color: var(--ink); }
+html[data-aesthetic="paper"] .ev-pn-sec .ps-n { font-family: var(--font-geist-mono); font-size: .74rem; font-weight: 600; }
+
+/* Detail panel: inline field editors */
+html[data-aesthetic="paper"] .ev-fld-mark { width: 18px; height: 18px; border-color: var(--line-med); }
+html[data-aesthetic="paper"] .ev-fld.set .ev-fld-mark { border-color: var(--pp-mint-ink); background: var(--pp-mint); color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .ev-fld.miss .ev-fld-mark { border-color: var(--pp-butter-ink); background: var(--pp-butter-soft); }
+html[data-aesthetic="paper"] .ev-fld.miss .ev-fld-v.empty { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .ev-fld-main { border-radius: 10px; }
+html[data-aesthetic="paper"] .ev-fld-main.edit:hover { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line-med); }
+html[data-aesthetic="paper"] .ev-fld-main.locked:hover { background: var(--pp-butter-soft); outline: 1.5px dashed var(--pp-butter-bd); outline-offset: -1.5px; }
+html[data-aesthetic="paper"] .ev-fld-none { font-size: .82rem; font-style: normal; color: var(--muted); }
+html[data-aesthetic="paper"] :is(.ev-fld-in, .ev-fld-ta, .ev-fld-num input) { font-size: .86rem; }
+html[data-aesthetic="paper"] .ev-fld-in.mono, html[data-aesthetic="paper"] .ev-fld-num input { font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .ev-fld-num .pre { color: var(--muted); font-weight: 600; }
+html[data-aesthetic="paper"] .ev-fld-bool {
+  padding: 5px 13px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card);
+  font-family: var(--font-geist-sans); font-size: .78rem; font-weight: 600; color: var(--muted);
+}
+html[data-aesthetic="paper"] .ev-fld-bool.on { color: var(--pp-mint-ink); background: var(--pp-mint-soft); border-color: var(--pp-mint-ink); box-shadow: 2px 2px 0 var(--pp-mint); }
+html[data-aesthetic="paper"] .ev-pn-link {
+  font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 600; color: var(--ink);
+  border-bottom: 1.5px solid var(--pp-lilac); padding: 0 0 1px; border-radius: 0;
+}
+html[data-aesthetic="paper"] .ev-pn-link:hover { color: var(--pp-lilac-ink); border-bottom-color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .ev-pn-tx-t { font-size: .84rem; color: var(--ink); }
+html[data-aesthetic="paper"] .ev-pn-tx-m { font-size: .72rem; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-pn-tx-amt { font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .ev-pn-tx-amt.in  { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .ev-pn-tx-amt.out { color: var(--pp-rose-ink); }
+
+/* Detail panel: which fields this event collects */
+html[data-aesthetic="paper"] .ev-fp-pills { gap: 6px; }
+html[data-aesthetic="paper"] :is(.ev-fp-pill, .ev-fp-add, .ev-fn-kind) {
+  padding: 5px 12px; border-radius: 999px; border: 1.5px dashed var(--line-med); background: transparent;
+  font-family: var(--font-geist-sans); font-size: .78rem; font-weight: 550; color: var(--muted);
+  transition: border-color .15s, color .15s, background .15s, transform .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] :is(.ev-fp-pill, .ev-fn-kind):hover:not(:disabled):not(.on) { border-color: var(--muted); color: var(--ink); }
+html[data-aesthetic="paper"] :is(.ev-fp-pill, .ev-fn-kind).on {
+  border-style: solid; border-color: var(--ink); background: var(--pp-lilac-soft); color: var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac);
+}
+html[data-aesthetic="paper"] .ev-fp-add { border-color: var(--line-med); color: var(--ink-soft); }
+html[data-aesthetic="paper"] .ev-fp-add:hover:not(:disabled) { border-style: solid; border-color: var(--ink); color: var(--ink); transform: translateY(-1px); }
+html[data-aesthetic="paper"] .ev-fp-note { margin-top: 9px; font-size: .76rem; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-fp-note a { color: var(--ink-soft); text-decoration-color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .ev-fp-note a:hover { color: var(--pp-lilac-ink); }
+/* the new-field composer: an index card pinned under the pills */
+html[data-aesthetic="paper"] .ev-fn {
+  margin-top: 12px; padding: 14px; border-radius: 5px 13px 7px 12px; border: 1.5px solid var(--ink); background: var(--card);
+  box-shadow: 3px 3px 0 var(--pp-lilac);
+}
+html[data-aesthetic="paper"] :is(.ev-fn-k, .ev-fn-sub) { font-family: var(--font-geist-sans); font-size: .74rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .ev-fn-input { margin-top: 7px; padding: 8px 11px; }
+html[data-aesthetic="paper"] .ev-fn-kinds { gap: 6px; margin-top: 7px; }
+html[data-aesthetic="paper"] .ev-fn-kind { border-style: solid; }
+html[data-aesthetic="paper"] .ev-fn-eg { font-size: .78rem; color: var(--muted); }
+html[data-aesthetic="paper"] .ev-fn-eg b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .ev-fn-err { font-size: .78rem; font-weight: 600; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .ev-fn-foot { gap: 8px; margin-top: 14px; }
+html[data-aesthetic="paper"] .ev-fn-btn {
+  padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--line-med); background: transparent;
+  font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 600; color: var(--ink-soft);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .ev-fn-btn:hover:not(:disabled) { border-color: var(--muted); color: var(--ink); }
+html[data-aesthetic="paper"] .ev-fn-btn.go { background: var(--ink); border-color: var(--ink); color: var(--paper); box-shadow: 2.5px 2.5px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-fn-btn.go:hover:not(:disabled) { background: var(--ink); color: var(--paper); transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-fn-btn.go:disabled { background: var(--paper-2); color: var(--muted); border-color: var(--line-med); box-shadow: none; opacity: 1; }
+
+/* attachment doc picker */
+html[data-aesthetic="paper"] .ev-att-menu { padding: 6px; border: 1.5px solid var(--ink); border-radius: 14px; background: var(--card); box-shadow: 4px 4px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ev-att-opt { border-radius: 9px; }
+html[data-aesthetic="paper"] .ev-att-opt:hover { background: var(--pp-lilac-soft); }
+
 @media (prefers-reduced-motion: reduce) {
   html[data-aesthetic="paper"] :is(.dash .ev-card, .dash .ev-tl-chip, .ev-panel, .ev-panel .pw-stamp, .dash .ev-lane.flash, .dash .ev-card .ec-dot) { animation: none !important; transition: none !important; }
 }
