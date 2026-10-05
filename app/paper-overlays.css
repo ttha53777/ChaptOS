@@ -50,7 +50,7 @@ html[data-aesthetic="paper"] .ui-modal-body { font-size: .9rem; }
 
 /* ── Form controls ──────────────────────────────────────────────────────────── */
 html[data-aesthetic="paper"] .ui-inp,
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .ig-rail, .wpeek-root) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea):not(.cef-title, .cef-quiet, .ev-ni-title, .pc-question, .pc-opt-input, .sr-only),
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea):not(.cef-title, .cef-quiet, .ev-ni-title, .pc-question, .pc-opt-input, .sr-only),
 html[data-aesthetic="paper"] .cef-input, html[data-aesthetic="paper"] .cef-textarea,
 html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-section .sc-select, .set-section .sc-textarea) {
   border-radius: 10px; border: 1.5px solid var(--line-med); background-color: var(--paper); color: var(--ink);
@@ -58,14 +58,14 @@ html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-sectio
   transition: border-color .15s, box-shadow .15s;
 }
 html[data-aesthetic="paper"] .ui-inp:focus,
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .ig-rail, .wpeek-root) :is(input, select, textarea):not(.cef-title, .cef-quiet, .pc-question, .pc-opt-input):focus,
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input, select, textarea):not(.cef-title, .cef-quiet, .pc-question, .pc-opt-input):focus,
 html[data-aesthetic="paper"] .cef-input:focus, html[data-aesthetic="paper"] .cef-textarea:focus,
 html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-section .sc-select, .set-section .sc-textarea):focus {
   border-color: var(--ink); box-shadow: 2px 2px 0 var(--acc, var(--pp-lilac)); outline: none;
 }
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .ig-rail) ::placeholder,
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel) ::placeholder,
 html[data-aesthetic="paper"] .ui-inp::placeholder { color: var(--muted); }
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .ig-rail) select,
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel) select,
 html[data-aesthetic="paper"] select.ui-inp {
   appearance: none; -webkit-appearance: none; padding-right: 34px; cursor: pointer;
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
@@ -514,33 +514,20 @@ html[data-aesthetic="paper"] .ev-pn-wrap { border: 1.5px solid var(--pp-mint-bd)
 html[data-aesthetic="paper"] .ev-pn-wrap .pw-k { font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 700; letter-spacing: .07em; color: var(--pp-mint-ink); }
 html[data-aesthetic="paper"] :is(.ev-pn-wrap .pw-none, .ev-pn-wrap .pw-nonotes) { font-style: normal; }
 
-/* ── Instagram post rail (.ig-rail) ─────────────────────────────────────────── */
-html[data-aesthetic="paper"] .ig-rail-scrim { backdrop-filter: blur(6px) saturate(115%); }
-html[data-aesthetic="paper"] .ig-rail { --acc: var(--pp-rose); background: var(--paper); border-left: 1.5px solid var(--ink); box-shadow: -6px 0 0 var(--pp-rose); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-h { border-bottom: 1.5px solid var(--line); background: var(--card); padding: 16px 20px 14px; }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-kicker { font-size: .66rem; font-weight: 600; letter-spacing: .1em; }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-close { width: 34px; height: 34px; border-radius: 10px; border: 1.5px solid transparent; }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-close:hover { background: var(--paper); border-color: var(--line); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-title { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.5rem; letter-spacing: -.03em; }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-meta > div { border-top-color: var(--card-3); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-meta dt { font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 700; letter-spacing: .09em; }
-html[data-aesthetic="paper"] .ig-rail .ig-due.ig-rail-due { font-family: var(--font-geist-sans); font-size: .74rem; font-weight: 600; letter-spacing: 0; border: 1px solid transparent; }
-html[data-aesthetic="paper"] .ig-rail .ig-due.late { color: var(--pp-peach-ink); background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); }
-html[data-aesthetic="paper"] .ig-rail .ig-due.soon { color: var(--pp-butter-ink); background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); }
-html[data-aesthetic="paper"] .ig-rail .ig-due.ok   { color: var(--pp-mint-ink); background: var(--pp-mint-soft); border-color: var(--pp-mint-bd); }
-
-html[data-aesthetic="paper"] .ig-rail .ig-chip { font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 700; letter-spacing: .07em; }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts { border-top: 1.5px solid var(--line); background: var(--paper-2); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts button {
-  border-radius: 999px; border: 1.5px solid var(--line-med); padding: 10px 17px; background: transparent; color: var(--ink-soft); filter: none;
-  font-family: var(--font-geist-sans); font-size: .88rem; font-weight: 600; letter-spacing: -.01em; text-transform: none;
-  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .15s, color .15s;
+/* ── Toast (.ui-toast) — the mock's .toast: card pill, ink border, pastel shadow ── */
+html[data-aesthetic="paper"] .ui-toast {
+  width: auto; max-width: min(28rem, calc(100vw - 32px)); align-items: center; gap: 8px;
+  padding: 9px 12px 9px 15px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink);
+  box-shadow: 3px 3px 0 var(--pp-mint); backdrop-filter: none; font-size: .84rem; font-weight: 500;
 }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts .primary { background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: 2.5px 2.5px 0 var(--pp-mint); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts .primary:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-mint); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts .ghost:hover { border-color: var(--ink); color: var(--ink); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts .danger { color: var(--pp-rose-ink); border-color: var(--pp-rose-bd); }
-html[data-aesthetic="paper"] .ig-rail .ig-rail-acts .danger:hover { border-color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .ui-toast > span:first-child { margin-top: 0; }
+html[data-aesthetic="paper"] .ui-toast > span:first-child svg { width: 15px; height: 15px; color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .ui-toast p { line-height: 1.4; }
+html[data-aesthetic="paper"] .ui-toast-error { box-shadow: 3px 3px 0 var(--pp-rose); }
+html[data-aesthetic="paper"] .ui-toast-error > span:first-child svg { color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .ui-toast-info { box-shadow: 3px 3px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .ui-toast-info > span:first-child svg { color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .ui-toast button { border-radius: 999px; color: var(--ink-soft); }
 
 @media (prefers-reduced-motion: reduce) {
   html[data-aesthetic="paper"] .ui-modal-panel { animation: none; }

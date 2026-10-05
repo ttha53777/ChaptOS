@@ -86,9 +86,10 @@ export async function GET() {
               // Org profile picture for the sidebar/login badge — null falls back to
               // the gradient initials badge. Pulled in the same round-trip as name.
               logoUrl: true,
+              timeZone: true,
               // The sidebar and onboarding picker filter surfaces by the org's
               // enabled workflows. Pull it in the same round-trip as the org name.
-              config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, onboardingCompletedAt: true } },
+              config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, instagramHandle: true, onboardingCompletedAt: true } },
             },
           }),
           scoped.orgMetricDefinition.onTx(tx).count({ where: { deletedAt: null } }),
@@ -213,6 +214,8 @@ export async function GET() {
             slug: org.slug,
             orgType: org.orgType ?? null,
             logoUrl: org.logoUrl ?? null,
+            timeZone: org.timeZone ?? null,
+            instagramHandle: org.config?.instagramHandle ?? null,
             // Fall back to the full set when a config row is somehow absent (the
             // Milestone-1 migration backfills every org, so this is belt-and-
             // suspenders) — showing all pages is the safe default, hiding them is not.

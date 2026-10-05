@@ -111,6 +111,8 @@ model OrganizationConfig {
   // keep its slot so re-enabling it lands back where the admin put it. See
   // lib/nav-order.ts.
   navOrder              String[]  @default([])
+  // Displayed in the content planner; no account connection or credentials.
+  instagramHandle       String?
   // When the founder finished the post-creation setup wizard, or null while
   // setup is still in progress. This is the authoritative "is onboarding done?"
   // signal — the OrgGuard layout gates every /[slug]/* route on it being set.
@@ -692,7 +694,7 @@ model InstagramTask {
   title           String
   dueDate         String
   // The actual day the post went live. Null until posted; set when a post is
-  // marked posted (defaults to dueDate) and independently editable. dueDate
+  // marked posted (defaults to the org-local day) and independently editable. dueDate
   // stays the planned/target date that drives urgency.
   postedDate      String?
   status          String  @default("open") // "open" | "posted" — urgency is computed from dueDate, never stored

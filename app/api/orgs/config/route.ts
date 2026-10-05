@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
 import { updateOrgConfigInput } from "@/lib/validation/org";
-import { setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields, setNavOrder, completeOnboarding } from "@/lib/services/org-config-service";
+import { setInstagramHandle, setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields, setNavOrder, completeOnboarding } from "@/lib/services/org-config-service";
 import { logError } from "@/lib/observability";
 
 // PATCH /api/orgs/config — update the active org's config.
@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const input = updateOrgConfigInput.parse(body);
 
+    if (input.instagramHandle !== undefined) await setInstagramHandle(ctx, input.instagramHandle);
     if (input.enabledWorkflows !== undefined) {
       await setWorkflows(ctx, { enabledWorkflows: input.enabledWorkflows });
     }

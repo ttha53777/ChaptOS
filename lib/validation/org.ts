@@ -227,6 +227,7 @@ export const customMemberFieldsInput = z
 // ─── Org config update ────────────────────────────────────────────────────────
 
 export const updateOrgConfigInput = z.object({
+  instagramHandle: z.string().trim().transform(v => v.replace(/^@/, "")).pipe(z.string().max(30).regex(/^[A-Za-z0-9._]*$/, "Use letters, numbers, periods, or underscores")).transform(v => v || null).nullable().optional(),
   enabledWorkflows: z
     .array(workflowIdSchema)
     .max(ALL_WORKFLOWS.length, "Too many workflows")

@@ -1,8 +1,9 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
-import { NotFoundError } from "@/lib/errors";
-import { todayISO } from "@/lib/dates";
+import { NotFoundError, ValidationError } from "@/lib/errors";
+import { instagramToday } from "@/lib/instagram-planner";
+import { INSTAGRAM_TYPES } from "@/lib/validation/instagram";
 import type { CreateInstagramTaskInput, UpdateInstagramTaskInput } from "@/lib/validation/instagram";
 
 export async function listInstagramTasks(ctx: RequestContext) {
@@ -30,6 +31,11 @@ export async function createInstagramTask(ctx: RequestContext, input: CreateInst
 }
 
 export async function updateInstagramTask(ctx: RequestContext, id: number, input: UpdateInstagramTaskInput) {
+  const current = await ctx.db.instagramTask.findUnique({ where: { id } });
+  if (!current) throw new NotFoundError("Instagram task");
+  if (input.type !== undefined && !(INSTAGRAM_TYPES as readonly string[]).includes(input.type) && input.type !== current.type) {
+    throw new ValidationError("Choose Story, Reel, or Carousel when changing the format");
+  }
   if (input.calendarEventId !== undefined) await validateEventId(ctx, input.calendarEventId);
   const data: Prisma.InstagramTaskUpdateInput = {};
   const changedFields: string[] = [];
@@ -43,9 +49,9 @@ export async function updateInstagramTask(ctx: RequestContext, id: number, input
   // today — the day it was actually marked live — not the (possibly past or
   // future) due date. An explicit postedDate in the same request wins.
   if (input.status === "posted" && input.postedDate === undefined) {
-    const current = await ctx.db.instagramTask.findUnique({ where: { id }, select: { postedDate: true } });
-    if (current && current.postedDate == null) {
-      data.postedDate = todayISO();
+    if (current.postedDate == null) {
+      const org = await ctx.db.organization.findFirst({ select: { timeZone: true } });
+      data.postedDate = instagramToday(org?.timeZone);
       changedFields.push("postedDate");
     }
   }

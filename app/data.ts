@@ -11,7 +11,8 @@ export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
 export type InstagramType = "Story" | "Reel" | "Carousel";
 // Binary IG post status — mirrors Task's open|done. Urgency is computed from
 // dueDate, never stored. (TaskStatus above is retained for Programming tasks.)
-export type InstagramStatus = "open" | "posted";
+export type { InstagramStatus } from "@/lib/state";
+import type { InstagramStatus } from "@/lib/state";
 // Built-in category slugs. Event categories are now per-org, admin-editable
 // CalendarEventType rows (see lib/event-types.ts + the CalEventType DTO below),
 // so CalendarEvent.category is a free `string`. This union is retained only where
@@ -205,7 +206,8 @@ export interface InstagramTask {
   /** The actual day the post went live. Null until posted. */
   postedDate?: string | null;
   status: InstagramStatus;
-  type: InstagramType;
+  // Historic rows can retain a retired format until explicitly converted.
+  type: string;
   /** Optional soft link to the calendar event this post promotes. */
   calendarEventId?: number | null;
 }

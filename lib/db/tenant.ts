@@ -1524,7 +1524,7 @@ function scopedOrganizationConfig(orgId: number, run: Run) {
      * throwing P2025 on update. organizationId is injected, never taken from the
      * caller, so it can't be spoofed across tenants.
      */
-    upsert: (data: { enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue; navOrder?: string[]; onboardingCompletedAt?: Date; openingBalance?: number; openingBalanceCents?: bigint }) =>
+    upsert: (data: { instagramHandle?: string | null; enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Prisma.InputJsonValue; disabledFeatures?: Prisma.InputJsonValue; customMemberFields?: Prisma.InputJsonValue; navOrder?: string[]; onboardingCompletedAt?: Date; openingBalance?: number; openingBalanceCents?: bigint }) =>
       run(p => p.organizationConfig.upsert({
         where:  { organizationId: orgId },
         update: data,

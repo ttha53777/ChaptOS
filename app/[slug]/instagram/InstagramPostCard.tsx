@@ -1,109 +1,35 @@
 "use client";
 
-import type { InstagramTask, InstagramType } from "../../data";
-import { fmtDate } from "../../data";
-import { daysFromToday } from "../../lib/dates";
+import type { InstagramTask } from "../../data";
+import { instagramDate, instagramDays, postedOn, type InstagramLane } from "@/lib/instagram-planner";
+import { PaperIcon } from "../../components/paper/PaperIcon";
+import { formatKey, InstagramSnapshot } from "./InstagramSnapshot";
+export type Lane = InstagramLane;
 
-export type Lane = "overdue" | "week" | "upcoming" | "posted";
-
-// type label → css-var suffix. Unknown/retired types fall back to a muted dot.
-const TYPE_KEY: Record<InstagramType, string> = {
-  Story:    "story",
-  Reel:     "reel",
-  Carousel: "carousel",
-};
-export function typeVar(type: string): string | undefined {
-  const key = TYPE_KEY[type as InstagramType];
-  return key ? `var(--t-${key})` : undefined;
-}
-
-// The due pill: how late / how soon, toned by urgency. Shared with the detail rail.
-export function duePill(task: InstagramTask): { cls: string; label: string } {
+export function duePill(task: InstagramTask, today: string): { cls: string; label: string } {
   if (task.status === "posted") return { cls: "ok", label: "posted" };
-  const diff = daysFromToday(task.dueDate);
-  if (diff < 0)  return { cls: "late", label: `${Math.abs(diff)}d late` };
-  if (diff === 0) return { cls: "soon", label: "today" };
-  if (diff <= 7)  return { cls: "soon", label: `in ${diff}d` };
-  return { cls: "cool", label: `in ${diff}d` };
+  const diff = instagramDays(task.dueDate, today);
+  return diff < 0 ? { cls: "late", label: `${-diff}d late` } : diff === 0 ? { cls: "soon", label: "today" } : { cls: diff <= 7 ? "soon" : "cool", label: `in ${diff}d` };
 }
-
-const CheckIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-);
-const EditIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.4-9.4a2 2 0 112.8 2.8L11.8 15H9v-2.8l8.6-8.6z" /></svg>
-);
-const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.9 12.1A2 2 0 0116.1 21H7.9a2 2 0 01-2-1.9L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-);
-
-const ICON_CAL = "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z";
-
-export function InstagramPostCard({
-  task,
-  lane,
-  canManage,
-  selected,
-  linkedEventTitle,
-  onSelect,
-  onEdit,
-  onDelete,
-  onComplete,
-}: {
-  task: InstagramTask;
-  lane: Lane;
-  canManage: boolean;
-  selected?: boolean;
-  /** Title of the event this post promotes, shown as a small chip. */
-  linkedEventTitle?: string;
-  onSelect: (t: InstagramTask) => void;
-  onEdit: (t: InstagramTask) => void;
-  onDelete: (t: InstagramTask) => void;
-  onComplete: (t: InstagramTask) => void;
+export function InstagramPostCard({ task, lane, today, canManage, selected, fresh, busy, linkedEventTitle, onSelect, onEdit, onDelete, onComplete }: {
+  task: InstagramTask; lane: Lane; today: string; canManage: boolean; selected?: boolean; fresh?: boolean; busy?: boolean; linkedEventTitle?: string;
+  onSelect: (t: InstagramTask) => void; onEdit: (t: InstagramTask) => void; onDelete: (t: InstagramTask) => void; onComplete: (t: InstagramTask, from: HTMLElement) => void;
 }) {
-  const pill = duePill(task);
-  const tc = typeVar(task.type);
-  const posted = task.status === "posted";
-  const sub = posted ? `Posted ${fmtDate(task.postedDate ?? task.dueDate)}` : `Due ${fmtDate(task.dueDate)}`;
-
-  // Action buttons live inside the clickable row — stop them from also opening
-  // the detail rail.
-  const act = (fn: (t: InstagramTask) => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(task); };
-
-  return (
-    <article
-      className={`ig-post ${lane}${selected ? " selected" : ""}`}
-      style={tc ? ({ ["--tc" as string]: tc } as React.CSSProperties) : undefined}
-      role="button"
-      tabIndex={0}
-      aria-label={`View ${task.title}`}
-      onClick={() => onSelect(task)}
-      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(task); } }}
-    >
-      <span className="accent" aria-hidden="true" />
-      <span className="ig-chip"><span className="dot" />{task.type}</span>
-      <div className="body">
-        <p className="t">{task.title}</p>
-        <p className="sub">{sub}</p>
-        {linkedEventTitle && (
-          <p className="ig-event-tag">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d={ICON_CAL} /></svg>
-            {linkedEventTitle}
-          </p>
-        )}
-      </div>
-      <div className="ig-right">
-        <span className={`ig-due ${pill.cls}`}>{pill.label}</span>
-        {canManage && (
-          <div className="ig-acts">
-            {!posted && (
-              <button className="ok" title="Mark posted" aria-label="Mark posted" onClick={act(onComplete)}><CheckIcon /></button>
-            )}
-            <button className="edit" title="Edit" aria-label="Edit post" onClick={act(onEdit)}><EditIcon /></button>
-            <button className="del" title="Delete" aria-label="Delete post" onClick={act(onDelete)}><TrashIcon /></button>
-          </div>
-        )}
-      </div>
-    </article>
-  );
+  const pill = duePill(task, today), posted = task.status === "posted";
+  return <article id={`igp-post-${task.id}`} className={`igp-row igp-ty-${formatKey(task.type)} igp-ln-${lane}${selected ? " on" : ""}${fresh ? " fresh" : ""}`} aria-busy={busy}>
+    <button className="igp-row-open" onClick={() => onSelect(task)} aria-label={`View ${task.title}`}>
+      <span className="sn"><InstagramSnapshot type={task.type} developing={!posted} /></span>
+      <span className="igp-row-text"><span className="t">{task.title}</span><span className="m">
+        <span className="igp-chip"><i />{task.type}</span>
+        <span>{posted ? `Posted ${instagramDate(postedOn(task))}` : `Due ${new Date(task.dueDate + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "UTC", weekday: "short" })}, ${instagramDate(task.dueDate)}`}</span>
+        {linkedEventTitle && <span className="igp-ev"><PaperIcon name="cal" />{linkedEventTitle}</span>}
+      </span></span>
+      <span className={`igp-due ${pill.cls}`}>{pill.label}</span>
+    </button>
+    {canManage && <div className="igp-acts">
+      {!posted && <button className="igp-iconbtn ok" disabled={busy} onClick={e => onComplete(task, e.currentTarget)} aria-label={`Mark ${task.title} posted`} title="Mark posted"><PaperIcon name="check" /></button>}
+      <button className="igp-iconbtn" disabled={busy} onClick={() => onEdit(task)} aria-label={`Edit ${task.title}`} title="Edit"><PaperIcon name="pencil" /></button>
+      <button className="igp-iconbtn del" disabled={busy} onClick={() => onDelete(task)} aria-label={`Delete ${task.title}`} title="Delete"><PaperIcon name="trash" /></button>
+    </div>}
+  </article>;
 }

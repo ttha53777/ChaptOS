@@ -153,7 +153,7 @@ export interface EventMetadata {
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
-  "org.config.updated": { calendarSubscriptionAction?: "enable" | "disable" | "rotate" | "timeZone" | "validate" | "turnOn"; enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number>; disabledFeatures?: Record<string, string[]>; customMemberFields?: string[]; navOrder?: string[] };
+  "org.config.updated": { instagramHandle?: string | null; calendarSubscriptionAction?: "enable" | "disable" | "rotate" | "timeZone" | "validate" | "turnOn"; enabledWorkflows?: string[]; vocabularyOverrides?: Record<string, string>; thresholds?: Record<string, number>; disabledFeatures?: Record<string, string[]>; customMemberFields?: string[]; navOrder?: string[] };
   "org.onboarding.completed": { orgType: string | null };
   "org.logo.updated": { cleared: boolean };
 

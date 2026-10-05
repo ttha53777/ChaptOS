@@ -27,6 +27,12 @@ import {
   type CustomMemberFieldDef,
 } from "@/lib/custom-member-fields";
 
+export async function setInstagramHandle(ctx: RequestContext, instagramHandle: string | null) {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) throw new ForbiddenError("Only an org admin can change the Instagram handle");
+  await ctx.db.organizationConfig.upsert({ instagramHandle });
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, { instagramHandle });
+}
+
 export interface OrgConfigDTO {
   enabledWorkflows: WorkflowId[];
 }

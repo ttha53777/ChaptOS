@@ -8,6 +8,9 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, Inter } from "next/font/google";
 
 export const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
+  // Every design mock loads Bricolage with its optical-size axis; without it the
+  // browser renders headlines at the small-text cut (wider, heavier).
+  axes: ["opsz"],
   display: "swap",
   variable: "--font-bricolage",
 });

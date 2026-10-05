@@ -10,6 +10,7 @@ import { InstagramType, ActivityEntry, InstagramTask, PartyEvent } from "../../.
 import { useOrgPath } from "../../../hooks/useOrgPath";
 import { orgFetch, requestJson } from "../../../lib/api";
 import { orgInitials } from "@/lib/org-initials";
+import { InstagramHandleSetting } from "./InstagramHandleSetting";
 import { DangerZone } from "./DangerZone";
 
 let _nextId = Date.now();
@@ -225,6 +226,8 @@ export function GeneralSection({
         </div>
 
         <hr className="sc-divider" />
+
+        {igEnabled && <><InstagramHandleSetting onStatus={onStatus} onError={onError} /><hr className="sc-divider" /></>}
 
         {/* Quick actions */}
         <div>
