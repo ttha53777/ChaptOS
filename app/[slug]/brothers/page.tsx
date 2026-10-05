@@ -546,7 +546,6 @@ export default function BrothersPage() {
                 )}
               </div>
               <div className="head-actions">
-                {isOrgAdmin && <a className="btn" href={orgPath("/billing")}>Upgrade early</a>}
                 <button className="btn bh-export" onClick={handleExport} title="Export CSV">
                   <svg className="lg-only" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   <PaperIcon name="out" className="pp-only" />
@@ -559,7 +558,8 @@ export default function BrothersPage() {
                   <button className="btn primary" onClick={() => setInviteOpen(true)} title="Invite with a link">
                     <svg className="lg-only" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M10 5H6a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
                     <PaperIcon name="envelope" className="pp-only" />
-                    Invite {v("Member", true)}
+                    <span className="lg-only">Invite {v("Member", true)}</span>
+                    <span className="pp-only">Invite {memberPlural}</span>
                   </button>
                 )}
                 <button className="askbar pp-only" onClick={askWhoIsSlipping}>

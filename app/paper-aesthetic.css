@@ -1309,7 +1309,11 @@ html[data-aesthetic="paper"] .dash .pagehead .summary {
 }
 html[data-aesthetic="paper"] .dash .pagehead .summary b { font-weight: 600; color: var(--ink); }
 html[data-aesthetic="paper"] .dash .pagehead > div:first-child { flex: 1 1 440px; }
-html[data-aesthetic="paper"] .dash .head-actions { flex: 0 1 470px; gap: 10px; justify-content: flex-end; align-items: center; }
+/* the mock's order: Invite (ink), Export (ghost), then the ask bar — one row */
+html[data-aesthetic="paper"] .dash .head-actions { flex: 0 1 auto; flex-wrap: wrap; gap: 10px; justify-content: flex-end; align-items: center; }
+html[data-aesthetic="paper"] .dash .head-actions .btn.primary { order: 1; }
+html[data-aesthetic="paper"] .dash .head-actions .bh-export { order: 2; }
+html[data-aesthetic="paper"] .dash .head-actions .askbar { order: 3; }
 html[data-aesthetic="paper"] .dash > .jr-note { font-size: .82rem; color: var(--muted); }
 
 /* the mock's .btn family: Invite is the ink button, Export the card ghost,
@@ -1334,8 +1338,6 @@ html[data-aesthetic="paper"] .dash .btn:disabled { opacity: .55; cursor: default
 html[data-aesthetic="paper"] .dash .btn svg,
 html[data-aesthetic="paper"] .bh-btn svg { width: 15px; height: 15px; stroke: none; }
 html[data-aesthetic="paper"] .dash .btn.primary { --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-lilac); }
-html[data-aesthetic="paper"] .dash .head-actions a.btn { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
-html[data-aesthetic="paper"] .dash .head-actions a.btn:hover { border-color: var(--muted); color: var(--ink); box-shadow: none; transform: translateY(-1px); }
 html[data-aesthetic="paper"] .bh-btn.sm { padding: 6px 12px; font-size: .8rem; box-shadow: 2px 2px 0 var(--hs); --hs: var(--pp-sky); }
 
 html[data-aesthetic="paper"] .dash .askbar {
