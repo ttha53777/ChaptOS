@@ -161,7 +161,7 @@ export function PollForm({
       {/* Who votes — segmented mode toggle + chip picker (mirrors TaskForm). */}
       <div className="pc-section">
         <p className="pc-label">Who votes</p>
-        <div className="pc-seg">
+        <div className="pc-seg ui-seg">
           {MODES.map(m => (
             <button key={m.key} type="button"
               aria-pressed={mode === m.key}

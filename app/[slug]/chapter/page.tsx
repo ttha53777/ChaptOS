@@ -170,7 +170,7 @@ function MeetingForm({
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="rounded-lg border border-[rgba(var(--ink-rgb),0.12)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.24)] hover:text-[color:var(--ink)] transition-colors disabled:opacity-50"
+          className="ui-btn-ghost rounded-lg border border-[rgba(var(--ink-rgb),0.12)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.24)] hover:text-[color:var(--ink)] transition-colors disabled:opacity-50"
         >
           Cancel
         </button>

@@ -122,7 +122,7 @@ export function TaskForm({
       <div>
         <FieldLabel tone="dusk">Assign to</FieldLabel>
         {/* Self-contained segmented toggle (portable across tasks page + dashboard). */}
-        <div className="inline-flex overflow-hidden rounded-lg border border-[rgba(var(--ink-rgb),0.12)]">
+        <div className="ui-seg inline-flex overflow-hidden rounded-lg border border-[rgba(var(--ink-rgb),0.12)]">
           {MODES.map(m => (
             <button key={m.key} type="button"
               aria-pressed={mode === m.key}

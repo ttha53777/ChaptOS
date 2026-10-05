@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef } from "react";
 import type { BrotherStatus, TaskStatus, Task } from "../../data";
 import { BROTHER_STYLES, TASK_STYLES, TASK_URGENCY_STYLES } from "./styles";
 import { taskUrgency } from "@/lib/tasks/urgency";
+import { PaperTile, type PaperIconName, type PaperTone } from "../paper/PaperIcon";
 
 export function StatusBadge({ status }: { status: BrotherStatus }) {
   return (
@@ -48,7 +49,28 @@ export function Card({ children, className = "", id, onClick, style }: {
 /** Selector matching every focusable element inside the modal. */
 const FOCUSABLE = 'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md", hideHeader = false }: {
+/** Paper's header tile when a caller doesn't pick one: read off the title, so
+ *  every existing modal gets the mock's composer header without a per-site edit.
+ *  First match wins; anything unmatched gets the plain lilac pencil. */
+const PAPER_HEADS: [RegExp, PaperIconName, PaperTone][] = [
+  [/delete|leave|cancel|remove/i,                      "door",    "rose"],
+  [/expense|revenue|payment|budget|dues|transaction|reimburse|txn|plan/i, "wallet", "butter"],
+  [/attendance|check-?in|excuse/i,                     "check",   "mint"],
+  [/task|deadline|poll/i,                              "box",     "peach"],
+  [/instagram|post/i,                                  "camera",  "rose"],
+  [/service|hours/i,                                   "heart",   "rose"],
+  [/doc|folder|move/i,                                 "folder",  "sky"],
+  [/idea|wrap|board|fix/i,                             "board",   "lilac"],
+  [/announcement/i,                                    "pin",     "lilac"],
+  [/approve|join|member|organization/i,                "people",  "lilac"],
+  [/event|meeting|semester|party|calendar/i,           "cal",     "sky"],
+];
+function paperHeadFor(title: string | undefined): [PaperIconName, PaperTone] {
+  for (const [re, icon, tone] of PAPER_HEADS) if (title && re.test(title)) return [icon, tone];
+  return ["pencil", "lilac"];
+}
+
+export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dismissable = true, maxWidthClass = "max-w-md", hideHeader = false, icon, accent }: {
   /** Header text. When omitted/empty the header bar is dropped entirely (body-only
    *  modal) — but the ✕ button rides along in the header, so a dismissable modal
    *  with no title still gets a minimal header bar carrying just the close button. */
@@ -75,6 +97,12 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
    *  modal keeps a subtle ✕ floating in the top-right corner. Use when the body
    *  owns its own title treatment (e.g. the poll ballot's serif question). */
   hideHeader?: boolean;
+  /** Paper aesthetic only: the tilted icon tile that leads the header, as on the
+   *  mock's composer sheets. Defaults from the title (see PAPER_HEADS). Ignored
+   *  under Ledger. */
+  icon?: PaperIconName;
+  /** Paper aesthetic only: the pastel the tile and the panel's hard shadow take. */
+  accent?: PaperTone;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -83,6 +111,9 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
   // The <h3 id={titleId}> only renders when the header bar does, so pointing
   // aria-labelledby at it otherwise would dangle. Fall back to aria-label.
   const titleRendered = !hideHeader && !!title;
+  const [autoIcon, autoAccent] = paperHeadFor(title ?? ariaLabel);
+  const headIcon = icon ?? autoIcon;
+  const headAccent = accent ?? (icon ? "lilac" : autoAccent);
 
   // Callers pass an inline arrow for onClose, so its identity changes on every
   // parent render. Read it through a ref: an effect that depended on it would
@@ -150,8 +181,8 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" onClick={dismissable ? onClose : undefined} />
+    <div className="ui-modal fixed inset-0 z-50 flex items-center justify-center p-4" data-accent={headAccent}>
+      <div className="ui-modal-scrim absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" onClick={dismissable ? onClose : undefined} />
       <div
         ref={panelRef}
         role="dialog"
@@ -159,15 +190,16 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
         aria-labelledby={titleRendered ? titleId : undefined}
         aria-label={titleRendered ? undefined : (ariaLabel ?? title)}
         tabIndex={-1}
-        className={`card-premium-elevated relative flex max-h-[calc(100dvh-2rem)] w-full flex-col ${maxWidthClass} rounded-2xl border outline-none ${
+        className={`ui-modal-panel card-premium-elevated relative flex max-h-[calc(100dvh-2rem)] w-full flex-col ${maxWidthClass} rounded-2xl border outline-none ${
           dusk ? "border-[rgba(var(--ink-rgb),0.1)] bg-[color:var(--paper)]" : "border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--card)]"
         }`}
       >
         {!hideHeader && (title || dismissable) && (
-          <div className={`flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4 ${dusk ? "border-[rgba(var(--ink-rgb),0.07)]" : "border-[rgba(var(--ink-rgb),0.07)]"}`}>
-            <h3 id={titleId} className={`text-[15px] font-semibold ${dusk ? "text-[color:var(--ink)]" : "text-[color:var(--ink)]"}`}>{title}</h3>
+          <div className={`ui-modal-head flex shrink-0 items-center justify-between gap-3 border-b px-6 py-4 ${dusk ? "border-[rgba(var(--ink-rgb),0.07)]" : "border-[rgba(var(--ink-rgb),0.07)]"}`}>
+            {title && <PaperTile icon={headIcon} tone={headAccent} />}
+            <h3 id={titleId} className={`ui-modal-title text-[15px] font-semibold ${dusk ? "text-[color:var(--ink)]" : "text-[color:var(--ink)]"}`}>{title}</h3>
             {dismissable && (
-              <button type="button" onClick={onClose} aria-label="Close dialog" className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]" : "text-[color:var(--faint)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-white"}`}>
+              <button type="button" onClick={onClose} aria-label="Close dialog" className={`ui-modal-x flex h-10 w-10 items-center justify-center rounded-lg transition-colors sm:h-7 sm:w-7 ${dusk ? "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]" : "text-[color:var(--faint)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-white"}`}>
                 <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -176,20 +208,20 @@ export function Modal({ title, ariaLabel, onClose, children, tone = "slate", dis
           </div>
         )}
         {hideHeader && dismissable && (
-          <button type="button" onClick={onClose} aria-label="Close dialog" className={`absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${dusk ? "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]" : "text-[color:var(--faint)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-white"}`}>
+          <button type="button" onClick={onClose} aria-label="Close dialog" className={`ui-modal-x absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${dusk ? "text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-[color:var(--ink)]" : "text-[color:var(--faint)] hover:bg-[rgba(var(--ink-rgb),0.08)] hover:text-white"}`}>
             <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         )}
-        <div ref={bodyRef} className="min-h-0 overflow-y-auto p-6">{children}</div>
+        <div ref={bodyRef} className="ui-modal-body min-h-0 overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );
 }
 
 export function FieldLabel({ children, htmlFor, tone = "slate" }: { children: React.ReactNode; htmlFor?: string; tone?: "slate" | "dusk" }) {
-  return <label htmlFor={htmlFor} className={`mb-1 block text-[12px] font-medium ${tone === "dusk" ? "text-[color:var(--muted)]" : "text-[color:var(--muted)]"}`}>{children}</label>;
+  return <label htmlFor={htmlFor} className={`ui-label mb-1 block text-[12px] font-medium ${tone === "dusk" ? "text-[color:var(--muted)]" : "text-[color:var(--muted)]"}`}>{children}</label>;
 }
 
 /**
@@ -276,21 +308,21 @@ export function ConfirmDialog({ title, message, confirmLabel = "Delete", onConfi
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className={
+            className={"ui-btn-ghost " + (
               dusk
                 ? "rounded-lg border border-[rgba(var(--ink-rgb),0.12)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.24)] hover:text-[color:var(--ink)] transition-colors"
                 : "rounded-lg border border-[rgba(var(--ink-rgb),0.08)] px-4 py-1.5 text-[13px] text-[color:var(--muted)] hover:border-[rgba(var(--ink-rgb),0.16)] hover:text-[color:var(--ink)] transition-colors"
-            }
+            )}
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className={
+            className={"ui-btn-danger " + (
               dusk
                 ? "rounded-lg bg-[color:var(--rose)] px-4 py-1.5 text-[13px] font-semibold text-[color:var(--paper)] hover:bg-[color:var(--rose)]/85 transition-colors"
                 : "rounded-lg bg-red-600 px-4 py-1.5 text-[13px] font-semibold text-white hover:bg-red-500 transition-colors"
-            }
+            )}
           >
             {confirmLabel}
           </button>
