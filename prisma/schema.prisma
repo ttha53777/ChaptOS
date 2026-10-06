@@ -271,9 +271,9 @@ model Brother {
   // "does the roster agree with the ledger?" is a question the DB cannot answer.
   transactions          Transaction[]
   taskAssignments       TaskAssignment[]
+  taskCompletions       TaskCompletion[]
   pollAssignments       PollAssignment[]
   pollVotes             PollVote[]
-  taskCompletions       TaskCompletion[]
   // Programming events this person owns. SetNull, not Cascade: leaving one org
   // must never delete another org's events (see ProgrammingEvent.ownerBrotherId).
   ownedProgramming      ProgrammingEvent[]     @relation("ProgrammingOwner")

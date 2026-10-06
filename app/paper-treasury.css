@@ -17,18 +17,24 @@ html[data-aesthetic="paper"] .dash-treasury { --tz-r-xl: 30px; }
    from the briefing to the tabs. */
 html[data-aesthetic="paper"] .dash-treasury .tr-glance { display: none; }
 
-/* ── Briefing actions ───────────────────────────────────────────────────────── */
-html[data-aesthetic="paper"] .dash-treasury .briefing { flex-wrap: wrap; row-gap: 18px; }
-html[data-aesthetic="paper"] .dash-treasury .briefing > div:first-child { flex: 1 1 440px; }
-html[data-aesthetic="paper"] .dash .tr-head-actions { flex-wrap: wrap; justify-content: flex-end; gap: 10px; align-self: flex-end; }
+/* ── Briefing: the mock's .tl-brief — copy left, three actions bottom-right ── */
+html[data-aesthetic="paper"] .dash-treasury .briefing { grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: end; }
+html[data-aesthetic="paper"] .dash-treasury h1.greeting em::before { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .dash-treasury .digest b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tr-head-actions { flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+@media (max-width: 900px) {
+  html[data-aesthetic="paper"] .dash-treasury .briefing { grid-template-columns: minmax(0,1fr); }
+  html[data-aesthetic="paper"] .dash .tr-head-actions { justify-content: flex-start; }
+}
 html[data-aesthetic="paper"] .dash .tr-sem-pill {
   font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; letter-spacing: .04em;
-  border: 1.5px solid var(--line-med); background: var(--card); color: var(--muted); padding: 6px 11px;
+  border: 1.5px solid var(--line-med); background: var(--card); color: var(--muted); padding: 5px 10px;
 }
 html[data-aesthetic="paper"] .dash .tr-sem-pill:hover { border-color: var(--muted); color: var(--ink); }
 html[data-aesthetic="paper"] .dash .tr-sem-pill.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-html[data-aesthetic="paper"] .dash .tr-icon-btn { width: 38px; height: 38px; border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tr-icon-btn { width: 34px; height: 34px; border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink-soft); }
 html[data-aesthetic="paper"] .dash .tr-icon-btn:hover { border-color: var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-icon-btn svg { width: 15px; height: 15px; }
 
 /* Ink pill with a hard pastel shadow (the mock's .btn) */
 html[data-aesthetic="paper"] .dash :is(.tr-add, .tr-ask) {
@@ -44,9 +50,11 @@ html[data-aesthetic="paper"] .dash :is(.tr-add, .tr-ask):active { transform: tra
 html[data-aesthetic="paper"] .dash .tr-add svg { stroke: currentColor; width: 15px; height: 15px; }
 html[data-aesthetic="paper"] .dash .tr-add.tr-add-reimb { --hs: var(--pp-peach); background: var(--card); color: var(--ink); border-color: var(--ink); }
 html[data-aesthetic="paper"] .dash .tr-add.tr-add-reimb svg { stroke: currentColor; }
-html[data-aesthetic="paper"] .dash .tr-head-actions .tr-add:not(.tr-add-reimb) { order: 5; }
+/* mock order: Log money · Request reimbursement · Ask */
+html[data-aesthetic="paper"] .dash .tr-head-actions .tr-add:not(.tr-add-reimb) { order: 1; }
+html[data-aesthetic="paper"] .dash .tr-head-actions .tr-add-reimb { order: 2; }
 html[data-aesthetic="paper"] .dash .tr-ask {
-  order: 6; background: transparent; color: var(--muted); border: 1.5px dashed var(--line-med); box-shadow: none; font-weight: 500;
+  order: 3; background: transparent; color: var(--muted); border: 1.5px dashed var(--line-med); box-shadow: none; font-weight: 500;
 }
 html[data-aesthetic="paper"] .dash .tr-ask:hover { color: var(--ink); border-color: var(--pp-lilac-ink); background: var(--pp-lilac-soft); box-shadow: none; transform: translateY(-1px); }
 html[data-aesthetic="paper"] .dash .tr-ask svg { width: 13px; height: 13px; color: var(--pp-lilac-ink); }
@@ -61,22 +69,27 @@ html[data-aesthetic="paper"] .dash .tr-tabs {
   box-shadow: inset 0 -1.5px 0 var(--ink); overflow-x: auto; scrollbar-width: none;
 }
 html[data-aesthetic="paper"] .dash .tr-tabs::-webkit-scrollbar { display: none; }
-html[data-aesthetic="paper"] .dash .tr-tabs button {
+html[data-aesthetic="paper"] .dash .tr-tabs > button {
   --tb: var(--pp-mint);
   flex: none; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 1.5px; padding: 10px 16px 9px;
   border: 1.5px solid var(--line-med); border-bottom: 0; border-radius: 13px 13px 0 0; background: var(--paper-2);
   font-family: var(--font-geist-sans); font-size: 14px; font-weight: 600; letter-spacing: -.01em; text-transform: none; color: var(--muted);
   transition: color .15s, background .15s, padding .2s var(--pp-ease-spring);
 }
-html[data-aesthetic="paper"] .dash .tr-tabs button::before {
+html[data-aesthetic="paper"] .dash .tr-tabs > button::before {
   content: ''; position: absolute; left: 12px; right: 12px; top: -1.5px; height: 4px; border-radius: 0 0 4px 4px; background: var(--tb); opacity: .9;
 }
-html[data-aesthetic="paper"] .dash .tr-tabs button[data-tab="Transactions"]   { --tb: var(--pp-sky); }
-html[data-aesthetic="paper"] .dash .tr-tabs button[data-tab="Reimbursements"] { --tb: var(--pp-peach); }
-html[data-aesthetic="paper"] .dash .tr-tabs button[data-tab="Reports"]        { --tb: var(--pp-butter); }
-html[data-aesthetic="paper"] .dash .tr-tabs button .pp-ic { width: 15px; height: 15px; }
-html[data-aesthetic="paper"] .dash .tr-tabs button:hover { color: var(--ink); background: var(--card); }
-html[data-aesthetic="paper"] .dash .tr-tabs button.on {
+html[data-aesthetic="paper"] .dash .tr-tabs > button[data-tab="Transactions"]   { --tb: var(--pp-sky); }
+html[data-aesthetic="paper"] .dash .tr-tabs > button[data-tab="Reimbursements"] { --tb: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .tr-tabs > button[data-tab="Reports"]        { --tb: var(--pp-butter); order: 1; }
+html[data-aesthetic="paper"] .dash .tr-tabs .tr-tab-count { font-family: var(--font-geist-mono); font-size: .7rem; color: var(--muted); }
+/* term switch, export, new party: off the briefing, onto the tab rule's right end */
+html[data-aesthetic="paper"] .dash .tr-tabs .tr-tabs-tools {
+  order: 2; margin-left: auto; align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 0 0 4px 16px; flex: none;
+}
+html[data-aesthetic="paper"] .dash .tr-tabs > button .pp-ic { width: 15px; height: 15px; }
+html[data-aesthetic="paper"] .dash .tr-tabs > button:hover { color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .dash .tr-tabs > button.on {
   margin-bottom: 0; padding: 12px 18px 11px; background: var(--paper); color: var(--ink); border-color: var(--ink); z-index: 1;
 }
 html[data-aesthetic="paper"] .dash .tr-tabs button.on::after { display: none; }

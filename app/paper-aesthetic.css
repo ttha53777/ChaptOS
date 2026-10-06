@@ -225,6 +225,8 @@ html[data-aesthetic="paper"] .page-ambient {
     radial-gradient(48vw 46vh at 20% 74%, color-mix(in srgb, var(--pp-lilac-soft)  calc(var(--pp-wash-op) * 100%), transparent), transparent 62%),
     radial-gradient(56vw 50vh at 94% 96%, color-mix(in srgb, var(--pp-peach-soft)  calc(var(--pp-wash-op) * 100%), transparent), transparent 62%);
 }
+/* Night is a flat desk: no colour washes. */
+html[data-aesthetic="paper"][data-theme="dusk"] .page-ambient { background-image: none; }
 
 /* ── 3a. Sidebar ────────────────────────────────────────────────────────────── */
 html[data-aesthetic="paper"] .sb {

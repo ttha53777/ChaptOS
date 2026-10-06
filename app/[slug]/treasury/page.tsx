@@ -641,9 +641,9 @@ function IconBtn({ path, label, tone, onClick }: { path: string; label: string; 
 }
 
 // Round pill icon button used in the briefing head actions.
-function TreasuryIconButton({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+function TreasuryIconButton({ onClick, title, className, children }: { onClick: () => void; title: string; className?: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} title={title} className="tr-icon-btn">
+    <button onClick={onClick} title={title} className={className ? `tr-icon-btn ${className}` : "tr-icon-btn"}>
       {children}
     </button>
   );
@@ -1164,6 +1164,33 @@ export default function TreasuryPage() {
     (scheduledDrain > 0 ? `, with ${fmt$(Math.round(scheduledDrain))} still scheduled` : "") +
     (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues.` : ".");
 
+  // Paper's digest reads like the mock's: the balance and how far it moved this
+  // term, who still owes, whose reimbursement is waiting (only to someone who
+  // can settle it), and the next scheduled payment out. Every clause is a live
+  // figure; dues are phrased as an amount out, not a % collected, because the
+  // ledger has no billed-vs-collected total to divide by.
+  const termNet = balance - (treasuryData?.openingBalance ?? 0);
+  const pendingReimbs = reimbursements.filter(r => r.status === "pending");
+  const nextOut = upcomingTxns.find(t => t.type === "expense");
+  const firstName = (n: string) => n.trim().split(/\s+/)[0];
+  const memberWord = (n: number) => v("Member", n !== 1).toLowerCase();
+  const reimbWaiting = canTreasury && pendingReimbs.length > 0 && (
+    <><b>{pendingReimbs.length === 1
+      ? `${firstName(pendingReimbs[0].brother.name)}’s ${fmt$(pendingReimbs[0].amount)}`
+      : `${pendingReimbs.length} requests`}</b>{" "}{pendingReimbs.length === 1 ? "reimbursement is" : "reimbursements are"} waiting on you</>
+  );
+  const duesClause = owingCount > 0
+    ? <><b>{owingCount} {memberWord(owingCount)}</b>{" "}still {owingCount === 1 ? "owes" : "owe"}{" "}<b>{fmt$(Math.round(duesTotal))}</b>{" "}in dues</>
+    : duesUnassigned ? null : <>Every {memberWord(1)} is paid up</>;
+  const paperDigest = (
+    <>
+      <b>{fmt$(Math.round(balance))}</b>{" "}in the account
+      {Math.round(termNet) !== 0 && `, ${termNet > 0 ? "up" : "down"} ${fmt$(Math.round(Math.abs(termNet)))} since the term opened`}.
+      {(duesClause || reimbWaiting) && <>{" "}{duesClause}{duesClause && reimbWaiting ? ", and " : ""}{reimbWaiting}.</>}
+      {nextOut && <>{" "}Next out:{" "}<b>{nextOut.description.split(" — ")[0].toLowerCase()}, {fmt$(Math.round(nextOut.amount))}</b>{" "}on {ppDay(nextOut.date).m} {ppDay(nextOut.date).d}.</>}
+    </>
+  );
+
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Treasury" onNavClick={() => {}} />
@@ -1207,7 +1234,7 @@ export default function TreasuryPage() {
                     active term until a transaction exists to widen the list.) */}
                 <p className="kicker">
                   <span className="today">{dateLabel}</span>
-                  &ensp;·&ensp;{v("Treasury")}
+                  <span className="lg-only">&ensp;·&ensp;</span>{v("Treasury")}
                   {!lockedForMember && <>&ensp;·&ensp;{semester}</>}
                 </p>
                 <h1 className="greeting">The <em>ledger</em>.</h1>
@@ -1226,7 +1253,8 @@ export default function TreasuryPage() {
                       <span className="lg-only">AI</span>
                       <span className="pp-only"><PaperIcon name="spark" />Digest</span>
                     </span>
-                    <p>{digest}</p>
+                    <p className="lg-only">{digest}</p>
+                    <p className="pp-only">{paperDigest}</p>
                   </div>
                 )}
                 {/* Same shape as the digest, but a plain state chip rather than the
@@ -1246,26 +1274,29 @@ export default function TreasuryPage() {
                   books and no permission, all of them are dead controls. */}
               {!lockedForMember && <div className="tr-head-actions">
                 {semesters.map(s => (
-                  <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill${semester === s ? " on" : ""}`}>
+                  <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill lg-only${semester === s ? " on" : ""}`}>
                     {s}
                   </button>
                 ))}
                 {canTreasury && (
-                  <TreasuryIconButton onClick={handleExport} title="Export CSV">
+                  <TreasuryIconButton onClick={handleExport} title="Export CSV" className="lg-only">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
                   </TreasuryIconButton>
                 )}
-                <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event">
+                <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event" className="lg-only">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
                 </TreasuryIconButton>
                 <button className="tr-add tr-add-reimb" onClick={() => setReimbModal(true)}>
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  Add Reimbursement
+                  <svg className="lg-only" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  <PaperIcon name="receipt" className="pp-only" />
+                  <span className="lg-only">Add Reimbursement</span>
+                  <span className="pp-only">Request reimbursement</span>
                 </button>
                 {canTreasury && (
                   <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                    New txn
+                    <span className="lg-only">New txn</span>
+                    <span className="pp-only">Log money</span>
                   </button>
                 )}
                 <button
@@ -1290,8 +1321,28 @@ export default function TreasuryPage() {
                   {tab === "Reimbursements" && pendingReimbCount > 0 && (
                     <span className="tr-tab-badge" aria-label={`${pendingReimbCount} requests awaiting review`}>{pendingReimbCount > 9 ? "9+" : pendingReimbCount}</span>
                   )}
+                  {tab === "Transactions" && activeTxns.length > 0 && (
+                    <span className="tr-tab-count pp-only">{activeTxns.length}</span>
+                  )}
                 </button>
               ))}
+              {/* Paper keeps the briefing to the mock's three actions; the term
+                  switch, export and new party ride the tab rule instead. */}
+              <span className="tr-tabs-tools pp-only">
+                {semesters.length > 1 && semesters.map(s => (
+                  <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill${semester === s ? " on" : ""}`}>
+                    {s}
+                  </button>
+                ))}
+                {canTreasury && (
+                  <TreasuryIconButton onClick={handleExport} title="Export CSV">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
+                  </TreasuryIconButton>
+                )}
+                <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
+                </TreasuryIconButton>
+              </span>
             </nav>
 
             {isLoading ? (

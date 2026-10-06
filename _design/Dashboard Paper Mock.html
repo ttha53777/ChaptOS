@@ -117,15 +117,6 @@ a{color:inherit}
 svg{display:block}
 :focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
 
-/* the paper itself: soft fixed washes (as on the landing page) */
-body::before{
-  content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:var(--wash-op);
-  background:
-    radial-gradient(60vw 50vh at 18% 0%,  var(--butter-soft), transparent 62%),
-    radial-gradient(52vw 48vh at 98% 18%, var(--sky-soft),    transparent 60%),
-    radial-gradient(48vw 46vh at 20% 74%, var(--lilac-soft),  transparent 62%),
-    radial-gradient(56vw 50vh at 94% 96%, var(--peach-soft),  transparent 62%);
-}
 
 .ic{width:18px; height:18px; flex:none}
 .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
@@ -1118,8 +1109,6 @@ b[data-member]:hover{text-decoration-color:var(--ink)}
   transform:translateY(-10px) scale(.985); transition:transform .34s var(--ease-spring), box-shadow .3s;
 }
 .ms-ov.open .ms{transform:none}
-.ms::before{content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:var(--wash-op);
-  background:radial-gradient(60% 55% at 100% 0%, var(--ms-wash, var(--lilac-soft)), transparent 70%)}
 .ms > *{position:relative}
 .ms-swap{animation:swap .24s var(--ease-out)}
 @keyframes swap{from{opacity:.2; transform:translateY(4px)} to{opacity:1; transform:none}}
@@ -1336,7 +1325,7 @@ button.tl-month:hover .rule{border-top-color:var(--ink-3)}
 
 .today-mk{display:flex; align-items:center; gap:12px; margin:18px 0 6px}
 .today-mk .pill{background:var(--ink); color:var(--paper); border-color:var(--ink); padding:5px 13px; font-family:var(--mono); font-size:.7rem; letter-spacing:.06em; text-transform:uppercase; box-shadow:2.5px 2.5px 0 var(--peach)}
-.today-mk .ln{flex:1; height:2px; border-radius:2px; background:linear-gradient(90deg, var(--peach-ink), transparent)}
+.today-mk .ln{flex:1; height:2px; border-radius:2px; background:var(--peach-ink)}
 .tl-end{display:flex; align-items:center; gap:12px; margin:24px 0 0 50px; font-size:.86rem; color:var(--ink-3)}
 .tl-end .e-dot{width:10px; height:10px; border-radius:50%; border:2px dashed var(--line-2)}
 .tl-empty{text-align:center; padding:56px 20px; border:1.5px dashed var(--line-2); border-radius:var(--r-lg)}
@@ -1381,7 +1370,7 @@ button.tl-month:hover .rule{border-top-color:var(--ink-3)}
 .ev-back:hover{background:var(--paper-2); color:var(--ink)}
 .ev-back .ic{width:14px; height:14px}
 .ev-top .sp{margin-left:auto}
-.ev-hero{padding:8px 18px 16px; background:linear-gradient(180deg, var(--cs), transparent)}
+.ev-hero{padding:8px 18px 16px; background:var(--cs)}
 .ev-hero .tags{display:flex; gap:6px; flex-wrap:wrap}
 .ev-hero .cat{background:var(--cs); color:var(--cc); border-color:var(--cc)}
 .ev-hero h3{margin-top:10px; font-family:var(--display); font-weight:600; font-size:1.5rem; letter-spacing:-.03em; line-height:1.12}
@@ -1573,8 +1562,6 @@ details.trouble summary{cursor:pointer; font-size:.82rem; font-weight:600; color
 /* on deck */
 .od{position:relative; display:grid; grid-template-columns:auto minmax(0,1fr); gap:26px; padding:26px 26px 22px;
   background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl); box-shadow:7px 7px 0 var(--sky)}
-.od::before{content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:var(--wash-op);
-  background:radial-gradient(55% 70% at 100% 0%, var(--sky-soft), transparent 70%)}
 .od > *{position:relative}
 .calpg{width:104px; align-self:start; border-radius:14px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--peach); transform:rotate(-3deg); overflow:hidden; text-align:center; line-height:1}
 .calpg .top{display:block; position:relative; background:var(--sky); color:var(--note-ink); filter:var(--note-filter); padding:13px 0 7px; font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; border-bottom:1.5px solid var(--ink)}
@@ -1749,7 +1736,6 @@ details.trouble summary{cursor:pointer; font-size:.82rem; font-weight:600; color
 /* row 1: balance hero + breakdown */
 .tz-top{display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:22px; align-items:stretch}
 .tz-hero{position:relative; padding:22px 24px 18px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl); box-shadow:7px 7px 0 var(--mint); min-width:0}
-.tz-hero::before{content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:var(--wash-op); background:radial-gradient(55% 70% at 100% 0%, var(--mint-soft), transparent 70%)}
 .tz-hero > *{position:relative}
 .tz-hero-h{display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap}
 .tz-k{font-size:.66rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); display:flex; align-items:center; gap:8px}
@@ -1904,7 +1890,7 @@ html[data-theme="dark"] .tz-chart .fl{fill:rgba(140,220,180,.12)}
 .tz-bh{padding-block:9px; background:var(--paper-2); border-bottom:1.5px solid var(--line); font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
 .tz-bh .r,.tz-r .r{text-align:right}
 .tz-bh span:first-child{text-align:center}
-.tz-grp{display:flex; align-items:baseline; gap:10px; padding:14px 14px 6px 90px; font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em; background:linear-gradient(var(--paper-2), transparent)}
+.tz-grp{display:flex; align-items:baseline; gap:10px; padding:14px 14px 6px 90px; font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em}
 .tz-grp .rule{flex:1; border-top:1.5px dashed var(--line-2); transform:translateY(-4px)}
 .tz-grp .c{font-family:var(--mono); font-size:.7rem; font-weight:500; color:var(--ink-3); letter-spacing:0}
 .tz-grp .c .in{color:var(--mint-ink)} .tz-grp .c .out{color:var(--peach-ink)}
@@ -2827,7 +2813,7 @@ mark.dc-hit::before{content:''; position:absolute; z-index:-1; left:-.08em; righ
 .ig-snap.carousel{aspect-ratio:1; margin:4px 4px 0 0}
 .ig-snap.carousel::before{content:''; position:absolute; inset:-1.5px; transform:translate(4px,-4px) rotate(3deg); border:1.5px solid var(--ink); border-radius:6px; background:var(--card); z-index:-1}
 .ig-snap .ph{position:absolute; inset:3px; border-radius:3px; overflow:hidden;
-  background:radial-gradient(70% 60% at 30% 30%, color-mix(in srgb, var(--yb) 90%, white), transparent 70%), linear-gradient(160deg, var(--yb), color-mix(in srgb, var(--yb) 45%, var(--butter)))}
+  background:var(--yb)}
 .ig-snap .ph::after{content:''; position:absolute; left:-10%; right:-10%; bottom:-18%; height:46%; border-radius:50% 50% 0 0; background:color-mix(in srgb, var(--yc) 32%, transparent)}
 .ig-snap .bars{position:absolute; left:6px; right:6px; top:6px; display:flex; gap:2px; z-index:1}
 .ig-snap .bars i{flex:1; height:2px; border-radius:2px; background:rgba(255,255,255,.85)}

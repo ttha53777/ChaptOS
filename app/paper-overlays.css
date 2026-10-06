@@ -355,6 +355,7 @@ html[data-aesthetic="paper"] .ms-overlay .ms-spot::before {
   content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: var(--pp-wash-op);
   background: radial-gradient(60% 55% at 100% 0%, var(--pp-lilac-soft), transparent 70%);
 }
+html[data-aesthetic="paper"][data-theme="dusk"] .ms-overlay .ms-spot::before { content: none; }
 html[data-aesthetic="paper"] .ms-overlay .ms-head h2 { font-family: var(--font-fraunces); font-weight: 600; font-size: clamp(1.6rem, 2.6vw, 2.05rem); letter-spacing: -.032em; line-height: 1.08; }
 html[data-aesthetic="paper"] .ms-overlay .ms-head .ms-sub { font-size: .92rem; color: var(--muted); }
 html[data-aesthetic="paper"] .ms-overlay .ms-av {
