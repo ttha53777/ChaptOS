@@ -7,8 +7,8 @@ import { Transaction, PAYMENT_METHODS } from "../../data";
 import { todayStr } from "../../lib/dates";
 import { useVocab } from "../../hooks/useVocab";
 import { useTransactionCategories } from "../../hooks/useTransactionCategories";
-
-const CURRENT_SEMESTER = "SPR26";
+import { useSemesters } from "../../hooks/useActiveSemester";
+import { inTerm } from "../../../lib/treasury-term";
 
 /**
  * Returning a promise is optional but preferred: the form awaits it to keep the
@@ -67,7 +67,9 @@ export function TxForm({
   const [date,          setDate]          = useState(initial?.date ?? todayStr());
   const [description,   setDescription]   = useState(initial?.description ?? "");
   const [paymentMethod, setPaymentMethod] = useState(initial?.paymentMethod ?? "");
-  const [semester,      setSemester]      = useState(initial?.semester ?? CURRENT_SEMESTER);
+  // Empty until picked: a new row with no term is filed under the org's active
+  // term by the server, so this form never has to guess one.
+  const [semester,      setSemester]      = useState(initial?.semester ?? "");
   const [status,        setStatus]        = useState<"posted" | "scheduled">(
     (initial?.status as "posted" | "scheduled") ?? "posted"
   );
@@ -87,9 +89,15 @@ export function TxForm({
   const catalog = useTransactionCategories();
   const isFutureDate = date > todayStr();
 
-  // Filter events to the transaction's semester year.
-  const semYear = semester ? "20" + semester.slice(-2) : null;
-  const semesterEvents = events?.filter(e => semYear ? e.date.startsWith(semYear) : true) ?? [];
+  const { semesters: terms, active: activeTerm } = useSemesters();
+  // What the row will actually be filed under, for the picker and event filter.
+  const termLabel = semester || activeTerm?.label || "";
+  // A legacy label the org has no Semester for stays selectable on edit, so
+  // opening an old row can't silently re-file it.
+  const termOptions = [...terms.map(t => t.label), ...(semester && !terms.some(t => t.label === semester) ? [semester] : [])];
+
+  // Filter events to the transaction's term.
+  const semesterEvents = events?.filter(e => termLabel ? inTerm(e.date, termLabel, terms) : true) ?? [];
   // Events available to add (not yet selected).
   const addableEvents = semesterEvents.filter(e => !selectedEventIds.includes(e.id));
 
@@ -219,7 +227,10 @@ export function TxForm({
         {!duesFor && (
           <div>
             <FieldLabel tone={tone}>{v("Period")}</FieldLabel>
-            <input type="text" value={semester} onChange={e => setSemester(e.target.value)} placeholder="SPR26" className={inCls} />
+            <select value={termLabel} onChange={e => setSemester(e.target.value)} className={inCls} disabled={termOptions.length === 0}>
+              {termOptions.length === 0 && <option value="">No {v("Period").toLowerCase()} set up</option>}
+              {termOptions.map(l => <option key={l} value={l}>{l}{l === activeTerm?.label ? " (current)" : ""}</option>)}
+            </select>
           </div>
         )}
       </div>

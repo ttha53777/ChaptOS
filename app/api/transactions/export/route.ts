@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import { listTransactionsForExport } from "@/lib/services/transaction-service";
 
 function csvSafeStr(s: string | null | undefined): string {
   const v = (s ?? "").replace(/"/g, '""');
@@ -14,15 +15,9 @@ export async function GET(req: NextRequest) {
   if (error) return error;
   try {
     const { searchParams } = new URL(req.url);
-    const semester = searchParams.get("semester") ?? "all";
-    const safeSemester = semester.replace(/[^A-Za-z0-9_-]/g, "");
-
-    const transactions = await ctx.db.transaction.findMany({
-      where: safeSemester && safeSemester !== "all"
-        ? { deletedAt: null, semester: safeSemester }
-        : { deletedAt: null },
-      orderBy: { date: "asc" },
-    });
+    const semester = (searchParams.get("semester") ?? "").trim();
+    const term = semester && semester !== "all" ? semester : null;
+    const transactions = await listTransactionsForExport(ctx, term);
 
     const header = ["Date", "Type", "Category", "Description", "Amount", "Payment Method", "Semester"];
     const rows = transactions.map(tx => [
@@ -36,8 +31,9 @@ export async function GET(req: NextRequest) {
     ]);
 
     const csv = [header, ...rows].map(r => r.join(",")).join("\n");
-    const filename = safeSemester && safeSemester !== "all"
-      ? `transactions-${safeSemester}.csv`
+    const fileTerm = term?.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-|-$/g, "");
+    const filename = fileTerm
+      ? `transactions-${fileTerm}.csv`
       : "transactions.csv";
 
     return new Response(csv, {

@@ -32,11 +32,12 @@ import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
 import { TreasuryLocked } from "../../components/treasury/TreasuryLocked";
 import { GhostBalanceChart, GhostDonut } from "../../components/treasury/TreasuryGhosts";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../components/paper/PaperIcon";
+import { PaperBalanceChart, PaperBreakdown, type PaperEntry, type PaperRange } from "../../components/treasury/PaperTreasury";
+import { TreasuryOpenBooks } from "../../components/treasury/TreasuryOpenBooks";
+import { useSemesters } from "../../hooks/useActiveSemester";
+import { termOfTx, inTerm } from "../../../lib/treasury-term";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const CURRENT_SEMESTER = "SPR26";
-
 
 type NavTab = "Overview" | "Budget" | "Transactions" | "Reports" | "Reimbursements";
 
@@ -246,6 +247,7 @@ function ReimbursementsView({
   showArchived,
   onToggleArchived,
   onAction,
+  onRequest,
 }: {
   reimbursements: Reimbursement[];
   canTreasury: boolean;
@@ -254,6 +256,7 @@ function ReimbursementsView({
   showArchived: boolean;
   onToggleArchived: () => void;
   onAction: (id: number, status: "approved" | "rejected", note?: string, category?: string) => void;
+  onRequest: () => void;
 }) {
   const [rejectingId,   setRejectingId]   = useState<number | null>(null);
   const [rejectNote,    setRejectNote]    = useState("");
@@ -428,12 +431,23 @@ function ReimbursementsView({
         )}
       </div>
 
-      {pending.length === 0 ? (
-        <div className="tr-reimb-empty">
+      {pending.length === 0 ? (<>
+        <div className="tr-reimb-empty lg-only">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
           <span>You&rsquo;re all caught up — no pending requests.</span>
         </div>
-      ) : (
+        <div className="tz-reimb-empty pp-only">
+          <PpCalm
+            icon="receipt" tone="peach"
+            title={canTreasury ? (archived.length ? "Nothing waiting on you." : "No requests yet.") : "No open requests."}
+            action={<button className="tz-calm-btn" onClick={onRequest}><PaperIcon name="receipt" />Request reimbursement</button>}
+          >
+            {canTreasury
+              ? "When someone asks to be paid back, their receipt lands here for you to approve or decline."
+              : "Paid for something out of pocket? Send a request with the receipt and it shows up here until the treasurer settles it."}
+          </PpCalm>
+        </div>
+      </>) : (
         <div className="tr-reimb-list">
           {pending.map(r => renderCard(r, false))}
         </div>
@@ -649,6 +663,24 @@ function TreasuryIconButton({ onClick, title, className, children }: { onClick: 
   );
 }
 
+// The paper look's empty-card voice (the mock's .calm): a tilted pastel glyph,
+// one serif line of state, one line of what fills it, optionally an action.
+function PpCalm({ icon, tone, title, children, action }: {
+  icon: PaperIconName; tone: "mint" | "peach" | "sky" | "butter" | "lilac" | "rose";
+  title: string; children: React.ReactNode; action?: React.ReactNode;
+}) {
+  return (
+    <div className="tz-calm pp-only" data-tone={tone}>
+      <span className="art" aria-hidden="true"><PaperIcon name={icon} /></span>
+      <div>
+        <h4>{title}</h4>
+        <p>{children}</p>
+        {action && <div className="acts">{action}</div>}
+      </div>
+    </div>
+  );
+}
+
 // Dusk card surface (replaces the old FinanceCard gradient panel).
 function FinanceCard({ children, className, style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
@@ -669,7 +701,7 @@ const ICON_PARTY  = "M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TreasuryPage() {
-  const { currentUser, treasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, loadedSections, avatarRevision, can } = useChapter();
+  const { currentUser, treasuryData, setTreasuryData, transactionList, setTransactionList, partyList, setPartyList, brotherList, setBrotherList, reimbursementList: reimbursements, setReimbursementList: setReimbursements, isLoading, loadedSections, avatarRevision, can } = useChapter();
   const v = useVocab();
   const catalog = useTransactionCategories();
   const selfId = currentUser?.id ?? null;
@@ -677,7 +709,9 @@ export default function TreasuryPage() {
 
   const [calendarEvents, setCalendarEvents] = useState<TxFormEvent[]>([]);
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
-  const [semester,      setSemester]      = useState(CURRENT_SEMESTER);
+  // null = follow the org's active term. Only a pill click pins a different one.
+  const [pickedTerm,    setSemester]      = useState<string | null>(null);
+  const [ppRange,       setPpRange]       = useState<PaperRange>("term");
   const [navTab,        setNavTab]        = useState<NavTab>("Overview");
   const [chartRange,    setChartRange]    = useState<"2W"|"1M"|"3M"|"YTD"|"ALL">("ALL");
   const [txTab,         setTxTab]         = useState<TxTab>("all");
@@ -710,10 +744,33 @@ export default function TreasuryPage() {
     [reimbursements],
   );
 
+  // ── Which term is on screen ──────────────────────────────────────────────────
+  //
+  // The org's own Semester rows decide. This used to start on a hardcoded
+  // "SPR26" left over from demo data — an org whose only term is Fall 2026 opened
+  // on a Spring 2026 it never created, and every hand-logged row was stamped
+  // SPR26 too. termOfTx files those legacy rows by date instead of by the bogus
+  // label (see lib/treasury-term.ts).
+  const { semesters: termRows, active: activeTerm } = useSemesters();
+  const txTerm = useCallback((t: Transaction) => termOfTx(t, termRows), [termRows]);
+
+  const semesters = useMemo(() => {
+    const seen = new Set<string>();
+    transactionList.forEach(t => { if (!t.deletedAt) { const k = txTerm(t); if (k) seen.add(k); } });
+    if (activeTerm) seen.add(activeTerm.label);
+    // Chronological where we know the term's dates; unknown legacy labels first.
+    const start = (l: string) => termRows.find(r => r.label === l)?.startDate ?? "";
+    return Array.from(seen).sort((a, b) => start(a).localeCompare(start(b)) || a.localeCompare(b));
+  }, [transactionList, txTerm, activeTerm, termRows]);
+
+  // Active term, else the newest term anything is filed under, else everything.
+  const semester = pickedTerm ?? activeTerm?.label ?? semesters[semesters.length - 1] ?? "";
+  const termRow = termRows.find(r => r.label === semester) ?? null;
+
   const activeTxns = useMemo(() =>
-    transactionList.filter(t => !t.deletedAt && (!semester || t.semester === semester))
+    transactionList.filter(t => !t.deletedAt && (!semester || txTerm(t) === semester))
       .sort((a, b) => b.date.localeCompare(a.date)),
-    [transactionList, semester]
+    [transactionList, semester, txTerm]
   );
 
   const incomeTxns  = useMemo(() => activeTxns.filter(t => t.type === "income"),  [activeTxns]);
@@ -771,19 +828,12 @@ export default function TreasuryPage() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [activeTxns, visibleTxns, txSearch]);
 
-  const semesters = useMemo(() => {
-    const seen = new Set<string>();
-    transactionList.forEach(t => { if (t.semester) seen.add(t.semester); });
-    seen.add(CURRENT_SEMESTER);
-    return Array.from(seen).sort();
-  }, [transactionList]);
-
-  // Filter parties to the selected semester's year (PartyEvent has no semester field, so match by year)
+  // PartyEvent has no term column, so parties are placed by date: inside the
+  // term's own range when it's a real Semester, else by year.
   const filteredParties = useMemo(() => {
     if (!semester) return partyList;
-    const year = "20" + semester.slice(-2);
-    return partyList.filter(p => p.date.startsWith(year));
-  }, [partyList, semester]);
+    return partyList.filter(p => inTerm(p.date, semester, termRows));
+  }, [partyList, semester, termRows]);
 
   // Running cumulative balance chart
   const runningData = useMemo(
@@ -832,14 +882,19 @@ export default function TreasuryPage() {
   // both before the fetch and never — an unset verdict computed during the load
   // would wall a chapter with $40k in the account behind "the books aren't open
   // yet" for as long as the request takes.
-  const treasuryLoaded    = loadedSections.has("treasury");
+  //
+  // A chapter that never answered but has been logging money anyway HAS open
+  // books (they started from zero) — walling it behind day one would hide real
+  // entries, so "unopened" also needs an empty ledger in every term.
+  const treasuryLoaded    = loadedSections.has("treasury") && loadedSections.has("transactions") && loadedSections.has("parties");
   const hasOpeningBalance = treasuryData?.openingBalance != null;
-  const booksUnopened     = treasuryLoaded && !hasOpeningBalance;
+  const everLogged        = transactionList.some(t => !t.deletedAt) || partyList.length > 0;
+  const booksUnopened     = treasuryLoaded && !hasOpeningBalance && !everLogged;
 
-  // A member who can't open the books and has nothing to look at. Whoever CAN
-  // open them keeps the full page for now — the welcome flow that replaces it
-  // for them is the next piece of this work.
+  // A member who can't open the books has nothing to look at; the officer who
+  // can gets the one question that opens them (TreasuryOpenBooks).
   const lockedForMember = booksUnopened && !canTreasury;
+  const openingForOfficer = booksUnopened && canTreasury;
 
   // ── The second kind of nothing ───────────────────────────────────────────────
   //
@@ -870,6 +925,16 @@ export default function TreasuryPage() {
     [donutMode, expenseTxns, incomeTxns, catalog]
   );
   const donutTotal = donutMode === "expense" ? totalExpenses : totalIncome;
+
+  // Paper lists every category (no "Other" bucket) because each row is a door
+  // into that category's entries — a merged bucket has nowhere to go.
+  const ppCats = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const t of donutMode === "expense" ? expenseTxns : incomeTxns) by.set(t.category, (by.get(t.category) ?? 0) + t.amount);
+    return [...by.entries()].filter(([, val]) => val > 0).sort((a, b) => b[1] - a[1])
+      .map(([slug, val]) => ({ slug, label: catalog.labelFor(donutMode, slug), value: round2(val), color: catalog.colorFor(donutMode, slug) }));
+  }, [donutMode, expenseTxns, incomeTxns, catalog]);
+  const orgSlug = currentUser?.org?.slug ?? null;
 
   const totalDoorRev  = filteredParties.reduce((s, p) => s + p.doorRevenue, 0);
 
@@ -1159,6 +1224,26 @@ export default function TreasuryPage() {
   const duesTotal   = useMemo(() => brotherList.reduce((s, b) => s + b.duesOwed, 0), [brotherList]);
   const owingCount  = useMemo(() => brotherList.filter(b => b.duesOwed > 0).length, [brotherList]);
 
+  // ── Paper chart inputs ──────────────────────────────────────────────────────
+  // Split the same way `balance` is summed: scheduled EXPENSES are the only
+  // money not yet in the account (income counts whatever its status), so the
+  // solid line ends exactly on the balance the hero prints.
+  const ppPosted = useMemo<PaperEntry[]>(() => [
+    ...activeTxns.filter(t => !(t.type === "expense" && t.status === "scheduled"))
+      .map(t => ({ date: t.date, amount: t.type === "income" ? t.amount : -t.amount, label: t.description || catalog.labelFor(t.type, t.category) })),
+    ...filteredParties.filter(p => p.doorRevenue > 0)
+      .map(p => ({ date: p.date, amount: p.doorRevenue, label: `${p.name} — door` })),
+  ], [activeTxns, filteredParties, catalog]);
+  const ppScheduled = useMemo<PaperEntry[]>(() =>
+    activeTxns.filter(t => t.type === "expense" && t.status === "scheduled")
+      .map(t => ({ date: t.date, amount: -t.amount, label: t.description || catalog.labelFor(t.type, t.category) })),
+  [activeTxns, catalog]);
+  // A past term's line closes on its last day, not today.
+  const ppAsOf = termRow && termRow.endDate < today ? termRow.endDate : today;
+  const ppTermStart = termRow?.startDate
+    ?? [...ppPosted.map(e => e.date)].sort()[0]
+    ?? ppAsOf;
+
   // One-line editorial digest built from live figures (mirrors sibling pages' AI line).
   const digest = `${fmt$(Math.round(balance))} in the books${bwDelta != null ? (bwDelta >= 0 ? " and trending up" : " and trending down") : ""}` +
     (scheduledDrain > 0 ? `, with ${fmt$(Math.round(scheduledDrain))} still scheduled` : "") +
@@ -1235,7 +1320,7 @@ export default function TreasuryPage() {
                 <p className="kicker">
                   <span className="today">{dateLabel}</span>
                   <span className="lg-only">&ensp;·&ensp;</span>{v("Treasury")}
-                  {!lockedForMember && <>&ensp;·&ensp;{semester}</>}
+                  {!booksUnopened && semester && <>&ensp;·&ensp;{semester}</>}
                 </p>
                 <h1 className="greeting">The <em>ledger</em>.</h1>
                 {/* The digest is composed from live figures and badged AI, which
@@ -1247,7 +1332,7 @@ export default function TreasuryPage() {
                     treasuryLoaded guard this line renders "$0 in the books" for the
                     whole fetch on every navigation into the page — the one place
                     the $0 cockpit was still reachable. */}
-                {treasuryLoaded && !lockedForMember && !statedUnstarted && (
+                {treasuryLoaded && !booksUnopened && !statedUnstarted && (
                   <div className="digest">
                     <span className="ai-chip">
                       <span className="lg-only">AI</span>
@@ -1272,7 +1357,7 @@ export default function TreasuryPage() {
               </div>
               {/* Every head action either edits the books or exports them. With no
                   books and no permission, all of them are dead controls. */}
-              {!lockedForMember && <div className="tr-head-actions">
+              {!booksUnopened && <div className="tr-head-actions">
                 {semesters.map(s => (
                   <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill lg-only${semester === s ? " on" : ""}`}>
                     {s}
@@ -1310,6 +1395,12 @@ export default function TreasuryPage() {
 
             {lockedForMember ? (
               <TreasuryLocked treasuryLabel={v("Treasury")} />
+            ) : openingForOfficer ? (
+              <TreasuryOpenBooks
+                onOpened={ob => setTreasuryData(prev => prev
+                  ? { ...prev, openingBalance: ob, balance: prev.balance + ob }
+                  : { balance: ob, projected: ob, trend: [], openingBalance: ob })}
+              />
             ) : (<>
 
             {/* ── Tab nav (kept) ── */}
@@ -1378,7 +1469,7 @@ export default function TreasuryPage() {
                   <div className="bact">
                     <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                      New txn
+                      <span className="lg-only">New txn</span><span className="pp-only">Log money</span>
                     </button>
                   </div>
                 )}
@@ -1439,27 +1530,34 @@ export default function TreasuryPage() {
                     <div className="tr-bal-row">
                       <span className={`tr-bal-num${balance < 0 ? " neg" : ""}`}>{fmt$(Math.round(balance))}</span>
                       {bwDelta !== null && (
-                        <span className={`tr-bal-chip ${bwDelta >= 0 ? "up" : "down"}`}>
+                        <span className={`tr-bal-chip lg-only ${bwDelta >= 0 ? "up" : "down"}`}>
                           {bwDelta >= 0 ? "+" : ""}{fmt$(Math.round(bwDelta))} biweekly
                         </span>
                       )}
                     </div>
                     {scheduledDrain > 0 && (
-                      <span className="tr-bal-sched">
+                      <span className="tr-bal-sched lg-only">
                         −{fmt$(Math.round(scheduledDrain))} scheduled → {fmt$(Math.round(balance - scheduledDrain))} projected
                       </span>
                     )}
                     {/* Projection is balance × 1.3. Against a stated-but-unmoved
                         balance that's arithmetic on no evidence, so it's withheld
                         rather than dressed up as a forecast. */}
-                    <p className="tr-bal-meta">{statedUnstarted ? `${semester} · opening balance` : <>{semester} · Projected <b>{fmt$(Math.round(projected))}</b></>}</p>
+                    <p className="tr-bal-meta lg-only">{statedUnstarted ? `${semester} · opening balance` : <>{semester} · Projected <b>{fmt$(Math.round(projected))}</b></>}</p>
                   </div>
                   {/* Range selector — every range slices the same empty series, so
                       the control would do nothing visible. */}
                   {!statedUnstarted && (
-                    <div className="tr-ranges">
+                    <div className="tr-ranges lg-only">
                       {(["2W","1M","3M","YTD","ALL"] as const).map(r => (
                         <button key={r} onClick={() => setChartRange(r)} className={chartRange === r ? "on" : ""}>{r}</button>
+                      ))}
+                    </div>
+                  )}
+                  {!statedUnstarted && (
+                    <div className="tr-ranges pp-only" role="tablist" aria-label="Chart range">
+                      {([["2w", "2W"], ["1m", "1M"], ["term", "Term"]] as const).map(([k, l]) => (
+                        <button key={k} role="tab" aria-selected={ppRange === k} onClick={() => setPpRange(k)} className={ppRange === k ? "on" : ""}>{l}</button>
                       ))}
                     </div>
                   )}
@@ -1480,28 +1578,55 @@ export default function TreasuryPage() {
                 </div>
 
                 {/* Area + Biweekly charts */}
-                {statedUnstarted ? (
-                  <GhostBalanceChart balanceLabel={fmt$(Math.round(balance))} />
-                ) : (
-                  <div className="tr-chart">
-                    <TreasuryAreaChart
-                      data={filteredRunningData}
-                      biweeklyData={biweeklyData}
-                      semester={semester}
-                    />
+                <div className="lg-only tr-bal-lg">
+                  {statedUnstarted ? (
+                    <GhostBalanceChart balanceLabel={fmt$(Math.round(balance))} />
+                  ) : (
+                    <div className="tr-chart">
+                      <TreasuryAreaChart
+                        data={filteredRunningData}
+                        biweeklyData={biweeklyData}
+                        semester={semester}
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* Paper: the running balance as a step line (a balance doesn't
+                    glide between entries) — solid to today, dashed through what's
+                    scheduled, scrubbable. */}
+                <div className="tz-bal pp-only">
+                  <PaperBalanceChart
+                    opening={treasuryData?.openingBalance ?? 0}
+                    posted={ppPosted}
+                    scheduled={ppScheduled}
+                    termStart={ppTermStart}
+                    asOf={ppAsOf}
+                    isToday={ppAsOf === today}
+                    range={ppRange}
+                    ghost={statedUnstarted}
+                    onScheduled={() => { setNavTab("Transactions"); setTxTab("expense"); setTxCategory("all"); setTxSearch(""); }}
+                  />
+                </div>
+                {/* Paper, books open but nothing moved: the same bar, uncharged. */}
+                {statedUnstarted && (
+                  <div className="tr-io pp-only">
+                    <span className="s"><i style={{ background: "var(--pp-mint-ink)" }} /><span>Money in</span><b className="un">—</b></span>
+                    <span className="s r"><span>Money out</span><b className="un">—</b><i style={{ background: "var(--pp-peach)" }} /></span>
+                    <span className="bar ghost" />
+                    <span className="cap"><span>nothing in yet</span><span>nothing out yet</span></span>
                   </div>
                 )}
                 {/* Paper: money in vs money out as one bar, two inks — both halves are
                     the term's own totals, so the split is the data, not decoration. */}
                 {!statedUnstarted && totalIncome + totalExpenses > 0 && (
                   <div className="tr-io pp-only">
-                    <span className="s"><i style={{ background: "var(--pp-mint-ink)" }} /><span>Money in</span><b>{fmt$(Math.round(totalIncome))}</b></span>
-                    <span className="s r"><span>Money out</span><b>{fmt$(Math.round(totalExpenses))}</b><i style={{ background: "var(--pp-peach)" }} /></span>
+                    <span className="s"><i style={{ background: "var(--pp-mint-ink)" }} /><span>Money in</span>{incomeTxns.length ? <b>{fmt$(Math.round(totalIncome))}</b> : <b className="un">—</b>}</span>
+                    <span className="s r"><span>Money out</span>{expenseTxns.length ? <b>{fmt$(Math.round(totalExpenses))}</b> : <b className="un">—</b>}<i style={{ background: "var(--pp-peach)" }} /></span>
                     <span className="bar">
                       <i style={{ width: `${(totalIncome / (totalIncome + totalExpenses)) * 100}%`, background: "var(--pp-mint-ink)" }} />
                       <i style={{ width: `${(totalExpenses / (totalIncome + totalExpenses)) * 100}%`, background: "var(--pp-peach)" }} />
                     </span>
-                    <span className="cap"><span>{incomeTxns.length} {incomeTxns.length === 1 ? "deposit" : "deposits"}</span><span>{expenseTxns.length} {expenseTxns.length === 1 ? "payment" : "payments"}</span></span>
+                    <span className="cap"><span>{incomeTxns.length ? `${incomeTxns.length} ${incomeTxns.length === 1 ? "deposit" : "deposits"}` : "nothing in yet"}</span><span>{expenseTxns.length ? `${expenseTxns.length} ${expenseTxns.length === 1 ? "payment" : "payments"}` : "nothing out yet"}</span></span>
                   </div>
                 )}
               </FinanceCard>
@@ -1509,18 +1634,36 @@ export default function TreasuryPage() {
               {/* ── Category Donut Card ────────────────────────────────────── */}
               <FinanceCard className="tr-brk-card flex flex-col overflow-hidden">
                 <div className="card-h">
-                  <PaperTile icon="bars" tone="peach" />
-                  <h2><span className="lg-only">Breakdown</span><span className="pp-only">Where it went</span></h2>
+                  <PaperTile icon="bars" tone={donutMode === "income" ? "mint" : "peach"} />
+                  <h2><span className="lg-only">Breakdown</span><span className="pp-only">{donutMode === "income" ? "Where it came from" : "Where it went"}</span></h2>
                   <div className="tr-donut-toggle">
                     {(["expense", "income"] as const).map(m => (
                       <button key={m} onClick={() => setDonutMode(m)} className={donutMode === m ? "on" : ""}>
-                        {m.charAt(0).toUpperCase() + m.slice(1)}s
+                        <span className="lg-only">{m.charAt(0).toUpperCase() + m.slice(1)}s</span>
+                        <span className="pp-only">{m === "income" ? "In" : "Out"}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
+                <div className="tz-brk pp-only">
+                  <PaperBreakdown
+                    kind={donutMode}
+                    rows={ppCats}
+                    ready={catalog.options(donutMode).map(c => ({ slug: c.slug, label: c.label, color: catalog.colorFor(donutMode, c.slug) }))}
+                    ghost={statedUnstarted}
+                    onPick={slug => { setNavTab("Transactions"); setTxTab(donutMode); setTxCategory(slug); setTxSearch(""); }}
+                  />
+                  {canTreasury && orgSlug && (
+                    <div className="tz-card-f">
+                      <PaperIcon name="folder" />Categories are yours to name
+                      <a href={`/${orgSlug}/settings?section=money-categories`}>Edit<PaperIcon name="arrow-r" /></a>
+                    </div>
+                  )}
+                </div>
+
                 {/* Donut chart */}
+                <div className="lg-only tr-brk-lg">
                 {statedUnstarted ? (
                   <GhostDonut categoryCount={catalog.options(donutMode).length} />
                 ) : donutData.length === 0 ? (
@@ -1563,6 +1706,7 @@ export default function TreasuryPage() {
                     </div>
                   </>
                 )}
+                </div>
               </FinanceCard>
 
             </div>}{/* end hero grid */}
@@ -1593,8 +1737,23 @@ export default function TreasuryPage() {
                 {/* "No brothers yet" was wrong on any roster whose members simply
                     owe nothing — it reported an empty ROSTER when the truth is an
                     empty dues ledger. */}
+                {brotherList.length === 0 ? (
+                  <PpCalm icon="people" tone="butter" title={`No ${v("Member", true).toLowerCase()} yet.`}>
+                    Once people join the roster, what each of them owes shows up here.
+                  </PpCalm>
+                ) : duesUnassigned ? (
+                  <PpCalm icon="wallet" tone="butter" title={`No ${v("Dues").toLowerCase()} billed yet.`}>
+                    {canTreasury
+                      ? <>Use <b>+ Add</b> beside a name to bill someone. They’ll see what they owe, and you’ll see who’s paid.</>
+                      : <>When your treasurer bills {v("Dues").toLowerCase()}, who still owes shows up here.</>}
+                  </PpCalm>
+                ) : owingCount === 0 ? (
+                  <PpCalm icon="plant" tone="mint" title="Everyone’s paid up.">
+                    Nothing outstanding right now.
+                  </PpCalm>
+                ) : null}
                 {brothersOwing.length === 0 ? (
-                  <div className="tr-empty-stack">
+                  <div className="tr-empty-stack lg-only">
                     <p>{brotherList.length === 0
                       ? `No ${v("Member", true).toLowerCase()} on the roster yet`
                       : duesUnassigned
@@ -1602,7 +1761,9 @@ export default function TreasuryPage() {
                         : `All ${v("Dues").toLowerCase()} settled`}</p>
                   </div>
                 ) : (
-                  <div className="max-h-[280px] overflow-y-auto">
+                  // With nobody owing, a member's view of this list is every name
+                  // beside a dash; paper keeps it only for the officer's + Add.
+                  <div className={`max-h-[280px] overflow-y-auto${owingCount === 0 && !canTreasury ? " lg-only" : ""}`}>
                     {brothersOwing.map(b => (
                       <div key={b.id} className="tr-row">
                         <BrotherAvatar
@@ -1641,12 +1802,21 @@ export default function TreasuryPage() {
                   <h2><span className="lg-only">Upcoming</span><span className="pp-only">Coming up</span></h2>
                   <span className="sub">Events & txns</span>
                 </div>
-                {upcomingParties.length === 0 && upcomingTxns.length === 0 ? (
-                  <div className="tr-empty-stack">
+                {upcomingParties.length === 0 && upcomingTxns.length === 0 ? (<>
+                  <div className="tr-empty-stack lg-only">
                     <p>No upcoming treasury items</p>
                     <button onClick={() => setPartyModal({ kind: "addParty" })}>+ Schedule an event</button>
                   </div>
-                ) : (
+                  <PpCalm
+                    icon="cal" tone="sky" title="Nothing on the calendar."
+                    action={<>
+                      {canTreasury && <button className="tz-calm-btn" onClick={() => setTxModal({ kind: "addTx" })}><PaperIcon name="clock" />Schedule a payment</button>}
+                      <button className="tz-calm-btn ghost" onClick={() => setPartyModal({ kind: "addParty" })}><PaperIcon name="plus" />Add a party</button>
+                    </>}
+                  >
+                    Payments you schedule and parties coming up land here, with their dates.
+                  </PpCalm>
+                </>) : (
                   <div>
                     {upcomingParties.map(p => (
                       <div key={`party-${p.id}`} className="tr-ev-row">
@@ -1698,7 +1868,7 @@ export default function TreasuryPage() {
                   <hr />
                   <div className="line total"><span className="k">{statedUnstarted ? "Opening Balance" : "Net Balance"}</span><span className={`v${balance < 0 ? " rose" : ""}`}>{fmt$(Math.round(balance))}</span></div>
                   <div className="line"><span className="k">Projected</span><span className={statedUnstarted ? "v unset" : "v"}>{statedUnstarted ? "—" : fmt$(Math.round(projected))}</span></div>
-                  <div className="line"><span className="k">Party Events</span><span className="v">{partyList.length}</span></div>
+                  <div className="line"><span className="k">Party Events</span><span className={partyList.length ? "v" : "v unset"}>{partyList.length || "—"}</span></div>
                   {canTreasury && (
                     <button className="tr-exp-btn" onClick={handleExport}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
@@ -1755,7 +1925,29 @@ export default function TreasuryPage() {
               </div>
 
               {txnsWithRunning.length === 0 ? (
-                <div className="tr-table-empty">No transactions for this semester · click New txn to log one</div>
+                activeTxns.length > 0 ? (
+                  <div className="tr-table-empty">
+                    <b className="pp-only">Nothing matches.</b>
+                    No entries match {txSearch.trim() ? <>“{txSearch.trim()}”</> : "this filter"}.{" "}
+                    <button className="tr-link" onClick={() => { setTxTab("all"); setTxCategory("all"); setTxSearch(""); }}>Clear filters</button>
+                  </div>
+                ) : (
+                  <div className="tr-table-empty">
+                    <b className="pp-only">Nothing logged yet.</b>
+                    <span className="lg-only">No transactions{semester ? ` for ${semester}` : ""}{canTreasury ? " · click New txn to log one" : ""}</span>
+                    <span className="pp-only">
+                      {canTreasury
+                        ? "The first entry you add lands here, with the running balance beside it."
+                        : `When money moves${semester ? ` in ${semester}` : ""}, every entry lands here with the running balance beside it.`}
+                    </span>
+                    {canTreasury && (
+                      <button className="tr-add pp-only" onClick={() => setTxModal({ kind: "addTx" })}>
+                        <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                        Log money
+                      </button>
+                    )}
+                  </div>
+                )
               ) : (
                 <div className="tr-table-wrap">
                   <table className="tr-table">
@@ -1815,7 +2007,7 @@ export default function TreasuryPage() {
                 <section className="tr-door pp-only" aria-label="Party events">
                   <div className="tr-secnote">
                     <span>At the door</span>
-                    <span className="sum">{sortedParties.length} {sortedParties.length === 1 ? "party" : "parties"} · {fmt$(Math.round(totalDoorRev))} at the door</span>
+                    <span className="sum">{sortedParties.length === 0 ? "none yet" : <>{sortedParties.length} {sortedParties.length === 1 ? "party" : "parties"} · {fmt$(Math.round(totalDoorRev))} at the door</>}</span>
                   </div>
                   <div className="tr-tix">
                     {sortedParties.map(p => {
@@ -1854,10 +2046,18 @@ export default function TreasuryPage() {
                         </div>
                       );
                     })}
-                    {canTreasury && (
-                      <button className="tix add" onClick={() => setPartyModal({ kind: "addParty" })}>
-                        <PaperIcon name="plus" />Add a party
+                    {canTreasury ? (
+                      <button className={`tix add${sortedParties.length === 0 ? " first" : ""}`} onClick={() => setPartyModal({ kind: "addParty" })}>
+                        <PaperIcon name="plus" />
+                        {sortedParties.length === 0
+                          ? <span><b>Add the first party</b><small>Its door take lands here as a ticket stub.</small></span>
+                          : "Add a party"}
                       </button>
+                    ) : sortedParties.length === 0 && (
+                      <div className="tix add first is-note">
+                        <PaperIcon name="door" />
+                        <span><b>No parties on the books yet</b><small>Door takes land here as ticket stubs.</small></span>
+                      </div>
                     )}
                   </div>
                 </section>
@@ -1987,6 +2187,7 @@ export default function TreasuryPage() {
                 showArchived={reimbArchived}
                 onToggleArchived={() => setReimbArchived(v => !v)}
                 onAction={handleReimbursementAction}
+                onRequest={() => setReimbModal(true)}
               />
             )}
 

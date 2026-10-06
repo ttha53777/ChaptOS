@@ -132,18 +132,6 @@ html[data-aesthetic="paper"] .dash .tr-ranges button.on { background: var(--card
    lives in the paper look. */
 html[data-aesthetic="paper"] .dash .tr-bal-card .tr-kpi { display: none; }
 
-/* the chart: mint balance, peach expenses, dashed grid */
-html[data-aesthetic="paper"] .dash .tr-chart { --vio: var(--pp-mint-ink); --rose: var(--pp-peach-ink); --ok: var(--pp-mint-ink); padding: 8px 10px 0; }
-html[data-aesthetic="paper"] .dash .tr-chart .recharts-cartesian-grid line { stroke: var(--line-med); stroke-dasharray: 3 4; }
-html[data-aesthetic="paper"] .dash .tr-chart .recharts-text { fill: var(--muted); font-family: var(--font-geist-mono); }
-html[data-aesthetic="paper"] .dash .tr-chart [class*="border-t"] { border-top: 1.5px dashed var(--line-med) !important; }
-html[data-aesthetic="paper"] .dash .tr-chart p { font-family: var(--font-geist-sans); font-weight: 700; letter-spacing: .1em; color: var(--muted); }
-html[data-aesthetic="paper"] .dash :is(.tr-chart, .tr-donut-wrap) .recharts-tooltip-wrapper > div {
-  background: var(--card) !important; backdrop-filter: none !important; border: 1.5px solid var(--ink) !important; border-radius: 12px !important;
-  box-shadow: 3px 3px 0 var(--pp-mint) !important; color: var(--ink);
-}
-html[data-aesthetic="paper"] .dash :is(.tr-chart, .tr-donut-wrap) .recharts-tooltip-wrapper span { color: var(--ink) !important; }
-
 /* in vs out: one bar, two inks */
 html[data-aesthetic="paper"] .dash .tr-io {
   margin: 12px 24px 0; padding-top: 14px; border-top: 1.5px dashed var(--line-med);
@@ -170,26 +158,6 @@ html[data-aesthetic="paper"] .dash .tr-donut-toggle button {
   padding: 4px 11px; border-radius: 999px; color: var(--muted);
 }
 html[data-aesthetic="paper"] .dash .tr-donut-toggle button.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
-/* The ring sits on an ink disc with seams between slices */
-html[data-aesthetic="paper"] .dash .tr-donut-wrap { max-width: 230px; }
-html[data-aesthetic="paper"] .dash .tr-donut-wrap .recharts-pie-sector path { stroke: var(--ink); stroke-width: 1.5px; }
-html[data-aesthetic="paper"] .dash .tr-donut-wrap::before {
-  content: ''; position: absolute; left: 50%; top: 50%; width: 202px; height: 202px; transform: translate(-50%,-50%);
-  border-radius: 50%; box-shadow: 3px 3px 0 var(--line-med); pointer-events: none;
-}
-html[data-aesthetic="paper"] .dash .tr-donut-center .lbl { font-family: var(--font-geist-sans); font-size: 9.5px; font-weight: 700; letter-spacing: .09em; color: var(--muted); }
-html[data-aesthetic="paper"] .dash .tr-donut-center .amt { font-family: var(--font-fraunces); font-weight: 600; font-size: 27px; letter-spacing: -.035em; }
-html[data-aesthetic="paper"] .dash .tr-cat-list { padding: 6px 14px 16px; gap: 2px; }
-html[data-aesthetic="paper"] .dash .tr-cat { padding: 7px 8px; border-radius: 11px; gap: 11px; transition: background .15s; }
-html[data-aesthetic="paper"] .dash .tr-cat:hover { background: var(--paper-2); }
-html[data-aesthetic="paper"] .dash .tr-cat .rank { display: none; }
-html[data-aesthetic="paper"] .dash .tr-cat .swatch { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid var(--pp-note-ink); align-self: flex-start; margin-top: 3px; }
-html[data-aesthetic="paper"] .dash .tr-cat .body .nm { font-size: 14px; font-weight: 600; color: var(--ink); }
-html[data-aesthetic="paper"] .dash .tr-cat .body .amt { font-size: 12.5px; color: var(--ink-soft); }
-html[data-aesthetic="paper"] .dash .tr-cat .body .pct { order: 2; margin: 0; font-size: 10.5px; color: var(--muted); }
-html[data-aesthetic="paper"] .dash .tr-cat .body .top > span:last-child { display: inline-flex; align-items: baseline; gap: 6px; }
-html[data-aesthetic="paper"] .dash .tr-cat .bar { height: 5px; border-radius: 3px; background: var(--card-3); margin-top: 6px; }
-
 /* ── Row 2: who still owes · coming up · the term so far ──────────────────────── */
 html[data-aesthetic="paper"] .dash .tr-lower { margin-top: 22px; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) minmax(0,.9fr); gap: 22px; }
 html[data-aesthetic="paper"] .dash .tr-lower .card-h { gap: 10px; }
@@ -221,7 +189,7 @@ html[data-aesthetic="paper"] .dash .tr-empty-stack button {
 html[data-aesthetic="paper"] .dash .tr-empty-stack button:hover { border-color: var(--ink); }
 
 /* coming up: date blocks */
-html[data-aesthetic="paper"] .dash .tr-up-card > div:last-child { padding: 4px 10px 10px; }
+html[data-aesthetic="paper"] .dash .tr-up-card > div:last-child:not(.tz-calm) { padding: 4px 10px 10px; }
 html[data-aesthetic="paper"] .dash .tr-ev-row { gap: 12px; padding: 8px 6px; border-bottom: 0; border-radius: 12px; }
 html[data-aesthetic="paper"] .dash .tr-ev-row:hover { background: var(--paper-2); }
 html[data-aesthetic="paper"] .dash .tr-dd {
@@ -337,9 +305,17 @@ html[data-aesthetic="paper"] .dash .tr-markpaid {
 }
 html[data-aesthetic="paper"] .dash .tr-markpaid:hover { border-color: var(--pp-mint-ink); }
 html[data-aesthetic="paper"] .dash .tr-table-empty {
-  padding: 34px 20px 34px 96px; text-align: left; font-size: 14px; color: var(--muted);
+  display: grid; justify-items: start; gap: 2px;
+  padding: 30px 20px 32px 96px; text-align: left; font-size: 14px; line-height: 30px; color: var(--muted);
   background: repeating-linear-gradient(transparent 0 29px, var(--pp-sky-bd) 29px 30px);
 }
+html[data-aesthetic="paper"] .dash .tr-log-card .tr-table-empty { position: relative; }
+html[data-aesthetic="paper"] .dash .tr-log-card .tr-table-empty::before {
+  content: ''; position: absolute; left: 76px; top: 0; bottom: 0; width: 1.5px; background: var(--pp-rose-ink); opacity: .45; pointer-events: none;
+}
+html[data-aesthetic="paper"] .dash .tr-table-empty b { font-family: var(--font-fraunces); font-weight: 600; font-size: 18px; letter-spacing: -.02em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-table-empty .tr-add { margin-top: 8px; line-height: 1.2; }
+html[data-aesthetic="paper"] .dash .tr-link { color: var(--ink); font-weight: 600; }
 
 /* ── At the door: ticket stubs ─────────────────────────────────────────────── */
 html[data-aesthetic="paper"] .dash .tr-tix { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
@@ -446,10 +422,6 @@ html[data-aesthetic="paper"] .dash .tr-reimb-outcome { font-family: var(--font-g
 html[data-aesthetic="paper"] .dash .tr-reimb-outcome svg { color: var(--pp-mint-ink); }
 html[data-aesthetic="paper"] .dash .tr-reimb-rejnote-k { font-family: var(--font-geist-sans); font-weight: 700; letter-spacing: .1em; color: var(--pp-rose-ink); }
 html[data-aesthetic="paper"] .dash .tr-reimb-rejnote p { font-size: 13px; }
-html[data-aesthetic="paper"] .dash .tr-reimb-empty {
-  padding: 28px 22px; border: 1.5px dashed var(--line-med); border-radius: 22px; font-size: 14px; color: var(--muted);
-}
-html[data-aesthetic="paper"] .dash .tr-reimb-empty svg { color: var(--pp-mint-ink); opacity: 1; }
 html[data-aesthetic="paper"] .dash .tr-reimb-archive-toggle { font-size: 13px; font-weight: 600; color: var(--muted); }
 
 /* the rubber stamp (reimbursements here; the writ has its own in paper-chat.css) */
@@ -530,6 +502,199 @@ html[data-aesthetic="paper"] .dash .tr-locked p { color: var(--ink-soft); font-s
 html[data-aesthetic="paper"] .dash .tr-skel { border: 1.5px solid var(--line); border-radius: 22px; }
 html[data-aesthetic="paper"] .dash .tr-anchor-dot { background: var(--pp-mint-ink); }
 
+/* ── The balance line (PaperBalanceChart) ───────────────────────────────────────
+   The mock's .tz-chart: a step line (a balance doesn't glide between entries),
+   solid to today on a mint wash, dashed peach through what's scheduled. */
+html[data-aesthetic="paper"] .dash .tz-bal { padding: 0 24px; flex: 1; display: flex; flex-direction: column; }
+/* The hero stretches to the breakdown's height; the line takes the slack. */
+html[data-aesthetic="paper"] .dash .tz-bal .tz-chart { flex: 1; min-height: 196px; max-height: 300px; }
+html[data-aesthetic="paper"] .dash .tz-delta { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tz-pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--ink-soft); background: var(--paper-2); border: 1px solid var(--line-med);
+}
+html[data-aesthetic="paper"] .dash .tz-pill.up { color: var(--pp-mint-ink); background: var(--pp-mint-soft); border-color: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .dash .tz-pill.down { color: var(--pp-peach-ink); background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); }
+html[data-aesthetic="paper"] .dash .tz-proj { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; color: var(--ink-soft); font-size: 13.5px; cursor: pointer; }
+html[data-aesthetic="paper"] .dash .tz-proj b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tz-proj svg { width: 13px; height: 13px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tz-proj:hover { color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tz-proj:hover b { text-decoration: underline; text-underline-offset: 3px; }
+
+html[data-aesthetic="paper"] .dash .tz-chart { position: relative; margin-top: 16px; height: 196px; cursor: crosshair; touch-action: pan-y; user-select: none; }
+html[data-aesthetic="paper"] .dash .tz-chart.is-ghost { cursor: default; }
+html[data-aesthetic="paper"] .dash .tz-chart svg { position: absolute; inset: 0 0 22px 46px; width: calc(100% - 46px); height: calc(100% - 22px); overflow: visible; }
+html[data-aesthetic="paper"] .dash .tz-chart.is-ghost svg { inset: 0; width: 100%; height: 100%; }
+html[data-aesthetic="paper"] .dash .tz-chart .grid line { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+html[data-aesthetic="paper"] .dash .tz-chart .fl { fill: var(--pp-mint-soft); animation: tz-fade .8s var(--pp-ease-out) .9s both; }
+html[data-aesthetic="paper"][data-theme="dusk"] .dash .tz-chart .fl { fill: rgba(140,220,180,.12); }
+html[data-aesthetic="paper"] .dash .tz-chart .ln {
+  fill: none; stroke: var(--pp-mint-ink); stroke-width: 2.2; stroke-linejoin: round; vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1; animation: tz-draw 1.5s var(--pp-ease-out) .35s both;
+}
+html[data-aesthetic="paper"] .dash .tz-chart .fu { fill: none; stroke: var(--pp-peach-ink); stroke-width: 2; stroke-dasharray: 5 5; stroke-linejoin: round; vector-effect: non-scaling-stroke; opacity: .85; }
+html[data-aesthetic="paper"] .dash .tz-chart .ghost { fill: none; stroke: var(--line-med); stroke-width: 1.5; stroke-dasharray: 4 5; vector-effect: non-scaling-stroke; }
+html[data-aesthetic="paper"] .dash .tz-chart .yl { position: absolute; left: 0; width: 40px; text-align: right; font-family: var(--font-geist-mono); font-size: 10px; color: var(--muted); transform: translateY(-50%); }
+html[data-aesthetic="paper"] .dash .tz-chart .xl { position: absolute; bottom: 0; font-family: var(--font-geist-mono); font-size: 10px; color: var(--muted); transform: translateX(-50%); white-space: nowrap; }
+html[data-aesthetic="paper"] .dash .tz-chart .plot { position: absolute; inset: 0 0 22px 46px; pointer-events: none; }
+html[data-aesthetic="paper"] .dash .tz-dot { position: absolute; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--card); border: 2.5px solid var(--pp-mint-ink); box-shadow: 0 0 0 4px var(--pp-mint-soft); }
+html[data-aesthetic="paper"] .dash .tz-dot.end { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-color: var(--pp-peach-ink); box-shadow: 0 0 0 4px var(--pp-peach-soft); }
+html[data-aesthetic="paper"] .dash .tz-flag {
+  position: absolute; transform: translate(-50%, calc(-100% - 12px)); padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+  font-family: var(--font-geist-mono); font-size: 10px; font-weight: 600; background: var(--ink); color: var(--paper);
+}
+html[data-aesthetic="paper"] .dash .tz-flag.r { transform: translate(calc(-100% + 8px), calc(-100% - 12px)); }
+html[data-aesthetic="paper"] .dash .tz-flag.l { transform: translate(-8px, calc(-100% - 12px)); }
+html[data-aesthetic="paper"] .dash .tz-flag.end { background: var(--pp-peach-soft); color: var(--pp-peach-ink); border: 1px solid var(--pp-peach-bd); transform: translate(-80%, 12px); }
+html[data-aesthetic="paper"] .dash .tz-today { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px dashed var(--line-med); }
+html[data-aesthetic="paper"] .dash .tz-cross { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .dash .tz-cross i { position: absolute; left: -6.5px; width: 11px; height: 11px; border-radius: 50%; background: var(--ink); border: 2px solid var(--card); transform: translateY(-50%); }
+html[data-aesthetic="paper"] .dash .tz-tip {
+  position: absolute; top: -6px; z-index: 3; width: max-content; max-width: 230px; padding: 8px 11px; border-radius: 12px;
+  background: var(--card); border: 1.5px solid var(--ink); box-shadow: 3px 3px 0 var(--pp-mint);
+  font-size: 12.5px; line-height: 1.35; color: var(--ink); transform: translateX(14px);
+}
+html[data-aesthetic="paper"] .dash .tz-tip.flip { transform: translateX(calc(-100% - 14px)); }
+html[data-aesthetic="paper"] .dash .tz-tip b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 17px; letter-spacing: -.025em; }
+html[data-aesthetic="paper"] .dash .tz-tip .d { font-family: var(--font-geist-mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+html[data-aesthetic="paper"] .dash .tz-tip .e { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tz-tip .e span:last-child { font-family: var(--font-geist-mono); font-size: 11.5px; }
+html[data-aesthetic="paper"] .dash .tz-tip .e .in { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tz-tip .e .out { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tz-tip .fut { display: block; margin-top: 4px; font-size: 11px; color: var(--pp-peach-ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tz-ghostcap {
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%,-50%); white-space: nowrap;
+  font-size: 13px; color: var(--muted); background: var(--card); padding: 4px 12px; border-radius: 999px; border: 1.5px dashed var(--line-med);
+}
+html[data-aesthetic="paper"] .dash .tr-io .s b.un { color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .dash .tr-io .bar.ghost { background: none; border: 1.5px dashed var(--line-med); }
+@keyframes tz-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes tz-fade { from { opacity: 0; } }
+
+/* ── Where it went: an inked conic ring (PaperBreakdown) ───────────────────────
+   Category colors are the org's own stored hexes, lifted to a pastel of the
+   same hue so they sit on paper; --tz-cl / --tz-cc are that lift per theme. */
+html[data-aesthetic="paper"] .dash-treasury { --tz-cl: .87; --tz-cc: .6; }
+html[data-aesthetic="paper"][data-theme="dusk"] .dash-treasury { --tz-cl: .74; --tz-cc: .7; }
+html[data-aesthetic="paper"] .dash .tz-brk { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+html[data-aesthetic="paper"] .dash .tz-donut { display: flex; align-items: center; gap: 18px; padding: 6px 18px 6px; }
+html[data-aesthetic="paper"] .dash .tz-ring {
+  position: relative; width: 132px; height: 132px; flex: none; border-radius: 50%;
+  background: var(--g-raw); border: 1.5px solid var(--ink); box-shadow: 3px 3px 0 var(--line-med);
+  animation: tz-ring .9s var(--pp-ease-spring) .3s both;
+}
+html[data-aesthetic="paper"] .dash .tz-ring::after { content: ''; position: absolute; inset: 24px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .dash .tz-ring-c { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; z-index: 1; line-height: 1.05; }
+html[data-aesthetic="paper"] .dash .tz-ring-c b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 19px; letter-spacing: -.035em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tz-ring-c small { display: block; margin-top: 2px; font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tz-ring.ghost { background: none; border-color: var(--line-med); box-shadow: none; animation: none; }
+html[data-aesthetic="paper"] .dash .tz-ring.ghost::after { border-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .tz-ring.ghost .tz-ring-c b { color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .dash .tz-donut .lede { font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tz-donut .lede b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tz-cats { padding: 6px 12px 14px; display: grid; gap: 2px; }
+html[data-aesthetic="paper"] .dash .tz-cat {
+  --cc-use: var(--cc-raw);
+  display: grid; grid-template-columns: 12px minmax(0,1fr) auto; gap: 4px 11px; align-items: center; width: 100%;
+  padding: 7px 8px; border: 0; background: none; border-radius: 11px; text-align: left; color: inherit; cursor: pointer; transition: background .15s;
+}
+html[data-aesthetic="paper"] .dash .tz-cat:hover { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tz-cat .sw { width: 12px; height: 12px; border-radius: 4px; background: var(--cc-use); border: 1.5px solid var(--pp-note-ink); filter: var(--pp-note-filter); }
+html[data-aesthetic="paper"] .dash .tz-cat .nm { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tz-cat .nm svg { width: 12px; height: 12px; color: var(--muted); opacity: 0; transition: opacity .15s, transform .15s; }
+html[data-aesthetic="paper"] .dash .tz-cat:is(:hover, :focus-visible) .nm svg { opacity: 1; transform: translateX(2px); }
+html[data-aesthetic="paper"] .dash .tz-cat .v { font-family: var(--font-geist-mono); font-size: 12.5px; color: var(--ink-soft); text-align: right; white-space: nowrap; }
+html[data-aesthetic="paper"] .dash .tz-cat .v small { margin-left: 6px; font-size: inherit; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tz-cat .bar { grid-column: 2 / -1; height: 5px; border-radius: 3px; background: var(--card-3); overflow: hidden; }
+html[data-aesthetic="paper"] .dash .tz-cat .bar i { display: block; height: 100%; border-radius: 3px; background: var(--cc-use); transform-origin: left; animation: tz-grow 1s var(--pp-ease-out) .55s both; }
+html[data-aesthetic="paper"] .dash .tz-ready { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 18px 16px; }
+html[data-aesthetic="paper"] .dash .tz-cpill {
+  --cc-use: var(--cc-raw);
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--ink-soft);
+  background: color-mix(in srgb, var(--cc-use) 35%, var(--card)); border: 1px solid color-mix(in srgb, var(--cc-use) 80%, var(--line));
+}
+html[data-aesthetic="paper"] .dash .tz-cpill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--cc-use); box-shadow: 0 0 0 1px rgba(38,33,27,.25); }
+html[data-aesthetic="paper"] .dash .tz-card-f {
+  margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 11px 18px;
+  border-top: 1.5px solid var(--line); background: var(--paper-2); font-size: 12.5px; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tz-card-f svg { width: 14px; height: 14px; }
+html[data-aesthetic="paper"] .dash .tz-card-f a { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tz-card-f a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+@supports (color: oklch(from red l c h)) {
+  html[data-aesthetic="paper"] .dash .tz-ring:not(.ghost) { background: var(--g); }
+  html[data-aesthetic="paper"] .dash :is(.tz-cat, .tz-cpill) { --cc-use: var(--cc); }
+}
+@keyframes tz-ring { from { transform: scale(.6); } }
+@keyframes tz-grow { from { transform: scaleX(0); } }
+
+/* ── Empty cards: the mock's .calm (PpCalm) ────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tz-calm { --tz-t: var(--pp-mint); display: flex; gap: 16px; align-items: flex-start; padding: 14px 18px 18px; }
+html[data-aesthetic="paper"] .dash .tz-calm[data-tone="peach"]  { --tz-t: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .tz-calm[data-tone="sky"]    { --tz-t: var(--pp-sky); }
+html[data-aesthetic="paper"] .dash .tz-calm[data-tone="butter"] { --tz-t: var(--pp-butter); }
+html[data-aesthetic="paper"] .dash .tz-calm[data-tone="lilac"]  { --tz-t: var(--pp-lilac); }
+html[data-aesthetic="paper"] .dash .tz-calm[data-tone="rose"]   { --tz-t: var(--pp-rose); }
+html[data-aesthetic="paper"] .dash .tz-calm .art {
+  width: 52px; height: 52px; flex: none; display: grid; place-items: center; border-radius: 17px; margin-top: 2px;
+  background: var(--tz-t); color: var(--pp-note-ink); border: 1.5px solid var(--pp-note-ink); transform: rotate(-4deg); filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .dash .tz-calm .art svg { width: 24px; height: 24px; }
+html[data-aesthetic="paper"] .dash .tz-calm h4 { font-family: var(--font-fraunces); font-size: 17.5px; font-weight: 600; letter-spacing: -.022em; color: var(--ink); line-height: 1.2; }
+html[data-aesthetic="paper"] .dash .tz-calm p { margin-top: 4px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); max-width: 52ch; }
+html[data-aesthetic="paper"] .dash .tz-calm p b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .dash .tz-calm .acts { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+html[data-aesthetic="paper"] .dash .tz-calm-btn {
+  --hs: var(--pp-mint);
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px; cursor: pointer;
+  font-size: 13px; font-weight: 600; background: var(--ink); color: var(--paper); border: 1.5px solid var(--ink); box-shadow: 2px 2px 0 var(--hs);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tz-calm-btn:hover { transform: translate(-1px,-1px); box-shadow: 3.5px 3.5px 0 var(--hs); }
+html[data-aesthetic="paper"] .dash .tz-calm-btn.ghost { background: transparent; color: var(--ink-soft); border: 1.5px dashed var(--line-med); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .tz-calm-btn.ghost:hover { color: var(--ink); border-color: var(--ink); transform: translateY(-1px); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .tz-calm-btn svg { width: 14px; height: 14px; }
+html[data-aesthetic="paper"] .dash .tz-reimb-empty { max-width: 640px; padding: 8px 6px 4px; border: 1.5px dashed var(--line-med); border-radius: 22px; background: var(--card); }
+html[data-aesthetic="paper"] .dash .tz-reimb-empty .tz-calm-btn { --hs: var(--pp-peach); }
+
+/* the first ticket: an invitation, not a bare "+" */
+html[data-aesthetic="paper"] .dash .tix.add.first { justify-content: flex-start; gap: 14px; padding: 14px 18px; text-align: left; grid-column: span 2; }
+html[data-aesthetic="paper"] .dash .tix.add.first > span { display: grid; gap: 2px; }
+html[data-aesthetic="paper"] .dash .tix.add.first b { font-family: var(--font-fraunces); font-weight: 600; font-size: 16px; letter-spacing: -.02em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tix.add.first small { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tix.add.first svg { width: 20px; height: 20px; flex: none; }
+html[data-aesthetic="paper"] .dash .tix.add.is-note { cursor: default; }
+html[data-aesthetic="paper"] .dash .tix.add.is-note:hover { border-color: var(--line-med); background: transparent; }
+
+/* ── Day one: "Let's open the books" (TreasuryOpenBooks on .tr-locked) ──────── */
+html[data-aesthetic="paper"] .dash .tr-open { max-width: 560px; padding: 34px 30px 26px; }
+html[data-aesthetic="paper"] .dash .tr-open-eyebrow {
+  display: inline-flex; align-items: center; gap: 9px; font-size: 11px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dash .tr-open-eyebrow::before { content: ''; width: 18px; height: 2px; border-radius: 2px; background: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-open h2 { margin-top: 14px; font-size: clamp(30px, 3.4vw, 40px); line-height: 1.05; }
+html[data-aesthetic="paper"] .dash .tr-open .hi { background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-mint) 75%, transparent) 58% 92%, transparent 92%); padding: 0 2px; }
+html[data-aesthetic="paper"] .dash .tr-open > p { margin: 10px auto 0; max-width: 42ch; }
+html[data-aesthetic="paper"] .dash .tr-cash { border-bottom-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .tr-cash:focus-within { border-color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tr-cash span { font-family: var(--font-fraunces); font-weight: 600; font-size: 34px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-cash:focus-within span { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash .tr-cash input { font-family: var(--font-fraunces); font-weight: 600; font-size: 42px; letter-spacing: -.04em; }
+html[data-aesthetic="paper"] .dash .tr-cash input::placeholder { color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .tr-open .tr-add svg { width: 15px; height: 15px; }
+html[data-aesthetic="paper"] .dash .tr-open-note { font-size: 13px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-open-err { font-size: 13px; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash .tr-open-unl { border-top: 1.5px dashed var(--line-med); font-size: 12.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tr-open-unl .pl { font-size: 12px; font-weight: 550; border: 1px solid; }
+html[data-aesthetic="paper"] .dash .tr-open-unl .pl.mint   { color: var(--pp-mint-ink);   background: var(--pp-mint-soft);   border-color: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .dash .tr-open-unl .pl.peach  { color: var(--pp-peach-ink);  background: var(--pp-peach-soft);  border-color: var(--pp-peach-bd); }
+html[data-aesthetic="paper"] .dash .tr-open-unl .pl.butter { color: var(--pp-butter-ink); background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); }
+html[data-aesthetic="paper"] .dash .tr-open-unl .pl.sky    { color: var(--pp-sky-ink);    background: var(--pp-sky-soft);    border-color: var(--pp-sky-bd); }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-aesthetic="paper"] .dash :is(.tz-chart .ln, .tz-chart .fl, .tz-ring, .tz-cat .bar i) { animation: none; }
+}
+
 @media (max-width: 1180px) {
   html[data-aesthetic="paper"] .dash .tr-lower { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
   html[data-aesthetic="paper"] .dash .tr-lower > :first-child { grid-row: span 2; }
@@ -546,6 +711,15 @@ html[data-aesthetic="paper"] .dash .tr-anchor-dot { background: var(--pp-mint-in
   html[data-aesthetic="paper"] .dash .tr-log-card .tr-table thead th:first-child { width: 64px; }
 }
 @media (max-width: 560px) {
+  html[data-aesthetic="paper"] .dash .tz-bal { padding: 0 16px; }
+  html[data-aesthetic="paper"] .dash .tz-chart { height: 170px; }
+  html[data-aesthetic="paper"] .dash .tz-chart .xl .dd,
+  html[data-aesthetic="paper"] .dash .tz-chart .xl.odd { display: none; }
+  html[data-aesthetic="paper"] .dash .tz-donut { flex-direction: column; align-items: flex-start; }
+  html[data-aesthetic="paper"] .dash .tix.add.first { grid-column: auto; }
+  html[data-aesthetic="paper"] .dash .tz-calm { gap: 12px; }
+  html[data-aesthetic="paper"] .dash .tz-calm .art { width: 44px; height: 44px; border-radius: 14px; }
+  html[data-aesthetic="paper"] .dash .tr-open { padding: 28px 18px 22px; }
   html[data-aesthetic="paper"] .dash .tr-bal-card { box-shadow: 5px 5px 0 var(--pp-mint); border-radius: 22px; }
   html[data-aesthetic="paper"] .dash .tr-bal-top { padding: 18px 16px 4px; flex-wrap: wrap; }
   html[data-aesthetic="paper"] .dash .tr-io { margin-inline: 16px; }

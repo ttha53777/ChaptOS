@@ -8,6 +8,7 @@ import { logTiming } from "@/lib/observability";
 import { TransactionStatus, TransactionType } from "@/lib/state";
 import type { CategoryKind } from "@/lib/transaction-categories";
 import { assertCategoryExists } from "@/lib/transaction-categories-db";
+import { termOfTx } from "@/lib/treasury-term";
 import type { CreateTransactionInput, UpdateTransactionInput } from "@/lib/validation/transaction";
 
 export interface TxFilter {
@@ -127,6 +128,34 @@ export async function listTransactions(ctx: RequestContext, filter: TxFilter = {
   return rows.map(r => mapTx(r as unknown as RawWithEvents));
 }
 
+/**
+ * The term a new row is filed under. A label the client sent is kept (and linked
+ * to its Semester row when one has that label); no label means the org's active
+ * term — the server decides, so a stale client default can't file money under a
+ * term the org never created.
+ */
+async function resolveTerm(ctx: RequestContext, label: string | null | undefined) {
+  const wanted = label?.trim();
+  if (wanted) {
+    const row = await ctx.db.semester.findFirst({ where: { label: wanted }, select: { id: true } });
+    return { label: wanted, id: row?.id ?? null };
+  }
+  return ctx.db.semester.findFirst({ where: { isActive: true }, select: { id: true, label: true } });
+}
+
+/**
+ * Rows for the CSV export, oldest first. `term` filters with the same rule the
+ * treasury page uses (termOfTx), so the file holds exactly the rows the page
+ * showed under that term — including legacy rows whose stored label names a
+ * term the org never had.
+ */
+export async function listTransactionsForExport(ctx: RequestContext, term: string | null) {
+  const rows = await ctx.db.transaction.findMany({ where: { deletedAt: null }, orderBy: { date: "asc" } });
+  if (!term) return rows;
+  const terms = await ctx.db.semester.findMany({ select: { label: true, startDate: true, endDate: true } });
+  return rows.filter(r => termOfTx(r, terms) === term);
+}
+
 export async function createTransaction(ctx: RequestContext, input: CreateTransactionInput) {
   const ids = input.calendarEventIds ?? [];
   await validateEventIds(ctx, ids);
@@ -146,6 +175,8 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
   if (isDuesPayment({ brotherId, category: input.category, type: input.type })) {
     return recordDuesPayment(ctx, input, brotherId!, ids);
   }
+
+  const term = await resolveTerm(ctx, input.semester);
 
   // Idempotency. Two identical POSTs — a double-clicked submit, a retried request,
   // any non-UI client — used to mint two identical money rows;
@@ -178,7 +209,8 @@ export async function createTransaction(ctx: RequestContext, input: CreateTransa
         date:          input.date,
         description:   input.description,
         paymentMethod: input.paymentMethod ?? null,
-        semester:      input.semester      ?? null,
+        semester:      term?.label ?? null,
+        semesterId:    term?.id    ?? null,
         status:        input.status        ?? "posted",
         calendarEvents: ids.length > 0
           ? { create: ids.map(id => ({ calendarEventId: id })) }
