@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
-import type { LiveCheckIn as LiveCheckInData } from "@/lib/services/attendance-service";
-import { apiErrorMessage } from "../../../lib/api";
+import type { LiveAttendee, LiveCheckIn as LiveCheckInData, LiveRoster } from "@/lib/services/attendance-service";
+import { apiErrorMessage, requestJson } from "../../../lib/api";
+import { PaperIcon } from "../../paper/PaperIcon";
 import { WhosHere } from "./WhosHere";
 import { formatEventTime } from "@/lib/event-time";
 
@@ -90,6 +91,25 @@ export function LiveCheckIn({
     };
   }, [open]);
 
+  // Paper's "last in" stack: the newest arrivals' faces under the tally, as in
+  // the mock. Names don't ride on the 20s poll (see getLiveRoster), so the
+  // roster is fetched only when the count actually changes, and only in paper.
+  const eventId = data?.event.id ?? null;
+  const present = data?.presentCount ?? 0;
+  const [arrivals, setArrivals] = useState<LiveAttendee[] | null>(null);
+  useEffect(() => {
+    if (eventId == null || document.documentElement.dataset.aesthetic !== "paper") return;
+    if (present === 0) { setArrivals([]); return; }
+    let cancelled = false;
+    requestJson<LiveRoster>(`/api/attendance/${eventId}/roster`)
+      .then(r => {
+        if (cancelled) return;
+        setArrivals(r.attendees.filter(a => a.present).sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")));
+      })
+      .catch(() => { /* decorative — the tally still stands */ });
+    return () => { cancelled = true; };
+  }, [eventId, present]);
+
   if (!data) return null;
 
   const { event, state, me, presentCount, eligibleCount } = data;
@@ -136,7 +156,7 @@ export function LiveCheckIn({
 
   return (
     <>
-    <section className={`live${tone ? ` ${tone}` : ""}`} aria-label="Live event check-in">
+    <section className={`live${tone ? ` ${tone}` : ""}`} data-state={state} aria-label="Live event check-in">
       <div className="live-rule">
         <i style={{ transform: `scaleY(${remaining.toFixed(3)})` }} />
       </div>
@@ -211,6 +231,9 @@ export function LiveCheckIn({
           )}
 
           <p className="live-meta">
+            {data.event.date !== new Date(now).toLocaleDateString("en-CA") && (
+              <span className="live-day pp-only">{new Date(`${data.event.date}T12:00:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+            )}
             {formatEventTime(event.time, event.schedule) && <><span>{formatEventTime(event.time, event.schedule)}</span><span className="dotsep">·</span></>}
             {event.location && <><span><b>{event.location}</b></span><span className="dotsep">·</span></>}
             {event.mandatory && <span className="live-req">Mandatory</span>}
@@ -248,8 +271,30 @@ export function LiveCheckIn({
             OWN state change is announced instead, from .live-said below. */}
         <div className="live-count">
           <p className="n">{presentCount}<small>/{eligibleCount}</small></p>
-          <p className="k">{closed ? "final tally" : "here now"}</p>
+          <p className="k">
+            {closed ? "final tally" : "here now"}
+            {closed && <span className="pp-only"> · {Math.max(0, eligibleCount - presentCount)} absent</span>}
+          </p>
           <span className="track"><i style={{ width: `${pct}%` }} /></span>
+          {arrivals !== null && (
+            <div className="live-stack pp-only">
+              {arrivals.length === 0
+                ? (!closed && <span>Waiting for the first check-in…</span>)
+                : <>
+                    <span className="s">
+                      {arrivals.slice(0, 4).map(a => (
+                        <span key={a.brotherId} className="av" title={a.name}>
+                          {a.avatarUrl ? <img src={a.avatarUrl} alt="" /> : a.name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase()}
+                        </span>
+                      ))}
+                    </span>
+                    <span>
+                      {arrivals[0].name.trim().split(/\s+/)[0]}
+                      {arrivals[0].at && (now - Date.parse(arrivals[0].at) < 60_000 && !closed ? " just now" : ` · ${clockLabel(arrivals[0].at)}`)}
+                    </span>
+                  </>}
+            </div>
+          )}
         </div>
 
         {/* The primary slot is never empty. Before you check in it asks you to;
@@ -263,7 +308,8 @@ export function LiveCheckIn({
               {busy === "checkin" ? "Checking in…" : "I'm here"}
             </button>
           ) : (
-            <button type="button" className="live-btn" onClick={() => setRosterOpen(true)}>
+            <button type="button" className="live-btn ghost" onClick={() => setRosterOpen(true)}>
+              <PaperIcon name="people" className="pp-only" />
               See who&rsquo;s here
             </button>
           )}

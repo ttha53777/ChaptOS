@@ -441,28 +441,6 @@ html[data-aesthetic="paper"] .ms-overlay .ms-toast.err { box-shadow: 3px 3px 0 v
   html[data-aesthetic="paper"] .ms-overlay .ms-spot { border-radius: 24px 24px 0 0; box-shadow: 0 -5px 0 var(--pp-lilac); padding: 20px 18px 22px; }
 }
 
-/* ── Who's here (.wh-panel) ─────────────────────────────────────────────────── */
-html[data-aesthetic="paper"] .dash .wh-scrim { background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); }
-html[data-aesthetic="paper"] .dash .wh-panel { --acc: var(--pp-mint); background: var(--paper); border-left: 1.5px solid var(--ink); box-shadow: -6px 0 0 var(--pp-mint); }
-html[data-aesthetic="paper"] .dash .wh-head { border-bottom: 1.5px solid var(--line); background: var(--card); }
-html[data-aesthetic="paper"] .dash .wh-head h2 { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.9rem; letter-spacing: -.03em; }
-html[data-aesthetic="paper"] .dash .wh-sub { font-size: .84rem; }
-html[data-aesthetic="paper"] .dash .wh-summary { color: var(--pp-mint-ink); font-weight: 600; }
-html[data-aesthetic="paper"] .dash .wh-close { border-radius: 10px; border: 1.5px solid transparent; background: none; }
-html[data-aesthetic="paper"] .dash .wh-close:hover { background: var(--paper); border-color: var(--line); }
-html[data-aesthetic="paper"] .dash .wh-search {
-  padding: 9px 14px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card); font-size: .88rem;
-}
-html[data-aesthetic="paper"] .dash .wh-search:focus-visible { outline: none; border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-mint); }
-html[data-aesthetic="paper"] .dash .wh-filters { gap: 6px; }
-html[data-aesthetic="paper"] .dash .wh-filters button { padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--line-med); font-size: .8rem; font-weight: 550; color: var(--ink-soft); }
-html[data-aesthetic="paper"] .dash .wh-filters button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
-html[data-aesthetic="paper"] .dash .wh-person { border-bottom-color: var(--card-3); }
-html[data-aesthetic="paper"] .dash .wh-avatar { background: var(--pp-mint); color: rgba(38,33,27,.72); border: 1.5px solid rgba(38,33,27,.08); font-family: var(--font-geist-sans); font-weight: 700; }
-html[data-aesthetic="paper"] .dash .wh-name { font-size: .88rem; font-weight: 550; }
-html[data-aesthetic="paper"] .dash .wh-status { color: var(--pp-mint-ink); }
-html[data-aesthetic="paper"] .dash .wh-foot { border-top: 1.5px solid var(--line); background: var(--paper-2); font-size: .78rem; }
-
 /* ── Programming detail panel (.ev-panel) ──────────────────────────────────── */
 html[data-aesthetic="paper"] .ev-panel { --acc: var(--pp-lilac); background: var(--paper); border-left: 1.5px solid var(--ink); box-shadow: none; font-family: var(--font-geist-sans); }
 html[data-aesthetic="paper"] .ev-panel.open { box-shadow: -6px 0 0 var(--pp-lilac); }

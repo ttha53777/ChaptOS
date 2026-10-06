@@ -60,6 +60,7 @@ import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
 import { WeekItemPeek, type WeekPeekTarget } from "../components/dashboard/ledger/WeekItemPeek";
 import { BallotCard } from "../components/dashboard/ledger/BallotCard";
 import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
+import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
@@ -1836,7 +1837,18 @@ export default function Home() {
   // clear by definition. The only field worth reconciling is `eligibleCount`,
   // which the server's answer fills in a beat later.
   async function handleOpenCheckIn(event: CalendarEvent) {
-    const before = liveCheckIn;
+    // Opening a second window doesn't close the first server-side — it would
+    // just drop out of the band and keep accepting check-ins until it expired.
+    // Close and record it first, the way the picker says it will.
+    if (liveCheckIn && liveCheckIn.event.id !== event.id && liveCheckIn.state !== "closed") {
+      try {
+        await handleCloseCheckIn();
+      } catch (e) {
+        setMutationError(apiErrorMessage(e, `Could not close check-in for ${liveCheckIn.event.title}.`));
+        return;
+      }
+    }
+    const before = liveCheckIn && liveCheckIn.event.id !== event.id && liveCheckIn.state !== "closed" ? null : liveCheckIn;
     applyLiveCheckIn({
       event: {
         id:        event.id,
@@ -1891,7 +1903,9 @@ export default function Home() {
   const checkInCandidates = useMemo(() => {
     const today = Date.parse(`${todayISO}T00:00:00Z`);
     return calendarList
-      .filter(e => e.mandatory && e.id !== liveCheckIn?.event.id)
+      // A window that just closed stays pickable: opening it again reopens it
+      // (openCheckIn clears the close and keeps who's already recorded).
+      .filter(e => e.mandatory && (e.id !== liveCheckIn?.event.id || liveCheckIn.state === "closed"))
       .map(e => {
         const at = Date.parse(`${e.date}T00:00:00Z`);
         const days = Number.isNaN(at) ? Number.MAX_SAFE_INTEGER : Math.round((at - today) / 86_400_000);
@@ -1938,6 +1952,13 @@ export default function Home() {
       .then(r => (r.ok ? r.json() as Promise<CalendarEvent[]> : null))
       .then(list => { if (list) setCalendarList(list); return list; })
       .catch(() => null); // Stale list still drives a usable picker.
+
+    // Paper always shows the sheet (tonight preselected), per the mock: the
+    // officer sees which event the hour is about to start on before it starts.
+    if (document.documentElement.dataset.aesthetic === "paper") {
+      setActiveModal("pick-event-for-checkin");
+      return;
+    }
 
     const local = todayMandatory(calendarList);
     if (local.length === 1) {
@@ -2168,6 +2189,8 @@ export default function Home() {
                   onLogAttendance={canAttendance ? () => openAttendanceLog() : undefined}
                   onOpenCheckIn={canAttendance ? () => void openCheckInPicker() : undefined}
                   openCheckInBusy={openCheckInBusy}
+                  liveHere={liveCheckIn && liveCheckIn.state !== "closed" ? liveCheckIn.presentCount : null}
+                  onGoToLive={() => document.querySelector("section.live")?.scrollIntoView({ behavior: "smooth", block: "center" })}
                   onQuickAction={handleQuickAction}
                   quickActionsAdmin={isAdmin || canTreasury || canAttendance}
                   quickActionsCanManageTasks={canTasks}
@@ -2623,7 +2646,19 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "pick-event-for-checkin" && (
-        <Modal title="Open Check-in" tone="dusk" onClose={closeModal}>
+        <Modal title="Open Check-in" tone="dusk" onClose={closeModal} maxWidthClass="max-w-lg">
+          <div className="pp-only">
+            <CheckInPicker
+              candidates={checkInCandidates}
+              todayISO={todayISO}
+              live={liveCheckIn && liveCheckIn.state !== "closed"
+                ? { title: liveCheckIn.event.title, date: liveCheckIn.event.date, presentCount: liveCheckIn.presentCount }
+                : null}
+              onOpen={e => { closeModal(); void handleOpenCheckIn(e); }}
+              onCancel={closeModal}
+            />
+          </div>
+          <div className="lg-only">
           <p className="mb-3 text-[12px] text-[color:var(--muted)]">Pick a required event to open live check-in for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {checkInCandidates.length === 0 && (
@@ -2644,6 +2679,7 @@ export default function Home() {
                 </button>
               );
             })}
+          </div>
           </div>
         </Modal>
       )}

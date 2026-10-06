@@ -144,6 +144,20 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
   const excused  = useMemo(() => expected.filter(a => a.excused).length, [expected]);
   const awaited  = expected.length - excused;
 
+  // Paper shows every group at once (the mock's ci-who sheet) instead of tabs,
+  // so the search filters all three.
+  const closed = live.state === "closed";
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const hit = (a: LiveAttendee) => !q || a.name.toLowerCase().includes(q);
+    const byArrival = [...here].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+    return [
+      { key: "here", label: closed ? "Present" : "Here", tone: "here", all: byArrival, list: byArrival.filter(hit) },
+      { key: "not", label: closed ? "Absent" : "Not here yet", tone: closed ? "absent" : "waiting", all: expected.filter(a => !a.excused), list: expected.filter(a => !a.excused && hit(a)) },
+      { key: "ex", label: "Excused", tone: "excused", all: expected.filter(a => a.excused), list: expected.filter(a => a.excused && hit(a)) },
+    ].filter(g => g.key !== "ex" || g.all.length > 0);
+  }, [here, expected, query, closed]);
+
   const shown = useMemo(() => {
     const base = filter === "here" ? here : expected;
     const q = query.trim().toLowerCase();
@@ -155,6 +169,7 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
       <div
         ref={panelRef}
         className="wh-panel"
+        data-state={live.state}
         role="dialog"
         aria-modal="true"
         aria-label={`Who's here — ${live.event.title}`}
@@ -180,8 +195,8 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
           <p className="wh-summary" role="status" aria-live="polite">
             {roster === null
               ? "Counting the room…"
-              : `${live.presentCount} of ${live.eligibleCount} here`
-                + (awaited > 0 ? ` · ${awaited} still expected` : "")
+              : `${live.presentCount} of ${live.eligibleCount} ${live.state === "closed" ? "present" : "here"}`
+                + (awaited > 0 ? (live.state === "closed" ? ` · ${awaited} absent` : ` · ${awaited} still expected`) : "")
                 + (excused > 0 ? ` · ${excused} excused` : "")}
           </p>
         </header>
@@ -195,7 +210,7 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
             placeholder="Find a member…"
             aria-label="Find a member"
           />
-          <div className="wh-filters">
+          <div className="wh-filters lg-only">
             <button type="button" aria-pressed={filter === "here"} onClick={() => setFilter("here")}>
               Here now{roster ? ` (${here.length})` : ""}
             </button>
@@ -205,7 +220,32 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
           </div>
         </div>
 
-        <div className="wh-list" role="list" aria-label="Members">
+        <div className="wh-groups pp-only">
+          {error && <p className="wh-empty" role="alert">{error}</p>}
+          {!error && roster === null && <p className="wh-empty">Loading the roster…</p>}
+          {!error && roster !== null && groups.map(g => (
+            <div key={g.key} className="wh-grp" data-tone={g.tone}>
+              <p className="wh-gh"><i />{g.label}<span>{g.all.length}</span></p>
+              {g.list.length === 0
+                ? <p className="wh-none">{query.trim() ? "No match." : g.key === "here" ? "Nobody yet — the first check-in lands here." : g.key === "not" ? (closed ? "Nobody absent." : "Everyone’s here.") : "Nobody."}</p>
+                : (
+                  <div className="wh-ls" role="list" aria-label={g.label}>
+                    {g.list.map(a => (
+                      <div className="wh-p" role="listitem" key={a.brotherId}>
+                        <span className="wh-avatar" aria-hidden="true">{a.avatarUrl ? <img src={a.avatarUrl} alt="" /> : initials(a.name)}</span>
+                        <span className="nm">{a.name}</span>
+                        {a.present
+                          ? <span className="at">{a.at ? clockLabel(a.at) : "here"}</span>
+                          : a.excused ? <span className="xt">excused</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+            </div>
+          ))}
+        </div>
+
+        <div className="wh-list lg-only" role="list" aria-label="Members">
           {error && <p className="wh-empty" role="alert">{error}</p>}
 
           {!error && roster === null && <p className="wh-empty">Loading the roster…</p>}
@@ -246,6 +286,7 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
               ? "Final — recorded when check-in closed"
               : "Updates as members check in"}
           </span>
+          <button type="button" className="wh-done pp-only" onClick={onClose}>Done</button>
         </footer>
       </div>
     </div>
