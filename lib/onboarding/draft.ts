@@ -24,6 +24,7 @@ import { suggestSlug } from "@/lib/slug-rules";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import { BUILTIN_METRIC_DEFAULTS, KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, type KindId } from "./kinds";
 import { MAX_DRAFT_EVENT_TYPES, resolveEventTypeRows } from "./event-types";
+import { TERM_MODELS, TERM_PERIOD_VOCAB } from "./terms";
 import type { Seat } from "./seats";
 
 export const DRAFT_STORAGE_KEY = "figurints:create-draft:v2";
@@ -82,6 +83,66 @@ export const CREATE_STEPS = ["name", "interview", "roles", "timeline", "blueprin
 export type CreateStep = (typeof CREATE_STEPS)[number];
 
 const permissionEnum = z.enum(Object.keys(PERMISSIONS) as [Permission, ...Permission[]]);
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** "Does the org handle any money?" — yes / now and then / no. */
+export const MONEY_ANSWERS = ["yes", "some", "none"] as const;
+export type MoneyAnswer = (typeof MONEY_ANSWERS)[number];
+
+/** "Are there files or links everyone needs to find?" */
+export const DOCS_ANSWERS = ["yes", "scattered", "none"] as const;
+export type DocsAnswer = (typeof DOCS_ANSWERS)[number];
+
+const metricFlagsSchema = z.object({
+  attendance:   z.boolean(),
+  gpa:          z.boolean(),
+  duesOwed:     z.boolean(),
+  serviceHours: z.boolean(),
+});
+
+/**
+ * The interview's answers, recorded as answers — not just as their effect on the
+ * page set. lib/onboarding/answers.ts re-derives pages, tracking, the founder's
+ * title and the default term from ALL of them at once, which is what lets the
+ * recap re-ask any single question (even "what kind of org?") without the later
+ * answers silently falling off the charter. An absent key means "not asked yet".
+ */
+const answersSchema = z.object({
+  intro:   z.boolean().optional(),
+  title:   z.string().trim().min(1).max(60).optional(),
+  acts:    z.array(z.string().max(20)).max(12).optional(),
+  money:   z.enum(MONEY_ANSWERS).optional(),
+  docs:    z.enum(DOCS_ANSWERS).optional(),
+  metrics: metricFlagsSchema.optional(),
+  term:    z.boolean().optional(),
+});
+export type DraftAnswers = z.infer<typeof answersSchema>;
+
+/**
+ * One line of the interview transcript. `t` carries two control characters as
+ * its only markup (U+0001 toggles bold, U+0002 toggles emphasis) — never HTML,
+ * since the draft round-trips through localStorage and is untrusted on the way
+ * back. `b` tags a question with the beat it asks, so a resumed interview knows
+ * whether the open question is already on screen.
+ */
+const threadLineSchema = z.object({
+  k: z.enum(["q", "me", "bot"]),
+  t: z.string().max(1000),
+  b: z.string().max(20).optional(),
+});
+export type ThreadLine = z.infer<typeof threadLineSchema>;
+
+/** The term the org starts in — becomes its first ACTIVE Semester. */
+const termSchema = z.object({
+  model:     z.enum(TERM_MODELS),
+  /** Which suggestTerms() slot was picked; -1 once the dates were hand-edited. */
+  pick:      z.number().int().min(-1).max(5),
+  label:     z.string().trim().min(1).max(40),
+  startDate: z.string().regex(DATE_RE),
+  endDate:   z.string().regex(DATE_RE),
+});
+export type DraftTerm = z.infer<typeof termSchema>;
 
 const seatSchema = z.object({
   title:       z.string().trim().min(1).max(60),
@@ -175,6 +236,12 @@ export const draftSchema = z.object({
     })
     .default({ builtins: {}, customs: null }),
   logoDataUrl: z.string().startsWith("data:image/").max(MAX_LOGO_DATA_URL_CHARS).optional(),
+  /* The three below are additive (.default()) for the same reason eventTypes is:
+     a v2 draft written mid-OAuth across the deploy still parses, and simply
+     reads as an interview that hasn't asked these yet. */
+  answers: answersSchema.default({}),
+  thread:  z.array(threadLineSchema).max(160).default([]),
+  term:    termSchema.nullable().default(null),
 });
 
 export type Draft = z.infer<typeof draftSchema>;
@@ -210,6 +277,9 @@ export function emptyDraft(): Draft {
     metrics: defaultMetrics(null),
     seats: [],
     eventTypes: defaultEventTypes(),
+    answers: {},
+    thread: [],
+    term: null,
   };
 }
 
@@ -303,8 +373,11 @@ export function draftToCreateOrgInput(draft: Draft, fallbackFounderName?: string
   // Kind vocab (Sister for sororities) under the founder's explicit edits;
   // unknown keys from a tampered draft are dropped here. The cast is safe:
   // sanitizeVocabOverrides never writes an undefined value.
+  // The term model names the period ("Season", "Year") under the founder's own
+  // edits, so a year-round org isn't captioned "Semester" everywhere.
   const vocabularyOverrides = sanitizeVocabOverrides({
     ...KIND_VOCAB_DELTA[kind],
+    ...(draft.term ? { Period: TERM_PERIOD_VOCAB[draft.term.model] } : {}),
     ...draft.vocab,
   }) as Record<string, string>;
 
@@ -328,10 +401,12 @@ export function draftToCreateOrgInput(draft: Draft, fallbackFounderName?: string
       enabledWorkflows: normalizeWorkflows(draft.enabledWorkflows),
       vocabularyOverrides,
       roleSeeds,
-      // No term is sent from the create flow anymore — a fresh org lands in the
-      // workspace with no active Semester and sets its first term via the
-      // SemesterGate first-run prompt (app/components/SemesterGate.tsx). The
-      // blueprint.term field stays optional server-side for other callers.
+      // The charter's "This term" — provisionOrg makes it the first ACTIVE
+      // Semester, so the founder lands in a working term rather than behind
+      // SemesterGate's wall.
+      ...(draft.term
+        ? { term: { label: draft.term.label, startDate: draft.term.startDate, endDate: draft.term.endDate } }
+        : {}),
       metrics: {
         builtins: {
           attendance:   draft.metrics.attendance,

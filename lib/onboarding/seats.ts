@@ -47,7 +47,7 @@ export const ROLE_COLORS = ["#F59E0B", "#10B981", "#EC4899", "#3B82F6", "#8B5CF6
  * hexes already shipped in EVENT_TYPE_PALETTE so the two palettes agree.
  * Ratios on #faf9f6: gold 4.18, teal 4.23, rose 4.70, blue 5.06, purple 6.80 —
  * all clear of the 3:1 non-text bar (the flow additionally mixes toward ink for
- * the two text uses, see create-flow.css's ivory block).
+ * the two text uses in the ledger-era flow; the paper flow maps seats to pastels).
  *
  * tests/onboarding/seats.test.ts asserts every seeded role hue has an entry, so
  * a new org type can't ship an unmapped color.

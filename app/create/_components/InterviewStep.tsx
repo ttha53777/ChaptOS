@@ -1,1323 +1,814 @@
 "use client";
 
 /**
- * Step 2 — INTERVIEW. Two drivers, one set of questions.
+ * Step 2 — THE INTERVIEW. One conversation on a fixed spine of eight beats:
+ * who you are → what kind of org → your role → a normal month → money → files
+ * → what to track → the current term → a recap where any line can be changed.
  *
- * The interview asks what the org ACTUALLY DOES and lets the answers decide the
- * pages. It never infers a page set from the kind word: "a fraternity" settles
- * the WORDS (Brother, Chapter) and the seats, but whether there's a Parties page
- * comes from the founder saying they throw socials. An activity they don't name
- * leaves its page off (see BEAT_WORKFLOWS in lib/org-types.ts) — otherwise the
- * template's guess would silently survive an answer that didn't include it, and
- * the interview would be theatre over a preset.
+ * Every beat has chips (the primary input) and accepts typed answers through
+ * the composer; the readers in lib/onboarding never guess past what was said —
+ * an answer they can't read is re-asked, because each one turns pages on or off.
+ * Answers land on draft.answers and lib/onboarding/answers.ts rebuilds the
+ * charter from all of them, so a recap edit never drops a later answer.
  *
- * The beats, in order:
- *   name → kind → activities (multi-select) → docs → payments → door* → metrics
- *   (* door revenue is asked only when the founder named socials/parties.)
- *
- * Two drivers ask them:
- *   - CONCIERGE (mode "ai") — the model phrases each beat itself and reacts to
- *     the answers. It signals the activities beat with the ACTIVITIES_CHIP
- *     sentinel; the client renders the same checklist either way.
- *   - SCRIPTED (mode "scripted") — the deterministic spine, used when AI isn't
- *     configured, is rate-limited, or fails mid-conversation. It asks the SAME
- *     beats with zero model calls, so a founder never gets a worse interview
- *     just because the model is down.
- *
- * Both drivers dispatch the SAME reducer actions the founder's own taps use, and
- * the blueprint review still stands between this chat and anything being built.
+ * The transcript lives on the draft (draft.thread), so a reload or the OAuth
+ * round trip reopens the same conversation at the first unanswered beat.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { MAX_CUSTOM_METRICS, type Draft } from "@/lib/onboarding/draft";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  INTERVIEW_BEATS,
+  defaultFounderTitle,
+  defaultTermModel,
+  isInterviewBeat,
+  nextUnansweredBeat,
+  readDocsAnswer,
+  readFounderName,
+  readFounderTitle,
+  readMoneyAnswer,
+  type InterviewBeat,
+} from "@/lib/onboarding/answers";
+import { ACTIVITY_IDS, readActivities } from "@/lib/onboarding/activities";
+import { MAX_CUSTOM_METRICS, type DocsAnswer, type Draft, type MoneyAnswer, type ThreadLine } from "@/lib/onboarding/draft";
 import {
   BUILTIN_METRIC_IDS,
   BUILTIN_METRIC_LABEL,
+  FOUNDER_TITLE_ALTERNATES,
+  KIND_IDS,
+  KIND_LABEL,
   getVariant,
   matchKind,
   matchMetricText,
-  matchVariantExact,
-  matchYesNoAnswer,
-  type BuiltinMetricId,
+  type BuiltinMetricFlags,
   type KindId,
-  type YesNoAnswer,
 } from "@/lib/onboarding/kinds";
-import {
-  ACTIVITY_OPTIONS,
-  activityLabels,
-  activityPicksToAiPicks,
-  readActivities,
-} from "@/lib/onboarding/activities";
-import {
-  draftVocab,
-  workflowsChanged,
-  workflowsForKind,
-  type FlowAction,
-} from "./flow-state";
-import {
-  askInterviewAi,
-  newInterviewSessionId,
-  probeInterviewAi,
-  missingFields,
-  reportInterviewFallback,
-  ACTIVITIES_CHIP,
-  SLOW_TURN_MS,
-  type FallbackReason,
-  type InterviewAiResult,
-  type InterviewAiTurn,
-} from "./interview-ai";
-import type { SheetFlash } from "./BlueprintSheet";
+import { TERM_MODELS, TERM_PERIOD_VOCAB, matchTermModel, suggestTerms, type TermModel } from "@/lib/onboarding/terms";
+import type { PaperIconName } from "@/app/components/paper/PaperIcon";
+import type { CharterSection } from "./Charter";
+import { periodWord, trackedLabels } from "./Charter";
+import { draftVocab, type FlowAction } from "./flow-state";
+import { Ic, Rich, bold, em, fmtDay, listy, orgName, plain, plural, type Tone } from "./paper";
 
-type Stage =
-  | "intro"
-  | "kind"
-  | "activities"
-  | "docs"
-  | "payments"
-  | "door"
-  | "metrics"
-  | "done";
+type Stage = InterviewBeat | "typing" | "recap";
 
-type Msg = { id: number; kind: "bot" | "q" | "user"; body: ReactNode };
-type Chip = { label: string; pick: () => void };
+const TYPING_MS = 900;
+const AFTER_REPLY_MS = 520;
+const FLASH_MS = 420;
 
-/** Concierge (AI-led) loop cap: after this many model-driven turns we stop
-    asking the model and drain any still-missing fields through the scripted
-    machine, so the interview always terminates regardless of model behavior. */
-const MAX_CONCIERGE_TURNS = 12;
+/* ─── Copy ─────────────────────────────────────────────────────────────────── */
 
-/** How long the "typing…" indicator shows before an AI reply lands — scaled to
-    the reply length so a longer message "takes longer to type" (reads far more
-    human than a fixed delay). The scripted path keeps its own fixed timings. */
-function typingDelay(text: string): number {
-  return Math.min(1400, Math.max(500, 400 + text.length * 12));
-}
+const KIND_NOUN: Record<KindId, string> = {
+  fraternity: "chapter", sorority: "chapter", club: "club", team: "team",
+  service: "org", honor: "society", arts: "company", other: "org",
+};
+const NOUN_PLURAL: Record<string, string> = { society: "societies", company: "companies" };
+const nounPl = (n: string) => NOUN_PLURAL[n] ?? `${n}s`;
 
-/**
- * The reply to the kind answer. Each one claims ONLY what the kind actually
- * decides now — the words, the seats, the metric defaults — and hands the pages
- * to the next beat. Nothing here may promise a page: "the classic shape —
- * parties, dues, service, the whole chapter machine" was exactly the assumption
- * this interview no longer makes.
- */
-const KIND_REPLIES: Record<KindId, ReactNode> = {
-  fraternity: <>A fraternity — so it&rsquo;s <b>Brothers</b>, <b>Chapter</b>, and <b>Semesters</b> from here on. The words are set; the <em>pages</em> come from what you actually do.</>,
-  sorority:   <>A sorority — <b>Sisters</b>, <b>Chapter</b>, <b>Semesters</b>. The words are set; now let&rsquo;s build the pages off what you actually run.</>,
-  club:       <>Got it — <b>Members</b> and <b>Meetings</b>, nothing Greek assumed. The pages come from what you actually do.</>,
-  team:       <>A team — <b>Players</b>, <b>Practice</b>, <b>Seasons</b>. Now let&rsquo;s see what a normal month looks like.</>,
-  service:    <>A service org — the words stay plain. Let&rsquo;s build the pages off what you actually run.</>,
-  honor:      <>An honor society — noted. Nothing&rsquo;s assumed about the pages; that&rsquo;s the next question.</>,
-  arts:       <>A performing-arts group — <b>Rehearsals</b> and a calendar built for performing. Now, a normal month.</>,
-  other:      <>Got it — I&rsquo;ll keep the words plain, and you&rsquo;ll get only the pages you turn on.</>,
+/** Kind chips in the mock's words (KIND_LABEL is the sheet's shorter form). */
+const KIND_CHIP: Record<KindId, string> = {
+  fraternity: "A fraternity",
+  sorority:   "A sorority",
+  club:       "A club or student org",
+  team:       "A sports team",
+  service:    "A service org",
+  honor:      "An honor society",
+  arts:       "A performing-arts group",
+  other:      "Something else",
 };
 
-function titleCase(text: string): string {
-  return text
-    .trim()
-    .replace(/\s+/g, " ")
-    .slice(0, 60)
-    .replace(/\b[a-z]/g, c => c.toUpperCase());
+const ACTIVITY_META: Record<string, { icon: PaperIconName; tone: Tone; label: string }> = {
+  meetings:  { icon: "gavel",  tone: "sky",    label: "Chapter meetings" },
+  socials:   { icon: "note",   tone: "rose",   label: "Social events or parties" },
+  service:   { icon: "heart",  tone: "mint",   label: "Service or volunteering" },
+  fundraise: { icon: "board",  tone: "butter", label: "Fundraisers or programs" },
+  tasks:     { icon: "box",    tone: "lilac",  label: "Handing out tasks & deadlines" },
+  online:    { icon: "camera", tone: "peach",  label: "Posting content online" },
+};
+
+const MONEY_CHIPS: [MoneyAnswer, string][] = [["yes", "Yes — all the time"], ["some", "Now and then"], ["none", "No money"]];
+const DOCS_CHIPS: [DocsAnswer, string][] = [["yes", "Yes, a few things"], ["scattered", "Yes, but it’s scattered"], ["none", "Not really"]];
+
+const PLACEHOLDER: Record<InterviewBeat, string> = {
+  intro:   "Your name is plenty…",
+  kind:    "Or describe it — “a pre-med frat”, “a club volleyball team”…",
+  role:    "Or type your title…",
+  month:   "Or describe a normal month in your own words…",
+  money:   "Or describe it in your own words…",
+  docs:    "Or describe it in your own words…",
+  metrics: "Add something to track per member…",
+  term:    "Or type it — “spring quarter”…",
+};
+
+function meetingsWord(d: Draft): string {
+  const m = draftVocab(d, "Meetings");
+  return m === "Chapter" ? "chapter" : m.toLowerCase();
 }
 
-/** Pull a founder's name out of a free-text intro ("hey, I'm Alex — starting a
-    frat" → "Alex"). Deterministic fallback for the scripted path (the concierge
-    extracts founderName via the model). Strips a leading greeting + self-intro
-    lead-in, then keeps the first 1–3 name-ish words before any sentence break.
-    Returns "" when nothing name-like is found, so the caller falls back to the
-    Google name. */
-function extractFounderName(text: string): string {
-  let s = text.trim().replace(/\s+/g, " ");
-  // Drop a leading greeting: "hi", "hey", "hello", "yo", optionally with "there".
-  s = s.replace(/^(hi|hey|hello|yo|hiya|howdy)\b[\s,!.]*(there\b[\s,!.]*)?/i, "");
-  // Drop a self-intro lead-in. Order matters: "my name is" must be tried before
-  // "my name('s)" so the "is" isn't left behind.
-  s = s.replace(/^(i'?m|i am|my name is|my name'?s|this is|it'?s|name'?s|call me)\b[\s,:]*/i, "");
-  // Take the run up to the first sentence break — punctuation that separates
-  // clauses (comma, period, semicolon, spaced dash) or a filler/verb word.
-  // NOTE: a bare hyphen is NOT a break (keeps "Jean-Luc" intact).
-  const head =
-    s.split(/[,.;]|\s[—–-]\s|\b(?:and|but|from|starting|setting|here|founder|president|the)\b/i)[0]?.trim() ?? "";
-  // Keep at most three name-ish words: alphabetic (apostrophes/hyphens allowed),
-  // and drop filler articles/pronouns that aren't names.
-  const STOP = new Set(["the", "a", "an", "im", "and", "of", "my", "our"]);
-  const words = head
-    .split(" ")
-    .filter(Boolean)
-    .filter(w => /^[\p{L}][\p{L}'’-]*$/u.test(w) && !STOP.has(w.toLowerCase()))
-    .slice(0, 3);
-  return titleCase(words.join(" ")).slice(0, 60);
+function activityLabel(d: Draft, id: string): string {
+  if (id !== "meetings") return ACTIVITY_META[id]?.label ?? id;
+  const m = draftVocab(d, "Meetings");
+  return m === "Chapter" ? "Chapter meetings" : m === "Meetings" ? "Regular meetings" : m;
 }
+
+function monthWords(d: Draft, ids: readonly string[]): string[] {
+  const words: Record<string, string> = {
+    meetings: meetingsWord(d), socials: "parties", service: "service",
+    fundraise: "fundraisers", tasks: "deadlines", online: "posting",
+  };
+  return ACTIVITY_IDS.filter(id => ids.includes(id)).map(id => words[id]!);
+}
+
+function question(beat: InterviewBeat, d: Draft): string {
+  const n = em(orgName(d));
+  switch (beat) {
+    case "intro":   return `Hi — I’ll get ${n} set up while we talk. Takes about two minutes. First, who am I talking to?`;
+    case "kind":    return `So what is ${n}? What kind of group are we setting up?`;
+    case "role":    return `And you’re ${n}’s…?`;
+    case "month":   return `Picture a normal month at ${n}. Which of these actually happen?`;
+    case "money":   return `Does ${n} handle any money — ${plain(draftVocab(d, "Dues")).toLowerCase()}, event fees, paying people back?`;
+    case "docs":    return `Are there files or links everyone at ${n} needs to be able to find?`;
+    case "metrics": return `What should I track for each ${plain(draftVocab(d, "Member")).toLowerCase()}? Tap everything you want on the charter — or type your own.`;
+    case "term":    return "Last one — what term are you in right now?";
+  }
+}
+
+function kindReply(d: Draft): string {
+  if (!d.kind) return "";
+  const variant = getVariant(d.kind, d.variant);
+  const head = variant
+    ? `${KIND_LABEL[d.kind]} — the ${variant.label.replace(/^an? /i, "").toLowerCase()} kind`
+    : KIND_LABEL[d.kind];
+  const member = draftVocab(d, "Member");
+  const meetings = draftVocab(d, "Meetings");
+  const who =
+    member !== "Member"
+      ? `it’s ${bold(plural(member))}${meetings !== "Meetings" ? ` and ${bold(meetings)}` : ""} from here on`
+      : "";
+  const offices = d.seats.filter(s => !s.all).map(s => s.title);
+  return (
+    plain(head) +
+    (who ? ` — so ${who}` : "") +
+    "." +
+    (offices.length ? ` I’ll start you with the offices ${nounPl(KIND_NOUN[d.kind])} like yours usually elect: ${plain(listy(offices))}.` : "")
+  );
+}
+
+function monthReply(d: Draft, ids: readonly string[]): string {
+  if (!ids.length) return "A quiet one — that’s fine. We’ll keep it to a roster and a timeline, and you can switch pages on whenever you need them.";
+  const w = plain(listy(monthWords(d, ids)));
+  if (ids.length >= 4) return `A full calendar: ${w}. Each one gets its own page; the rest stay off.`;
+  return `${w.charAt(0).toUpperCase()}${w.slice(1)} — each gets its own page. Nothing else clutters the sidebar.`;
+}
+
+function moneyReply(d: Draft, v: MoneyAnswer): string {
+  const dues = plain(draftVocab(d, "Dues")).toLowerCase();
+  const treasury = bold(draftVocab(d, "Treasury"));
+  return {
+    yes:  `${treasury} is on — ${dues}, payments and reimbursements in one ledger.`,
+    some: `${treasury} is on for whatever does come in and go out — it stays quiet otherwise.`,
+    none: `No money, no ${plain(draftVocab(d, "Treasury"))} — and nobody gets a ${dues} column.`,
+  }[v];
+}
+
+function docsReply(v: DocsAnswer): string {
+  return {
+    yes:       `${bold("Docs")} is on — pin them there and they stay put.`,
+    scattered: `Then ${bold("Docs")} gives them one place to live.`,
+    none:      "Skipping Docs — one switch in Settings if that changes.",
+  }[v];
+}
+
+function termReply(d: Draft): string {
+  if (!d.term) return "";
+  return `${bold(d.term.label)}, ${fmtDay(d.term.startDate)} – ${fmtDay(d.term.endDate)}. You’ll land in a working ${plain(periodWord(d)).toLowerCase()}, not a setup screen.`;
+}
+
+function titleChoices(d: Draft): string[] {
+  const kind = d.kind ?? "other";
+  return [defaultFounderTitle(kind), ...FOUNDER_TITLE_ALTERNATES[kind]].filter((x, i, a) => a.indexOf(x) === i);
+}
+
+/* ─── The step ─────────────────────────────────────────────────────────────── */
 
 export function InterviewStep({
   draft,
   dispatch,
-  resumed,
   onFlash,
   onDone,
+  founderFallback,
 }: {
   draft: Draft;
   dispatch: React.Dispatch<FlowAction>;
-  /** This draft was restored mid-interview (a reload, or the OAuth leg) and
-      already carries answers — open as a continuation, not a first hello. */
-  resumed: boolean;
-  onFlash: (section: NonNullable<SheetFlash>["section"]) => void;
+  onFlash: (section: CharterSection) => void;
   onDone: () => void;
+  founderFallback: string | null;
 }) {
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [typing, setTyping] = useState(false);
-  /** A concierge turn has been in flight past SLOW_TURN_MS — show it, so a long
-      wait reads as thinking rather than a hang. */
-  const [slowTurn, setSlowTurn] = useState(false);
-  const [chips, setChips] = useState<Chip[] | null>(null);
-  const [stage, setStage] = useState<Stage>("kind");
-  const [showCta, setShowCta] = useState(false);
-  const [draftText, setDraftText] = useState("");
-  const chatRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const nextId = useRef(0);
+  const [stage, setStage] = useState<Stage>(() => (draft.interviewDone ? "recap" : nextUnansweredBeat(draft) ?? "recap"));
+  const [picks, setPicks] = useState<string[]>(() => draft.answers.acts ?? []);
+  const [metPicks, setMetPicks] = useState<BuiltinMetricFlags>(() => flagsOf(draft));
+  const [text, setText] = useState("");
 
-  // Whether AI is configured at all — the probe's answer, and NOTHING ELSE
-  // writes to it. It used to double as "has the concierge given up", which
-  // conflated two different facts: handing the CONVERSATION to the scripted
-  // spine (right, after a failure) also permanently disabled the one bounded
-  // model call the spine itself uses (wrong — that call has an instant local
-  // fallback and can't ask a question or move a page). Every founder who hit a
-  // single blip got the dumber metric parser for the rest of the interview.
-  const aiOn = useRef(false);
-  // Stop asking altogether. Only set for failures that WILL repeat: the budget
-  // is gone (429) or the server says AI is off. A timeout or a junk response is
-  // worth one more try later.
-  const aiHardOff = useRef(false);
-  const aiFailures = useRef(0);
-  /** Is the one model call in the scripted spine still worth making? */
-  const aiUsable = () => aiOn.current && !aiHardOff.current && aiFailures.current < 2;
-
-  // Groups this interview's telemetry and gives the route a per-interview rate
-  // limit bucket. Random per mount; see the privacy note in interview-ai.ts.
-  const sessionId = useRef(newInterviewSessionId());
-  // Cancels an in-flight turn when the founder leaves. Without it, a concierge
-  // call outliving the component resolves into setState on a dead tree.
-  const liveTurn = useRef<AbortController | null>(null);
-
-  /**
-   * Synchronous turn latch.
-   *
-   * React state cannot guard a turn. `composerBusy` was just `typing`, which is
-   * set INSIDE the async handler, so two clicks dispatched before React
-   * committed both sailed through: triple-clicking Send produced the reply twice
-   * and the next question three times, and every chip and "Done →" was wide open
-   * because they had no busy check at all. A ref flips synchronously on the
-   * first click, so the second has something to hit.
-   *
-   * It also closes a second, slower hole. `respond()` clears `typing` 650ms
-   * before it asks the next question, and runConcierge ~400ms before — windows
-   * where the composer was live but `stageRef` still pointed at the PREVIOUS
-   * beat, so a typed answer was routed to the question already answered. The
-   * latch is held until a question is actually on screen awaiting an answer,
-   * which is the honest definition of "your turn".
-   */
-  const busyRef = useRef(false);
-  const [busy, setBusy] = useState(false);
-
-  /** Take the turn. False means someone else already has it — bail. */
-  function lockTurn(): boolean {
-    if (busyRef.current) return false;
-    busyRef.current = true;
-    setBusy(true);
-    return true;
-  }
-  /** Hand the turn back to the founder. Called where a question is on screen. */
-  function unlockTurn() {
-    busyRef.current = false;
-    setBusy(false);
-  }
-  /** Wrap a chip / button handler so a double-tap can only fire it once. */
-  function once(fn: () => void): () => void {
-    return () => {
-      if (lockTurn()) fn();
-    };
-  }
-
-  // Concierge (AI-led) plumbing. `mode` decides which driver owns the
-  // conversation: "ai" = the concierge asks its own questions; "scripted" = the
-  // deterministic spine (also the mid-conversation fallback target). The whole
-  // interview flows through convoTranscript; convoTurns caps the model loop.
-  const [mode, setMode] = useState<"ai" | "scripted">("scripted");
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-  const convoTranscript = useRef<InterviewAiTurn[]>([]);
-  const convoTurns = useRef(0);
-
-  // The activities beat renders a multi-select checklist in place of tap-chips:
-  // when non-null, the grid is shown and this Set holds the founder's in-progress
-  // selections (ACTIVITY_OPTIONS ids). Null the rest of the time. Keyed on the
-  // state rather than on `mode`, so the SAME grid serves both drivers — the
-  // concierge opens it via the ACTIVITIES_CHIP sentinel, the scripted spine via
-  // its "activities" stage. Submitting ("Done →") clears it and moves on.
-  const [activityPicks, setActivityPicks] = useState<Set<string> | null>(null);
-
-  // How many times each yes/no beat has been answered with a non-answer. Caps
-  // the re-ask at one, so "I'd rather not say" twice moves on instead of looping.
-  const yesNoRetries = useRef<Partial<Record<Stage, number>>>({});
-
-  // Refs mirror the latest draft/stage for use inside timeouts/async handlers.
+  // Timers read the draft AFTER their answer was reduced, so replies quote it.
   const draftRef = useRef(draft);
   draftRef.current = draft;
-  const stageRef = useRef(stage);
-  stageRef.current = stage;
+  const reask = useRef<InterviewBeat | null>(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const threadRef = useRef<HTMLDivElement>(null);
+  // Entrance animation: only lines past what was already on screen, and only the
+  // widgets of a question that just arrived — never on a tap (re-animating every
+  // message blanks the whole conversation for a beat).
+  const seen = useRef(draft.thread.length);
+  const shownStage = useRef<Stage | null>(stage);
+  const freshStage = shownStage.current !== stage;
 
-  function later(fn: () => void, ms: number) {
-    timers.current.push(setTimeout(fn, ms));
-  }
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
   useEffect(() => {
-    const controller = new AbortController();
-    liveTurn.current = controller;
-    const pending = timers.current;
-    return () => {
-      pending.forEach(clearTimeout);
-      // Cancel any turn still in flight. askInterviewAi reports this as
-      // "aborted", which its callers treat as "stop, don't render, don't
-      // report" — otherwise a slow turn resolves into a component that's gone.
-      controller.abort();
-    };
+    seen.current = draft.thread.length;
+    shownStage.current = stage;
+  });
+
+  const later = useCallback((fn: () => void, ms: number) => {
+    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    timers.current.push(setTimeout(fn, reduce ? 0 : ms));
   }, []);
 
-  useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight });
-  }, [messages, typing, chips, showCta, draft.metrics]);
+  const say = useCallback((...lines: ThreadLine[]) => dispatch({ type: "say", lines }), [dispatch]);
 
-  function push(kind: Msg["kind"], body: ReactNode) {
-    setMessages(m => [...m, { id: nextId.current++, kind, body }]);
-  }
+  const askBeat = useCallback(
+    (beat: InterviewBeat) => {
+      const d = draftRef.current;
+      say({ k: "q", t: question(beat, d), b: beat });
+      if (beat === "month") setPicks(d.answers.acts ?? []);
+      if (beat === "metrics") setMetPicks(flagsOf(d));
+      setStage(beat);
+    },
+    [say],
+  );
 
-  const vocab = (key: Parameters<typeof draftVocab>[1], plural = false) =>
-    draftVocab(draftRef.current, key, plural);
-
-  /** The org's name for question copy, with a graceful stand-in when it's blank. */
-  const orgName = () => draftRef.current.name.trim() || "your org";
-
-  /* ─── The question script ─────────────────────────────────────────────── */
-
-  function ask(stage: Stage) {
-    // "done" is not a question — it's the exit, and finishInterview owns the
-    // state from there (it may refuse and hand off rather than end).
-    if (stage === "done") return finishInterview();
-    setStage(stage);
-    switch (stage) {
-      case "intro": {
-        push("q", <>Hi! I&rsquo;ll help you set up <em>{draftRef.current.name.trim() || "your organization"}</em> in a few minutes. First though — who do I have the pleasure of meeting?</>);
-        setChips([{ label: "I'll use my Google name", pick: once(() => answerIntro("", "I'll use my Google name")) }]);
-        break;
-      }
-      case "kind": {
-        push("q", <>Tell me about <em>{draftRef.current.name.trim() || "your organization"}</em> — what kind of organization is it?</>);
-        setChips([
-          // No typed text behind a chip, so no variant can be read from one —
-          // see answerKind. A tap says "fraternity", not "social fraternity".
-          { label: "A fraternity", pick: once(() => answerKind("fraternity", "A fraternity")) },
-          { label: "A sorority", pick: once(() => answerKind("sorority", "A sorority")) },
-          { label: "A club or student org", pick: once(() => answerKind("club", "A club or student org")) },
-          { label: "A sports team", pick: once(() => answerKind("team", "A sports team")) },
-          { label: "A service org", pick: once(() => answerKind("service", "A service org")) },
-          { label: "An honor society", pick: once(() => answerKind("honor", "An honor society")) },
-          { label: "A performing-arts group", pick: once(() => answerKind("arts", "A performing-arts group")) },
-          { label: "Something else", pick: once(() => answerKind("other", "Something else")) },
-        ]);
-        break;
-      }
-      case "activities": {
-        push("q", <>Thinking about a normal month for <em>{orgName()}</em> — which of these actually happen? (Pick as many as apply.)</>);
-        setChips(null);          // the checklist grid renders instead, below
-        setActivityPicks(new Set());
-        break;
-      }
-      case "docs": {
-        push("q", <>Do you keep shared documents or links {vocab("Member", true).toLowerCase()} need access to — a handbook, drive folder, bylaws?</>);
-        setChips([
-          { label: "Yes", pick: once(() => answerDocs("yes", "Yes")) },
-          { label: "Not really", pick: once(() => answerDocs("no", "Not really")) },
-        ]);
-        break;
-      }
-      case "payments": {
-        push("q", <>Does <em>{orgName()}</em> handle any payments — {vocab("Dues").toLowerCase()}, event fees, anything like that?</>);
-        setChips([
-          { label: "Yes — dues", pick: once(() => answerPayments("yes", "Yes — dues")) },
-          { label: "Event fees", pick: once(() => answerPayments("yes", "Event fees")) },
-          { label: "No money", pick: once(() => answerPayments("no", "No money")) },
-        ]);
-        break;
-      }
-      case "door": {
-        // CONDITIONAL. Only worth asking of an org that actually throws the kind
-        // of event that takes money at the door — i.e. one that just told us it
-        // holds socials. Asking an honor society about door money reads as
-        // broken. Reads the DRAFT (not a local) so it behaves identically when
-        // the concierge hands off mid-interview.
-        if (!draftRef.current.enabledWorkflows.includes("parties")) return ask("metrics");
-        push("q", <>Do parties or events at <em>{orgName()}</em> typically bring in door money or ticket sales?</>);
-        setChips([
-          { label: "Yes", pick: once(() => answerDoor("yes", "Yes")) },
-          { label: "No", pick: once(() => answerDoor("no", "No")) },
-        ]);
-        break;
-      }
-      case "metrics": {
-        push("q", <>What should I track for each {vocab("Member").toLowerCase()}? Tap everything you want on the sheet — or type your own.</>);
-        setChips(null); // metrics chips render live from the draft, below
-        break;
-      }
-    }
-    // A question is now on screen with its chips — the founder's turn. Every
-    // path that ends a beat lands here, which is why this is the one release
-    // point for the latch. ("done" returned above; finishInterview keeps it.)
-    unlockTurn();
-  }
-
-  /** Scripted beat: clear chips, type, reply, then ask the next question. */
-  function respond(reply: ReactNode, next: Stage, flash?: NonNullable<SheetFlash>["section"]) {
-    setChips(null);
-    setTyping(true);
-    if (flash) later(() => onFlash(flash), 500);
-    later(() => {
-      setTyping(false);
-      push("bot", reply);
-      later(() => ask(next), 650);
-    }, 850);
-  }
-
-  /* ─── Answers — every beat below is deterministic (no model calls) ─────── */
-
-  /**
-   * The kind beat. `typed` is the founder's own words when they wrote the answer
-   * rather than tapping a chip — the only place a variant can come from.
-   *
-   * The concierge resolves a variant whenever the founder's phrasing makes one
-   * obvious ("we're a pre-med frat"), and a variant is not cosmetic: it rebuilds
-   * the seat list and flips metric defaults. The scripted spine used to resolve
-   * none, so the SAME sentence built a different org depending on whether the
-   * model happened to be up — "we're a professional fraternity" got VP
-   * Professional Development and no service-hours column with AI on, and Social
-   * and PR chairs with a service-hours column with AI off.
-   *
-   * matchVariantExact only answers when the words actually name one, so a chip
-   * tap (which carries no such signal) still resolves nothing.
-   */
-  function answerKind(kind: KindId, label: string, typed?: string) {
-    push("user", label);
-    dispatch({ type: "setKind", kind });
-    // setKind is a reset that clears variant, so this must follow it. Same
-    // sequencing as applyConciergePicks.
-    const variant = typed ? matchVariantExact(kind, typed) : null;
-    if (variant) dispatch({ type: "setVariant", variant });
-    const variantLabel = variant ? getVariant(kind, variant)?.label : null;
-    // The kind sets the WORDS and the seats. It deliberately does not light up
-    // pages — those come from the activities beat next — so flash "words", not
-    // "pages" (the Pages section is genuinely still nearly empty here).
-    respond(
-      variantLabel ? (
-        <>
-          {KIND_REPLIES[kind]} <em>{variantLabel}</em>, so I&rsquo;ve set the officer seats to match.
-        </>
-      ) : (
-        KIND_REPLIES[kind]
-      ),
-      "activities",
-      "words",
-    );
-    // The seats visibly changed — say where to look, after the words flash.
-    if (variant) later(() => onFlash("seats"), 900);
-  }
-
-  /**
-   * A founder who won't commit at a yes/no beat.
-   *
-   * "not sure" and "I'd rather not say" used to read as YES, so the bot answered
-   * a question the founder had just declined to answer ("Money gets tracked,
-   * then — Treasury is on the sheet"). Re-ask once, because the chips are right
-   * there and the first hedge is usually just thinking out loud. If they still
-   * won't pick, take that at face value: change NOTHING and say so. Leaving the
-   * page off is both the draft's current state and the reversible choice, and
-   * the blueprint is one tap away. Two attempts, so this always terminates.
-   */
-  function hedgedYesNo(stage: Stage, deferReply: ReactNode, next: Stage) {
-    const n = (yesNoRetries.current[stage] ?? 0) + 1;
-    yesNoRetries.current[stage] = n;
-    if (n === 1) {
-      setTyping(true);
-      later(() => {
-        setTyping(false);
-        push("bot", <>No rush — a yes or a no is all I need here.</>);
-        later(() => ask(stage), 400);
-      }, 700);
-      return;
-    }
-    respond(deferReply, next);
-  }
-
-  function answerDocs(answer: YesNoAnswer, label: string) {
-    push("user", label);
-    if (answer === "unclear") {
-      return hedgedYesNo(
-        "docs",
-        <>No problem — I&rsquo;ll leave <b>Docs</b> off for now. It&rsquo;s one tap on the blueprint whenever you want it.</>,
-        "payments",
-      );
-    }
-    const yes = answer === "yes";
-    dispatch({
-      type: "applyAiPicks",
-      picks: { addWorkflows: yes ? ["docs"] : [], removeWorkflows: yes ? [] : ["docs"], vocab: {} },
-    });
-    respond(
-      yes
-        ? <>Then <b>Docs</b> is on — one place for the handbook and the links, instead of the group chat.</>
-        : <>No Docs page, then. It&rsquo;s one tap away on the blueprint if that changes.</>,
-      "payments",
-      "pages",
-    );
-  }
-
-  function answerPayments(answer: YesNoAnswer, label: string) {
-    push("user", label);
-    if (answer === "unclear") {
-      return hedgedYesNo(
-        "payments",
-        <>That&rsquo;s fine — I&rsquo;ll leave <b>{vocab("Treasury")}</b> off rather than guess. You can add it on the blueprint.</>,
-        "door",
-      );
-    }
-    const yes = answer === "yes";
-    dispatch({
-      type: "applyAiPicks",
-      picks: { addWorkflows: yes ? ["finance"] : [], removeWorkflows: yes ? [] : ["finance"], vocab: {} },
-    });
-    respond(
-      yes
-        ? <>Money gets tracked, then — <b>{vocab("Treasury")}</b> is on the sheet.</>
-        : <>No treasury for now — the sheet stays lean.</>,
-      "door",
-      "pages",
-    );
-  }
-
-  function answerDoor(answer: YesNoAnswer, label: string) {
-    push("user", label);
-    // Parties is already on — this beat only runs when it is (see ask("door")).
-    // So "yes" adds nothing new; it decides what the Parties page is FOR. The
-    // add is kept for idempotence and to mirror the concierge, which can reach
-    // this beat by a path where parties isn't on yet. "no" is already a no-op,
-    // which is why an unresolved hedge costs nothing here.
-    if (answer === "unclear") {
-      return hedgedYesNo(
-        "door",
-        <>No matter — <b>Parties</b> keeps the guest list and the budget either way.</>,
-        "metrics",
-      );
-    }
-    const yes = answer === "yes";
-    if (yes) {
-      dispatch({ type: "applyAiPicks", picks: { addWorkflows: ["parties"], removeWorkflows: [], vocab: {} } });
-    }
-    respond(
-      yes
-        ? <>Then <b>Parties</b> carries a door count and a wrap-up, not just a date.</>
-        : <>Fine — Parties stays for the guest list and the budget, no door column needed.</>,
-      "metrics",
-      "pages",
-    );
-  }
-
-  function toggleMetric(metric: BuiltinMetricId) {
-    dispatch({ type: "setBuiltinMetric", metric, on: !draftRef.current.metrics[metric] });
-    onFlash("metrics");
-  }
-
-  /**
-   * Add custom metrics, skipping any already on the sheet. Both callers need
-   * this: the concierge re-sends its FULL metric list every turn (it can't see
-   * the sheet), and a founder typing at the metrics stage can repeat themselves.
-   * Without it "Chapter points" lands twice. Case-insensitive, the way a founder
-   * would read a duplicate. Returns what was actually added, for the reply copy.
-   */
-  function addCustomMetrics(metrics: { name: string; unit: string | null }[]) {
-    const existing = new Set(draftRef.current.metrics.custom.map(c => c.name.trim().toLowerCase()));
-    const added: typeof metrics = [];
-    // Count as we go. The reducer silently no-ops past the cap, so counting only
-    // the dispatches we ACTUALLY made is what keeps the reply honest — reporting
-    // an add the draft rejected is how the bot ended up saying "Added Chapter
-    // Points — every member gets a column for it" over an unchanged sheet.
-    let count = draftRef.current.metrics.custom.length;
-    let droppedFull = false;
-    for (const m of metrics) {
-      const key = m.name.trim().toLowerCase();
-      if (!key || existing.has(key)) continue;
-      if (count >= MAX_CUSTOM_METRICS) {
-        droppedFull = true;
-        break;
-      }
-      existing.add(key);
-      added.push(m);
-      count += 1;
-      dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
-    }
-    return { added, droppedFull };
-  }
-
-  /**
-   * Free-text at the metrics stage.
-   *
-   * Whatever was typed used to become a column name verbatim, so "no" created a
-   * per-member column called "No" and "we track chapter points" created one
-   * called "We Track Chapter Points". There was no way to decline by typing at
-   * all. These become real OrgMetricDefinition rows at provisioning — durable
-   * furniture in the founder's workspace — so the reader is three-valued and
-   * never guesses: a decline ends the beat, an unreadable answer is re-asked.
-   */
-  async function answerMetricText(text: string) {
-    const read = matchMetricText(text);
-
-    if (read.kind === "done") {
-      // They answered the question — with "nothing else". Their own words.
-      return answerMetricsDone(text);
-    }
-    if (read.kind === "unreadable") {
-      push("user", text);
-      setTyping(true);
-      later(() => {
-        setTyping(false);
-        push("bot", <>Sorry — what should I call that column? A word or two is plenty, like &ldquo;chapter points&rdquo;.</>);
-        unlockTurn(); // the metrics grid is still on screen; their turn again
-      }, 700);
-      return;
-    }
-
-    push("user", text);
-    setTyping(true);
-    // The one model call left in the scripted spine. It only refines the parse
-    // into {name, unit} — it can't ask a question or move a page — and the
-    // deterministic read above is a complete answer on its own, so this is
-    // skipped the moment the model looks unreliable (see aiUsable).
-    const outcome = aiUsable()
-      ? await askInterviewAi(
-          "metrics",
-          draftRef.current,
-          [
-            { role: "q", text: "What else should be tracked per member?" },
-            { role: "user", text },
-          ],
-          undefined,
-          { sessionId: sessionId.current, signal: liveTurn.current?.signal },
-        )
-      : null;
-
-    if (outcome && !outcome.ok) {
-      if (outcome.reason === "aborted") return; // component is gone
-      noteAiFailure(outcome.reason);
-      reportInterviewFallback(outcome.reason, {
-        stage: "metrics",
-        turn: convoTurns.current,
-        sessionId: sessionId.current,
-        elapsedMs: outcome.elapsedMs,
-      });
-    }
-    const result = outcome?.ok ? outcome.result : null;
-    setTyping(false);
-
-    const metrics = result?.picks.customMetrics.length
-      ? result.picks.customMetrics
-      : [{ name: read.name, unit: read.unit }];
-    const { added, droppedFull } = addCustomMetrics(metrics);
-    if (added.length) onFlash("metrics");
-    push(
-      "bot",
-      droppedFull && !added.length ? (
-        <>That&rsquo;s {MAX_CUSTOM_METRICS} of your own already — the sheet&rsquo;s full. You can swap one out above, or add more from Settings once you&rsquo;re in.</>
-      ) : added.length === 0 ? (
-        <>Already on the sheet — every {vocab("Member").toLowerCase()} has that column.</>
-      ) : result?.reply ? (
-        <>{result.reply}</>
-      ) : (
-        <>Added <b>{added.map(m => m.name).join(", ")}</b> — every {vocab("Member").toLowerCase()} gets a column for it.</>
-      ),
-    );
-    unlockTurn(); // the metrics grid stays open for another measure
-  }
-
-  function answerMetricsDone(userLabel = "That's the list") {
-    const m = draftRef.current.metrics;
-    const tracked = BUILTIN_METRIC_IDS.filter(id => m[id]).map(id => BUILTIN_METRIC_LABEL[id].toLowerCase());
-    const all = [...tracked, ...m.custom.map(c => c.name.toLowerCase())];
-    push("user", userLabel);
-    respond(
-      all.length ? (
-        <>Tracking <b>{all.join(", ")}</b> per {vocab("Member").toLowerCase()} — that&rsquo;s the whole blueprint. Let&rsquo;s set up the rest of your roles.</>
-      ) : (
-        <>Nothing tracked per {vocab("Member").toLowerCase()} — the dashboard stays clean, and you can add measures in Settings anytime. That&rsquo;s the whole blueprint; let&rsquo;s set up your roles.</>
-      ),
-      "done",
-      "metrics",
-    );
-  }
-
-  /** The opener: the founder introduces themselves; we pull their name out of
-      the free text (or fall back to the Google name via the chip) and move on
-      to the org questions. */
-  function answerIntro(rawText: string, label: string) {
-    push("user", label);
-    const name = extractFounderName(rawText);
-    dispatch({ type: "setFounderName", name });
-    const first = name.trim().split(/\s+/)[0];
-    respond(
-      first ? (
-        <>Great to meet you, <b>{first}</b>! Let&rsquo;s get <em>{draftRef.current.name.trim() || "your org"}</em> set up.</>
-      ) : (
-        <>No problem — I&rsquo;ll use your Google name. Let&rsquo;s get <em>{draftRef.current.name.trim() || "your org"}</em> set up.</>
-      ),
-      "kind",
-    );
-  }
-
-  /* ─── Concierge (AI-led) driver ───────────────────────────────────────── */
-
-  /** Apply a validated concierge result's picks to the draft — the SAME reducer
-      actions the founder's own taps use, so the blueprint stays the one source
-      of truth. Flashes the sheet sections that actually changed. */
-  function applyConciergePicks(picks: InterviewAiResult["picks"]) {
-    const p = picks;
-    // ONLY dispatch setKind when the kind actually CHANGES. The model re-sends
-    // its resolved `kind` on every turn (the response schema requires the field,
-    // and structured output fills it with the standing answer rather than null),
-    // but setKind is a RESET — kindDefaults wipes enabledWorkflows back to
-    // BASE_WORKFLOWS and rebuilds seats, vocab, metrics and event types from the
-    // template. Dispatching it on an unchanged re-send silently stripped every
-    // page the activities checklist had just turned on, leaving only whatever
-    // that same turn's addWorkflows happened to carry: the founder answers "yes,
-    // we do all of those", and the blueprint empties out a beat later.
-    const kindChanged = !!p.kind && p.kind !== draftRef.current.kind;
-    if (kindChanged) dispatch({ type: "setKind", kind: p.kind! });
-    // A variant only makes sense once a kind exists; setKind resets variant, so
-    // this sequential dispatch (reducer sees the new kind) applies it cleanly.
-    // Re-sends are skipped for the same reason as kind — applyVariant rebuilds
-    // seats from the template, discarding any seat edits — but a real kind change
-    // always re-applies, since setKind just cleared the variant out from under it.
-    const variantChanged = !!p.variant && (kindChanged || p.variant !== draftRef.current.variant);
-    if (variantChanged) dispatch({ type: "setVariant", variant: p.variant! });
-    if (p.addWorkflows.length || p.removeWorkflows.length || Object.keys(p.vocab).length) {
-      dispatch({ type: "applyAiPicks", picks: { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: p.vocab } });
-    }
-    const { added: addedMetrics } = addCustomMetrics(p.customMetrics);
-    if (p.founderName) dispatch({ type: "setFounderName", name: p.founderName });
-
-    // Flash the sheet sections that actually changed (kind/variant reshuffle
-    // seats). Metrics flash on what was ADDED, not on what the model re-sent —
-    // it repeats its full list every turn, and flashing an unchanged section
-    // would draw the eye to nothing. Pages are the same trap and worse: the model
-    // re-sends its whole workflow list every turn, so a non-empty add/remove is
-    // NOT evidence anything moved. Ask what the picks would actually do — and ask
-    // it of the post-setKind draft, since a kind answer resets the set to BASE.
-    if (kindChanged || variantChanged) onFlash("seats");
-    const base = kindChanged ? workflowsForKind(draftRef.current, p.kind!) : draftRef.current;
-    if (workflowsChanged(base, { addWorkflows: p.addWorkflows, removeWorkflows: p.removeWorkflows, vocab: {} })) {
-      onFlash("pages");
-    }
-    if (Object.keys(p.vocab).length) later(() => onFlash("words"), 450);
-    if (addedMetrics.length) later(() => onFlash("metrics"), 300);
-  }
-
-  /** The first stage still unresolved, in canonical order — where the scripted
-      machine should pick up when the concierge hands off, and where a resumed
-      draft re-enters the conversation. */
-  function resumeStage(): Stage {
-    const missing = new Set<string>(missingFields(draftRef.current));
-    // kind is a hard gate. If it's missing we still need the kind question —
-    // but only route through "intro" when the founder's NAME is also still
-    // unknown, because that beat's whole job is asking for it. The concierge
-    // captures the name on its very first turn, so a handoff right after that
-    // would otherwise re-ask it ("what's your name?" twice in a row).
-    if (missing.has("kind")) {
-      return draftRef.current.founderName.trim() ? "kind" : "intro";
-    }
-    // So is the activities beat — it is the ONLY authority for which pages an
-    // org gets (see the WORKFLOW AUTHORITY block in lib/org-types.ts), so a
-    // handoff that skipped it (the concierge resolving `kind` and then failing,
-    // hitting the turn cap, or signalling done early) would provision an org
-    // with no meetings, parties, service or events page. missingFields owns that
-    // judgement now, off the draft's recorded answer rather than a guess at the
-    // page set — a founder who ticks nothing has still answered it.
-    if (missing.has("workflows")) return "activities";
-
-    // Pages settled → nothing else is strictly owed (name falls back to the
-    // Google name, metrics/roles are optional). Land on metrics so the founder
-    // gets one last look at per-member tracking before the blueprint.
-    return "metrics";
-  }
-
-  /** Hand the rest of the interview to the scripted machine. Used by the
-      mid-conversation fallback (AI turn failed) and the early-exit/loop-cap
-      backstops. The draft already holds every prior pick, so the spine resumes
-      with no re-asking. `bridge` is a short human line easing the transition —
-      pass null when there is nothing to bridge FROM (the opening turn failed, so
-      the founder has said nothing yet and the spine simply opens the interview). */
-  function handoffToScripted(bridge: ReactNode | null) {
-    setMode("scripted");
-    // NOTE: aiOn is deliberately NOT cleared here. Handing the CONVERSATION to
-    // the scripted spine is the right call after a failure, but it says nothing
-    // about the one bounded, locally-backstopped parse the spine itself makes.
-    // aiHardOff/aiFailures decide that, so a single blip no longer downgrades
-    // the rest of the interview. See noteAiFailure.
-    setActivityPicks(null); // close the activities checklist if it was open
-    if (bridge) push("bot", bridge);
-    const next = resumeStage();
-    later(() => ask(next), 650);
-  }
-
-  /** Record a failed model call. Only failures that will certainly repeat stop
-      us asking again; a timeout or one junk response is worth another try. */
-  function noteAiFailure(reason: FallbackReason) {
-    aiFailures.current += 1;
-    if (reason === "http-429" || reason === "disabled") aiHardOff.current = true;
-  }
-
-  /** Beacon a degradation, then hand off with copy that names WHICH path fired.
-      All four used to emit the same line, so a fallback caught in a screen
-      recording was unattributable — which is half of why one seen in the wild
-      could never be reproduced. */
-  function degrade(
-    reason: FallbackReason,
-    bridge: ReactNode | null,
-    opts?: { elapsedMs?: number; stage?: "boot" | "concierge" },
-  ) {
-    reportInterviewFallback(reason, {
-      // "boot" = the opening turn, where the founder has said nothing yet. Worth
-      // separating: it means the interview was broken before it started.
-      stage: opts?.stage ?? "concierge",
-      turn: convoTurns.current,
-      sessionId: sessionId.current,
-      ...(opts?.elapsedMs === undefined ? {} : { elapsedMs: opts.elapsedMs }),
-    });
-    handoffToScripted(bridge);
-  }
-
-  /**
-   * One AI-led turn. `userText` is the founder's message (null only for the
-   * opening turn). The model reacts, extracts picks across the whole transcript,
-   * asks its OWN next question, and signals completion — with client-side guards
-   * so it can neither end early (missing fields) nor loop forever (turn cap).
-   */
-  async function runConcierge(userText: string | null) {
-    if (userText !== null) {
-      push("user", userText);
-      convoTranscript.current.push({ role: "user", text: userText });
-    }
-    setChips(null);
-    setActivityPicks(null); // close the activities checklist if it was open
-    setTyping(true);
-    convoTurns.current += 1;
-
-    // Past ~6s the typing dots alone read as a hang. Say something instead of
-    // nothing — the deadline is 18s now, which is long enough to need cover.
-    const slowTimer = setTimeout(() => setSlowTurn(true), SLOW_TURN_MS);
-    const outcome = await askInterviewAi(
-      "concierge",
-      draftRef.current,
-      convoTranscript.current,
-      missingFields(draftRef.current),
-      { sessionId: sessionId.current, signal: liveTurn.current?.signal },
-    );
-    clearTimeout(slowTimer);
-    setSlowTurn(false);
-
-    if (!outcome.ok) {
-      // We cancelled because the founder left — there is no UI left to update
-      // and nothing worth reporting.
-      if (outcome.reason === "aborted") return;
-      noteAiFailure(outcome.reason);
-      // Fall back to the scripted spine at the right stage. (setTyping is
-      // cleared here because we bypass respond().) On the OPENING turn nothing
-      // has been said yet, so a "let me confirm a couple of things" bridge would
-      // be nonsense — the spine just opens the interview itself.
-      setTyping(false);
-      degrade(outcome.reason, userText === null ? null : <>Let me just confirm a couple of things.</>, {
-        elapsedMs: outcome.elapsedMs,
-        stage: userText === null ? "boot" : "concierge",
-      });
-      return;
-    }
-    const result = outcome.result;
-
-    applyConciergePicks(result.picks);
-    // Draft mutations above are async (reducer) — read freshness from the draft
-    // on the NEXT tick when deciding completion; for now trust the model's
-    // picks were applied and re-check missingFields after the reply lands.
-    later(() => {
-      setTyping(false);
-      push("bot", <>{result.reply || "Got it — the sheet's updated."}</>);
-
-      const hitCap = convoTurns.current >= MAX_CONCIERGE_TURNS;
-
-      // Completion: hand the model's "done" to finishInterview, which honors it
-      // only when nothing is actually left and otherwise drains the remaining
-      // beats through the scripted machine. The check lives THERE, not here, so
-      // no exit can route around it.
-      if (result.done) {
-        later(() => finishInterview(), 650);
-        return;
-      }
-      // Loop-cap / no-next-question guard: the model didn't say done but has
-      // nowhere to go → drain the rest through the scripted machine.
-      if (hitCap) {
-        degrade("turn-cap", <>We&rsquo;ve covered a lot — let me lock in the last couple.</>);
-        return;
-      }
-      if (!result.next) {
-        degrade("no-next", <>Let me just confirm a couple of things.</>);
-        return;
-      }
-
-      // Normal case: ask the model's own next question. The activities beat is
-      // special — the model signals it with the ACTIVITIES_CHIP sentinel as its
-      // only chip; render the multi-select checklist instead of tap-chips.
-      const isActivities =
-        result.next.chips.length === 1 && result.next.chips[0] === ACTIVITIES_CHIP;
-      convoTranscript.current.push({ role: "q", text: result.next.question });
-      later(() => {
-        push("q", <>{result.next!.question}</>);
-        if (isActivities) {
-          setChips(null);
-          setActivityPicks(new Set());
-        } else {
-          setChips(result.next!.chips.map(c => ({ label: c, pick: once(() => void runConcierge(c)) })));
-        }
-        unlockTurn(); // question is up — the founder's turn
-      }, 400);
-    }, typingDelay(result.reply));
-  }
-
-  /* ─── The activities checklist (shared by both drivers) ───────────────────── */
-
-  /** Toggle one activities-checklist option in the in-progress selection. */
-  function toggleActivity(id: string) {
-    setActivityPicks(prev => {
-      const next = new Set(prev ?? []);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  /**
-   * Re-ask the activities beat rather than act on an answer we can't fully read.
-   * Stays on the stage and re-opens the checklist, so the founder taps their way
-   * out of a phrasing the keyword reader doesn't cover.
-   *
-   * `seed` pre-ticks the grid with what we DID understand — an answer that only
-   * ruled things out ("no parties") tells us five of the six, so the founder
-   * confirms with one tap instead of retyping. `line` names what we caught, so
-   * the pre-ticked boxes don't look like a guess out of nowhere.
-   */
-  function reopenActivities(seed?: ReadonlySet<string>, line?: ReactNode) {
-    setChips(null);
-    setTyping(true);
-    later(() => {
-      setTyping(false);
-      push(
-        "bot",
-        line ?? <>Sorry — I didn&rsquo;t catch which ones. Tap the ones that happen and I&rsquo;ll set those pages up.</>,
-      );
-      setActivityPicks(new Set(seed ?? []));
-      unlockTurn(); // checklist is back up — the founder's turn
-    }, 700);
-  }
-
-  function activitiesReply(picked: string[]): ReactNode {
-    if (!picked.length) {
-      return <>Kept lean, then — just the roster and the dashboard. You can add any page you want on the blueprint.</>;
-    }
-    return <>Good — <b>{picked.map(l => l.toLowerCase()).join(", ")}</b>. Those are your pages.</>;
-  }
-
-  /**
-   * Settle the activities beat. THE CHECKLIST IS AUTHORITATIVE: what the founder
-   * ticked goes on and every other activity-owned page goes OFF, so a page the
-   * kind template would have guessed can never survive an answer that didn't
-   * name it. (docs / finance / parties can still return at the later docs,
-   * payments and door beats — those run after and are strict refinements.)
-   *
-   * Shared by both drivers, so tapping and typing land identically: the concierge
-   * hands the summary back to the model to react to; the scripted spine replies
-   * itself and walks on to the next beat.
-   *
-   * `echo` is whether to render the founder's answer as a user bubble. The typed
-   * path already pushed their literal words, and runConcierge pushes its own —
-   * only the tap path needs us to voice the selection.
-   */
-  function submitActivities(ids: ReadonlySet<string>, echo: boolean) {
-    const picked = activityLabels(ids);
-    setActivityPicks(null);
-    const picks = activityPicksToAiPicks(ids);
-    // Only pulse the sheet if the ticks actually move a page. The checklist always
-    // declares removals across its whole domain, so an unticked box that was
-    // already off is a no-op — flashing on it is what made the blueprint look like
-    // it was refreshing without ever updating.
-    const moved = workflowsChanged(draftRef.current, picks);
-    dispatch({ type: "applyAiPicks", picks });
-    // The beat is now ANSWERED — including when nothing was ticked, which is a
-    // real answer ("we don't do any of that") and not the same as never asking.
-    // missingFields reads this, and it is what stops the interview ending before
-    // the org has any pages at all.
-    dispatch({ type: "activitiesAnswered" });
-    if (moved) onFlash("pages");
-
-    const summary = picked.length
-      ? picked.map(l => l.toLowerCase()).join(", ")
-      : "none of those, really";
-
-    if (modeRef.current === "ai") {
-      // runConcierge pushes the user bubble AND the transcript entry itself.
-      void runConcierge(summary);
-      return;
-    }
-    if (echo) push("user", summary);
-    respond(activitiesReply(picked), "docs");
-  }
-
-  /**
-   * The interview's ONE exit, from either driver: mark done + reveal the CTA.
-   *
-   * Guarded, because ending is not the caller's call to make. Both drivers can
-   * reach here with beats still owed — the concierge by signalling `done` early
-   * (structured output will happily set it the turn after the kind resolves),
-   * the scripted spine only via a hand-edited state — and an interview that ends
-   * before the activities beat provisions an org with no pages at all. So a
-   * still-missing field turns "finish" into a handoff that asks for it instead.
-   * The handoff always routes through the owed beat, which records its answer,
-   * so this can't loop.
-   */
-  function finishInterview() {
-    const missing = missingFields(draftRef.current);
-    if (missing.length > 0) {
-      // The model called it done with beats still owed — its own judgement,
-      // overruled. Worth counting separately from a failed call: it means the
-      // prompt let go early, not that the service was down.
-      degrade("model-done-early", <>Almost there — a couple of quick ones.</>);
-      return;
-    }
-    dispatch({ type: "interviewDone" });
-    setStage("done");
-    setChips(null);
-    later(() => setShowCta(true), 500);
-  }
-
-  /* ─── Free-text routing (scripted spine) ──────────────────────────────────
-     Every branch is deterministic. The spine is what runs when the model is
-     unavailable, so it must never itself need the model — the one exception is
-     answerMetricText, which only PARSES a typed metric into {name, unit} and has
-     its own titleCase fallback (it can't ask a question or change a page). */
-
-  function onFreeText(text: string) {
-    const s = stageRef.current;
-    if (s === "intro") {
-      answerIntro(text, text);
-    } else if (s === "kind") {
-      // Their own words go to BOTH readers: the kind, and any variant the
-      // sentence actually names. This is what keeps "we're a professional
-      // fraternity" building the same org here as it does under the concierge.
-      answerKind(matchKind(text), text, text);
-    } else if (s === "activities") {
-      // Typed instead of tapped — read the sentence onto the checklist and run
-      // the SAME authoritative submit, so typing and tapping agree. Their own
-      // words are the user bubble, so don't echo a synthesized summary too.
-      push("user", text);
-      const read = readActivities(text);
-      if (read === null) {
-        // Unreadable → re-open the checklist rather than submitting. The submit
-        // is authoritative, so guessing an empty set here would turn every
-        // activity page off on the strength of a sentence we can't parse.
-        reopenActivities();
-      } else if (read.confident) {
-        submitActivities(read.ids, false);
-      } else {
-        // Negatives only ("no parties") — we know what to rule out but never
-        // heard what they DO. Confirm the rest instead of inventing it.
-        const ruledOut = activityLabels(read.off).map(l => l.toLowerCase()).join(", ");
-        reopenActivities(
-          read.ids,
-          <>Got it — no {ruledOut}. I&rsquo;ve ticked the rest; drop anything else that doesn&rsquo;t happen.</>,
-        );
-      }
-    } else if (s === "docs") {
-      answerDocs(matchYesNoAnswer(text), text);
-    } else if (s === "payments") {
-      answerPayments(matchYesNoAnswer(text), text);
-    } else if (s === "door") {
-      answerDoor(matchYesNoAnswer(text), text);
-    } else if (s === "metrics") {
-      void answerMetricText(text);
-    }
-  }
-
-  /**
-   * The internal beat that opens the concierge's transcript.
-   *
-   * On a fresh draft it's simply "say hello and get their name". On a RESTORED
-   * one the model is meeting a conversation already in progress with none of it
-   * in its transcript, so the brief hands it what the draft holds and tells it
-   * not to re-ask. (The per-turn `answers` + `missingFields` priors go with every
-   * request already — this is only about how turn one reads.)
-   */
-  function resumedConciergeBrief(): string {
-    if (!resumed) {
-      return "Warmly greet the founder and invite them to introduce themselves (capture their name into founderName), then get the setup going.";
-    }
+  const finish = useCallback(() => {
     const d = draftRef.current;
-    const known = [
-      d.founderName.trim() && `the founder is ${d.founderName.trim()}`,
-      d.name.trim() && `the org is ${d.name.trim()}`,
-      d.kind && `it is a ${d.kind}`,
-      `pages so far: ${d.enabledWorkflows.join(", ") || "none decided"}`,
-    ].filter(Boolean);
-    return `The founder stepped away and has just come back — you already spoke, but you cannot see that part of the conversation. Already settled: ${known.join("; ")}. Welcome them back in ONE short line, do NOT re-ask anything already settled above, and continue with the first thing in STILL NEEDED.`;
-  }
-
-  /* ─── Boot ────────────────────────────────────────────────────────────── */
-
-  // Idempotent (it REPLACES the transcript) so React StrictMode's dev
-  // double-mount doesn't drop the first question or duplicate the intro. A
-  // founder revisiting a finished interview gets a short recap + CTA instead
-  // of being made to re-answer.
-  useEffect(() => {
-    if (draftRef.current.interviewDone) {
-      setStage("done");
-      setMessages([{ id: nextId.current++, kind: "bot", body: <>We&rsquo;ve already talked — your blueprint is on the right, built from your answers. Head to your roles whenever you&rsquo;re ready.</> }]);
-      setShowCta(true);
-      return;
+    if (!d.interviewDone) {
+      say({ k: "bot", t: `That’s all I need. Here’s ${plain(orgName(d))} as I heard it — tap any line that’s off.` });
+      dispatch({ type: "interviewDone" });
     }
-    // A RESTORED draft mid-interview is a continuation, not a first meeting.
-    // The chat transcript isn't persisted (only the answers are), so without
-    // this a reload replayed "who do I have the pleasure of meeting?" over a
-    // blueprint already listing their org, their words and half their pages —
-    // and re-asked beats the sheet visibly shows as answered.
-    setStage("intro");
-    setChips(null);
-    setShowCta(false);
-    setMessages([
-      {
-        id: nextId.current++,
-        kind: "bot",
-        body: resumed ? (
-          <>Welcome back — I still have everything you told me, on the right. Let&rsquo;s pick up where we left off.</>
-        ) : (
-          <>A few quick questions. Everything you say goes onto the blueprint on the right — you&rsquo;ll review the whole sheet before anything is built.</>
-        ),
-      },
-    ]);
+    setStage("recap");
+  }, [dispatch, say]);
 
-    // Await the probe so we can branch the very first question: an AI-led
-    // concierge opener when configured, else the deterministic scripted spine
-    // (starting with the intro). The concierge's opening turn seeds its
-    // transcript with an internal system beat and lets the model phrase
-    // question #1 itself.
-    // Held from boot until the first question is on screen, so a founder who
-    // clicks into the composer during the probe can't start a turn early.
-    lockTurn();
-    let cancelled = false;
-    void probeInterviewAi().then(enabled => {
-      if (cancelled) return;
-      aiOn.current = enabled;
-      if (enabled) {
-        setMode("ai");
-        convoTranscript.current = [{ role: "q", text: resumedConciergeBrief() }];
-        convoTurns.current = 0;
-        void runConcierge(null);
-      } else {
-        // Scripted: resumeStage() is already the "first thing still owed", so a
-        // resumed draft re-enters at the right beat instead of the intro.
-        later(() => ask(resumed ? resumeStage() : "intro"), 900);
-        setMode("scripted");
-      }
-    });
-    return () => { cancelled = true; };
+  // Open the conversation — or reopen it at the first unanswered beat.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    if (draft.interviewDone) return;
+    const next = nextUnansweredBeat(draft);
+    if (!next) return finish();
+    if (!draft.thread.length) return askBeat(next);
+    const lastQ = [...draft.thread].reverse().find(l => l.k === "q");
+    if (lastQ?.b !== next) {
+      say({ k: "bot", t: "Welcome back — let’s pick up where we left off." });
+      askBeat(next);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The composer disables while a turn is in flight or the interview is over.
-  // This tracks the LATCH, not `typing`: typing clears up to 650ms before the
-  // next question exists, and answers sent into that gap were routed against the
-  // beat that had already been answered.
-  const composerBusy = busy;
-  const composerDone = stage === "done";
-  const placeholder = composerDone
-    ? "That's everything — your blueprint is on the right."
-    : composerBusy
-      ? "One moment…"
-      : mode === "ai"
-        ? "Answer in your own words…"
-        : stage === "intro"
-          ? "Introduce yourself — just your name is plenty…"
-          : stage === "metrics"
-            ? 'Type another measure — e.g. "chapter points"…'
-            : stage === "activities"
-              ? "Or just describe a normal month in your own words…"
-              : "Type your own answer…";
+  /** Echo the answer, show the typing dots, reply, then move on. The answer
+      itself has already been dispatched by the caller. */
+  const respond = useCallback(
+    (userText: string, reply: ((d: Draft) => string | null) | null, flash: CharterSection | null) => {
+      say({ k: "me", t: plain(userText).slice(0, 600) });
+      setStage("typing");
+      if (flash) later(() => onFlash(flash), FLASH_MS);
+      later(() => {
+        const d = draftRef.current;
+        const r = reply?.(d) ?? null;
+        if (r) say({ k: "bot", t: r });
+        later(() => {
+          const next = reask.current ? null : nextUnansweredBeat(draftRef.current);
+          reask.current = null;
+          if (next) askBeat(next);
+          else finish();
+        }, r ? AFTER_REPLY_MS : 0);
+      }, TYPING_MS);
+    },
+    [askBeat, finish, later, onFlash, say],
+  );
 
-  // A short hint that free-text is genuinely read, not just a fallback box.
-  const composerHint =
-    composerDone || composerBusy
-      ? null
-      : mode === "ai"
-        ? "Type a reply, or tap an option"
-        : stage === "activities"
-          ? "Tick everything that applies — or type it"
-          : "Prefer to tap? Use the options above";
+  /** A typed answer that couldn't be read: say so and stay on the beat. */
+  const nudge = useCallback(
+    (userText: string, reply: string) => {
+      say({ k: "me", t: plain(userText).slice(0, 600) });
+      setStage("typing");
+      const beat = stage;
+      later(() => {
+        say({ k: "bot", t: reply });
+        setStage(beat);
+      }, TYPING_MS);
+    },
+    [later, say, stage],
+  );
 
-  function submitDraft() {
-    const value = draftText.trim();
-    if (!value || composerDone) return;
-    // Take the latch AFTER the empty check, so an empty send never strands it.
-    // Synchronous, so a double-click or a click racing an Enter can't both pass.
-    if (!lockTurn()) return;
-    setDraftText("");
-    if (inputRef.current) inputRef.current.style.height = "auto";
-    // In AI mode every answer (typed or tapped) is just a concierge turn; the
-    // scripted spine keeps its per-stage free-text routing.
-    if (modeRef.current === "ai") void runConcierge(value);
-    else void onFreeText(value);
+  /* ── Answers ── */
+
+  function answerIntro(name: string, label: string) {
+    dispatch({ type: "answerIntro", founderName: name });
+    respond(
+      label,
+      () => (name ? `Good to meet you, ${bold(name.split(" ")[0]!)}.` : "Works — I’ll take your name from Google when you sign in."),
+      "foot",
+    );
   }
 
+  function answerKind(kind: KindId, label: string, typed: string | null) {
+    dispatch({ type: "answerKind", kind, text: typed });
+    respond(label, kindReply, "words");
+  }
+
+  function answerRole(title: string, label: string) {
+    dispatch({ type: "answerRole", title });
+    respond(
+      label,
+      d =>
+        title === "Admin"
+          ? `Then your seat is ${bold("Admin")} for now. Everything’s yours until you hand ${bold(defaultFounderTitle(d.kind))} to whoever holds it.`
+          : `${bold(title)} it is. That seat can do everything, and it’s yours.`,
+      "seats",
+    );
+  }
+
+  function answerMonth(ids: string[], label: string) {
+    dispatch({ type: "answerMonth", acts: ids });
+    respond(label, d => monthReply(d, ids), "pages");
+  }
+
+  function answerMoney(v: MoneyAnswer, label: string) {
+    dispatch({ type: "answerMoney", value: v });
+    respond(label, d => moneyReply(d, v), "pages");
+  }
+
+  function answerDocs(v: DocsAnswer, label: string) {
+    dispatch({ type: "answerDocs", value: v });
+    respond(label, () => docsReply(v), "pages");
+  }
+
+  function answerMetrics() {
+    const finance = draft.enabledWorkflows.includes("finance");
+    const flags = { ...metPicks, duesOwed: finance && metPicks.duesOwed };
+    dispatch({ type: "answerMetrics", flags });
+    const labels = [
+      ...BUILTIN_METRIC_IDS.filter(id => flags[id]).map(id => BUILTIN_METRIC_LABEL[id]),
+      ...draft.metrics.custom.map(m => m.name),
+    ];
+    respond(labels.length ? labels.join(", ") : "Nothing for now", null, "metrics");
+  }
+
+  function answerTerm(model: TermModel, pick: number, label: string) {
+    dispatch({ type: "setTerm", model, pick });
+    respond(label, termReply, "words");
+  }
+
+  function edit(beat: InterviewBeat) {
+    if (stage === "typing") return;
+    say({ k: "bot", t: "Sure — let’s fix that." });
+    reask.current = beat;
+    askBeat(beat);
+  }
+
+  function onTyped(raw: string) {
+    const v = raw.trim();
+    if (!v || !isInterviewBeat(stage)) return;
+    switch (stage) {
+      case "intro": {
+        const name = readFounderName(v);
+        return name ? answerIntro(name, v) : nudge(v, "What should everyone call you? Your first and last name is plenty.");
+      }
+      case "kind":
+        return answerKind(matchKind(v), v, v);
+      case "role": {
+        const title = readFounderTitle(v);
+        return title ? answerRole(title, v) : nudge(v, "What’s your title? “President”, “Captain”, “just helping” — anything works.");
+      }
+      case "month": {
+        const read = readActivities(v);
+        if (!read) return nudge(v, "I couldn’t tell which of these happen — tap the ones that do, or say it another way.");
+        if (!read.confident) {
+          setPicks([...read.ids]);
+          const off = monthWords(draft, [...read.off]);
+          return nudge(v, `So everything except ${plain(listy(off))}? Untick anything that’s off, then tap ${bold("That’s our month")}.`);
+        }
+        setPicks([...read.ids]);
+        return answerMonth([...read.ids], v);
+      }
+      case "money": {
+        const m = readMoneyAnswer(v);
+        return m ? answerMoney(m, v) : nudge(v, "No problem — tap whichever is closest. Treasury is one switch in Settings either way.");
+      }
+      case "docs": {
+        const doc = readDocsAnswer(v);
+        return doc ? answerDocs(doc, v) : nudge(v, "Tap whichever is closest — Docs is one switch in Settings either way.");
+      }
+      case "metrics": {
+        const m = matchMetricText(v);
+        if (m.kind === "done") return answerMetrics();
+        if (m.kind === "unreadable") return nudge(v, "I couldn’t turn that into a column — try a short name like “chapter points”.");
+        if (draft.metrics.custom.length >= MAX_CUSTOM_METRICS) {
+          return nudge(v, `That’s the most I can add here — ${MAX_CUSTOM_METRICS} of your own. More in Settings later.`);
+        }
+        dispatch({ type: "addCustomMetric", name: m.name, unit: m.unit });
+        onFlash("metrics");
+        return;
+      }
+      case "term": {
+        const lower = v.toLowerCase();
+        const named = /quarter|trimester|season|year|round|rolling|annual|no term|reset/.test(lower);
+        const model = named ? matchTermModel(v) : draft.term?.model ?? defaultTermModel(draft.kind);
+        const sugs = suggestTerms(model);
+        const pick = Math.max(0, sugs.findIndex(s => lower.includes(s.label.split(" ")[0]!.toLowerCase())));
+        return answerTerm(model, pick, v);
+      }
+    }
+  }
+
+  /* ── Render ── */
+
+  const open = isInterviewBeat(stage);
+  const qi = open ? INTERVIEW_BEATS.indexOf(stage) : -1;
+  const progress =
+    qi >= 0 ? `Question ${qi + 1} of ${INTERVIEW_BEATS.length}` : stage === "recap" ? `All ${INTERVIEW_BEATS.length} answered` : "about 2 minutes";
+  const finance = draft.enabledWorkflows.includes("finance");
+  const widgetCls = freshStage ? " new" : "";
+
+  useEffect(() => {
+    const t = threadRef.current;
+    const last = t?.lastElementChild;
+    if (!last) return;
+    const id = setTimeout(() => {
+      const r = last.getBoundingClientRect();
+      if (r.bottom > window.innerHeight - 150) {
+        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        window.scrollTo({ top: window.scrollY + r.bottom - window.innerHeight + 170, behavior: reduce ? "auto" : "smooth" });
+      }
+    }, 30);
+    return () => clearTimeout(id);
+  }, [draft.thread.length, stage]);
+
   return (
-    <div className="chat-col">
-      <div className="chat" ref={chatRef}>
-        {messages.map(m =>
-          m.kind === "user" ? (
-            <div key={m.id} className="msg user">
-              <div className="m-body">{m.body}</div>
+    <div className="ask convo">
+      <p className="kick">
+        Step 2 · A conversation <span className="chip">{progress}</span>
+      </p>
+      <h1 className="q q--sm">
+        Tell me how{" "}
+        <span className="hi" style={{ ["--mark" as string]: "var(--lilac)" }}>
+          {orgName(draft)}
+        </span>{" "}
+        actually runs.
+      </h1>
+      <p className="lede">
+        Answer like you’d explain it to a new officer. Every answer writes onto the charter, and you can change any of
+        them at the end.
+      </p>
+
+      <div className="thread" ref={threadRef}>
+        {draft.thread.map((m, i) => {
+          const nw = i >= seen.current ? " new" : "";
+          if (m.k === "me") {
+            return (
+              <div key={i} className={`msg me${nw}`}>
+                <p>{m.t}</p>
+              </div>
+            );
+          }
+          return (
+            <div key={i} className={`msg ${m.k}${nw}`}>
+              {m.k === "q" ? (
+                <span className="chapt">
+                  <Ic name="spark" />
+                </span>
+              ) : (
+                <span className="sp" />
+              )}
+              <p>
+                <Rich text={m.t} />
+              </p>
             </div>
-          ) : (
-            <div key={m.id} className={`msg${m.kind === "q" ? " q" : ""}`}>
-              <span className="m-glyph">C</span>
-              <div className="m-body">{m.body}</div>
+          );
+        })}
+
+        {stage === "typing" && (
+          <div className="msg bot new">
+            <span className="sp" />
+            <div className="typing" aria-label="Typing">
+              <i />
+              <i />
+              <i />
             </div>
-          ),
-        )}
-        {typing && (
-          <div className="msg">
-            <span className="m-glyph">C</span>
-            <div className="typing"><i /><i /><i /></div>
-            {slowTurn && <span className="typing-slow">still thinking…</span>}
           </div>
         )}
-        {chips && (
-          <div className="chips">
-            {chips.map(c => (
-              // disabled mirrors the latch so a taken turn LOOKS taken; the ref
-              // inside `once` is what actually stops a double-tap, since this
-              // prop only lands after React commits.
-              <button key={c.label} className="chip" onClick={c.pick} disabled={busy}>
-                {c.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {activityPicks !== null && !typing && (
-          <div className="chips chips-multi">
-            {ACTIVITY_OPTIONS.map(o => (
-              <button
-                key={o.id}
-                className={`chip${activityPicks.has(o.id) ? " sel" : ""}`}
-                aria-pressed={activityPicks.has(o.id)}
-                onClick={() => toggleActivity(o.id)}
-              >
-                {o.label}
-              </button>
-            ))}
-            <button
-              className="chip go"
-              onClick={once(() => submitActivities(activityPicks, true))}
-              disabled={busy}
-            >
-              Done →
+
+        {stage === "intro" && (
+          <div className={`opts${widgetCls}`}>
+            <button type="button" className="opt" onClick={() => answerIntro("", "Use my Google name")}>
+              Use my Google name
             </button>
           </div>
         )}
-        {mode === "scripted" && stage === "metrics" && !typing && (
-          <div className="chips chips-multi">
-            {BUILTIN_METRIC_IDS.map(id => (
-              <button
-                key={id}
-                className={`chip${draft.metrics[id] ? " sel" : ""}`}
-                aria-pressed={draft.metrics[id]}
-                onClick={() => toggleMetric(id)}
-              >
-                {BUILTIN_METRIC_LABEL[id]}
+
+        {stage === "kind" && (
+          <div className={`opts${widgetCls}`}>
+            {KIND_IDS.map(k => (
+              <button key={k} type="button" className="opt" onClick={() => answerKind(k, KIND_CHIP[k], null)}>
+                {KIND_CHIP[k]}
               </button>
             ))}
-            {draft.metrics.custom.map((m, i) => (
-              <button
-                key={`${m.name}-${i}`}
-                className="chip sel custom"
-                title="Remove"
-                onClick={() => dispatch({ type: "removeCustomMetric", index: i })}
-              >
-                {m.name}
-                {m.unit ? ` (${m.unit})` : ""}
-                <span className="chip-x">×</span>
+          </div>
+        )}
+
+        {stage === "role" && (
+          <div className={`opts${widgetCls}`}>
+            {titleChoices(draft).map(t => (
+              <button key={t} type="button" className="opt" onClick={() => answerRole(t, t)}>
+                {t}
               </button>
             ))}
-            <button className="chip" onClick={() => inputRef.current?.focus()}>
-              Something else…
-            </button>
-            <button className="chip go" onClick={once(() => answerMetricsDone())} disabled={busy}>
-              Done →
+            <button type="button" className="opt" onClick={() => answerRole("Admin", "Just setting it up for us")}>
+              Just setting it up for us
             </button>
           </div>
         )}
-        {showCta && (
-          <button className="cta chat-cta" onClick={onDone}>
-            Set up your roles<span>→</span>
-          </button>
+
+        {stage === "month" && (
+          <div className={`acts${widgetCls}`}>
+            {ACTIVITY_IDS.map(id => {
+              const meta = ACTIVITY_META[id]!;
+              const on = picks.includes(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`act t-${meta.tone}`}
+                  style={{ ["--p-hs" as string]: `var(--${meta.tone})` }}
+                  aria-pressed={on}
+                  onClick={() => setPicks(p => (on ? p.filter(x => x !== id) : [...p, id]))}
+                >
+                  <span className="tile">
+                    <Ic name={meta.icon} />
+                  </span>
+                  <span>{activityLabel(draft, id)}</span>
+                  <span className="bx">
+                    <Ic name="check" />
+                  </span>
+                </button>
+              );
+            })}
+            <div className="acts-go">
+              <button
+                type="button"
+                className="btn"
+                onClick={() =>
+                  answerMonth(
+                    [...picks],
+                    picks.length ? ACTIVITY_IDS.filter(id => picks.includes(id)).map(id => activityLabel(draft, id)).join(", ") : "None of these, really",
+                  )
+                }
+              >
+                {picks.length ? "That’s our month" : "None of these, really"}
+                <Ic name="arrow-r" />
+              </button>
+            </div>
+          </div>
         )}
+
+        {stage === "money" && (
+          <div className={`opts${widgetCls}`}>
+            {MONEY_CHIPS.map(([v, l]) => (
+              <button key={v} type="button" className="opt" onClick={() => answerMoney(v, l)}>
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {stage === "docs" && (
+          <div className={`opts${widgetCls}`}>
+            {DOCS_CHIPS.map(([v, l]) => (
+              <button key={v} type="button" className="opt" onClick={() => answerDocs(v, l)}>
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {stage === "metrics" && (
+          <>
+            <div className={`opts${widgetCls}`}>
+              {BUILTIN_METRIC_IDS.filter(id => id !== "duesOwed" || finance).map(id => (
+                <button
+                  key={id}
+                  type="button"
+                  className="opt"
+                  aria-pressed={metPicks[id]}
+                  onClick={() => setMetPicks(m => ({ ...m, [id]: !m[id] }))}
+                >
+                  {id === "duesOwed" ? `${draftVocab(draft, "Dues")} owed` : BUILTIN_METRIC_LABEL[id]}
+                </button>
+              ))}
+              {draft.metrics.custom.map((c, i) => (
+                <button
+                  key={`${c.name}-${i}`}
+                  type="button"
+                  className="opt soft"
+                  aria-pressed="true"
+                  title="Remove"
+                  onClick={() => dispatch({ type: "removeCustomMetric", index: i })}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+            <div className={`donebar${widgetCls}`}>
+              <button type="button" className="btn" onClick={answerMetrics}>
+                Track these
+                <Ic name="arrow-r" />
+              </button>
+              <span className="note">Type below to add your own — “chapter points”, “rush interviews”…</span>
+            </div>
+          </>
+        )}
+
+        {stage === "term" && <TermChips draft={draft} cls={widgetCls} onPick={answerTerm} />}
+
+        {stage === "recap" && <Recap draft={draft} founderFallback={founderFallback} onEdit={edit} onDone={onDone} />}
       </div>
-      <div className="chat-foot">
-        <div className={`composer${composerBusy ? " busy" : ""}${composerDone ? " done" : ""}`}>
-          <textarea
-            ref={inputRef}
-            className="free"
-            rows={1}
-            value={draftText}
-            placeholder={placeholder}
-            disabled={composerDone}
-            onChange={e => {
-              setDraftText(e.target.value);
-              // Auto-grow: reset then track content, capped so the chat stays
-              // the focus. The cap matches the max-height in CSS.
-              const el = e.target;
-              el.style.height = "auto";
-              el.style.height = `${Math.min(el.scrollHeight, 128)}px`;
-            }}
-            onKeyDown={e => {
-              // Enter sends; Shift+Enter (or a busy/done composer) inserts a
-              // newline / does nothing — never eats the keystroke silently.
-              if (e.key !== "Enter" || e.shiftKey) return;
-              e.preventDefault();
-              submitDraft();
-            }}
-            aria-label="Type your own answer"
+
+      {stage !== "recap" && (
+        <form
+          className={`compose${open ? "" : " off"}`}
+          autoComplete="off"
+          onSubmit={e => {
+            e.preventDefault();
+            const v = text;
+            setText("");
+            onTyped(v);
+          }}
+        >
+          <input
+            aria-label="Your answer"
+            value={text}
+            maxLength={300}
+            placeholder={open ? PLACEHOLDER[stage] : "…"}
+            onChange={e => setText(e.target.value)}
+            disabled={!open}
           />
-          <button
-            type="button"
-            className="send"
-            onClick={submitDraft}
-            disabled={composerBusy || composerDone || !draftText.trim()}
-            aria-label="Send"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M4 12h13M11 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <button className="send" type="submit" aria-label="Send" disabled={!open || !text.trim()}>
+            <Ic name="send" />
           </button>
-        </div>
-        {composerHint && <p className="composer-hint">{composerHint}</p>}
+        </form>
+      )}
+    </div>
+  );
+}
+
+function flagsOf(d: Draft): BuiltinMetricFlags {
+  return {
+    attendance:   d.metrics.attendance,
+    gpa:          d.metrics.gpa,
+    duesOwed:     d.metrics.duesOwed,
+    serviceHours: d.metrics.serviceHours,
+  };
+}
+
+function TermChips({
+  draft,
+  cls,
+  onPick,
+}: {
+  draft: Draft;
+  cls: string;
+  onPick: (model: TermModel, pick: number, label: string) => void;
+}) {
+  const model = draft.term?.model ?? defaultTermModel(draft.kind);
+  const sugs = suggestTerms(model).slice(0, 2);
+  const others = TERM_MODELS.filter(m => m !== model);
+  return (
+    <div className={`opts${cls}`}>
+      {sugs.map((s, i) => (
+        <button key={s.label} type="button" className="opt" onClick={() => onPick(model, i, s.label)}>
+          {s.label}{" "}
+          <small className="tsm">
+            {fmtDay(s.startDate)} – {fmtDay(s.endDate)}
+          </small>
+        </button>
+      ))}
+      {others.map(m => {
+        const label = m === "year-round" ? "We run year-round" : `We use ${TERM_PERIOD_VOCAB[m].toLowerCase()}s`;
+        return (
+          <button key={m} type="button" className="opt soft" onClick={() => onPick(m, 0, label)}>
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Recap({
+  draft,
+  founderFallback,
+  onEdit,
+  onDone,
+}: {
+  draft: Draft;
+  founderFallback: string | null;
+  onEdit: (beat: InterviewBeat) => void;
+  onDone: () => void;
+}) {
+  const a = draft.answers;
+  const kind = draft.kind ?? "other";
+  const variant = getVariant(kind, draft.variant);
+  const member = draftVocab(draft, "Member");
+  const founder = draft.founderName.trim() || founderFallback || "";
+  const founderSeat = draft.seats.find(s => s.all);
+  const tracked = trackedLabels(draft);
+  const treasury = draftVocab(draft, "Treasury");
+
+  const lines: [InterviewBeat, React.ReactNode][] = [
+    ["intro", founder ? <>You’re <b>{founder}</b></> : <>You’ll sign in with Google — your name comes from there</>],
+    [
+      "kind",
+      <>
+        <b>{orgName(draft)}</b> is {KIND_LABEL[kind].toLowerCase()}
+        {variant ? ` — the ${variant.label.replace(/^an? /i, "").toLowerCase()} kind` : ""}
+        {member !== "Member" ? ` — ${plural(member)}, ${draftVocab(draft, "Meetings")}` : ""}
+      </>,
+    ],
+    ["role", <>You hold the <b>{founderSeat?.title ?? defaultFounderTitle(draft.kind)}</b> seat</>],
+    [
+      "month",
+      a.acts?.length ? <>A normal month: {listy(monthWords(draft, a.acts))}</> : <>A quiet month — roster and timeline only</>,
+    ],
+    [
+      "money",
+      a.money === "none" ? (
+        <>No money changes hands</>
+      ) : (
+        <>
+          {a.money === "some" ? "Money now and then" : "Money moves regularly"} — <b>{treasury}</b> is on
+        </>
+      ),
+    ],
+    [
+      "docs",
+      a.docs === "none" ? (
+        <>No shared files</>
+      ) : a.docs === "scattered" ? (
+        <>Scattered files get one home in <b>Docs</b></>
+      ) : (
+        <>Shared files and links get a <b>Docs</b> page</>
+      ),
+    ],
+    [
+      "metrics",
+      tracked.length ? (
+        <>
+          Tracking <b>{listy(tracked.map(x => (x === "GPA" ? x : x.toLowerCase())))}</b> per {member.toLowerCase()}
+        </>
+      ) : (
+        <>Nothing tracked per {member.toLowerCase()}</>
+      ),
+    ],
+    [
+      "term",
+      draft.term ? (
+        <>
+          Starting in <b>{draft.term.label}</b> · {fmtDay(draft.term.startDate)} – {fmtDay(draft.term.endDate)}
+        </>
+      ) : (
+        <>No term yet</>
+      ),
+    ],
+  ];
+
+  return (
+    <div className="recap new">
+      <p className="rk-h">
+        <Ic name="clip" />
+        {orgName(draft)}, as I heard it
+      </p>
+      <ol>
+        {lines.map(([beat, node]) => (
+          <li key={beat}>
+            <span className="rt">{node}</span>
+            <button type="button" className="rc" onClick={() => onEdit(beat)}>
+              Change
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div className="recap-go">
+        <button type="button" className="btn btn--lg" onClick={onDone}>
+          That’s us — who can do what
+          <Ic name="arrow-r" />
+        </button>
       </div>
     </div>
   );

@@ -1,0 +1,148 @@
+/* ==========================================================================
+   /[slug]/onboarding — the founder's first frame (_design/Org Creation Paper
+   Mock.html, "first frame"). Scoped under .ocw with its own paper tokens so it
+   reads the same under either app aesthetic; day/night follows the app theme
+   (html[data-theme="dusk"] is night).
+   ========================================================================== */
+
+.ocw{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --r-md:16px; --r-lg:22px;
+  --sans:var(--font-inter), 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --display:var(--font-bricolage), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --mono:var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+
+  min-height:100%; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased;
+  animation:ocw-fade .6s var(--ease-out) both;
+}
+html[data-theme="dusk"] .ocw{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --note-filter:brightness(.93) saturate(.85); --mark-op:.42;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+}
+@keyframes ocw-fade{from{opacity:0} to{opacity:1}}
+
+.ocw *, .ocw *::before, .ocw *::after{box-sizing:border-box}
+.ocw h1, .ocw h3, .ocw h4, .ocw p, .ocw ol{margin:0}
+.ocw ol{padding:0; list-style:none}
+.ocw a{color:inherit}
+.ocw svg{display:block}
+.ocw .ic{width:16px; height:16px; flex:none}
+
+.ocw .wrap{max-width:1080px; margin:0 auto; padding:clamp(26px,3.4vw,44px) clamp(16px,3vw,44px) 110px}
+
+.ocw .kick{display:inline-flex; align-items:center; gap:9px; font-family:var(--mono); font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.ocw .kick .chip{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2); letter-spacing:.06em}
+
+.ocw .hi{position:relative; white-space:nowrap; z-index:0}
+.ocw .hi::before{
+  content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em;
+  background:var(--mint); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg); transform-origin:left center; opacity:var(--mark-op);
+}
+
+.ocw .greet{font-family:var(--display); font-weight:600; letter-spacing:-.032em; line-height:1.04; font-size:clamp(2.05rem,3.7vw,3.05rem); margin-top:14px; display:flex; flex-wrap:wrap; align-items:center; gap:0 .28em}
+.ocw .wave{display:inline-block; width:.82em; height:.82em; color:var(--butter-ink); transform-origin:70% 85%; animation:ocw-wave 1.6s var(--ease-out) .55s 1 both}
+.ocw .wave .wv{width:100%; height:100%}
+@keyframes ocw-wave{0%{transform:rotate(0)}15%{transform:rotate(16deg)}30%{transform:rotate(-8deg)}45%{transform:rotate(14deg)}60%{transform:rotate(-4deg)}75%{transform:rotate(9deg)}100%{transform:rotate(0)}}
+.ocw .digest{margin-top:14px; font-size:1.02rem; line-height:1.55; color:var(--ink-2); max-width:62ch}
+.ocw .digest b{color:var(--ink); font-weight:600}
+
+.ocw .fe-grid{margin-top:30px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,380px); gap:22px; align-items:start}
+.ocw .card{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); min-width:0}
+.ocw .card-h{display:flex; align-items:center; gap:11px; padding:16px 18px 12px}
+.ocw .card-h h3{font-family:var(--display); font-size:1.08rem; font-weight:600; letter-spacing:-.022em}
+.ocw .tile{width:32px; height:32px; flex:none; border-radius:10px; display:grid; place-items:center; background:var(--p-bg); border:1.5px solid var(--p-bd); color:var(--p-fg)}
+.ocw .card-b{padding:0 18px 18px}
+
+.ocw .pill{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:.74rem; font-weight:600; white-space:nowrap; background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2)); border:1px solid var(--p-bd, var(--line))}
+.ocw .t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd)}
+.ocw .t-butter{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd)}
+
+.ocw .fw{display:grid; gap:8px}
+.ocw .fw li{border:1.5px solid var(--line); border-radius:var(--r-md); transition:border-color .18s, box-shadow .2s var(--ease-spring), transform .2s var(--ease-spring)}
+.ocw .fw li > a, .ocw .fw li > div{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:12px; align-items:center; padding:11px 12px; text-decoration:none}
+.ocw .fw li > a:hover{color:inherit}
+.ocw .fw li:has(> a):hover{border-color:var(--ink-3); transform:translateY(-1px)}
+.ocw .fw .tk{width:26px; height:26px; border-radius:50%; display:grid; place-items:center; border:1.5px dashed var(--line-2); color:var(--ink-3); font-family:var(--mono); font-size:.68rem; font-weight:600}
+.ocw .fw .tk .ic{width:12px; height:12px}
+.ocw .fw .go{color:var(--ink-3)}
+.ocw .fw li.done{background:var(--mint-soft); border-color:var(--mint-bd)}
+.ocw .fw li.done .tk{border-style:solid; border-color:var(--mint-ink); background:var(--card); color:var(--mint-ink)}
+.ocw .fw li.done .t{text-decoration:line-through; text-decoration-color:var(--mint-ink); color:var(--ink-2)}
+.ocw .fw li.next{border-color:var(--ink); box-shadow:3px 3px 0 var(--butter)}
+.ocw .fw .t{display:block; font-size:.92rem; font-weight:600; line-height:1.3}
+.ocw .fw .m{display:block; font-size:.78rem; color:var(--ink-3); margin-top:2px}
+
+.ocw .btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font:inherit; font-weight:600; font-size:.88rem; letter-spacing:-.01em;
+  box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap; cursor:pointer;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.ocw .btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.ocw .btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.ocw .btn:disabled{opacity:.55; pointer-events:none}
+.ocw .btn .ic{width:15px; height:15px}
+.ocw .btn--sm{padding:6px 12px; font-size:.8rem; box-shadow:2px 2px 0 var(--hs)}
+
+/* the invite: a taped sky note */
+.ocw .inv{position:relative; padding:18px; border-radius:var(--r-lg); background:var(--sky); color:var(--note-ink); filter:var(--note-filter); transform:rotate(.6deg); box-shadow:var(--sh-2)}
+.ocw .inv::after{content:''; position:absolute; left:50%; top:-8px; width:58px; height:16px; transform:translateX(-50%) rotate(3deg); background:rgba(255,255,255,.5); border-inline:1px dashed rgba(38,33,27,.16)}
+.ocw .inv .k{font-family:var(--mono); font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; opacity:.7}
+.ocw .inv h4{margin-top:4px; font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.025em; line-height:1.15}
+.ocw .inv > p{margin-top:6px; font-size:.86rem; line-height:1.5; opacity:.85}
+.ocw .inv .btn{--bg:var(--note-ink); --fg:#FFFCF6; border-color:var(--note-ink); --hs:rgba(38,33,27,.22)}
+.ocw .inv .makelink{margin-top:13px}
+.ocw .linkchip{margin-top:13px; display:flex; align-items:center; gap:8px; padding:5px 5px 5px 13px; border-radius:999px; border:1.5px solid var(--note-ink); background:rgba(255,255,255,.65)}
+.ocw .linkchip code{font-family:var(--mono); font-size:.76rem; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ocw .inv .rv{margin-top:12px; display:flex; gap:8px; align-items:flex-start; font-size:.78rem; line-height:1.45; opacity:.8}
+.ocw .inv .rv .ic{width:14px; height:14px; margin-top:2px}
+.ocw .inv .exp{font-family:var(--mono); font-size:.68rem; opacity:.7}
+.ocw .inv .err{font-size:.8rem; font-weight:600; color:#9A2F2F; opacity:1}
+
+.ocw .out{margin-top:18px; display:flex; flex-direction:column; gap:8px}
+.ocw .out a{display:flex; align-items:center; gap:9px; padding:11px 14px; border-radius:var(--r-md); border:1.5px dashed var(--line-2); text-decoration:none; font-size:.86rem; font-weight:600; color:var(--ink-2)}
+.ocw .out a:hover{border-style:solid; border-color:var(--ink); color:var(--ink)}
+.ocw .out a .ic{width:15px; height:15px}
+.ocw .out a .ic:last-child{margin-left:auto}
+
+@media (max-width:960px){
+  .ocw .fe-grid{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion: reduce){
+  .ocw, .ocw .wave{animation:none}
+}
+
+/* loading: quiet paper lines, never a guessed greeting */
+.ocw .skel{display:block; height:12px; border-radius:6px; background:var(--paper-3); animation:ocw-pulse 1.4s ease-in-out infinite}
+.ocw .skel--k{width:120px}
+.ocw .skel--h{width:min(520px,80%); height:44px; margin-top:16px; border-radius:10px}
+.ocw .skel--p{width:min(420px,70%); margin-top:16px}
+@keyframes ocw-pulse{50%{opacity:.55}}

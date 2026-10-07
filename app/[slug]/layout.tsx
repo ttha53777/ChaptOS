@@ -118,12 +118,10 @@ export default async function OrgLayout({
     return <NeedsInvite slug={slug} homeSlug={homeSlug} />;
   }
 
-  // The post-create onboarding wizard is RETIRED. Setup now happens
-  // pre-creation: the founder reviews a blueprint (workflows/vocab/roles) and
-  // provisionOrg applies it atomically, stamping onboardingCompletedAt at
-  // creation. So new orgs are always "complete", legacy orgs were backfilled to
-  // createdAt, and /[slug]/onboarding just redirects here. There is nothing left
-  // to gate on — a founder lands straight in the workspace on first entry.
+  // There is no post-create setup to gate on: the founder reviews a charter
+  // (pages/words/seats/term) pre-creation and provisionOrg applies it
+  // atomically, stamping onboardingCompletedAt at creation. /[slug]/onboarding
+  // is just the day-one welcome /create lands them on, not a wizard.
 
   // Authorized, and org resolution already followed the URL slug (we passed it to
   // requireUser), so this page renders the right org's data now — no reload.

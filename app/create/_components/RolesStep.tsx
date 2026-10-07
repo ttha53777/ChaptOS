@@ -1,264 +1,246 @@
 "use client";
 
 /**
- * Step 3 — YOUR ROLES. Stacked role cards: renameable titles, workflow-gated
- * ability pills (whole-area grants), an Advanced disclosure of the individual
- * MANAGE_* flags, a hover peek of the concrete grants, a per-card delete, and
- * "+ Add a seat" pulling from the org type's seat pool.
+ * Step 3 — WHO CAN DO WHAT. Seats are name badges: a pastel header with an
+ * editable title, ability stickers (plain-language areas, never bitfields), the
+ * auto-written "Can …" line, and who holds it. Seats aren't people yet — they
+ * are handed out once members join.
  *
- * Every seat is deletable EXCEPT the full-authority founder one, which renders
- * a YOU badge where the others render their ×. That is the invariant this step
- * guards: an org must keep at least one role that can do everything, or the
- * workspace it provisions has no one who can administer it. The reducer
- * (removeSeat) refuses the same case, so a synthetic click can't route around
- * the missing button.
- *
- * Holder-name inputs were cut (no invite step — seats describe authority, not
- * people).
+ * Abilities only appear for pages the org is using (lib/onboarding/perm-areas'
+ * gates), so turning Treasury on is what makes "Money" grantable.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Draft } from "@/lib/onboarding/draft";
-import { KIND_LABEL } from "@/lib/onboarding/kinds";
-import {
-  activeAreas,
-  areaState,
-  roleSummary,
-  AREA_DESC,
-  PERM_LABELS,
-  type PermArea,
-} from "@/lib/onboarding/perm-areas";
-import { SEAT_POOL, roleToneIvory, type Seat } from "@/lib/onboarding/seats";
-import { KIND_TO_TYPE } from "@/lib/onboarding/kinds";
-import type { WorkflowId } from "@/lib/org-types";
-import { monogram, wfSet, type FlowAction } from "./flow-state";
-import { AreaIcon } from "./icons";
+import { KIND_LABEL, KIND_TO_TYPE } from "@/lib/onboarding/kinds";
+import { PERM_LABELS, activeAreas, areaState, type PermArea } from "@/lib/onboarding/perm-areas";
+import { ROLE_COLORS, SEAT_POOL, type Seat } from "@/lib/onboarding/seats";
+import { wfSet, type FlowAction } from "./flow-state";
+import { AREA_META, Ic, initials, listy, orgName, seatTone } from "./paper";
 
-/** Click-to-rename inline title (mock's .rc-title behavior). */
-function RenameTitle({
-  value,
-  className,
-  onRename,
-  disabled,
-}: {
-  value: string;
-  className: string;
-  onRename: (title: string) => void;
-  disabled?: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  if (disabled) return <span className={className}>{value}</span>;
-  if (!editing) {
-    return (
-      <span className={className} title="Click to rename" onClick={() => setEditing(true)}>
-        {value}
-      </span>
-    );
-  }
-  return (
-    <span className={className}>
-      <input
-        defaultValue={value}
-        autoFocus
-        onFocus={e => e.target.select()}
-        onBlur={e => {
-          onRename(e.target.value);
-          setEditing(false);
-        }}
-        onKeyDown={e => {
-          if (e.key === "Enter") e.currentTarget.blur();
-        }}
-        aria-label="Role name"
-      />
-    </span>
-  );
+const NOUN: Record<string, string> = {
+  fraternity: "chapters", sorority: "chapters", club: "clubs", team: "teams",
+  service: "orgs", honor: "societies", arts: "companies", other: "orgs",
+};
+const ROT = [-0.8, 0.6, -0.4, 0.9, -0.6];
+
+function canLine(seat: Seat, areas: PermArea[]): string | null {
+  const on = areas.filter(a => areaState(seat.permissions, a) !== "off").map(a => AREA_META[a.id].can);
+  if (!on.length) return null;
+  return `Can ${listy(on)}.`;
 }
 
-/** The hover peek: exactly what this seat can do, grouped by area. */
-function Peek({ seat, areas, enabled }: { seat: Seat; areas: PermArea[]; enabled: ReadonlySet<WorkflowId> }) {
-  const groups = areas
-    .map(area => {
-      const perms = seat.all ? [...area.perms] : area.perms.filter(p => seat.permissions.includes(p));
-      return perms.length ? { area, labels: perms.map(p => PERM_LABELS[p]) } : null;
-    })
-    .filter((g): g is NonNullable<typeof g> => g !== null);
+/** A title input that keeps its own text while it's being retyped — the reducer
+    refuses an empty title, which would otherwise make the field un-clearable. */
+function TitleInput({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
   return (
-    <div className="rc-peek">
-      <div className="rc-peek-head">
-        <span className="rc-peek-title"><em>{seat.title}</em></span>
-        <span className="rc-peek-who">{seat.all ? "YOU" : "Unassigned"}</span>
-      </div>
-      <div className="rc-peek-sum">{roleSummary(seat.permissions, enabled, seat.all)}</div>
-      {groups.length ? (
-        <>
-          <div className="rc-peek-lab">Can do</div>
-          <div className="rc-peek-areas">
-            {groups.map(g => (
-              <div key={g.area.id} className="rc-peek-area">
-                <AreaIcon id={g.area.id} />
-                <div className="txt">
-                  <div className="an">{g.area.label}</div>
-                  <div className="al">{g.labels.join(" · ")}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="rc-peek-none">
-          No admin abilities yet — this seat can see the workspace but can&rsquo;t change it. Tap a pill to grant one.
-        </div>
-      )}
-    </div>
+    <input
+      className={`bd-title${text.length > 16 ? " long" : ""}`}
+      value={text}
+      maxLength={60}
+      aria-label="Seat title"
+      placeholder="Name this seat"
+      onChange={e => {
+        setText(e.target.value);
+        if (e.target.value.trim()) onCommit(e.target.value);
+      }}
+      onBlur={() => {
+        if (!text.trim()) setText(value);
+      }}
+    />
   );
 }
 
 export function RolesStep({
   draft,
   dispatch,
+  founderFallback,
   onContinue,
 }: {
   draft: Draft;
   dispatch: React.Dispatch<FlowAction>;
+  founderFallback: string | null;
   onContinue: () => void;
 }) {
-  const enabled = wfSet(draft);
-  const areas = activeAreas(enabled);
-  const orgType = KIND_TO_TYPE[draft.kind ?? "fraternity"];
-  const pool = (SEAT_POOL[orgType] ?? []).filter(p => !draft.seats.some(s => s.title === p.title));
-  const kindLabel = draft.kind ? KIND_LABEL[draft.kind].toLowerCase() : "your organization";
+  const [own, setOwn] = useState("");
+  const kind = draft.kind ?? "other";
+  const areas = activeAreas(wfSet(draft));
+  const used = new Set(draft.seats.map(s => s.title.toLowerCase()));
+  const pool = (SEAT_POOL[KIND_TO_TYPE[kind]] ?? []).filter(p => !used.has(p.title.toLowerCase()));
+  const founder = draft.founderName.trim() || founderFallback || "";
+  const full = draft.seats.length >= 16;
+
+  function addOwn() {
+    const title = own.trim().slice(0, 60);
+    if (!title || full) return;
+    dispatch({ type: "addSeat", seat: { title, color: ROLE_COLORS[draft.seats.length % ROLE_COLORS.length]!, permissions: [] } });
+    setOwn("");
+  }
 
   return (
-    <div className="bp roles">
-      <div className="bp-head">
-        <p className="kicker">Your roles — who can do what</p>
-        <h1 className="q-serif">
-          Who can do what at <em>{draft.name.trim() || "your organization"}</em>?
+    <>
+      <div className="ask">
+        <p className="kick">
+          Step 3 · Who can do what <span className="chip">{draft.seats.length} seats</span>
+        </p>
+        <h1 className="q q--sm">
+          Who can do what at{" "}
+          <span className="hi" style={{ ["--mark" as string]: "var(--sky)" }}>
+            {orgName(draft)}
+          </span>
+          ?
         </h1>
-        <p className="bp-sub">
-          I set these roles up for {kindLabel} — each already does its job. Tap a pill to add or
-          remove an ability, or just leave them.
+        <p className="lede">
+          I set these up for {KIND_LABEL[kind].toLowerCase()} — each one already does its job. Tap a sticker to add or
+          take away an ability, rename a seat, or just leave them. <b>Seats aren’t people yet:</b> you hand them out after
+          everyone joins.
         </p>
       </div>
-      <div className="roles-stack">
-        {draft.seats.map((seat, i) => {
-          const founder = !!seat.all;
+
+      <div className="seats">
+        {draft.seats.map((s, i) => {
+          const cl = s.all ? null : canLine(s, areas);
+          const granted = s.all ? areas : areas.filter(a => areaState(s.permissions, a) !== "off");
+          const fine = granted.flatMap(a => a.perms.filter(p => s.all || s.permissions.includes(p)).map(p => PERM_LABELS[p]));
           return (
-            <div
-              key={`${i}-${seat.title}`}
-              className={`role-card${founder ? " founder" : ""}`}
-              style={{
-                ["--rc-dusk" as string]: seat.color,
-                ["--rc-ivory" as string]: roleToneIvory(seat.color),
-                animationDelay: `${i * 60}ms`,
-              }}
+            <article
+              key={i}
+              className="badge"
+              style={{ ["--sc" as string]: `var(--${seatTone(s.color, i)})`, ["--rot" as string]: `${ROT[i % ROT.length]}deg` }}
             >
-              <div className="rc-head">
-                <span className="rc-avatar">{monogram(seat.title)}</span>
-                <div className="rc-namecol">
-                  <RenameTitle
-                    value={seat.title}
-                    className="rc-title"
-                    disabled={founder}
-                    onRename={title => dispatch({ type: "renameSeat", index: i, title })}
-                  />
-                  <span className="rc-summary">{roleSummary(seat.permissions, enabled, seat.all)}</span>
+              <div className="bd-top">
+                <p className="k">
+                  {s.all ? "Founder’s seat" : `Seat ${String(i + 1).padStart(2, "0")}`}
+                  {!s.all && (
+                    <button type="button" className="del" aria-label={`Remove ${s.title}`} onClick={() => dispatch({ type: "removeSeat", index: i })}>
+                      <Ic name="trash" />
+                    </button>
+                  )}
+                </p>
+                <TitleInput value={s.title} onCommit={title => dispatch({ type: "renameSeat", index: i, title })} />
+              </div>
+              <div className="bd-b">
+                <p className="k2">Can handle</p>
+                <div className="abs">
+                  {areas.map(a => {
+                    const meta = AREA_META[a.id];
+                    const pressed = !!s.all || areaState(s.permissions, a) !== "off";
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={`ab t-${meta.tone}`}
+                        style={{ ["--p-hs" as string]: `var(--${meta.tone})` }}
+                        aria-pressed={pressed}
+                        disabled={!!s.all}
+                        onClick={() => dispatch({ type: "toggleSeatArea", index: i, areaId: a.id })}
+                      >
+                        <Ic name={pressed ? "check" : meta.icon} />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                {founder ? (
-                  <span className="rc-you">YOU</span>
-                ) : (
-                  <button
-                    className="rc-x"
-                    title={`Delete ${seat.title}`}
-                    aria-label={`Delete ${seat.title}`}
-                    onClick={() => dispatch({ type: "removeSeat", index: i })}
-                  >
-                    ×
-                  </button>
+                <p className={`can${s.all || cl ? "" : " none"}`}>
+                  {s.all ? (
+                    <>
+                      <b>Everything.</b> Full authority — it’s the founder’s seat, and it’s yours.
+                    </>
+                  ) : (
+                    cl ?? "No abilities yet — this seat would be a title only."
+                  )}
+                </p>
+                {fine.length > 0 && (
+                  <details className="fine">
+                    <summary>
+                      <Ic name="chev-r" />
+                      Exactly what that means
+                    </summary>
+                    <ul>
+                      {fine.map(f => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </div>
-              <div className="pill-row">
-                {areas.map(area => {
-                  const st = founder ? "on" : areaState(seat.permissions, area);
-                  return (
-                    <button
-                      key={area.id}
-                      className={`pill ${st}`}
-                      onClick={
-                        founder
-                          ? undefined
-                          : () => dispatch({ type: "toggleSeatArea", index: i, areaId: area.id })
-                      }
-                      aria-pressed={st !== "off"}
-                    >
-                      <AreaIcon id={area.id} />
-                      {area.label}
-                      {st === "partial" && <span className="part-dot">•</span>}
-                      <span className="pill-tip" role="tooltip">{AREA_DESC[area.id]}</span>
-                    </button>
-                  );
-                })}
+              <div className="bd-f">
+                {s.all ? (
+                  <>
+                    <span className="avatar" style={{ ["--av" as string]: "var(--peach)" }}>
+                      {initials(founder) || "★"}
+                    </span>
+                    <span>
+                      Held by <b>you</b>
+                      {founder ? ` — ${founder}` : ""}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="avatar avatar--ghost">?</span>
+                    Open — you’ll hand it out once people join
+                  </>
+                )}
               </div>
-              {founder ? (
-                <p className="rc-founder-note">
-                  The founder seat holds <b>full authority</b> and can delegate every role — you can
-                  hand it off in Settings later.
-                </p>
-              ) : (
-                <details className="rc-adv">
-                  <summary>Advanced — fine-tune each ability</summary>
-                  {areas.map(area => (
-                    <div key={area.id} className="adv-area">
-                      <h6>
-                        <AreaIcon id={area.id} />
-                        {area.label}
-                      </h6>
-                      <div className="adv-abils">
-                        {area.perms.map(p => {
-                          const on = seat.permissions.includes(p);
-                          return (
-                            <button
-                              key={p}
-                              className={`abil${on ? " on" : ""}`}
-                              onClick={() => dispatch({ type: "toggleSeatPerm", index: i, perm: p })}
-                              aria-pressed={on}
-                            >
-                              <span className="ac">{on ? "✓" : ""}</span>
-                              {PERM_LABELS[p]}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </details>
-              )}
-              <Peek seat={seat} areas={areas} enabled={enabled} />
-            </div>
+            </article>
           );
         })}
+
+        <article className="badge badge--add">
+          <h4>
+            <Ic name="plus" />
+            Add a seat
+          </h4>
+          <p>Offices {NOUN[kind]} like yours often add.</p>
+          <div className="pool">
+            {!full &&
+              pool.map((p, i) => (
+                <button
+                  key={p.title}
+                  type="button"
+                  style={{ ["--sc" as string]: `var(--${seatTone(p.color, draft.seats.length + i)})` }}
+                  onClick={() => dispatch({ type: "addSeat", seat: { title: p.title, color: p.color, permissions: [...p.permissions] } })}
+                >
+                  <i />
+                  <span>
+                    <b>{p.title}</b> <small>{p.able}</small>
+                  </span>
+                  <Ic name="plus" />
+                </button>
+              ))}
+            <form
+              className="own"
+              onSubmit={e => {
+                e.preventDefault();
+                addOwn();
+              }}
+            >
+              <input
+                placeholder={full ? "That’s the most seats for now" : "Or name your own…"}
+                aria-label="New seat title"
+                value={own}
+                maxLength={60}
+                disabled={full}
+                onChange={e => setOwn(e.target.value)}
+              />
+              <button className="mini" type="submit" disabled={full || !own.trim()}>
+                <Ic name="plus" />
+                Add
+              </button>
+            </form>
+          </div>
+        </article>
       </div>
-      {pool.length > 0 && (
-        <button
-          className="add-seat roles-add"
-          onClick={() =>
-            dispatch({
-              type: "addSeat",
-              seat: { title: pool[0]!.title, color: pool[0]!.color, permissions: [...pool[0]!.permissions] },
-            })
-          }
-        >
-          + Add a seat — <b>{pool.map(p => p.title).join(", ")}</b>
+
+      <div className="foot">
+        <button type="button" className="btn btn--lg" onClick={onContinue}>
+          Looks right
+          <Ic name="arrow-r" />
         </button>
-      )}
-      <div className="bp-cta-row">
-        <button className="cta big" onClick={onContinue}>
-          Looks right — review the blueprint<span>→</span>
-        </button>
+        <span className="note">Abilities only appear for pages you’re using — turn on Treasury and “Money” shows up.</span>
       </div>
-      <p className="bp-foot">
-        Every role and ability has a home in Settings later — this is a fast start, not a lock-in.
-      </p>
-    </div>
+    </>
   );
 }

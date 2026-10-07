@@ -1,253 +1,301 @@
 "use client";
 
 /**
- * The /create flow orchestrator. Owns the Draft (useDraft: reducer +
- * localStorage write-through + restore), the step router, and the live
- * blueprint sheet's flash state.
+ * The /create flow, in paper: you draft a CHARTER (design:
+ * _design/Org Creation Paper Mock.html). Owns the Draft (useDraft: reducer +
+ * localStorage write-through + restore), the step router and its gates, the
+ * charter's flash state, and the mobile drawer the charter rides in.
+ *
+ * Name → Interview → Roles → Timeline → Charter → Sign in/Build, then the
+ * founder lands on /<slug>/onboarding, the day-one welcome inside the real app.
  *
  * ?resume=1 is the post-OAuth leg: the callback lands back here, the draft is
- * restored from localStorage, and the Build step auto-fires provisioning.
+ * restored from localStorage, and the Build step fires provisioning on its own.
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { APP_NAME } from "@/lib/domains";
 import type { CreateStep } from "@/lib/onboarding/draft";
-import { useCreateTheme, useDraft } from "./flow-state";
-import { BlueprintSheet, type SheetFlash } from "./BlueprintSheet";
-import { ThemeToggle } from "./ThemeToggle";
+import { draftSlug, useCreateTheme, useDraft } from "./flow-state";
+import { Charter, type CharterFlash, type CharterSection } from "./Charter";
 import { NameStep } from "./NameStep";
 import { InterviewStep } from "./InterviewStep";
 import { RolesStep } from "./RolesStep";
 import { TimelineStep } from "./TimelineStep";
-import { BlueprintStep } from "./BlueprintStep";
+import { CharterStep } from "./CharterStep";
 import { BuildStep } from "./BuildStep";
-import { StepRail } from "./StepRail";
+import { Mark } from "./Mark";
+import { Ic, pagesOn } from "./paper";
+import { useSession } from "./useSession";
+import { slugBlocks, useSlugCheck } from "./useSlugCheck";
 
-/** Steps whose content is derived from interview answers — see `gated` below. */
+const STEPS: { id: CreateStep; label: string }[] = [
+  { id: "name", label: "Name" },
+  { id: "interview", label: "Interview" },
+  { id: "roles", label: "Roles" },
+  { id: "timeline", label: "Timeline" },
+  { id: "blueprint", label: "Charter" },
+  { id: "build", label: "Sign in" },
+];
+const ORDER = STEPS.map(s => s.id);
+
+/** Steps whose content is derived from interview answers — see `gated`. */
 const PAST_INTERVIEW: CreateStep[] = ["roles", "timeline", "blueprint", "build"];
 
 export function CreateFlow() {
   const { draft, dispatch, ready, origin, startOver } = useDraft();
   const { theme, toggle: toggleTheme } = useCreateTheme();
+  const { session, signOut } = useSession();
   const searchParams = useSearchParams();
-  const [flash, setFlash] = useState<SheetFlash>(null);
+  const [flash, setFlash] = useState<CharterFlash>(null);
   const [slugNotice, setSlugNotice] = useState<string | null>(null);
   const [resume, setResume] = useState(false);
   const [resumeBarClosed, setResumeBarClosed] = useState(false);
-  // The event type a blueprint chip deep-linked to — the Timeline step opens
-  // its color strip so the founder lands on the row they tapped.
-  const [focusType, setFocusType] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState(false);
 
   const step = draft.step;
+  const named = !!draft.name.trim();
+  const slug = draftSlug(draft);
+  // Owned here, not by the field: the charter's Build button and the step
+  // gate both need the answer.
+  const slugState = useSlugCheck(slug, step === "blueprint" || step === "build");
 
-  // Steps past the interview read a page set the interview is supposed to have
-  // decided, so they're gated on the kind beat having been answered — otherwise a
-  // rail jump lands on a blueprint built from a template guess, which is the one
-  // thing the beats exist to prevent. Both the rail and the ←/→ keys route
-  // through here, so this single guard closes every path.
+  // Steps past the interview read a page set the interview decides, so they're
+  // gated on the kind beat — a rail jump would otherwise land on a charter
+  // built from a template guess. The Timeline waits for the whole interview:
+  // every row it shows is gated by pages the month/money/docs beats decide.
   const gated = useCallback(
-    (next: CreateStep) => {
+    (next: CreateStep): CreateStep | null => {
+      if (next === "build" && !named) return "name";
       if (!PAST_INTERVIEW.includes(next)) return null;
       if (!draft.kind) return "interview";
-      // The Timeline step is a stricter case than the rest: every row it renders
-      // is gated by the PAGE SET, which the interview's activity beat decides —
-      // several beats after the kind beat. Reached on `kind` alone it shows seven
-      // ghosted types over an empty preview, which reads as broken rather than as
-      // "your types follow your pages". So it waits for the interview to finish.
       if (next === "timeline" && !draft.interviewDone) return "interview";
       return null;
     },
-    [draft.kind, draft.interviewDone],
+    [draft.kind, draft.interviewDone, named],
   );
 
   const goto = useCallback(
     (next: CreateStep) => {
-      if (next === "build" && !draft.name.trim()) return void dispatch({ type: "goto", step: "name" });
-      const bounce = gated(next);
-      if (bounce) return void dispatch({ type: "goto", step: bounce });
-      dispatch({ type: "goto", step: next });
+      let to = gated(next) ?? next;
+      // The ticket is only reachable with a usable address.
+      if (to === "build" && slugBlocks(slugState)) to = "blueprint";
+      setDrawer(false);
+      dispatch({ type: "goto", step: to });
+      window.scrollTo(0, 0);
     },
-    [dispatch, draft.name, gated],
+    [dispatch, gated, slugState],
   );
 
-  // Post-OAuth resume: jump straight to Build and let it auto-fire. Only once
-  // the localStorage restore has run — before that the draft is empty.
+  // Post-OAuth resume: jump straight to Build and let it fire. Only once the
+  // localStorage restore has run — before that the draft is empty.
   useEffect(() => {
     if (!ready) return;
     if (searchParams.get("resume") !== "1") return;
     setResume(true);
     if (draft.name.trim()) dispatch({ type: "goto", step: "build" });
-    // A missing/expired draft falls through to step 1 — nothing to build.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  const onFlash = useCallback((section: NonNullable<SheetFlash>["section"]) => {
+  const onFlash = useCallback((section: CharterSection) => {
     setFlash(f => ({ section, key: (f?.key ?? 0) + 1 }));
   }, []);
   useEffect(() => {
     if (!flash) return;
-    const t = setTimeout(() => setFlash(null), 900);
+    const t = setTimeout(() => setFlash(null), 1200);
     return () => clearTimeout(t);
   }, [flash]);
 
-  // ←/→ step the rail and T flips the theme, like the mock — never while typing.
-  // toggleTheme is identity-stable, so it doesn't re-subscribe this listener.
+  // The name lands on the charter the moment there is one.
+  const [wasNamed, setWasNamed] = useState(named);
   useEffect(() => {
-    const ORDER: CreateStep[] = ["name", "interview", "roles", "timeline", "blueprint", "build"];
+    if (named && !wasNamed) onFlash("name");
+    setWasNamed(named);
+  }, [named, wasNamed, onFlash]);
+
+  // A different address answers whatever bounced the build.
+  useEffect(() => setSlugNotice(null), [slug]);
+
+  // ←/→ step the rail and T flips the paper — never while typing.
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      // Leave ⌘T (new tab) and IME composition alone.
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      if (e.key === "Escape") return setDrawer(false);
       if (e.key === "t" || e.key === "T") return void toggleTheme();
       const idx = ORDER.indexOf(step);
-      if (e.key === "ArrowRight" && idx < ORDER.length - 1) goto(ORDER[idx + 1]!);
+      if (e.key === "ArrowRight" && idx < ORDER.length - 1 && !gated(ORDER[idx + 1]!)) goto(ORDER[idx + 1]!);
       if (e.key === "ArrowLeft" && idx > 0) goto(ORDER[idx - 1]!);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [step, goto, toggleTheme]);
+  }, [step, goto, gated, toggleTheme]);
 
-  const world = step === "build" ? "dark" : "paper";
-
-  // A restored mid-sitting draft is announced rather than assumed: the founder
-  // sees that this is where they left off, and gets a one-tap way out if they
-  // came back to start again. (The post-OAuth leg needs no bar — it's a resume
-  // they asked for by signing in.)
-  const showResumeBar = origin === "resumed" && !resumeBarClosed;
+  const showResumeBar = origin === "resumed" && !resumeBarClosed && step !== "build";
+  const curIdx = ORDER.indexOf(step);
+  const stepDone = (id: CreateStep) => {
+    if (id === "name") return named;
+    if (id === "interview") return draft.interviewDone;
+    return ORDER.indexOf(id) < curIdx && !gated(id);
+  };
+  const founderFallback = session?.name ?? null;
+  const withCharter = step === "name" || step === "interview";
 
   return (
-    <div className="crf" data-world={world} data-step={step}>
-      <header className="chrome">
-        <div className="wm">
-          <span className="glyph">{APP_NAME[0]}</span>
-          <span className="wm-txt">{APP_NAME.toUpperCase()}</span>
-        </div>
-        <div className="chrome-right">
-          <div className="chrome-tag">CREATE YOUR ORG</div>
-          <ThemeToggle theme={theme} onToggle={toggleTheme} />
-        </div>
-      </header>
+    <div className="ocp">
+      <div className="shell">
+        <header className="top">
+          <a className="wm" href="/" aria-label={`${APP_NAME} home`}>
+            <span className="orglogo">{APP_NAME[0]}</span>
+            <span className="wt">{APP_NAME}</span>
+          </a>
+          <nav className="rail" aria-label="Steps">
+            {STEPS.map((s, i) => {
+              const cur = step === s.id;
+              const locked = !!gated(s.id);
+              const done = stepDone(s.id) && !cur;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  aria-current={cur ? "step" : undefined}
+                  disabled={locked}
+                  className={done ? "done" : undefined}
+                  title={s.label}
+                  onClick={() => goto(s.id)}
+                >
+                  <span className="n">{done ? <Ic name="check" /> : locked ? <Ic name="lock" /> : i + 1}</span>
+                  <span className="lb">{s.id === "build" && session ? "Build" : s.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="top-r">
+            <span className="tag">{session && session.orgs.length ? "A second org" : "Create your org"}</span>
+            <button
+              type="button"
+              className="iconbtn theme"
+              aria-label="Switch paper (T)"
+              title="Switch paper (T)"
+              onClick={toggleTheme}
+            >
+              <Ic name={theme === "dusk" ? "sun" : "moon"} />
+            </button>
+          </div>
+        </header>
 
-      {showResumeBar && (
-        <div className="resume-bar" role="status">
-          <span>
-            Picked up where you left off
-            {draft.name.trim() ? <> — <b>{draft.name.trim()}</b></> : null}.
-          </span>
-          <button
-            className="resume-restart"
-            onClick={() => {
-              setResumeBarClosed(true);
-              startOver();
-            }}
-          >
-            Start over
-          </button>
-          <button
-            className="resume-x"
-            aria-label="Dismiss"
-            onClick={() => setResumeBarClosed(true)}
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      <main className="screens">
-        {step === "name" && (
-          <section className="scr" data-step="name" key="name">
-            {/* data-named drives the "reveal" choreography: empty → centered name,
-                no sheet; first keystroke slides the sheet in and the name to the left. */}
-            <div className="split split--name" data-named={draft.name.trim() ? "1" : "0"}>
-              <NameStep draft={draft} dispatch={dispatch} onContinue={() => goto("interview")} />
-              <div className="sheet-slot" aria-hidden={!draft.name.trim()}>
-                <BlueprintSheet draft={draft} flash={flash} />
-              </div>
-            </div>
-          </section>
+        {showResumeBar && (
+          <div className="resume" role="status">
+            <span className="k">Draft</span>
+            <p>
+              Picked up where you left off
+              {named ? (
+                <>
+                  {" "}— <b>{draft.name.trim()}</b>
+                </>
+              ) : null}
+              . Saved on this device for 7 days.
+            </p>
+            <button
+              type="button"
+              className="btn btn--sm"
+              onClick={() => {
+                setResumeBarClosed(true);
+                startOver();
+              }}
+            >
+              Start over
+            </button>
+            <button type="button" className="x" aria-label="Dismiss" onClick={() => setResumeBarClosed(true)}>
+              <Ic name="x" />
+            </button>
+          </div>
         )}
 
-        {step === "interview" && (
-          <section className="scr" data-step="interview" key="interview">
+        <main className="stage" data-step={step}>
+          {step === "name" && (
+            <div className="split split--name" data-named={named ? "1" : "0"}>
+              <NameStep draft={draft} dispatch={dispatch} session={session} onContinue={() => goto("interview")} />
+              <div className="slot" aria-hidden={!named}>
+                <Charter draft={draft} flash={flash} founderFallback={founderFallback} />
+              </div>
+            </div>
+          )}
+
+          {step === "interview" && (
             <div className="split">
               <InterviewStep
                 draft={draft}
                 dispatch={dispatch}
-                // A restored draft that already answered something re-enters the
-                // conversation rather than replaying it from "who am I meeting?".
-                resumed={origin !== "fresh" && draft.kind !== null}
                 onFlash={onFlash}
                 onDone={() => goto("roles")}
+                founderFallback={founderFallback}
               />
-              <div className="sheet-slot">
-                <BlueprintSheet draft={draft} flash={flash} />
+              <div className="slot">
+                <Charter draft={draft} flash={flash} showTypes={draft.interviewDone} founderFallback={founderFallback} />
               </div>
             </div>
-          </section>
-        )}
+          )}
 
-        {step === "roles" && (
-          <section className="scr" data-step="roles" key="roles">
-            <RolesStep draft={draft} dispatch={dispatch} onContinue={() => goto("timeline")} />
-          </section>
-        )}
+          {step === "roles" && (
+            <RolesStep draft={draft} dispatch={dispatch} founderFallback={founderFallback} onContinue={() => goto("timeline")} />
+          )}
 
-        {step === "timeline" && (
-          <section className="scr" data-step="timeline" key="timeline">
-            <TimelineStep
+          {step === "timeline" && <TimelineStep draft={draft} dispatch={dispatch} onContinue={() => goto("blueprint")} />}
+
+          {step === "blueprint" && (
+            <CharterStep
               draft={draft}
               dispatch={dispatch}
-              openSlug={focusType}
-              onContinue={() => {
-                setFocusType(null);
-                goto("blueprint");
-              }}
-            />
-          </section>
-        )}
-
-        {step === "blueprint" && (
-          <section className="scr" data-step="blueprint" key="blueprint">
-            <BlueprintStep
-              draft={draft}
-              dispatch={dispatch}
+              slugState={slugState}
               slugNotice={slugNotice}
-              onBackToRoles={() => goto("roles")}
-              onEditTypes={slug => {
-                setFocusType(slug ?? null);
-                goto("timeline");
-              }}
-              onBuild={() => {
-                setSlugNotice(null);
-                goto("build");
-              }}
+              signedIn={!!session}
+              founderFallback={founderFallback}
+              onGo={goto}
+              onBuild={() => goto("build")}
             />
-          </section>
-        )}
+          )}
 
-        {step === "build" && (
-          <section className="scr" data-step="build" key="build">
+          {step === "build" && (
             <BuildStep
               draft={draft}
+              session={session}
               autoBuild={resume}
+              onSignOut={() => void signOut()}
               onSlugRejected={message => {
                 setResume(false);
                 setSlugNotice(message);
-                goto("blueprint");
+                dispatch({ type: "goto", step: "blueprint" });
               }}
-              onBackToBlueprint={() => {
+              onBackToCharter={() => {
                 setResume(false);
                 goto("blueprint");
               }}
-              onBackToName={() => goto("name")}
             />
-          </section>
-        )}
-      </main>
+          )}
+        </main>
 
-      <StepRail step={step} onGo={goto} locked={s => gated(s) !== null} />
+        {withCharter && named && (
+          <button type="button" className="peek" onClick={() => setDrawer(true)}>
+            <Mark name={draft.name} logoUrl={draft.logoDataUrl} />
+            Charter · {pagesOn(draft).length} pages
+          </button>
+        )}
+      </div>
+
+      {withCharter && (
+        <div
+          className={`drawer${drawer ? " open" : ""}`}
+          aria-hidden={!drawer}
+          onClick={e => {
+            if (e.target === e.currentTarget) setDrawer(false);
+          }}
+        >
+          <div>{drawer && <Charter draft={draft} showTypes={draft.interviewDone} founderFallback={founderFallback} />}</div>
+        </div>
+      )}
     </div>
   );
 }

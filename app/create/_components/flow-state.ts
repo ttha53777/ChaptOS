@@ -27,8 +27,13 @@ import {
   parseDraft,
   type AiPicks,
   type CreateStep,
+  type DocsAnswer,
   type Draft,
+  type MoneyAnswer,
+  type ThreadLine,
 } from "@/lib/onboarding/draft";
+import { defaultFounderTitle, deriveFromAnswers, termFromSuggestion } from "@/lib/onboarding/answers";
+import type { TermModel } from "@/lib/onboarding/terms";
 import {
   MAX_DRAFT_EVENT_TYPES,
   nextCustomTypeSlug,
@@ -42,6 +47,8 @@ import {
   KIND_TO_TYPE,
   KIND_VOCAB_DELTA,
   getVariant,
+  matchVariantExact,
+  type BuiltinMetricFlags,
   type BuiltinMetricId,
   type KindId,
 } from "@/lib/onboarding/kinds";
@@ -83,7 +90,19 @@ export type FlowAction =
   | { type: "renameEventType"; slug: string; label: string }
   | { type: "recolorEventType"; slug: string; color: string; colorDark: string }
   | { type: "addEventType"; label: string; color: string; colorDark: string }
-  | { type: "removeEventType"; slug: string };
+  | { type: "removeEventType"; slug: string }
+  // The interview spine (lib/onboarding/answers.ts owns what each one decides).
+  | { type: "say"; lines: ThreadLine[] }
+  | { type: "answerIntro"; founderName: string }
+  | { type: "answerKind"; kind: KindId; text: string | null }
+  | { type: "answerRole"; title: string }
+  | { type: "answerMonth"; acts: string[] }
+  | { type: "answerMoney"; value: MoneyAnswer }
+  | { type: "answerDocs"; value: DocsAnswer }
+  | { type: "answerMetrics"; flags: BuiltinMetricFlags }
+  | { type: "setTerm"; model: TermModel; pick: number }
+  | { type: "setTermDates"; startDate: string; endDate: string }
+  | { type: "togglePage"; workflow: WorkflowId };
 
 /**
  * Template-backed defaults for a kind. Resets variant and metric flags too — a
@@ -353,6 +372,60 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
           customs: materializeCustoms(draft).filter(c => c.slug !== action.slug),
         },
       };
+    case "say":
+      // Capped like the schema, oldest first out, so a long recap-edit session
+      // can never write a draft that fails to parse on the way back in.
+      return { ...draft, thread: [...draft.thread, ...action.lines].slice(-160) };
+    case "answerIntro":
+      return { ...draft, founderName: action.founderName, answers: { ...draft.answers, intro: true } };
+    case "answerKind": {
+      // A title that was only ever the OLD kind's default ("President") isn't the
+      // founder's answer — let the new kind's default ("Captain") take its place.
+      const answers = { ...draft.answers };
+      if (draft.kind && answers.title === defaultFounderTitle(draft.kind)) delete answers.title;
+      let next: Draft = { ...draft, ...kindDefaults(draft, action.kind), skipped: false, answers };
+      // Only on evidence: "a pre-med frat" reshapes the seats, a bare chip tap doesn't.
+      const variant = action.text ? matchVariantExact(action.kind, action.text) : null;
+      if (variant) next = applyVariant(next, variant);
+      return deriveFromAnswers(next);
+    }
+    case "answerRole":
+      return deriveFromAnswers({ ...draft, answers: { ...draft.answers, title: action.title.trim().slice(0, 60) || undefined } });
+    case "answerMonth":
+      return deriveFromAnswers({ ...draft, answers: { ...draft.answers, acts: [...action.acts] } });
+    case "answerMoney":
+      return deriveFromAnswers({ ...draft, answers: { ...draft.answers, money: action.value } });
+    case "answerDocs":
+      return deriveFromAnswers({ ...draft, answers: { ...draft.answers, docs: action.value } });
+    case "answerMetrics":
+      return deriveFromAnswers({ ...draft, answers: { ...draft.answers, metrics: { ...action.flags } } });
+    case "setTerm":
+      return {
+        ...draft,
+        term: termFromSuggestion(action.model, action.pick),
+        answers: { ...draft.answers, term: true },
+      };
+    case "setTermDates": {
+      if (!draft.term) return draft;
+      const startDate = action.startDate || draft.term.startDate;
+      // Cross-clamped: an end before the start would 400 at provisioning.
+      const endDate = action.endDate && action.endDate >= startDate ? action.endDate : startDate;
+      return { ...draft, term: { ...draft.term, pick: -1, startDate, endDate } };
+    }
+    case "togglePage": {
+      // Taking roll is what a meetings page is for, so the two move together.
+      const workflows = new Set(draft.enabledWorkflows);
+      const on = !workflows.has(action.workflow);
+      const pair: WorkflowId[] = action.workflow === "meetings" ? ["meetings", "attendance"] : [action.workflow];
+      for (const w of pair) {
+        if (on) workflows.add(w);
+        else workflows.delete(w);
+      }
+      let next: Draft = { ...draft, enabledWorkflows: [...workflows] };
+      // Nothing to owe without a ledger — same rule the answers apply.
+      if (!workflows.has("finance") && next.metrics.duesOwed) next = { ...next, metrics: { ...next.metrics, duesOwed: false } };
+      return next;
+    }
   }
 }
 

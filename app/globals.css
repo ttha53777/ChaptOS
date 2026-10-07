@@ -310,7 +310,7 @@ table {
    Pre-auth pages — "Dark Editorial" design system
    Scoped under .auth-scope so none of these tokens or component classes touch
    the dashboard. Used by: /login, /join/[token], /welcome, /pending-access.
-   (The /create flow has its own scope, app/create/create-flow.css.)
+   (The /create flow has its own scope, .ocp in app/create/create-paper.css.)
    Fonts come from next/font (--font-fraunces / --font-geist-*).
    Accent = app violet (#A78BFA / #7C3AED). Error = red (#F87171).
    ─────────────────────────────────────────────────────────────────────────── */

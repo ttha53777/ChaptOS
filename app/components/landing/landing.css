@@ -7,7 +7,7 @@
    Everything is scoped under `.lp` so none of these very generic class names
    (.btn, .card, .pill, .chat, .dot, .chip, .avatar, .seat, .done, .mono) can
    reach the dashboard or the auth pages. Sibling scopes: `.auth-scope` in
-   app/globals.css, `.crf` in app/create/create-flow.css.
+   app/globals.css, `.ocp` in app/create/create-paper.css.
 
    Motion budget: exactly ONE pinned scrub on the page (§5, the ask scene).
    Everything else is reveal-and-swap. If a second scene ever wants the pin,
