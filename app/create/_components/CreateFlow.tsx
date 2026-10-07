@@ -151,27 +151,6 @@ export function CreateFlow() {
             <span className="orglogo">{APP_NAME[0]}</span>
             <span className="wt">{APP_NAME}</span>
           </a>
-          <nav className="rail" aria-label="Steps">
-            {STEPS.map((s, i) => {
-              const cur = step === s.id;
-              const locked = !!gated(s.id);
-              const done = stepDone(s.id) && !cur;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  aria-current={cur ? "step" : undefined}
-                  disabled={locked}
-                  className={done ? "done" : undefined}
-                  title={s.label}
-                  onClick={() => goto(s.id)}
-                >
-                  <span className="n">{done ? <Ic name="check" /> : locked ? <Ic name="lock" /> : i + 1}</span>
-                  <span className="lb">{s.id === "build" && session ? "Build" : s.label}</span>
-                </button>
-              );
-            })}
-          </nav>
           <div className="top-r">
             <span className="tag">{session && session.orgs.length ? "A second org" : "Create your org"}</span>
             <button
@@ -277,6 +256,28 @@ export function CreateFlow() {
           )}
         </main>
 
+        {/* The step rail rides at the bottom of the page, as it did before paper. */}
+        <nav className="rail" aria-label="Steps">
+          {STEPS.map((s, i) => {
+            const cur = step === s.id;
+            const locked = !!gated(s.id);
+            const done = stepDone(s.id) && !cur;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                aria-current={cur ? "step" : undefined}
+                disabled={locked}
+                className={done ? "done" : undefined}
+                title={s.label}
+                onClick={() => goto(s.id)}
+              >
+                <span className="n">{done ? <Ic name="check" /> : locked ? <Ic name="lock" /> : i + 1}</span>
+                <span className="lb">{s.id === "build" && session ? "Build" : s.label}</span>
+              </button>
+            );
+          })}
+        </nav>
         {withCharter && named && (
           <button type="button" className="peek" onClick={() => setDrawer(true)}>
             <Mark name={draft.name} logoUrl={draft.logoDataUrl} />

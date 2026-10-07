@@ -634,3 +634,44 @@ html[data-crf-theme="dusk"] .ocp :is(.tape, .chip.tp, .ev){--tc:var(--tcd)}
 .ocp .who > span:nth-child(2){min-width:0}
 .ocp .who small{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .ocp .drawer .charter{max-width:520px; margin:0 auto}
+
+/* ===== 2026-10-07 follow-ups ============================================ */
+
+/* The step rail sits at the bottom of the screen (where the pre-paper flow
+   kept it); the header is just the wordmark and the paper switch. */
+.ocp .top{display:flex; justify-content:space-between}
+.ocp .rail{
+  position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:45;
+  max-width:calc(100vw - 24px);
+  background:color-mix(in srgb, var(--card) 92%, transparent); border:1.5px solid var(--line-2);
+  box-shadow:var(--sh-2); backdrop-filter:blur(12px);
+}
+.ocp .stage{padding-bottom:110px}
+.ocp .compose{bottom:76px}
+@media (max-width:960px){ .ocp .peek{bottom:76px} }
+
+/* Night paper is a flat desk — no colour washes. */
+html[data-crf-theme="dusk"] .ocp::before{display:none}
+
+/* The name step fits the screen. Before the first keystroke the charter column
+   is zero-width but would still be its full height, so it collapses too; and
+   the mark row waits for a name, rising in with the charter. */
+.ocp .stage[data-step="name"]{padding-bottom:96px}
+.ocp .split--name[data-named="0"] .slot{max-height:0}
+.ocp .split--name .idrow{transition:opacity .45s var(--ease-out) .18s, transform .6s var(--ease-spring) .18s}
+.ocp .split--name[data-named="0"] .idrow{
+  opacity:0; transform:translateY(10px); pointer-events:none;
+  height:0; margin-top:0; padding-block:0; border-width:0; overflow:hidden;
+}
+/* On the name step the charter is mostly placeholders, so it runs compact
+   enough that the step never needs a scrollbar on a laptop screen. */
+.ocp .stage[data-step="name"]{padding-top:clamp(20px,4vh,48px); padding-bottom:84px}
+.ocp .stage[data-step="name"] .slot{top:84px}
+.ocp .stage[data-step="name"] .ch-hd{padding-top:12px; padding-bottom:11px}
+.ocp .stage[data-step="name"] .ch-sec{padding-top:9px; padding-bottom:10px}
+.ocp .stage[data-step="name"] .ch-sec h6{margin-bottom:6px}
+.ocp .stage[data-step="name"] .ghostln + .ghostln{display:none}
+.ocp .stage[data-step="name"] .ch-pend{margin-top:6px}
+.ocp .stage[data-step="name"] .ch-ft{padding-top:11px; padding-bottom:12px}
+.ocp .stage[data-step="name"] .q{margin-top:10px}
+.ocp .stage[data-step="name"] .namein{margin-top:22px}
