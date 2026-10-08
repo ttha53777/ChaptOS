@@ -176,6 +176,9 @@
 .sb-pm-em { font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-pm-link { font-size: 11px; color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
 .sb-pm-link:hover { color: var(--ink-soft); }
+.sb-pm-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 12px 9px; font-size: 13px; font-weight: 600; color: var(--ink); text-align: left; }
+.sb-pm-head .i { width: 14px; height: 14px; color: var(--faint); transition: transform .15s; }
+.sb-pm-head:hover .i { color: var(--ink-soft); transform: translateX(-2px); }
 .sb-pm-sec { padding: 5px; border-top: 1px solid var(--line-soft); }
 .sb-pm-err { margin: 0; padding: 4px 8px 6px; font-size: 11.5px; line-height: 1.4; color: var(--risk); }
 .sb-pm-leave { display: block; width: 100%; padding: 6px 8px 4px; font-size: 11.5px; color: var(--faint); border-radius: 7px;

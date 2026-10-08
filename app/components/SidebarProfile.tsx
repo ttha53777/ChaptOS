@@ -22,6 +22,7 @@ const ICONS = {
   camera: "M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z",
   signOut: "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
   check: "M5 13l4 4L19 7",
+  back: "M15 19l-7-7 7-7",
 };
 
 const THEME_OPTIONS: { value: AppThemePref; label: string; icon: string }[] = [
@@ -70,14 +71,18 @@ export function SidebarProfile({ title, onNavigate }: { title: string; onNavigat
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    // Escape steps back out of the Appearance panel before it closes the menu.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (themeOpen) setThemeOpen(false); else setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, themeOpen]);
 
   function toggle() {
     if (!open) { setThemeOpen(false); setConfirmLeave(false); setError(null); }
@@ -190,7 +195,30 @@ export function SidebarProfile({ title, onNavigate }: { title: string; onNavigat
         </span>
       </button>
 
-      {open && (
+      {open && themeOpen && (
+        <div className="sb-pop sb-pop-me" role="menu" aria-label="Appearance">
+          <button type="button" className="sb-pm-head" onClick={() => setThemeOpen(false)} aria-label="Back to account menu">
+            <SvgIcon d={ICONS.back} className="i" />Appearance
+          </button>
+          <div className="sb-pm-sec" role="radiogroup" aria-label="Theme">
+            {THEME_OPTIONS.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={themePref === o.value}
+                className="sb-row"
+                onClick={() => { setThemePref(o.value); setThemeOpen(false); }}
+              >
+                <SvgIcon d={o.icon} className="i" />{o.label}
+                {themePref === o.value && <SvgIcon d={ICONS.check} className="i sb-chk" />}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {open && !themeOpen && (
         <div className="sb-pop sb-pop-me" role="menu" aria-label="Account">
           <div className="sb-pm-id">
             <button
@@ -237,28 +265,10 @@ export function SidebarProfile({ title, onNavigate }: { title: string; onNavigat
             >
               <SvgIcon d={ICONS.settings} className="i" />Settings
             </Link>
-            {themeOpen ? (
-              <div role="radiogroup" aria-label="Appearance">
-                {THEME_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={themePref === o.value}
-                    className="sb-row"
-                    onClick={() => { setThemePref(o.value); setThemeOpen(false); }}
-                  >
-                    <SvgIcon d={o.icon} className="i" />{o.label}
-                    {themePref === o.value && <SvgIcon d={ICONS.check} className="i sb-chk" />}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <button type="button" role="menuitem" className="sb-row" aria-expanded={false} onClick={() => setThemeOpen(true)}>
-                <SvgIcon d={dark ? ICONS.moon : ICONS.sun} className="i" />Appearance
-                <span className="sb-val">{themeLabel}</span>
-              </button>
-            )}
+            <button type="button" role="menuitem" className="sb-row" aria-haspopup="true" onClick={() => setThemeOpen(true)}>
+              <SvgIcon d={dark ? ICONS.moon : ICONS.sun} className="i" />Appearance
+              <span className="sb-val">{themeLabel}</span>
+            </button>
           </div>
 
           <div className="sb-pm-sec">
