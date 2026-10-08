@@ -12,6 +12,8 @@ import "./paper-docs.css";
 import "./paper-parties.css";
 import "./paper-settings.css";
 import "./paper-checkin.css";
+import "./paper-billing.css";
+import "./paper-doors.css";
 import { ChapterProvider } from "./context/ChapterContext";
 import { ChatWidgetGate } from "./components/ChatWidgetGate";
 import { SemesterGate } from "./components/SemesterGate";

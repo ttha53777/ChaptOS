@@ -265,6 +265,18 @@ html[data-aesthetic="paper"] .dx-move .dx-move-newbtn {
   color: var(--ink); border: 1.5px dashed var(--line-med); border-radius: 999px;
 }
 html[data-aesthetic="paper"] .dx-move .dx-move-newbtn svg { stroke: currentColor; }
+html[data-aesthetic="paper"] .dx-move .dx-move-newbtn:hover { border-color: var(--ink); }
+html[data-aesthetic="paper"] .dx-move .dx-move-empty {
+  padding: 16px 12px; border: 1.5px dashed var(--line-med); border-radius: 12px;
+  font-family: var(--font-geist-sans); font-size: .86rem; color: var(--muted);
+}
+html[data-aesthetic="paper"] .dx-move .dx-move-new { border-top: 1.5px dashed var(--line-med); }
+
+/* the phone-width menu button beside the heading (the mock's .iconbtn) */
+@media (max-width: 1023px) {
+  html[data-aesthetic="paper"] .dash .dx-menu-mob { width: 34px; height: 34px; border-radius: 10px; border: 1.5px solid transparent; }
+  html[data-aesthetic="paper"] .dash .dx-menu-mob:hover { background: var(--card); color: var(--ink); border-color: var(--line); }
+}
 
 @media (max-width: 1100px) {
   html[data-aesthetic="paper"] .dash .dx-row .host { display: none; }

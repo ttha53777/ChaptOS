@@ -1,0 +1,38 @@
+/* The route error boundary (app/error.tsx) — Ledger look. Paper restyles the
+   same hooks in app/paper-doors.css. Tailwind owns the box model; this file
+   only carries what the utilities can't: the token-driven colours and type. */
+
+.app-err {
+  background: var(--paper);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.app-err-card {
+  background: var(--card);
+  border: 1px solid rgba(var(--ink-rgb),.09);
+  box-shadow:
+    0 1px 0 rgba(var(--shade-rgb),calc(.4*var(--shade-k))),
+    0 16px 40px -24px rgba(var(--shade-rgb),calc(.7*var(--shade-k)));
+}
+.app-err-kicker {
+  font-family: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  letter-spacing: .18em; color: var(--rose);
+}
+.app-err-seal {
+  border: 1px solid rgba(var(--rose-rgb),.10);
+  background: rgba(var(--rose-rgb),.10);
+  color: var(--rose);
+}
+.app-err-title {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-weight: 400; letter-spacing: -.01em; color: var(--ink);
+}
+.app-err-title em { font-style: italic; color: var(--vio); }
+.app-err-lede { color: var(--ink-soft); }
+.app-err-ref {
+  font-family: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  letter-spacing: .08em; color: var(--faint);
+}
+.app-err-retry { background: var(--vio-deep); color: #fff; }
+.app-err-retry:hover { background: var(--vio); }
+.app-err-home { border: 1px solid rgba(var(--ink-rgb),.09); background: var(--card-2); color: var(--ink-soft); }
+.app-err-home:hover { border-color: var(--vio); color: var(--ink); }

@@ -791,8 +791,34 @@ html[data-aesthetic="paper"] .dash .hidden-tray .chips button {
 html[data-aesthetic="paper"] .dash .hidden-tray .chips button:hover { border-color: var(--ink); color: var(--ink); }
 html[data-aesthetic="paper"] .dash footer { border-top: 1.5px solid var(--line); font-family: var(--mono); letter-spacing: .08em; color: var(--muted); }
 
-/* the mobile toolbar */
-html[data-aesthetic="paper"] .dash-toolbar { background: color-mix(in srgb, var(--paper) 86%, transparent); border-bottom: 1.5px solid var(--line); }
+/* The mobile toolbar, every page's (the mock's .mbar): a frosted paper strip,
+   the page name as a display line, icon buttons that pick up a card on hover.
+   `header.dash-toolbar` out-specifies the per-page `header.dash-toolbar.x-toolbar-bar`
+   ledger rules, which load later. */
+html[data-aesthetic="paper"] header.dash-toolbar {
+  background: color-mix(in srgb, var(--paper) 86%, transparent); border-bottom: 1.5px solid var(--line);
+  backdrop-filter: blur(12px);
+}
+html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-title, .bl-crumb, .ev-crumb, .pty-crumb, .svc-crumb, .tr-crumb, .set-crumb-cur) {
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 1rem; letter-spacing: -.02em; color: var(--ink);
+}
+html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-org, .tb-date, .set-crumb-link) {
+  font-family: var(--font-geist-sans); font-size: .62rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+html[data-aesthetic="paper"] header.dash-toolbar .tb-icon-btn {
+  width: 34px; height: 34px; border-radius: 10px; border: 1.5px solid transparent; color: var(--muted);
+  transition: background .16s, color .16s, border-color .16s;
+}
+html[data-aesthetic="paper"] header.dash-toolbar .tb-icon-btn:hover { background: var(--card); color: var(--ink); border-color: var(--line); }
+html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-btn, .tb-actions button[aria-haspopup="menu"]) {
+  border-radius: 999px; border: 1.5px solid var(--line-med); background: transparent; color: var(--ink-soft);
+  font-family: var(--font-geist-sans); font-weight: 600; letter-spacing: -.01em; box-shadow: none;
+}
+html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-btn, .tb-actions button[aria-haspopup="menu"]) svg { color: var(--muted); }
+html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-btn, .tb-actions button[aria-haspopup="menu"]):hover {
+  background: var(--card); color: var(--ink); border-color: var(--ink);
+}
+html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-btn, .tb-actions button[aria-haspopup="menu"]):hover svg { color: var(--ink); }
 
 /* ── 3c. Timeline ──────────────────────────────────────────────────────────────
    app/[slug]/timeline/page.tsx → the mock's #timeline. Rows/rail carry the paper

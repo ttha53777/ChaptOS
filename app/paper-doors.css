@@ -1,0 +1,274 @@
+/* ── Paper: the doors ──────────────────────────────────────────────────────────
+   Everything that stands between a person and a page, in the paper look:
+
+   1. SemesterGate — the non-dismissable "set your term" wall (.sg-*). A Modal,
+      so the shell is already paper (paper-overlays.css); this is its body: a
+      stamped seal, the display line, an index-card for the term being
+      extended, pill tabs, the span preview as an inked ruler.
+   2. The .auth-scope screens — /login, /welcome, /join/<token> and the
+      /[slug] walls (NeedsInvite, AwaitingApproval). .auth-scope declares its
+      own always-dark tokens; under paper they're re-pointed at the paper ones
+      (so day/night follows data-theme like the rest of the app), and the parts
+      are drawn to /create's charter (app/create/create-paper.css): a butter
+      wordmark, the white Google button with a hard sky shadow, tiles that lift.
+   3. The route error boundary (app/error.tsx, .app-err-*).
+
+   Behind html[data-aesthetic="paper"], which also out-specifies the ledger
+   sheets these replace (semester-gate.css, globals.css, error.css).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── 1. SemesterGate ────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .ui-modal:has(.sg) { --acc: var(--pp-butter); }
+html[data-aesthetic="paper"] .sg { font-family: var(--font-geist-sans); }
+/* The body sits in a .dash wrapper for its fonts; the dashboard's page padding
+   (130px at the foot under paper) must not come with it into a dialog. */
+html[data-aesthetic="paper"] .ui-modal-body > .dash { padding: 4px 0 2px; min-height: 0; }
+
+html[data-aesthetic="paper"] .sg-seal {
+  width: 50px; height: 50px; margin: 2px auto 18px; border-radius: 14px;
+  background: var(--pp-butter); border: 2px solid var(--pp-note-ink); color: var(--pp-note-ink);
+  transform: rotate(-4deg); box-shadow: 2.5px 2.5px 0 var(--pp-peach); filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .sg-seal svg { width: 22px; height: 22px; }
+html[data-aesthetic="paper"] .sg-kicker {
+  margin: 0 0 8px; font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .sg-title {
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 1.75rem; letter-spacing: -.035em; line-height: 1.1;
+}
+html[data-aesthetic="paper"] .sg-title em {
+  font-style: normal; color: inherit; padding: 0 .06em;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-butter) calc(var(--pp-mark-op) * 100%), transparent) 58% 92%, transparent 92%);
+}
+html[data-aesthetic="paper"] .sg-lede { margin-top: 10px; font-size: .9rem; line-height: 1.55; color: var(--ink-soft); }
+
+/* the term being extended: an index card */
+html[data-aesthetic="paper"] .sg-card {
+  flex-direction: column; align-items: flex-start; gap: 3px;
+  margin-top: 22px; padding: 13px 16px; background: var(--card);
+  border: 1.5px solid var(--ink); border-radius: 4px 14px 6px 12px; box-shadow: 3px 3px 0 var(--pp-sky);
+}
+html[data-aesthetic="paper"] .sg-card .sg-card-label {
+  max-width: 100%; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.05rem; letter-spacing: -.02em; color: var(--ink);
+}
+html[data-aesthetic="paper"] .sg-card-span { font-family: var(--font-geist-mono); font-size: .7rem; letter-spacing: 0; color: var(--muted); }
+html[data-aesthetic="paper"] .sg-card-stat { font-weight: 600; color: var(--pp-butter-ink); }
+
+/* Extend it / Start new: the mock's .seg pills */
+html[data-aesthetic="paper"] .sg-seg { margin-top: 22px; gap: 6px; overflow: visible; border: 0; border-radius: 0; }
+html[data-aesthetic="paper"] .sg-seg button {
+  flex: 1; padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line-med); background: transparent;
+  font-family: var(--font-geist-sans); font-size: .84rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
+  transition: background .15s, border-color .15s, color .15s;
+}
+html[data-aesthetic="paper"] .sg-seg button:hover:not(.on) { background: transparent; border-color: var(--muted); color: var(--ink); }
+html[data-aesthetic="paper"] .sg-seg button.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .sg-seg button:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; }
+
+/* fields: the overlay inputs */
+html[data-aesthetic="paper"] .sg-section { margin-top: 18px; }
+html[data-aesthetic="paper"] .sg-label { margin: 0 0 7px; }
+html[data-aesthetic="paper"] :is(.sg-input, .sg-date) {
+  border-radius: 10px; border: 1.5px solid var(--line-med); background: var(--paper); color: var(--ink);
+  font-family: var(--font-geist-sans); font-size: .92rem; color-scheme: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+html[data-aesthetic="paper"] .sg-input::placeholder { color: var(--muted); }
+html[data-aesthetic="paper"] :is(.sg-input, .sg-date):focus { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-butter); }
+
+/* the span preview: an inked ruler — the run in mint, the extension striped lilac */
+html[data-aesthetic="paper"] .sg-bar { margin-top: 20px; padding: 0 6px; }
+html[data-aesthetic="paper"] .sg-track {
+  height: 14px; border-radius: 7px; border: 1.5px solid var(--ink); background: var(--card); overflow: visible;
+}
+html[data-aesthetic="paper"] .sg-track-base { border-radius: 6px 0 0 6px; background: var(--pp-mint); }
+html[data-aesthetic="paper"] .sg-track-base[style*="width: 100%"] { border-radius: 6px; }
+html[data-aesthetic="paper"] .sg-track-add {
+  border-radius: 0 6px 6px 0; border-left: 1.5px solid var(--ink);
+  background: repeating-linear-gradient(135deg, var(--pp-lilac) 0 6px, color-mix(in srgb, var(--pp-lilac) 45%, var(--card)) 6px 12px);
+}
+html[data-aesthetic="paper"] .sg-pin { width: 12px; height: 12px; border: 1.5px solid var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .sg-pin-mid { background: var(--paper); }
+html[data-aesthetic="paper"] .sg-pin-end { background: var(--ink); }
+html[data-aesthetic="paper"] .sg-scale { margin-top: 10px; font-family: var(--font-geist-mono); font-size: .68rem; color: var(--muted); }
+html[data-aesthetic="paper"] .sg-scale-mid { font-family: var(--font-geist-sans); font-style: normal; font-size: .82rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .sg-scale-mid b { font-family: var(--font-fraunces); font-weight: 600; font-size: 1rem; letter-spacing: -.02em; color: var(--ink); }
+
+/* the one way out is the overlay ink pill (paper-overlays.css), full width */
+html[data-aesthetic="paper"] .sg-submit { width: 100%; margin-top: 24px; padding: 12px 17px; font-size: .92rem; --hs: var(--pp-butter); }
+
+html[data-aesthetic="paper"] .sg-error {
+  margin-top: 16px; padding: 10px 14px; border-radius: 4px 12px 6px 10px;
+  border: 1.5px solid var(--pp-rose-bd); background: var(--pp-rose-soft); color: var(--pp-rose-ink);
+  font-size: .86rem; font-weight: 500;
+}
+html[data-aesthetic="paper"] .sg-note {
+  margin-top: 20px; padding: 14px 16px; border: 1.5px dashed var(--line-med); border-radius: 14px;
+  font-family: var(--font-geist-sans); font-style: normal; font-size: .9rem; color: var(--ink-soft);
+}
+
+/* ── 2. .auth-scope screens ─────────────────────────────────────────────────── */
+/* .auth-scope sets --paper/--ink/… itself, so these point at the paper tokens'
+   other names (--background, --foreground, --card, …), which it leaves alone —
+   `--paper: var(--paper)` here would be a cycle. */
+html[data-aesthetic="paper"] .auth-scope {
+  --paper: var(--background); --paper-2: var(--card-2); --surface: var(--card);
+  --ink: var(--foreground); --ink-80: var(--ink-soft); --ink-60: var(--ink-soft); --ink-45: var(--muted); --ink-32: var(--faint);
+  --line: var(--border-strong); --line-soft: var(--border-default);
+  --vio: var(--pp-lilac-ink); --vio-deep: var(--pp-lilac-ink); --vio-soft: var(--pp-lilac-soft); --vio-line: var(--pp-lilac-bd);
+  --ok: var(--pp-mint-ink); --danger: var(--pp-rose-ink); --danger-bg: var(--pp-rose-soft); --danger-line: var(--pp-rose-bd);
+  --r: 12px; --r-lg: 16px;
+  letter-spacing: -.005em;
+  background-color: var(--background);
+}
+/* the landing washes instead of the dot grain; night is a flat desk */
+html[data-aesthetic="paper"] .auth-scope::before {
+  opacity: 1; background-size: auto;
+  background-image:
+    radial-gradient(60vw 50vh at 18% 0%,  color-mix(in srgb, var(--pp-butter-soft) calc(var(--pp-wash-op) * 100%), transparent), transparent 62%),
+    radial-gradient(52vw 48vh at 98% 18%, color-mix(in srgb, var(--pp-sky-soft)    calc(var(--pp-wash-op) * 100%), transparent), transparent 60%),
+    radial-gradient(48vw 46vh at 20% 84%, color-mix(in srgb, var(--pp-lilac-soft)  calc(var(--pp-wash-op) * 100%), transparent), transparent 62%),
+    radial-gradient(56vw 50vh at 94% 96%, color-mix(in srgb, var(--pp-peach-soft)  calc(var(--pp-wash-op) * 100%), transparent), transparent 62%);
+}
+html[data-aesthetic="paper"][data-theme="dusk"] .auth-scope::before { background-image: none; }
+
+/* wordmark: the sidebar's butter logo */
+html[data-aesthetic="paper"] .auth-scope .auth-glyph {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: var(--pp-butter); border: 2px solid var(--pp-note-ink); color: var(--pp-note-ink);
+  font-family: var(--font-fraunces); font-weight: 700; font-size: .95rem; letter-spacing: -.02em;
+  transform: rotate(-3deg); box-shadow: 2px 2px 0 var(--pp-peach); filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-wm-txt {
+  font-family: var(--font-fraunces); font-weight: 700; font-size: 1.05rem; letter-spacing: -.025em; text-transform: none;
+}
+html[data-aesthetic="paper"] .auth-scope .auth-meta {
+  font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+
+/* heading block */
+html[data-aesthetic="paper"] .auth-scope .auth-index {
+  font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-index::before {
+  content: ""; width: 12px; height: 2px; border-radius: 2px; background: var(--pp-peach); flex: none;
+}
+html[data-aesthetic="paper"] .auth-scope .auth-index::after { height: 0; background: none; border-top: 1.5px dashed var(--line); }
+html[data-aesthetic="paper"] .auth-scope .auth-h1 {
+  font-family: var(--font-fraunces); font-weight: 600; font-size: clamp(2.1rem, 5vw, 2.8rem); letter-spacing: -.035em; line-height: 1.05;
+}
+html[data-aesthetic="paper"] .auth-scope .auth-h1 em {
+  font-style: normal; color: inherit; padding: 0 .06em;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-butter) calc(var(--pp-mark-op) * 100%), transparent) 58% 92%, transparent 92%);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-lede { font-size: 1rem; line-height: 1.55; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .auth-scope .auth-footnote { font-size: .82rem; color: var(--muted); }
+html[data-aesthetic="paper"] .auth-scope .auth-slug {
+  font-family: var(--font-geist-mono); background: var(--pp-butter-soft); border: 1px solid var(--pp-butter-bd); color: var(--ink);
+  border-radius: 6px;
+}
+
+/* the Google button: /create's .gbtn — white in both themes, hard sky shadow */
+html[data-aesthetic="paper"] .auth-scope .auth-btn {
+  border-radius: 999px; border: 1.5px solid var(--ink); background: #fff; color: #26211B;
+  padding: 12px 18px; font-size: .95rem; box-shadow: 3px 3px 0 var(--pp-sky);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), opacity .2s;
+}
+html[data-aesthetic="paper"] .auth-scope .auth-btn:hover:not(:disabled) { background: #fff; transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-sky); }
+html[data-aesthetic="paper"] .auth-scope .auth-btn:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--pp-sky); }
+html[data-aesthetic="paper"] .auth-scope .auth-btn:disabled { opacity: .7; cursor: progress; }
+html[data-aesthetic="paper"] .auth-scope .auth-btn .auth-spinner { border-color: rgba(38,33,27,.2); border-top-color: #26211B; }
+
+/* the primary action: the mock's ink pill */
+html[data-aesthetic="paper"] .auth-scope .auth-btn-vio {
+  border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper);
+  padding: 12px 18px; font-size: .95rem; box-shadow: 3px 3px 0 var(--pp-lilac);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), opacity .2s;
+}
+html[data-aesthetic="paper"] .auth-scope .auth-btn-vio:hover:not(:disabled) { background: var(--ink); transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .auth-scope .auth-btn-vio:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .auth-scope .auth-btn-vio:disabled { background: var(--card-2); color: var(--muted); border-color: var(--line); box-shadow: none; opacity: 1; }
+html[data-aesthetic="paper"] .auth-scope .auth-spinner.light { border-color: color-mix(in srgb, var(--paper) 40%, transparent); border-top-color: var(--paper); }
+html[data-aesthetic="paper"] .auth-scope .auth-btn-skel { border-radius: 999px; border: 1.5px solid var(--line-soft); background: var(--card-2); }
+
+/* choice tiles: a card that inks up and lifts */
+html[data-aesthetic="paper"] .auth-scope .auth-tile {
+  border: 1.5px solid var(--line-soft); border-radius: 16px; background: var(--card); box-shadow: var(--pp-sh-1);
+  transition: border-color .16s, box-shadow .2s var(--pp-ease-spring), transform .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-tile:hover:not(:disabled) {
+  border-color: var(--ink); background: var(--card); transform: translate(-1.5px,-1.5px); box-shadow: 3.5px 3.5px 0 var(--pp-butter);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-tile.feature { border-color: var(--ink); background: var(--card); box-shadow: 3px 3px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .auth-scope .auth-tile.feature:hover:not(:disabled) { box-shadow: 4.5px 4.5px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .auth-scope .auth-tile-num {
+  width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px;
+  background: var(--pp-lilac-soft); border: 1.5px solid var(--pp-lilac-bd); color: var(--pp-lilac-ink);
+  font-family: var(--font-fraunces); font-style: normal; font-weight: 600; font-size: 1.05rem;
+  transform: rotate(-4deg); transition: transform .3s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-tile:nth-child(2) .auth-tile-num { background: var(--pp-mint-soft); border-color: var(--pp-mint-bd); color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .auth-scope .auth-tile:nth-child(3) .auth-tile-num { background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .auth-scope .auth-tile:hover .auth-tile-num { transform: rotate(3deg) scale(1.05); }
+html[data-aesthetic="paper"] .auth-scope .auth-tile-title { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.02rem; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .auth-scope .auth-tile-desc { font-size: .84rem; color: var(--muted); }
+
+/* fields */
+html[data-aesthetic="paper"] .auth-scope :is(.auth-input, .auth-field) {
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-input:focus,
+html[data-aesthetic="paper"] .auth-scope .auth-field:focus-within { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .auth-scope .auth-label { font-size: .78rem; color: var(--ink-soft); }
+
+/* notes: taped slips, as on Billing */
+html[data-aesthetic="paper"] .auth-scope :is(.auth-alert, .auth-notice) {
+  position: relative; border-width: 1.5px; border-radius: 4px 14px 6px 12px; font-size: .88rem;
+}
+html[data-aesthetic="paper"] .auth-scope .auth-alert { border-color: var(--pp-rose-ink); background: var(--pp-rose-soft); color: var(--pp-rose-ink); box-shadow: 2px 2px 0 var(--pp-rose); }
+html[data-aesthetic="paper"] .auth-scope .auth-notice { border-color: var(--pp-lilac-bd); background: var(--pp-lilac-soft); color: var(--ink-soft); box-shadow: 2px 2px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .auth-scope .auth-badmark { border-radius: 14px; border-width: 1.5px; transform: rotate(-4deg); }
+
+/* the inviting org's badge and the account about to join */
+html[data-aesthetic="paper"] .auth-scope .auth-orgmark {
+  border: 1.5px solid var(--ink); border-radius: 14px; background: var(--pp-lilac); transform: rotate(-3deg);
+  box-shadow: 2.5px 2.5px 0 var(--pp-butter);
+}
+html[data-aesthetic="paper"] .auth-scope .auth-orgmark .mono { font-family: var(--font-fraunces); font-weight: 700; color: var(--pp-note-ink); }
+html[data-aesthetic="paper"] .auth-scope .auth-account { border: 1.5px solid var(--line); border-radius: 14px; background: var(--card); }
+html[data-aesthetic="paper"] .auth-scope .auth-account .avatar-fallback { background: var(--pp-peach); color: rgba(38,33,27,.72); font-weight: 700; }
+
+/* links + odds and ends with literal ledger colours */
+html[data-aesthetic="paper"] .auth-scope .auth-link { color: var(--ink-soft); text-decoration-color: var(--line); }
+html[data-aesthetic="paper"] .auth-scope .auth-link:hover,
+html[data-aesthetic="paper"] .auth-scope .auth-link.vio:hover { color: var(--ink); text-decoration-color: var(--ink); }
+html[data-aesthetic="paper"] .auth-scope .auth-link.vio { color: var(--ink); font-weight: 600; text-decoration-color: var(--pp-lilac-bd); }
+html[data-aesthetic="paper"] .auth-scope .composer-send { background: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .auth-scope .composer-send:hover:not(:disabled) { background: var(--ink); }
+html[data-aesthetic="paper"] .auth-scope :is(a, button, input):focus-visible { outline-color: var(--ink); }
+
+/* ── 3. The route error boundary ────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .app-err { background: var(--paper); font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .app-err-card {
+  border: 1.5px solid var(--ink); border-radius: 8px 22px 12px 20px; background: var(--card); box-shadow: 6px 6px 0 var(--pp-rose);
+}
+html[data-aesthetic="paper"] .app-err-kicker { font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 600; letter-spacing: .12em; color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .app-err-seal {
+  width: 50px; height: 50px; border-radius: 14px; transform: rotate(-4deg);
+  background: var(--pp-rose-soft); border: 1.5px solid var(--pp-rose-bd); color: var(--pp-rose-ink);
+}
+html[data-aesthetic="paper"] .app-err-title { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.6rem; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .app-err-title em {
+  font-style: normal; color: inherit; padding: 0 .06em;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-rose) calc(var(--pp-mark-op) * 100%), transparent) 58% 92%, transparent 92%);
+}
+html[data-aesthetic="paper"] .app-err-lede { font-size: .9rem; }
+html[data-aesthetic="paper"] .app-err-ref { color: var(--muted); }
+html[data-aesthetic="paper"] :is(.app-err-retry, .app-err-home) {
+  border-radius: 999px; border: 1.5px solid var(--ink); padding: 9px 17px; font-size: .88rem; font-weight: 600;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .2s, color .2s;
+}
+html[data-aesthetic="paper"] .app-err-retry { background: var(--ink); color: var(--paper); box-shadow: 2.5px 2.5px 0 var(--pp-rose); }
+html[data-aesthetic="paper"] .app-err-retry:hover { background: var(--ink); transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-rose); }
+html[data-aesthetic="paper"] .app-err-home { background: transparent; color: var(--ink-soft); border-color: var(--line-med); }
+html[data-aesthetic="paper"] .app-err-home:hover { border-color: var(--muted); color: var(--ink); transform: translateY(-1px); }
