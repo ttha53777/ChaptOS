@@ -58,6 +58,7 @@ export async function resetDb(): Promise<void> {
       "ServiceParticipation",
       "ServiceEvent",
       "CalendarEvent",
+      "AgendaTemplate",
       "PartyEvent",
       "BrotherMetricValue",
       "OrgMetricDefinition",

@@ -188,6 +188,16 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} updated event ${m.title}`;
     case "calendar.deleted":
       return `${who} deleted event ${m.title}`;
+    case "agenda_template.created":
+      return `${who} added the agenda template ${m.name}`;
+    case "agenda_template.updated":
+      return `${who} edited the agenda template ${m.name}`;
+    case "agenda_template.archived":
+      return `${who} deleted the agenda template ${m.name}`;
+    case "agenda_template.restored":
+      return `${who} restored the agenda template ${m.name}`;
+    case "agenda_template.default_changed":
+      return m.name ? `${who} made ${m.name} the default agenda` : `${who} set new meetings to start blank`;
     case "programming.created":
       return `${who} added event idea ${m.title}`;
     case "programming.deleted":

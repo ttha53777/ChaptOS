@@ -6,6 +6,7 @@ import "./paper-overlays.css";
 import "./paper-programming.css";
 import "./paper-tasks.css";
 import "./paper-chapter.css";
+import "./paper-templates.css";
 import "./paper-chat.css";
 import "./paper-treasury.css";
 import "./paper-docs.css";

@@ -28,7 +28,7 @@ const BY_SUBJECT: Record<string, ActivityCategory> = {
   reimbursement: "request",
   announcement: "announcement",
   programming: "programming", event_field: "programming",
-  calendar: "calendar", calendar_event_type: "calendar", semester: "calendar",
+  calendar: "calendar", calendar_event_type: "calendar", agenda_template: "calendar", semester: "calendar",
   brother: "members", role: "members", membership: "members", invite: "members", join_request: "members",
   service_event: "service", service_participation: "service",
   party: "parties",

@@ -45,7 +45,7 @@ const ORG_COLUMN_TABLES = [
   "PartyEvent", "Poll", "PollAssignment", "PollOption", "PollVote", "ProgrammingEvent",
   "ProgrammingEventDoc", "Reimbursement", "Role", "Semester", "ServiceEvent",
   "ServiceParticipation", "Subscription", "Task", "TaskAssignment", "TaskCompletion", "Transaction",
-  "TransactionCategory",
+  "TransactionCategory", "AgendaTemplate",
   // SalesLead's organizationId is NULLABLE (ON DELETE SET NULL keeps a lead alive
   // after its org is deleted). `NULL = <int>` is NULL, not true, so an orphaned
   // lead is invisible to the org-scoped client by construction — which is the

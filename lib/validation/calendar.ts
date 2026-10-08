@@ -17,6 +17,9 @@ export const createCalendarInput = z.object({
   location:    z.string().nullable().optional(),
   owner:       z.string().max(200).optional(),
   status:      z.string().max(50).optional(),
+  // Start the meeting's notes from this agenda template (chapter meetings only).
+  // The server fills its blanks from the schedule; the client never sends the text.
+  agendaTemplateId: z.number().int().positive().nullable().optional(),
 });
 export type CreateCalendarInput = z.infer<typeof createCalendarInput>;
 

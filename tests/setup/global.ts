@@ -59,7 +59,13 @@ export default async function setup() {
     // calendar migration so durable delivery is exercised in service tests too.
     const sql = readFileSync(new URL("../../prisma/migrations/20260929000001_calendar_subscriptions/migration.sql", import.meta.url), "utf8");
     const pool = new Pool({ connectionString: TEST_DATABASE_URL });
-    try { await pool.query(sql.slice(sql.indexOf("-- No permissive policy"))); }
+    // Same for AgendaTemplate's one-live-default index and category CHECK, which
+    // the service's default switch relies on and schema.prisma can't express.
+    const agenda = [
+      `CREATE UNIQUE INDEX "AgendaTemplate_one_default_per_org" ON "AgendaTemplate"("organizationId") WHERE "isDefault" AND "archivedAt" IS NULL`,
+      `ALTER TABLE "AgendaTemplate" ADD CONSTRAINT agenda_template_category CHECK ("category" IN ('meetings', 'leadership', 'committees'))`,
+    ].join(";\n");
+    try { await pool.query(sql.slice(sql.indexOf("-- No permissive policy"))); await pool.query(agenda); }
     finally { await pool.end(); }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

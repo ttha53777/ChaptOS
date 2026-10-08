@@ -26,6 +26,7 @@ import { signProposalBlob } from "@/lib/ai-approval-sig";
 import { findPermHolders, type PermHolders } from "@/lib/permission-holders";
 import { getMetricStatus } from "@/lib/metrics";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
+import { hasMinutes } from "@/lib/agenda-template";
 
 /**
  * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
@@ -1540,8 +1541,12 @@ async function listCalendar(args: ToolArgs, scoped: Scoped): Promise<ToolResult>
     },
     orderBy: { [orderByField]: orderDir },
     take: clampLimit(args.limit),
+    omit: { notesDoc: true },
   });
-  return listResult(rows, !!(title || start || end || daySuffix || category || mandatoryOnly));
+  // A meeting started from an agenda template has its agenda as `description`
+  // until someone writes minutes; the model must not read that as minutes.
+  const mapped = rows.map(({ notesSeed, ...row }) => ({ ...row, description: hasMinutes({ description: row.description, notesSeed }) ? row.description : null }));
+  return listResult(mapped, !!(title || start || end || daySuffix || category || mandatoryOnly));
 }
 
 async function listParties(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {

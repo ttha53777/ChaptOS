@@ -21,6 +21,7 @@ export type SubjectType =
   | "Brother"
   | "CalendarEvent"
   | "CalendarEventType"
+  | "AgendaTemplate"
   | "ProgrammingEvent"
   | "EventFieldDefinition"
   | "ServiceEvent"
@@ -95,6 +96,13 @@ export interface EventMetadata {
   "calendar.notes_saved": { title: string; revision: number; seq: number };
   // An officer (or the owner) ticks an action item off a meeting's summary.
   "calendar.action_item_toggled": { title: string; itemId: string; text: string; done: boolean };
+  // Agenda templates. `default_changed` carries the new default's name, or null
+  // when new meetings go back to starting blank.
+  "agenda_template.created":         { name: string; category: string };
+  "agenda_template.updated":         { name: string; changedFields: string[] };
+  "agenda_template.archived":        { name: string };
+  "agenda_template.restored":        { name: string };
+  "agenda_template.default_changed": { name: string | null };
   "calendar_event_type.created": { slug: string; label: string };
   "calendar_event_type.updated": { slug: string; label: string; changedFields: string[] };
   "calendar_event_type.hidden":  { slug: string; label: string; hidden: boolean };
@@ -256,6 +264,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
   "calendar.created", "calendar.updated", "calendar.deleted", "calendar.notes_saved", "calendar.action_item_toggled",
+  "agenda_template.created", "agenda_template.updated", "agenda_template.archived", "agenda_template.restored", "agenda_template.default_changed",
   "calendar_event_type.created", "calendar_event_type.updated", "calendar_event_type.hidden", "calendar_event_type.deleted",
   "programming.created", "programming.updated", "programming.stage_changed", "programming.deleted",
   "event_field.created", "event_field.updated", "event_field.deleted",

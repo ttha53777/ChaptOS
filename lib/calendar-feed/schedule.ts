@@ -68,6 +68,12 @@ export function scheduleDate(schedule: Schedule): string {
 export function scheduleTime(schedule: Schedule): string | null {
   return schedule.kind === "allDay" ? null : Temporal.Instant.from(schedule.start).toZonedDateTimeISO(schedule.timeZone).toPlainTime().toString({ smallestUnit: "minute" });
 }
+/** A timed event's entered end as local HH:MM in its own zone; null when all-day or start-only. */
+export function scheduleEndTime(schedule: Schedule): string | null {
+  return schedule.kind === "timed" && schedule.end
+    ? Temporal.Instant.from(schedule.end).toZonedDateTimeISO(schedule.timeZone).toPlainTime().toString({ smallestUnit: "minute" })
+    : null;
+}
 export function endInstant(schedule: Schedule): Date {
   return new Date(schedule.kind === "allDay" ? `${schedule.end}T00:00:00Z` : timedEnd(schedule));
 }

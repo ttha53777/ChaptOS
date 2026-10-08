@@ -60,6 +60,7 @@ model Organization {
   eventFieldDefinitions     EventFieldDefinition[]
   transactions              Transaction[]
   transactionCategories     TransactionCategory[]
+  agendaTemplates           AgendaTemplate[]
   reimbursements            Reimbursement[]
   duesPayments              DuesPayment[]
   chatApprovals             ChatApproval[]
@@ -822,6 +823,14 @@ model CalendarEvent {
   // markdown for every other reader (Timeline, Ask Chapt). lib/meeting-summary.ts.
   notesSummaryData  Json?
   notesProtocolVersion Int                       @default(1)
+  // The agenda template this meeting's notes were started from, and the filled
+  // copy exactly as written into `description` at creation. `notesSeed` is how
+  // "has minutes" tells an untouched agenda from real minutes (hasMinutes() in
+  // lib/agenda-template.ts). The template link survives as null on delete; the
+  // notes never change when a template is edited later.
+  agendaTemplateId  Int?
+  agendaTemplate    AgendaTemplate?            @relation(fields: [agendaTemplateId], references: [id], onDelete: SetNull)
+  notesSeed         String?
   // Used by the Programming page (events workflow). Chapter/Timeline rows keep defaults.
   owner             String                     @default("")
   status            String                     @default("Upcoming")
@@ -850,6 +859,37 @@ model CalendarEvent {
   // Covers getLiveCheckIn's "does this org have a recently-opened window?" read,
   // which runs on every dashboard load.
   @@index([organizationId, checkInOpenedAt])
+  @@index([agendaTemplateId])
+}
+
+// A chapter's shared meeting agenda — "Weekly chapter meeting", "Exec check-in".
+// Picking one on Add meeting copies its body, with the {{field}} blanks filled
+// from the meeting form, into the new meeting's notes. The copy is the meeting's
+// own from then on: editing or archiving a template never touches past notes.
+//
+// `category` is a fixed set (lib/state/agenda-template-category.ts, CHECK in the
+// migration). One live default per org, enforced by a partial unique index in
+// the migration (Prisma can't express it). Archived rows are soft-deleted so an
+// Undo restores the same row and its meeting count.
+model AgendaTemplate {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  name           String
+  description    String    @default("")
+  category       String
+  body           String
+  isDefault      Boolean   @default(false)
+  archivedAt     DateTime?
+  // Plain Ints, not FKs — same as CalendarEvent.checkInOpenedById.
+  createdById    Int?
+  updatedById    Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  meetings     CalendarEvent[]
+
+  @@index([organizationId, archivedAt])
 }
 
 // Per-org, admin-editable timeline event type (a.k.a. "category"). Defines the

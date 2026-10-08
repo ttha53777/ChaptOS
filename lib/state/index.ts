@@ -33,3 +33,4 @@ export * from "./billing-mode";
 export * from "./calendar-feed";
 
 export * from "./instagram-status";
+export * from "./agenda-template-category";

@@ -25,6 +25,7 @@ import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
 import { isNavVisible } from "../../components/Sidebar";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
+import { hasMinutes } from "@/lib/agenda-template";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -219,7 +220,8 @@ function SummaryBody({ text }: { text: string }) {
 /** The minutes block for a meeting: the AI summary when there is one, else the raw minutes. */
 function MeetingNotes({ event }: { event: CalendarEvent }) {
   const summary = (event.notesSummary ?? "").trim();
-  const minutes = (event.description ?? "").trim();
+  // An untouched agenda from a template isn't minutes yet.
+  const minutes = hasMinutes(event) ? (event.description ?? "").trim() : "";
   if (!summary && !minutes) return null;
 
   if (!summary) {

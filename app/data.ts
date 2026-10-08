@@ -286,6 +286,9 @@ export interface CalendarEvent {
   category: string; // a CalEventType slug (per-org); see CalEventType above
   mandatory: boolean;
   description?: string;
+  /** The agenda exactly as copied in from a template at creation; null when the notes started blank. */
+  notesSeed?: string | null;
+  agendaTemplateId?: number | null;
   location?: string;
   notesSummary?: string | null;
   /** Structured summary (lib/meeting-summary.ts); parse before reading. */

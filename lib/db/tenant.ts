@@ -1322,6 +1322,37 @@ function scopedCalendarEventType(orgId: number, run: Run) {
   };
 }
 
+// The chapter's shared meeting agendas. No delete: archiving is the delete (an
+// Undo restores the same row), and deleteOrg clears the table itself. Switching
+// the default is two statements that must commit together, so the service runs
+// it in ctx.db.$transaction with organizationId spelled out.
+function scopedAgendaTemplate(orgId: number, run: Run) {
+  type W = Prisma.AgendaTemplateWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.AgendaTemplateWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.agendaTemplate.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   <T extends Prisma.AgendaTemplateFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.AgendaTemplateFindManyArgs>) =>
+      run(p => p.agendaTemplate.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AgendaTemplateFindManyArgs>)),
+    findFirst:  <T extends Prisma.AgendaTemplateFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.AgendaTemplateFindFirstArgs>) =>
+      run(p => p.agendaTemplate.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.AgendaTemplateFindFirstArgs>)),
+    create:     (args: Omit<Prisma.AgendaTemplateCreateArgs, "data"> & { data: Omit<Prisma.AgendaTemplateUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.agendaTemplate.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.AgendaTemplateUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.agendaTemplate.update({ ...args, where: { id } }));
+    },
+    updateMany: (args: Prisma.AgendaTemplateUpdateManyArgs) =>
+      run(p => p.agendaTemplate.updateMany({ ...args, where: org(args.where) })),
+    count:      (args?: Prisma.AgendaTemplateCountArgs) => run(p => p.agendaTemplate.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 // The org's income/expense vocabulary. No onTx: every financial write resolves and
 // validates its category BEFORE opening its $transaction (reimbursement-service
 // resolves at :129 and opens at :134; budget-service loops before :27), so the
@@ -1977,6 +2008,7 @@ export function db(orgId: number) {
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
     calendarEventType:    scopedCalendarEventType(orgId, run),
     transactionCategory:  scopedTransactionCategory(orgId, run),
+    agendaTemplate:       scopedAgendaTemplate(orgId, run),
 
     // Org-column-less join tables: scoped via a required relation to an org-bound
     // parent (CalendarEvent / Budget / OrgInvite); the Organization root is
@@ -2094,6 +2126,7 @@ export function _dbWithClient(orgId: number, client: P) {
     brotherMetricValue:   scopedBrotherMetricValue(orgId, run),
     calendarEventType:    scopedCalendarEventType(orgId, run),
     transactionCategory:  scopedTransactionCategory(orgId, run),
+    agendaTemplate:       scopedAgendaTemplate(orgId, run),
     attendanceRecord:    scopedAttendanceRecord(orgId, run),
     attendanceExcuse:    scopedAttendanceExcuse(orgId, run),
     attendanceExemption: scopedAttendanceExemption(orgId, run),

@@ -29,6 +29,9 @@ import "../../components/timeline/calendar-event-form.css";
 import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
 import { useNow } from "../../hooks/useNow";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
+import { nextMeetingDraft, type MeetingDraft } from "../../components/meeting-notes/meeting-defaults";
+import { agendaFieldsIn, agendaSections, hasMinutes, minutesBeyondAgenda } from "@/lib/agenda-template";
+import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
 import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 
 const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
@@ -99,7 +102,9 @@ function andList(items: string[]) {
   return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
-const hasNotes = (e: CalendarEvent) => !!(e.description ?? "").trim();
+// "Has minutes" means written beyond the agenda a template copied in — an
+// untouched agenda is still a meeting with no minutes (lib/agenda-template.ts).
+const hasNotes = (e: CalendarEvent) => hasMinutes(e);
 
 // One-line preview for the ledger row: the summary's gist, else the minutes' first lines.
 function notesPreview(event: CalendarEvent): string {
@@ -107,8 +112,9 @@ function notesPreview(event: CalendarEvent): string {
   if (data?.gist) return data.gist;
   const summary = (event.notesSummary ?? "").split("\n").map(l => l.replace(/^[-*]\s*/, "").replace(/\*\*/g, "").trim()).find(Boolean);
   if (summary) return summary;
-  return (event.description ?? "")
+  return minutesBeyondAgenda(event)
     .split("\n")
+    .filter(l => !l.startsWith("## "))
     .map(l => l.replace(/^[-*•]\s*/, "").trim())
     .filter(l => l && !/^(opened|closed|agenda|action items)\b/i.test(l))
     .slice(0, 2)
@@ -136,10 +142,9 @@ const taken = (row: AttendanceSummaryRow | undefined) => !!row && row.eligible >
 // ─── MeetingForm (shared by add + edit) ───────────────────────────────────────
 // Built on the Timeline's cef-* vocabulary, so both aesthetics already dress it.
 
-type MeetingDraft = { title: string; when: ScheduleValue; location: string; mandatory: boolean };
 /** What the calendar API takes. A structured schedule decides date/time server-side;
  *  only a legacy "as written" time travels as free text. */
-type MeetingInput = { title: string; location: string; mandatory: boolean; schedule: Schedule | null; date: string; time: string | null };
+type MeetingInput = { title: string; location: string; mandatory: boolean; schedule: Schedule | null; date: string; time: string | null; agendaTemplateId?: number | null };
 
 const formIcon = (children: React.ReactNode) => (
   <svg className="cef-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{children}</svg>
@@ -151,6 +156,9 @@ function MeetingForm({
   submitLabel,
   minDate,
   maxDate,
+  templates,
+  initialTemplateId,
+  onManageTemplates,
   onSubmit,
   onClose,
 }: {
@@ -159,10 +167,32 @@ function MeetingForm({
   submitLabel: string;
   minDate?: string;
   maxDate?: string;
+  /** Agenda templates for a new meeting; null while loading. Omit when editing. */
+  templates?: AgendaTemplateDTO[] | null;
+  /** Preselect this template (from "Use for a new meeting"); else the default. */
+  initialTemplateId?: number | null;
+  onManageTemplates?: () => void;
   onSubmit: (d: MeetingInput) => void | Promise<void>;
   onClose: () => void;
 }) {
   const [form, setForm] = useState<MeetingDraft>(initial);
+  // The agenda: a template id, "" for blank, or null until the list has loaded.
+  const [agendaId, setAgendaId] = useState<number | "" | null>(null);
+  // The title follows the chosen template until the officer types their own.
+  const titleTouched = useRef(false);
+  const agendaList = templates ?? [];
+  const agenda = typeof agendaId === "number" ? agendaList.find(t => t.id === agendaId) ?? null : null;
+  const pickAgenda = useCallback((id: number | "") => {
+    setAgendaId(id);
+    if (titleTouched.current) return;
+    const t = typeof id === "number" ? (templates ?? []).find(x => x.id === id) : null;
+    setForm(f => ({ ...f, title: t ? t.name : initial.title }));
+  }, [templates, initial.title]);
+  useEffect(() => {
+    if (editing || !templates || agendaId !== null) return;
+    const wanted = templates.find(t => t.id === initialTemplateId) ?? templates.find(t => t.isDefault);
+    pickAgenda(wanted ? wanted.id : "");
+  }, [editing, templates, agendaId, initialTemplateId, pickAgenda]);
   const formRef = useRef<HTMLFormElement>(null);
   // Guards the double-click: the submit handler is a network round-trip, so
   // without this a second click fires a second POST and creates a second
@@ -189,6 +219,7 @@ function MeetingForm({
         schedule,
         date: schedule ? scheduleDate(schedule) : form.when.date,
         time: schedule ? scheduleTime(schedule) : form.when.legacyTime.trim() || null,
+        ...(editing ? {} : { agendaTemplateId: agenda?.id ?? null }),
       });
     } finally {
       // On success the parent unmounts this form; on failure it stays open so
@@ -208,7 +239,7 @@ function MeetingForm({
       >
         <div className="cef-head"><span className="cef-kicker">{editing ? "Edit meeting" : "New chapter meeting"}</span></div>
         <label className="sr-only" htmlFor="meeting-title">Title</label>
-        <input id="meeting-title" className="cef-title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Meeting name" autoComplete="off" autoFocus required />
+        <input id="meeting-title" className="cef-title" value={form.title} onChange={e => { titleTouched.current = true; setForm(f => ({ ...f, title: e.target.value })); }} placeholder="Meeting name" autoComplete="off" autoFocus required />
         <div className="cef-rows">
           <div className="cef-r">
             {formIcon(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)}
@@ -238,6 +269,34 @@ function MeetingForm({
               </span>
             </label>
           </div>
+          {!editing && templates !== undefined && (
+            <div className="cef-r">
+              {formIcon(<><path d="M14 3H6a1 1 0 0 0-1 1v16h14V8l-5-5z" /><path d="M14 3v5h5M8 12h8M8 16h6" /></>)}
+              <div>
+                <div className="cef-agenda-head">
+                  <label className="t" htmlFor="meeting-agenda">Agenda</label>
+                  {onManageTemplates && <button type="button" className="cef-link" onClick={onManageTemplates}>{agendaList.length ? "Manage templates" : "Write a template"}</button>}
+                </div>
+                {templates === null ? (
+                  <p className="cef-hint cef-r-note">Loading templates…</p>
+                ) : agendaList.length === 0 ? (
+                  <p className="cef-hint cef-r-note">The notes start empty. Write your standing agenda once and every meeting can start from it.</p>
+                ) : (
+                  <>
+                    <select id="meeting-agenda" className="cef-input cef-tpl-select" value={agendaId ?? ""} onChange={e => pickAgenda(e.target.value ? Number(e.target.value) : "")}>
+                      {agendaList.map(t => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " ★ default" : ""}</option>)}
+                      <option value="">Blank — start the notes empty</option>
+                    </select>
+                    <p className="cef-hint cef-r-note">
+                      {agenda
+                        ? `${agenda.description ? `${agenda.description} ` : ""}${agendaSections(agenda.body).length} sections, copied into this meeting’s notes${agendaFieldsIn(agenda.body).length ? " — the date, time and location fill in from above" : ""}.`
+                        : "The notes start empty. Whoever takes minutes writes from scratch."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <div className="cef-foot">
           <span className="cef-kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to {editing ? "save" : "add"}</span>
@@ -702,6 +761,8 @@ export default function ChapterPage() {
   const [filter,        setFilter]        = useState<PastFilter>("all");
   const [freshId,       setFreshId]       = useState<number | null>(null);
   const [spotlightId,   setSpotlightId]   = useState<number | null>(null);
+  const [agendaTemplates, setAgendaTemplates] = useState<AgendaTemplateDTO[] | null>(null);
+  const [addTemplateId, setAddTemplateId] = useState<number | null>(null);
 
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const saveResetTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
@@ -730,6 +791,31 @@ export default function ChapterPage() {
     // An open check-in window takes over the On deck attendance block.
     requestJson<LiveCheckIn>("/api/attendance/live").then(setLive).catch(() => { /* optional */ });
   }, [loadSummary]);
+
+  // "Use for a new meeting" on the Templates page lands here with ?add=1. Read
+  // once from location (not useSearchParams, which would need a Suspense
+  // boundary) and dropped from the URL so a refresh doesn't reopen the form.
+  // Waits for the meetings: the form takes its defaults (usual weekday, time,
+  // room) once, on mount, from the list.
+  useEffect(() => {
+    if (!canEvents || loading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("add") !== "1") return;
+    const tpl = Number(params.get("template"));
+    setAddTemplateId(Number.isInteger(tpl) && tpl > 0 ? tpl : null);
+    setShowAddModal(true);
+    params.delete("add");
+    params.delete("template");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+  }, [canEvents, loading]);
+
+  // Agenda templates for Add meeting. Officers only (the API is MANAGE_EVENTS);
+  // a failed load just means new meetings start blank.
+  useEffect(() => {
+    if (!canEvents) return;
+    requestJson<AgendaTemplateDTO[]>("/api/calendar/agenda-templates").then(setAgendaTemplates).catch(() => setAgendaTemplates([]));
+  }, [canEvents]);
 
   // Officers see who's waiting on an excuse decision for the next meeting.
   useEffect(() => {
@@ -829,11 +915,14 @@ export default function ChapterPage() {
           category: "chapter",
           mandatory: draft.mandatory,
           description: "",
+          agendaTemplateId: draft.agendaTemplateId ?? null,
         }),
       });
-      savedValues.current[created.id] = "";
+      // A templated meeting starts with its agenda as the notes.
+      savedValues.current[created.id] = created.description ?? "";
       setEvents(prev => [created, ...prev]);
       setShowAddModal(false);
+      setAddTemplateId(null);
       setFreshId(created.id);
       loadSummary();
       toast.success(`Meeting added for ${fmtDate(created.date)} — it’s on the Timeline too.`);
@@ -1001,32 +1090,7 @@ export default function ChapterPage() {
           : "This is the first one — its minutes start the book."}
       </>;
 
-  // New-meeting defaults: the chapter's usual time and room, on its usual
-  // weekday, the first one that's free and inside the term.
-  const addDefaults = useMemo((): MeetingDraft => {
-    const last = [...events].sort((a, b) => compareEvents(b, a))[0];
-    const used = new Set(events.map(e => e.date));
-    const weekday = last ? localDate(last.date).getDay() : null;
-    const clamp = (d: string) => semester && d < semester.startDate ? semester.startDate : d;
-    let date = clamp(today);
-    if (weekday != null) {
-      const d = localDate(date);
-      for (let i = 0; i < 60; i++) {
-        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        if (semester && iso > semester.endDate) break;
-        if (d.getDay() === weekday && !used.has(iso) && iso >= today) { date = iso; break; }
-        d.setDate(d.getDate() + 1);
-      }
-    }
-    const prev = last ? initialSchedule(last.schedule, { date: last.date, time: last.time, isNew: false }) : null;
-    const base = initialSchedule(null, { date, isNew: true });
-    // A typed time ("7:00 PM") still says when the chapter usually starts.
-    const typed = last?.time?.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    const typedStart = typed ? `${String((Number(typed[1]) % 12) + (/pm/i.test(typed[3]) ? 12 : 0)).padStart(2, "0")}:${typed[2]}` : "";
-    const when = prev?.mode === "timed" ? { ...base, startTime: prev.startTime, endTime: prev.endTime }
-      : typedStart ? { ...base, startTime: typedStart } : base;
-    return { title: "Chapter meeting", when, location: last?.location ?? "", mandatory: true };
-  }, [events, semester, today]);
+  const addDefaults = useMemo(() => nextMeetingDraft(events, semester, today), [events, semester, today]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
@@ -1103,6 +1167,12 @@ export default function ChapterPage() {
                 </div>
               </div>
               <div className="ch-acts">
+                {canEvents && (
+                  <button className="mt-add-btn mt-tpl-btn" onClick={() => router.push(orgPath("/chapter/templates"))}>
+                    <PaperIcon name="sheet" />
+                    Templates
+                  </button>
+                )}
                 {canEvents && (
                   <button className="mt-add-btn" onClick={() => setShowAddModal(true)}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
@@ -1286,15 +1356,18 @@ export default function ChapterPage() {
 
       {/* Add modal */}
       {showAddModal && (
-        <Modal ariaLabel="New chapter meeting" hideHeader tone="dusk" maxWidthClass="max-w-[640px]" onClose={() => setShowAddModal(false)}>
+        <Modal ariaLabel="New chapter meeting" hideHeader tone="dusk" maxWidthClass="max-w-[780px]" onClose={() => { setShowAddModal(false); setAddTemplateId(null); }}>
           <MeetingForm
             initial={addDefaults}
             editing={false}
             submitLabel="Add meeting"
             minDate={semester?.startDate}
             maxDate={semester?.endDate}
+            templates={agendaTemplates}
+            initialTemplateId={addTemplateId}
+            onManageTemplates={() => router.push(orgPath("/chapter/templates"))}
             onSubmit={handleAdd}
-            onClose={() => setShowAddModal(false)}
+            onClose={() => { setShowAddModal(false); setAddTemplateId(null); }}
           />
         </Modal>
       )}

@@ -950,6 +950,8 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     // ServiceEvent before CalendarEvent (ServiceEvent.calendarEventId → CalendarEvent).
     await tx.serviceEvent.deleteMany({ where: { organizationId: orgId } });
     await tx.calendarEvent.deleteMany({ where: { organizationId: orgId } });
+    // After CalendarEvent (its agendaTemplateId would only SET NULL anyway).
+    await tx.agendaTemplate.deleteMany({ where: { organizationId: orgId } });
     await tx.partyEvent.deleteMany({ where: { organizationId: orgId } });
     // TaskAssignment before Task (FK: TaskAssignment.taskId → Task.id).
     await tx.taskAssignment.deleteMany({ where: { organizationId: orgId } });

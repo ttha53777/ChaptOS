@@ -1,4 +1,5 @@
-import { UNCLEAR_TIME, scheduleDate, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, scheduleDate, scheduleEndTime, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
+import { agendaValues, fillAgenda } from "@/lib/agenda-template";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
@@ -56,12 +57,43 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
   }));
 }
 
+/**
+ * A template's agenda as it lands in a new meeting's notes: blanks filled from
+ * the meeting itself, times in the meeting's own zone, so the copy reads the
+ * same wherever the officer who created it happened to be.
+ */
+function fillAgendaFor(input: CreateCalendarInput, body: string): string {
+  const s = input.schedule;
+  return fillAgenda(body, agendaValues({
+    title:     input.title,
+    date:      input.date,
+    startTime: s?.kind === "timed" ? scheduleTime(s) ?? "" : "",
+    endTime:   s ? scheduleEndTime(s) ?? "" : "",
+    allDay:    s?.kind === "allDay",
+    timeText:  s ? null : input.time,
+    location:  input.location,
+  }));
+}
+
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
+  const templateId = input.agendaTemplateId ?? null;
+  if (templateId != null) {
+    if (input.category !== "chapter") throw new ValidationError("Agenda templates are for chapter meetings.");
+    if ((input.description ?? "").trim()) throw new ValidationError("Start the notes from an agenda template or from your own text, not both.");
+  }
   await assertCategoryUsable(ctx, input.category, "create");
   await assertWithinActiveSemester(ctx, input.date);
   const { event, partyEventId } = await ctx.db.$transaction(async tx => {
+    // Read inside the transaction so an archive racing this create can't leave
+    // the meeting pointing at a template that was already gone.
+    const template = templateId == null ? null : await tx.agendaTemplate.findFirst({
+      where: { id: templateId, organizationId: ctx.orgId, archivedAt: null },
+      select: { body: true },
+    });
+    if (templateId != null && !template) throw new ValidationError("That agenda template was deleted. Pick another one, or start the notes blank.");
+    const agenda = template ? fillAgendaFor(input, template.body) : null;
     const event = await tx.calendarEvent.create({
       data: {
         organizationId: ctx.orgId,
@@ -71,8 +103,10 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
         time:        input.time ?? null,
         category:    input.category,
         mandatory:   input.mandatory,
-        description: input.description ?? null,
+        description: agenda ?? input.description ?? null,
         location:    input.location ?? null,
+        // notesSeed is how "has minutes" tells this untouched agenda from real minutes.
+        ...(agenda != null ? { notesSeed: agenda, agendaTemplateId: templateId } : {}),
       },
     });
     // The calendar entry and its ledger are one creation, so commit both or neither.
