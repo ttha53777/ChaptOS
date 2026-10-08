@@ -141,14 +141,33 @@
 .dash .tl-cal-day .chip.is-overdue { box-shadow: inset 2px 0 0 var(--rose); }
 .dash .tl-cal-day .more { padding: 0 6px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
 .dash .tl-cal-day .dots { display: none; }
-.dash .tl-cal-agenda .tl-month { margin-top: 0; }
-.dash .tl-cal-open { padding: 22px 18px; border: 1px dashed var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.dash .tl-cal-open p { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--muted); }
-.dash .tl-cal-open button { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: none; border: 0; cursor: pointer; }
+/* Calendar view: the month takes the full width and a viewport's height; the
+   rail has no idle state and comes in as a right-hand drawer only for a picked
+   event, day or measure. */
+.dash.dash-timeline.cal-view { --dash-max-width: 1480px; }
+.dash.cal-view .tl-cal-day .chip .tt { white-space: nowrap; }
+.dash.cal-view .tl-cal-day { overflow: hidden; }
+@media (min-width: 641px) {
+  .dash.cal-view .tl-cal-grid { height: max(440px, calc(100dvh - 230px)); grid-template-rows: repeat(var(--weeks, 5), minmax(0, 1fr)); }
+  .dash.cal-view .tl-cal-day { min-height: 0; }
+}
+@media (min-width: 1024px) {
+  .dash.cal-view .tl-layout { grid-template-columns: minmax(0, 1fr); }
+  .dash.cal-view .tl-rail { display: none; }
+  .dash.cal-view .tl-rail.has-sel { display: flex; flex-direction: column; gap: 16px; position: fixed; top: 0; right: 0; bottom: 0; z-index: 72;
+    width: min(420px, 92vw); overflow-y: auto; padding: 18px 18px 28px; background: var(--paper); border-left: 1px solid var(--line);
+    box-shadow: -18px 0 50px rgba(0,0,0,.28); animation: tlDrawerIn .34s cubic-bezier(.16,.9,.3,1.02) both; }
+  .dash.cal-view .tl-scrim { display: block; position: fixed; inset: 0; z-index: 71; background: var(--scrim, rgba(0,0,0,.28)); border: 0;
+    animation: tlScrimIn .25s ease both; }
+}
+.dash .gd-add { display: block; margin-top: 10px; font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--vio); background: none; border: 0; padding: 0; cursor: pointer; }
+@keyframes tlDrawerIn { from { transform: translateX(36px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tlScrimIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tlCalFlip { from { opacity: 0; transform: perspective(1400px) rotateX(-9deg) translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes tlCalIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .dash .tl-cal-grid, .dash .tl-cal-head h2 { animation: none; }
+  .dash .tl-cal-grid, .dash .tl-cal-head h2, .dash.cal-view .tl-rail.has-sel, .dash.cal-view .tl-scrim { animation: none; }
   .dash .tl-view-thumb { transition: none; }
 }
 /* Phones: cells shrink to a number and a row of category dots; the agenda carries the detail. */

@@ -423,13 +423,17 @@ function TimelineRow({
 }
 
 // ─── TimelineCalendar (month grid view) ───────────────────────────────────────
-// The same filtered events as the spine, laid out as a wall-calendar page. Chips
-// open the event in the rail; a day cell picks that day for the agenda below the
-// grid, which is also where "+N more" and the phone layout (dots, no chips) land.
+// The same filtered events as the spine, laid out as a wall-calendar page sized to
+// the viewport. There is no idle rail here: a chip opens the event in a drawer, and
+// a day cell opens that day's list in the same drawer (DayDetail) — which is also
+// where "+N more" and the phone layout (dots, no chips) land.
 
 type TimelineView = "timeline" | "calendar";
 const VIEW_KEY = "chaptos:timeline-view";
-const CHIPS_PER_DAY = 3;
+/** One chip row (single-line chip + gap) and a cell's day-number header, in px —
+ *  how many chips a viewport-sized row can hold before it shows "+N more". */
+const CHIP_ROW_PX = 27;
+const CELL_HEAD_PX = 46;
 
 /** "7:00 – 9:00 PM" → "7:00"; the chip only has room for the start. */
 function chipTime(event: CalendarEvent): string | null {
@@ -438,7 +442,7 @@ function chipTime(event: CalendarEvent): string | null {
 }
 
 function TimelineCalendar({
-  events, month, onMonth, day, onDay, doneById, ownerById, selectedId, onSelect, canAdd, onAdd,
+  events, month, onMonth, day, onDay, doneById, selectedId, onSelect,
 }: {
   events: CalendarEvent[];
   /** First of the shown month. */
@@ -447,11 +451,8 @@ function TimelineCalendar({
   day: string;
   onDay: (d: string) => void;
   doneById: Map<number, boolean>;
-  ownerById: Map<number, string>;
   selectedId: number | null;
   onSelect: (e: CalendarEvent) => void;
-  canAdd: boolean;
-  onAdd: () => void;
 }) {
   const types = useEventTypes();
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
@@ -477,6 +478,20 @@ function TimelineCalendar({
     });
   }, [month]);
 
+  // Rows stretch to fill the viewport, so the chip budget follows the row height.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [chipFit, setChipFit] = useState(3);
+  const weeks = cells.length / 7;
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const measure = () => setChipFit(Math.max(1, Math.floor((grid.clientHeight / weeks - CELL_HEAD_PX) / CHIP_ROW_PX)));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(grid);
+    return () => ro.disconnect();
+  }, [weeks]);
+
   const monthPrefix = `${month.year}-${pad(month.month + 1)}`;
   const monthEvents = events.filter(e => e.date.startsWith(monthPrefix));
   const monthRequired = monthEvents.filter(e => e.mandatory).length;
@@ -487,10 +502,6 @@ function TimelineCalendar({
     onMonth({ year: d.getFullYear(), month: d.getMonth() });
   };
   const goToday = () => { onMonth({ year: TODAY.year, month: TODAY.month }); onDay(todayStr); };
-
-  const dayEvents = byDay.get(day) ?? [];
-  const [dy, dm, dd] = day.split("-").map(Number);
-  const dayLabel = `${DAY_NAMES_LONG[new Date(dy, dm - 1, dd).getDay()]}, ${MONTH_NAMES[dm - 1]} ${dd}`;
 
   return (
     <div className="tl-cal">
@@ -521,10 +532,11 @@ function TimelineCalendar({
           {DAY_NAMES.map((n, i) => <span key={n} className={i === 0 || i === 6 ? "we" : ""}>{n}</span>)}
         </div>
 
-        <div className="tl-cal-grid" key={monthPrefix} role="grid" aria-label={`${MONTH_NAMES[month.month]} ${month.year}`}>
+        <div className="tl-cal-grid" ref={gridRef} key={monthPrefix} style={{ ["--weeks" as string]: weeks } as React.CSSProperties} role="grid" aria-label={`${MONTH_NAMES[month.month]} ${month.year}`}>
           {cells.map(c => {
             const list  = byDay.get(c.date) ?? [];
-            const shown = list.slice(0, CHIPS_PER_DAY);
+            // Overflowing days give their last slot to the "+N more" line.
+            const shown = list.length > chipFit ? list.slice(0, Math.max(1, chipFit - 1)) : list;
             const more  = list.length - shown.length;
             const cls = [
               "tl-cal-day",
@@ -579,34 +591,61 @@ function TimelineCalendar({
         </div>
       </div>
 
-      <section className="tl-cal-agenda" aria-label={`Events on ${dayLabel}`}>
-        <div className="tl-month static">
-          <h2>{dayLabel}{day === todayStr && <span className="yr">Today</span>}</h2>
-          <span className="rule" />
-          <span className="cnt">{dayEvents.length ? `${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}` : "open day"}</span>
+    </div>
+  );
+}
+
+/** The calendar drawer's day view: what a picked day holds, or an open day. */
+function DayDetail({
+  date, events, doneById, onClose, onSelectEvent, onAdd,
+}: {
+  date: string;
+  events: CalendarEvent[];
+  doneById: Map<number, boolean>;
+  onClose: () => void;
+  onSelectEvent: (e: CalendarEvent) => void;
+  onAdd?: () => void;
+}) {
+  const types = useEventTypes();
+  const [y, m, d] = date.split("-").map(Number);
+  const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
+  const rel = date === todayStr ? "Today" : relWhen(date);
+
+  return (
+    <div className="gd">
+      <div className="ev-top">
+        <button className="ev-back" onClick={onClose}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Close
+        </button>
+      </div>
+
+      <div className="gd-hero">
+        <p className="k">{DAY_NAMES_LONG[new Date(y, m - 1, d).getDay()]} · {rel}</p>
+        <p className="v">{MONTH_NAMES[m - 1].slice(0, 3)} {d}</p>
+        <p className="blurb">{events.length ? `${events.length} on the books${events.some(e => e.mandatory) ? " · attendance taken" : ""}.` : "An open day."}</p>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="gd-empty">
+          Nothing on the books this day.
+          {onAdd && <button type="button" className="gd-add" onClick={onAdd}>Add event →</button>}
         </div>
-        {dayEvents.length ? (
-          <div className="spine">
-            {dayEvents.map(e => (
-              <TimelineRow
-                key={e.id}
-                event={e}
-                isToday={e.date === todayStr}
-                isPast={e.date < todayStr}
-                done={doneById.get(e.id)}
-                owner={ownerById.get(e.id)}
-                selected={selectedId === e.id}
-                onSelect={onSelect}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="tl-cal-open">
-            <p>Nothing on the books this day.</p>
-            {canAdd && <button type="button" onClick={onAdd}>Add event →</button>}
-          </div>
-        )}
-      </section>
+      ) : (
+        <div className="then-card">
+          {events.map(ev => (
+            <button key={ev.id} className="then-row" style={catStyleOf(types, ev.category)} onClick={() => onSelectEvent(ev)}>
+              <span className="when">{formatEventTime(ev.time, ev.schedule)?.split(/\s*[–-]\s*/)[0] ?? "All day"}</span>
+              <div className="what">
+                <p className="t" style={doneById.get(ev.id) ? { textDecoration: "line-through" } : undefined}>{ev.title}</p>
+                <p className="s">{catLabelOf(types, ev.category)}{ev.mandatory ? " · Required" : ""}{ev.location ? ` · ${ev.location}` : ""}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1250,6 +1289,7 @@ export default function TimelinePage() {
   const mainRef          = useRef<HTMLDivElement | null>(null);
   const todayRef         = useRef<HTMLDivElement | null>(null);
   const reviewRef        = useRef<HTMLDivElement | null>(null);
+  const toolbarRef       = useRef<HTMLDivElement | null>(null);
 
   // True when the today anchor is off-screen — drives whether "Jump to today"
   // shows, and which direction it points. Starts true so the button renders
@@ -1267,10 +1307,20 @@ export default function TimelinePage() {
   }, []);
   function switchView(next: TimelineView) {
     setView(next);
+    setCalDayOpen(false);
     try { localStorage.setItem(VIEW_KEY, next); } catch {}
+    // The calendar is sized to the viewport: bring its toolbar to the top so the
+    // whole month is on screen at once.
+    if (next === "calendar") requestAnimationFrame(() => {
+      const main = mainRef.current, bar = toolbarRef.current;
+      if (!main || !bar) return;
+      main.scrollTo({ top: main.scrollTop + bar.getBoundingClientRect().top - main.getBoundingClientRect().top - 12, behavior: "smooth" });
+    });
   }
   const [calMonth, setCalMonth] = useState({ year: TODAY.year, month: TODAY.month });
   const [calDay, setCalDay] = useState(() => toDateStr(TODAY.year, TODAY.month, TODAY.day));
+  // The calendar has no idle rail; a picked day opens its list in the drawer.
+  const [calDayOpen, setCalDayOpen] = useState(false);
   function pickCalDay(date: string) {
     setCalDay(date);
     const [y, m] = date.split("-").map(Number);
@@ -1810,6 +1860,7 @@ export default function TimelinePage() {
   }
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
+  const railOpen = !!(selectedEvent || glanceFocus || (view === "calendar" && calDayOpen));
 
   const dateLabel = _now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const dateShort = _now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -1862,7 +1913,7 @@ export default function TimelinePage() {
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
-          <div className="dash dash-timeline" data-dashboard-theme="dusk">
+          <div className={`dash dash-timeline${view === "calendar" ? " cal-view" : ""}`} data-dashboard-theme="dusk">
 
             {/* Loading / error banner */}
             {(calendarLoading || calendarError) && (
@@ -1971,7 +2022,7 @@ export default function TimelinePage() {
             </section>
 
             {/* ── Filter ───────────────────────────────────────────────────── */}
-            <div className="tl-toolbar">
+            <div className="tl-toolbar" ref={toolbarRef}>
               <div className="tl-seg" role="tablist" aria-label="Filter events">
                 {LAYERS.map(layer => {
                   const active = activeLayer === layer.id;
@@ -2119,14 +2170,11 @@ export default function TimelinePage() {
                     events={filtered}
                     month={calMonth}
                     onMonth={setCalMonth}
-                    day={calDay}
-                    onDay={pickCalDay}
+                    day={calDayOpen || selectedEvent ? calDay : ""}
+                    onDay={(d) => { pickCalDay(d); setCalDayOpen(true); setSelectedEvent(null); setGlanceFocus(null); }}
                     doneById={doneById}
-                    ownerById={ownerById}
                     selectedId={selectedEvent?.id ?? null}
-                    onSelect={setSelectedEvent}
-                    canAdd={canManageEvents}
-                    onAdd={() => setActiveModal("create")}
+                    onSelect={(e) => { setGlanceFocus(null); setSelectedEvent(e); }}
                   />
                 ) : !hasEvents ? (
                   <div className="tl-empty filter" style={{ textAlign: "center", padding: "72px 0", color: "var(--faint)" }}>
@@ -2231,7 +2279,7 @@ export default function TimelinePage() {
               </div>
 
               {/* Rail */}
-              <aside className={`tl-rail${selectedEvent || glanceFocus ? " has-sel" : ""}`}>
+              <aside className={`tl-rail${railOpen ? " has-sel" : ""}`} key={view === "calendar" ? "cal-rail" : "rail"}>
                 {selectedEvent ? (
                   <EventDetail
                     event={selectedEvent}
@@ -2279,6 +2327,17 @@ export default function TimelinePage() {
                     onClose={() => setGlanceFocus(null)}
                     onSelectEvent={setSelectedEvent}
                   />
+                ) : view === "calendar" ? (
+                  calDayOpen && (
+                    <DayDetail
+                      date={calDay}
+                      events={filtered.filter(e => e.date === calDay).sort(compareEvents)}
+                      doneById={doneById}
+                      onClose={() => setCalDayOpen(false)}
+                      onSelectEvent={setSelectedEvent}
+                      onAdd={canManageEvents ? () => setActiveModal("create") : undefined}
+                    />
+                  )
                 ) : (
                   <>
                     <TimelineTodo
@@ -2329,11 +2388,7 @@ export default function TimelinePage() {
                       </div>
                     )}
 
-                    {view === "calendar" ? (calMonth.year !== TODAY.year || calMonth.month !== TODAY.month) && (
-                      <button className="jump" onClick={() => pickCalDay(todayStr)}>
-                        {calMonth.year * 12 + calMonth.month > TODAY.year * 12 + TODAY.month ? "←" : "→"} Back to this month
-                      </button>
-                    ) : todayOffscreen && (
+                    {todayOffscreen && (
                       <button className="jump" onClick={() => scrollToToday(true)}>
                         {todayAbove ? "↑" : "↓"} Jump to today
                       </button>
@@ -2342,9 +2397,9 @@ export default function TimelinePage() {
                 )}
               </aside>
               {/* Below lg the rail is a bottom sheet over this scrim. */}
-              {(selectedEvent || glanceFocus) && (
+              {railOpen && (
                 <button type="button" className="tl-scrim" aria-label="Close" tabIndex={-1}
-                  onClick={() => { setSelectedEvent(null); setGlanceFocus(null); }} />
+                  onClick={() => { setSelectedEvent(null); setGlanceFocus(null); setCalDayOpen(false); }} />
               )}
             </div>
           </div>

@@ -1407,21 +1407,30 @@ html[data-aesthetic="paper"] .dash .tl-cal-day .more {
 html[data-aesthetic="paper"] .dash .tl-cal-day:hover .more { border-color: var(--muted); color: var(--ink); }
 html[data-aesthetic="paper"] .dash .tl-cal-day .dots i { width: 6px; height: 6px; background: var(--pcc); }
 
-/* the picked day's agenda reads as a strip of the spine */
-html[data-aesthetic="paper"] .dash .tl-cal-agenda .tl-month { margin: 0 0 8px; }
-html[data-aesthetic="paper"] .dash .tl-cal-agenda .tl-month h2 .yr {
-  padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--paper); box-shadow: 2px 2px 0 var(--pp-peach);
+/* calendar view: wider desk, and the rail becomes a sheet slid in from the right
+   edge — ink-edged with the lilac offset the bottom sheet wears */
+html[data-aesthetic="paper"] .dash.dash-timeline.cal-view { --dash-max-width: 1480px; }
+html[data-aesthetic="paper"] .dash.cal-view .tl-cal-day .chip .tt { -webkit-line-clamp: 1; overflow-wrap: normal; white-space: nowrap; text-overflow: ellipsis; display: block; overflow: hidden; }
+@media (min-width: 641px) {
+  html[data-aesthetic="paper"] .dash.cal-view .tl-cal-grid { height: max(440px, calc(100dvh - 252px)); }
 }
-html[data-aesthetic="paper"] .dash .tl-cal-open {
-  padding: 20px 22px; border-radius: 6px 16px 8px 14px; border: 1.5px dashed var(--line-med); background: transparent;
+@media (min-width: 1024px) {
+  html[data-aesthetic="paper"] .dash.cal-view .tl-rail.has-sel {
+    top: 12px; right: 12px; bottom: 12px; width: min(420px, 92vw); padding: 16px 14px 24px; gap: 18px;
+    background: var(--paper); border: 1.5px solid var(--ink); border-radius: 24px; box-shadow: -6px 6px 0 var(--pp-lilac), var(--pp-sh-3);
+    animation-timing-function: var(--pp-ease-spring);
+  }
+  html[data-aesthetic="paper"] .dash.cal-view .tl-layout { grid-template-columns: minmax(0,1fr); }
+  html[data-aesthetic="paper"] .dash.cal-view .tl-rail.has-sel :is(.ev, .gd) { box-shadow: none; border: 0; }
+  html[data-aesthetic="paper"] .dash.cal-view .tl-scrim { background: color-mix(in srgb, var(--ink) 18%, transparent); }
 }
-html[data-aesthetic="paper"] .dash .tl-cal-open p { font-family: var(--font-fraunces); font-style: italic; font-size: 1.05rem; letter-spacing: -.015em; color: var(--ink-soft); }
-html[data-aesthetic="paper"] .dash .tl-cal-open button {
-  padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); box-shadow: 2px 2px 0 var(--pp-mint);
-  font-family: var(--font-geist-sans); font-size: .82rem; font-weight: 600; letter-spacing: 0; text-transform: none;
+html[data-aesthetic="paper"] .dash .gd-empty:has(.gd-add) { display: flex; flex-direction: column; align-items: flex-start; }
+html[data-aesthetic="paper"] .dash .gd-add {
+  display: inline-flex; margin-top: 12px; padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink);
+  box-shadow: 2px 2px 0 var(--pp-mint); font-family: var(--font-geist-sans); font-size: .82rem; font-weight: 600; letter-spacing: 0; text-transform: none;
   transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
 }
-html[data-aesthetic="paper"] .dash .tl-cal-open button:hover { transform: translate(-1px,-1px); box-shadow: 3.5px 3.5px 0 var(--pp-mint); }
+html[data-aesthetic="paper"] .dash .gd-add:hover { transform: translate(-1px,-1px); box-shadow: 3.5px 3.5px 0 var(--pp-mint); }
 
 @media (max-width: 640px) {
   html[data-aesthetic="paper"] .dash .tl-cal-head { padding: 20px 14px 10px; flex-wrap: nowrap; }
