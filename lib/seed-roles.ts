@@ -3,7 +3,8 @@ import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions
 
 /**
  * Idempotent system-role setup. Safe to run on any DB state — uses upsert by
- * unique `name`, never overwrites custom permissions a chapter has tuned.
+ * unique `name` and only creates missing roles; an existing role is left exactly
+ * as the chapter has tuned it (permissions, color, rank).
  *
  * Called from prisma/seed.ts for fresh dev DBs and from scripts/seed-roles.ts
  * (a one-shot) after a production `prisma migrate deploy` to backfill the
@@ -76,10 +77,9 @@ async function seedSystemRolesForOrgWithMap(prisma: PrismaClient, organizationId
     const bits = bitsFor(spec);
     const row = await prisma.role.upsert({
       where: { organizationId_name: { organizationId, name: spec.name } },
-      // Only refresh permission bits on system roles whose spec changed; never
-      // wipe a chapter's customizations to `color` or `rank` once they've been
-      // edited via the UI.
-      update: { permissions: bits, isSystem: true },
+      // Never touch an existing role: its permissions, color and rank are the
+      // chapter's to tune in Settings → Roles.
+      update: {},
       create: {
         organizationId,
         name: spec.name,
@@ -93,38 +93,6 @@ async function seedSystemRolesForOrgWithMap(prisma: PrismaClient, organizationId
     idByName.set(row.name, row.id);
   }
   return idByName;
-}
-
-/**
- * Refresh the seeded permission bits on every org's system roles.
- *
- * `Role.permissions` is written once at seed/create time. When a new capability
- * bit is added to lib/permissions.ts (e.g. MANAGE_DOCS/TASKS/POLLS were added
- * after early orgs were seeded), existing system roles keep their OLD bitfield —
- * so a non-admin President silently 403s on the new features. This walks all
- * orgs and re-runs the idempotent system-role upsert, which recomputes bits from
- * the live PERMISSIONS map. Only `isSystem` roles are rewritten; a chapter's
- * custom roles and their color/rank tweaks are left untouched (see the upsert's
- * `update` clause).
- *
- * Safe to run on every boot — it's a self-healing sweep, not a one-shot. Runs on
- * the privileged client because it's a cross-org maintenance pass with no tenant
- * context (same posture as provisionOrg).
- */
-export async function refreshSystemRolePermissions(
-  prisma: PrismaClient,
-): Promise<{ orgsTouched: number }> {
-  const orgs = await prisma.role.findMany({
-    where: { isSystem: true },
-    distinct: ["organizationId"],
-    select: { organizationId: true },
-  });
-
-  for (const { organizationId } of orgs) {
-    await seedSystemRolesForOrgWithMap(prisma, organizationId);
-  }
-
-  return { orgsTouched: orgs.length };
 }
 
 /**

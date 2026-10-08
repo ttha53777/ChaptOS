@@ -92,6 +92,22 @@ export function canGrantRank(maxRank: number, roleRank: number): boolean {
 /** Convenience: the OR of every flag — used by the seeded "President" role. */
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS).reduce((a, b) => a | b, 0);
 
+/**
+ * Every bit that existing full-access roles have already been given. Adding a
+ * flag to PERMISSIONS does NOT reach existing orgs' President-style roles on its
+ * own — `Role.permissions` is stored, and nothing rewrites it at runtime (a boot
+ * sweep used to, and it reverted chapters' own role edits on every deploy). So a
+ * new bit ships with a one-time migration that grants it to roles already holding
+ * every bit in this mask:
+ *
+ *   UPDATE "Role" SET permissions = permissions | <newBit>
+ *   WHERE permissions & <GRANTED_ALL_PERMISSIONS> = <GRANTED_ALL_PERMISSIONS>;
+ *
+ * then bump this constant to ALL_PERMISSIONS. tests/permissions pins the two
+ * equal so the migration can't be forgotten.
+ */
+export const GRANTED_ALL_PERMISSIONS = 0x3fff;
+
 /** Human-readable name → bit, in declared order. Used by the Roles UI. */
 export const PERMISSION_LIST: ReadonlyArray<{ name: Permission; bit: number }> =
   Object.entries(PERMISSIONS).map(([name, bit]) => ({ name: name as Permission, bit }));

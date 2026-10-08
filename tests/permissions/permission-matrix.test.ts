@@ -13,7 +13,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
-import { computePermissions, hasPermission, PERMISSIONS, ALL_PERMISSIONS } from "@/lib/permissions";
+import { computePermissions, hasPermission, PERMISSIONS, ALL_PERMISSIONS, GRANTED_ALL_PERMISSIONS } from "@/lib/permissions";
 import { db } from "@/lib/db";
 
 beforeEach(async () => {
@@ -74,6 +74,13 @@ describe("hasPermission", () => {
     // Granting only MANAGE_BROTHERS must NOT grant settings, and vice versa.
     expect(hasPermission(PERMISSIONS.MANAGE_BROTHERS, "MANAGE_SETTINGS")).toBe(false);
     expect(hasPermission(PERMISSIONS.MANAGE_SETTINGS, "MANAGE_BROTHERS")).toBe(false);
+  });
+
+  it("a new permission bit ships with a migration granting it to full-access roles", () => {
+    // Failing here means a flag was added to PERMISSIONS. Existing orgs'
+    // President-style roles won't get it until a migration does — see the
+    // GRANTED_ALL_PERMISSIONS comment in lib/permissions.ts, then bump it.
+    expect(GRANTED_ALL_PERMISSIONS).toBe(ALL_PERMISSIONS);
   });
 });
 
