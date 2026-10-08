@@ -422,6 +422,195 @@ function TimelineRow({
   );
 }
 
+// ─── TimelineCalendar (month grid view) ───────────────────────────────────────
+// The same filtered events as the spine, laid out as a wall-calendar page. Chips
+// open the event in the rail; a day cell picks that day for the agenda below the
+// grid, which is also where "+N more" and the phone layout (dots, no chips) land.
+
+type TimelineView = "timeline" | "calendar";
+const VIEW_KEY = "chaptos:timeline-view";
+const CHIPS_PER_DAY = 3;
+
+/** "7:00 – 9:00 PM" → "7:00"; the chip only has room for the start. */
+function chipTime(event: CalendarEvent): string | null {
+  const t = formatEventTime(event.time, event.schedule);
+  return t ? t.split(/\s*[–-]\s*/)[0].replace(/:00(?=\s|$)/, "") : null;
+}
+
+function TimelineCalendar({
+  events, month, onMonth, day, onDay, doneById, ownerById, selectedId, onSelect, canAdd, onAdd,
+}: {
+  events: CalendarEvent[];
+  /** First of the shown month. */
+  month: { year: number; month: number };
+  onMonth: (m: { year: number; month: number }) => void;
+  day: string;
+  onDay: (d: string) => void;
+  doneById: Map<number, boolean>;
+  ownerById: Map<number, string>;
+  selectedId: number | null;
+  onSelect: (e: CalendarEvent) => void;
+  canAdd: boolean;
+  onAdd: () => void;
+}) {
+  const types = useEventTypes();
+  const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, CalendarEvent[]>();
+    for (const e of [...events].sort(compareEvents)) {
+      const list = m.get(e.date);
+      if (list) list.push(e); else m.set(e.date, [e]);
+    }
+    return m;
+  }, [events]);
+
+  // Whole weeks, Sunday-first, covering the month — 5 rows most months, 6 some.
+  const cells = useMemo(() => {
+    const first = new Date(month.year, month.month, 1);
+    const start = new Date(month.year, month.month, 1 - first.getDay());
+    const daysIn = new Date(month.year, month.month + 1, 0).getDate();
+    const weeks = Math.ceil((first.getDay() + daysIn) / 7);
+    return Array.from({ length: weeks * 7 }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      return { date: toDateStr(d.getFullYear(), d.getMonth(), d.getDate()), day: d.getDate(), dow: d.getDay(), inMonth: d.getMonth() === month.month };
+    });
+  }, [month]);
+
+  const monthPrefix = `${month.year}-${pad(month.month + 1)}`;
+  const monthEvents = events.filter(e => e.date.startsWith(monthPrefix));
+  const monthRequired = monthEvents.filter(e => e.mandatory).length;
+  const isThisMonth = month.year === TODAY.year && month.month === TODAY.month;
+
+  const step = (delta: number) => {
+    const d = new Date(month.year, month.month + delta, 1);
+    onMonth({ year: d.getFullYear(), month: d.getMonth() });
+  };
+  const goToday = () => { onMonth({ year: TODAY.year, month: TODAY.month }); onDay(todayStr); };
+
+  const dayEvents = byDay.get(day) ?? [];
+  const [dy, dm, dd] = day.split("-").map(Number);
+  const dayLabel = `${DAY_NAMES_LONG[new Date(dy, dm - 1, dd).getDay()]}, ${MONTH_NAMES[dm - 1]} ${dd}`;
+
+  return (
+    <div className="tl-cal">
+      <div className="tl-cal-sheet">
+        <span className="tl-cal-ring l pp-only" aria-hidden />
+        <span className="tl-cal-ring r pp-only" aria-hidden />
+        <header className="tl-cal-head">
+          <h2 key={monthPrefix}>
+            <span className="mo">{MONTH_NAMES[month.month]}</span>
+            <span className="yr">{month.year}</span>
+          </h2>
+          <span className="tl-cal-sum">
+            {monthEvents.length} event{monthEvents.length === 1 ? "" : "s"}
+            {monthRequired > 0 ? ` · ${monthRequired} required` : ""}
+          </span>
+          <div className="tl-cal-nav">
+            {!isThisMonth && <button type="button" className="today" onClick={goToday}>Today</button>}
+            <button type="button" aria-label="Previous month" onClick={() => step(-1)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
+            </button>
+            <button type="button" aria-label="Next month" onClick={() => step(1)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+            </button>
+          </div>
+        </header>
+
+        <div className="tl-cal-dow" aria-hidden>
+          {DAY_NAMES.map((n, i) => <span key={n} className={i === 0 || i === 6 ? "we" : ""}>{n}</span>)}
+        </div>
+
+        <div className="tl-cal-grid" key={monthPrefix} role="grid" aria-label={`${MONTH_NAMES[month.month]} ${month.year}`}>
+          {cells.map(c => {
+            const list  = byDay.get(c.date) ?? [];
+            const shown = list.slice(0, CHIPS_PER_DAY);
+            const more  = list.length - shown.length;
+            const cls = [
+              "tl-cal-day",
+              c.inMonth ? "" : "out",
+              c.dow === 0 || c.dow === 6 ? "we" : "",
+              c.date === todayStr ? "today" : c.date < todayStr ? "past" : "",
+              c.date === day ? "picked" : "",
+              list.length ? "has" : "",
+            ].filter(Boolean).join(" ");
+            return (
+              <div
+                key={c.date}
+                role="gridcell"
+                tabIndex={0}
+                aria-selected={c.date === day}
+                aria-label={`${fmtDate(c.date)}, ${list.length} event${list.length === 1 ? "" : "s"}`}
+                className={cls}
+                onClick={() => onDay(c.date)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDay(c.date); } }}
+              >
+                <span className="num">{c.day}</span>
+                {list.some(e => e.mandatory) && <span className="req-dot" title="Attendance taken" />}
+                <div className="chips">
+                  {shown.map(e => {
+                    const done = doneById.get(e.id);
+                    const t = chipTime(e);
+                    return (
+                      <button
+                        key={e.id}
+                        type="button"
+                        className={`chip${e.mandatory ? " is-req" : ""}${done ? " is-done" : ""}${c.date < todayStr && done === false ? " is-overdue" : ""}${selectedId === e.id ? " on" : ""}`}
+                        style={catStyleOf(types, e.category)}
+                        title={`${e.title} · ${catLabelOf(types, e.category)}`}
+                        onClick={(ev) => { ev.stopPropagation(); onDay(c.date); onSelect(e); }}
+                      >
+                        {t && <span className="tm">{t}</span>}
+                        <span className="tt">{e.title}</span>
+                      </button>
+                    );
+                  })}
+                  {more > 0 && <span className="more">+{more} more</span>}
+                </div>
+                {/* Phones: the cell is too small for chips, so a row of category dots. */}
+                {list.length > 0 && (
+                  <span className="dots" aria-hidden>
+                    {list.slice(0, 4).map(e => <i key={e.id} style={catStyleOf(types, e.category)} />)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <section className="tl-cal-agenda" aria-label={`Events on ${dayLabel}`}>
+        <div className="tl-month static">
+          <h2>{dayLabel}{day === todayStr && <span className="yr">Today</span>}</h2>
+          <span className="rule" />
+          <span className="cnt">{dayEvents.length ? `${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}` : "open day"}</span>
+        </div>
+        {dayEvents.length ? (
+          <div className="spine">
+            {dayEvents.map(e => (
+              <TimelineRow
+                key={e.id}
+                event={e}
+                isToday={e.date === todayStr}
+                isPast={e.date < todayStr}
+                done={doneById.get(e.id)}
+                owner={ownerById.get(e.id)}
+                selected={selectedId === e.id}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="tl-cal-open">
+            <p>Nothing on the books this day.</p>
+            {canAdd && <button type="button" onClick={onAdd}>Add event →</button>}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 // ─── EventDetail (rail, when a row is selected) ───────────────────────────────
 
 type AttendanceDetail = {
@@ -1071,6 +1260,23 @@ export default function TimelinePage() {
   // Legend popover on the filter toolbar.
   const [legendOpen, setLegendOpen] = useState(false);
 
+  // Spine or month grid; remembered per viewer.
+  const [view, setView] = useState<TimelineView>("timeline");
+  useEffect(() => {
+    try { if (localStorage.getItem(VIEW_KEY) === "calendar") setView("calendar"); } catch {}
+  }, []);
+  function switchView(next: TimelineView) {
+    setView(next);
+    try { localStorage.setItem(VIEW_KEY, next); } catch {}
+  }
+  const [calMonth, setCalMonth] = useState({ year: TODAY.year, month: TODAY.month });
+  const [calDay, setCalDay] = useState(() => toDateStr(TODAY.year, TODAY.month, TODAY.day));
+  function pickCalDay(date: string) {
+    setCalDay(date);
+    const [y, m] = date.split("-").map(Number);
+    if (y !== calMonth.year || m - 1 !== calMonth.month) setCalMonth({ year: y, month: m - 1 });
+  }
+
   useEffect(() => {
     requestJson<CalendarEvent[]>("/api/calendar")
       .then(data => { setApiEvents(data); setCalendarError(null); })
@@ -1502,6 +1708,7 @@ export default function TimelinePage() {
     didDeepLink.current = deepLinkedId;
     if (!match) { setDeepLinkMissing(true); return; }
     setSelectedEvent(match);
+    pickCalDay(match.date);
     // Finished events sit behind the "Earlier" bar and far-off months start
     // collapsed — open whichever one holds the target before scrolling.
     if (timeline.past.some(g => g.events.includes(match))) {
@@ -1807,6 +2014,21 @@ export default function TimelinePage() {
                   </>
                 )}
               </div>
+              <div className="tl-view" role="radiogroup" aria-label="View">
+                <span className="tl-view-thumb" data-on={view} aria-hidden />
+                <button type="button" role="radio" aria-checked={view === "timeline"} className={view === "timeline" ? "on" : ""} onClick={() => switchView("timeline")}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 4v16" /><circle cx="6" cy="7" r="1.6" fill="currentColor" /><circle cx="6" cy="17" r="1.6" fill="currentColor" /><path d="M10.5 7h9M10.5 17h6" />
+                  </svg>
+                  Timeline
+                </button>
+                <button type="button" role="radio" aria-checked={view === "calendar"} className={view === "calendar" ? "on" : ""} onClick={() => switchView("calendar")}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" />
+                  </svg>
+                  Calendar
+                </button>
+              </div>
               <span className="tl-scope">{filtered.length} event{filtered.length === 1 ? "" : "s"}</span>
             </div>
 
@@ -1892,6 +2114,20 @@ export default function TimelinePage() {
                     <p>Your first chapter meeting is the best first entry — make it required and check-in counts attendance for you.</p>
                     {canManageEvents && <button type="button" className="tl-empty-add" onClick={() => setActiveModal("create")}>Add your first event</button>}
                   </div>
+                ) : view === "calendar" ? (
+                  <TimelineCalendar
+                    events={filtered}
+                    month={calMonth}
+                    onMonth={setCalMonth}
+                    day={calDay}
+                    onDay={pickCalDay}
+                    doneById={doneById}
+                    ownerById={ownerById}
+                    selectedId={selectedEvent?.id ?? null}
+                    onSelect={setSelectedEvent}
+                    canAdd={canManageEvents}
+                    onAdd={() => setActiveModal("create")}
+                  />
                 ) : !hasEvents ? (
                   <div className="tl-empty filter" style={{ textAlign: "center", padding: "72px 0", color: "var(--faint)" }}>
                     <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", fontSize: 16, color: "var(--muted)" }}>No events on this filter.</p>
@@ -2093,7 +2329,11 @@ export default function TimelinePage() {
                       </div>
                     )}
 
-                    {todayOffscreen && (
+                    {view === "calendar" ? (calMonth.year !== TODAY.year || calMonth.month !== TODAY.month) && (
+                      <button className="jump" onClick={() => pickCalDay(todayStr)}>
+                        {calMonth.year * 12 + calMonth.month > TODAY.year * 12 + TODAY.month ? "←" : "→"} Back to this month
+                      </button>
+                    ) : todayOffscreen && (
                       <button className="jump" onClick={() => scrollToToday(true)}>
                         {todayAbove ? "↑" : "↓"} Jump to today
                       </button>

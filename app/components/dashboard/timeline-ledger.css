@@ -89,6 +89,81 @@
 .dash .tl-legend-pop .li .req-key { font-family: var(--mono); font-size: 7.5px; font-weight: 600; letter-spacing: .12em;
   color: var(--gold); background: var(--gold-bg); border-radius: 3px; padding: 1px 4px; }
 
+/* View switcher (Timeline | Calendar) — sits beside the legend. Two equal
+   columns so the thumb can slide by exactly one track. */
+.dash .tl-view { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; flex-shrink: 0; padding: 3px;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+.dash .tl-view button { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 32px; padding: 0 12px; border: 0; background: none; cursor: pointer; white-space: nowrap;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); transition: color .2s; }
+.dash .tl-view button:hover, .dash .tl-view button.on { color: var(--ink); }
+.dash .tl-view-thumb { position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 6px;
+  background: var(--card-2); box-shadow: inset 0 0 0 1px var(--line); transition: transform .32s cubic-bezier(.16,.9,.3,1.02); }
+.dash .tl-view-thumb[data-on="calendar"] { transform: translateX(100%); }
+
+/* ── Calendar view: month grid + the picked day's agenda ─────────────────────── */
+.dash .tl-cal { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.dash .tl-cal-sheet { position: relative; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow); }
+.dash .tl-cal-ring { display: none; }
+.dash .tl-cal-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px 12px; flex-wrap: wrap; }
+.dash .tl-cal-head h2 { display: flex; align-items: baseline; gap: 8px; font-family: var(--serif); font-size: 22px; font-weight: 500; color: var(--ink);
+  animation: tlCalIn .45s cubic-bezier(.16,.9,.3,1.02) both; }
+.dash .tl-cal-head h2 .yr { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.dash .tl-cal-sum { font-family: var(--mono); font-size: 10px; letter-spacing: .06em; color: var(--faint); }
+.dash .tl-cal-nav { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.dash .tl-cal-nav button { display: inline-grid; place-items: center; height: 32px; min-width: 32px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.dash .tl-cal-nav button:hover { color: var(--ink); border-color: var(--ink-soft); }
+.dash .tl-cal-dow { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); padding: 0 10px 6px; }
+.dash .tl-cal-dow span { padding: 0 6px; font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+.dash .tl-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; padding: 0 10px 12px;
+  animation: tlCalFlip .5s cubic-bezier(.16,.9,.3,1.02) both; transform-origin: 50% 0; }
+.dash .tl-cal-day { position: relative; min-height: 108px; min-width: 0; padding: 6px 6px 8px; border-radius: 9px; border: 1px solid var(--line-soft);
+  background: var(--card); cursor: pointer; display: flex; flex-direction: column; gap: 5px; outline: none;
+  transition: border-color .15s, background .15s, transform .2s cubic-bezier(.16,.9,.3,1.02), box-shadow .2s; }
+.dash .tl-cal-day:hover { border-color: var(--line); background: var(--card-2); }
+.dash .tl-cal-day:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; }
+.dash .tl-cal-day.out { opacity: .42; }
+.dash .tl-cal-day.picked { border-color: var(--ink-soft); }
+.dash .tl-cal-day .num { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); line-height: 22px; width: 22px; text-align: center; border-radius: 50%; }
+.dash .tl-cal-day.today .num { background: var(--vio); color: #fff; }
+.dash .tl-cal-day .req-dot { position: absolute; top: 12px; right: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); }
+.dash .tl-cal-day .chips { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dash .tl-cal-day .chip { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; padding: 3px 6px; border: 0; border-radius: 5px;
+  background: color-mix(in srgb, var(--catc) 16%, transparent); color: var(--ink); cursor: pointer; text-align: left;
+  font-size: 11px; line-height: 1.25; box-shadow: inset 2px 0 0 var(--catc); transition: transform .15s, background .15s; }
+.dash .tl-cal-day .chip:hover { background: color-mix(in srgb, var(--catc) 28%, transparent); transform: translateX(1px); }
+.dash .tl-cal-day .chip.on { box-shadow: inset 2px 0 0 var(--catc), 0 0 0 1px var(--catc); }
+.dash .tl-cal-day .chip .tm { flex-shrink: 0; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+.dash .tl-cal-day .chip .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash .tl-cal-day .chip.is-done .tt { text-decoration: line-through; opacity: .6; }
+.dash .tl-cal-day .chip.is-overdue { box-shadow: inset 2px 0 0 var(--rose); }
+.dash .tl-cal-day .more { padding: 0 6px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
+.dash .tl-cal-day .dots { display: none; }
+.dash .tl-cal-agenda .tl-month { margin-top: 0; }
+.dash .tl-cal-open { padding: 22px 18px; border: 1px dashed var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dash .tl-cal-open p { font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--muted); }
+.dash .tl-cal-open button { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--vio); background: none; border: 0; cursor: pointer; }
+@keyframes tlCalFlip { from { opacity: 0; transform: perspective(1400px) rotateX(-9deg) translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes tlCalIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .dash .tl-cal-grid, .dash .tl-cal-head h2 { animation: none; }
+  .dash .tl-view-thumb { transition: none; }
+}
+/* Phones: cells shrink to a number and a row of category dots; the agenda carries the detail. */
+@media (max-width: 640px) {
+  .dash .tl-cal-head { padding: 14px 14px 10px; flex-wrap: nowrap; }
+  .dash .tl-cal-sum { display: none; }
+  .dash .tl-cal-dow, .dash .tl-cal-grid { padding-left: 6px; padding-right: 6px; gap: 3px; }
+  .dash .tl-cal-dow span { padding: 0; text-align: center; font-size: 8.5px; letter-spacing: .06em; }
+  .dash .tl-cal-day { min-height: 52px; padding: 5px 2px; align-items: center; gap: 4px; }
+  .dash .tl-cal-day .chips, .dash .tl-cal-day .req-dot { display: none; }
+  .dash .tl-cal-day .dots { display: flex; gap: 3px; }
+  .dash .tl-cal-day .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--catc); }
+  .dash .tl-view button { padding: 0 10px; }
+}
+
 /* ── Rail: "Needs attention" action queue (idle rail, top block) ─────────────── */
 .dash .tl-todo { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .dash .tl-todo-empty { padding: 14px 16px; font-size: 11.5px; color: var(--faint); font-style: italic; font-family: var(--serif); }

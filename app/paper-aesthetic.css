@@ -1284,6 +1284,157 @@ html[data-aesthetic="paper"] .dash .gd-empty { padding: 16px 18px; border: 0; bo
 .pp-bit { position: fixed; z-index: 90; width: 9px; height: 12px; border-radius: 2px; pointer-events: none; animation: pp-bit .9s var(--pp-ease-out) forwards; }
 @keyframes pp-bit { to { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 0; } }
 
+/* view switcher: a pill pair whose ink thumb slides between the two, with the
+   lilac hard shadow the add buttons wear */
+html[data-aesthetic="paper"] .dash .tl-view { padding: 3px; border-radius: 999px; background: var(--paper-2); border: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .dash .tl-view button {
+  height: auto; padding: 6px 13px; gap: 7px; font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 550;
+  letter-spacing: 0; text-transform: none; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .tl-view button.on { color: var(--paper); }
+html[data-aesthetic="paper"] .dash .tl-view-thumb {
+  top: 3px; bottom: 3px; border-radius: 999px; background: var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac);
+  transition: transform .38s var(--pp-ease-spring);
+}
+
+/* calendar: a wall-calendar page on two rings, with the next two months peeking
+   out beneath it. The grid is printed — 1.5px rules, not floating cards. */
+html[data-aesthetic="paper"] .dash .tl-cal { gap: 26px; padding-top: 10px; }
+html[data-aesthetic="paper"] .dash .tl-cal-sheet {
+  border-radius: 10px 22px 14px 20px; border: 1.5px solid var(--line-med); background: var(--card); box-shadow: var(--pp-sh-2);
+  isolation: isolate;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-sheet::before,
+html[data-aesthetic="paper"] .dash .tl-cal-sheet::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; border: 1.5px solid var(--line); background: var(--paper-2);
+  pointer-events: none;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-sheet::before { inset: 0 5px; transform: translateY(6px); }
+html[data-aesthetic="paper"] .dash .tl-cal-sheet::after  { inset: 0 11px; transform: translateY(12px); z-index: -2; box-shadow: var(--pp-sh-1); }
+html[data-aesthetic="paper"] .dash .tl-cal-ring {
+  display: block; position: absolute; top: -13px; z-index: 2; width: 14px; height: 26px; border-radius: 8px;
+  border: 2.5px solid var(--ink-soft); border-bottom-color: transparent; background: none; pointer-events: none;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-ring::after {
+  content: ""; position: absolute; left: 50%; bottom: -1px; width: 9px; height: 9px; transform: translate(-50%, 50%);
+  border-radius: 50%; background: var(--paper); box-shadow: inset 0 1.5px 2px rgba(38,33,27,.25);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-ring.l { left: 22%; }
+html[data-aesthetic="paper"] .dash .tl-cal-ring.r { right: 22%; }
+
+html[data-aesthetic="paper"] .dash .tl-cal-head { padding: 22px 22px 14px; gap: 14px; }
+html[data-aesthetic="paper"] .dash .tl-cal-head h2 { gap: 10px; font-family: var(--font-fraunces); font-weight: 600; font-size: 2.1rem; letter-spacing: -.04em; line-height: 1; }
+html[data-aesthetic="paper"] .dash .tl-cal-head h2 .mo { position: relative; z-index: 0; }
+html[data-aesthetic="paper"] .dash .tl-cal-head h2 .mo::before {
+  content: ""; position: absolute; z-index: -1; left: -.08em; right: -.08em; bottom: .04em; height: .42em;
+  background: var(--pp-sky); border-radius: .4em .55em .38em .6em; transform: rotate(-.8deg); opacity: var(--pp-mark-op);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-head h2 .yr { font-size: .78rem; font-weight: 500; letter-spacing: 0; }
+html[data-aesthetic="paper"] .dash .tl-cal-sum { font-family: var(--font-geist-sans); font-size: .8rem; letter-spacing: 0; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tl-cal-nav { gap: 8px; }
+html[data-aesthetic="paper"] .dash .tl-cal-nav button {
+  height: 36px; min-width: 36px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .15s;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-nav button:hover { border-color: var(--ink); transform: translate(-1px,-1px); box-shadow: 2.5px 2.5px 0 var(--pp-sky); }
+html[data-aesthetic="paper"] .dash .tl-cal-nav button:active { transform: translate(1px,1px); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .tl-cal-nav .today {
+  padding: 0 14px; font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 600; letter-spacing: 0; text-transform: none;
+  background: var(--ink); color: var(--paper); border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-peach);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-nav .today:hover { color: var(--paper); box-shadow: 3.5px 3.5px 0 var(--pp-peach); }
+
+html[data-aesthetic="paper"] .dash .tl-cal-dow { padding: 0 16px 8px; }
+html[data-aesthetic="paper"] .dash .tl-cal-dow span { font-family: var(--mono); font-size: .64rem; font-weight: 600; letter-spacing: .1em; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tl-cal-dow span.we { color: var(--pp-rose-ink); opacity: .8; }
+
+html[data-aesthetic="paper"] .dash .tl-cal-grid {
+  gap: 1.5px; margin: 0 16px 18px; padding: 0; border-radius: 12px; overflow: hidden;
+  background: var(--line); border: 1.5px solid var(--line);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day {
+  min-height: 116px; padding: 8px 6px 9px; border: 0; border-radius: 0; background: var(--card); gap: 6px;
+  container-type: inline-size; transition: background .18s, box-shadow .18s;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day.we { background: color-mix(in srgb, var(--paper-2) 70%, var(--card)); }
+html[data-aesthetic="paper"] .dash .tl-cal-day:hover { background: var(--paper-2); }
+html[data-aesthetic="paper"] .dash .tl-cal-day:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash .tl-cal-day.out { opacity: 1; background: repeating-linear-gradient(-45deg, var(--paper-2) 0 6px, transparent 6px 12px), var(--paper); }
+html[data-aesthetic="paper"] .dash .tl-cal-day.out .num { color: var(--muted); opacity: .6; }
+html[data-aesthetic="paper"] .dash .tl-cal-day.out .chips { opacity: .55; }
+html[data-aesthetic="paper"] .dash .tl-cal-day.past:not(.out) .num { color: var(--muted); }
+html[data-aesthetic="paper"] .dash .tl-cal-day.picked { background: var(--pp-lilac-soft); box-shadow: inset 0 0 0 2px var(--ink); z-index: 1; }
+html[data-aesthetic="paper"] .dash .tl-cal-day .num {
+  width: 28px; line-height: 28px; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.02rem; letter-spacing: -.03em; color: var(--ink);
+  transition: transform .25s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day:hover .num { transform: rotate(-4deg) scale(1.08); }
+/* today: the date inked in, with the same peach offset as the Today pill */
+html[data-aesthetic="paper"] .dash .tl-cal-day.today .num {
+  background: var(--ink); color: var(--paper); border-radius: 46% 54% 50% 50% / 52% 48% 52% 48%;
+  box-shadow: 2.5px 2.5px 0 var(--pp-peach); transform: rotate(-3deg);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day .req-dot {
+  top: 13px; right: 10px; width: auto; height: auto; padding: 1px 5px; border-radius: 4px; background: var(--ink);
+  font: 700 .52rem/1.4 var(--mono); letter-spacing: .08em; color: var(--paper);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day .req-dot::before { content: "REQ"; }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chips { gap: 4px; }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip {
+  gap: 6px; padding: 4px 7px; border-radius: 7px; border: 1.5px solid transparent; background: var(--pcs); box-shadow: none;
+  font-family: var(--font-geist-sans); font-size: .74rem; font-weight: 550; letter-spacing: -.005em; color: var(--ink);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .15s, background .15s;
+}
+/* titles get the whole chip (two lines); the start time only shows once the
+   cell is wide enough to spare it */
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip { align-items: flex-start; padding: 4px 6px; line-height: 1.22; }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip::before { content: ""; flex-shrink: 0; width: 6px; height: 6px; margin-top: .3em; border-radius: 50%; background: var(--pcc); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip .tt {
+  order: 1; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip .tm { order: 2; display: none; margin-left: auto; padding-top: .1em; font-size: .62rem; color: var(--pcc); font-weight: 600; }
+@container (min-width: 150px) { html[data-aesthetic="paper"] .dash .tl-cal-day .chip .tm { display: inline; } }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip:hover { background: var(--pcs); border-color: var(--pcc); transform: translate(-1px,-1px); box-shadow: 2px 2px 0 var(--pcf); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip.is-req { border-color: var(--pcc); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip.on { border-color: var(--ink); background: var(--pcs); box-shadow: 2px 2px 0 var(--pcf); transform: translate(-1px,-1px); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip.is-done .tt { opacity: 1; color: var(--muted); text-decoration-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip.is-overdue { background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .tl-cal-day .chip.is-overdue::before { background: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .more {
+  align-self: flex-start; padding: 1px 8px; border-radius: 999px; border: 1.5px dashed var(--line-med);
+  font-family: var(--font-geist-sans); font-size: .68rem; font-weight: 600; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-day:hover .more { border-color: var(--muted); color: var(--ink); }
+html[data-aesthetic="paper"] .dash .tl-cal-day .dots i { width: 6px; height: 6px; background: var(--pcc); }
+
+/* the picked day's agenda reads as a strip of the spine */
+html[data-aesthetic="paper"] .dash .tl-cal-agenda .tl-month { margin: 0 0 8px; }
+html[data-aesthetic="paper"] .dash .tl-cal-agenda .tl-month h2 .yr {
+  padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--paper); box-shadow: 2px 2px 0 var(--pp-peach);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-open {
+  padding: 20px 22px; border-radius: 6px 16px 8px 14px; border: 1.5px dashed var(--line-med); background: transparent;
+}
+html[data-aesthetic="paper"] .dash .tl-cal-open p { font-family: var(--font-fraunces); font-style: italic; font-size: 1.05rem; letter-spacing: -.015em; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .tl-cal-open button {
+  padding: 7px 14px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); box-shadow: 2px 2px 0 var(--pp-mint);
+  font-family: var(--font-geist-sans); font-size: .82rem; font-weight: 600; letter-spacing: 0; text-transform: none;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .tl-cal-open button:hover { transform: translate(-1px,-1px); box-shadow: 3.5px 3.5px 0 var(--pp-mint); }
+
+@media (max-width: 640px) {
+  html[data-aesthetic="paper"] .dash .tl-cal-head { padding: 20px 14px 10px; flex-wrap: nowrap; }
+  html[data-aesthetic="paper"] .dash .tl-cal-sum { display: none; }
+  html[data-aesthetic="paper"] .dash .tl-cal-head h2 { font-size: 1.6rem; }
+  html[data-aesthetic="paper"] .dash .tl-cal-dow { padding: 0 8px 6px; }
+  html[data-aesthetic="paper"] .dash .tl-cal-grid { margin: 0 8px 12px; gap: 1.5px; border-radius: 10px; }
+  html[data-aesthetic="paper"] .dash .tl-cal-day { min-height: 56px; padding: 6px 2px; }
+  html[data-aesthetic="paper"] .dash .tl-cal-day .num { width: 26px; line-height: 26px; font-size: .92rem; }
+  html[data-aesthetic="paper"] .dash .tl-cal-ring.l { left: 16%; }
+  html[data-aesthetic="paper"] .dash .tl-cal-ring.r { right: 16%; }
+}
+
 /* ── 3d. Brotherhood (app/[slug]/brothers) ──────────────────────────────────────
    The mock's #brotherhood: join requests as calling cards on a dashed guest-book
    band → editorial header → five measure cards → Standing (ink-bordered bar,
