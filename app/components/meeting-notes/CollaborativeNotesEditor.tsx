@@ -7,6 +7,7 @@ import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
 import { NotesSession, type NotesStatus, type Collaborator } from "@/app/lib/collaboration/notes-session";
 import { NOTES_TEXT_LIMIT, type NotesSnapshot } from "@/lib/collaboration/notes-protocol";
 import { NotesTyping } from "./NotesCollaborators";
+import { notesMarkdown } from "./notes-markdown";
 import "./notes-editor.css";
 
 export interface NotesEditorHandle { flush(): Promise<NotesSnapshot>; }
@@ -43,7 +44,7 @@ export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, 
       if (cancelled || !host.current) return;
       view = new EditorView({ parent: host.current, state: EditorState.create({
         doc: session.doc.getText("notes").toString(),
-        extensions: [EditorView.lineWrapping, placeholder("Start typing meeting minutes…"), keymap.of([...yUndoManagerKeymap, ...defaultKeymap]),
+        extensions: [EditorView.lineWrapping, notesMarkdown, placeholder("Start typing meeting minutes…"), keymap.of([...yUndoManagerKeymap, ...defaultKeymap]),
           yCollab(session.doc.getText("notes"), session.awareness),
           EditorView.contentAttributes.of({ "aria-label": "Meeting minutes", spellcheck: "true", autocapitalize: "sentences" }),
           EditorState.changeFilter.of(transaction => {

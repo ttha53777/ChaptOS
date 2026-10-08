@@ -26,11 +26,13 @@ import { daysFromToday, todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/meetings-ledger.css";
 import "../../components/timeline/calendar-event-form.css";
+import "../../components/agenda-templates/agenda-templates.css";
+import { AgendaBody } from "../../components/agenda-templates/AgendaBody";
 import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
 import { useNow } from "../../hooks/useNow";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
 import { nextMeetingDraft, type MeetingDraft } from "../../components/meeting-notes/meeting-defaults";
-import { agendaFieldsIn, agendaSections, hasMinutes, minutesBeyondAgenda } from "@/lib/agenda-template";
+import { agendaFieldsIn, agendaSections, hasMinutes, headingOf, minutesBeyondAgenda } from "@/lib/agenda-template";
 import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
 import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 
@@ -114,7 +116,7 @@ function notesPreview(event: CalendarEvent): string {
   if (summary) return summary;
   return minutesBeyondAgenda(event)
     .split("\n")
-    .filter(l => !l.startsWith("## "))
+    .filter(l => !headingOf(l))
     .map(l => l.replace(/^[-*•]\s*/, "").trim())
     .filter(l => l && !/^(opened|closed|agenda|action items)\b/i.test(l))
     .slice(0, 2)
@@ -699,6 +701,13 @@ function MeetingDetailOverlay({
                     {canEditNotes && <p className="hint">{event.notesInitialized ? "Shared editing is paused. These are the last saved minutes." : "Write action items as “- Dev to send the budget by Oct 10” and Summarize picks them up."}</p>}
                   </div>
                   <div className="mt-pad">
+                    {(!canEditNotes || !!event.notesInitialized) && notesDraft.trim() ? (
+                      // Nothing to type here, so show the minutes formatted — headings,
+                      // checklists, bullets — the way the Templates page reads an agenda.
+                      <div id="mt-notes" className="mt-pad-text mt-pad-read" role="document" aria-label="Meeting minutes">
+                        <AgendaBody body={notesDraft} />
+                      </div>
+                    ) : <>
                     <label className="sr-only" htmlFor="mt-notes">Meeting minutes</label>
                     <textarea
                       id="mt-notes"
@@ -711,6 +720,7 @@ function MeetingDetailOverlay({
                       spellCheck
                       autoFocus={canEditNotes && !hasNotes(event)}
                     />
+                    </>}
                   </div>
                 </>
               )}

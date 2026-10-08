@@ -48,9 +48,35 @@ export function unknownAgendaFields(body: string): string[] {
   return fieldKeys(body).filter(k => !isAgendaField(k));
 }
 
-/** The `## ` section headings, in order. */
+// ── Line shapes ───────────────────────────────────────────────────────────────
+// The agenda/minutes dialect, read the way people actually type it: `#`–`###`
+// with or without the space ("##Prez:"), but not "#1 priority"; `[ ]`/`[x]`
+// with or without a leading "- "; `•`, `-` or `*` bullets.
+
+const HEADING = /^(#{1,3})(?:[ \t]+|(?=[^\s#\d]))(.*\S)\s*$/;
+const CHECK = /^((?:[-*•][ \t]+)?\[( |x|X)\])[ \t]?(.*)$/;
+const BULLET = /^([-*•])[ \t]+(.*)$/;
+
+/** A heading line's text and the length of its `#` marker, else null. */
+export function headingOf(line: string): { text: string; marker: number } | null {
+  const m = HEADING.exec(line);
+  return m ? { text: m[2].trim(), marker: line.length - line.trimStart().length + m[1].length } : null;
+}
+/** A checklist line: its box (`[ ]`, `- [x]`…), whether it's ticked, and its text. */
+export function checkOf(line: string): { box: string; done: boolean; text: string } | null {
+  const m = CHECK.exec(line);
+  return m ? { box: m[1], done: m[2] !== " ", text: m[3] } : null;
+}
+/** A bullet line's marker and text. Checklists aren't bullets. */
+export function bulletOf(line: string): { marker: string; text: string } | null {
+  if (checkOf(line)) return null;
+  const m = BULLET.exec(line);
+  return m ? { marker: m[1], text: m[2] } : null;
+}
+
+/** The section headings, in order. */
 export function agendaSections(body: string): string[] {
-  return [...body.matchAll(/^## (.*)$/gm)].map(m => m[1].trim()).filter(Boolean);
+  return body.split("\n").map(headingOf).filter((h): h is NonNullable<typeof h> => !!h && !!h.text).map(h => h.text);
 }
 
 /**
@@ -121,7 +147,7 @@ export function agendaValues(m: { title: string; date: string; startTime?: strin
 
 /**
  * What the minute-taker actually wrote: the notes minus every line still
- * exactly as the agenda copied it in, keeping `## ` headings for structure.
+ * exactly as the agenda copied it in, keeping headings for structure.
  * An untouched "[ ] Task — owner — due date" is a placeholder, not an action
  * item, so this is what the summarizer reads. Without a seed it's the notes.
  */
@@ -129,6 +155,6 @@ export function minutesBeyondAgenda(event: { description?: string | null; notesS
   const notes = event.description ?? "";
   const seed = event.notesSeed ?? "";
   if (!seed.trim()) return notes.trim();
-  const untouched = new Set(seed.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("## ")));
+  const untouched = new Set(seed.split("\n").map(l => l.trim()).filter(l => l && !headingOf(l)));
   return notes.split("\n").filter(l => !untouched.has(l.trim())).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }

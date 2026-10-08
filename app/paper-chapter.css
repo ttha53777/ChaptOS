@@ -252,6 +252,23 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-content {
   padding: 16px 22px 30px 62px; min-height: 58vh;
   background: linear-gradient(transparent 29px, var(--pp-sky-bd) 29px, var(--pp-sky-bd) 30px) 0 16px / 100% 30px;
 }
+/* formatting as you type (notes-markdown.ts) — headings stay on the 30px rules */
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-line.cm-md-h { padding-top: 0; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.06rem; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-mark { color: var(--pp-rose-ink); opacity: .55; font-family: var(--mono); font-size: .8em; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-box { color: var(--pp-sky-ink); font-family: var(--mono); font-size: .85em; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-done .cm-md-box { color: var(--pp-mint-ink); }
+
+/* minutes a member can only read: the same agenda rendering as Templates, on the ruled pad */
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read { padding-top: 15px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-ps { margin-bottom: 30px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-ps h3 { margin: 0; font: 600 1.02rem/30px var(--font-fraunces); letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-ps h3 .n { left: -58px; width: 40px; font: 500 .66rem/30px var(--mono); color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-ln { font-size: .98rem; line-height: 30px; min-height: 30px; color: var(--ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-ln.gap { height: 30px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-box { margin-top: 8.5px; border-color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-box.on { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read .at-bullet::before { margin-top: 12.5px; background: var(--ink); }
+
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-selectionBackground,
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-focused .cm-selectionBackground { background: var(--pp-lilac); }
 

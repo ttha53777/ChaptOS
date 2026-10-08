@@ -9,7 +9,7 @@ import {
 } from "@/lib/meeting-summary";
 import { can } from "@/lib/permissions";
 import { emit } from "@/lib/events";
-import { minutesBeyondAgenda } from "@/lib/agenda-template";
+import { headingOf, minutesBeyondAgenda } from "@/lib/agenda-template";
 
 const SYSTEM = `You summarize a fraternity chapter's meeting minutes for officers who couldn't attend.
 Return JSON with:
@@ -28,7 +28,7 @@ export async function summarizeMeeting(ctx: RequestContext, id: number) {
     // Only what was written beyond the copied agenda: its untouched placeholder
     // lines ("[ ] Task — owner — due date") would otherwise come back as action items.
     const notes = minutesBeyondAgenda(event);
-    if (notes.replace(/^## .*$/gm, "").trim().length < 20) throw new ValidationError("Not enough notes to summarize yet.");
+    if (notes.split("\n").filter(l => !headingOf(l)).join("\n").trim().length < 20) throw new ValidationError("Not enough notes to summarize yet.");
 
     const openai = getOpenAI();
     if (!openai) throw new DomainError("INTERNAL", "AI is not configured", 503);

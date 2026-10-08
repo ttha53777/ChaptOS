@@ -24,3 +24,10 @@
 .notes-people li { display:flex; justify-content:space-between; gap:10px; padding:7px 0; font-size:12px; }
 .notes-people small { font-size:10px; color:var(--muted); flex-shrink:0; }
 @media(max-width:640px) { .notes-editor-host .cm-editor { font-size:16px; } .notes-label-row { flex-wrap:wrap; gap:4px; } .notes-status button { min-height:44px; } }
+/* Formatting as you type (notes-markdown.ts): the text stays plain, the markers go quiet. */
+.notes-editor-host .cm-line.cm-md-h { font-weight:700; color:var(--ink); padding-top:6px; }
+.notes-editor-host .cm-md-mark { color:var(--faint); font-weight:400; }
+.notes-editor-host .cm-md-box { color:var(--vio); font-weight:600; }
+.notes-editor-host .cm-md-done { color:var(--muted); }
+.notes-editor-host .cm-md-done .cm-md-box { color:var(--ok); }
+.notes-editor-host .cm-md-b { font-weight:700; color:var(--ink); }

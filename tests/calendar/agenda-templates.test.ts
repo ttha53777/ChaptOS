@@ -19,7 +19,7 @@ import {
   listAgendaTemplates,
   updateAgendaTemplate,
 } from "@/lib/services/agenda-template-service";
-import { agendaFieldsIn, agendaSections, agendaValues, fillAgenda, formatAgendaDate, formatAgendaTime, hasMinutes, unknownAgendaFields } from "@/lib/agenda-template";
+import { agendaFieldsIn, agendaSections, agendaValues, bulletOf, checkOf, fillAgenda, formatAgendaDate, formatAgendaTime, hasMinutes, headingOf, minutesBeyondAgenda, unknownAgendaFields } from "@/lib/agenda-template";
 import { createAgendaTemplateInput } from "@/lib/validation/agenda-template";
 import { PERMISSIONS } from "@/lib/permissions";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -74,6 +74,20 @@ describe("lib/agenda-template", () => {
   it("fills blanks from the form and marks the ones the form left empty", () => {
     expect(fillAgenda("{{meeting_date}} at {{location}}", { meeting_date: "Mon, Oct 12", location: "  " }))
       .toBe("Mon, Oct 12 at [Location]");
+  });
+
+  it("reads headings the way people type them — with or without the space", () => {
+    // The real template that rendered as plain text: "##Prez:" with no space.
+    expect(agendaSections("##Prez:\n\n\n##VPI:\n\n## Treasurer\n# Old business\n### Votes")).toEqual(["Prez:", "VPI:", "Treasurer", "Old business", "Votes"]);
+    expect(headingOf("##Prez:")).toEqual({ text: "Prez:", marker: 2 });
+    expect(headingOf("#1 priority is rush")).toBeNull();
+    expect(headingOf("####too deep")).toBeNull();
+    expect(headingOf("##")).toBeNull();
+    expect(checkOf("- [x] Book the DJ")).toEqual({ box: "- [x]", done: true, text: "Book the DJ" });
+    expect(checkOf("[ ] Task")).toEqual({ box: "[ ]", done: false, text: "Task" });
+    expect(bulletOf("* Chapter priorities")).toEqual({ marker: "*", text: "Chapter priorities" });
+    expect(bulletOf("- [ ] not a bullet")).toBeNull();
+    expect(minutesBeyondAgenda({ description: "##Prez:\nDues are due Friday", notesSeed: "##Prez:\n" })).toBe("##Prez:\nDues are due Friday");
   });
 
   it("writes dates and times the way the filled agenda reads them", () => {
