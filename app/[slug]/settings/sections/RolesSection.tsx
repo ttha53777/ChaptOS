@@ -311,7 +311,7 @@ export function RolesSection({
       <div className="rl-bar">
         <p className="sc-note">
           One person can hold several roles; their access is everything those roles grant combined.
-          Org admins have full access regardless of roles.
+          Org admins have full access regardless of roles; see Accounts.
         </p>
         <button onClick={startCreate} disabled={creating} className="sc-btn sc-btn-primary sc-btn-sm shrink-0">
           + New role
@@ -636,7 +636,7 @@ function RoleEditor({
               ))}
             </div>
           )}
-          <p className="sc-note" style={{ marginTop: 6 }}>Give or take away roles from Settings → Accounts.</p>
+          <p className="sc-note" style={{ marginTop: 6 }}>Give or take away roles in Settings → Accounts, or from a member&apos;s card on the roster.</p>
         </Field>
       )}
 

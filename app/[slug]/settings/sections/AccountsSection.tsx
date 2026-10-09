@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
 import { LeaveOrgModal } from "../../../components/LeaveOrgModal";
@@ -32,14 +31,10 @@ export function AccountsSection({
   onStatus: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
-  const router = useRouter();
   const { currentUser } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [unlinking, setUnlinking] = useState<number | null>(null);
-  const [unlinkingSelf, setUnlinkingSelf] = useState(false);
-  const [confirmSelfUnlink, setConfirmSelfUnlink] = useState(false);
   // Admin promote/demote confirm dialog target.
   const [adminTarget, setAdminTarget] = useState<{ id: number; name: string; nextIsAdmin: boolean } | null>(null);
   const [togglingAdmin, setTogglingAdmin] = useState<number | null>(null);
@@ -50,30 +45,6 @@ export function AccountsSection({
       .catch(() => onError("Could not load account list."))
       .finally(() => setLoading(false));
   }, [onError]);
-
-  async function unlink(id: number, name: string) {
-    setUnlinking(id);
-    try {
-      await requestJson(`/api/auth/accounts/${id}`, { method: "DELETE" });
-      setAccounts(prev => prev.map(a => a.id === id ? { ...a, linked: false } : a));
-      onStatus(`Unlinked Google account from ${name}.`);
-    } catch (err: unknown) {
-      onError(err instanceof Error ? err.message : "Failed to unlink account.");
-    } finally {
-      setUnlinking(null);
-    }
-  }
-
-  async function unlinkSelf() {
-    setUnlinkingSelf(true);
-    try {
-      await requestJson("/api/auth/unlink-self", { method: "DELETE" });
-      router.push("/login");
-    } catch (err: unknown) {
-      onError(err instanceof Error ? err.message : "Failed to unlink your account. Try again.");
-      setUnlinkingSelf(false);
-    }
-  }
 
   async function toggleAdmin(target: { id: number; name: string; nextIsAdmin: boolean }) {
     setTogglingAdmin(target.id);
@@ -92,9 +63,6 @@ export function AccountsSection({
     }
   }
 
-  const linked = accounts.filter(a => a.linked);
-  const unlinked = accounts.filter(a => !a.linked);
-
   if (loading) return <div className="py-8 text-center sc-note">Loading…</div>;
 
   const adminBtn = (a: AccountRow) => (
@@ -109,21 +77,6 @@ export function AccountsSection({
 
   return (
     <div className="sc-stack-tight">
-      {confirmSelfUnlink && (
-        <ConfirmDialog
-          title="Unlink your account"
-          confirmLabel="Unlink & sign out"
-          tone="dusk"
-          message={
-            <>
-              This will remove your Google account from your brother profile and sign you out.
-              You&apos;ll need to sign in again and re-link your name to regain access.
-            </>
-          }
-          onCancel={() => setConfirmSelfUnlink(false)}
-          onConfirm={() => { setConfirmSelfUnlink(false); unlinkSelf(); }}
-        />
-      )}
       {adminTarget && (
         <ConfirmDialog
           title={adminTarget.nextIsAdmin ? "Promote to admin" : "Remove admin"}
@@ -132,13 +85,13 @@ export function AccountsSection({
           message={
             adminTarget.nextIsAdmin ? (
               <>
-                Grant <span className="font-semibold" style={{ color: "var(--ink)" }}>{adminTarget.name}</span> admin permissions?
-                They will be able to manage finances, semesters, roster, and attendance.
+                Make <span className="font-semibold" style={{ color: "var(--ink)" }}>{adminTarget.name}</span> an admin of this org?
+                They get every permission here regardless of their roles, plus billing.
               </>
             ) : (
               <>
-                Remove admin permissions from <span className="font-semibold" style={{ color: "var(--ink)" }}>{adminTarget.name}</span>?
-                They will lose access to financial and destructive actions.
+                Remove admin from <span className="font-semibold" style={{ color: "var(--ink)" }}>{adminTarget.name}</span>?
+                They keep only what their roles grant.
               </>
             )
           }
@@ -151,82 +104,39 @@ export function AccountsSection({
         />
       )}
       <p className="sc-lede" style={{ margin: 0 }}>
-        Manage which brothers have linked their Google account. Unlink removes their access until they claim again.
+        Everyone on the roster and the roles they hold. What each role can do is set in Roles;
+        admins have full access regardless of roles.
       </p>
 
       {accounts.length === 0 ? (
-        <div className="sc-empty"><div className="t">No brothers found</div></div>
+        <div className="sc-empty"><div className="t">No members found</div></div>
       ) : (
-        <div className="sc-stack-tight">
-          {linked.length > 0 && (
-            <div>
-              <p className="sc-grp-label">Linked — {linked.length}</p>
-              <div className="sc-card">
-                {linked.map((a) => (
-                  <div key={a.id} className="sc-row sc-row-between">
-                    <div className="flex min-w-0 items-start gap-2.5">
-                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--ok)" }} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="sc-row-key truncate">{a.name}</span>
-                          {a.isSelf && <span className="sc-pill sc-pill-muted">You</span>}
-                          {a.isAdmin && <span className="sc-pill sc-pill-vio">Admin</span>}
-                        </div>
-                        <p className="sc-row-sub">{a.role || "Member"}</p>
-                        {a.email && <p className="sc-row-sub truncate" title={a.email}>{a.email}</p>}
-                        <BrotherRoleChips brotherId={a.id} initialRoles={a.roles} onError={onError} />
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      {isAdmin && !a.isSelf && adminBtn(a)}
-                      {a.isSelf ? (
-                        <button
-                          onClick={() => setConfirmSelfUnlink(true)}
-                          disabled={unlinkingSelf}
-                          className="sc-btn sc-btn-sm shrink-0"
-                          style={{ background: "var(--gold-bg)", color: "var(--gold)", borderColor: "rgba(221,179,106,.25)" }}
-                        >
-                          {unlinkingSelf ? "Unlinking…" : "Unlink my account"}
-                        </button>
-                      ) : isAdmin ? (
-                        <button
-                          onClick={() => unlink(a.id, a.name)}
-                          disabled={unlinking === a.id}
-                          className="sc-btn sc-btn-danger sc-btn-sm shrink-0"
-                        >
-                          {unlinking === a.id ? "Unlinking…" : "Unlink"}
-                        </button>
-                      ) : null}
-                    </div>
+        <div>
+          <p className="sc-grp-label">Members — {accounts.length}</p>
+          <div className="sc-card">
+            {accounts.map((a) => (
+              <div key={a.id} className="sc-row sc-row-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="sc-row-key truncate">{a.name}</span>
+                    {a.isSelf && <span className="sc-pill sc-pill-muted">You</span>}
+                    {a.isAdmin && <span className="sc-pill sc-pill-vio">Admin</span>}
+                    {!a.linked && (
+                      <span className="sc-pill sc-pill-muted" title="No Google account is attached to this member">
+                        Can&apos;t sign in
+                      </span>
+                    )}
                   </div>
-                ))}
+                  {/* Roles are the title. The free-text one only shows for
+                      members holding none, matching roleTitle() on the roster. */}
+                  {a.roles.length === 0 && <p className="sc-row-sub">{a.role || "Member"}</p>}
+                  {a.email && <p className="sc-row-sub truncate" title={a.email}>{a.email}</p>}
+                  <BrotherRoleChips brotherId={a.id} initialRoles={a.roles} onError={onError} />
+                </div>
+                {isAdmin && !a.isSelf && adminBtn(a)}
               </div>
-            </div>
-          )}
-
-          {unlinked.length > 0 && (
-            <div>
-              <p className="sc-grp-label">Not linked — {unlinked.length}</p>
-              <div className="sc-card">
-                {unlinked.map((a) => (
-                  <div key={a.id} className="sc-row sc-row-between">
-                    <div className="flex min-w-0 items-start gap-2.5">
-                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: "var(--faint)" }} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-[13px]" style={{ color: "var(--muted)" }}>{a.name}</span>
-                          {a.isAdmin && <span className="sc-pill sc-pill-vio">Admin</span>}
-                        </div>
-                        <p className="sc-row-sub">{a.role || "Member"}</p>
-                        <BrotherRoleChips brotherId={a.id} initialRoles={a.roles} onError={onError} />
-                      </div>
-                    </div>
-                    {isAdmin && adminBtn(a)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       )}
 
