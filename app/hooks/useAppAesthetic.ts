@@ -7,7 +7,7 @@ function readAesthetic(): AppAesthetic {
   try {
     return resolveAppAesthetic(localStorage.getItem(APP_AESTHETIC_STORAGE_KEY));
   } catch {
-    return "ledger";
+    return "paper";
   }
 }
 

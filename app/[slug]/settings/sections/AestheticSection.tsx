@@ -3,15 +3,15 @@
 import { useAppAesthetic } from "../../../hooks/useAppAesthetic";
 import type { AppAesthetic } from "@/lib/aesthetic";
 
-// Settings → Aesthetic. A per-device switch between the current Ledger look and
-// Paper (_design/Dashboard Paper Mock.html). Applies instantly and is saved in
-// this browser, like Light / Dark in the profile menu — nothing to save, so no
-// dirty guard. The choice only stamps <html data-aesthetic>; the paper styles
-// that key off it are still to be built.
+// Settings → Aesthetic. A per-device switch between Paper (the default,
+// _design/Dashboard Paper Mock.html) and the original Ledger look. Applies
+// instantly and is saved in this browser, like Light / Dark in the profile
+// menu — nothing to save, so no dirty guard. The choice only stamps
+// <html data-aesthetic>; app/paper-*.css keys off it.
 
 const OPTIONS: { id: AppAesthetic; label: string; description: string }[] = [
-  { id: "ledger", label: "Ledger", description: "The current look: serif headings on dusk or ivory." },
-  { id: "paper", label: "Paper", description: "Cream paper, brown ink, pastel accents and hand-drawn touches." },
+  { id: "paper", label: "Paper", description: "The default: cream paper, brown ink, pastel accents and hand-drawn touches." },
+  { id: "ledger", label: "Ledger", description: "The original look: serif headings on dusk or ivory." },
 ];
 
 export function AestheticSection({ onStatus }: { onStatus: (msg: string) => void; onError: (msg: string) => void }) {

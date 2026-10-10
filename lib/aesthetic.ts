@@ -8,7 +8,8 @@
  * choice lives on <html> as data-aesthetic, stamped by APP_AESTHETIC_BOOT
  * before first paint, and app/paper-aesthetic.css keys every override off it.
  *
- * Stored per device (localStorage), like the theme.
+ * Stored per device (localStorage), like the theme. Paper is the default:
+ * only a device that explicitly picked "ledger" gets the original look.
  */
 
 export type AppAesthetic = "ledger" | "paper";
@@ -20,8 +21,8 @@ export function isAppAesthetic(value: unknown): value is AppAesthetic {
 }
 
 export function resolveAppAesthetic(stored: string | null | undefined): AppAesthetic {
-  return stored === "paper" ? "paper" : "ledger";
+  return stored === "ledger" ? "ledger" : "paper";
 }
 
 /** Mirrors resolveAppAesthetic() — it runs before any module graph exists. */
-export const APP_AESTHETIC_BOOT = `try{document.documentElement.dataset.aesthetic=localStorage.getItem(${JSON.stringify(APP_AESTHETIC_STORAGE_KEY)})==="paper"?"paper":"ledger"}catch(e){document.documentElement.dataset.aesthetic="ledger"}`;
+export const APP_AESTHETIC_BOOT = `try{document.documentElement.dataset.aesthetic=localStorage.getItem(${JSON.stringify(APP_AESTHETIC_STORAGE_KEY)})==="ledger"?"ledger":"paper"}catch(e){document.documentElement.dataset.aesthetic="paper"}`;
