@@ -151,7 +151,8 @@
 .dash.mt-ov .mt-sum.stale { border-color: rgba(var(--gold-rgb),.3); background: rgba(var(--gold-rgb),.04); }
 .dash.mt-ov .mt-sum.empty { border-style: dashed; border-color: var(--line); background: transparent; }
 .dash.mt-ov .mt-sum.empty p { margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.dash.mt-ov .mt-sum .hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dash.mt-ov .mt-sum .hd { display: flex; align-items: center; gap: 8px; }
+.dash.mt-ov .mt-sum .hd .at { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash.mt-ov .mt-sum .ai-chip { margin: 0; }
 .dash.mt-ov .mt-sum .at { font-size: 10px; color: var(--faint); }
 .dash.mt-ov .mt-sum .stl { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--gold); }
@@ -189,12 +190,52 @@
 .dash.mt-ov .mt-att .nm { font-size: 12px; color: var(--ink-soft); background: none; border: 0; padding: 0; cursor: pointer; }
 .dash.mt-ov .mt-att .nm:hover { color: var(--ink); text-decoration: underline; }
 
-/* the shared (collaborative) editor brings its own label row and host */
+/* the shared (collaborative) editor brings its own toolbar and host */
 .dash.mt-ov .mt-pad.shared .collaborative-notes { min-width: 0; }
 
+/* The pad has the whole sheet until the margin is asked for; then the margin column slides in. */
+.dash.mt-ov .mt-grid { transition: grid-template-columns .55s cubic-bezier(.16,.9,.3,1.02), column-gap .55s cubic-bezier(.16,.9,.3,1.02); }
+.dash.mt-ov .mt-grid[data-margin="0"] { grid-template-columns: minmax(0,1fr) 0px; column-gap: 0; }
+.dash.mt-ov .mt-side { min-width: 0; overflow: hidden; transition: opacity .3s, transform .5s cubic-bezier(.16,.9,.3,1.02); }
+.dash.mt-ov .mt-grid[data-margin="0"] .mt-side { opacity: 0; transform: translateX(24px); pointer-events: none; }
+.dash.mt-ov .mt-grid[data-margin="1"] .mt-side { transition-delay: .12s; }
+.dash.mt-ov .mt-grid[data-margin="1"] .mt-side > * { min-width: 260px; }
+
+/* bar: live pill, saved, the summary toggle, the ⋯ menu */
+.dash.mt-ov .mt-live { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line-med); font: 600 9.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dash.mt-ov .mt-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+.dash.mt-ov .mt-live.on { color: var(--ok); border-color: rgba(var(--ok-rgb),.35); }
+.dash.mt-ov .mt-live.on i { background: var(--ok); animation: mt-pulse 2s infinite; }
+.dash.mt-ov .mt-live.off { color: var(--gold); border-color: rgba(var(--gold-rgb),.35); }
+.dash.mt-ov .mt-live.off i { background: var(--gold); }
+@keyframes mt-pulse { 0% { box-shadow: 0 0 0 0 rgba(var(--ok-rgb),.35); } 70% { box-shadow: 0 0 0 5px rgba(var(--ok-rgb),0); } }
+.dash.mt-ov .mt-saved { flex: none; min-width: 84px; text-align: right; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.dash.mt-ov .mt-saved .err { color: var(--rose); }
+.dash.mt-ov .mt-sumbtn .ct { font: 600 10px var(--mono); padding: 0 6px; border-radius: 999px; background: var(--vio-bg); }
+.dash.mt-ov .mt-sumbtn.ghost { color: var(--ink-soft); }
+.dash.mt-ov .mt-more { position: relative; }
+.dash.mt-ov .mt-menu { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; min-width: 220px; padding: 6px; border-radius: 12px; border: 1px solid var(--line-med); background: var(--card); box-shadow: 0 18px 40px -16px rgba(0,0,0,.45); }
+.dash.mt-ov .mt-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px; font-size: 13px; text-align: left; color: var(--ink); }
+.dash.mt-ov .mt-menu button:hover { background: rgba(var(--ink-rgb),.06); }
+.dash.mt-ov .mt-menu button svg { color: var(--muted); }
+.dash.mt-ov .mt-menu button.danger, .dash.mt-ov .mt-menu button.danger svg { color: var(--rose); }
+.dash.mt-ov .mt-menu small { margin-left: auto; font: 500 10px var(--mono); color: var(--muted); }
+.dash.mt-ov .mt-menu hr { border: 0; border-top: 1px dashed var(--line-med); margin: 4px 6px; }
+.dash.mt-ov .mt-meta .mt-attchip { cursor: pointer; }
+.dash.mt-ov .mt-meta .mt-attchip.on { border-color: var(--vio); color: var(--ink); }
+.dash.mt-ov .mt-clock { font: 500 11.5px var(--mono); color: var(--ink-soft); }
+.dash.mt-ov .mt-clock b { color: var(--ink); font-weight: 600; }
+.dash.mt-ov .mt-sum .hd .mt-sum-x { margin-left: auto; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; color: var(--muted); }
+.dash.mt-ov .mt-sum .hd .mt-sum-x:hover { background: rgba(var(--ink-rgb),.06); color: var(--ink); }
+.dash.mt-ov .mt-sum .hd .mt-sum-x svg { width: 15px; height: 15px; }
+
 @media (max-width: 900px) {
-  .dash.mt-ov .mt-grid { grid-template-columns: minmax(0,1fr); padding: 18px 16px 50px; }
-  .dash.mt-ov .mt-side { order: -1; }
+  .dash.mt-ov .mt-grid, .dash.mt-ov .mt-grid[data-margin] { grid-template-columns: minmax(0,1fr); column-gap: 0; padding: 18px 16px 50px; }
+  .dash.mt-ov .mt-grid[data-margin="0"] .mt-side { display: none; }
+  .dash.mt-ov .mt-grid[data-margin="1"] .mt-side { margin-top: 22px; }
+}
+@media (max-width: 700px) {
+  .dash.mt-ov .mt-saved, .dash.mt-ov .mt-live .tx { display: none; }
 }
 /* the ledger-only meta run joins the row's flex gap instead of collapsing it */
 .dash .ondeck .od-meta .od-lg { display: contents; }

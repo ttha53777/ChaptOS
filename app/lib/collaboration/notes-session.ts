@@ -18,6 +18,16 @@ export function bytes64(bytes: Uint8Array): string {
 export function from64(value: string): Uint8Array { return Uint8Array.from(atob(value), c => c.charCodeAt(0)); }
 
 export type NotesStatus = { connection: string; saving: "loading" | "pending" | "saving" | "saved" | "error"; error?: string };
+/** Where start() is, leg by leg — what the connecting card shows. */
+export type NotesLegs = {
+  stage: "bootstrap" | "local" | "join" | "open";
+  /** From the bootstrap fetch. */
+  seq?: number; savedAt?: string | null;
+  /** This device's copy held edits the server hadn't seen; they merge in. */
+  unsent?: boolean;
+  /** IndexedDB couldn't be read (private window, blocked storage). */
+  localFailed?: boolean;
+};
 export type Collaborator = { clientId: number; actorId: number; name: string; color: string; typing: boolean };
 
 export class NotesSession {
@@ -26,6 +36,7 @@ export class NotesSession {
   readonly queue: NotesSaveQueue;
   bootstrap!: Bootstrap;
   status: NotesStatus = { connection: "Connecting…", saving: "loading" };
+  legs: NotesLegs = { stage: "bootstrap" };
   private persistence?: IndexeddbPersistence;
   private channel?: RealtimeChannel;
   private listeners = new Set<() => void>();
@@ -70,6 +81,7 @@ export class NotesSession {
   subscribe(listener: () => void) { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; }
   private notify() { for (const listener of this.listeners) listener(); }
   private setStatus(value: Partial<NotesStatus>) { this.status = { ...this.status, ...value }; this.notify(); }
+  private setLegs(value: Partial<NotesLegs>) { this.legs = { ...this.legs, ...value }; this.notify(); }
   get editable() { return this.ready && !this.destroyed; }
 
   private async request<T>(suffix: string, init?: RequestInit): Promise<T> {
@@ -84,6 +96,7 @@ export class NotesSession {
   async start() {
     this.bootstrap = await this.request<Bootstrap>("/session", { method: "POST" });
     if (this.destroyed) return;
+    this.setLegs({ stage: "local", seq: this.bootstrap.notesDocSeq, savedAt: this.bootstrap.notesUpdatedAt });
     Y.applyUpdate(this.doc, from64(this.bootstrap.notesDoc), SERVER);
     const baseline = bytes64(Y.encodeStateAsUpdate(this.doc));
     // Authorization happens before recovering or showing local data.
@@ -91,17 +104,24 @@ export class NotesSession {
       this.persistence = new IndexeddbPersistence(`notes:${new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).host}:${this.bootstrap.actor.authUserId}:${this.bootstrap.organizationId}:${this.eventId}:v1`, this.doc);
       await Promise.race([this.persistence.whenSynced, new Promise((_, reject) => setTimeout(() => reject(new Error("Local recovery timed out")), 5000))]);
     } catch {
+      this.legs.localFailed = true;
       this.setStatus({ error: "Local recovery unavailable. Keep this tab open until saved." });
     }
     if (this.destroyed) return;
+    const unsent = baseline !== bytes64(Y.encodeStateAsUpdate(this.doc));
+    this.setLegs({ stage: "join", unsent });
     this.ready = true;
     this.awareness.setLocalStateField("user", { name: this.bootstrap.actor.name.slice(0, 80), actorId: this.bootstrap.actor.id,
       color: noteColor(this.bootstrap.actor.id), colorLight: `${noteColor(this.bootstrap.actor.id)}33` });
     this.doc.on("update", this.onUpdate);
     this.awareness.on("update", this.onAwareness);
     this.setStatus({ saving: "saved", connection: this.bootstrap.realtime ? "Connecting…" : "Live updates unavailable" });
-    if (baseline !== bytes64(Y.encodeStateAsUpdate(this.doc))) { this.queue.changed(); this.setStatus({ saving: "pending" }); }
-    if (this.bootstrap.realtime) await this.connect();
+    if (unsent) { this.queue.changed(); this.setStatus({ saving: "pending" }); }
+    if (this.bootstrap.realtime) {
+      if (navigator.onLine) await this.connect();
+      else this.setStatus({ connection: "Offline" });
+    }
+    this.setLegs({ stage: "open" });
     this.poll = setInterval(() => { if (!document.hidden) void this.reconcile().catch(() => {}); }, 30_000);
     this.peopleTimer = setInterval(() => this.notify(), 1000);
     document.addEventListener("visibilitychange", this.onVisibility);
@@ -261,6 +281,8 @@ export class NotesSession {
     if (document.hidden) { this.stopTyping(); void this.queue.flush().catch(() => {}); this.disconnect(); }
     else this.onOnline();
   };
+  /** "Try again" from the offline banner. */
+  retry() { this.onOnline(); }
   private onOnline = () => { if (this.ready) { void this.connect().catch(() => {}); void this.reconcile().catch(() => {}); void this.queue.flush().catch(() => {}); } };
   private onOffline = () => { this.stopTyping(); this.disconnect(); this.setStatus({ connection: "Offline" }); };
 

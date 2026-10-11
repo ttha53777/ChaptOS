@@ -215,22 +215,23 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-meta .mt-attchip { border: 1.5px so
 html[data-aesthetic="paper"] .dash.mt-ov .mt-meta button.mt-attchip:hover { border-color: var(--ink); color: var(--ink); }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-meta .mt-attchip .pp-ic { width: 13px; height: 13px; }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-body { overscroll-behavior: contain; }
-html[data-aesthetic="paper"] .dash.mt-ov .mt-grid { grid-template-columns: minmax(0,1fr) minmax(0,320px); max-width: 1060px; padding: 26px 28px 60px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-grid { grid-template-columns: minmax(0,1fr) minmax(0,320px); column-gap: 24px; max-width: 1060px; padding: 22px 28px 60px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-grid[data-margin="0"] { grid-template-columns: minmax(0,1fr) 0px; column-gap: 0; }
 
 /* the legal pad: red margin rule, a strip of tape, sky-blue ruled lines */
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-h .lbl { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-geist-sans); font-size: .7rem; font-weight: 600; letter-spacing: .11em; color: var(--muted); }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-h .lbl::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: var(--pp-sky); }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-h .hint { font-size: .76rem; color: var(--muted); }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad,
-html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .notes-editor-host {
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .notes-pad {
   position: relative; border-radius: 6px 16px 8px 14px; background: var(--card); border: 1.5px solid var(--line); box-shadow: var(--pp-sh-2);
 }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared { position: static; border: 0; background: none; box-shadow: none; }
-html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-editor-host)::before {
+html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad)::before {
   content: ""; position: absolute; left: 46px; top: 0; bottom: 0; width: 1.5px; background: var(--pp-rose-ink); opacity: .45; pointer-events: none; z-index: 1;
 }
-html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-editor-host)::after {
-  content: ""; position: absolute; left: 64px; top: -8px; width: 62px; height: 16px; transform: rotate(-3deg); z-index: 2;
+html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad)::after {
+  content: ""; position: absolute; left: 64px; top: -8px; width: 62px; height: 16px; transform: rotate(-3deg); z-index: 6;
   background: color-mix(in srgb, var(--pp-butter) 75%, transparent); border-inline: 1px dashed rgba(38,33,27,.16);
 }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-text {
@@ -243,8 +244,6 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-text:focus { border: 0; }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-text[readonly] { cursor: default; }
 
 /* the shared editor (CodeMirror) on the same pad */
-html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .notes-label-row p { display: inline-flex; align-items: center; gap: 9px; font-family: var(--font-geist-sans); font-size: .7rem; letter-spacing: .11em; color: var(--muted); }
-html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .notes-label-row p::before { content: ""; width: 18px; height: 2px; border-radius: 2px; background: var(--pp-sky); }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-editor { background: transparent; border: 0; border-radius: inherit; min-height: 58vh; font-size: .98rem; }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-editor.cm-focused { outline: none; }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-scroller { font-family: var(--font-geist-sans); line-height: 30px; }
@@ -254,9 +253,6 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-content {
 }
 /* formatting as you type (notes-markdown.ts) — headings stay on the 30px rules */
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-line.cm-md-h { padding-top: 0; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.06rem; letter-spacing: -.02em; }
-html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-mark { color: var(--pp-rose-ink); opacity: .55; font-family: var(--mono); font-size: .8em; }
-html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-box { color: var(--pp-sky-ink); font-family: var(--mono); font-size: .85em; }
-html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-done .cm-md-box { color: var(--pp-mint-ink); }
 
 /* minutes a member can only read: the same agenda rendering as Templates, on the ruled pad */
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-read { padding-top: 15px; }
@@ -341,7 +337,7 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm .pp-only { display: inline-
   html[data-aesthetic="paper"] .dash .led-stats .stat { text-align: left; display: flex; gap: 6px; align-items: baseline; }
   html[data-aesthetic="paper"] .dash .led-row .chev { display: none; }
   html[data-aesthetic="paper"] .dash.mt-ov .mt-pad-text { padding-left: 54px; }
-  html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-editor-host)::before { left: 40px; }
+  html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad)::before { left: 40px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html[data-aesthetic="paper"] .dash .ondeck .meter i,
@@ -350,3 +346,138 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm .pp-only { display: inline-
 }
 /* the shared pad keeps its size while the editor connects */
 html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .notes-editor-host { min-height: 58vh; }
+
+/* ── the minutes editor on paper: toolbar · blocks · mentions · connecting card ── */
+html[data-aesthetic="paper"] .dash.mt-ov .notes-pad:focus-within { border-color: var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools {
+  padding: 7px 10px 7px 54px; border-bottom: 1.5px dashed var(--line); border-radius: 6px 16px 0 0;
+  background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(6px);
+}
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tb { height: 30px; border-radius: 8px; font-size: .78rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tb:hover:not(:disabled) { background: var(--paper-2); color: var(--ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tb.on { background: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tb b { font: 700 .82rem var(--font-fraunces); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tb em { font: italic 600 .86rem var(--font-fraunces); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tsep { width: 1.5px; height: 18px; background: var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools kbd { border-color: var(--line-med); background: var(--paper); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-tools .tag-agenda { font-size: .78rem; color: var(--ink-soft); }
+
+/* §n in the rose margin, a real box, a dot, a dashed rule */
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-line.cm-md-h::before { right: calc(100% + 22px); width: 40px; font: 500 .62rem/30px var(--mono); color: var(--pp-rose-ink); opacity: .75; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-mark { font-family: inherit; font-size: inherit; color: var(--faint); opacity: 1; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-cb { border-color: var(--ink); background: var(--card); color: var(--ink); vertical-align: -2px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-cb.on { background: var(--pp-mint); border-color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-cb.on::after { border-color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-md-dot { background: var(--ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-line.cm-md-hr::after { border-top-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-line.cm-md-hr::before { content: "~"; position: absolute; right: calc(100% + 22px); width: 40px; text-align: right; font: 500 .62rem/30px var(--mono); color: var(--pp-rose-ink); opacity: .7; }
+
+/* @mentions: a person is a pill with their initials, a role a dashed tag */
+html[data-aesthetic="paper"] .dash.mt-ov .cm-mention { height: 22px; padding: 0 8px 0 2px; font-size: .84rem; background: var(--card); }
+html[data-aesthetic="paper"] .dash.mt-ov .cm-mention i { width: 16px; height: 16px; font-size: 7.5px; color: var(--ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .cm-mention.role { padding-left: 5px; }
+html[data-aesthetic="paper"] :is(.cm-mention, .notes-pop .av).tone-0 { color: var(--pp-rose-ink); --t: var(--pp-rose); }
+html[data-aesthetic="paper"] :is(.cm-mention, .notes-pop .av).tone-1 { color: var(--pp-sky-ink); --t: var(--pp-sky); }
+html[data-aesthetic="paper"] :is(.cm-mention, .notes-pop .av).tone-2 { color: var(--pp-lilac-ink); --t: var(--pp-lilac); }
+html[data-aesthetic="paper"] :is(.cm-mention, .notes-pop .av).tone-3 { color: var(--pp-mint-ink); --t: var(--pp-mint); }
+html[data-aesthetic="paper"] :is(.cm-mention, .notes-pop .av).tone-4 { color: var(--pp-butter-ink); --t: var(--pp-butter); }
+html[data-aesthetic="paper"] :is(.cm-mention, .notes-pop .av).tone-5 { color: var(--pp-peach-ink); --t: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash.mt-ov .cm-mention.person i { background: var(--t); }
+html[data-aesthetic="paper"] .dash.mt-ov .cm-mention.role { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .notes-pop .av { background: var(--t); color: var(--ink); }
+
+html[data-aesthetic="paper"] .dash.mt-ov .notes-banner { border: 1.5px solid var(--pp-butter-bd); background: var(--pp-butter-soft); color: var(--pp-butter-ink); border-radius: 12px; font-size: .82rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-read { padding: 15px 22px 30px 62px; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-read .at-ps { margin-bottom: 30px; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-read .at-ps h3 { margin: 0; font: 600 1.02rem/30px var(--font-fraunces); letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-read .at-ps h3 .n { left: -58px; width: 40px; font: 500 .66rem/30px var(--mono); color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-read .at-ln { font-size: .98rem; line-height: 30px; min-height: 30px; color: var(--ink); }
+
+/* the connecting card: taped to the pad, over graphite skeleton lines */
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader { inset: 46px 0 0; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-skel { left: 62px; right: 30px; top: 16px; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-skel i { height: 30px; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-skel i::after { top: 9px; height: 11px; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-skel i.h::after { top: 7px; height: 14px; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-skel i.h::before { content: "§"; position: absolute; right: calc(100% + 26px); font: 500 .62rem/30px var(--mono); color: var(--pp-rose-ink); opacity: .35; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-lc {
+  top: min(120px,16vh); background: var(--paper); border: 1.5px solid var(--ink); border-radius: 18px; box-shadow: 6px 6px 0 var(--pp-sky);
+  padding: 20px 22px 18px; transform: translateX(-50%) rotate(-.6deg); animation: pp-lc-in .5s var(--pp-ease-spring) both .1s;
+}
+@keyframes pp-lc-in { from { transform: translate(-50%,16px) rotate(-3deg); opacity: 0; } }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-lc::before {
+  content: ""; position: absolute; left: 50%; top: -9px; width: 70px; height: 17px; transform: translateX(-50%) rotate(2deg);
+  background: color-mix(in srgb, var(--pp-sky) 80%, transparent); border-inline: 1px dashed rgba(38,33,27,.16);
+}
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader h3 { font: 600 1.45rem/1.15 var(--font-fraunces); letter-spacing: -.04em; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader h3 span { background: linear-gradient(transparent 60%, var(--pp-butter) 60%, var(--pp-butter) 92%, transparent 92%); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-sub { font-size: .84rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-steps { border-top-width: 1.5px; border-top-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st { border-bottom-width: 1.5px; border-bottom-color: var(--line-med); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st .t { font-size: .86rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st .d { font-size: .7rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.ok .o { border-color: var(--pp-mint-ink); background: var(--pp-mint); animation: pp-pop .35s var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.ok .o::after { border-color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.bad .o { border-color: var(--pp-peach-ink); background: var(--pp-peach-soft); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.bad .o::after { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.warn .o { border-color: var(--pp-butter-ink); background: var(--pp-butter-soft); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.warn .o::after { background: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.bad .d { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-st.warn .d { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-avs .av { background: var(--card); }
+@keyframes pp-pop { from { transform: scale(.4); opacity: 0; } }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-pencil { background: var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-pencil i::after { content: ""; position: absolute; right: -7px; top: -4px; border: 5.5px solid transparent; border-left: 8px solid var(--ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-btn { border: 1.5px solid var(--ink); font-size: .8rem; box-shadow: 2px 2px 0 var(--pp-lilac); transition: transform .15s var(--pp-ease-spring), box-shadow .15s; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-btn:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-btn.q { border-color: var(--line-med); box-shadow: none; }
+
+html[data-aesthetic="paper"] .dash.mt-ov .notes-foot { font-size: .7rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-foot .hint { font-family: var(--font-geist-sans); font-size: .74rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-foot button { color: var(--pp-lilac-ink); }
+
+/* popovers: / blocks and @mentions (fixed, so not under .dash.mt-ov's transforms) */
+html[data-aesthetic="paper"] .notes-pop { background: var(--paper); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--pp-lilac), 0 18px 40px -18px rgba(38,33,27,.35); }
+html[data-aesthetic="paper"] .notes-pop .opt.sel { background: var(--card); box-shadow: inset 0 0 0 1.5px var(--line-med); }
+html[data-aesthetic="paper"] .notes-pop .g { border: 1.5px solid var(--line-med); background: var(--card); font-family: var(--font-fraunces); }
+html[data-aesthetic="paper"] .notes-pop .nm2 { font-size: .84rem; }
+html[data-aesthetic="paper"] .notes-pop small { font-size: .72rem; }
+
+/* bar: live pill · peers · saved · Summary toggle · ⋯ menu */
+html[data-aesthetic="paper"] .dash.mt-ov .mt-live { border-width: 1.5px; border-color: var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-live.on { color: var(--pp-mint-ink); border-color: var(--pp-mint-bd); background: var(--pp-mint-soft); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-live.on i { background: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-live.off { color: var(--pp-butter-ink); border-color: var(--pp-butter-bd); background: var(--pp-butter-soft); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-live.off i { background: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-saved { font-family: var(--mono); font-size: .7rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-saved .err { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .notes-avatar { border-color: var(--card); background: var(--paper-2); box-shadow: 0 0 0 1.5px currentColor; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-sumbtn .ct { background: var(--pp-lilac); color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-sumbtn.ghost { border-color: var(--line-med); color: var(--ink-soft); box-shadow: 2px 2px 0 var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-sumbtn.ghost:hover:not(:disabled) { color: var(--ink); border-color: var(--ink); box-shadow: 3px 3px 0 var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-icon.on { background: var(--paper-2); border-color: var(--line-med); color: var(--ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-menu { background: var(--paper); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--pp-sky); animation: pp-menu-in .18s var(--pp-ease-spring); }
+@keyframes pp-menu-in { from { transform: translateY(-4px); opacity: 0; } }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-menu button { font-size: .84rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-menu button:hover { background: var(--card); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-menu :is(button.danger, button.danger svg) { color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-menu hr { border-top: 1.5px dashed var(--line); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-meta .mt-attchip { margin-left: 0; background: var(--card); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-meta .mt-attchip.on { border-color: var(--ink); color: var(--ink); box-shadow: 2px 2px 0 var(--pp-mint); }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-clock { margin-left: auto; font-size: .76rem; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-sum .hd { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-sum .hd .at { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-sum .hd .mt-sum-x:hover { background: var(--card); }
+
+@media (max-width: 900px) {
+  html[data-aesthetic="paper"] .dash.mt-ov .mt-grid, html[data-aesthetic="paper"] .dash.mt-ov .mt-grid[data-margin] { grid-template-columns: minmax(0,1fr); padding: 16px 16px 70px; }
+  html[data-aesthetic="paper"] .dash.mt-ov .mt-clock { margin-left: 0; }
+}
+@media (max-width: 700px) {
+  html[data-aesthetic="paper"] .dash.mt-ov .notes-tools { padding-left: 10px; }
+}
+@media (max-width: 520px) {
+  html[data-aesthetic="paper"] .dash.mt-ov :is(.mt-pad.shared .cm-content, .notes-read) { padding-left: 54px; padding-right: 16px; }
+  html[data-aesthetic="paper"] .dash.mt-ov .notes-loader .nl-skel { left: 54px; right: 16px; }
+  html[data-aesthetic="paper"] .dash.mt-ov .mt-pad.shared .cm-line.cm-md-h::before { right: calc(100% + 18px); width: 32px; font-size: .52rem; }
+}

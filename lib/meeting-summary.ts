@@ -108,7 +108,7 @@ export function buildMeetingSummary(
       .map((a, i) => ({
         id: `a${i + 1}`,
         text: clip(a.text, 400),
-        owner: a.owner?.trim() ? clip(a.owner, 120) : null,
+        owner: a.owner?.replace(/^\s*@/, "").trim() ? clip(a.owner.replace(/^\s*@/, "").trim(), 120) : null,
         brotherId: resolveOwner(a.owner, roster),
         due: a.due && /^\d{4}-\d{2}-\d{2}$/.test(a.due) ? a.due : null,
         done: doneBefore.has(norm(a.text)),

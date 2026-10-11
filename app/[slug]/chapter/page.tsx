@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import type { NotesEditorHandle } from "@/app/components/meeting-notes/CollaborativeNotesEditor";
+import type { NotesEditorHandle, MentionTarget } from "@/app/components/meeting-notes/CollaborativeNotesEditor";
 import { NotesCollaborators } from "@/app/components/meeting-notes/NotesCollaborators";
 import type { Collaborator, NotesStatus } from "@/app/lib/collaboration/notes-session";
 import { notesSummaryStale, type NotesSnapshot } from "@/lib/collaboration/notes-protocol";
@@ -20,7 +20,7 @@ import { useChapter } from "../../context/ChapterContext";
 import { useVocab } from "../../hooks/useVocab";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
-import { CalendarEvent, fmtDate } from "../../data";
+import { CalendarEvent, fmtDate, roleTitle } from "../../data";
 import { orgFetch } from "../../lib/api";
 import { daysFromToday, todayStr } from "../../lib/dates";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -34,7 +34,7 @@ import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue 
 import { nextMeetingDraft, type MeetingDraft } from "../../components/meeting-notes/meeting-defaults";
 import { agendaFieldsIn, agendaSections, hasMinutes, headingOf, minutesBeyondAgenda } from "@/lib/agenda-template";
 import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
-import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
+import { endInstant, scheduleDate, scheduleSchema, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 
 const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
 
@@ -366,6 +366,7 @@ function SummaryCard({
   selfId,
   onSummarize,
   onToggle,
+  onHide,
 }: {
   event: CalendarEvent;
   running: boolean;
@@ -374,6 +375,8 @@ function SummaryCard({
   selfId: number | null;
   onSummarize: () => void;
   onToggle: (item: MeetingActionItem) => void;
+  /** Put the margin away; the pad takes the whole sheet again. */
+  onHide: () => void;
 }) {
   const { brotherList } = useChapter();
   const data = parseMeetingSummary(event.notesSummaryData);
@@ -381,11 +384,16 @@ function SummaryCard({
   const chip = (label: string) => (
     <span className="ai-chip"><span className="lg-only">AI</span><span className="pp-only"><PaperIcon name="spark" />{label}</span></span>
   );
+  const hide = (
+    <button type="button" className="mt-sum-x" onClick={onHide} title="Hide the margin — the pad goes full width" aria-label="Hide summary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+  );
 
   if (running) {
     return (
       <div className="mt-sum">
-        <div className="hd">{chip("Summarizing")}</div>
+        <div className="hd">{chip("Summarizing")}{hide}</div>
         <p className="mt-sum-run"><span className="spin" aria-hidden />Reading {noteLines} line{noteLines === 1 ? "" : "s"} of minutes for decisions and owners…</p>
       </div>
     );
@@ -393,7 +401,7 @@ function SummaryCard({
   if (!data && !legacy) {
     return (
       <div className="mt-sum empty">
-        <div className="hd">{chip("Summary")}</div>
+        <div className="hd">{chip("Summary")}{hide}</div>
         <p>{hasNotes(event)
           ? <>Not summarized yet. <b>Summarize</b> pulls out the decisions and who owes what.</>
           : "Write the minutes, then Summarize pulls out the decisions and who owes what."}</p>
@@ -414,6 +422,7 @@ function SummaryCard({
         {event.notesSummaryAt && (
           <span className="at">Generated {new Date(event.notesSummaryAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
         )}
+        {hide}
       </div>
       {stale && (
         <p className="stl">Notes changed since — <button type="button" onClick={onSummarize}>Re-summarize</button></p>
@@ -525,6 +534,47 @@ function AttendanceCard({ event, refresh, canTake, onTake, onOpenMember }: {
   );
 }
 
+// ─── Minutes export ───────────────────────────────────────────────────────────
+
+const escapeHtml = (t: string) => t.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+/** A plain printable page for the minutes: the markdown, set as a document. */
+function printMinutes(event: CalendarEvent, text: string) {
+  const w = window.open("", "_blank", "width=820,height=1000");
+  if (!w) return false;
+  const inline = (t: string) => escapeHtml(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, "$1<i>$2</i>");
+  const body = text.split("\n").map(line => {
+    const h = /^\s*#{1,3}[ \t]+(.*)$/.exec(line);
+    if (h) return `<h2>${inline(h[1])}</h2>`;
+    if (/^\s*-{3,}\s*$/.test(line)) return "<hr>";
+    const c = /^(?:[-*•][ \t]+)?\[( |x|X)\][ \t]?(.*)$/.exec(line);
+    if (c) return `<p class="li">${c[1] === " " ? "☐" : "☑"} ${inline(c[2])}</p>`;
+    const b = /^[-*•][ \t]+(.*)$/.exec(line);
+    if (b) return `<p class="li">• ${inline(b[1])}</p>`;
+    return line.trim() ? `<p>${inline(line)}</p>` : "";
+  }).join("\n");
+  const when = [fmtDateFull(event.date), formatEventTime(event.time, event.schedule), event.location].filter(Boolean).join(" · ");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(event.title)}</title><style>
+    body{font:15px/1.6 Georgia,serif;color:#222;max-width:680px;margin:48px auto;padding:0 24px}
+    h1{font-size:26px;margin:0 0 4px}.when{color:#666;font:13px system-ui,sans-serif;margin-bottom:28px}
+    h2{font-size:17px;margin:24px 0 6px}p{margin:4px 0}.li{padding-left:18px;text-indent:-14px}hr{border:0;border-top:1px dashed #bbb;margin:18px 0}
+  </style></head><body><h1>${escapeHtml(event.title)}</h1><div class="when">${escapeHtml(when)}</div>${body}</body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+  return true;
+}
+
+/** "Started 7:00 · 0:38" while the meeting is on, else null. */
+function meetingClock(event: CalendarEvent, now: Date): string | null {
+  const parsed = event.schedule == null ? null : scheduleSchema.safeParse(event.schedule);
+  if (!parsed?.success || parsed.data.kind === "allDay") return null;
+  const start = new Date(parsed.data.start), end = endInstant(parsed.data);
+  if (now < start || now >= end) return null;
+  const mins = Math.floor((now.getTime() - start.getTime()) / 60_000);
+  return `Started ${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/, "")} · ${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
+}
+
 // ─── MeetingDetailOverlay (the minutes book) ──────────────────────────────────
 
 function MeetingDetailOverlay({
@@ -570,17 +620,47 @@ function MeetingDetailOverlay({
   canTakeAttendance: boolean;
   selfId: number | null;
 }) {
+  const { brotherList } = useChapter();
+  const toast = useToast();
   const editorRef = useRef<NotesEditorHandle>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const padRef = useRef<HTMLTextAreaElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [sharedStatus, setSharedStatus] = useState<NotesStatus>({ connection: "Connecting…", saving: "loading" });
   const [sharedError, setSharedError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  // The pad has the whole sheet until Summarize (or the attendance chip) asks for the margin.
+  const [margin, setMargin] = useState(false);
+  const now = useNow(15_000);
   const shared = !!event.notesCollaborationEnabled;
   const sharedSave = sharedStatus.saving === "saved" ? "saved" : sharedStatus.saving === "error" ? "error" : "saving";
   const slug = typeof window === "undefined" ? "" : decodeURIComponent(window.location.pathname.split("/")[1] ?? "");
+  useEffect(() => { if (sharedStatus.saving === "saved") setSavedAt(new Date()); }, [sharedStatus.saving]);
+
+  // Who the minutes can @mention: everyone on the roster, and every role someone holds.
+  const mentions = useMemo<MentionTarget[]>(() => {
+    const roster = [...brotherList].filter(b => b.name.trim()).sort((a, b) => a.name.localeCompare(b.name));
+    const people: MentionTarget[] = roster.map(b => {
+      const name = b.name.trim().replace(/\s+/g, " ");
+      return { kind: "person", name, label: name.split(" ")[0], initials: name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase(), tone: b.id % 6, sub: roleTitle(b) || "Member" };
+    });
+    const holders = new Map<string, string[]>();
+    for (const b of roster) for (const r of b.roles ?? []) holders.set(r.name, [...(holders.get(r.name) ?? []), b.name.trim().split(/\s+/)[0]]);
+    const roles: MentionTarget[] = [...holders].sort((a, b) => a[0].localeCompare(b[0])).map(([name, who]) => ({
+      kind: "role", name, label: name, initials: "", tone: 0,
+      sub: who.length === roster.length && who.length > 1 ? `All ${who.length} members` : who.length > 4 ? `${who.slice(0, 3).join(", ")} +${who.length - 3}` : who.join(", "),
+    }));
+    return [...people, ...roles];
+  }, [brotherList]);
+
+  const summary = parseMeetingSummary(event.notesSummaryData);
+  const hasSummary = !!summary || !!(event.notesSummary ?? "").trim();
+  const running = summarizeState === "running";
   const summarize = async () => {
     setSharedError(null);
+    setMargin(true);
     try {
       if (shared) {
         if (!editorRef.current) throw new Error("Notes are still loading.");
@@ -590,6 +670,30 @@ function MeetingDetailOverlay({
     }
     catch (error) { setSharedError(error instanceof Error ? error.message : "Save notes before summarizing."); }
   };
+
+  const minutesText = () => (shared ? editorRef.current?.text() : null) ?? (shared ? event.description ?? "" : notesDraft);
+  const fileName = `${event.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "minutes"}-${event.date}.md`;
+  function exportAct(x: "copy" | "md" | "print") {
+    setMoreOpen(false);
+    const text = minutesText();
+    if (x === "copy") {
+      navigator.clipboard.writeText(text).then(() => toast.success("Minutes copied as text"), () => toast.error("Couldn’t reach the clipboard"));
+    } else if (x === "md") {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+      a.download = fileName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      toast.success(`Downloaded ${fileName}`);
+    } else if (!printMinutes(event, text)) toast.error("Allow pop-ups to print the minutes");
+  }
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (e: MouseEvent) => { if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [moreOpen]);
+
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const trap = (event: KeyboardEvent) => {
@@ -603,10 +707,22 @@ function MeetingDetailOverlay({
     return () => { document.removeEventListener("keydown", trap); previous?.focus(); };
   }, []);
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    // Esc closes the open menu or popover first; the book only when nothing else is up.
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (moreOpen) { setMoreOpen(false); return; }
+      if (document.querySelector(".notes-pop")) return;
+      onClose();
+    };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [onClose, moreOpen]);
+  useEffect(() => {
+    if (shared) return;
+    const copy = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "c") { e.preventDefault(); exportAct("copy"); } };
+    document.addEventListener("keydown", copy);
+    return () => document.removeEventListener("keydown", copy);
+  });
   // The legal pad grows with the minutes instead of scrolling inside itself.
   useEffect(() => {
     const t = padRef.current;
@@ -616,12 +732,35 @@ function MeetingDetailOverlay({
   }, [notesDraft]);
 
   const time = formatEventTime(event.time, event.schedule);
+  const clockText = meetingClock(event, now);
   const noteLines = notesDraft.split("\n").filter(l => l.trim()).length;
-  const canSummarize = summarizeState !== "running" && (shared ? sharedStatus.saving !== "loading" : !!notesDraft.trim());
-  const attLabel = !event.mandatory ? null
+  const canSummarize = !running && (shared ? sharedStatus.saving !== "loading" && sharedStatus.connection !== "Unavailable" : !!notesDraft.trim());
+  const attLabel = !event.mandatory ? "Optional — no roll"
     : taken(attendanceRow) ? `${attendanceRow!.present} of ${attendanceRow!.eligible} present`
-    : canTakeAttendance ? "Take attendance" : null;
+    : canTakeAttendance ? "Take attendance" : "Attendance";
+  const itemCount = summary ? summary.decisions.length + summary.actions.length : 0;
+  const conn = sharedStatus.connection;
+  const live = conn === "Live" ? { cls: "on", label: "Live" }
+    : conn === "Offline" ? { cls: "off", label: "Offline" }
+    : conn === "Access unavailable" ? { cls: "off", label: "No access" }
+    : conn === "Live updates unavailable" ? { cls: "", label: "Not live" }
+    : conn === "Unavailable" ? { cls: "off", label: "Closed" }
+    : { cls: "", label: "Connecting" };
+  const savedText = sharedStatus.saving === "loading" || conn === "Unavailable" ? ""
+    : sharedStatus.saving === "error" ? "Not saved"
+    : sharedStatus.saving !== "saved" ? "Saving…"
+    : conn === "Offline" ? "On this device"
+    : savedAt ? `Saved · ${savedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Saved";
   const icon = (d: React.ReactNode) => <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>;
+  const spark = (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
+    </svg>
+  );
+  const menuItem = (label: string, d: React.ReactNode, onClick: () => void, extra?: { danger?: boolean; kbd?: string }) => (
+    <button type="button" role="menuitem" className={extra?.danger ? "danger" : ""} onClick={onClick}>{icon(d)}{label}{extra?.kbd && <small>{extra.kbd}</small>}</button>
+  );
 
   return (
     <div className="dash mt-ov fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
@@ -641,34 +780,43 @@ function MeetingDetailOverlay({
             <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--vio)]" />
             <p className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{event.title}</p>
           </div>
+          {shared && <span className={`mt-live ${live.cls}`} title={conn}><i /><span className="tx">{live.label}</span></span>}
           {shared && <NotesCollaborators peers={collaborators} />}
-          <span className="mt-saved"><SaveIndicator state={shared ? sharedSave : saveState} tone="dusk" /></span>
+          <span className="mt-saved" aria-live="polite">{shared ? <span className={sharedStatus.saving === "error" ? "err" : ""}>{savedText}</span> : <SaveIndicator state={saveState} tone="dusk" />}</span>
           <div className="flex items-center gap-1">
-            <button
-              onClick={summarize}
-              disabled={!canSummarize}
-              title={!notesDraft.trim() ? "Add notes first" : "Pull out decisions and action items"}
-              aria-label={event.notesSummary ? "Re-summarize notes" : "Summarize notes"}
-              className="mt-sumbtn flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--vio)] transition-colors hover:bg-[rgba(var(--vio-rgb),0.1)] hover:text-[color:var(--vio-hi)] disabled:cursor-not-allowed disabled:text-[color:var(--faint)] disabled:hover:bg-transparent sm:py-1.5"
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
-                <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
-              </svg>
-              <span className="hidden sm:inline">{event.notesSummary ? "Re-summarize" : "Summarize"}</span>
-            </button>
-            {canManageEvents && (
-              <>
-                <button onClick={onEdit} aria-label="Edit meeting" title="Edit meeting" className="mt-icon flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink-soft)] sm:py-1.5">
-                  {icon(<path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />)}
-                  <span className="lbl hidden sm:inline">Edit</span>
-                </button>
-                <button onClick={onDelete} aria-label="Delete meeting" title="Delete meeting" className="mt-icon danger flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--rose-rgb),0.1)] hover:text-[color:var(--rose)] sm:py-1.5">
-                  {icon(<path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />)}
-                  <span className="lbl hidden sm:inline">Delete</span>
-                </button>
-              </>
+            {hasSummary && !margin && !running ? (
+              <button onClick={() => setMargin(true)} title="Show the summary in the margin" className="mt-sumbtn ghost flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] sm:py-1.5">
+                {spark}<span className="hidden sm:inline">Summary</span>{summary && <span className="ct">{itemCount}</span>}
+              </button>
+            ) : (
+              <button
+                onClick={summarize}
+                disabled={!canSummarize}
+                title={!canSummarize && !running ? "Add notes first" : hasSummary ? "Run it again on the current minutes" : "Pull out decisions and action items"}
+                aria-label={hasSummary ? "Re-summarize notes" : "Summarize notes"}
+                className="mt-sumbtn flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--vio)] transition-colors hover:bg-[rgba(var(--vio-rgb),0.1)] hover:text-[color:var(--vio-hi)] disabled:cursor-not-allowed disabled:text-[color:var(--faint)] disabled:hover:bg-transparent sm:py-1.5"
+              >
+                {spark}
+                <span className="hidden sm:inline">{running ? "Summarizing…" : hasSummary ? "Re-summarize" : "Summarize"}</span>
+              </button>
             )}
+            <div className="mt-more" ref={moreRef}>
+              <button onClick={() => setMoreOpen(o => !o)} aria-label="More" title="More" aria-haspopup="menu" aria-expanded={moreOpen} className={`mt-icon flex items-center rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink-soft)] sm:py-1.5${moreOpen ? " on" : ""}`}>
+                {icon(<><circle cx="5.5" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18.5" cy="12" r="1.3" /></>)}
+              </button>
+              {moreOpen && (
+                <div className="mt-menu" role="menu">
+                  {menuItem("Copy as text", <><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" /></>, () => exportAct("copy"), { kbd: "⌘⇧C" })}
+                  {menuItem("Download .md", <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />, () => exportAct("md"))}
+                  {menuItem("Print", <><path d="M7 9V3.5h10V9M7 17H5a2 2 0 01-2-2v-4a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2h-2" /><rect x="7" y="14" width="10" height="6.5" rx="1" /></>, () => exportAct("print"))}
+                  {canManageEvents && <>
+                    <hr />
+                    {menuItem("Edit meeting", <><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></>, () => { setMoreOpen(false); onEdit(); })}
+                    {menuItem("Delete meeting", <path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12.2A2 2 0 008.5 21h7a2 2 0 002-1.8L18.5 7M9.5 7V4.5a1 1 0 011-1h3a1 1 0 011 1V7" />, () => { setMoreOpen(false); onDelete(); }, { danger: true })}
+                  </>}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -678,21 +826,34 @@ function MeetingDetailOverlay({
           {time && <span className="flex items-center gap-2"><PaperIcon name="clock" className="pp-ic pp-only" />{time}</span>}
           {event.location && <span className="flex items-center gap-2"><PaperIcon name="pin" className="pp-ic pp-only" />{event.location}</span>}
           <span className={`mt-req ${event.mandatory ? "on" : ""}`}>{event.mandatory ? "Required" : "Optional"}</span>
-          {attLabel && (
-            canTakeAttendance
-              ? <button type="button" className="mt-attchip" onClick={onTakeAttendance}><PaperIcon name="people" className="pp-ic pp-only" />{attLabel}</button>
-              : <span className="mt-attchip"><PaperIcon name="people" className="pp-ic pp-only" />{attLabel}</span>
-          )}
+          {/* The chip opens the margin, where the attendance card takes (or edits) the roll. */}
+          <button type="button" className={`mt-attchip${margin ? " on" : ""}`} aria-pressed={margin} onClick={() => setMargin(m => !m)} title={margin ? "Put the margin away" : "Show attendance in the margin"}>
+            <PaperIcon name="people" className="pp-ic pp-only" />{attLabel}
+          </button>
+          {clockText && <span className="mt-clock">{clockText.replace(/ · .*/, "")} · <b>{clockText.replace(/.* · /, "")}</b></span>}
         </div>
 
-        {/* ── Body: the legal pad beside its margin column ─────────────────── */}
+        {/* ── Body: the legal pad, and the margin column once it's asked for ── */}
         <div className="mt-body flex-1 overflow-y-auto">
-          <div className="mt-grid">
+          <div className="mt-grid" data-margin={margin ? "1" : "0"}>
             <div className="mt-main">
               {(summarizeError || sharedError) && <div className="mt-err">{summarizeError || sharedError}</div>}
               {shared ? (
                 <div className="mt-pad shared">
-                  <CollaborativeNotesEditor key={event.id} ref={editorRef} eventId={event.id} slug={slug} onSaved={onNotesSaved} onState={setSharedStatus} onPeers={setCollaborators} />
+                  <CollaborativeNotesEditor
+                    key={event.id}
+                    ref={editorRef}
+                    eventId={event.id}
+                    slug={slug}
+                    onSaved={onNotesSaved}
+                    onState={setSharedStatus}
+                    onPeers={setCollaborators}
+                    mentions={mentions}
+                    fallback={event.description ?? ""}
+                    dateLabel={localDate(event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    fromAgenda={event.agendaTemplateId != null}
+                    onCopy={() => exportAct("copy")}
+                  />
                 </div>
               ) : (
                 <>
@@ -725,8 +886,10 @@ function MeetingDetailOverlay({
                 </>
               )}
             </div>
-            <aside className="mt-side">
-              <SummaryCard event={event} running={summarizeState === "running"} noteLines={noteLines} canEditNotes={canEditNotes} selfId={selfId} onSummarize={summarize} onToggle={onToggleItem} />
+            <aside className="mt-side" aria-label="Summary and attendance" inert={!margin}>
+              {(hasSummary || running) && (
+                <SummaryCard event={event} running={running} noteLines={noteLines} canEditNotes={canEditNotes} selfId={selfId} onSummarize={summarize} onToggle={onToggleItem} onHide={() => setMargin(false)} />
+              )}
               <AttendanceCard event={event} refresh={attendanceRefresh} canTake={canTakeAttendance} onTake={onTakeAttendance} onOpenMember={onOpenMember} />
             </aside>
           </div>

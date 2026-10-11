@@ -15,7 +15,7 @@ const SYSTEM = `You summarize a fraternity chapter's meeting minutes for officer
 Return JSON with:
 - "gist": one plain sentence (≤25 words) on what the meeting settled. No preamble.
 - "decisions": each thing the chapter decided, voted on, approved or set, one short line each (keep vote counts). [] if none.
-- "actions": each follow-up someone owes. "text" is the task as a short imperative ("Book the DJ for formal"), without the owner's name. "owner" is the person's name exactly as the minutes wrote it, or null if nobody was named. "due" is the date it's due as YYYY-MM-DD, or null if the minutes gave none — resolve a bare "Oct 10" to the first such date on or after the meeting date.
+- "actions": each follow-up someone owes. "text" is the task as a short imperative ("Book the DJ for formal"), without the owner's name. "owner" is the person's name exactly as the minutes wrote it (an "@Name" or "@Role" mention is that name or role, without the @), or null if nobody was named. A mention alone doesn't make an action item — only a follow-up someone owes does. "due" is the date it's due as YYYY-MM-DD, or null if the minutes gave none — resolve a bare "Oct 10" to the first such date on or after the meeting date.
 Rules: do not invent facts, owners or dates. Be terse.`;
 
 export async function summarizeMeeting(ctx: RequestContext, id: number) {
