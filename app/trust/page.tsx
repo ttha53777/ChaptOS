@@ -84,11 +84,10 @@ export default function TrustPage() {
           </a>
           <nav className="nav__links">
             <a href="/#ask">Just ask</a>
-            <a href="/#modules">What&apos;s in it</a>
+            <a href="/blog">Blog</a>
+            <a href="/for">Who it&apos;s for</a>
+            <a href="/pricing">Pricing</a>
             <a href="/help">Help</a>
-            <a className="is-here" href="/trust" aria-current="page">
-              Trust &amp; privacy
-            </a>
           </nav>
           <div className="nav__cta">
             <SignInLink className="btn btn--ghost btn--sm">Sign in</SignInLink>

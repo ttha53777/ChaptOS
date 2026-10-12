@@ -12,8 +12,7 @@ export function Nav() {
         <nav className="nav__links">
           <a href="#ask">Just ask</a>
           <a href="#day">A Tuesday</a>
-          <a href="#modules">What&apos;s in it</a>
-          <a href="#trust">Trust</a>
+          <a href="/blog">Blog</a>
           {/* In-page, not /pricing: the section answers it in five seconds and
               links through, so a visitor asking the price doesn't leave the
               funnel to find out. Every other public nav (PublicChrome) points

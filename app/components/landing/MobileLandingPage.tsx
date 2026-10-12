@@ -229,6 +229,7 @@ export function MobileLandingPage() {
             <a href="#mobile-inside">Explore</a>
             <a href="/pricing">Pricing</a>
             <a href="/trust">Trust</a>
+            <a href="/blog">Blog</a>
             <a href="/contact">Contact</a>
             <SignInLink className="sign-in">Sign in ↗</SignInLink>
           </div>

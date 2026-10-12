@@ -108,6 +108,7 @@ export async function proxy(request: NextRequest) {
  *   /contact   "talk to a human"
  *   /for       who it's for, plus /for/<audience> — the six org-type pages the
  *              footer's "For" column links to
+ *   /blog      the blog, plus /blog/<post> and /blog/rss.xml
  *
  * The /help articles and /for audiences are matched by prefix rather than
  * enumerated, but each prefix carries its trailing "/" so a future org slug like
@@ -116,13 +117,15 @@ export async function proxy(request: NextRequest) {
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   "/", "/create", "/trust", "/help", "/contact", "/for", "/pricing",
+  "/blog",
 ]);
 
 function isPublicPath(pathname: string): boolean {
   return (
     PUBLIC_PATHS.has(pathname) ||
     pathname.startsWith("/help/") ||
-    pathname.startsWith("/for/")
+    pathname.startsWith("/for/") ||
+    pathname.startsWith("/blog/")
   );
 }
 

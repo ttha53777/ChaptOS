@@ -38,6 +38,7 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.105.4",
     "ical-generator": "^10.2.0",
+    "marked": "^15.0.12",
     "next": "16.2.12",
     "obscenity": "^0.4.6",
     "openai": "^6.39.0",

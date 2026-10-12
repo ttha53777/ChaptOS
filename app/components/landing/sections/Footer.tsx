@@ -74,6 +74,9 @@ export function Footer() {
                 <a href="/help">Help center</a>
               </li>
               <li>
+                <a href="/blog">Blog</a>
+              </li>
+              <li>
                 <a href="/contact">Talk to a human</a>
               </li>
             </ul>

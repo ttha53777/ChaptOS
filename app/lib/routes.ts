@@ -31,6 +31,7 @@ export const RESERVED_SEGMENTS = new Set([
   "contact",
   "for",
   "pricing",
+  "blog",
 ]);
 
 /**
