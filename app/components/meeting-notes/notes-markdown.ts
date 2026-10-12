@@ -29,7 +29,9 @@ export type MentionTarget = {
 
 /** The block a line is, and how many leading characters are its marker. */
 export type LineKind = "p" | "h" | "li" | "todo" | "hr";
-const HEAD = /^(\s*)#{1,3}[ \t]+/;
+// Same rule as agenda templates (lib/agenda-template.ts): "##Prez:" is a
+// heading too, so an agenda copied into a meeting reads the way it previewed.
+const HEAD = /^(\s*)#{1,3}(?:[ \t]+|(?=[^\s#\d]))/;
 const TODO = /^(?:[-*•][ \t]+)?\[( |x|X)\][ \t]?/;
 const BULLET = /^[-*•][ \t]+/;
 const RULE = /^\s*-{3,}\s*$/;

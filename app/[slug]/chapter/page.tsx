@@ -544,7 +544,7 @@ function printMinutes(event: CalendarEvent, text: string) {
   if (!w) return false;
   const inline = (t: string) => escapeHtml(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, "$1<i>$2</i>");
   const body = text.split("\n").map(line => {
-    const h = /^\s*#{1,3}[ \t]+(.*)$/.exec(line);
+    const h = /^\s*#{1,3}(?:[ \t]+|(?=[^\s#\d]))(.*)$/.exec(line);
     if (h) return `<h2>${inline(h[1])}</h2>`;
     if (/^\s*-{3,}\s*$/.test(line)) return "<hr>";
     const c = /^(?:[-*•][ \t]+)?\[( |x|X)\][ \t]?(.*)$/.exec(line);
