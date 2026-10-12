@@ -1637,7 +1637,7 @@ export default function TreasuryPage() {
                   <PaperTile icon="bars" tone={donutMode === "income" ? "mint" : "peach"} />
                   <h2><span className="lg-only">Breakdown</span><span className="pp-only">{donutMode === "income" ? "Where it came from" : "Where it went"}</span></h2>
                   <div className="tr-donut-toggle">
-                    {(["expense", "income"] as const).map(m => (
+                    {(["income", "expense"] as const).map(m => (
                       <button key={m} onClick={() => setDonutMode(m)} className={donutMode === m ? "on" : ""}>
                         <span className="lg-only">{m.charAt(0).toUpperCase() + m.slice(1)}s</span>
                         <span className="pp-only">{m === "income" ? "In" : "Out"}</span>
