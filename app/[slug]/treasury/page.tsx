@@ -717,7 +717,7 @@ export default function TreasuryPage() {
   const [txTab,         setTxTab]         = useState<TxTab>("all");
   const [txCategory,    setTxCategory]    = useState<string>("all");
   const [txSearch,      setTxSearch]      = useState("");
-  const [donutMode,     setDonutMode]     = useState<"expense" | "income">("expense");
+  const [donutMode,     setDonutMode]     = useState<"expense" | "income">("income");
   const [txModal,       setTxModal]       = useState<TxModal>(null);
   const [partyModal,    setPartyModal]    = useState<PartyModal>(null);
   const [deleteModal,   setDeleteModal]   = useState<{ kind: "tx"; tx: Transaction } | { kind: "party"; event: PartyEvent } | null>(null);
