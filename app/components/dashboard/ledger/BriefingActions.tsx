@@ -98,7 +98,7 @@ export function BriefingActions({
             <path d="M12 7v5l3 2" />
           </svg>
           <span className="lg-only">{openCheckInBusy ? "Opening…" : "Open check-in"}</span>
-          <span className="pp-only">{openCheckInBusy ? "Opening…" : "Open check-in…"}</span>
+          <span className="pp-only">{openCheckInBusy ? "Opening…" : "Open check-in"}</span>
         </button>
       )}
 
