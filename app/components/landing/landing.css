@@ -828,13 +828,9 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .trust__more a:hover svg{transform:translateX(2.5px)}
 
 /* ---------- 10. pricing ---------------------------------------------------- */
-/* A tinted band between two sections that sit on bare paper, so price reads as
-   a deliberate interlude rather than another chapter. Hairline rules top and
-   bottom; --paper-2 covers the fixed washes locally, which is the point. */
+/* Sits on bare paper like its neighbours, so the board carries the section. */
 .lp .price{
   position:relative; overflow:hidden;
-  background:var(--paper-2);
-  border-block:1.5px solid var(--line);
   /* Three links point at #price (nav, hero fine print, CTA fine print) and the
      nav is sticky, so the jump needs an offset. The other sections get away
      without one only because .section's padding is larger than the bar —
@@ -843,41 +839,9 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
   scroll-margin-top:76px;
 }
 
-/* --- the depth stack ------------------------------------------------------
-   Parallax layers between the paper and the copy, so the band has a back
-   rather than being a flat tint. All of them are owned by the JS engine (see
-   §13's motion contract): nothing here may set `transform` for layout, which
-   is why the blobs are wrapped
-   spans. Each layer is oversized past the section's overflow:hidden by more
-   than its own drift budget, so no offset can ever expose an edge. */
-.lp .price__depth{position:absolute; inset:0; z-index:0; pointer-events:none}
-
-/* the bloom, slowest. Sized in vw so it stays huge at any width; these are the
-   page's --*-soft tints, which sit a shade off --paper-2 and read as light
-   rather than as colour. */
-.lp .price__wash{
-  position:absolute; inset:-20%;
-  background:
-    radial-gradient(38vw 30vw at 16% 24%, var(--mint-soft),  transparent 64%),
-    radial-gradient(34vw 28vw at 86% 16%, var(--sky-soft),   transparent 62%),
-    radial-gradient(40vw 32vw at 62% 98%, var(--lilac-soft), transparent 64%);
-}
-/* ledger rules — accounting paper under the section about money. The mask is
-   load-bearing: it clears the middle, where the centred copy runs, and only
-   lets the lines build toward the edges. Without it this is a lined notebook
-   behind a paragraph. --line-2 rather than --line: on --paper-2 the lighter
-   one is invisible, which is a texture nobody can see rather than a subtle
-   one. */
-.lp .price__rules{
-  position:absolute; inset:-16% 0; opacity:.42;
-  background:repeating-linear-gradient(to bottom, transparent 0 33px, var(--line-2) 33px 34.5px);
-  -webkit-mask-image:radial-gradient(108% 72% at 50% 50%, transparent 40%, #000 92%);
-  mask-image:radial-gradient(108% 72% at 50% 50%, transparent 40%, #000 92%);
-}
-
-/* the doodles ride in front of the layers, one drifting each way. The span
-   carries the position and the colour; the svg inside just fills it, and
-   inherits `color` for its currentColor stroke. */
+/* the doodles, one drifting each way. The span carries the position and the
+   colour; the svg inside just fills it, and inherits `color` for its
+   currentColor stroke. */
 .lp .price__blob{position:absolute; display:block; pointer-events:none; z-index:0}
 .lp .price__blob svg{width:100%; height:auto}
 
@@ -886,8 +850,8 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .price__head .lede{max-width:54ch; margin-inline:auto}
 .lp .price__head em{font-style:normal; font-weight:650; color:var(--ink)}
 
-/* The highlighter's ::before is z-index:-1, and this section paints its own
-   background — isolate the head so the mark paints above the band, not under. */
+/* The highlighter's ::before is z-index:-1 — isolate the head so the mark
+   stays inside it rather than sinking behind the section. */
 .lp .price__head{isolation:isolate}
 
 /* the board: one ink-bordered card, headcount on the left, the price tag on
