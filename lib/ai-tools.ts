@@ -27,6 +27,7 @@ import { findPermHolders, type PermHolders } from "@/lib/permission-holders";
 import { getMetricStatus } from "@/lib/metrics";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { hasMinutes } from "@/lib/agenda-template";
+import { parseMeetingSummary } from "@/lib/meeting-summary";
 
 /**
  * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
@@ -285,7 +286,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "list_calendar_events",
       description:
-        "Chapter calendar events (title, date, time, category, mandatory). " +
+        "Chapter calendar events (title, date, time, category, mandatory). Minutes come back as a short preview only — use search_meeting_notes for what a meeting discussed or decided. " +
         "For 'next event' or 'upcoming events', set start=<today>, order_by='date', order='asc', limit=5. " +
         "For 'most recent past event' set end=<today>, order='desc', limit=5. " +
         "For 'when is X?' pass title=<fragment> with NO date range — searching by name beats guessing a date window. " +
@@ -302,6 +303,28 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           order_by: { type: "string", enum: ["date", "title"], description: "Default date." },
           order:    { type: "string", enum: ["asc", "desc"], description: "Default asc." },
           limit:    { type: "integer", minimum: 1, maximum: 100, description: "Default 100; use ~5 for 'next' or 'recent'." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_meeting_notes",
+      description:
+        "Read and search the minutes officers wrote for chapter meetings (and any other event with notes). " +
+        "Use for what was DISCUSSED, DECIDED, or ASSIGNED: 'what did we decide about formal?', 'what happened at last chapter?', 'who's handling the philanthropy table?', 'when did we vote on dues?'. " +
+        "Returns newest-first: id, title, date, the AI summary (gist, decisions, action items with owner/due/done) when one exists, and the minutes text " +
+        "(whole when short; otherwise the passages around your query words). " +
+        "Pass query=<1-3 key words> for a topic; omit query with limit=1 for 'the last meeting'. Only meetings with real minutes are returned.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Key words to find in the minutes, e.g. 'formal', 'dues vote', 'philanthropy'. Any word may match; meetings matching more words rank first." },
+          title: { type: "string", description: "Meeting title fragment, e.g. 'exec' or 'chapter'." },
+          start: { type: "string", description: "Inclusive YYYY-MM-DD start." },
+          end:   { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          limit: { type: "integer", minimum: 1, maximum: 10, description: "Default 5." },
         },
       },
     },
@@ -1545,8 +1568,119 @@ async function listCalendar(args: ToolArgs, scoped: Scoped): Promise<ToolResult>
   });
   // A meeting started from an agenda template has its agenda as `description`
   // until someone writes minutes; the model must not read that as minutes.
-  const mapped = rows.map(({ notesSeed, ...row }) => ({ ...row, description: hasMinutes({ description: row.description, notesSeed }) ? row.description : null }));
+  // Minutes run to 50k characters, and this lists up to 100 events: keep a
+  // preview and send the model to search_meeting_notes for the rest.
+  const mapped = rows.map(({ notesSeed, notesSummaryData: _data, ...row }) => {
+    const description = hasMinutes({ description: row.description, notesSeed }) ? row.description : null;
+    return description && description.length > CALENDAR_DESCRIPTION_PREVIEW
+      ? { ...row, description: `${description.slice(0, CALENDAR_DESCRIPTION_PREVIEW)}…`, minutesTruncated: true }
+      : { ...row, description };
+  });
   return listResult(mapped, !!(title || start || end || daySuffix || category || mandatoryOnly));
+}
+
+const CALENDAR_DESCRIPTION_PREVIEW = 400;
+
+// search_meeting_notes budgets the minutes it sends back: the whole result
+// stays near NOTES_RESULT_BUDGET characters however many meetings match, and
+// one long set of minutes can't take all of it.
+const NOTES_RESULT_BUDGET = 14_000;
+const NOTES_MEETING_MAX = 7_000;
+const NOTES_CANDIDATES = 60;
+const NOTES_STOPWORDS = new Set(["the", "and", "for", "about", "what", "did", "was", "were", "with", "that", "this", "our", "who", "when", "meeting", "meetings", "minutes", "notes", "chapter"]);
+
+function noteTerms(query: string): string[] {
+  const words = query.toLowerCase().split(/[^\p{L}\p{N}$]+/u).filter(w => w.length >= 2 && !NOTES_STOPWORDS.has(w));
+  return [...new Set(words)].slice(0, 6);
+}
+
+/**
+ * The lines of `text` that mention a term, each with the line before and
+ * after and the heading it sits under, joined in document order with "…"
+ * marking the gaps. Clipped to `budget` characters.
+ */
+export function noteExcerpts(text: string, terms: string[], budget: number): string {
+  const lines = text.split("\n");
+  const keep = new Set<number>();
+  let heading = -1;
+  lines.forEach((line, i) => {
+    if (/^\s*#{1,3}/.test(line)) heading = i;
+    const lower = line.toLowerCase();
+    if (!terms.some(t => lower.includes(t))) return;
+    if (heading >= 0) keep.add(heading);
+    for (let j = Math.max(0, i - 1); j <= Math.min(lines.length - 1, i + 1); j++) keep.add(j);
+  });
+  let out = "";
+  let prev = -1;
+  for (const i of [...keep].sort((a, b) => a - b)) {
+    const piece = (prev >= 0 && i > prev + 1 ? "…\n" : "") + lines[i] + "\n";
+    if (out.length + piece.length > budget) { out += "…"; break; }
+    out += piece;
+    prev = i;
+  }
+  return out.trimEnd();
+}
+
+async function searchMeetingNotes(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
+  const query = typeof args.query === "string" ? args.query.trim() : "";
+  const terms = noteTerms(query);
+  const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
+  const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
+  const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  const limit = clampLimit(args.limit, 5, 10);
+
+  const contains = (t: string) => ({ contains: t, mode: "insensitive" as const });
+  const rows = await scoped.calendarEvent.findMany({
+    where: {
+      AND: [
+        { OR: [{ description: { not: "" } }, { notesSummary: { not: null } }] },
+        ...(terms.length
+          ? [{ OR: terms.flatMap(t => [{ description: contains(t) }, { notesSummary: contains(t) }, { title: contains(t) }]) }]
+          : []),
+        ...(title ? [{ title: contains(title) }] : []),
+        ...(start || end ? [{ date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } }] : []),
+      ],
+    },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    take: NOTES_CANDIDATES,
+    select: { id: true, title: true, date: true, category: true, description: true, notesSeed: true, notesSummary: true, notesSummaryData: true },
+  }) as { id: number; title: string; date: string; category: string; description: string | null; notesSeed: string | null; notesSummary: string | null; notesSummaryData: unknown }[];
+
+  // An untouched agenda isn't minutes. Rank by how many query words a meeting
+  // mentions, newest first within a tie — the order the query already gave.
+  const hits = (r: (typeof rows)[number]) => {
+    const hay = `${r.title}\n${r.description ?? ""}\n${r.notesSummary ?? ""}`.toLowerCase();
+    return terms.filter(t => hay.includes(t)).length;
+  };
+  const ranked = rows
+    .map(r => ({ r, minutes: hasMinutes(r) ? (r.description ?? "").trim() : "", hits: hits(r) }))
+    .filter(x => x.minutes || x.r.notesSummary)
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, limit);
+
+  const perMeeting = Math.min(NOTES_MEETING_MAX, Math.floor(NOTES_RESULT_BUDGET / Math.max(1, ranked.length)));
+  const items = ranked.map(({ r, minutes }) => {
+    const summary = parseMeetingSummary(r.notesSummaryData);
+    let text = minutes;
+    let excerpted = false;
+    if (minutes.length > perMeeting) {
+      const excerpt = terms.length ? noteExcerpts(minutes, terms, perMeeting) : "";
+      text = excerpt || `${minutes.slice(0, perMeeting)}…`;
+      excerpted = true;
+    }
+    return {
+      id: r.id,
+      title: r.title,
+      date: r.date,
+      category: r.category,
+      ...(summary
+        ? { summary: { gist: summary.gist, decisions: summary.decisions, actions: summary.actions.map(a => ({ text: a.text, owner: a.owner, due: a.due, done: a.done })) } }
+        : r.notesSummary ? { summary: r.notesSummary } : {}),
+      ...(text ? { minutes: text } : {}),
+      ...(excerpted ? { excerpted: true } : {}),
+    };
+  });
+  return listResult(items, !!(terms.length || title || start || end));
 }
 
 async function listParties(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
@@ -3174,6 +3308,7 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
   list_deadlines:          (args, scoped) => listDeadlines(args, scoped),
   list_instagram_tasks:    (args, scoped) => listInstagram(args, scoped),
   list_calendar_events:    (args, scoped) => listCalendar(args, scoped),
+  search_meeting_notes:    (args, scoped) => searchMeetingNotes(args, scoped),
   list_parties:            (args, scoped) => listParties(args, scoped),
   sum_transactions:        (args, scoped) => sumTransactions(args, scoped),
   get_treasury:            (_args, scoped) => getTreasury(scoped),
@@ -3293,6 +3428,7 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   list_deadlines: { verb: "Checking deadlines", source: "Timeline", finding: countFinding("deadline") },
   list_instagram_tasks: { verb: "Checking Instagram tasks", source: "Instagram", finding: countFinding("task") },
   list_calendar_events: { verb: "Scanning the calendar", source: "Events", finding: countFinding("event") },
+  search_meeting_notes: { verb: "Reading meeting notes", source: "Chapter · minutes", finding: countFinding("meeting") },
   list_parties: { verb: "Reviewing parties", source: "Parties", finding: countFinding("party", "parties") },
   sum_transactions: {
     verb: "Summing the ledger",

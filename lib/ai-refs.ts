@@ -94,6 +94,7 @@ const EXTRACTORS: Record<string, Extractor> = {
     ...fromList(prop(r, "candidates"), "name", "member"),
   ],
   list_calendar_events: r => fromList(listRows(r), "title", "event"),
+  search_meeting_notes: r => fromList(listRows(r), "title", "event"),
   get_event_attendance: r => [
     ...fromRecord(prop(r, "event"), "title", "event"),
     ...fromList(prop(r, "candidates"), "title", "event"),
