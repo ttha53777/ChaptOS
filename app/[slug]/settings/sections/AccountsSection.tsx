@@ -31,13 +31,20 @@ export function AccountsSection({
   onStatus: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
-  const { currentUser } = useChapter();
+  const { currentUser, can, refreshChapterData } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
+  const canManage = can("MANAGE_BROTHERS");
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   // Admin promote/demote confirm dialog target.
   const [adminTarget, setAdminTarget] = useState<{ id: number; name: string; nextIsAdmin: boolean } | null>(null);
   const [togglingAdmin, setTogglingAdmin] = useState<number | null>(null);
+  // Inline rename: one row at a time.
+  const [editing, setEditing] = useState<{ id: number; draft: string } | null>(null);
+  const [savingName, setSavingName] = useState(false);
+  // Delete confirm dialog target.
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   useEffect(() => {
     requestJson<AccountRow[]>("/api/auth/accounts")
@@ -60,6 +67,47 @@ export function AccountsSection({
       onError(err instanceof Error ? err.message : "Failed to update admin status.");
     } finally {
       setTogglingAdmin(null);
+    }
+  }
+
+  async function saveName() {
+    if (!editing) return;
+    const name = editing.draft.trim();
+    const current = accounts.find(a => a.id === editing.id);
+    if (!name || name === current?.name) { setEditing(null); return; }
+    setSavingName(true);
+    try {
+      // Renames this org's roster row only (Membership.name) — other chapters
+      // keep whatever they call this person.
+      const updated = await requestJson<{ name: string }>(`/api/brothers/${editing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setAccounts(prev => prev
+        .map(a => a.id === editing.id ? { ...a, name: updated.name } : a)
+        .sort((a, b) => a.name.localeCompare(b.name)));
+      setEditing(null);
+      onStatus(`Renamed to ${updated.name}.`);
+      void refreshChapterData();
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Failed to rename member.");
+    } finally {
+      setSavingName(false);
+    }
+  }
+
+  async function deleteMember(target: { id: number; name: string }) {
+    setDeleting(target.id);
+    try {
+      await requestJson(`/api/brothers/${target.id}`, { method: "DELETE" });
+      setAccounts(prev => prev.filter(a => a.id !== target.id));
+      onStatus(`${target.name} was removed from the org.`);
+      void refreshChapterData();
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : "Failed to remove member.");
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -103,6 +151,27 @@ export function AccountsSection({
           }}
         />
       )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete member"
+          confirmLabel="Delete"
+          tone="dusk"
+          message={
+            <>
+              Remove <span className="font-semibold" style={{ color: "var(--ink)" }}>{deleteTarget.name}</span>{" "}
+              from this org? Their attendance, dues, service and role records here are erased; ledger
+              transactions stay on the books. This can&apos;t be undone. To keep their history,
+              archive them from the roster instead.
+            </>
+          }
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            const t = deleteTarget;
+            setDeleteTarget(null);
+            void deleteMember(t);
+          }}
+        />
+      )}
       <p className="sc-lede" style={{ margin: 0 }}>
         Everyone on the roster and the roles they hold. What each role can do is set in Roles;
         admins have full access regardless of roles.
@@ -118,7 +187,46 @@ export function AccountsSection({
               <div key={a.id} className="sc-row sc-row-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="sc-row-key truncate">{a.name}</span>
+                    {editing?.id === a.id ? (
+                      <form
+                        className="flex items-center gap-2"
+                        onSubmit={e => { e.preventDefault(); void saveName(); }}
+                      >
+                        <input
+                          autoFocus
+                          className="sc-input sc-input-sm"
+                          value={editing.draft}
+                          maxLength={80}
+                          disabled={savingName}
+                          aria-label={`New name for ${a.name}`}
+                          onChange={e => setEditing({ id: a.id, draft: e.target.value })}
+                          onKeyDown={e => { if (e.key === "Escape") setEditing(null); }}
+                        />
+                        <button type="submit" disabled={savingName || !editing.draft.trim()} className="sc-btn sc-btn-sm sc-btn-accent">
+                          {savingName ? "Saving…" : "Save"}
+                        </button>
+                        <button type="button" disabled={savingName} onClick={() => setEditing(null)} className="sc-btn sc-btn-sm sc-btn-ghost">
+                          Cancel
+                        </button>
+                      </form>
+                    ) : (
+                      <>
+                        <span className="sc-row-key truncate">{a.name}</span>
+                        {(canManage || a.isSelf) && (
+                          <button
+                            type="button"
+                            onClick={() => setEditing({ id: a.id, draft: a.name })}
+                            className="sc-btn sc-btn-sm sc-btn-ghost shrink-0"
+                            title="Edit name"
+                            aria-label={`Edit name for ${a.name}`}
+                          >
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 13l6.232-6.232a2.5 2.5 0 113.536 3.536L12.536 16.536 8 17l.464-4.536z" />
+                            </svg>
+                          </button>
+                        )}
+                      </>
+                    )}
                     {a.isSelf && <span className="sc-pill sc-pill-muted">You</span>}
                     {a.isAdmin && <span className="sc-pill sc-pill-vio">Admin</span>}
                     {!a.linked && (
@@ -133,7 +241,20 @@ export function AccountsSection({
                   {a.email && <p className="sc-row-sub truncate" title={a.email}>{a.email}</p>}
                   <BrotherRoleChips brotherId={a.id} initialRoles={a.roles} onError={onError} />
                 </div>
-                {isAdmin && !a.isSelf && adminBtn(a)}
+                {!a.isSelf && (isAdmin || canManage) && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isAdmin && adminBtn(a)}
+                    {canManage && (
+                      <button
+                        onClick={() => setDeleteTarget({ id: a.id, name: a.name })}
+                        disabled={deleting === a.id}
+                        className="sc-btn sc-btn-sm sc-btn-danger"
+                      >
+                        {deleting === a.id ? "Deleting…" : "Delete"}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
