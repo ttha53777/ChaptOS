@@ -1,74 +1,84 @@
 # ChaptOS
 
-Chapter operations platform — a single place to run any chapter-based organization. It covers the whole operational surface — members, attendance, dues, GPA, service hours, tasks and polls handed out to members or roles, treasury and budgets with dues/reimbursement approvals, parties, programming events with prep checklists, Instagram content, community-service participation, meeting notes, and a foldered docs library — tied together by a live activity log, a pinned announcement, and a weekly digest of what's on deck. Members join by claiming a pre-seeded roster row or by redeeming an org invite link.
+**The operating system for chapter-based organizations.** Fraternities and sororities, student clubs, club sports teams, service orgs, honor societies, performing-arts groups — anything that has a roster, officers, dues, meetings, and a calendar that never stops.
 
-Each org shapes the platform to itself: a founder builds their org through a short pre-auth `/create` flow that tailors the enabled pages, vocabulary, officer roles, **custom per-member fields**, and **custom org-defined metrics** to the kind of organization being set up — a sports team, a marching band, a volunteer group, or a fraternity each get a starting setup that fits, rather than a chapter-only default.
+ChaptOS puts the whole operational surface in one place: the member roster, attendance with live check-in, dues and the treasury ledger, tasks and polls, meeting minutes edited together in real time, parties, programming, community service, Instagram planning, and a foldered docs library. An AI assistant, **Ask Chapt**, answers questions about the chapter and drafts changes for an officer to approve.
 
-Everything runs in one operations dashboard, with a dedicated app-like layout on mobile. A tool-calling AI assistant ("Ask the Chapter") answers questions and proposes write actions, backed by an offline eval harness so answer quality is measured, not guessed at.
-
-Multi-org: each Organization is a fully isolated tenant. One Google account can belong to multiple orgs and switch between them via an `active_org_id` cookie.
+Every organization is a fully isolated tenant, enforced from the route handler down to Postgres row-level security. One Google account can belong to many orgs, with a separate roster identity in each.
 
 ---
 
-## Table of Contents
+## Contents
 
-- [Highlights](#highlights)
-- [Tech Stack](#tech-stack)
+- [What it does](#what-it-does)
+- [Tech stack](#tech-stack)
 - [Architecture](#architecture)
-- [Tenancy Model](#tenancy-model)
-- [Org Creation](#org-creation)
-- [AI Features](#ai-features)
-- [Roles & Access](#roles--access)
-- [Project Structure](#project-structure)
-- [Auth Flow](#auth-flow)
-- [Database Schema](#database-schema)
-- [Environment Variables](#environment-variables)
-- [Local Setup](#local-setup)
+- [Tenancy and identity](#tenancy-and-identity)
+- [Joining an org](#joining-an-org)
+- [Creating an org](#creating-an-org)
+- [Roles and permissions](#roles-and-permissions)
+- [Ask Chapt and other AI features](#ask-chapt-and-other-ai-features)
+- [Billing](#billing)
+- [Project structure](#project-structure)
+- [Data model](#data-model)
+- [Environment variables](#environment-variables)
+- [Local setup](#local-setup)
+- [Testing and verification](#testing-and-verification)
 - [Deployment](#deployment)
 
 ---
 
-## Highlights
+## What it does
 
-The design decisions that do the most work:
+### Signed-in app (`/[slug]/…`)
 
-- **Org-scoped DB wrapper with automatic tenancy injection.** `lib/db/tenant.ts` wraps every Prisma operation to inject `organizationId` automatically — services call `ctx.db.transaction.create(...)` and can't accidentally touch another org's data. `findUnique` is replaced by `findFirst + org filter`; updates and deletes run a verify-then-mutate pattern to preserve exact return types without needing composite unique constraints everywhere.
-- **Three-tier auth: PlatformAdmin → OrgAdmin → Member.** `buildContext()` in `lib/context` resolves all three tiers per request, emits a typed `RequestContext`, and optionally gates on a specific permission or rate-limits the caller. Route handlers open with `buildContext()`, parse with Zod, call a service, and map errors with `toResponse()` — no `prisma.*` calls in `app/api/**`.
-- **Side effects through events, never service-to-service calls.** Services call `emit(ctx, action, subject, metadata)` from `lib/events`. Reactions (recalcs, notifications, projections) live as `on(action, handler)` registrations in `lib/events/handlers/`. The event writer also dual-writes an `ActivityLog` row so the existing feed keeps working.
-- **Tool-calling AI assistant with self-correcting validation.** Sixteen read tools + six write-proposal tools + a terminal `compose_answer` tool in one file ([lib/ai-tools.ts](lib/ai-tools.ts)) so schema and dispatcher can't drift. `validateArgs` walks the schema before dispatch — a wrong enum returns a structured error the model self-corrects on the next iteration. Answers stream as a live reasoning ledger; proposals surface as permission-gated, HMAC-signed writ cards.
-- **Pre-auth org creation that survives OAuth.** A founder builds their org through a six-step `/create` flow (name → interview → roles → timeline → blueprint → build) while signed out — Google sign-in happens *last*, at the Build step. The in-progress answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) so the whole flow round-trips through the OAuth redirect and resumes at `/create?resume=1`. The draft is untrusted on the way back in: `parseDraft()` Zod-validates and expires it, and `draftToCreateOrgInput()` is the single mapping to the real `POST /api/orgs` payload. `provisionOrg` applies the resulting blueprint atomically and stamps `onboardingCompletedAt` at creation — there is no separate post-creation setup step.
-- **Org-defined custom fields and metrics.** Admins can add per-member fields (stored sparsely on `Brother.customFields`) and define their own KPIs (`OrgMetricDefinition` + `BrotherMetricValue`) with goal / watch / at-risk bands and an aggregation (`avg` / `sum` / `count_on_track`) — so a team can track "Jersey #" and a band can track "Section" without schema changes. Pure status/headline math lives in [lib/metrics.ts](lib/metrics.ts) and [lib/custom-member-fields.ts](lib/custom-member-fields.ts), importable from both server and client.
-- **Offline eval harness.** Hand-written cases at [evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) drive the same loop as the production route in-process, graded on tool selection, args, and final-answer substrings. Lets prompt and model changes be measured instead of vibes-checked.
-- **Per-org timeline vocabulary.** The categories every timeline entry is tagged with are `CalendarEventType` rows the org owns, not a hardcoded enum. Four built-ins ([lib/event-types.ts](lib/event-types.ts)) seed at creation with immutable slugs — behavior branches on them — but any org can rename, recolor, reorder, hide, or add its own from the `/create` Timeline step or **Settings → Event types**. Each type carries a light/dark hex pair and an optional gating `workflowId`, so a type whose page is off stays seeded but drops out of the picker.
-- **Tasks and polls target roles, not just people.** A `Task` (dated = a "deadline", undated = a to-do) or `Poll` attaches to any mix of members and roles. Role targets resolve to *current* holders at read time rather than being snapshotted, so granting someone a role hands them that role's open tasks and voting rights automatically.
-- **Money moves only on approval.** `DuesPayment` and `Reimbursement` rows are requests: nothing touches `Brother.duesOwed` or the `Transaction` ledger until a treasurer approves, at which point the service mints the matching ledger row and adjusts the balance atomically in one transaction. The `transactionId` link is the only thread between the two books.
-- **Discord-style role system with permission bitfields.** Fourteen named permissions ([lib/permissions.ts](lib/permissions.ts)) packed into a 32-bit int on each `Role`. A member's effective bits are the bitwise OR of every role they hold. Role hierarchy ranks prevent privilege escalation — a caller can only grant/edit roles strictly below their own highest rank.
-- **Write proposals, never silent writes.** The AI's `propose_*` tools validate inputs server-side but never touch the database. The client renders a confirm card; only on user confirmation does it POST to the real `/api/*` route where `buildContext()` guards decide whether the write actually happens.
-- **Structured server-side observability.** One JSON-per-line error log ([lib/observability.ts](lib/observability.ts)) with request IDs, route tags, and optional Sentry forwarding via a lazy dynamic import — no dependency cost until enabled.
-- **Two ways into an org.** Admins can pre-seed roster rows that members claim by name, or share an `OrgInvite` link ([app/join/[token]/](app/join/%5Btoken%5D/)). Invites come in two modes: `open` mints a fresh `Brother` + `Membership` on redemption, `claim` routes the user into the existing name-match claim flow. Every redemption is recorded in `InviteRedemption`.
-- **Soft deletes on financial data.** `Transaction` rows are never hard-deleted; `deletedAt` preserves history for audit and undo.
-- **Foldered docs library with drag-and-drop.** The docs page groups pinned links into one-level `DocFolder`s (à la Google Drive) with drag-and-drop filing, a sort control (newest / name / kind), contributor attribution, and copy-link / refresh-preview card actions. Deleting a folder releases its docs back to the library root instead of cascading them away.
-- **Admin-reorderable sidebar.** Admins can reorder the nav pages within each group; the chosen order persists to `OrganizationConfig.navOrder` as a sparse, advisory list of nav labels. The sidebar sorts each group by it and appends anything not listed, so a hidden page keeps its slot and re-enabling it lands back where the admin put it ([lib/nav-order.ts](lib/nav-order.ts)).
-- **CSS-only responsiveness.** Desktop and mobile dashboards are sibling trees toggled with Tailwind breakpoints — no JS viewport detection, no layout flash on hydration.
+| Page | What it covers |
+|------|----------------|
+| **Dashboard** | KPIs, roster health, a pinned announcement, a "Needs you" queue (join requests, excuses, reimbursements, events to wrap up), and the **Open check-in** band for live attendance. |
+| **Timeline** | Every dated thing in one place: meetings, parties, service events, programming, and task deadlines. Event categories are per-org, so each org can rename, recolor, hide, or add its own. |
+| **Chapter** | Chapter meetings and their minutes. Minutes are a **collaborative editor** (CodeMirror + Yjs) with live carets, @mentions, action items you can tick off, and AI summaries. **Agenda templates** pre-fill new meetings. |
+| **Brotherhood** (roster) | Members, officer roles, GPA, dues owed, attendance, service hours, custom fields and metrics, archiving, and the join-request review band. Clicking a member opens their **Member Spotlight** card. |
+| **Treasury** | The income/expense ledger with per-org categories, term-aware charts, budgets and allocations, dues payments and reimbursements that wait for approval, and CSV export. |
+| **Tasks** | Tasks and polls assigned to members, roles, or **everyone**. "Everyone" can mean one shared task or one task per member. A task with a due date also shows up on the Timeline as a deadline. |
+| **Programming** (events) | An event planner that moves ideas through a staged pipeline, with prep checklists, attached docs, custom event fields, and a post-event wrap-up. |
+| **Parties** | Party events, revenue, and attendance. Party spending is tracked in the Treasury ledger. |
+| **Service** | Community-service events, sign-ups, and participation. Service hours are recalculated automatically. |
+| **Instagram** | A monthly content calendar and post planner. |
+| **Docs** | Pinned links with fetched previews, one-level folders, drag-and-drop filing, and manual ordering. |
+| **Settings** | Org profile, pages on/off, vocabulary, roles, invites, accounts, event types, money categories, thresholds, custom fields and metrics, calendar subscription. |
+| **Billing** | Plan, headcount band, checkout, and the Stripe customer portal. |
+
+Each org chooses which **workflows** (pages) it uses: `members` and `operations` are always on; `meetings`, `attendance`, `parties`, `service`, `events`, `finance`, `tasks`, `communications`, and `docs` can each be turned on or off ([lib/org-types.ts](lib/org-types.ts)). Vocabulary comes from the org type, so a sports team sees "Team" and "Players" where a fraternity sees "Chapter" and "Brothers".
+
+The app has two looks: **paper**, the default (cream paper, brown ink, hard offset shadows, in per-page `app/paper-*.css`), and the original **ledger** look. Each has light and dark modes ([lib/aesthetic.ts](lib/aesthetic.ts), [lib/theme.ts](lib/theme.ts)). Both are stamped on `<html>` by a boot script before first paint, so the page never flashes the wrong theme.
+
+### Public site
+
+The marketing landing page (`/`), audience pages (`/for/[slug]`), `/pricing`, `/trust`, `/help`, `/contact`, and a Markdown **blog** at `/blog`, with posts in [content/blog/](content/blog/) and an RSS feed at `/blog/rss.xml`.
 
 ---
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
 | Framework | Next.js 16 (App Router) |
-| Language | TypeScript 6 |
-| UI | React 19, Tailwind CSS 4 |
-| Charts | Recharts 3 |
+| Language | TypeScript 7 |
+| UI | React 19, Tailwind CSS 4, hand-written per-page CSS |
+| Charts | Recharts 3 and hand-built SVG |
 | Auth | Supabase Auth (Google OAuth) |
-| Database | PostgreSQL via Supabase |
-| ORM | Prisma 7 with `@prisma/adapter-pg` |
-| Connection pooling | `pg.Pool` + Supabase pooler (PgBouncer) |
-| File storage | Supabase Storage (`avatars` bucket) |
-| AI | OpenAI Chat Completions (`gpt-5.2`) with parallel tool calls |
+| Database | PostgreSQL on Supabase, with row-level security enforced |
+| ORM | Prisma 7 with `@prisma/adapter-pg` over a `pg.Pool` |
+| Realtime | Supabase Realtime (private Broadcast) + Yjs CRDTs for meeting notes |
+| Storage | Supabase Storage (`avatars`, `org-logos`) |
+| Billing | Stripe (one volume-tiered Price) |
+| AI | OpenAI `gpt-5.2` (chat completions + tool calling) |
+| Calendar | `ical-generator` for subscribable `.ics` feeds |
+| Validation | Zod 4 |
+| Observability | Structured JSON logs + optional Sentry |
+| Tests | Vitest 4 against real Postgres; Playwright for browser checks |
 
-> **Note:** This project pins recent, fast-moving versions (Next 16, React 19, Prisma 7, Tailwind 4). APIs and conventions may differ from older majors — check `node_modules/next/dist/docs/` and the Prisma 7 docs before assuming older patterns apply. In Prisma 7, datasource connection URLs live in `prisma.config.ts`, **not** in `schema.prisma`.
+> **Fast-moving majors.** Next 16, React 19, Prisma 7, Tailwind 4, and Zod 4 all differ from older versions. Read `node_modules/next/dist/docs/` before writing Next code. In Prisma 7, datasource URLs live in [prisma.config.ts](prisma.config.ts), not `schema.prisma`.
 
 ---
 
@@ -77,543 +87,374 @@ The design decisions that do the most work:
 ```
 Browser
   │
-  ├── Next.js App Router (app/)
-  │     ├── proxy.ts (middleware) — auth gate on every request
-  │     ├── app/layout.tsx — ChapterProvider wraps the whole app
-  │     ├── app/[slug]/page.tsx — the Operations Dashboard (desktop + mobile)
-  │     └── app/api/** — JSON API routes (thin controllers)
-  │            ├── api/ai/chat        — streaming tool-calling assistant
-  │            ├── api/ai/digest      — one-sentence weekly recap (cached)
-  │            └── api/ai/summarize-meeting — meeting-notes summary (cached)
+  ├── proxy.ts — session refresh + public-path gate on every request
+  ├── app/[slug]/layout.tsx — resolves the org, gates membership
+  │     (NeedsInvite / AwaitingApproval / SemesterGate / the app shell)
+  ├── app/api/** — thin JSON controllers
   │
-  ├── Supabase Auth — Google OAuth, cookie-based sessions
-  ├── Supabase Storage — custom profile photos (avatars bucket)
-  ├── OpenAI API — gpt-5.2, server-side only
+  ├── lib/context      buildContext(): auth tiers, permission gate, rate limit, ctx.db
+  ├── lib/validation   Zod schemas
+  ├── lib/services     domain logic — one service per area
+  ├── lib/events       emit() → handlers (recalcs, calendar feed, seat sync)
+  ├── lib/db           db(orgId): org-scoped Prisma wrapper + SET LOCAL app.org_id
   │
-  └── PostgreSQL (Supabase) — Prisma ORM over a pg.Pool
+  ├── Supabase — Auth, Storage, Realtime
+  ├── Stripe — subscriptions + webhook
+  ├── OpenAI — server-side only
+  └── PostgreSQL — RLS org_isolation on every org-scoped table
 ```
 
-**Key design decisions:**
+**Conventions** (enforced by review and by the `scripts/` lints):
 
-- **Route handlers are thin controllers.** Open with `buildContext()` from `@/lib/context`, parse with a Zod schema from `@/lib/validation`, call a service from `@/lib/services`, map errors with `toResponse()` from `@/lib/errors`. No `prisma.*` or raw `db()` calls in `app/api/**` outside the auth bootstrap routes.
-- **Side effects flow through events.** Services call `emit(ctx, action, subject, metadata)` from `@/lib/events`. Reactions live as `on(action, handler)` registrations in `lib/events/handlers/`. Never call another service from inside a service — emit an event.
-- **Three-layer identity.** Supabase manages OAuth sessions; `Brother` holds per-org profile data; `Membership` links the two and carries the org-admin flag. A signed-in user has no access until their Google account is linked to a `Brother` row within an org.
-- **Global state via `ChapterContext`.** All chapter data is fetched once on mount in `ChapterProvider` and shared app-wide. Pages do optimistic updates against context instead of refetching.
-- **All DB access through API routes.** Client components never touch Prisma. Every mutation goes through an API route that resolves `buildContext()` before touching the database.
-- **Persistent avatars.** Custom profile photos are stored in Supabase Storage and the URL is persisted on `Brother.avatarUrl`. That column — not the volatile Supabase auth metadata — is the source of truth.
-- **CSS-only responsiveness.** The desktop and mobile dashboards are sibling trees toggled purely with Tailwind breakpoints (`md:hidden` / `hidden md:block`). The mobile dashboard is a tabbed layout: **Overview · Tasks · Money · Brothers · Logs**.
-- **Rate-limited mutations.** A simple in-memory limiter ([lib/rate-limit.ts](lib/rate-limit.ts)) caps mutations and AI chat turns per member per minute.
+- **Route handlers are thin controllers.** Each one calls `buildContext()` from `@/lib/context`, parses input with a Zod schema from `@/lib/validation`, calls a service from `@/lib/services`, and maps errors with `toResponse()` from `@/lib/errors`. There are no `prisma.*` or `db()` calls in `app/api/**` except the auth bootstrap routes.
+- **Side effects go through events.** Services call `emit(ctx, action, subject, metadata)`. Reactions are `on(action, handler)` registrations in [lib/events/handlers/](lib/events/handlers/) (attendance and service-hour recalcs, party → calendar sync, calendar-feed projection, billing seat sync). A service never calls another service. Every event is written as an `OperationalEvent` and to the `ActivityLog` feed.
+- **Status fields are typed enums.** [lib/state/](lib/state/) exports unions and guards for every status column, and the database has CHECK constraints for the stable ones.
+- **Pure modules stay pure.** Anything a client component imports ([lib/org-types.ts](lib/org-types.ts), [lib/checkin.ts](lib/checkin.ts), [lib/metrics.ts](lib/metrics.ts)…) must not reach `lib/db` or Prisma. DB-backed halves live in `*-db.ts` siblings.
+- **One client data store.** `ChapterContext` loads the org's data once and shares it across the app. Pages update it optimistically instead of refetching.
+- **Vocabulary.** Database models keep their historical names (`Brother`, `Organization`, `Semester`). New code may use the platform-neutral aliases in [lib/canonical.ts](lib/canonical.ts) (`Member`, `Org`, `Period`).
 
 ---
 
-## Tenancy Model
+## Tenancy and identity
 
-Every organization is a fully isolated tenant. The enforcement layers, from outermost to innermost:
+Every org is a fully isolated tenant. Isolation is enforced in several layers:
 
-1. **Active-org cookie.** `proxy.ts` reads the `active_org_id` cookie on every request and the resolved org flows into `requireUser()`.
-2. **`buildContext()`** resolves the `RequestContext` for the request, which includes `ctx.orgId` and an org-scoped `ctx.db` instance. Route handlers never resolve org context themselves.
-3. **`ctx.db` (org-scoped wrapper).** `lib/db/tenant.ts` wraps every Prisma model to inject `organizationId` on all reads and writes automatically. `findUnique` is silently promoted to `findFirst + org filter`; updates and deletes use a verify-then-mutate pattern to avoid needing `@@unique([id, organizationId])` on every model.
-4. **Postgres RLS.** Row-level security policies are the DB-layer backstop. As of Phase 4, `allow_all` permissive policies have been dropped on all org-scoped tables; only `org_isolation` (`organizationId = app.org_id`) remains. `RLS_SET_ORG_ID=1` must be set in every env — `db()` issues `SET LOCAL app.org_id` on every scoped query. Bootstrap paths (claim, redeem-invite, provisionOrg) run as `prismaPrivileged` (BYPASSRLS via `DIRECT_URL`) and are unaffected. To revert to permissive, apply `prisma/migrations/20260622000002_phase4_revert_allow_all/migration.sql` directly.
+1. **Org resolution.** The org comes from the `/[slug]` segment (or a `<slug>.<root-domain>` subdomain). The `active_org_id` cookie only picks a default for `/`.
+2. **`buildContext()`** builds the `RequestContext`: the caller, their auth tier, effective permission bits, `ctx.orgId`, and an org-scoped `ctx.db`.
+3. **`ctx.db`** ([lib/db/tenant.ts](lib/db/tenant.ts)) adds `organizationId` to every read and write. `findUnique` becomes `findFirst` with an org filter. Updates and deletes check that the row belongs to the org before changing it.
+4. **Postgres RLS.** Every org-scoped table has only the `org_isolation` policy (`organizationId = current_setting('app.org_id')`). `db()` runs `SET LOCAL app.org_id` on each scoped query, which requires `RLS_SET_ORG_ID=1`. Bootstrap paths (join approval, `provisionOrg`, operator scripts) use `prismaPrivileged`, a BYPASSRLS role connected through `DIRECT_URL`. Production refuses to boot if that connection isn't configured.
 
-Every write must go through `ctx.db.<model>` (org-scoped) or carry an explicit `organizationId` in the data. Tenancy tests in `tests/tenancy/` guard this invariant.
+Tests in [tests/tenancy/](tests/tenancy/) check this. A failure there blocks everything else.
 
-**Multi-org membership.** A single `Brother` (Google identity) can hold `Membership` rows in multiple orgs. The `active_org_id` cookie selects which org's data the current session operates on. Switching orgs updates the cookie.
+### `Brother` is the person; `Membership` is the roster row
 
----
+One Google account maps to one `Brother` (`authUserId` is globally unique). That person has one `Membership` row in each org they belong to. Everything an org records about a member lives on the `Membership`: `name`, `role`, `gpa`, `duesOwed`, `attendance`, `serviceHours`, `archivedAt`, `customFields`, and `isOrgAdmin`. `Brother` holds only the identity: canonical name, email, avatar, and auth link.
 
-## Org Creation
+So the same person can be *Rob*, the Treasurer who owes $120, in one chapter, and *Robert Chen*, a plain member who owes nothing, in another. Neither chapter can see or change the other's row.
 
-Founders build a new org through a self-contained, **pre-auth** flow at [app/create/](app/create/) — the whole interview runs signed out, and Google sign-in happens *last*, at the Build step. This keeps the door to the platform open to anyone with a Google account: no invite, no pre-seeded row, no admin required to start.
-
-**The six steps** ([CreateFlow.tsx](app/create/_components/CreateFlow.tsx)):
-
-1. **Name** — org name, live slug preview, and an optional logo/crest upload.
-2. **Interview** — a **scripted spine with AI branches** (~8 questions: kind → activity variant → pages deep-dive → term model → current term → per-member metrics → the founder's name → their title). Chip taps are fully deterministic; free-text routes through the pre-auth, IP-rate-limited interpreter at [app/api/ai/interview/route.ts](app/api/ai/interview/route.ts), which turns the words into structured picks and — on the pages stage — may ask a few *specific* clarifying follow-ups (bounded client-side) to settle the workflow set. Any AI failure degrades to keyword matchers ([lib/onboarding/kinds.ts](lib/onboarding/kinds.ts), [lib/onboarding/terms.ts](lib/onboarding/terms.ts)), so the flow works with `OPENAI_API_KEY` unset and never blocks on a model. The kind answer sets *vocabulary only*; the variant follow-up ("what kind of fraternity?") layers workflow/seat/metric deltas via `KIND_VARIANTS` — fixing the "fraternity collapse" documented in [docs/onboarding-interview-discovery.md](docs/onboarding-interview-discovery.md). Every answer flashes the live blueprint sheet.
-3. **Roles** — stacked seat cards with renameable titles, workflow-gated ability pills (whole-area grants) and an Advanced disclosure of the individual `MANAGE_*` flags. Seats describe *authority*, not people — no holder names, no invite step here.
-4. **Timeline** — the categories every timeline entry gets tagged with, edited against a live sample month so a rename or recolor shows its consequence immediately. Built-ins can be renamed and recolored but never removed (their slugs are load-bearing); the org type's starter set and anything the founder adds are removable. A type whose gating page is off renders as a *ghost* row rather than vanishing — it still gets seeded, so the row tells the truth about what provisioning will build. Gated behind the interview: unreachable until the activity questions are answered.
-5. **Blueprint** — a full review sheet: editable chapter URL with a live slug check, workflow toggles with rationale, the high-signal vocab words with derived plurals, the "This term" card (term model + editable first-term dates), the "Tracking" card (built-in metric toggles + custom per-member metrics), and the leadership seat list.
-6. **Build** — Google sign-in (for a signed-out founder), then the real `POST /api/orgs` fires and provisioning animates.
-
-**How it holds together:**
-
-- **The draft survives OAuth.** All answers live in a `localStorage` draft ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)) keyed `figurints:create-draft:v2` (v1, the pain-question era, is discarded on sight rather than migrated). The founder signs in at the Build step; the OAuth callback lands back at `/create?resume=1`, the draft is restored, and Build auto-fires provisioning. Drafts older than 7 days are discarded on restore.
-- **The draft is untrusted on the way back in.** It round-trips through the browser, so `parseDraft()` Zod-validates and expires it rather than trusting our own writes — a draft that fails to parse is discarded and the founder restarts, never crashes. `draftToCreateOrgInput()` is the single mapping from draft to the `POST /api/orgs` payload, and `tests/onboarding/create-draft.test.ts` asserts its output parses under `createOrgInput` for every org kind × variant.
-- **`provisionOrg` applies the blueprint atomically.** [lib/services/org-service.ts](lib/services/org-service.ts) resolves the founder's blueprint against the org-type template (filling any omitted field), then runs the whole org + config + roles + founder-membership provisioning in a single `$transaction`, stamping `OrganizationConfig.onboardingCompletedAt` at creation. The interview's term answer becomes the org's **first active `Semester`** (so attendance/dues book against it on day one), custom metrics seed **`OrgMetricDefinition`** rows, the Timeline answer seeds **`CalendarEventType`** rows, and un-tracked built-ins hide their dashboard KPI widgets via `disabledFeatures`. The founder role is forced to rank 100 + full bitfield so the founder can never lock themselves out. Bootstrap provisioning runs as `prismaPrivileged` (BYPASSRLS) since no org context exists yet.
-- **Org-type priors as a fallback.** [lib/org-types.ts](lib/org-types.ts) seeds a sensible preset per org type, so provisioning still yields a coherent setup for any field the blueprint leaves unset.
-
-> The old post-creation `/[slug]/onboarding` wizard is **retired** — setup now happens entirely pre-creation, and that route redirects straight into the live workspace.
+- Read and write the roster through **`ctx.db.member`**, which is backed by `Membership`, scoped to the org, and keyed by `brotherId`. There is deliberately no `ctx.db.brother`.
+- The few legitimate cross-org identity writes go through **`ctx.db.identity`** (`setEmail`, `setAvatarUrl`, `unlinkAuth`, `setPlatformAdminFlag`). It has no general `update()`.
+- Inside `$transaction`, roster writes must use `ctx.db.member.onTx(tx)`. A hand-written `updateMany({ where: { brotherId } })` would change that person's row in *every* org.
+- Removing someone from one org is not `DELETE FROM Brother`. `deleteBrother` checks whether they belong to other orgs and, if they do, deletes only this org's rows.
+- `Brother.organizationId` is only a hint for which org the account was created in. Nothing roster-related may filter by it (`npm run lint:home-org` checks this).
 
 ---
 
-## AI Features
+## Joining an org
 
-Four AI surfaces, all server-side, all dormant when `OPENAI_API_KEY` is unset. Three run behind auth; the interview interpreter is deliberately **pre-auth** (the `/create` flow runs signed out) and is bounded by IP rate limits + tight token budgets instead:
+**An invite link lets you ask to join; it doesn't let you in. Every new member is approved.**
 
-### Create-interview interpreter
-[app/api/ai/interview/route.ts](app/api/ai/interview/route.ts) · [lib/ai.ts](lib/ai.ts) `interpretInterview()`
+1. An officer creates an invite link in **Settings → Invites**. A link can have a label, a use limit, and an expiry date, and can be revoked.
+2. Opening `/join/<token>` (after Google sign-in) creates a **`JoinRequest`**. Nothing else is created yet: no `Brother`, no `Membership`, nothing an org-scoped query would return.
+3. Officers with `MANAGE_BROTHERS` see pending requests in a band at the top of the roster page, with a count badge in the sidebar's "Needs you" section.
+4. **Approval** is one transaction. It reuses the person's existing `Brother` if that Google account is already in another org, or creates one if not. It then creates the `Membership`, an optional starting `BrotherRole`, and the `InviteRedemption`. The **seat check happens here**, so an org on a capped plan can still collect requests and choose whom to make room for.
+5. `JoinRequest` is unique per `(organizationId, authUserId)`. A rejected request stays, so reopening the same link is refused. A *different* link from an officer resets it to pending.
 
-Turns a founder's free-text interview answers into structured picks (workflow add/removes, vocab tweaks, kind/variant, custom metrics, a founder title) plus at most one clarifying follow-up per turn — deepest on the pages stage, where a bounded loop (max 5 follow-ups) asks specific workflow-resolving questions instead of assuming from the template. Non-streaming strict-JSON-schema output; every id in the response is intersected with the real registries (`validateInterviewResult`) before it leaves the route, and the model only *proposes* — picks dispatch into the same client-side draft reducer the founder's own taps use, with the blueprint review still in front of provisioning. Any failure returns `result: null` and the client falls back to keyword matchers.
+A signed-in person who isn't a member sees `NeedsInvite` on `/[slug]`. Someone with a pending request sees `AwaitingApproval`.
 
-### Ask Chapt — the reasoning-ledger Spotlight
-[app/api/ai/chat/route.ts](app/api/ai/chat/route.ts) · [app/components/ChatWidget.tsx](app/components/ChatWidget.tsx) · [app/components/chat/](app/components/chat/)
+Officers can't type someone onto the roster by hand, and the old name-matching "claim your row" flow has been removed.
 
-A `⌘K` / `Ctrl-K` spotlight modal over a blurred scrim that answers ad-hoc questions about chapter state — *"who has the worst attendance?"*, *"how much have we spent on Party Supplies?"*, *"add a deadline for next Friday"* — by calling tools instead of inventing answers. Thinking renders as a live **reasoning ledger** (steps posting real findings, pending → active → done, on a ruled margin) that collapses into an auditable, persisted trace once the answer lands.
+---
 
-**How it's built:**
-- **Twenty-three tools** declared in [lib/ai-tools.ts](lib/ai-tools.ts): 16 read tools, 6 write-proposal tools, and one terminal `compose_answer` tool the model calls to emit its structured final answer. Schemas and dispatcher live in the same file so they can't drift.
-- **Scoped to the authenticated org.** The system prompt and all tool data are bounded to `ctx.orgId`. The assistant can't read or propose writes against another org's data.
-- **Server-Sent Events streaming** ([lib/ai-ledger.ts](lib/ai-ledger.ts)) with a Node-runtime endpoint and a 10-iteration tool-call loop. Events: `open` (paint "thinking"), `step`/`step_start`/`step_done`/`step_drop` (the ledger), `composing`, `proposal` (a writ card), `answer` (structured verdict/rows/follows/sources), `text` (plain-prose fallback), `done`. Step ids are the raw tool-call delta index so `step_done` can't drift from a filtered array.
-- **Parallel tool calls.** When the model emits multiple calls in one turn, the server runs them concurrently via `Promise.all`.
-- **Schema-validated args** (`validateArgs`). Wrong enums return a structured error the model self-corrects on the next iteration.
-- **Hybrid structured answers.** `answer` events carry a serif verdict plus tappable result rows, Sources, and follow-ups. Rows open a **row peek** sheet ([app/components/chat/PeekSheet.tsx](app/components/chat/PeekSheet.tsx)) — a record detail, not a follow-up question — with refs matched server-side against the tool results that actually ran ([lib/ai-refs.ts](lib/ai-refs.ts)), never emitted by the model.
-- **Writes are permission-gated writ cards, never silent.** `propose_*` tools validate inputs but never write. Each proposal is checked against the caller's `MANAGE_*` bits and HMAC-signed ([lib/ai-approval-sig.ts](lib/ai-approval-sig.ts)) so the confirm POST can't be tampered with; the client renders an Approve/Discard writ card, or — if the caller lacks the permission — a blocked gate naming who holds it. Confirming mints a durable `ChatApproval` record ([lib/services/chat-approval-service.ts](lib/services/chat-approval-service.ts)) surfaced in an Approvals inbox view alongside the real write.
-- **Date context injected at prompt build time** ([lib/ai-prompt.ts](lib/ai-prompt.ts)): today's date + weekday, week bounds, last chapter-meeting date, active semester.
-- **History trimmed before send.** Last 12 turns, prior messages capped at 600 chars; history itself is localStorage-only client-side.
+## Creating an org
 
-### Weekly digest narration
-[app/api/ai/digest/route.ts](app/api/ai/digest/route.ts)
+Founders start at **`/create`**, a pre-auth flow styled as a paper "charter" ([app/create/](app/create/)). Google sign-in comes **last**.
 
-One short sentence summarizing this week's deadlines, IG tasks, mandatory events, parties, and at-risk members. Heavily cached: in-memory by content hash on the server, plus per-key localStorage on the client. Falls back gracefully when AI is disabled.
+| Step | What happens |
+|------|--------------|
+| **Name** | Org name, live URL preview, optional crest/logo. |
+| **Interview** | Scripted questions with optional AI interpretation of free-text answers: org type → variant → which pages they need → how their terms work → the current term → what they track per member → the founder's name and title. |
+| **Roles** | Officer seats with editable titles, ability toggles grouped by workflow, and an Advanced view of individual `MANAGE_*` flags. |
+| **Timeline** | Event categories, edited against a live sample month. Built-in categories can be renamed and recolored but not removed. |
+| **Charter** | A full review: URL with a live availability check, pages, vocabulary, the first term's dates, tracked metrics, and leadership seats. |
+| **Sign in** | Google OAuth, then `POST /api/orgs` provisions the org. |
 
-### Meeting-notes summarization
-[app/api/ai/summarize-meeting/route.ts](app/api/ai/summarize-meeting/route.ts)
+- **The draft survives OAuth.** Answers are saved in `localStorage` ([lib/onboarding/draft.ts](lib/onboarding/draft.ts)), and the callback returns to `/create?resume=1`. When the draft comes back it is treated as untrusted: `parseDraft()` validates it with Zod and discards it after 7 days. [lib/onboarding/answers.ts](lib/onboarding/answers.ts) rebuilds the page list from all the answers.
+- **Works without OpenAI.** Tapping a chip is deterministic. Free text goes to the IP-rate-limited `/api/ai/interview`, and if that fails the flow falls back to keyword matching.
+- **Provisioning is atomic.** `provisionOrg` ([lib/services/org-service.ts](lib/services/org-service.ts)) creates the org, config, roles, founder membership, the first **active** `Semester`, `CalendarEventType`s, `TransactionCategory`s, and metric definitions in a single transaction. Org-type presets fill any gaps. The founder role always gets full permissions, so a founder can't lock themselves out. Each account can create at most 3 orgs per day by default (`ORG_CREATE_LIMIT_PER_DAY`).
+- The founder lands on **`/[slug]/onboarding`**, a welcome page inside the real app. It shows what's already set up and the next step: inviting members with a join link.
 
-On-demand summary of free-form chapter-meeting notes into Decisions / Action items / Discussed sections. Summary + content hash persist on the `CalendarEvent` row so a re-render doesn't re-summarize, but a content change does.
+---
+
+## Roles and permissions
+
+### Auth tiers
+
+| Tier | Scope |
+|------|-------|
+| **Platform admin** | Row in `PlatformAdmin`. Has every permission in every org, plus `/admin/orgs` (cross-org management, billing health, leads, performance). |
+| **Org admin** | `Membership.isOrgAdmin`. Has every permission, but only in that org. |
+| **Member** | The bitwise OR of the permission bits of every role they hold. |
+
+### Permission bits ([lib/permissions.ts](lib/permissions.ts))
+
+```
+MANAGE_BROTHERS   MANAGE_TREASURY     MANAGE_EVENTS     MANAGE_PARTIES   MANAGE_INSTAGRAM
+MANAGE_SERVICE    MANAGE_ATTENDANCE   MANAGE_SEMESTERS  MANAGE_ROLES     MANAGE_DOCS
+MANAGE_ANNOUNCEMENTS  MANAGE_SETTINGS  MANAGE_TASKS     MANAGE_POLLS
+```
+
+- Each `Role` stores a 32-bit permission bitfield, a `rank`, and an optional color. The UI and the API both check permissions with the same `hasPermission(bits, "MANAGE_X")` helper.
+- **Rank guard:** you can only grant, edit, or revoke roles ranked *strictly below* your own highest role.
+- System roles (like President) can't be renamed or deleted.
+- `MANAGE_TASKS` and `MANAGE_POLLS` control *creating and editing*. Anyone assigned a task can complete it, and anyone assigned a poll can vote.
+- The role templates for each org type live in [lib/org-types.ts](lib/org-types.ts).
+
+---
+
+## Ask Chapt and other AI features
+
+All AI runs server-side and turns off cleanly when `OPENAI_API_KEY` is unset.
+
+### Ask Chapt (`⌘K` / `Ctrl-K`)
+[app/api/ai/chat/route.ts](app/api/ai/chat/route.ts) · [app/components/ChatWidget.tsx](app/components/ChatWidget.tsx) · [app/components/chat/](app/components/chat/) · [lib/ai-tools.ts](lib/ai-tools.ts)
+
+A spotlight that answers questions like *"who hasn't paid dues?"* or *"what did we spend on Party Supplies?"* by calling tools instead of guessing.
+
+- **Tools.** About 26 read tools (roster, attendance, treasury, budget, tasks, polls, meeting notes, docs, service, programming, join requests…), 11 `propose_*` write tools, and a final `compose_answer` tool. The schemas and the dispatcher are in one file, so they can't drift apart. `validateArgs` checks arguments against the schema before running a tool, so the model can correct a bad enum on the next turn.
+- **Fast path.** Common questions with one obvious query ([lib/ai-fastpath.ts](lib/ai-fastpath.ts)) skip the model and run the same read handler directly, answering in under 100ms. If anything is uncertain, it falls back to the full tool-calling loop.
+- **Live reasoning ledger.** Steps stream over SSE as pending → active → done ([lib/ai-ledger.ts](lib/ai-ledger.ts)) and collapse into a trace you can audit. Tool calls in the same turn run in parallel.
+- **Structured answers.** The answer has a verdict, tappable rows, sources, follow-up suggestions, and optional follow-up questions. Rows open a record **peek** sheet. The server matches rows to records from the tool results that actually ran ([lib/ai-refs.ts](lib/ai-refs.ts)); the model never supplies them.
+- **Advisory answers.** For how-to and recommendation questions, the answer links to a screen from a fixed list, never a raw URL.
+- **Writes need approval.** `propose_*` tools validate their input but never write. Each proposal is checked against the caller's permissions and HMAC-signed ([lib/ai-approval-sig.ts](lib/ai-approval-sig.ts)). The user sees an Approve/Discard card. If they lack the permission, the card is blocked and names who has it. Approving sends the request to the normal API route and records a `ChatApproval` in an Approvals inbox.
+- Scoped to the active org. The prompt includes today's date, week boundaries, the active term, and the last meeting date.
+
+### Other AI surfaces
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/api/ai/interview` (pre-auth) | Turns `/create` free-text answers into structured choices plus specific follow-up questions. Every ID it returns is checked against the real registries. |
+| `/api/ai/summarize-meeting` | Turns minutes into decisions and **action items** (stored as structured JSON on the `CalendarEvent`). A response for an older notes revision can't overwrite a newer summary. |
+| `/api/ai/digest` | A one-sentence weekly recap, cached by content hash. |
+| `/api/ai/event-idea`, `/api/ai/recommend-setup` | Help drafting programming ideas and setup suggestions. |
+| `/api/ai/feedback` | Thumbs up/down on assistant answers. |
 
 ### Eval harness
-[evals/ask-the-chapter/cases.jsonl](evals/ask-the-chapter/cases.jsonl) · [scripts/eval-ask-the-chapter.ts](scripts/eval-ask-the-chapter.ts)
+[evals/ask-the-chapter/](evals/ask-the-chapter/) · `npm run eval:chat`
 
-Offline pass/fail harness for the chat feature. Drives the same tool-calling loop as the production route in-process (no HTTP, no SSE), against the live seeded DB. Grades each case on tool selection, args, and final-answer substrings. Cases run concurrently (4 at a time).
-
-```
-[PASS] super-attendance-worst (1820ms, 2 iter)
-[FAIL] deadlines-empty-broaden (2410ms, 2 iter)
-        ↳ mustNotInclude present: "error"
-──────────────────────────────────
-Score: 24/31  (77.4%)
-──────────────────────────────────
-```
+Hand-written cases run through the same tool loop as production, in-process against the seeded database. Each case is graded on which tools were called, their arguments, and text the answer must or must not contain. The harness measures prompt and model changes instead of relying on spot checks. If a case fails, re-check its expected values against the live seed before calling it a regression.
 
 ---
 
-## Roles & Access
+## Billing
 
-Access is controlled by three independent mechanisms: auth tiers, identity flags, and permission bitfields.
+What an org pays ChaptOS. This is separate from in-app dues, which is the chapter's own bookkeeping and never touches a payment processor.
 
-### Auth tiers (checked in order)
+| Active members | Plan | Price |
+|----------------|------|-------|
+| 1–4 | Free | $0 |
+| 5–50 | Standard | $25/mo |
+| 51–120 | Pro | $65/mo |
+| 121+ | Custom | Quote (sales lead) |
 
-| Tier | What it does |
-|------|--------------|
-| **`PlatformAdmin`** | Cross-org superuser. A separate `PlatformAdmin` table row, not a flag on `Brother`. All permission bits set. Can operate on any org via the active-org cookie. All actions are auditable. |
-| **`isOrgAdmin = true`** on `Membership` | Per-org admin. All permission bits set within the active org only. Switching to a different org yields a regular member context. Does not bypass rate limiting. |
-| *Regular member* | Permission bitfield from assigned `BrotherRole` rows. No elevated bits. |
-
-`buildContext()` resolves these tiers per request and exposes `ctx.isPlatformAdmin` and `ctx.isOrgAdmin`.
-
-### Identity flags on `Brother`
-
-| Flag | What it does |
-|------|--------------|
-| **`isAdmin = true`** | Legacy superuser flag. Still present in schema for backcompat; new code should use `Membership.isOrgAdmin` instead. |
-| **`isGhost = true`** | Full member-level read access, but hidden from every member listing, count, and attendance enrollment — an observer (e.g. an alumnus) with no footprint. **No longer provisionable.** The claim-name backdoor that minted these rows was removed on 2026-08-01; no code path sets the flag today. The column and any pre-existing rows remain, and off-roster ghosts are now surfaced to admins on the Brothers page so a hidden account can't sit undisclosed. |
-
-### Permission flags ([lib/permissions.ts](lib/permissions.ts))
-
-Fourteen named permissions packed into a 32-bit bitfield on each `Role`:
-
-```
-MANAGE_BROTHERS  MANAGE_TREASURY  MANAGE_EVENTS       MANAGE_PARTIES   MANAGE_INSTAGRAM
-MANAGE_SERVICE   MANAGE_ATTENDANCE  MANAGE_SEMESTERS  MANAGE_ROLES     MANAGE_DOCS
-MANAGE_ANNOUNCEMENTS  MANAGE_SETTINGS  MANAGE_TASKS   MANAGE_POLLS
-```
-
-`MANAGE_SETTINGS` covers org config + invite links, kept distinct from `MANAGE_BROTHERS` (roster CRUD) so settings authority isn't bundled with roster editing. `MANAGE_TASKS` / `MANAGE_POLLS` gate *authoring* — anyone assigned to a task can mark it done, and anyone assigned to a poll can vote, without either bit.
-
-A member's *effective* bitfield is the bitwise OR of every role they hold. UI surfaces and API routes both check the same `hasPermission(bits, "MANAGE_X")` helper.
-
-### Roles
-
-Each role bundles a name, optional color chip, a permission bitfield, and a hierarchy `rank`. Seeded system roles (e.g. **President** with all permissions) are protected from rename/delete. Custom roles are managed from **Settings → Roles** by anyone with `MANAGE_ROLES`.
-
-**Hierarchy guard:** a caller can only grant, edit, or revoke roles whose `rank` is *strictly less* than their own highest assigned role's rank.
+- The bands are defined once in [lib/billing/tiers.ts](lib/billing/tiers.ts). `npm run stripe:setup` uses them to create **one** volume-tiered Stripe Price, so moving between bands just changes the subscription quantity. There's no plan switching.
+- Archived members don't count as seats ([lib/billing/seats.ts](lib/billing/seats.ts)). The seat check runs when a join request is approved.
+- The local `Subscription` row is a cache. Webhooks (`/api/billing/webhook`, deduplicated through `StripeEvent`) keep it current, and `/api/billing/sync` can pull fresh state from Stripe in case a webhook is lost.
+- Without Stripe keys, every org stays on Free, paid options are hidden, and the webhook returns 503.
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
-figurints/
 ├── app/
-│   ├── [slug]/                   # per-org routes (org resolved from the slug segment)
-│   │   ├── layout.tsx            # gates link/membership status, syncs active org
-│   │   ├── page.tsx              # the Operations Dashboard (desktop + mobile)
-│   │   ├── onboarding/           # retired — redirects into the live workspace
-│   │   ├── brothers/  chapter/  docs/  events/  instagram/
-│   │   ├── parties/  service/  settings/  tasks/  timeline/  treasury/
-│   │   └── AccessDenied.tsx · ActiveOrgSync.tsx
-│   ├── create/                   # pre-auth org-creation flow (name→interview→roles→timeline→blueprint→build)
-│   │   ├── page.tsx · create-flow.css
-│   │   └── _components/          # CreateFlow + step components, flow-state (useDraft)
-│   ├── api/                      # JSON API routes (thin controllers)
-│   │   ├── ai/                   # chat (SSE), digest, summarize-meeting, interview (pre-auth)
-│   │   ├── metrics/              # custom metric definitions + dashboard snapshot
-│   │   │                         #   (per-member values live under brothers/[id]/metrics)
-│   │   ├── activity/             # activity log (+ /full)
-│   │   ├── admin/orgs/           # platform-admin cross-org management
-│   │   ├── announcement/         # single pinned chapter announcement
-│   │   ├── attendance/           # record attendance per event
-│   │   ├── auth/                 # claim, me, signout, avatar, accounts, unlink-self
-│   │   ├── brothers/             # roster CRUD (+ /[id]/attendance, /[id]/roles, /[id]/metrics)
-│   │   ├── budget/               # semester budget + allocations
-│   │   ├── calendar/             # chapter events (+ /event-types — per-org timeline categories)
-│   │   ├── docs/                 # pinned chapter links + folders + /refresh-metadata
-│   │   ├── dues/                 # dues adjustments + reconciliation
-│   │   ├── excuses/              # attendance excuses
-│   │   ├── exemptions/           # per-semester attendance exemptions
-│   │   ├── instagram/            # content calendar
-│   │   ├── invites/              # org invite links (open / claim modes)
-│   │   ├── orgs/                 # config, logo, manage, leave, setup-apply, slug-check
-│   │   ├── parties/              # party events + revenue
-│   │   ├── polls/                # member/role-assigned polls + voting
-│   │   ├── programming/          # programming events + prep checklist + docs
-│   │   ├── reimbursements/       # reimbursement requests + approval
-│   │   ├── roles/                # role CRUD + permission bitfield editor
-│   │   ├── semesters/
-│   │   ├── service-events/       # community service log
-│   │   ├── service-participation/ # per-member service-event attendance
-│   │   ├── tasks/                # tasks + deadlines assigned to members/roles
-│   │   ├── transactions/         # treasury entries (+ /export CSV)
-│   │   └── treasury/             # balance/trend rollup
-│   ├── auth/callback/            # OAuth redirect handler
-│   ├── join/[token]/             # invite-link redemption
-│   ├── welcome/                  # zero-membership landing
+│   ├── [slug]/                  # the signed-in app, one folder per page
+│   │   ├── layout.tsx           # org resolution + membership gate
+│   │   ├── NeedsInvite.tsx · AwaitingApproval.tsx · ActiveOrgSync.tsx
+│   │   ├── page.tsx             # Dashboard
+│   │   ├── onboarding/          # founder welcome frame
+│   │   ├── brothers/ chapter/ chapter/templates/ docs/ events/ instagram/
+│   │   └── parties/ service/ settings/ tasks/ timeline/ treasury/ billing/
+│   ├── create/                  # pre-auth charter flow
+│   ├── join/[token]/            # invite → join request
+│   ├── admin/orgs/              # platform-admin console
+│   ├── api/                     # thin controllers (see below)
+│   ├── blog/ for/ help/ pricing/ trust/ contact/   # public site
+│   ├── login/ welcome/ auth/callback/
 │   ├── components/
-│   │   ├── ChatWidget.tsx        # "Ask Chapt" spotlight (⌘K modal + reasoning ledger)
-│   │   ├── ChatWidgetGate.tsx
-│   │   ├── chat-spotlight.css
-│   │   ├── chat/                 # ReasoningLedger, AnswerBlock, PeekSheet, WritCard, ApprovalsView, intent.ts
-│   │   ├── Sidebar.tsx
-│   │   ├── UserAvatar.tsx        # photo upload/remove menu
-│   │   ├── BrotherAvatar.tsx     # avatar with initials fallback
-│   │   ├── dashboard/
-│   │   │   ├── widgets.tsx       # KPI cards, health, activity feed, charts
-│   │   │   ├── AnnouncementCard.tsx / AnnouncementEditor.tsx
-│   │   │   ├── DashboardCharts.tsx · SparkLine.tsx · DrawerTrendChart.tsx
-│   │   │   ├── QuickActionsMenu.tsx · Toast.tsx · forms.tsx · styles.ts
-│   │   │   ├── drawers/          # BrotherDrawer, etc.
-│   │   │   ├── primitives.tsx    # Card, Modal, StatusBadge, ConfirmDialog
-│   │   │   └── mobile/           # MobileDashboard + Overview/Tasks/Money/Logs/Brothers tabs
-│   │   ├── programming/          # programming-event planner + prep checklist UI
-│   │   ├── timeline/             # CalendarEventForm
-│   │   ├── treasury/             # BudgetView, TreasuryCharts, TxForm
-│   │   ├── grid/                 # shared grid/table primitives
-│   │   └── landing/              # marketing/landing surfaces
-│   ├── context/ChapterContext.tsx
-│   ├── hooks/                    # useCurrentUser, useOrgLogo, useOrgPath
-│   ├── generated/prisma/         # generated client (gitignored)
-│   ├── login/  pending-access/  welcome/  join/   # auth + onboarding entry points
-│   ├── data.ts                   # shared types, thresholds, formatters
-│   ├── page.tsx                  # root redirect to the active org's /[slug]
-│   └── layout.tsx                # ChapterProvider wraps the whole app
+│   │   ├── ChatWidget.tsx · chat/        # Ask Chapt
+│   │   ├── meeting-notes/                # collaborative minutes editor
+│   │   ├── agenda-templates/ timeline/ treasury/ programming/ members/
+│   │   ├── dashboard/                    # widgets, forms, primitives, join-request panel
+│   │   ├── Sidebar.tsx · OrgSwitcher.tsx · SemesterGate.tsx · LiveCheckInBar.tsx
+│   │   ├── paper/                        # paper-aesthetic primitives
+│   │   └── landing/
+│   ├── context/                 # ChapterContext, LiveCheckInContext
+│   ├── hooks/
+│   ├── paper-*.css              # per-page paper aesthetic
+│   └── generated/prisma/        # generated client (gitignored)
 ├── lib/
-│   ├── context/                  # buildContext() — per-request auth + tenancy
-│   │   └── request-context.ts
-│   ├── db/                       # org-scoped Prisma wrapper (tenancy enforcement)
-│   │   └── tenant.ts
-│   ├── services/                 # domain services (brother-service, transaction-service, …)
-│   ├── events/                   # emit(), on(), action registry, handlers/
-│   │   ├── emit.ts
-│   │   ├── actions.ts
-│   │   └── handlers/             # recalc-attendance, …
-│   ├── state/                    # typed enums + guards for status columns
-│   ├── validation/               # shared Zod schemas
-│   ├── errors/                   # toResponse() — canonical error mapping
-│   ├── canonical.ts              # Member/Org/Period aliases
-│   ├── ai.ts                     # OpenAI client + shared narrate() helper
-│   ├── ai-prompt.ts              # buildSystemPrompt
-│   ├── ai-tools.ts               # tool schemas + dispatcher + validateArgs
-│   ├── onboarding/               # /create draft model (draft, kinds, seats, perm-areas, event-types)
-│   ├── org-types.ts              # org-type presets + workflow registry (onboarding priors)
-│   ├── event-types.ts            # built-in timeline event types + shared color palette
-│   ├── workflow-features.ts      # per-workflow toggleable features + disabledFeatures
-│   ├── metrics.ts                # custom-metric status/headline math (pure)
-│   ├── custom-member-fields.ts   # custom member-field types + helpers (pure)
-│   ├── tasks/                    # urgency.ts — task urgency computed from dueDate (pure)
-│   ├── auth/                     # require-user, require-permission, require-admin
-│   ├── permissions.ts            # 14-bit permission flags + helpers
-│   ├── seed-roles.ts             # system role seeding (idempotent)
-│   ├── og-metadata.ts            # Doc URL probe (OG tags, favicon, embed-OK check)
-│   ├── supabase/                 # client.ts, server.ts, admin.ts
-│   ├── activity.ts · attendance.ts
-│   ├── avatar.ts · brother-avatar.ts
-│   ├── observability.ts          # structured JSON logging + lazy Sentry
-│   ├── rate-limit.ts             # per-user mutation/chat rate limiter
-│   └── prisma.ts                 # Prisma singleton over pg.Pool
-├── evals/ask-the-chapter/        # AI eval cases + how-to
-├── scripts/                      # eval-ask-the-chapter.ts, seed-roles.ts, diag-*, dedupe-*
-├── prisma/                       # schema, seed, migrations
-├── supabase/                     # storage bucket + RLS SQL
-├── tests/tenancy/                # tenancy isolation tests
-├── tests/onboarding/             # /create draft mapping + org provisioning tests
-├── proxy.ts                      # Next.js middleware (auth gate + org resolution)
-├── prisma.config.ts              # Prisma 7 datasource for CLI
-└── next.config.ts
+│   ├── context/                 # buildContext()
+│   ├── db/                      # db(orgId) tenant wrapper, runtime URLs, admission lock
+│   ├── services/                # one service per domain
+│   ├── events/                  # emit(), on(), actions, handlers/
+│   ├── state/                   # status enums + guards
+│   ├── validation/              # Zod schemas
+│   ├── errors/                  # toResponse()
+│   ├── auth/                    # require-user/permission/admin, join flow, dev bypass
+│   ├── billing/                 # tiers, seats, sync, webhook, guard
+│   ├── calendar-feed/           # .ics projection, credentials, worker
+│   ├── collaboration/           # Yjs notes protocol + persistence
+│   ├── onboarding/              # /create draft model
+│   ├── ai*.ts                   # client, prompt, tools, ledger, refs, fast path, approval signing
+│   ├── org-types.ts             # org-type presets, workflows, role templates
+│   ├── permissions.ts           # 14 permission bits
+│   └── prisma.ts · prisma-privileged.ts · observability.ts · rate-limit.ts
+├── prisma/                      # schema.prisma, migrations/, seed.ts
+├── supabase/                    # storage bucket + Realtime policy SQL
+├── content/blog/                # Markdown blog posts
+├── evals/ask-the-chapter/       # AI eval cases
+├── tests/                       # Vitest suites (tenancy, services, permissions, …)
+├── scripts/                     # lints, eval, stripe setup, calendar feeds, screenshots, diagnostics
+├── docs/                        # design plans and rollout notes
+├── proxy.ts                     # Next.js middleware
+├── instrumentation.ts           # boot hook (Sentry init)
+└── prisma.config.ts
 ```
+
+**API areas** under `app/api/`: `activity`, `admin`, `ai`, `announcement`, `attendance` (incl. live check-in windows), `auth`, `billing`, `brothers`, `budget`, `calendar` (events, event types, agenda templates, notes, action items, `.ics` export, subscription feeds), `docs`, `dues`, `events` (custom fields), `excuses`, `exemptions`, `instagram`, `invites`, `join-requests`, `metrics`, `orgs`, `parties`, `polls`, `programming`, `reimbursements`, `roles`, `semesters`, `service-events`, `service-participation`, `tasks`, `transactions`, `treasury` (balance, settings, categories).
+
+`_design/` holds standalone HTML design mocks and `assets/` holds marketing captures. Neither is part of the app build.
 
 ---
 
-## Auth Flow
+## Data model
 
-```
-1. User visits any protected page
-        │
-        ▼
-2. proxy.ts checks for a valid Supabase session cookie
-        │
-        ├── No session ──────────────────────────────────► /login
-        │
-        └── Session present ──────────────────────────────► pass through (refreshed cookie)
-                │
-                ▼
-   [slug] layout gates link/membership status (proxy no longer does):
-        ├── Member of <slug> ─────────────────────────────► render org dashboard
-        ├── Signed in, no Brother linked ─────────────────► /pending-access
-        └── Linked, but not a member of <slug> ───────────► access-denied (or /welcome if zero memberships)
-                │
-                ▼
-3. /login — "Continue with Google" → Supabase OAuth
-        │
-        ▼
-4. /auth/callback — exchanges code for session, checks Brother + Membership tables
-        │
-        ├── Membership found for this authUserId + org → set active_org_id cookie → /
-        │
-        └── No Membership yet → /pending-access
-                │
-                ▼
-5. User types their name → POST /api/auth/claim
-        │
-        ├── No match ─────────────────────► 404 "No brother found with that name"
-        ├── Matches >1 row ───────────────► 409 "Multiple brothers share that name"
-        ├── Row already has an authUserId ► 409 "already linked to another account"
-        │
-        └── Exactly one unclaimed Brother row → link it, create Membership
-                │
-                ▼
-6. authUserId written to the Brother row, Membership created
-        → set active_org_id cookie → /
-```
+Full schema: [prisma/schema.prisma](prisma/schema.prisma) (~50 models). Every org-scoped row has an `organizationId`.
 
-> **Note:** Link status is the DB's truth, resolved by `requireUser()` in the pages/layouts that need it — there is no `brother_linked` cookie. (A legacy `brother_linked` cookie was removed; signout/unlink only *expire* it to clean up sessions carried across that deploy.) The `[slug]` layout gates an authenticated-but-unlinked user into the claim flow.
+| Area | Models |
+|------|--------|
+| Tenancy & identity | `Organization`, `OrganizationConfig` (workflows, vocab, thresholds, custom fields, nav order), `Brother` (identity), `Membership` (roster row), `PlatformAdmin` |
+| Joining | `OrgInvite`, `JoinRequest`, `InviteRedemption` |
+| Roles | `Role`, `BrotherRole` |
+| Terms & attendance | `Semester`, `AttendanceRecord`, `AttendanceExcuse`, `AttendanceExemption` |
+| Calendar & meetings | `CalendarEvent` (incl. check-in window, collaborative notes state, summary data), `CalendarEventType`, `AgendaTemplate`, `EventFieldDefinition` |
+| Tasks & polls | `Task`, `TaskAssignment`, `TaskCompletion`, `Poll`, `PollOption`, `PollAssignment`, `PollVote` |
+| Money | `Transaction` (soft delete), `TransactionCategory`, `TransactionCalendarEvent`, `DuesPayment`, `Reimbursement`, `Budget`, `BudgetAllocation` |
+| Programming, parties, service | `ProgrammingEvent`, `ProgrammingEventDoc`, `PartyEvent`, `ServiceEvent`, `ServiceParticipation` |
+| Content | `Doc`, `DocFolder`, `InstagramTask`, `ChapterAnnouncement` |
+| Metrics | `OrgMetricDefinition`, `BrotherMetricValue` |
+| Audit & AI | `OperationalEvent`, `ActivityLog`, `ChatApproval` |
+| Billing | `Subscription`, `StripeEvent`, `OrphanedSubscription`, `SalesLead` |
+| Calendar feeds | `CalendarSubscription`, `CalendarFeedItem`, `CalendarFeedWork` |
 
-**Admin workflow:** add a `Brother` row from the Brothers page **before** the person signs in. They claim it themselves on first login by entering their name exactly. Alternatively, share an invite link (**Settings → Invites**) — an `open`-mode link creates a member on redemption, a `claim`-mode link drops the user into the name-match claim flow above.
+Some rules that hold across the schema:
 
-**Founder workflow:** a brand-new founder starts at `/create` (linked from `/login`). The pre-auth flow builds a full org blueprint *before* any sign-in; Google OAuth happens at the final Build step, the callback returns to `/create?resume=1`, and `POST /api/orgs` provisions the org and makes the founder its first admin member. See [Org Creation](#org-creation).
+- **Money moves only on approval.** `DuesPayment` and `Reimbursement` are requests. A member's balance and the ledger change only when a treasurer approves, and then both change in one transaction, linked by `transactionId`.
+- **Category slugs don't change.** For event types and transaction categories, the `slug` is the value stored on existing rows and can't be edited. The label can be renamed freely.
+- **Task urgency is calculated, not stored.** `Task.status` is only `open` or `done`. Urgency is computed from `dueDate` when the page renders ([lib/tasks/urgency.ts](lib/tasks/urgency.ts)). Role targets resolve to whoever holds the role *now*.
+- **Cached roster numbers are recalculated by event handlers.** Attendance % and service hours on `Membership` are never written directly.
+
+### Migrations
+
+107 migrations live in [prisma/migrations/](prisma/migrations/). New tables need:
+
+- an `org_isolation` RLS policy (and nothing permissive);
+- `GRANT USAGE` on their `_id_seq` to the app role, or inserts fail with "permission denied for sequence".
+
+Restart `next dev` after adding a column. A Prisma client already loaded in memory will reject the new field.
 
 ---
 
-## Database Schema
-
-Defined in [prisma/schema.prisma](prisma/schema.prisma). Highlights:
-
-### Organization
-The tenant root. Every domain row carries an `organizationId` FK here. `slug` is unique and used for org routing.
-
-### Membership
-Links a `Brother` to an `Organization`. `isOrgAdmin` grants all permission bits within that org. One `Brother` can have many `Membership` rows (multi-org).
-
-### PlatformAdmin
-A separate table (not a flag on `Brother`) for cross-org superusers. One row per platform staff member.
-
-### Brother
-| Column | Type | Notes |
-|--------|------|-------|
-| id | Int | PK |
-| organizationId | Int | FK → Organization |
-| name | String | |
-| role | String | e.g. "President · Rush" |
-| attendance | Float | 0–100, system-managed |
-| duesOwed | Float | |
-| gpa | Float | |
-| serviceHours | Float | |
-| authUserId | String? | Supabase user UUID, set on claim (unique) |
-| avatarUrl | String? | Custom profile photo (source of truth) |
-| email | String? | Cached from the session |
-| isAdmin | Boolean | Legacy flag; prefer `Membership.isOrgAdmin` in new code |
-| isGhost | Boolean | Hidden observer — excluded from all listings/counts. Legacy: no code path sets it (see [Identity flags](#identity-flags-on-brother)) |
-| customFields | Json | Sparse `{ fieldId → value }` map for org-defined member fields |
-| roles | BrotherRole[] | Many-to-many join to `Role` |
-| memberships | Membership[] | Orgs this brother belongs to |
-| metricValues | BrotherMetricValue[] | Per-member values for custom org metrics |
-
-### Role / BrotherRole
-`Role` is a named bundle of permission bits with a hierarchy `rank` and optional UI `color`. `permissions` is a 32-bit integer; meanings are defined in [lib/permissions.ts](lib/permissions.ts). `isSystem = true` protects seeded roles from rename/delete. `BrotherRole` is the join table — a member's effective permissions are the bitwise OR of every role they hold.
-
-### OrgMetricDefinition / BrotherMetricValue
-Org-defined custom KPIs. `OrgMetricDefinition` carries a `slug` (immutable after create), display `name`, optional `unit`, a per-member `goal`, `atRiskBelow` / optional `watchBelow` bands, and an `aggregation` (`avg` / `sum` / `count_on_track`) used to compute the dashboard headline. `BrotherMetricValue` holds one member's value for one definition (`organizationId` denormalized for tenant scoping). Status/headline math is pure and lives in [lib/metrics.ts](lib/metrics.ts). Custom **member fields** (lighter-weight, free-text/number/select) are not separate tables — definitions live on `OrganizationConfig.customMemberFields` (JSON) and values sparsely on `Brother.customFields` (JSON); see [lib/custom-member-fields.ts](lib/custom-member-fields.ts).
-
-### OperationalEvent
-Structured audit log. Every meaningful state change emitted by a service lands here (`action`, `subjectType`, `subjectId`, `actorId`, `orgId`, `metadata` JSON). Drives reactions via the event handler registry and dual-writes to `ActivityLog` for the UI feed.
-
-### CalendarEvent / CalendarEventType
-Chapter events: `title`, `date`, optional `time`, `category`, `mandatory`, `description` (doubles as meeting notes), `location`, plus `notesSummary` + `notesSummaryAt` for AI-generated summaries.
-
-`CalendarEventType` is the per-org registry `CalendarEvent.category` points at — `slug` (immutable after create, unique per org), `label`, a `color` / `colorDark` hex pair for the light and dark timeline themes, an optional `workflowId` that gates picker visibility, and `builtin` / `creatable` / `hidden` / `mandatoryDefault` / `displayOrder`. Every org is seeded with the four built-ins from [lib/event-types.ts](lib/event-types.ts) — `chapter`, `party`, `deadline`, `service` — as editable copies; `party` and `deadline` are `creatable: false` because those rows are minted by their own features rather than the event form.
-
-### Task / TaskAssignment
-A `Task` is a unit of work handed to members and/or roles. A task *with* a `dueDate` is what the UI calls a deadline and folds into the timeline; without one it's a loose to-do. Stored `status` is only `open` / `done` — urgency (overdue / urgent / due soon / upcoming) is computed from `dueDate` at render time by [lib/tasks/urgency.ts](lib/tasks/urgency.ts), never persisted. `TaskAssignment` targets exactly one of `brotherId` / `roleId` (CHECK constraint); role targets resolve to current holders at read time, so adding someone to a role auto-assigns them its open tasks. Anyone assigned can flip the shared status to done; only `MANAGE_TASKS` can edit or reassign. Replaces the legacy `Deadline` model.
-
-### Poll / PollOption / PollAssignment / PollVote
-Task-shaped voting: a `Poll` attaches members and roles the same way a task does, plus a question with 2–10 `PollOption`s and an optional `closeDate`. Single-choice — `PollVote` is unique on `(pollId, brotherId)`, so re-voting upserts. Votes key to the poll rather than the assignment, so a vote survives its voter later being un-assigned. Closing locks voting but keeps results visible.
-
-### DuesPayment / Reimbursement
-Two request queues that gate the ledger. Both hold `amount`, `date`, a `status`, an optional `rejectionNote`, and a unique `transactionId` that is null until approval. Nothing moves on either book — not `Brother.duesOwed`, not `Transaction` — until a treasurer approves, at which point the service mints the ledger row and adjusts the balance atomically ([lib/services/dues-service.ts](lib/services/dues-service.ts), [lib/services/reimbursement-service.ts](lib/services/reimbursement-service.ts)). That `transactionId` is the only link between the two books, so a balance is blind to an approved payout until it exists.
-
-### ChatApproval
-Durable audit record for a confirmed Ask Chapt writ card: `kind`, the `propose_*` `action`, the writ card's `title`/`summary`/`rows` (JSON key/value lines), the `MANAGE_*` `permission` it ran under, who approved it, and a best-effort `subjectType`/`subjectId` link to the row the approval's POST created. Surfaced in the chat Approvals inbox.
-
-### AttendanceExemption
-Excuses a member from attendance math for a whole `Semester` (e.g. studying abroad, inactive status) rather than event-by-event. Unique on `(semesterId, brotherId)`.
-
-### ProgrammingEvent / ProgrammingChecklistItem / ProgrammingEventDoc
-The events/programming planner. A `ProgrammingEvent` starts life as an idea (`stage = "idea"`) holding its own planning fields, and is linked one-to-one to a `CalendarEvent` (`calendarEventId`) only once it leaves the idea stage. Carries prep/ops fields — `owner`, `collabOrg`, `roomStatus`, `flyerPosted`, `socialsMeeting`, `spendingCents` — plus post-event `successRating` and `wrapUpNotes`. `ProgrammingChecklistItem` rows are the ordered prep checklist; `ProgrammingEventDoc` links attached docs.
-
-### ServiceParticipation
-Per-member attendance for a `ServiceEvent` — who actually showed up, used to credit service hours.
-
-### OrgInvite / InviteRedemption
-Org invite links. `OrgInvite` carries a unique `token`, a `mode` (`open` mints a new member on redemption, `claim` routes into the name-match claim flow), and optional `expiresAt` / `revokedAt`. `InviteRedemption` records each use.
-
-### AttendanceRecord / AttendanceExcuse
-`AttendanceRecord` links a `Brother` to a `CalendarEvent` in a `Semester` with an `attended` flag. `AttendanceExcuse` records an approved/pending excuse; approved excuses don't count against attendance.
-
-### Semester
-`label` (unique per org, e.g. `SPR26`), `startDate`, `endDate`, `isActive` (one active at a time per org).
-
-### Transaction / TransactionCalendarEvent
-Treasury entries with `type` (`income`/`expense`), `category`, `amount`, `paymentMethod`. Soft-deleted via `deletedAt`. `TransactionCalendarEvent` is a many-to-many join attributing spend to the events it paid for.
-
-### Budget / BudgetAllocation
-Per-semester budget (`carryoverBalance`, `reserveAmount`) with line-item `allocations`.
-
-### Doc / DocFolder
-`Doc` is a pinned chapter link with cached OG metadata (`title`, favicon, `embedOk`) and an optional `folderId`. `DocFolder` is a flat, one-level folder for grouping docs on the `/docs` page. Deleting a folder releases its docs back to the library root (sets `folderId = null`) rather than cascading them away.
-
-### PartyEvent / ServiceEvent / InstagramTask / ChapterAnnouncement / ActivityLog
-See [prisma/schema.prisma](prisma/schema.prisma) for full field lists. All carry `organizationId`.
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in the values:
+## Environment variables
 
 ```bash
 cp .env.example .env.local
 ```
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | Runtime Postgres connection. Use the Supabase **pooled** URL (PgBouncer, port 6543). |
-| `DIRECT_URL` | Recommended | A **direct** session connection (port 5432) used by Prisma CLI commands (`migrate`, `db seed`). Migrations hang over the pooled URL because PgBouncer doesn't support DDL/advisory locks. `prisma.config.ts` falls back to `DATABASE_URL` if unset. |
-| `PRIVILEGED_DATABASE_URL` | Optional | Runtime transaction-pool URL (port 6543) using the privileged/BYPASSRLS role. Supabase URLs are derived from `DIRECT_URL` automatically; set this explicitly for other providers. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon/public key. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Optional | Server-only. Enables admin reads of auth metadata. Never expose to the client. |
-| `NEXT_PUBLIC_ROOT_DOMAIN` | Optional | Bare apex for org subdomain routing (e.g. `example.com`); org slugs resolve as `<slug>.<root>`. Defaults to `localhost` ([lib/domains.ts](lib/domains.ts)). |
-| `NEXT_PUBLIC_DOMAIN_ALIASES` | Optional | Comma-separated extra apexes that should also resolve org subdomains. |
-| `NEXT_PUBLIC_APP_NAME` | Optional | Display name for the wordmark/footer. Defaults to `ChaptOS`. |
-| `OPENAI_API_KEY` | Optional | Enables AI features (chat, digest narration, meeting summaries). All three degrade gracefully when unset. |
-| `RLS_SET_ORG_ID` | Yes | Must be `1` in every env. Causes `db()` to issue `SET LOCAL app.org_id` on every scoped query, which Postgres RLS uses to enforce tenant isolation. |
-| `SENTRY_DSN` | Optional | When set, `logError` forwards to Sentry via a lazy dynamic import. No dependency cost when unset. |
+### Required
 
-**Where to find these in Supabase:**
-- `DATABASE_URL` / `DIRECT_URL`: Project Settings → Database → Connection string (pooled = port 6543, direct/session = port 5432).
-- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: Project Settings → API.
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Runtime Postgres, using the Supabase **transaction pooler** (port 6543). |
+| `DIRECT_URL` | Direct/session connection (port 5432). Used by the Prisma CLI and by the privileged (BYPASSRLS) runtime client. |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase project URL and anon key. |
+| `RLS_SET_ORG_ID` | Must be `1` in every environment. |
 
-> The runtime client connects through its own `pg.Pool` reading `DATABASE_URL` ([lib/prisma.ts](lib/prisma.ts)); the Prisma CLI uses the URL in `prisma.config.ts`. Never expose `DATABASE_URL` to the client.
+### Optional
+
+| Variable | Description |
+|----------|-------------|
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only admin reads of auth metadata. |
+| `NEXT_PUBLIC_ROOT_DOMAIN` / `NEXT_PUBLIC_DOMAIN_ALIASES` | Apex domain(s) for `<slug>.<domain>` routing ([lib/domains.ts](lib/domains.ts)). Defaults to `localhost`. |
+| `NEXT_PUBLIC_APP_NAME` | Wordmark text. Defaults to `ChaptOS`. |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | Support contact shown in the app. |
+| `OPENAI_API_KEY` | Turns on every AI feature. |
+| `PROPOSAL_SIGNING_SECRET` | Dedicated HMAC key for Ask Chapt proposals. Derived from the OpenAI key if unset. |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_PRICE_ID` | Platform billing. The price ID is printed by `npm run stripe:setup`. |
+| `SENTRY_DSN` | Forwards errors to Sentry. Recommended in production: Stripe failures are logged and swallowed on purpose, so without it nobody gets alerted. |
+| `ORG_CREATE_LIMIT_PER_DAY` | Cap on new orgs per account per day. |
+| `COLLABORATIVE_NOTES_ORG_IDS` | `*` or a comma-separated list of org IDs that can use collaborative minutes. Unset turns the feature off. |
+| `COLLABORATIVE_NOTES_REALTIME` | `1` turns on live Broadcast. Without it, notes merge over HTTP every 30 seconds. See [docs/collaborative-meeting-notes-rollout.md](docs/collaborative-meeting-notes-rollout.md). |
+| `CALENDAR_FEED_KEY`, `CALENDAR_FEED_ORIGIN`, `CALENDAR_FEED_ORGS`, `CALENDAR_FEED_WORKER_ENABLED`, `CALENDAR_FEED_PATH_REDACTION_VERIFIED` | Subscribable `.ics` feeds. Off by default. See [docs/calendar-subscriptions-rollout.md](docs/calendar-subscriptions-rollout.md) before turning them on. |
+| `PERF_INSTRUMENT` | Per-query timing logs. Set it in `.env.local`, not on the command line. |
+| `DEV_AUTH_BYPASS` / `DEV_AUTH_BYPASS_SECRET` | **Local only.** Lets `npm run screenshot` act as a member. Ignored when `NODE_ENV=production`. |
+
+Never expose `DATABASE_URL`, `DIRECT_URL`, or any secret key to the client.
 
 ---
 
-## Local Setup
+## Local setup
 
-### Prerequisites
-- Node.js 20+
-- A Supabase project with Google OAuth enabled
+**Prerequisites:** Node 20+, a Supabase project with Google OAuth enabled, and Docker (for tests).
 
-### Steps
-
-**1. Clone and install**
 ```bash
-git clone <repo-url>
-cd figurints
-npm install        # postinstall runs `prisma generate`
+git clone https://github.com/ttha53777/ChaptOS.git
+cd ChaptOS
+npm install                    # also runs prisma generate
+cp .env.example .env.local     # fill in Supabase + DB URLs, RLS_SET_ORG_ID=1
 ```
 
-**2. Configure environment**
+1. **Google OAuth.** In Supabase, go to Authentication → Providers → Google, enable it, and add `http://localhost:3000/auth/callback` as a redirect URL.
+2. **Migrations.** Run `npx prisma migrate deploy`. It uses `DIRECT_URL`; migrations hang over the pooler.
+3. **Storage and Realtime (optional).** Run the SQL in [supabase/](supabase/): `storage-avatars.sql`, `storage-org-logos.sql`, and `realtime-meeting-notes.sql`.
+4. **Seed (optional).** Run `npx prisma db seed`. The seed refuses to run twice; use `FORCE_RESEED=1` to override.
+5. **Run.** `npm run dev`, then open [http://localhost:3000](http://localhost:3000). Create an org at `/create`, or open an invite link to request to join an existing one.
+6. **Billing (optional).** Run `npm run stripe:setup`, then `stripe listen --forward-to localhost:3000/api/billing/webhook`.
+
+---
+
+## Testing and verification
+
+There is no ESLint and no separate typecheck script. These are the checks:
+
 ```bash
-cp .env.example .env.local
-# Edit .env.local with your Supabase credentials
+npx tsc --noEmit               # types
+npm run lint:prisma            # no direct prisma in app/api
+npm run lint:services          # no raw prisma in services
+npm run lint:modules           # module-boundary rules
+npm run lint:home-org          # nothing scopes the roster by Brother.organizationId
+
+npm run test:db:up             # Postgres for tests on :54330 (Docker)
+npm test                       # Vitest, ~110 suites
+npm run test:db:down
+
+npm run eval:chat              # Ask Chapt evals (needs OPENAI_API_KEY + seeded DB)
 ```
 
-**3. Enable Google OAuth in Supabase**
-Authentication → Providers → Google → enable and add your Google OAuth credentials.
-Add the redirect URL: `http://localhost:3000/auth/callback`
-
-**4. Run migrations** (uses `DIRECT_URL`)
-```bash
-npx prisma migrate deploy
-```
-
-**5. Generate the Prisma client** (also runs on install/build)
-```bash
-npx prisma generate
-```
-Output goes to `app/generated/prisma/` (gitignored — generated locally and in CI).
-
-**6. Enable profile photos (optional)**
-Run the SQL in `supabase/` to create the `avatars` storage bucket and its RLS policies.
-
-**7. Seed sample data (optional)**
-```bash
-npx prisma db seed
-```
-
-**8. Start the dev server**
-```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000), sign in with Google, then claim your member row on `/pending-access`.
-
-**9. (Optional) Run the AI eval harness**
-With `OPENAI_API_KEY` set and the DB seeded:
-```bash
-npx tsx scripts/eval-ask-the-chapter.ts
-```
-See [evals/ask-the-chapter/README.md](evals/ask-the-chapter/README.md) for the case schema and how to add new cases.
+- Tests run against a real Postgres database, not mocks. `resetDb()` truncates the tables between tests. See [tests/README.md](tests/README.md).
+- `npm run screenshot` renders signed-in `/[slug]/*` pages headlessly using the dev bypass cookie. There are also browser checks for invites, billing, collaborative notes, and calendar subscriptions (`npm run test:*:browser`).
+- `npx tsc` doesn't catch Prisma `select` keys that no longer exist. An "Unknown field" error means the generated client is ahead of the code; "column does not exist" means the database is behind the migrations.
 
 ---
 
 ## Deployment
 
-Built for **Vercel** with a Supabase backend.
+The app is built for **Vercel** with a Supabase backend.
 
-1. **Import the repository** in Vercel.
-2. **Add environment variables** (Project Settings → Environment Variables): `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `RLS_SET_ORG_ID=1` (and `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `SENTRY_DSN` if used).
-3. **Add the production redirect URL** in Supabase → Authentication → URL Configuration → Redirect URLs:
-   ```
-   https://your-app.vercel.app/auth/callback
-   ```
-4. **Deploy.** The `build` script runs `prisma generate && next build` on each push to `main`.
+1. Import the repo into Vercel and set the environment variables (at minimum `DATABASE_URL`, `DIRECT_URL`, the Supabase public pair, and `RLS_SET_ORG_ID=1`, plus whichever optional features you use).
+2. In Supabase → Authentication → URL Configuration, add `https://<your-domain>/auth/callback`.
+3. If you use billing, point a Stripe webhook at `https://<your-domain>/api/billing/webhook`.
+4. Push to `main`. The build runs `prisma generate && next build`.
 
-> **Migrations are not run by the build.** Apply schema changes with `npx prisma migrate deploy` against the production database (locally with prod `DIRECT_URL`, or via your CI/pipeline) — otherwise new columns won't exist and queries will error.
+> **The build doesn't run migrations.** Apply them yourself with `npx prisma migrate deploy` (or one reviewed migration at a time) against the production `DIRECT_URL` **before** deploying code that needs them.
 
-> **Connection pooling.** Use the pooled URL (port 6543) for `DATABASE_URL` so short-lived Vercel functions don't exhaust connections, and the direct URL (port 5432) for `DIRECT_URL` so migrations work.
+### Checklist
 
-### Post-deploy checklist
-- [ ] All env vars set in Vercel
-- [ ] Production redirect URL added in Supabase Auth
-- [ ] `npx prisma migrate deploy` run against the production database
-- [ ] `avatars` storage bucket + policies created (if using profile photos)
-- [ ] At least one `Organization` row and one `Brother` row exist (or seed them) so the first user can claim
-- [ ] (If using AI) `OPENAI_API_KEY` set; verify the chat widget appears
+- [ ] Env vars set; `RLS_SET_ORG_ID=1`; `DIRECT_URL` reachable (prod won't boot without the privileged client)
+- [ ] Migrations applied
+- [ ] OAuth redirect URL added
+- [ ] Storage buckets and Realtime policies installed (if used)
+- [ ] Stripe webhook + `STRIPE_PRICE_ID` (if billing)
+- [ ] `SENTRY_DSN` set
+- [ ] Calendar feed log redaction verified before setting `CALENDAR_FEED_PATH_REDACTION_VERIFIED`
