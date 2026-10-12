@@ -21,6 +21,7 @@ import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
 import { EventFieldsSection } from "./sections/EventFieldsSection";
 import { TransactionCategoriesSection } from "./sections/TransactionCategoriesSection";
+import { OpeningBalanceSection } from "./sections/OpeningBalanceSection";
 import { AestheticSection } from "./sections/AestheticSection";
 import { CalendarSubscription } from "../../components/timeline/CalendarSubscription";
 import { useChapter } from "../../context/ChapterContext";
@@ -38,7 +39,7 @@ type SectionId =
   | "index"
   | "general" | "vocabulary" | "aesthetic"
   | "accounts" | "invitations" | "roles" | "member-fields"
-  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "calendar" | "money-categories" | "workflows"
+  | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "calendar" | "opening-balance" | "money-categories" | "workflows"
   | "activity-log" | "billing";
 
 type Intent = "Identity" | "Membership" | "Operations" | "System";
@@ -143,6 +144,12 @@ const NAV_ITEMS: NavItem[] = [
     blurb: "Put your events and deadlines in members' own calendars.",
     lede: "Turn it on once and members can add your events and deadlines to Google or Apple Calendar, where they stay up to date on their own. You keep editing them here.",
     icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z M12 14v4m-2-2h4",
+  },
+  {
+    id: "opening-balance", label: "Opening balance", group: "Operations", tint: "t-gold",
+    blurb: "What was in the account when you started the books.",
+    lede: "The starting figure your treasury counts forward from. Set it if you skipped it on day one, or fix it if it was wrong.",
+    icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
   },
   {
     id: "money-categories", label: "Money categories", group: "Operations", tint: "t-gold",
@@ -300,6 +307,8 @@ function SettingsPageBody() {
     // them post the transaction. Gating on settings would let them file money
     // but not name the bucket — a round trip to the president for nothing.
     if (id === "money-categories") return hasTreasury && (isOrgAdmin || canManageTreasury);
+    // Same gate as requireTreasury in treasury-settings-service.
+    if (id === "opening-balance")  return hasTreasury && (isOrgAdmin || canManageTreasury);
     // Same argument as money-categories, and the same gate the service uses
     // (requireEvents in event-field-service): the officer who needs "Bus
     // company" at 11pm already holds MANAGE_EVENTS. Gating on settings would
@@ -495,6 +504,7 @@ function SettingsPageBody() {
       case "event-fields":   return <EventFieldsSection {...props} />;
       case "calendar":       return <CalendarSubscription settings />;
       case "money-categories": return <TransactionCategoriesSection {...props} />;
+      case "opening-balance":  return <OpeningBalanceSection {...props} />;
       case "roles":          return <RolesSection {...props} />;
       case "activity-log":   return <ActivityLogSection {...props} />;
     }
