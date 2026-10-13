@@ -47,7 +47,8 @@
 .cef-more .txt { flex: 1; min-width: 0; }
 .cef-more .t { display: block; font: 600 .92rem var(--ed-sans); color: var(--ink); }
 .cef-more .s { display: block; font: .78rem var(--ed-sans); color: var(--muted); margin-top: 1px; }
-.cef-more .fan { position: relative; width: 74px; height: 38px; flex-shrink: 0; }
+/* isolate: the tiles' z-indexes stay inside the fan instead of climbing over the sticky foot */
+.cef-more .fan { position: relative; isolation: isolate; width: 74px; height: 38px; flex-shrink: 0; }
 .cef-more .fan i { position: absolute; top: 4px; width: 30px; height: 30px; border-radius: 9px; border: 1.5px solid var(--ink); background: var(--h); display: grid; place-items: center; transition: transform .35s var(--ed-spring); }
 .cef-more .fan i svg { width: 15px; height: 15px; color: var(--ed-glyph); }
 .cef-more .fan i:nth-child(1) { left: 0; transform: rotate(-10deg); }

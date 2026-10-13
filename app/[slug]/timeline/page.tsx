@@ -6,6 +6,7 @@ import { useNow } from "../../hooks/useNow";
 
 import { notesSummaryStale } from "@/lib/collaboration/notes-protocol";
 import React, { useState, useMemo, useEffect, useRef, useContext } from "react";
+import { flushSync } from "react-dom";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { MemberSpotlight } from "../../components/members/MemberSpotlight";
@@ -17,13 +18,15 @@ import { CalendarCategory } from "../../../lib/state/calendar-category";
 import { useChapter } from "../../context/ChapterContext";
 import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
-import { requestJson, orgFetch, ApiError } from "../../lib/api";
+import { requestJson, orgFetch, ApiError, apiErrorCode } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
-import { useSemesterErrorHandler } from "../../hooks/useSemesterErrorHandler";
+import { useSemesterErrorHandler, resolveMutationError } from "../../hooks/useSemesterErrorHandler";
+import { closeQuietly, docTop, findRow, formPanel, landEdit, landNew, recordPositions, shootForm, type AddLanding, type FailWhy, type RowDiff } from "../../components/timeline/event-landing";
+import "../../components/timeline/event-landing.css";
 import { isNavVisible } from "../../components/Sidebar";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
@@ -362,6 +365,46 @@ function TodayMarker({ markerRef }: { markerRef?: React.Ref<HTMLDivElement> }) {
   );
 }
 
+// ─── Edit diff ────────────────────────────────────────────────────────────────
+
+const blankish = (v: unknown) => (v == null || v === "" ? null : v);
+/** JSON with object keys sorted, so a server echo and a fresh draft compare equal. */
+const stable = (v: unknown) => JSON.stringify(v ?? null, (_k, x) =>
+  x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x);
+
+/** Two schedules name the same span: instants compared as instants, since a server
+ *  echo and a fresh draft can spell the same one differently (".000Z" vs "Z"). */
+function sameSchedule(a: unknown, b: unknown): boolean {
+  const key = (v: unknown) => {
+    if (v == null || typeof v !== "object") return null;
+    const s = v as Record<string, unknown>;
+    const at = (x: unknown) => typeof x === "string" && s.kind === "timed" ? Date.parse(x) : x ?? null;
+    return stable({ ...s, start: at(s.start), end: at(s.end) });
+  };
+  return key(a) === key(b);
+}
+
+/** What saving an edit would change: anything at all (nothing → the dialog just
+ *  closes and nothing is sent), and which of it the row shows (the highlighter). */
+function editDiff(prev: CalendarEvent, next: CalendarEvent, hadTemplate: boolean, rememberDetails: boolean | undefined): { changed: boolean; row: RowDiff } {
+  const row: RowDiff = {
+    title:    prev.title !== next.title,
+    cat:      prev.category !== next.category,
+    date:     prev.date !== next.date,
+    time:     formatEventTime(prev.time, prev.schedule) !== formatEventTime(next.time, next.schedule),
+    location: blankish(prev.location) !== blankish(next.location),
+    req:      !!prev.mandatory !== !!next.mandatory,
+    details:  stable(prev.details ?? []) !== stable(next.details ?? []),
+  };
+  const changed = Object.values(row).some(Boolean)
+    || blankish(prev.description) !== blankish(next.description)
+    // `time` is derived from the schedule when there is one; only free text stands alone
+    || (next.schedule == null && blankish(prev.time) !== blankish(next.time))
+    || !sameSchedule(prev.schedule, next.schedule)
+    || (rememberDetails !== undefined && rememberDetails !== hadTemplate);
+  return { changed, row };
+}
+
 // ─── TimelineRow ──────────────────────────────────────────────────────────────
 
 function TimelineRow({
@@ -411,8 +454,8 @@ function TimelineRow({
               {event.mandatory && <span className="req">Required</span>}
               {overdue && <span className="overdue">Overdue</span>}
               {done && <span className="done">✓ Done</span>}
-              {formatEventTime(event.time, event.schedule) && <span>{formatEventTime(event.time, event.schedule)}</span>}
-              {event.location && <span>{event.location}</span>}
+              {formatEventTime(event.time, event.schedule) && <span className="m-time">{formatEventTime(event.time, event.schedule)}</span>}
+              {event.location && <span className="m-loc">{event.location}</span>}
               {owner && <span className="owner pp-only">{owner}</span>}
             </div>
           </div>
@@ -1391,7 +1434,25 @@ export default function TimelinePage() {
   function openEventModal(kind: "create" | "edit", page: 1 | 2 = 1) {
     setEditStartPage(page);
     setFormPage(page);
+    setRestore(null);
     setActiveModal(kind);
+  }
+
+  // ── Close, fly, stamp (components/timeline/event-landing.ts) ──────────────
+  // A saved event's server id replaces its temporary one mid-landing; keying the
+  // row by the id it was first drawn with keeps React from remounting it under
+  // the stamp.
+  const rowKeys = useRef(new Map<number, number>());
+  const rowKey = (id: number) => rowKeys.current.get(id) ?? id;
+  // A failed add reopens the form exactly as it was typed, the reason on top…
+  const [restore, setRestore] = useState<{ draft: CalendarDraft; failure: FailWhy } | null>(null);
+  // …or, once they've moved on, a toast keeps the way back until it's dismissed.
+  const [failToast, setFailToast] = useState<{ draft: CalendarDraft; failure: FailWhy; leaving?: boolean } | null>(null);
+  function reopenFailed(t: { draft: CalendarDraft; failure: FailWhy }) {
+    setFailToast(prev => prev && { ...prev, leaving: true });
+    setRestore({ draft: t.draft, failure: t.failure });
+    setFormPage(1);
+    setActiveModal("create");
   }
   // A claim or tick from the rail: keep the row and the open rail in step.
   function setEventDetails(id: number, details: EventDetail[]) {
@@ -1833,13 +1894,55 @@ export default function TimelinePage() {
     });
   }
 
+  /** The spine row for an event that just went in, opening the month (or "Earlier")
+   *  that holds it if that's folded. Null when it isn't on the spine at all (another
+   *  filter, the calendar view). */
+  function revealRow(id: number, ev: CalendarEvent): HTMLElement | null {
+    const main = mainRef.current;
+    const row = findRow(main, id);
+    if (row || view !== "timeline" || filterByLayer([ev], activeLayer).length === 0) return row;
+    // On the timeline and through the filter but not drawn: its month is folded.
+    if (isEventOver(ev, new Date())) flushSync(() => setPastOpen(true));
+    else flushSync(() => toggleMonth((ev.date < todayStr ? todayStr : ev.date).slice(0, 7)));
+    return findRow(main, id);
+  }
+  // Below lg the rail is a sheet over the spine, and would cover the landing.
+  const railBesideSpine = () => matchMedia("(min-width: 1024px)").matches;
+
+  /* Add: the dialog closes first and the form flies onto the timeline as the
+     event's own card, then the stamp lands. The request goes out at once; the
+     card is optimistic, and a failure takes it back without losing the draft. */
   function handleCreateEvent(draft: CalendarDraft) {
     const tempId = -Date.now();
     const optimistic: CalendarEvent = { id: tempId, ...draft };
-    setApiEvents(prev => [...prev, optimistic]);
-    setSelectedEvent(optimistic);
-    setActiveModal(null);
-    setCalendarError(null);
+    const main = mainRef.current;
+    // Timeline only: the calendar grid has no spine to land on, so it just closes.
+    const shot = view === "timeline" && main ? shootForm() : null;
+    const before = shot && main ? recordPositions(main) : null;
+    const select = !shot || railBesideSpine();
+    flushSync(() => {
+      setApiEvents(prev => [...prev, optimistic]);
+      if (select) setSelectedEvent(optimistic);
+      setActiveModal(null);
+      setRestore(null);
+      setFailToast(null);
+      setCalendarError(null);
+    });
+    const remove = () => {
+      setApiEvents(prev => prev.filter(e => e.id !== tempId));
+      setSelectedEvent(prev => prev?.id === tempId ? null : prev);
+    };
+    const row = shot ? revealRow(tempId, optimistic) : null;
+    const landing: AddLanding | null = main && shot && before && row ? landNew({
+      main, row, shot, before, date: draft.date, remove,
+      restore: failure => {
+        // Someone already opened another dialog: never pull it out from under them.
+        if (document.querySelector(".ui-modal")) return null;
+        flushSync(() => { setRestore({ draft, failure }); setFormPage(1); setActiveModal("create"); });
+        return formPanel();
+      },
+      toast: failure => setFailToast({ draft, failure }),
+    }) : null;
 
     const isService = draft.category === "service";
     const promise = isService
@@ -1855,12 +1958,25 @@ export default function TimelinePage() {
         });
 
     promise
-      .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); if (draft.rememberDetails !== undefined) loadEventTypes(); })
+      .then(saved => {
+        rowKeys.current.set(saved.id, rowKey(tempId));
+        setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e));
+        setSelectedEvent(prev => prev?.id === tempId ? saved : prev);
+        void refreshChapterData();
+        if (draft.rememberDetails !== undefined) loadEventTypes();
+      })
       .catch(error => {
         console.error(error);
-        setApiEvents(prev => prev.filter(e => e.id !== tempId));
-        setSelectedEvent(null);
-        handleSemesterError(error, setCalendarError, "Calendar event could not be saved. Local changes were reverted.");
+        const resolved = resolveMutationError(error, "The event couldn't be saved. Try again.");
+        // No semester at all: the fix is elsewhere, so go there (as before).
+        if (resolved.goToSemesterSetup) {
+          remove();
+          handleSemesterError(error, setCalendarError, "Calendar event could not be saved. Local changes were reverted.");
+          return;
+        }
+        const failure: FailWhy = { message: resolved.message, ...(apiErrorCode(error) === "DATE_OUTSIDE_SEMESTER" ? { field: "date" as const } : {}) };
+        if (landing) landing.fail(failure);
+        else { remove(); setFailToast({ draft, failure }); }
       });
   }
 
@@ -1869,20 +1985,40 @@ export default function TimelinePage() {
     const previous = apiEvents.find(e => e.id === selectedEvent.id);
     if (!previous) return;
     const optimistic: CalendarEvent = { ...previous, ...draft };
-    setApiEvents(prev => prev.map(e => e.id === previous.id ? optimistic : e));
-    setSelectedEvent(optimistic);
-    setActiveModal(null);
-    setCalendarError(null);
+    const main = mainRef.current;
+    const shot = view === "timeline" && main ? shootForm() : null;
+    const diff = editDiff(previous, optimistic, !!typeMap.get(draft.category)?.detailTemplate?.length, draft.rememberDetails);
+    // Nothing changed: the dialog just closes, and nothing is sent.
+    if (!diff.changed) { closeQuietly(shot); setActiveModal(null); return; }
+    // The form folds back into the row it came from, then the row moves if it must.
+    const oldRow = shot ? findRow(main, previous.id) : null;
+    const before = oldRow && main ? recordPositions(main) : null;
+    const oldTop = oldRow && main ? docTop(main, oldRow) : 0;
+    const keepRail = !oldRow || railBesideSpine();
+    flushSync(() => {
+      setApiEvents(prev => prev.map(e => e.id === previous.id ? optimistic : e));
+      setSelectedEvent(keepRail ? optimistic : null);
+      setActiveModal(null);
+      setCalendarError(null);
+    });
+    const row = oldRow ? revealRow(previous.id, optimistic) : null;
+    if (main && shot && before && row) landEdit({ main, row, shot, before, oldTop, diff: diff.row });
+    else closeQuietly(shot);
     requestJson<CalendarEvent>(`/api/calendar/${previous.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     })
-      .then(saved => { setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); if (draft.rememberDetails !== undefined) loadEventTypes(); })
+      .then(saved => {
+        setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e));
+        setSelectedEvent(prev => prev?.id === previous.id ? saved : prev);
+        void refreshChapterData();
+        if (draft.rememberDetails !== undefined) loadEventTypes();
+      })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.map(e => e.id === previous.id ? previous : e));
-        setSelectedEvent(previous);
+        setSelectedEvent(prev => prev == null || prev.id === previous.id ? previous : prev);
         handleSemesterError(error, setCalendarError, "Calendar event update failed. Local changes were reverted.");
       });
   }
@@ -1962,7 +2098,7 @@ export default function TimelinePage() {
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
-          <div className={`dash dash-timeline${view === "calendar" ? " cal-view" : ""}`} data-dashboard-theme="dusk">
+          <div className={`dash dash-timeline${view === "calendar" ? " cal-view" : ""}${activeModal ? " modal-open" : ""}`} data-dashboard-theme="dusk">
 
             {/* Loading / error banner */}
             {(calendarLoading || calendarError) && (
@@ -2254,7 +2390,7 @@ export default function TimelinePage() {
                       <div className="spine">
                         {group.events.map(e => (
                           <TimelineRow
-                            key={e.id}
+                            key={rowKey(e.id)}
                             event={e}
                             isToday={false}
                             isPast
@@ -2301,7 +2437,7 @@ export default function TimelinePage() {
                         <div className="spine">
                           {group.events.map(e => (
                             <TimelineRow
-                              key={e.id}
+                              key={rowKey(e.id)}
                               event={e}
                               isToday={e.date === todayStr}
                               isPast={false}
@@ -2468,8 +2604,25 @@ export default function TimelinePage() {
 
       {activeModal === "create" && (
         <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={formPage === 2 ? "max-w-[940px]" : "max-w-[740px]"} onClose={() => setActiveModal(null)}>
-          <CalendarEventForm submitLabel="Add event" onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} />
+          <CalendarEventForm key={restore ? "restore" : "new"} submitLabel={restore ? "Try again" : "Add event"} draft={restore?.draft} failure={restore?.failure} onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} />
         </Modal>
+      )}
+      {failToast && (
+        <div
+          className={`tl-fail-toast${failToast.leaving ? " bye" : ""}`}
+          role="alert"
+          onAnimationEnd={e => { if (e.animationName === "tl-toast-out") setFailToast(null); }}
+        >
+          <span className="ic" aria-hidden>!</span>
+          <span className="tx">
+            <b>{failToast.draft.title} wasn&apos;t added</b>
+            <span>{failToast.failure.message} Nothing you typed was lost.</span>
+          </span>
+          <button type="button" className="reopen" onClick={() => reopenFailed(failToast)}>Reopen</button>
+          <button type="button" className="x" aria-label="Dismiss" onClick={() => setFailToast(t => t && { ...t, leaving: true })}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6 6 18" /></svg>
+          </button>
+        </div>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (
         <Modal ariaLabel="Edit calendar event" hideHeader tone="dusk" maxWidthClass={formPage === 2 ? "max-w-[940px]" : "max-w-[740px]"} onClose={() => setActiveModal(null)}>

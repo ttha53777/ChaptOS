@@ -510,6 +510,12 @@
     border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.25); }
   .dash .tl-scrim { display: block; position: fixed; inset: 0; z-index: 71; background: var(--scrim, rgba(0,0,0,.4)); border: 0; }
 }
+/* The sheet sits above the dialog layer (z 50), so an edit opened from it would open
+   underneath. It steps aside while a dialog is up, and comes back when it closes. */
+@media (max-width: 1023px) {
+  .dash.modal-open .tl-rail.has-sel, .dash.modal-open .tl-scrim { visibility: hidden; }
+}
+.dash.cal-view.modal-open .tl-rail.has-sel, .dash.cal-view.modal-open .tl-scrim { visibility: hidden; }
 
 /* ── Small-screen tuning (single-column spine) ───────────────────────────────── */
 @media (max-width: 640px) {

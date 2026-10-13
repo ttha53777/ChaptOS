@@ -10,6 +10,7 @@ import { EventDetailsEditor, type DetailMember } from "./EventDetailsEditor";
 import { DETAIL_ICON, UI_ICON } from "./detail-icons";
 import "./calendar-event-form.css";
 import "./event-details.css";
+import "./event-landing.css";
 
 // `collab` is programming-only (the timeline's calendar events don't carry it); it's
 // optional on the draft and populated solely when the form is rendered with `showCollab`.
@@ -75,6 +76,8 @@ export function CalendarEventForm({
   detailMembers,
   initialPage = 1,
   onPageChange,
+  draft,
+  failure,
 }: {
   /** Small kicker above the title field; defaults to New/Edit calendar event. */
   heading?: string;
@@ -101,29 +104,36 @@ export function CalendarEventForm({
   initialPage?: 1 | 2;
   /** Page 2 is wide; the caller widens its Modal while it shows. */
   onPageChange?: (page: 1 | 2) => void;
+  /** A new event's form exactly as it was submitted — the timeline reopens it this
+   *  way when the save fails, so nothing typed is lost. */
+  draft?: CalendarDraft;
+  /** Why that save failed, shown on top; `field` marks the input at fault. */
+  failure?: { message: string; field?: "date" };
 }) {
   // Default a new event to today, but clamp into the semester so the prefilled
   // date isn't already out of range (string dates compare lexicographically).
   const today = toDateStr(TODAY.year, TODAY.month, TODAY.day);
   const defaultDate = minDate && today < minDate ? minDate : maxDate && today > maxDate ? maxDate : today;
-  const [title, setTitle] = useState(initialEvent?.title ?? "");
-  const [when, setWhen] = useState(() => initialSchedule(initialEvent?.schedule, { date: initialEvent?.date ?? defaultDate, time: initialEvent?.time, isNew: !initialEvent }));
+  // Prefill: the event being edited, else a failed add's draft, else blank.
+  const seed = initialEvent ?? draft;
+  const [title, setTitle] = useState(seed?.title ?? "");
+  const [when, setWhen] = useState(() => initialSchedule(seed?.schedule, { date: seed?.date ?? defaultDate, time: seed?.time, isNew: !initialEvent }));
   const [scheduleError, setScheduleError] = useState("");
-  const initialCategory = initialEvent?.category ?? defaultCategory ?? categoryOptions[0]?.slug ?? "";
+  const initialCategory = seed?.category ?? defaultCategory ?? categoryOptions[0]?.slug ?? "";
   const [category, setCategory] = useState<string>(initialCategory);
   const [mandatory, setMandatory] = useState(
-    initialEvent?.mandatory ?? categoryOptions.find(o => o.slug === initialCategory)?.mandatoryDefault ?? false,
+    seed?.mandatory ?? categoryOptions.find(o => o.slug === initialCategory)?.mandatoryDefault ?? false,
   );
-  const [collab, setCollab] = useState(initialCollab ?? "");
-  const [location, setLocation] = useState(initialEvent?.location ?? "");
-  const [description, setDescription] = useState(initialEvent?.description ?? "");
+  const [collab, setCollab] = useState(initialCollab ?? draft?.collab ?? "");
+  const [location, setLocation] = useState(seed?.location ?? "");
+  const [description, setDescription] = useState(seed?.description ?? "");
   const detailsOn = detailMembers != null;
   const templateOf = (slug: string) => categoryOptions.find(o => o.slug === slug)?.detailTemplate ?? null;
   const [page, setPage] = useState<1 | 2>(detailMembers != null ? initialPage : 1);
-  const [details, setDetails] = useState<EventDetail[]>(() => initialEvent ? (initialEvent.details ?? []) : fromTemplate(templateOf(initialCategory)));
+  const [details, setDetails] = useState<EventDetail[]>(() => seed ? (seed.details ?? []) : fromTemplate(templateOf(initialCategory)));
   // A new event follows its category's template until the officer changes a detail.
-  const [detailsTouched, setDetailsTouched] = useState(!!initialEvent);
-  const [remember, setRemember] = useState(() => !!templateOf(initialCategory)?.length);
+  const [detailsTouched, setDetailsTouched] = useState(!!seed);
+  const [remember, setRemember] = useState(() => draft?.rememberDetails ?? !!templateOf(initialCategory)?.length);
   const [focusDetail, setFocusDetail] = useState<string | null>(null);
   // Which way the last page turn went, so the new page slides in from that side.
   // Null until the first turn: the opening page just arrives with the sheet.
@@ -209,7 +219,7 @@ export function CalendarEventForm({
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className={`cef cef-sheet${detailsOn ? " has-details" : ""}`}
+        className={`cef cef-sheet${detailsOn ? " has-details" : ""}${failure?.field === "date" ? " err-date" : ""}`}
         data-page={page}
         onKeyDown={e => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); formRef.current?.requestSubmit(); return; }
@@ -281,6 +291,12 @@ export function CalendarEventForm({
           autoFocus
           required
         />
+        {failure && (
+          <div className="cef-err-band" role="alert">
+            <span className="ic" aria-hidden>!</span>
+            <div><b>Not added. Nothing was lost.</b><span className="w">{failure.message}</span></div>
+          </div>
+        )}
 
         <div className="cef-rows">
           {/* When — a real start/end is what subscribed calendars can show */}

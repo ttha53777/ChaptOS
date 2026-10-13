@@ -1,0 +1,92 @@
+/* Close, fly, stamp — the timeline's half of _design/Event Add Stamp Mock.html.
+   The choreography is event-landing.ts; these are the pieces it puts on the page. */
+
+/* The form, condensing into the card (it lives on <body>, so nothing here can lean
+   on the page's .dash scope: the title and meta copies carry their styles inline). */
+.tl-flyer {
+  position: fixed; z-index: 60; overflow: hidden; pointer-events: none; box-sizing: border-box;
+  background: var(--card); border: 1.5px solid var(--ink); color: var(--ink);
+}
+.tl-flyer > .k {
+  display: block; white-space: nowrap; color: var(--muted);
+  font: 600 .66rem var(--font-geist-sans), system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase;
+}
+.tl-ghost, .tl-ghost * { animation: none !important; transition: none !important; }
+
+/* The stamp, on the card */
+.dash .tl-card { position: relative; }
+.tl-stamp {
+  position: absolute; right: 16px; top: 50%; z-index: 2; pointer-events: none;
+  display: grid; justify-items: center; gap: 1px; padding: 5px 11px 4px;
+  color: var(--pp-mint-ink); border: 2.5px solid currentColor; border-radius: 7px;
+  outline: 1.5px solid currentColor; outline-offset: 2.5px;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  font: 700 .78rem/1 var(--font-geist-mono), ui-monospace, monospace; letter-spacing: .16em; text-indent: .16em; white-space: nowrap;
+  transform: translateY(-50%) rotate(-8deg);
+}
+.tl-stamp small { font: 600 .54rem var(--font-geist-mono), ui-monospace, monospace; letter-spacing: .14em; text-indent: .14em; opacity: .85; }
+.tl-stamp.small { padding: 4px 9px 3px; border-width: 2px; outline: 0; font-size: .66rem; letter-spacing: .2em; text-indent: .2em; }
+.tl-splat { position: absolute; z-index: 1; border-radius: 50%; background: var(--pp-mint-ink); pointer-events: none; }
+
+/* A ripple off the spine dot */
+.tl-ring {
+  position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  border: 2px solid var(--pcc, var(--catc)); pointer-events: none; opacity: 0;
+}
+
+/* The highlighter across what an edit changed */
+.dash .tl-hl {
+  background-image: linear-gradient(color-mix(in srgb, var(--pp-butter) 90%, transparent), color-mix(in srgb, var(--pp-butter) 90%, transparent));
+  background-repeat: no-repeat; border-radius: 3px; padding: 0 2px; margin: 0 -2px;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+.dash .tl-card .t.tl-hl { display: inline-block; max-width: 100%; vertical-align: top; }
+
+/* A failed add: the reason on the restored form */
+.cef-err-band {
+  display: flex; gap: 10px; align-items: flex-start; margin: 12px 0 2px; padding: 10px 12px; border-radius: 12px;
+  background: var(--pp-rose-soft); border: 1.5px solid var(--pp-rose-ink); color: var(--ink); font-size: .84rem; line-height: 1.4;
+  animation: cef-err-in .45s cubic-bezier(.16,.9,.3,1.02) .1s both;
+}
+.cef-err-band .ic, .tl-fail-toast .ic {
+  width: 22px; height: 22px; flex-shrink: 0; display: grid; place-items: center; border-radius: 7px; transform: rotate(-4deg);
+  background: var(--pp-rose); border: 1.5px solid var(--ink); font: 700 .8rem var(--font-geist-sans), system-ui, sans-serif; color: #26211B;
+}
+.cef-err-band b { display: block; font-weight: 600; }
+.cef-err-band .w { color: var(--ink-soft); font-size: .8rem; }
+@keyframes cef-err-in { from { opacity: 0; transform: translateY(-6px); } }
+/* (specific enough to beat paper-overlays.css's inputs-in-a-modal rule) */
+html[data-aesthetic] .ui-modal-body .cef-sheet.err-date input.sched-date.cef-input { border-color: var(--pp-rose-ink); box-shadow: 2px 2px 0 var(--pp-rose); }
+
+/* …and the toast for a late one. It stays until dismissed: a dialog never pops open
+   on its own after the moment has passed. */
+.tl-fail-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 12px;
+  width: max-content; max-width: min(540px, calc(100vw - 32px)); padding: 11px 10px 11px 14px;
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--pp-rose);
+  transform: translateX(-50%); font: .86rem/1.4 var(--font-geist-sans), system-ui, sans-serif; color: var(--ink);
+  animation: tl-toast-in .42s cubic-bezier(.16,.9,.3,1.02) .3s both;
+}
+.tl-fail-toast.bye { animation: tl-toast-out .2s ease forwards; }
+@keyframes tl-toast-in { from { opacity: 0; transform: translate(-50%, 18px) rotate(-1deg); } }
+@keyframes tl-toast-out { to { opacity: 0; transform: translate(-50%, 12px); } }
+.tl-fail-toast .ic { width: 28px; height: 28px; border-radius: 9px; }
+.tl-fail-toast .tx { min-width: 0; }
+.tl-fail-toast .tx b { display: block; font-weight: 600; }
+.tl-fail-toast .tx span { color: var(--muted); font-size: .78rem; }
+.tl-fail-toast .reopen {
+  display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0; padding: 7px 14px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); font: 600 .8rem var(--font-geist-sans), system-ui, sans-serif;
+  letter-spacing: -.01em; white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--pp-rose);
+  transition: transform .18s cubic-bezier(.16,.9,.3,1.02), box-shadow .18s cubic-bezier(.16,.9,.3,1.02);
+}
+.tl-fail-toast .reopen:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-rose); }
+.tl-fail-toast .x {
+  width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border: 0; background: none; border-radius: 8px;
+  color: var(--muted); cursor: pointer;
+}
+.tl-fail-toast .x:hover { color: var(--ink); background: var(--paper-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cef-err-band, .tl-fail-toast, .tl-fail-toast.bye { animation-duration: .01ms; }
+}
