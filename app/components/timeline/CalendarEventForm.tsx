@@ -125,6 +125,9 @@ export function CalendarEventForm({
   const [detailsTouched, setDetailsTouched] = useState(!!initialEvent);
   const [remember, setRemember] = useState(() => !!templateOf(initialCategory)?.length);
   const [focusDetail, setFocusDetail] = useState<string | null>(null);
+  // Which way the last page turn went, so the new page slides in from that side.
+  // Null until the first turn: the opening page just arrives with the sheet.
+  const [turn, setTurn] = useState<"in-r" | "in-l" | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -146,6 +149,7 @@ export function CalendarEventForm({
   }
 
   function goTo(next: 1 | 2, focus?: string) {
+    if (next !== page) setTurn(next > page ? "in-r" : "in-l");
     setPage(next);
     setFocusDetail(focus ?? null);
     onPageChange?.(next);
@@ -213,21 +217,19 @@ export function CalendarEventForm({
           if (e.key === "Escape" && page === 2) { e.preventDefault(); e.stopPropagation(); goTo(1); }
         }}
       >
-        {detailsOn ? (
+        {detailsOn && (
           <div className="cef-tabs" role="tablist" aria-label="Event pages">
             <button type="button" role="tab" aria-selected={page === 1} onClick={() => goTo(1)}>
-              {UI_ICON.cal}{heading ?? (initialEvent ? "Edit event" : "New event")}
+              {UI_ICON.cal}Event
             </button>
             <button type="button" role="tab" aria-selected={page === 2} onClick={() => goTo(2)}>
               {UI_ICON.pages}More details{details.length > 0 && <span className="n">{details.length}</span>}
             </button>
           </div>
-        ) : (
-          <div className="cef-head"><span className="cef-kicker">{heading ?? (initialEvent ? "Edit calendar event" : "New calendar event")}</span></div>
         )}
 
         {page === 2 ? (
-          <div className="cef-p2">
+          <div key="p2" className={`cef-p2 cef-page${turn ? ` ${turn}` : ""}`}>
             <header className="cef-p2-head">
               <button type="button" className="cef-back" aria-label="Back to event" onClick={() => goTo(1)}>{UI_ICON.back}</button>
               <div className="t">
@@ -266,7 +268,8 @@ export function CalendarEventForm({
               </div>
             </div>
           </div>
-        ) : (<>
+        ) : (<div key="p1" className={`cef-p1 cef-page${turn ? ` ${turn}` : ""}`}>
+        <div className="cef-head"><span className="cef-kicker">{heading ?? (initialEvent ? "Edit calendar event" : "New calendar event")}</span></div>
         <label className="sr-only" htmlFor="event-title">Title</label>
         <input
           id="event-title"
@@ -389,7 +392,7 @@ export function CalendarEventForm({
         </div>
 
         {foot}
-        </>)}
+        </div>)}
       </form>
     </div>
   );

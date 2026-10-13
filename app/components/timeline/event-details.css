@@ -472,8 +472,85 @@ textarea.edt-inp { min-height: 64px; resize: vertical; line-height: 1.5; }
 .ev > .evd-add:hover { border-style: solid; border-color: var(--ink); color: var(--ink); }
 .ev > .evd-add small { margin-left: auto; font-weight: 400; color: var(--muted); }
 
+/* a removed detail slides off the page before it leaves the list */
+.edt-fld.bye { animation: edt-bye .28s ease-in forwards; pointer-events: none; }
+@keyframes edt-bye { to { opacity: 0; transform: translateX(30px) rotate(3deg) scale(.96); } }
+
+/* ── Paper: the form's shell, as the mock's .deck ─────────────────────────────
+   Folder tabs stand up out of the panel's top edge, the panel's hard shadow is
+   lilac on the event and butter on its details, the dialog springs wider for
+   page 2 with a second sheet tucked under it, and each page turn slides in from
+   the side it came from. Scoped to the form with the details page on; the
+   panel, scrim and body belong to the shared <Modal>, hence the :has(). */
+html[data-aesthetic="paper"] .ui-modal:has(.cef-sheet.has-details) .ui-modal-scrim { z-index: -2; }
+html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details) {
+  --acc: var(--pp-lilac);
+  max-width: 660px; margin-top: 40px; max-height: calc(100dvh - 2rem - 40px);
+  /* fill "backwards" only, so the panel isn't left a stacking context and the
+     under-sheet below can sit behind it */
+  animation-fill-mode: backwards;
+  transition: max-width .5s var(--pp-ease-spring), height .5s var(--pp-ease-spring), box-shadow .4s;
+}
+html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details[data-page="2"]) {
+  --acc: var(--pp-butter);
+  max-width: 940px; height: min(calc(100dvh - 2rem - 40px), 820px);
+}
+/* the sheet underneath, so page 2 reads as a page laid on top of page 1 */
+html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details[data-page="2"])::before {
+  content: ""; position: absolute; inset: 44px -7px -7px 7px; z-index: -1; border-radius: 22px; pointer-events: none;
+  background: var(--paper-2); border: 1.5px solid var(--line-med); transform: rotate(.9deg);
+  animation: cef-under-in .3s ease .3s both;
+}
+@keyframes cef-under-in { from { opacity: 0; } }
+
+/* folder tabs: out of the panel's top edge, the open one joined to it */
+html[data-aesthetic="paper"] .cef-tabs {
+  position: absolute; left: 22px; bottom: 100%; z-index: 2; margin: 0; border: 0;
+  display: flex; align-items: flex-end; gap: 4px;
+}
+html[data-aesthetic="paper"] .cef-tabs button {
+  margin: 0; gap: 8px; padding: 8px 16px 9px; border: 1.5px solid var(--ink); border-bottom: 0; border-radius: 13px 13px 0 0;
+  background: var(--paper-2); color: var(--muted); font: 600 .8rem var(--font-geist-sans); letter-spacing: -.005em;
+  /* a closed tab tucks 4px behind the panel's edge: clipped there, so the
+     panel's own ink border stays drawn across its foot */
+  transform: translateY(4px); clip-path: inset(-12px -12px 5.5px -12px);
+  transition: transform .25s var(--pp-ease-spring), clip-path .25s var(--pp-ease-spring), background .2s, color .2s;
+}
+html[data-aesthetic="paper"] .cef-tabs button:hover { transform: translateY(1px); clip-path: inset(-12px -12px 2.5px -12px); color: var(--ink); }
+html[data-aesthetic="paper"] .cef-tabs button[aria-selected="true"] { background: var(--card); color: var(--ink); border-bottom: 0; transform: none; clip-path: inset(-12px -12px 0 -12px); }
+html[data-aesthetic="paper"] .cef-tabs .n { color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"][data-theme="dusk"] .cef-tabs .n { color: #26211B; }
+
+/* page turns */
+.cef-page.in-r { animation: cef-in-r .42s var(--ed-spring) both; }
+.cef-page.in-l { animation: cef-in-l .42s var(--ed-spring) both; }
+@keyframes cef-in-r { from { opacity: 0; transform: translateX(46px) rotate(.6deg); } }
+@keyframes cef-in-l { from { opacity: 0; transform: translateX(-46px) rotate(-.6deg); } }
+
+/* page 2 takes the room that's left; the drawer and the page scroll inside it */
+html[data-aesthetic="paper"] .ui-modal-body:has(> .cef-root > .cef-sheet[data-page="2"]) { display: flex; flex-direction: column; flex: 1 1 auto; overflow: hidden; padding-top: 14px; }
+html[data-aesthetic="paper"] .ui-modal-body > .cef-root:has(> .cef-sheet[data-page="2"]),
+html[data-aesthetic="paper"] .cef-sheet[data-page="2"],
+html[data-aesthetic="paper"] .cef-sheet[data-page="2"] .cef-p2,
+html[data-aesthetic="paper"] .cef-sheet[data-page="2"] .edt { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+html[data-aesthetic="paper"] .cef-sheet[data-page="2"] .edt { display: grid; }
+html[data-aesthetic="paper"] .cef-sheet[data-page="2"] :is(.edt-drawer, .edt-sheet) { overflow-y: auto; overscroll-behavior: contain; }
+html[data-aesthetic="paper"] .cef-sheet[data-page="2"] .cef-foot { flex-shrink: 0; }
+html[data-aesthetic="paper"] .cef-p2-head { padding: 0 40px 12px 0; }
+html[data-aesthetic="paper"] .cef-sheet.has-details .cef-kicker { display: block; font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .cef-p2-head h2 { font-weight: 650; }
+
+@media (max-width: 760px) {
+  html[data-aesthetic="paper"] .cef-tabs { left: 14px; }
+  html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details[data-page="2"]) { height: calc(100dvh - 2rem - 40px); }
+  html[data-aesthetic="paper"] .cef-sheet[data-page="2"] .edt { grid-template-rows: auto minmax(0,1fr); }
+  html[data-aesthetic="paper"] .cef-sheet[data-page="2"] .edt-drawer { overflow: visible; }
+  html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details[data-page="2"])::before { inset: 44px 0 -6px 4px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .edt-fld.fresh, .edt-fld-b, .evd-bring .ln.mine .by { animation: none; }
+  .edt-fld.fresh, .edt-fld-b, .edt-fld.bye, .cef-page, .evd-bring .ln.mine .by { animation: none; }
+  html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details)::before { animation: none; }
 }
 
 /* ── Spine row + idle rail: a hint that an event carries details ──────────── */

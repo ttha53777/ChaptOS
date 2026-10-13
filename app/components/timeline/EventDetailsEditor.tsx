@@ -37,6 +37,8 @@ export function EventDetailsEditor({ details, onChange, category, categoryLabel,
   const [drag, setDrag] = useState<{ add?: DetailType; move?: string } | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [grabbed, setGrabbed] = useState<string | null>(null);
+  // A removed detail slides off the page first; it leaves the list when that ends.
+  const [leaving, setLeaving] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const full = details.length >= MAX_EVENT_DETAILS;
   const nameOf = (id: number) => members.find(m => m.id === id)?.name;
@@ -74,8 +76,11 @@ export function EventDetailsEditor({ details, onChange, category, categoryLabel,
     setFresh(d.id);
   }
   function remove(id: string) {
-    onChange(details.filter(d => d.id !== id));
-    if (open === id) setOpen(null);
+    if (leaving) return;
+    const gone = () => { setLeaving(null); onChange(details.filter(d => d.id !== id)); if (open === id) setOpen(null); };
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return gone();
+    setLeaving(id);
+    setTimeout(gone, 280);
   }
   function move(id: string, by: number) {
     const i = details.findIndex(d => d.id === id), j = i + by;
@@ -186,7 +191,7 @@ export function EventDetailsEditor({ details, onChange, category, categoryLabel,
                 {dropAt === i && <div className="edt-drop" />}
                 <Field
                   d={d} set={set} index={i} last={details.length - 1}
-                  open={open === d.id} fresh={fresh === d.id} dragging={drag?.move === d.id}
+                  open={open === d.id} fresh={fresh === d.id} bye={leaving === d.id} dragging={drag?.move === d.id}
                   draggable={grabbed === d.id}
                   summary={detailSummary(d, nameOf)}
                   onToggle={() => setOpen(o => o === d.id ? null : d.id)}
@@ -209,8 +214,8 @@ export function EventDetailsEditor({ details, onChange, category, categoryLabel,
   );
 }
 
-function Field({ d, set, index, last, open, fresh, dragging, draggable, summary, onToggle, onOpen, onRemove, onMove, onGrab, onDragStart, onDragEnd, children }: {
-  d: EventDetail; set: (d: EventDetail) => void; index: number; last: number; open: boolean; fresh: boolean; dragging: boolean; draggable: boolean;
+function Field({ d, set, index, last, open, fresh, bye, dragging, draggable, summary, onToggle, onOpen, onRemove, onMove, onGrab, onDragStart, onDragEnd, children }: {
+  d: EventDetail; set: (d: EventDetail) => void; index: number; last: number; open: boolean; fresh: boolean; bye: boolean; dragging: boolean; draggable: boolean;
   summary: string | null;
   onToggle: () => void; onOpen: () => void; onRemove: () => void; onMove: (by: number) => void; onGrab: () => void;
   onDragStart: (e: React.DragEvent) => void; onDragEnd: () => void;
@@ -221,7 +226,7 @@ function Field({ d, set, index, last, open, fresh, dragging, draggable, summary,
   const note = d.type === "custom" ? (summary && d.label.trim() ? summary.slice(d.label.trim().length).replace(/^:\s*/, "") : "") : (summary ?? "Not filled in yet");
   return (
     <article
-      className={`edt-fld${open ? " open" : ""}${fresh ? " fresh" : ""}${dragging ? " dragging" : ""}`}
+      className={`edt-fld${open ? " open" : ""}${fresh ? " fresh" : ""}${bye ? " bye" : ""}${dragging ? " dragging" : ""}`}
       data-hue={k.hue}
       data-detail={d.id}
       draggable={draggable}
