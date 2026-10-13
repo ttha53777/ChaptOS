@@ -20,6 +20,7 @@ import { PostDemo } from "../demos";
 import { layoutPost } from "../layout-post";
 import { MinutesArt } from "../PostArt";
 import { PostRail } from "../PostRail";
+import { tagAccent } from "../tags";
 import { APP_NAME } from "@/lib/domains";
 
 const initials = (name: string) =>
@@ -131,7 +132,7 @@ export default async function BlogPostPage({
                       <b>{post.author}</b>
                     </div>
                     {post.tags.length > 0 && (
-                      <ul className="bl__tags">{post.tags.map(t => <li key={t} className="bl__tag">{t}</li>)}</ul>
+                      <ul className="bl__tags">{post.tags.map(t => <li key={t} className="bl__tag" data-accent={tagAccent(t)}>{t}</li>)}</ul>
                     )}
                   </footer>
                 )}

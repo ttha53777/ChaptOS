@@ -32,13 +32,23 @@
   text-transform:uppercase; color:var(--ink-3);
 }
 .lp .bl__topic{
-  display:inline-flex; align-items:center; gap:7px; padding:4px 6px 4px 12px;
-  border-radius:var(--r-pill); font-size:.82rem; font-weight:600; color:var(--ink);
-  background:var(--ac-soft); border:1.5px solid var(--ac);
+  position:relative; display:inline-flex; align-items:center; gap:9px;
+  padding:5px 6px 5px 26px; border-radius:var(--r-pill) 9px 9px var(--r-pill);
+  font-size:.86rem; font-weight:600; color:var(--ink);
+  background:var(--ac); border:1.5px solid var(--ink); box-shadow:2.5px 2.5px 0 var(--ink);
+  transform:rotate(-1.2deg);
+}
+.lp .bl__topic:nth-of-type(even){transform:rotate(1deg)}
+/* the punched hole of a luggage tag */
+.lp .bl__topic::before{
+  content:''; position:absolute; left:9px; top:50%; width:8px; height:8px; margin-top:-4px;
+  border-radius:50%; background:var(--paper); border:1.5px solid var(--ink);
 }
 .lp .bl__topic b{
-  min-width:20px; padding:1px 6px; border-radius:var(--r-pill); text-align:center;
-  font:600 .7rem/1.5 var(--mono); color:var(--ac-ink); background:var(--card);
+  min-width:22px; height:22px; padding:0 6px; border-radius:6px;
+  display:grid; place-items:center;
+  font:600 .72rem/1 var(--mono); color:var(--ink); background:var(--card);
+  border:1.5px solid var(--ink);
 }
 
 /* the desk: an RSS ticket, a sticky note, two doodles */
@@ -236,7 +246,6 @@
   padding:14px 24px 20px;
 }
 .lp .bl__card .bl__tags{margin:0}
-.lp .bl__card .bl__tag{background:var(--card)}
 .lp .bl__cardgo{
   flex:none; margin-left:auto; display:inline-flex; align-items:center; gap:6px;
   font-size:.86rem; font-weight:600; color:var(--ac-ink);
@@ -292,10 +301,19 @@
 .lp .bl__meta > .bl__draft{margin-left:2px}
 
 .lp .bl__tags{margin-top:14px; display:flex; flex-wrap:wrap; gap:6px}
+/* A tag is a small luggage label in its own colour (tags.ts): rounded at the
+   punched end, squared at the other, the name in mono. */
 .lp .bl__tag{
-  padding:3px 10px; border-radius:var(--r-pill);
-  font-size:.76rem; font-weight:600; color:var(--ink-2);
-  background:var(--paper-2); border:1px solid var(--line);
+  position:relative; display:inline-flex; align-items:center;
+  padding:3px 10px 3px 20px; border-radius:var(--r-pill) 6px 6px var(--r-pill);
+  font:600 .72rem/1.4 var(--mono); letter-spacing:.02em; color:var(--ac-ink, var(--ink-2));
+  background:var(--ac-soft, var(--paper-2));
+  border:1.5px solid color-mix(in srgb, var(--ac-ink, var(--ink-3)) 40%, transparent);
+}
+.lp .bl__tag::before{
+  content:''; position:absolute; left:7px; top:50%; width:6px; height:6px; margin-top:-3px;
+  border-radius:50%; background:var(--paper);
+  border:1.5px solid color-mix(in srgb, var(--ac-ink, var(--ink-3)) 55%, transparent);
 }
 
 /* ---------- 3. post prose -------------------------------------------------- */

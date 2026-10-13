@@ -16,6 +16,7 @@ import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
 import { CoverArt } from "./PostArt";
 import { formatDate, getPosts } from "./posts";
+import { tagAccent } from "./tags";
 import { APP_NAME } from "@/lib/domains";
 
 export const metadata: Metadata = {
@@ -65,8 +66,8 @@ export default function BlogIndexPage() {
               {topics.length > 0 && (
                 <div className="bl__filed">
                   <span className="k">Filed under</span>
-                  {topics.map(([t, n], i) => (
-                    <span key={t} className="bl__topic" data-accent={ACCENTS[i % ACCENTS.length]}>
+                  {topics.map(([t, n]) => (
+                    <span key={t} className="bl__topic" data-accent={tagAccent(t)}>
                       {t}
                       <b>{n}</b>
                     </span>
@@ -120,7 +121,7 @@ export default function BlogIndexPage() {
                     {lead.tags.length > 0 && (
                       <span className="bl__tags">
                         {lead.tags.map(t => (
-                          <span key={t} className="bl__tag">{t}</span>
+                          <span key={t} className="bl__tag" data-accent={tagAccent(t)}>{t}</span>
                         ))}
                       </span>
                     )}
@@ -169,7 +170,7 @@ export default function BlogIndexPage() {
                               {p.tags.length > 0 && (
                                 <span className="bl__tags">
                                   {p.tags.map(t => (
-                                    <span key={t} className="bl__tag">{t}</span>
+                                    <span key={t} className="bl__tag" data-accent={tagAccent(t)}>{t}</span>
                                   ))}
                                 </span>
                               )}
