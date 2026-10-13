@@ -4,7 +4,6 @@ date: 2026-10-12
 summary: Run the agenda, take minutes together, and leave with clear next steps.
 tags: [product, meetings]
 author: Thalha Thabish
-draft: true
 ---
 
 A good chapter meeting should make the week ahead easier. The budget gets approved. Someone takes responsibility for booking the venue. Members leave knowing what happens next.
