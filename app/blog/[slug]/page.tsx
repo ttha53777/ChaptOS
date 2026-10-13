@@ -16,7 +16,14 @@ import { landingFontClass } from "../../components/landing/fonts";
 import { PublicNav } from "../../components/landing/PublicChrome";
 import { Footer } from "../../components/landing/sections/Footer";
 import { formatDate, getPost, getPosts } from "../posts";
+import { PostDemo } from "../demos";
+import { layoutPost } from "../layout-post";
+import { MinutesArt } from "../PostArt";
+import { PostRail } from "../PostRail";
 import { APP_NAME } from "@/lib/domains";
+
+const initials = (name: string) =>
+  name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join("");
 
 export function generateStaticParams() {
   return getPosts().map(p => ({ slug: p.slug }));
@@ -59,6 +66,7 @@ export default async function BlogPostPage({
   const i = posts.findIndex(p => p.slug === post.slug);
   const newer = i > 0 ? posts[i - 1] : null;
   const older = i < posts.length - 1 ? posts[i + 1] : null;
+  const { parts, toc } = layoutPost(post.html);
 
   return (
     <div className={`lp pub bl bl--post ${landingFontClass}`}>
@@ -68,8 +76,8 @@ export default async function BlogPostPage({
 
       <main id="top">
         <article>
-          <section className="pub__hero">
-            <div className="wrap">
+          <section className="pub__hero bl__hero">
+            <div className="wrap bl__herogrid">
               <div className="pub__head">
                 <nav className="pub__crumbs" aria-label="Breadcrumb">
                   <a href="/blog">Blog</a>
@@ -77,19 +85,57 @@ export default async function BlogPostPage({
                 </nav>
                 <h1>{post.title}</h1>
                 <p className="lede">{post.summary}</p>
-                <p className="bl__meta bl__meta--post">
-                  <time dateTime={post.date}>{formatDate(post.date)}</time>
-                  {post.author && <span>{post.author}</span>}
-                  <span>{`${post.readingMinutes} min read`}</span>
-                  {post.draft && <span className="bl__draft">Draft — only visible in dev</span>}
-                </p>
+                <div className="bl__by">
+                  {post.author && <span className="bl__av" aria-hidden>{initials(post.author)}</span>}
+                  <div>
+                    {post.author && <b>{post.author}</b>}
+                    <p className="bl__meta">
+                      <time dateTime={post.date}>{formatDate(post.date)}</time>
+                      <span>{`${post.readingMinutes} min read`}</span>
+                      {post.draft && <span className="bl__draft">Draft — only visible in dev</span>}
+                    </p>
+                  </div>
+                </div>
               </div>
+              {post.tags.includes("meetings") && <MinutesArt />}
             </div>
           </section>
 
           <section className="bl__artwrap">
             <div className="wrap">
-              <div className="bl__prose" dangerouslySetInnerHTML={{ __html: post.html }} />
+              <div className="bl__body">
+                <PostRail toc={toc} />
+                {parts.map((part, i) => part.kind === "stage" ? (
+                  <section key={i} className="bl__stage" data-accent={part.accent}>
+                    {part.cue && (
+                      <div className="bl__cue">
+                        <span className="bl__try"><Doodle id="pencil" size={14} viewBox="0 0 24 24" />Try it</span>
+                        <p dangerouslySetInnerHTML={{ __html: part.cue }} />
+                      </div>
+                    )}
+                    <div className="bl__demo"><PostDemo name={part.demo} /></div>
+                  </section>
+                ) : (
+                  <div
+                    key={i}
+                    className={`bl__prose${part.intro ? " bl__prose--intro" : ""}`}
+                    data-accent={part.accent}
+                    dangerouslySetInnerHTML={{ __html: part.html }}
+                  />
+                ))}
+                {post.author && (
+                  <footer className="bl__sign">
+                    <span className="bl__av" aria-hidden>{initials(post.author)}</span>
+                    <div>
+                      <span className="k">Written by</span>
+                      <b>{post.author}</b>
+                    </div>
+                    {post.tags.length > 0 && (
+                      <ul className="bl__tags">{post.tags.map(t => <li key={t} className="bl__tag">{t}</li>)}</ul>
+                    )}
+                  </footer>
+                )}
+              </div>
             </div>
           </section>
         </article>
