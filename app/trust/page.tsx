@@ -18,8 +18,7 @@ import "./trust.css";
 import { Doodle, sx } from "../components/landing/Doodle";
 import { DoodleSprite } from "../components/landing/DoodleSprite";
 import { landingFontClass } from "../components/landing/fonts";
-import { BrandMark } from "../components/landing/DoodleSprite";
-import { SignInLink } from "../components/landing/SignInLink";
+import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
 import { APP_NAME } from "@/lib/domains";
 
@@ -76,28 +75,7 @@ export default function TrustPage() {
     <div className={`lp tp ${landingFontClass}`}>
       <DoodleSprite />
 
-      <header className="nav">
-        <div className="wrap nav__in">
-          <a className="brand" href="/">
-            <BrandMark />
-            {APP_NAME}
-          </a>
-          <nav className="nav__links">
-            <a href="/#ask">Just ask</a>
-            <a href="/blog">Blog</a>
-            <a href="/for">Who it&apos;s for</a>
-            <a href="/pricing">Pricing</a>
-            <a href="/help">Help</a>
-          </nav>
-          <div className="nav__cta">
-            <SignInLink className="btn btn--ghost btn--sm">Sign in</SignInLink>
-            <a className="btn btn--sm" href="/create">
-              <span className="nav__long">Set up your org</span>
-              <span className="nav__short">Set up</span>
-            </a>
-          </div>
-        </div>
-      </header>
+      <PublicNav />
 
       <main id="top">
         {/* ── header + the short version ─────────────────────────────────── */}

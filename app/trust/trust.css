@@ -15,12 +15,11 @@
         never mounts it, so it must never carry those hooks — nothing here fades,
         pins, or parallaxes. That's also the brief: a page someone reads under
         pressure should not animate.
-     2. THE NAV IS PERMANENTLY "STUCK". `.lp .nav.is-stuck` is normally applied by
-        LandingMotion on scroll. Without it a sticky-but-transparent bar would let
-        text scroll underneath it, so §1 below bakes the stuck treatment in.
+     2. THE NAV is the shared <PublicNav>, which drives its own scrolled
+        `.is-stuck` state (see NavStick), so it matches the landing page.
 
    Structure
-     1. nav (always-stuck variant)
+     1. nav
      2. hero + the short version
      3. reading layout + sticky contents rail
      4. prose (headings, paragraphs, lists, links)
@@ -28,22 +27,12 @@
      6. responsive
    ========================================================================== */
 
-/* Height of the always-stuck nav. Drives both the contents rail's sticky offset
+/* Height of the scrolled (stuck) nav. Drives both the contents rail's sticky offset
    and every heading's scroll-margin, so an anchor jump can't land a heading
    underneath the bar. */
 .lp.tp{--tp-nav-h:68px}
 
-/* ---------- 1. nav (always-stuck variant) --------------------------------- */
-/* Mirrors .lp .nav.is-stuck from landing.css. Not written as a shared class
-   because the landing page transitions INTO this state and this page is born in
-   it — no transition, so nothing to share. */
-.lp.tp .nav{
-  padding:9px 0;
-  background:rgba(255,252,246,.86);
-  backdrop-filter:blur(14px) saturate(1.3);
-  border-bottom-color:var(--line);
-  box-shadow:0 6px 22px -18px rgba(38,33,27,.5);
-}
+/* ---------- 1. nav (the shared <PublicNav>) ---------------------------------- */
 /* The current page in the nav: readable as "you are here" without a link's
    affordance. */
 .lp.tp .nav__links .is-here{color:var(--ink); background:var(--paper-3); font-weight:600}
