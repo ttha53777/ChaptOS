@@ -1,6 +1,7 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { parseEventDetails, type EventDetail } from "@/lib/event-details";
 import type { CreateEventTypeInput, UpdateEventTypeInput } from "@/lib/validation/event-types";
 
 const MAX_EVENT_TYPES_PER_ORG = 40;
@@ -18,6 +19,8 @@ export interface CalendarEventTypeDTO {
   hidden: boolean;
   mandatoryDefault: boolean;
   displayOrder: number;
+  /** Blank details a new event of this type opens with; null when none are remembered. */
+  detailTemplate: EventDetail[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,8 +34,9 @@ function requireAdmin(ctx: RequestContext) {
 function toDTO(row: {
   id: number; organizationId: number; slug: string; label: string; color: string;
   colorDark: string | null; workflowId: string | null; builtin: boolean; creatable: boolean;
-  hidden: boolean; mandatoryDefault: boolean; displayOrder: number; createdAt: Date; updatedAt: Date;
+  hidden: boolean; mandatoryDefault: boolean; displayOrder: number; detailTemplate: unknown; createdAt: Date; updatedAt: Date;
 }): CalendarEventTypeDTO {
+  const template = parseEventDetails(row.detailTemplate);
   return {
     id:               row.id,
     organizationId:   row.organizationId,
@@ -46,6 +50,7 @@ function toDTO(row: {
     hidden:           row.hidden,
     mandatoryDefault: row.mandatoryDefault,
     displayOrder:     row.displayOrder,
+    detailTemplate:   template.length ? template : null,
     createdAt:        row.createdAt.toISOString(),
     updatedAt:        row.updatedAt.toISOString(),
   };

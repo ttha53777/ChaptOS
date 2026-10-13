@@ -9,7 +9,9 @@ import React, { useState, useMemo, useEffect, useRef, useContext } from "react";
 import { Sidebar } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { MemberSpotlight } from "../../components/members/MemberSpotlight";
-import { CalendarEvent, CalEventType, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, taskAssigneeLabel } from "../../data";
+import { CalendarEvent, CalEventType, CalLayer, Task, InstagramTask, fmtDate, fmtRange, isoWeekBounds, roleTitle, taskAssigneeLabel } from "../../data";
+import { DetailChips, DetailFacts, DetailSections, DetailStack, DirectionsNote, detailChips, hasDetailFacts } from "../../components/timeline/EventDetailsRail";
+import type { EventDetail } from "@/lib/event-details";
 import { isEventTypeVisibleInPicker } from "../../../lib/event-types";
 import { CalendarCategory } from "../../../lib/state/calendar-category";
 import { useChapter } from "../../context/ChapterContext";
@@ -414,6 +416,7 @@ function TimelineRow({
               {owner && <span className="owner pp-only">{owner}</span>}
             </div>
           </div>
+          <DetailStack details={event.details ?? []} />
           <span className="when">{when}</span>
           <svg className="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" />
@@ -721,6 +724,8 @@ function EventDetail({
   myExcuse,
   onExcuseSubmitted,
   onOpenMember,
+  onEditDetails,
+  onDetailsChange,
 }: {
   event: CalendarEvent;
   onClose: () => void;
@@ -751,6 +756,10 @@ function EventDetail({
   onExcuseSubmitted: () => void;
   /** Open a member's card from an attendance name. */
   onOpenMember: (brotherId: number) => void;
+  /** Officers: open the edit form on its More-details page. */
+  onEditDetails?: () => void;
+  /** A claim / tick from the rail changed this event's details. */
+  onDetailsChange: (details: EventDetail[]) => void;
 }) {
   const isDeadline = event.category === "deadline";
   const isMeeting  = isMeetingEvent(event);
@@ -760,6 +769,8 @@ function EventDetail({
   const isPast     = isEventOver(event, now);
   const [, mo, d]  = event.date.split("-").map(Number);
   const types      = useEventTypes();
+  const { brotherList: roster } = useChapter();
+  const details    = event.details ?? [];
 
   const [attDetail,     setAttDetail]     = useState<AttendanceDetail | null>(null);
   const [attLoading,    setAttLoading]    = useState(false);
@@ -908,10 +919,13 @@ function EventDetail({
       {/* Meta. A meeting's description is its minutes, which get their own block
           below (summarized when the user asked for a summary) rather than being
           crammed into a one-line meta row. */}
-      {(formatEventTime(event.time, event.schedule) || event.location || (event.description && !isMeeting) || isDeadline) && (
+      {(formatEventTime(event.time, event.schedule) || event.location || (event.description && !isMeeting) || isDeadline || hasDetailFacts(details)) && (
         <div className="ev-meta">
           {formatEventTime(event.time, event.schedule) && <div className="ev-meta-row"><span className="lab">Time</span>{formatEventTime(event.time, event.schedule)}</div>}
-          {event.location && <div className="ev-meta-row"><span className="lab">Where</span>{event.location}</div>}
+          {(event.location || details.some(d => d.type === "directions")) && (
+            <div className="ev-meta-row"><span className="lab">Where</span><span>{event.location}<DirectionsNote details={details} /></span></div>
+          )}
+          <DetailFacts details={details} />
           {event.description && !isMeeting && <div className="ev-meta-row">{event.description}</div>}
           {isDeadline && !isComplete && (
             <div className={`ev-meta-row ddl${isPast ? " over" : ""}`}>
@@ -922,6 +936,16 @@ function EventDetail({
       )}
 
       {isMeeting && <MeetingNotes event={event} />}
+
+      <DetailSections
+        eventId={event.id}
+        details={details}
+        canManage={canEdit}
+        selfId={selfBrotherId}
+        brothers={roster}
+        onChange={onDetailsChange}
+        onOpenMember={onOpenMember}
+      />
 
       {/* Programming-backed events live in the Programming pipeline — jump there. */}
       {onOpenParty && (
@@ -939,6 +963,13 @@ function EventDetail({
       )}
 
       {exportable && !isDeadline && <AddThisEvent eventId={event.id} onSubscribe={onSubscribe} />}
+
+      {onEditDetails && details.length === 0 && (
+        <button type="button" className="evd-add" onClick={onEditDetails}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+          Add details<small>checklist, contact, links…</small>
+        </button>
+      )}
 
       {/* Instagram posts that promote this event (set from the Instagram page). */}
       {linkedPosts && linkedPosts.length > 0 && (
@@ -1346,11 +1377,27 @@ export default function TimelinePage() {
   }, []);
 
   // Per-org event types drive the timeline's labels/colors/legend + the picker.
-  useEffect(() => {
+  const loadEventTypes = React.useCallback(() => {
     requestJson<CalEventType[]>("/api/calendar/event-types")
       .then(setEventTypes)
       .catch(() => {});
   }, []);
+  useEffect(() => { loadEventTypes(); }, [loadEventTypes]);
+
+  // "More details" pickers choose from the roster; the form's page 2 is wider.
+  const detailMembers = useMemo(() => brotherList.map(b => ({ id: b.id, name: b.name, title: roleTitle(b) })), [brotherList]);
+  const [formPage, setFormPage] = useState<1 | 2>(1);
+  const [editStartPage, setEditStartPage] = useState<1 | 2>(1);
+  function openEventModal(kind: "create" | "edit", page: 1 | 2 = 1) {
+    setEditStartPage(page);
+    setFormPage(page);
+    setActiveModal(kind);
+  }
+  // A claim or tick from the rail: keep the row and the open rail in step.
+  function setEventDetails(id: number, details: EventDetail[]) {
+    setApiEvents(prev => prev.map(e => e.id === id ? { ...e, details } : e));
+    setSelectedEvent(prev => prev && prev.id === id ? { ...prev, details } : prev);
+  }
 
   const enabledWorkflows = currentUser?.org?.enabledWorkflows ?? [];
   const typeMap = useMemo(() => new Map(eventTypes.map(t => [t.slug, t])), [eventTypes]);
@@ -1367,7 +1414,7 @@ export default function TimelinePage() {
     () => eventTypes
       .filter(t => isEventTypeVisibleInPicker(t, enabledWorkflows))
       .sort((a, b) => a.displayOrder - b.displayOrder)
-      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
+      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault, detailTemplate: t.detailTemplate ?? null })),
     [eventTypes, enabledWorkflows],
   );
   // When editing, keep the event's own category selectable even if it's now
@@ -1375,12 +1422,12 @@ export default function TimelinePage() {
   const editCategoryOptions = useMemo<CategoryOption[]>(() => {
     if (selectedEvent?.partyEventId != null) {
       const t = typeMap.get("party");
-      return [{ slug: "party", label: t?.label ?? "Party", color: t?.colorDark ?? t?.color, mandatoryDefault: false }];
+      return [{ slug: "party", label: t?.label ?? "Party", color: t?.colorDark ?? t?.color, mandatoryDefault: false, detailTemplate: t?.detailTemplate ?? null }];
     }
     if (!selectedEvent || categoryOptions.some(o => o.slug === selectedEvent.category)) return categoryOptions;
     const t = typeMap.get(selectedEvent.category);
     return t
-      ? [...categoryOptions, { slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault }]
+      ? [...categoryOptions, { slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault, detailTemplate: t.detailTemplate ?? null }]
       : categoryOptions;
   }, [categoryOptions, selectedEvent, typeMap]);
 
@@ -1808,7 +1855,7 @@ export default function TimelinePage() {
         });
 
     promise
-      .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); })
+      .then(saved => { setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); if (draft.rememberDetails !== undefined) loadEventTypes(); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.filter(e => e.id !== tempId));
@@ -1831,7 +1878,7 @@ export default function TimelinePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     })
-      .then(saved => { setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); })
+      .then(saved => { setApiEvents(prev => prev.map(e => e.id === previous.id ? saved : e)); setSelectedEvent(saved); void refreshChapterData(); if (draft.rememberDetails !== undefined) loadEventTypes(); })
       .catch(error => {
         console.error(error);
         setApiEvents(prev => prev.map(e => e.id === previous.id ? previous : e));
@@ -1903,7 +1950,7 @@ export default function TimelinePage() {
           </button>
 
           <button
-            onClick={() => setActiveModal("create")}
+            onClick={() => openEventModal("create")}
             className="tb-btn inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-1.5 text-[12px] font-medium text-[color:var(--ink-soft)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 hover:border-[color:var(--vio)]/40 hover:bg-[color:var(--vio)]/10 hover:text-[color:var(--ink)] focus:outline-none"
           >
             <svg className="h-3.5 w-3.5 text-[color:var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
@@ -1968,7 +2015,7 @@ export default function TimelinePage() {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   Add Deadline
                 </button>
-                <button className="tl-add-btn" onClick={() => setActiveModal("create")}>
+                <button className="tl-add-btn" onClick={() => openEventModal("create")}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                   Add Event
                 </button>
@@ -2165,7 +2212,7 @@ export default function TimelinePage() {
                     <span className="art pp-only"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg></span>
                     <h3>Nothing on the calendar yet.</h3>
                     <p>Your first chapter meeting is the best first entry — make it required and check-in counts attendance for you.</p>
-                    {canManageEvents && <button type="button" className="tl-empty-add" onClick={() => setActiveModal("create")}>Add your first event</button>}
+                    {canManageEvents && <button type="button" className="tl-empty-add" onClick={() => openEventModal("create")}>Add your first event</button>}
                   </div>
                 ) : view === "calendar" ? (
                   <TimelineCalendar
@@ -2273,7 +2320,7 @@ export default function TimelinePage() {
                     <div className="tl-end">
                       <span className="e-dot" />
                       <p>Nothing scheduled past {fmtDate(lastEvent.date)}.</p>
-                      <button onClick={() => setActiveModal("create")}>Add event →</button>
+                      <button onClick={() => openEventModal("create")}>Add event →</button>
                     </div>
                   )}
                   </>
@@ -2289,7 +2336,7 @@ export default function TimelinePage() {
                     canEdit={selectedEventCanEdit}
                     canDelete={selectedEventCanEdit && (!selectedEvent.partyEventId || can("MANAGE_PARTIES"))}
                     canLogAttendance={isAdmin}
-                    onEdit={() => setActiveModal("edit")}
+                    onEdit={() => openEventModal("edit")}
                     onDelete={handleDeleteEvent}
                     onOpenParty={selectedEvent.partyEventId != null
                       ? () => router.push(orgPath(`/parties?open=${selectedEvent.partyEventId}`))
@@ -2319,6 +2366,8 @@ export default function TimelinePage() {
                     myExcuse={apiEventIds.has(selectedEvent.id) ? myExcuseByEvent.get(selectedEvent.id) : undefined}
                     onExcuseSubmitted={loadMyExcuses}
                     onOpenMember={setSpotlightId}
+                    onEditDetails={selectedEventCanEdit && selectedEvent.category !== "deadline" ? () => openEventModal("edit", 2) : undefined}
+                    onDetailsChange={details => setEventDetails(selectedEvent.id, details)}
                   />
                 ) : glanceFocus ? (
                   <GlanceDetail
@@ -2337,7 +2386,7 @@ export default function TimelinePage() {
                       doneById={doneById}
                       onClose={() => setCalDayOpen(false)}
                       onSelectEvent={setSelectedEvent}
-                      onAdd={canManageEvents ? () => setActiveModal("create") : undefined}
+                      onAdd={canManageEvents ? () => openEventModal("create") : undefined}
                     />
                   )
                 ) : (
@@ -2369,6 +2418,7 @@ export default function TimelinePage() {
                           {(upNext.description || upNext.location) && (
                             <p className="desc">{upNext.description || upNext.location}</p>
                           )}
+                          <DetailChips details={upNext.details ?? []} />
                         </div>
                       </div>
                     )}
@@ -2382,7 +2432,7 @@ export default function TimelinePage() {
                               <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
                               <div className="what">
                                 <p className="t">{ev.title}</p>
-                                <p className="s">{catLabelOf(typeMap, ev.category)}{ev.mandatory ? " · Required" : formatEventTime(ev.time, ev.schedule) ? ` · ${formatEventTime(ev.time, ev.schedule)}` : ""}</p>
+                                <p className="s">{catLabelOf(typeMap, ev.category)}{ev.mandatory ? " · Required" : detailChips(ev.details ?? [])[0] ? ` · ${detailChips(ev.details ?? [])[0].text}` : formatEventTime(ev.time, ev.schedule) ? ` · ${formatEventTime(ev.time, ev.schedule)}` : ""}</p>
                               </div>
                             </button>
                           ))}
@@ -2417,13 +2467,13 @@ export default function TimelinePage() {
       />
 
       {activeModal === "create" && (
-        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm submitLabel="Add event" onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={formPage === 2 ? "max-w-[940px]" : "max-w-[680px]"} onClose={() => setActiveModal(null)}>
+          <CalendarEventForm submitLabel="Add event" onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} />
         </Modal>
       )}
       {activeModal === "edit" && selectedEvent && selectedEventCanEdit && (
-        <Modal ariaLabel="Edit calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={() => setActiveModal(null)}>
-          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save event" onCancel={() => setActiveModal(null)} onSubmit={handleUpdateEvent} categoryOptions={editCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        <Modal ariaLabel="Edit calendar event" hideHeader tone="dusk" maxWidthClass={formPage === 2 ? "max-w-[940px]" : "max-w-[680px]"} onClose={() => setActiveModal(null)}>
+          <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save event" onCancel={() => setActiveModal(null)} onSubmit={handleUpdateEvent} categoryOptions={editCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} initialPage={editStartPage} onPageChange={setFormPage} />
         </Modal>
       )}
       {confirmDeleteEvent && (

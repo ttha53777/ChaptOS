@@ -844,6 +844,10 @@ model CalendarEvent {
   checkInOpenedById Int?
   checkInClosedAt   DateTime?
   checkInClosedById Int?
+  // "More details" from the event form: an ordered list of typed details
+  // (checklist, budget, who's bringing what, contact, …). Shape and parse live in
+  // lib/event-details.ts; every read goes through parseEventDetails.
+  details           Json?
   attendanceRecords AttendanceRecord[]
   attendanceExcuses AttendanceExcuse[]
   programmingEvent  ProgrammingEvent?
@@ -925,6 +929,7 @@ model CalendarEventType {
   creatable        Boolean  @default(true) // false = managed elsewhere (party, deadline)
   hidden           Boolean  @default(false) // manual archive; can't hide an active built-in
   mandatoryDefault Boolean  @default(false) // UI hint: pre-check "required attendance"
+  detailTemplate   Json? // "Start every <type> event with these": blank detail skeletons (lib/event-details.ts)
   displayOrder     Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

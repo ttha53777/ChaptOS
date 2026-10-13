@@ -96,6 +96,9 @@ export interface EventMetadata {
   "calendar.notes_saved": { title: string; revision: number; seq: number };
   // An officer (or the owner) ticks an action item off a meeting's summary.
   "calendar.action_item_toggled": { title: string; itemId: string; text: string; done: boolean };
+  // A member claimed / dropped a "Who's bringing what" item, or an officer ticked a
+  // details checklist item, from the timeline rail (lib/event-details.ts).
+  "calendar.detail_changed": { title: string; op: "claim" | "tick"; item: string; value: boolean };
   // Agenda templates. `default_changed` carries the new default's name, or null
   // when new meetings go back to starting blank.
   "agenda_template.created":         { name: string; category: string };
@@ -263,7 +266,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "treasury.opening_balance.set",
   "role.created", "role.updated", "role.deleted", "role.granted", "role.revoked",
   "brother.claimed", "brother.added", "brother.updated", "brother.removed", "brother.admin_changed", "brother.account_unlinked",
-  "calendar.created", "calendar.updated", "calendar.deleted", "calendar.notes_saved", "calendar.action_item_toggled",
+  "calendar.created", "calendar.updated", "calendar.deleted", "calendar.notes_saved", "calendar.action_item_toggled", "calendar.detail_changed",
   "agenda_template.created", "agenda_template.updated", "agenda_template.archived", "agenda_template.restored", "agenda_template.default_changed",
   "calendar_event_type.created", "calendar_event_type.updated", "calendar_event_type.hidden", "calendar_event_type.deleted",
   "programming.created", "programming.updated", "programming.stage_changed", "programming.deleted",

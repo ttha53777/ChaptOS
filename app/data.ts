@@ -35,6 +35,8 @@ export interface CalEventType {
   hidden: boolean;
   mandatoryDefault: boolean;
   displayOrder: number;
+  /** Blank "More details" a new event of this type opens with (lib/event-details.ts). */
+  detailTemplate?: import("@/lib/event-details").EventDetail[] | null;
 }
 
 // Income and expense categories used to live here as two platform-wide constants,
@@ -302,6 +304,8 @@ export interface CalendarEvent {
   /** When this calendar row was created by promoting a programming event, the id of
    *  that ProgrammingEvent — lets the timeline deep-link into the Programming page. */
   programmingEventId?: number | null;
+  /** "More details" (lib/event-details.ts). Members never receive checklist/budget. */
+  details?: import("@/lib/event-details").EventDetail[];
 }
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────

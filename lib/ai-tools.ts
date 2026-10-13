@@ -1570,7 +1570,9 @@ async function listCalendar(args: ToolArgs, scoped: Scoped): Promise<ToolResult>
   // until someone writes minutes; the model must not read that as minutes.
   // Minutes run to 50k characters, and this lists up to 100 events: keep a
   // preview and send the model to search_meeting_notes for the rest.
-  const mapped = rows.map(({ notesSeed, notesSummaryData: _data, ...row }) => {
+  // `details` stays out: its planning half (checklist, budget) is officers-only,
+  // and this tool answers members too.
+  const mapped = rows.map(({ notesSeed, notesSummaryData: _data, details: _details, ...row }) => {
     const description = hasMinutes({ description: row.description, notesSeed }) ? row.description : null;
     return description && description.length > CALENDAR_DESCRIPTION_PREVIEW
       ? { ...row, description: `${description.slice(0, CALENDAR_DESCRIPTION_PREVIEW)}…`, minutesTruncated: true }

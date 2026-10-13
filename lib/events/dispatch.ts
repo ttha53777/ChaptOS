@@ -188,6 +188,10 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} updated event ${m.title}`;
     case "calendar.deleted":
       return `${who} deleted event ${m.title}`;
+    case "calendar.detail_changed":
+      return m.op === "claim"
+        ? `${who} ${m.value ? "is bringing" : "is no longer bringing"} ${m.item} to ${m.title}`
+        : `${who} ${m.value ? "ticked off" : "unticked"} ${m.item} for ${m.title}`;
     case "agenda_template.created":
       return `${who} added the agenda template ${m.name}`;
     case "agenda_template.updated":

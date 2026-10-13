@@ -1008,9 +1008,12 @@ export default function Home() {
     () => eventTypes
       .filter(t => isEventTypeVisibleInPicker(t, currentUser?.org?.enabledWorkflows ?? []))
       .sort((a, b) => a.displayOrder - b.displayOrder)
-      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
+      .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault, detailTemplate: t.detailTemplate ?? null })),
     [eventTypes, currentUser?.org?.enabledWorkflows],
   );
+  // The event form's "More details" pickers choose from the roster; its page 2 is wider.
+  const detailMembers = useMemo(() => brotherList.map(b => ({ id: b.id, name: b.name, title: roleTitle(b) })), [brotherList]);
+  const [eventFormPage, setEventFormPage] = useState<1 | 2>(1);
   useEffect(() => {
     if (welcomeToastShownRef.current || !orgName) return;
     const params = new URLSearchParams(window.location.search);
@@ -2542,8 +2545,8 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "event" && (
-        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass="max-w-[680px]" onClose={closeModal}>
-          <CalendarEventForm submitLabel="Add event" onCancel={closeModal} onSubmit={handleAddCalendarEvent} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} />
+        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={eventFormPage === 2 ? "max-w-[940px]" : "max-w-[680px]"} onClose={() => { setEventFormPage(1); closeModal(); }}>
+          <CalendarEventForm submitLabel="Add event" onCancel={() => { setEventFormPage(1); closeModal(); }} onSubmit={draft => { setEventFormPage(1); handleAddCalendarEvent(draft); }} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setEventFormPage} />
         </Modal>
       )}
       {activeModal === "deadline" && canTasks && (

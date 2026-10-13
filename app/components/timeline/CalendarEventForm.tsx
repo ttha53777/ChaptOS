@@ -5,11 +5,17 @@ import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
 import { ScheduleFields, initialSchedule, scheduleFromValue } from "./ScheduleFields";
 import type { CalendarEvent } from "../../data";
 import { toDateStr } from "../../lib/dates";
+import { DETAIL_KINDS, detailSummary, fromTemplate, type EventDetail } from "@/lib/event-details";
+import { EventDetailsEditor, type DetailMember } from "./EventDetailsEditor";
+import { DETAIL_ICON, UI_ICON } from "./detail-icons";
 import "./calendar-event-form.css";
+import "./event-details.css";
 
 // `collab` is programming-only (the timeline's calendar events don't carry it); it's
 // optional on the draft and populated solely when the form is rendered with `showCollab`.
-export type CalendarDraft = Omit<CalendarEvent, "id"> & { collab?: string };
+// `rememberDetails` is sent only when the More-details page is on: true saves a blank
+// copy of the details as the category's template, false clears the one it had.
+export type CalendarDraft = Omit<CalendarEvent, "id"> & { collab?: string; rememberDetails?: boolean };
 
 /** A selectable category chip. `color` is optional — when absent the chip falls
  *  back to the CSS var `--c-<slug>` (used by the Programming page's built-in set). */
@@ -18,6 +24,8 @@ export interface CategoryOption {
   label: string;
   color?: string;
   mandatoryDefault?: boolean;
+  /** Blank details a new event of this type opens with (CalendarEventType.detailTemplate). */
+  detailTemplate?: EventDetail[] | null;
 }
 
 function optionalValue(value: string): string | undefined {
@@ -27,6 +35,16 @@ function optionalValue(value: string): string | undefined {
 
 const _now = new Date();
 const TODAY = { year: _now.getFullYear(), month: _now.getMonth(), day: _now.getDate() };
+
+/** "Sat, Oct 24 · 11:00–3:00" for the details page header — just enough to orient. */
+function fmtWhen(v: { mode: string; date: string; startTime: string; endTime: string; legacyTime: string }): string {
+  let d = v.date;
+  try { d = new Date(`${v.date}T12:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); } catch { /* keep the raw date */ }
+  const t12 = (t: string) => { const [h, m] = t.split(":").map(Number); if (!Number.isFinite(h)) return t; const ap = h >= 12 ? "pm" : "am"; return `${h % 12 || 12}${m ? `:${String(m).padStart(2, "0")}` : ""}${ap}`; };
+  if (v.mode === "allDay") return `${d} · all day`;
+  if (v.mode === "timed" && v.startTime) return `${d} · ${t12(v.startTime)}${v.endTime ? `–${t12(v.endTime)}` : ""}`;
+  return v.legacyTime ? `${d} · ${v.legacyTime}` : d;
+}
 
 // Row icons stand in for labels, so the form reads top to bottom as a sentence.
 const icon = (children: React.ReactNode) => (
@@ -39,6 +57,7 @@ const ICONS = {
   collab: icon(<><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8" /><path d="M15.5 5.2a3 3 0 0 1 0 5.6M17.5 14.6c1.6.6 2.7 2.2 3 4.4" /></>),
   location: icon(<><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></>),
   description: icon(<path d="M4 6h16M4 12h16M4 18h10" />),
+  more: icon(<><rect x="7" y="3" width="13" height="15" rx="2" /><path d="M4 7v12a2 2 0 0 0 2 2h10" /><path d="M13.5 8v5M11 10.5h5" /></>),
 };
 
 export function CalendarEventForm({
@@ -53,6 +72,9 @@ export function CalendarEventForm({
   showCollab = false,
   minDate,
   maxDate,
+  detailMembers,
+  initialPage = 1,
+  onPageChange,
 }: {
   /** Small kicker above the title field; defaults to New/Edit calendar event. */
   heading?: string;
@@ -72,6 +94,13 @@ export function CalendarEventForm({
   /** Active-semester bounds (YYYY-MM-DD) that constrain the date picker. */
   minDate?: string;
   maxDate?: string;
+  /** Turns on the "More details" page (real calendar events only). The roster the
+   *  contact and "who's bringing what" pickers choose from. */
+  detailMembers?: DetailMember[];
+  /** Open straight onto the details page (the rail's "Add details"). */
+  initialPage?: 1 | 2;
+  /** Page 2 is wide; the caller widens its Modal while it shows. */
+  onPageChange?: (page: 1 | 2) => void;
 }) {
   // Default a new event to today, but clamp into the semester so the prefilled
   // date isn't already out of range (string dates compare lexicographically).
@@ -88,6 +117,14 @@ export function CalendarEventForm({
   const [collab, setCollab] = useState(initialCollab ?? "");
   const [location, setLocation] = useState(initialEvent?.location ?? "");
   const [description, setDescription] = useState(initialEvent?.description ?? "");
+  const detailsOn = detailMembers != null;
+  const templateOf = (slug: string) => categoryOptions.find(o => o.slug === slug)?.detailTemplate ?? null;
+  const [page, setPage] = useState<1 | 2>(detailMembers != null ? initialPage : 1);
+  const [details, setDetails] = useState<EventDetail[]>(() => initialEvent ? (initialEvent.details ?? []) : fromTemplate(templateOf(initialCategory)));
+  // A new event follows its category's template until the officer changes a detail.
+  const [detailsTouched, setDetailsTouched] = useState(!!initialEvent);
+  const [remember, setRemember] = useState(() => !!templateOf(initialCategory)?.length);
+  const [focusDetail, setFocusDetail] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -104,7 +141,16 @@ export function CalendarEventForm({
   function selectCategory(option: CategoryOption) {
     setCategory(option.slug);
     if (option.mandatoryDefault) setMandatory(true);
+    setRemember(!!option.detailTemplate?.length);
+    if (!detailsTouched) setDetails(fromTemplate(option.detailTemplate));
   }
+
+  function goTo(next: 1 | 2, focus?: string) {
+    setPage(next);
+    setFocusDetail(focus ?? null);
+    onPageChange?.(next);
+  }
+  function changeDetails(next: EventDetail[]) { setDetails(next); setDetailsTouched(true); }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -123,6 +169,11 @@ export function CalendarEventForm({
       location: optionalValue(location),
       description: optionalValue(description),
       ...(showCollab ? { collab: collab.trim() } : {}),
+      ...(detailsOn ? {
+        details,
+        // Only say something about the template when there's one to save or clear.
+        ...(remember || templateOf(category)?.length ? { rememberDetails: remember } : {}),
+      } : {}),
     });
   }
 
@@ -130,6 +181,20 @@ export function CalendarEventForm({
   const categoryHint = category === "party" ? "Guest list and wrap-up live on the Parties page."
     : selected?.mandatoryDefault ? `${selected.label} events are required by default.`
     : "";
+  const catColor = selected?.color ?? `var(--c-${category})`;
+  const catLabel = selected?.label ?? category;
+  const nameOf = (id: number) => detailMembers?.find(m => m.id === id)?.name;
+  const submitDisabled = !title.trim();
+
+  const foot = (
+    <div className="cef-foot">
+      <span className="cef-kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to {initialEvent ? "save" : "add"}</span>
+      <div className="cef-btns">
+        {onCancel && <button type="button" className="cef-btn ghost" onClick={onCancel}>Cancel</button>}
+        <button type="submit" className="cef-btn primary" disabled={submitDisabled}>{submitLabel}</button>
+      </div>
+    </div>
+  );
 
   // The Modal mounts outside the page's `.dash` wrapper. `.cef-root` carries just
   // the dusk theme *tokens* (no page-wrapper layout) so the form sits flush in the
@@ -140,11 +205,68 @@ export function CalendarEventForm({
       <form
         ref={formRef}
         onSubmit={handleSubmit}
-        className="cef cef-sheet"
-        onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); formRef.current?.requestSubmit(); } }}
+        className={`cef cef-sheet${detailsOn ? " has-details" : ""}`}
+        data-page={page}
+        onKeyDown={e => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); formRef.current?.requestSubmit(); return; }
+          // Escape on the details page steps back to the event instead of closing.
+          if (e.key === "Escape" && page === 2) { e.preventDefault(); e.stopPropagation(); goTo(1); }
+        }}
       >
-        <div className="cef-head"><span className="cef-kicker">{heading ?? (initialEvent ? "Edit calendar event" : "New calendar event")}</span></div>
+        {detailsOn ? (
+          <div className="cef-tabs" role="tablist" aria-label="Event pages">
+            <button type="button" role="tab" aria-selected={page === 1} onClick={() => goTo(1)}>
+              {UI_ICON.cal}{heading ?? (initialEvent ? "Edit event" : "New event")}
+            </button>
+            <button type="button" role="tab" aria-selected={page === 2} onClick={() => goTo(2)}>
+              {UI_ICON.pages}More details{details.length > 0 && <span className="n">{details.length}</span>}
+            </button>
+          </div>
+        ) : (
+          <div className="cef-head"><span className="cef-kicker">{heading ?? (initialEvent ? "Edit calendar event" : "New calendar event")}</span></div>
+        )}
 
+        {page === 2 ? (
+          <div className="cef-p2">
+            <header className="cef-p2-head">
+              <button type="button" className="cef-back" aria-label="Back to event" onClick={() => goTo(1)}>{UI_ICON.back}</button>
+              <div className="t">
+                <span className="cef-kicker">More details</span>
+                <h2 className={title.trim() ? "" : "untitled"}>{title.trim() || "Untitled event"}</h2>
+                <div className="meta">
+                  <span className="cdot" style={{ ["--cdot" as string]: catColor }}>{catLabel}</span>
+                  <span>{fmtWhen(when)}</span>
+                  {location.trim() && <span>{location.trim()}</span>}
+                </div>
+              </div>
+            </header>
+            <EventDetailsEditor
+              details={details}
+              onChange={changeDetails}
+              category={category}
+              categoryLabel={catLabel}
+              categoryColor={catColor}
+              members={detailMembers ?? []}
+              focus={focusDetail}
+            />
+            <div className="cef-foot">
+              <label className="cef-rem">
+                <span className="cef-sw">
+                  <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+                  <span className="track" aria-hidden />
+                </span>
+                <span className="txt">
+                  Start every <span className="cd" style={{ background: catColor }} /><b>{catLabel}</b> event with these
+                  <small>{remember ? `New ${catLabel} events open with the same details, blank.` : "Off — this event only."}</small>
+                </span>
+              </label>
+              <div className="cef-btns">
+                <button type="button" className="cef-btn ghost" onClick={() => goTo(1)}>Back to event</button>
+                <button type="submit" className="cef-btn primary" disabled={submitDisabled}>{submitLabel}</button>
+              </div>
+            </div>
+          </div>
+        ) : (<>
         <label className="sr-only" htmlFor="event-title">Title</label>
         <input
           id="event-title"
@@ -231,15 +353,43 @@ export function CalendarEventForm({
               <textarea ref={descRef} id="event-description" className="cef-quiet cef-notes" rows={1} value={description} onChange={e => setDescription(e.target.value)} placeholder="Add notes, agenda, or links" />
             </div>
           </div>
+
+          {/* The door to page 2 — or, once there are details, their stamps. */}
+          {detailsOn && (
+            <div className="cef-r">
+              {ICONS.more}
+              <div>
+                {details.length === 0 ? (
+                  <button type="button" className="cef-more" onClick={() => goTo(2)}>
+                    <span className="fan"><i data-hue="mint">{DETAIL_ICON.checklist}</i><i data-hue="butter">{DETAIL_ICON.budget}</i><i data-hue="sky">{DETAIL_ICON.contact}</i></span>
+                    <span className="txt"><span className="t">More details</span><span className="s">Checklist, budget, contacts, links — or a field of your own.</span></span>
+                    <span className="go">{UI_ICON.arrow}</span>
+                  </button>
+                ) : (
+                  <>
+                    <div className="cef-stamps">
+                      {details.map(d => {
+                        const label = detailSummary(d, nameOf) ?? DETAIL_KINDS[d.type].name;
+                        return (
+                          <button key={d.id} type="button" className="cef-stamp" data-hue={DETAIL_KINDS[d.type].hue} title={label} onClick={() => goTo(2, d.id)}>
+                            <span className="ti">{DETAIL_ICON[d.type]}</span><span>{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="cef-stamps-foot">
+                      <span className="mini">{details.length} extra detail{details.length > 1 ? "s" : ""} saved with this event</span>
+                      <button type="button" className="cef-link" onClick={() => goTo(2)}>Edit details →</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="cef-foot">
-          <span className="cef-kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to {initialEvent ? "save" : "add"}</span>
-          <div className="cef-btns">
-            {onCancel && <button type="button" className="cef-btn ghost" onClick={onCancel}>Cancel</button>}
-            <button type="submit" className="cef-btn primary" disabled={!title.trim()}>{submitLabel}</button>
-          </div>
-        </div>
+        {foot}
+        </>)}
       </form>
     </div>
   );

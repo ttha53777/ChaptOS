@@ -9,6 +9,8 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { assertWithinActiveSemester } from "./semester-bounds";
+import { applyDetailAction, forMembers, parseEventDetails, type DetailAction, type EventDetail } from "@/lib/event-details";
+import { rememberDetailTemplate } from "@/lib/event-details-db";
 import type { CreateCalendarInput, UpdateCalendarInput } from "@/lib/validation/calendar";
 
 /**
@@ -48,8 +50,12 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
   // Fetch only IDs of initialized documents, never the binary state in list reads.
   const initialized = new Set((await ctx.db.calendarEvent.findMany({ where: { ...where, notesDoc: { not: null } }, select: { id: true } })).map(row => row.id));
   // Flatten the relation to a scalar so the client DTO stays flat (app/data.ts).
-  return rows.map(({ programmingEvent, partyEvent, ...row }) => ({
+  // Planning details (checklist, budget) are officers' working notes; a member's
+  // read never carries them, rather than the rail merely hiding them.
+  const officer = can(ctx, "MANAGE_EVENTS");
+  return rows.map(({ programmingEvent, partyEvent, details, ...row }) => ({
     ...row,
+    details: officer ? parseEventDetails(details) : forMembers(parseEventDetails(details)),
     notesInitialized: initialized.has(row.id),
     notesCollaborationEnabled: collaborativeNotesEnabled(ctx.orgId) && can(ctx, "MANAGE_EVENTS") && row.category === "chapter",
     programmingEventId: programmingEvent?.id ?? null,
@@ -105,6 +111,7 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
         mandatory:   input.mandatory,
         description: agenda ?? input.description ?? null,
         location:    input.location ?? null,
+        details:     input.details?.length ? input.details : Prisma.DbNull,
         // notesSeed is how "has minutes" tells this untouched agenda from real minutes.
         ...(agenda != null ? { notesSeed: agenda, agendaTemplateId: templateId } : {}),
       },
@@ -113,6 +120,9 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
     const party = input.category === "party" ? await tx.partyEvent.create({
       data: { organizationId: ctx.orgId, name: event.title, date: event.date, attendanceEventId: event.id },
     }) : null;
+    if (input.rememberDetails !== undefined) {
+      await rememberDetailTemplate(tx, ctx.orgId, event.category, input.details ?? [], input.rememberDetails);
+    }
     return { event, partyEventId: party?.id ?? null };
   });
   await emit(ctx, "calendar.created", { type: "CalendarEvent", id: event.id }, {
@@ -133,7 +143,8 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
   const changedFields: string[] = [];
   for (const k of Object.keys(input) as (keyof UpdateCalendarInput)[]) {
     const v = input[k];
-    if (v === undefined) continue;
+    if (v === undefined || k === "rememberDetails") continue;
+    if (k === "details") { data.details = v && (v as EventDetail[]).length ? (v as EventDetail[]) : Prisma.DbNull; changedFields.push(k); continue; }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (data as any)[k] = k === "schedule" && v === null ? Prisma.DbNull : v;
     changedFields.push(k);
@@ -169,6 +180,9 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
       else data.notesContentRevision = { increment: 1 };
     }
     const updated = await tx.calendarEvent.update({ where: { id: existing.id, organizationId: ctx.orgId }, data });
+    if (input.rememberDetails !== undefined) {
+      await rememberDetailTemplate(tx, ctx.orgId, updated.category, parseEventDetails(updated.details), input.rememberDetails);
+    }
     const attachedParty = !party && updated.category === "party"
       ? await tx.partyEvent.create({ data: { organizationId: ctx.orgId, name: updated.title, date: updated.date, attendanceEventId: id } })
       : party;
@@ -240,4 +254,39 @@ export async function deleteCalendar(ctx: RequestContext, id: number) {
   for (const service of deletedServices) {
     await emit(ctx, "service_event.deleted", { type: "ServiceEvent", id: service.id }, { title: service.title });
   }
+}
+
+/**
+ * One in-place change to an event's details from the timeline rail: a member
+ * claims (or drops) an item on "Who's bringing what", or an officer ticks a
+ * checklist item. The rules live in applyDetailAction so the rail's optimistic
+ * update and this authoritative one can't disagree; the row lock makes two
+ * members grabbing the last bag of ice resolve to one of them.
+ *
+ * Returns the details as this caller may see them.
+ */
+export async function changeEventDetail(ctx: RequestContext, id: number, action: DetailAction): Promise<EventDetail[]> {
+  const existing = await ctx.db.calendarEvent.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) throw new NotFoundError("Calendar event");
+  const officer = can(ctx, "MANAGE_EVENTS");
+  const { details, title, item } = await ctx.db.$transaction(async tx => {
+    const [row] = await tx.$queryRaw<{ title: string; details: unknown }[]>(Prisma.sql`SELECT title, details FROM "CalendarEvent" WHERE id = ${id} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+    if (!row) throw new NotFoundError("Calendar event");
+    const current = parseEventDetails(row.details);
+    const result = applyDetailAction(current, action, { brotherId: ctx.actorId, isOfficer: officer });
+    if (!result.ok) {
+      if (result.reason === "forbidden") throw new ForbiddenError(result.message);
+      if (result.reason === "taken") throw new ValidationError(result.message);
+      throw new NotFoundError(result.message);
+    }
+    await tx.calendarEvent.update({ where: { id, organizationId: ctx.orgId }, data: { details: result.details } });
+    const d = result.details.find(x => x.id === action.detailId);
+    const label = d?.type === "supplies" ? d.items.find(i => i.id === action.itemId)?.item
+      : d?.type === "checklist" ? d.items.find(i => i.id === action.itemId)?.t : undefined;
+    return { details: result.details, title: row.title, item: label ?? "" };
+  });
+  await emit(ctx, "calendar.detail_changed", { type: "CalendarEvent", id }, {
+    title, op: action.op, item, value: action.op === "claim" ? action.claim : action.done,
+  });
+  return officer ? details : forMembers(details);
 }

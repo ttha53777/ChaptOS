@@ -1,5 +1,6 @@
 import { scheduleSchema, dateSchema } from "@/lib/calendar-feed/schedule";
 import { z } from "zod";
+import { eventDetailsSchema } from "@/lib/event-details";
 
 export const createServiceEventInput = z.object({
   schedule: scheduleSchema.nullable().optional(),
@@ -11,6 +12,8 @@ export const createServiceEventInput = z.object({
   notes:       z.string().optional(),
   description: z.string().optional(),
   mandatory: z.boolean().optional(),
+  details:         eventDetailsSchema.nullable().optional(),
+  rememberDetails: z.boolean().optional(),
 });
 export type CreateServiceEventInput = z.infer<typeof createServiceEventInput>;
 

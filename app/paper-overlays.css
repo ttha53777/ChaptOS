@@ -50,7 +50,7 @@ html[data-aesthetic="paper"] .ui-modal-body { font-size: .9rem; }
 
 /* ── Form controls ──────────────────────────────────────────────────────────── */
 html[data-aesthetic="paper"] .ui-inp,
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea):not(.cef-title, .cef-quiet, .ev-ni-title, .pc-question, .pc-opt-input, .sr-only),
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea):not(.cef-title, .cef-quiet, .ev-ni-title, .pc-question, .pc-opt-input, .sr-only, .edt-bare),
 html[data-aesthetic="paper"] .cef-input, html[data-aesthetic="paper"] .cef-textarea,
 html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-section .sc-select, .set-section .sc-textarea) {
   border-radius: 10px; border: 1.5px solid var(--line-med); background-color: var(--paper); color: var(--ink);
@@ -58,7 +58,7 @@ html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-sectio
   transition: border-color .15s, box-shadow .15s;
 }
 html[data-aesthetic="paper"] .ui-inp:focus,
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input, select, textarea):not(.cef-title, .cef-quiet, .pc-question, .pc-opt-input):focus,
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input, select, textarea):not(.cef-title, .cef-quiet, .pc-question, .pc-opt-input, .edt-bare):focus,
 html[data-aesthetic="paper"] .cef-input:focus, html[data-aesthetic="paper"] .cef-textarea:focus,
 html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-section .sc-select, .set-section .sc-textarea):focus {
   border-color: var(--ink); box-shadow: 2px 2px 0 var(--acc, var(--pp-lilac)); outline: none;

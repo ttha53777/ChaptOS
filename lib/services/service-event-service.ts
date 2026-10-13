@@ -7,6 +7,7 @@ import { emit } from "@/lib/events";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { assertWithinActiveSemester } from "./semester-bounds";
 import type { CreateServiceEventInput, UpdateServiceEventInput } from "@/lib/validation/service-event";
+import { rememberDetailTemplate } from "@/lib/event-details-db";
 
 export async function listServiceEvents(ctx: RequestContext) {
   const events = await ctx.db.serviceEvent.findMany({ orderBy: { date: "asc" } });
@@ -48,8 +49,12 @@ export async function createServiceEvent(ctx: RequestContext, input: CreateServi
         mandatory,
         location:    locationStr || null,
         description: notesStr    || null,
+        details:     input.details?.length ? input.details : Prisma.DbNull,
       },
     });
+    if (input.rememberDetails !== undefined) {
+      await rememberDetailTemplate(tx, orgId, "service", input.details ?? [], input.rememberDetails);
+    }
     const serviceEvent = await tx.serviceEvent.create({
       data: {
         organizationId:  orgId,
