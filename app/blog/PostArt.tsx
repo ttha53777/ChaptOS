@@ -2,6 +2,7 @@
 // minutes, the summary card it turns into, and the stamp on the vote. Pure
 // decoration (aria-hidden); the post itself says everything this shows.
 import { Doodle, sx } from "../components/landing/Doodle";
+import { formatDate, type PostMeta } from "./posts";
 
 export function MinutesArt() {
   return (
@@ -37,4 +38,32 @@ export function MinutesArt() {
       <Doodle id="swirl" size={92} viewBox="0 0 120 46" className="bl__artswirl" style={sx({ color: "var(--ink-3)" })} />
     </div>
   );
+}
+
+/** A post filed in a manila folder: the fallback cover for posts without art
+ *  of their own. Everything written on it comes from the post's frontmatter. */
+function FolderArt({ post }: { post: PostMeta }) {
+  return (
+    <div className="bl__art bl__art--folder" aria-hidden>
+      <div className="bl__folder">
+        <span className="tab">{post.tags[0] ?? "Notes"}</span>
+        <div className="sheet">
+          <span className="k">{formatDate(post.date)}</span>
+          <span className="t">{post.title}</span>
+          <i /><i /><i /><i />
+        </div>
+      </div>
+      <div className="sticky-note bl__foldernote" style={sx({ "--note": "var(--butter)", "--rot": "4deg" })}>
+        <b>{`${post.readingMinutes} min`}</b> read
+      </div>
+      <Doodle id="clip" size={44} viewBox="0 0 24 24" className="bl__folderclip" style={sx({ color: "var(--ink-2)" })} />
+      <Doodle id="star" size={30} viewBox="0 0 24 24" className="bl__artstar" style={sx({ color: "var(--peach-ink)" })} />
+      <Doodle id="swirl" size={92} viewBox="0 0 120 46" className="bl__artswirl" style={sx({ color: "var(--ink-3)" })} />
+    </div>
+  );
+}
+
+/** The cover a post shows on the blog index: its own art when it has some. */
+export function CoverArt({ post }: { post: PostMeta }) {
+  return post.tags.includes("meetings") ? <MinutesArt /> : <FolderArt post={post} />;
 }

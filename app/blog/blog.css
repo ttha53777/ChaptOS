@@ -8,7 +8,7 @@
    No motion — these pages never mount LandingMotion. See public-chrome.css.
 
    Structure
-     1. index list
+     1. index (head, cover story, archive cards, empty state)
      2. meta line, tags, draft badge
      3. post prose (Markdown output — element selectors, not classes)
      4. older / newer
@@ -16,39 +16,260 @@
      6. responsive
    ========================================================================== */
 
-/* ---------- 1. index list -------------------------------------------------- */
-.lp .bl__list{
-  margin-top:clamp(36px,4.4vw,56px); max-width:820px;
-  display:grid; gap:14px;
-}
-.lp .bl__item{
-  display:block; padding:clamp(20px,2.4vw,26px); text-decoration:none; color:inherit;
-  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg);
-  box-shadow:var(--sh-1);
-  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring),
-             border-color .18s;
-}
-.lp .bl__item:hover{
-  transform:translate(-1.5px,-1.5px); border-color:var(--ink);
-  box-shadow:5px 5px 0 var(--peach);
-}
-.lp .bl__t{
-  display:block; margin-top:10px;
-  font-family:var(--display); font-weight:600; letter-spacing:-.024em; line-height:1.18;
-  font-size:clamp(1.28rem,2vw,1.55rem);
-}
-.lp .bl__s{display:block; margin-top:8px; color:var(--ink-2); font-size:.97rem; line-height:1.58}
+/* ---------- 1. index ------------------------------------------------------- */
+/* A desk, not a list: the head carries an RSS ticket and a sticky note, the
+   newest post is the cover story with its art, the rest are ruled index cards
+   pinned up in a grid. Accents come from data-accent (see section 5). */
 
+/* 1a. head */
+.lp .bl__ixgrid{display:grid; grid-template-columns:minmax(0,1fr); gap:44px; align-items:center}
+.lp .bl__ixhero .pub__head h1{font-size:clamp(2.5rem,5.4vw,4.1rem); line-height:1.02; letter-spacing:-.034em}
+.lp .bl__ixhero .hi{z-index:0}
+
+.lp .bl__filed{margin-top:28px; display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.lp .bl__filed .k{
+  margin-right:4px; font-family:var(--mono); font-size:.74rem; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.lp .bl__topic{
+  display:inline-flex; align-items:center; gap:7px; padding:4px 6px 4px 12px;
+  border-radius:var(--r-pill); font-size:.82rem; font-weight:600; color:var(--ink);
+  background:var(--ac-soft); border:1.5px solid var(--ac);
+}
+.lp .bl__topic b{
+  min-width:20px; padding:1px 6px; border-radius:var(--r-pill); text-align:center;
+  font:600 .7rem/1.5 var(--mono); color:var(--ac-ink); background:var(--card);
+}
+
+/* the desk: an RSS ticket, a sticky note, two doodles */
+.lp .bl__desk{position:relative; width:100%; max-width:430px; height:250px; justify-self:center}
+.lp .bl__ticket{
+  position:absolute; left:6px; top:34px; width:min(380px, 100%);
+  display:flex; text-decoration:none; color:var(--ink);
+  background:var(--card); border:1.5px solid var(--ink); border-radius:14px;
+  box-shadow:6px 6px 0 var(--butter);
+  transform:rotate(-2.5deg);
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring);
+}
+.lp .bl__ticket:hover{transform:rotate(-1deg) translate(-2px,-3px); box-shadow:9px 9px 0 var(--butter)}
+.lp .bl__ticketmain{flex:1; min-width:0; padding:20px 20px 18px 22px; display:grid; gap:6px}
+.lp .bl__ticketmain .k{
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:.7rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--peach-ink);
+}
+.lp .bl__ticketmain .k::before{content:''; width:8px; height:8px; border-radius:50%; background:var(--peach-ink); box-shadow:0 0 0 3px var(--peach)}
+.lp .bl__ticketmain .t{font-family:var(--display); font-weight:600; font-size:1.32rem; line-height:1.15; letter-spacing:-.025em}
+.lp .bl__ticketmain .u{font-family:var(--mono); font-size:.76rem; color:var(--ink-3)}
+/* the perforation, with a punched notch top and bottom */
+.lp .bl__ticketstub{
+  position:relative; flex:none; width:78px; display:grid; place-content:center; justify-items:center; gap:4px;
+  border-left:2px dashed var(--line-2); background:var(--butter-soft); border-radius:0 12px 12px 0;
+}
+.lp .bl__ticketstub::before,.lp .bl__ticketstub::after{
+  content:''; position:absolute; left:-10px; width:18px; height:18px; border-radius:50%;
+  background:var(--paper); border:1.5px solid var(--ink);
+}
+.lp .bl__ticketstub::before{top:-10px; clip-path:inset(50% 0 0 0)}
+.lp .bl__ticketstub::after{bottom:-10px; clip-path:inset(0 0 50% 0)}
+.lp .bl__ticketstub span{
+  writing-mode:vertical-rl; transform:rotate(180deg);
+  font:600 .62rem/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--butter-ink);
+}
+.lp .bl__ticketstub b{font:700 .9rem/1 var(--display); letter-spacing:.02em; color:var(--ink)}
+.lp .bl__desknote{position:absolute; right:0; top:150px; width:200px; font-size:.88rem; z-index:1}
+.lp .bl__deskstar{position:absolute; right:22px; top:0}
+.lp .bl__deskswirl{position:absolute; left:20px; bottom:-8px; transform:rotate(-6deg)}
+
+@media (min-width: 1000px){
+  .lp .bl__ixgrid{grid-template-columns:minmax(0,1fr) 430px; gap:56px}
+  .lp .bl__desk{justify-self:end}
+}
+
+/* 1b. the cover story: newest post, its art on a dotted band */
+.lp .bl__ix{padding:clamp(48px,6vw,84px) 0 clamp(72px,9vw,128px)}
+.lp .bl__lead{
+  position:relative; display:grid; grid-template-columns:minmax(0,1fr);
+  text-decoration:none; color:inherit;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:8px 8px 0 var(--ac);
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring);
+}
+.lp .bl__lead:hover{transform:translate(-2px,-2px); box-shadow:12px 12px 0 var(--ac)}
+.lp .bl__leadtape{
+  position:absolute; z-index:2; left:28px; top:-14px; padding:4px 16px;
+  font:600 .72rem/1.4 var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink);
+  background:rgba(255,229,160,.88); border-inline:1px dashed rgba(38,33,27,.2);
+  transform:rotate(-3deg);
+}
+.lp .bl__leadtext{
+  display:flex; flex-direction:column; min-width:0;
+  padding:clamp(34px,4vw,52px) clamp(24px,3.6vw,48px) clamp(26px,3vw,40px);
+}
+.lp .bl__leadt{
+  display:block; margin-top:16px; text-wrap:balance;
+  font-family:var(--display); font-weight:600; letter-spacing:-.03em; line-height:1.04;
+  font-size:clamp(1.9rem,3.4vw,2.75rem);
+}
+.lp .bl__leads{display:block; margin-top:16px; max-width:52ch; color:var(--ink-2); font-size:1.04rem; line-height:1.62}
+.lp .bl__lead .bl__tags{margin-top:18px}
+.lp .bl__leadfoot{
+  margin-top:auto; padding-top:30px;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px;
+}
+.lp .bl__leadby{display:inline-flex; align-items:center; gap:11px; font-size:.95rem}
+.lp .bl__leadby b{font-weight:600}
+.lp .bl__leadby .bl__av{width:36px; height:36px; font-size:.8rem}
+.lp .bl__leadgo svg{display:block}
+.lp .bl__lead:hover .bl__leadgo{transform:translate(-1.5px,-1.5px); box-shadow:5.5px 5.5px 0 var(--btn-shadow)}
+.lp .bl__leadart{
+  position:relative; min-width:0; display:grid; place-items:center; overflow:hidden;
+  padding:44px 28px 36px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(38,33,27,.1) 1px, transparent 1.5px) 0 0/22px 22px,
+    var(--ac-soft);
+  border-top:1.5px dashed var(--ac);
+  border-radius:0 0 calc(var(--r-xl) - 2px) calc(var(--r-xl) - 2px);
+}
+.lp .bl__leadart .bl__art{justify-self:center; transform:scale(.94)}
+
+@media (min-width: 1000px){
+  .lp .bl__lead{grid-template-columns:minmax(0,1fr) minmax(0,520px)}
+  .lp .bl__leadart{
+    border-top:0; border-left:1.5px dashed var(--ac);
+    border-radius:0 calc(var(--r-xl) - 2px) calc(var(--r-xl) - 2px) 0;
+  }
+}
+
+/* the fallback cover: a manila folder with the post filed in it */
+.lp .bl__folder{position:absolute; left:30px; top:40px; width:330px; height:270px; transform:rotate(-3deg)}
+.lp .bl__folder .tab{
+  position:absolute; left:0; top:-30px; height:32px; padding:6px 22px 0;
+  font:600 .76rem/1.4 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:#7A5A1E;
+  background:#F2D9A2; border:1.5px solid var(--ink); border-bottom:0; border-radius:12px 14px 0 0;
+}
+.lp .bl__folder::before{
+  content:''; position:absolute; inset:0; border-radius:4px 14px 14px 14px;
+  background:#F2D9A2; border:1.5px solid var(--ink); box-shadow:6px 6px 0 var(--sky);
+}
+.lp .bl__folder .sheet{
+  position:absolute; left:22px; right:18px; top:12px; bottom:26px; padding:20px 20px;
+  display:flex; flex-direction:column; gap:10px;
+  background:#FFFEF9; border:1.5px solid var(--ink); border-radius:4px;
+  transform:rotate(2.5deg);
+}
+.lp .bl__folder .sheet .k{font:500 .7rem var(--mono); color:var(--ink-3)}
+.lp .bl__folder .sheet .t{
+  font-family:var(--display); font-weight:600; font-size:1.15rem; line-height:1.15; letter-spacing:-.02em;
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+}
+.lp .bl__folder .sheet i{display:block; height:7px; border-radius:4px; background:var(--paper-3)}
+.lp .bl__folder .sheet i:nth-of-type(2){width:86%}
+.lp .bl__folder .sheet i:nth-of-type(3){width:92%}
+.lp .bl__folder .sheet i:nth-of-type(4){width:58%}
+/* the folder's front flap, over the sheet */
+.lp .bl__folder::after{
+  content:''; position:absolute; left:0; right:0; bottom:0; height:96px;
+  background:#EBCB86; border:1.5px solid var(--ink); border-radius:0 0 14px 14px;
+}
+.lp .bl__foldernote{position:absolute; right:6px; top:20px; width:122px; text-align:center; font-size:.9rem; z-index:2}
+.lp .bl__folderclip{position:absolute; left:250px; top:30px; transform:rotate(18deg); z-index:2}
+
+/* 1c. the archive: ruled index cards */
+.lp .bl__archhead{
+  margin-top:clamp(64px,7vw,96px); padding-bottom:16px;
+  display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:10px;
+  border-bottom:1.5px dashed var(--line-2);
+}
+.lp .bl__archn{font-size:.8rem; color:var(--ink-3)}
+.lp .bl__cards{
+  margin-top:36px; display:grid; gap:34px 28px;
+  grid-template-columns:repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+}
+.lp .bl__cards > li{display:flex}
+.lp .bl__card{
+  --rot:-.8deg;
+  position:relative; flex:1; display:flex; flex-direction:column; min-width:0;
+  text-decoration:none; color:var(--ink);
+  background:#FFFEF9; border:1.5px solid var(--line-2); border-radius:6px;
+  box-shadow:var(--sh-2);
+  transform:rotate(var(--rot));
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), border-color .2s;
+}
+.lp .bl__cards > li:nth-child(3n+2) .bl__card{--rot:.7deg}
+.lp .bl__cards > li:nth-child(3n) .bl__card{--rot:-.3deg}
+.lp .bl__card::before{
+  content:''; position:absolute; left:50%; top:-9px; width:70px; height:20px;
+  transform:translateX(-50%) rotate(-2deg);
+  background:color-mix(in srgb, var(--ac) 82%, transparent); border-inline:1px dashed rgba(38,33,27,.16);
+}
+.lp .bl__card:hover{
+  transform:rotate(0) translate(-2px,-3px); border-color:var(--ink);
+  box-shadow:6px 6px 0 var(--ac);
+}
+/* header strip: the date stamped in the card's colour */
+.lp .bl__cardhd{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:20px 24px 0;
+  font:500 .74rem/1 var(--mono); letter-spacing:.04em; color:var(--ink-3);
+}
+.lp .bl__cardhd time{
+  padding:5px 9px 4px; border-radius:7px; font-weight:600; letter-spacing:.08em; color:var(--ink);
+  background:var(--ac); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--ink);
+}
+/* the title owns the top of the card, above the red rule */
+.lp .bl__cardt{
+  display:block; padding:16px 24px 18px; text-wrap:balance;
+  font-family:var(--display); font-weight:600; letter-spacing:-.028em;
+  font-size:clamp(1.42rem,1.9vw,1.62rem); line-height:1.12;
+  border-bottom:1.5px solid #F3B6C8;
+}
+/* the summary sits on the blue rules: every line box is one 30px rule */
+.lp .bl__cardbd{
+  flex:1; padding:0 24px 4px;
+  background:repeating-linear-gradient(transparent 0 29px, #DCE8FA 29px 30px);
+}
+.lp .bl__cards-s{
+  display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  color:var(--ink-2); font-size:1rem; line-height:30px;
+}
+.lp .bl__cardft{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 24px 20px;
+}
+.lp .bl__card .bl__tags{margin:0}
+.lp .bl__card .bl__tag{background:var(--card)}
+.lp .bl__cardgo{
+  flex:none; margin-left:auto; display:inline-flex; align-items:center; gap:6px;
+  font-size:.86rem; font-weight:600; color:var(--ac-ink);
+}
+.lp .bl__cardgo svg{display:block; transition:transform .2s var(--ease-spring)}
+.lp .bl__card:hover .bl__cardgo svg{transform:translateX(3px)}
+
+/* 1d. nothing published yet: a sticky note on the desk */
 .lp .bl__empty{
-  margin-top:clamp(36px,4.4vw,56px); max-width:560px; padding:clamp(24px,3vw,34px);
-  background:var(--paper-2); border:1.5px dashed var(--line-2); border-radius:var(--r-lg);
+  position:relative; max-width:440px; margin-inline:auto; padding:34px 30px 30px; text-align:center;
+  background:var(--butter); border-radius:4px 14px 6px 12px; box-shadow:var(--sh-2);
+  transform:rotate(-1.6deg);
 }
-.lp .bl__empty h3{font-size:1.24rem}
-.lp .bl__empty p{margin-top:10px; color:var(--ink-2); font-size:.94rem; line-height:1.6}
+.lp .bl__emptytape{
+  position:absolute; left:50%; top:-10px; width:84px; height:22px;
+  transform:translateX(-50%) rotate(2deg);
+  background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16);
+}
+.lp .bl__empty svg{display:block; margin:0 auto 10px}
+.lp .bl__empty h3{font-size:1.36rem}
+.lp .bl__empty p{margin-top:10px; color:var(--ink-2); font-size:.95rem; line-height:1.6}
 
-.lp .bl__rss{margin-top:22px; padding-bottom:clamp(56px,7vw,96px); font-size:.86rem}
-.lp .bl__rss a{color:var(--ink-3); text-underline-offset:3px}
-.lp .bl__rss a:hover{color:var(--ink-2)}
+@media (max-width: 620px){
+  .lp .bl__desk{height:230px}
+  .lp .bl__desknote{top:150px; width:180px}
+  .lp .bl__ticket{width:calc(100% - 18px)}
+  .lp .bl__lead{box-shadow:5px 5px 0 var(--ac)}
+  .lp .bl__leadart{display:none}
+  .lp .bl__card,.lp .bl__cards > li .bl__card{--rot:0deg}
+}
+@media (prefers-reduced-motion: reduce){
+  .lp .bl__ticket,.lp .bl__lead,.lp .bl__card{transition:none}
+}
 
 /* ---------- 2. meta, tags, draft ------------------------------------------- */
 /* Separators are ::before on every item after the first, as in .pub__crumbs. */

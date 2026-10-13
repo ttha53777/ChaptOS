@@ -1,8 +1,7 @@
 ---
-title: Make Every Chapter Meeting Count with ChaptOS
+title: Make Every Meeting Count With ChaptOS
 date: 2026-10-12
-summary: Give every meeting a clear agenda, a shared record, and a next step.
-  See how ChaptOS connects collaborative minutes, action items, attendance, and answers from past meetings.
+summary: Run the agenda, take minutes together, and leave with clear next steps.
 tags: [product, meetings]
 author: Thalha Thabish
 draft: true
