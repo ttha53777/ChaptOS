@@ -2545,12 +2545,12 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "event" && (
-        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={eventFormPage === 2 ? "max-w-[940px]" : "max-w-[680px]"} onClose={() => { setEventFormPage(1); closeModal(); }}>
+        <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={eventFormPage === 2 ? "max-w-[940px]" : "max-w-[740px]"} onClose={() => { setEventFormPage(1); closeModal(); }}>
           <CalendarEventForm submitLabel="Add event" onCancel={() => { setEventFormPage(1); closeModal(); }} onSubmit={draft => { setEventFormPage(1); handleAddCalendarEvent(draft); }} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setEventFormPage} />
         </Modal>
       )}
       {activeModal === "deadline" && canTasks && (
-        <Modal title="New deadline" tone="dusk" onClose={closeModal}>
+        <Modal title="New deadline" tone="dusk" maxWidthClass="max-w-[512px]" onClose={closeModal}>
           <TaskForm
             brothers={brotherList}
             roles={roles}

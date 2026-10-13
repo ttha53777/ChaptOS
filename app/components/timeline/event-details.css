@@ -485,7 +485,7 @@ textarea.edt-inp { min-height: 64px; resize: vertical; line-height: 1.5; }
 html[data-aesthetic="paper"] .ui-modal:has(.cef-sheet.has-details) .ui-modal-scrim { z-index: -2; }
 html[data-aesthetic="paper"] .ui-modal-panel:has(.cef-sheet.has-details) {
   --acc: var(--pp-lilac);
-  max-width: 660px; margin-top: 40px; max-height: calc(100dvh - 2rem - 40px);
+  max-width: 720px; margin-top: 40px; max-height: calc(100dvh - 2rem - 40px);
   /* fill "backwards" only, so the panel isn't left a stacking context and the
      under-sheet below can sit behind it */
   animation-fill-mode: backwards;

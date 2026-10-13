@@ -612,7 +612,7 @@ export default function TasksPage() {
       </div>
 
       {modal && paper && (
-        <Modal ariaLabel={modal.kind === "edit" ? "Edit task" : "New task"} hideHeader tone="dusk" maxWidthClass="max-w-[640px]" accent="lilac" onClose={() => setModal(null)}>
+        <Modal ariaLabel={modal.kind === "edit" ? "Edit task" : "New task"} hideHeader tone="dusk" maxWidthClass="max-w-[700px]" accent="lilac" onClose={() => setModal(null)}>
           <PaperTaskSheet
             brothers={brotherList}
             roles={roles}
