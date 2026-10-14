@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/require-user";
 import { resolvePermissions } from "@/lib/auth/require-permission";
-import { parseAvatarFromMetadata } from "@/lib/avatar";
+import { parseAvatarFromMetadata, isUploadedAvatarUrl } from "@/lib/avatar";
 import { db } from "@/lib/db"; // lint-modules:ignore (auth bootstrap; runs before buildContext is viable)
 import { BillingTier } from "@/lib/state/billing-tier";
 import { tierForCount } from "@/lib/billing/tiers";
@@ -167,8 +167,12 @@ export async function GET() {
     // Google's OAuth claims into user_metadata on token refresh/re-login (which
     // would otherwise clobber a custom avatar_url and make the photo "disappear").
     // Fall back to metadata only when the column is null (e.g. pre-backfill rows).
+    // The same goes for "is it custom?": the session's metadata is the snapshot
+    // taken when its token was issued (verification is local — see
+    // getVerifiedAuthUser), so right after a removal it would still claim a
+    // custom photo. Read it off the persisted URL when there is one.
     const avatarUrl = brother?.avatarUrl ?? meta.avatarUrl;
-    const hasCustomAvatar = meta.hasCustomAvatar;
+    const hasCustomAvatar = brother?.avatarUrl ? isUploadedAvatarUrl(brother.avatarUrl) : meta.hasCustomAvatar;
 
     // Backfill: brothers linked before the email column existed have a null email.
     // First time they hit /me after this ships, persist the session email so it

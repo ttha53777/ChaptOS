@@ -14,6 +14,14 @@ vi.mock("next/headers", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (_url: string, _key: string, opts: { cookies: { setAll: (list: unknown[]) => void } }) => ({ auth: {
     getUser: mocks.getUser,
+    // requireUser verifies locally via getClaims; derive it from the same
+    // getUser mock so each test controls one notion of "the verified session".
+    getClaims: async () => {
+      const { data: { user } } = await mocks.getUser();
+      return user
+        ? { data: { claims: { sub: user.id, email: user.email, role: "authenticated", user_metadata: {} } }, error: null }
+        : { data: null, error: null };
+    },
     exchangeCodeForSession: async (code: string) => {
       opts.cookies.setAll([{ name: "session", value: "verified", options: { path: "/", httpOnly: true } }]);
       return mocks.exchange(code);

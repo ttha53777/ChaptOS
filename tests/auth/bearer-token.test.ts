@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // access token in `Authorization: Bearer`. These pin how requireUser/hasSession
 // pick between that header and the browser's session cookie.
 const mocks = vi.hoisted(() => ({
-  findUnique: vi.fn(), getUser: vi.fn(), headers: new Headers(),
+  findUnique: vi.fn(), getClaims: vi.fn(), headers: new Headers(),
 }));
 vi.mock("@/lib/prisma", () => { throw new Error("Auth bootstrap must not use an org-scoped connection"); });
 vi.mock("@/lib/prisma-privileged", () => ({ prismaPrivileged: { brother: { findUnique: mocks.findUnique } } }));
@@ -14,22 +14,24 @@ vi.mock("next/headers", () => ({
   headers: async () => mocks.headers,
 }));
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: () => ({ auth: { getUser: mocks.getUser } }),
+  createServerClient: () => ({ auth: { getClaims: mocks.getClaims } }),
 }));
 import { requireUser, hasSession, sessionAuthUserId } from "@/lib/auth/require-user";
 import { getJoinSession } from "@/lib/auth/join-session";
 
 const cookieAccount = { id: "cookie-account", email: "web@example.com" };
 const tokenAccount  = { id: "token-account",  email: "app@example.com" };
+const claimsFor = (a: { id: string; email: string }, extra: Record<string, unknown> = {}) =>
+  ({ data: { claims: { sub: a.id, email: a.email, role: "authenticated", user_metadata: {}, ...extra } }, error: null });
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.headers = new Headers();
-  // getUser() with no argument reads the cookie session; getUser(jwt) verifies the token.
-  mocks.getUser.mockImplementation(async (jwt?: string) => {
-    if (jwt === undefined)   return { data: { user: cookieAccount } };
-    if (jwt === "valid-jwt") return { data: { user: tokenAccount } };
-    return { data: { user: null } };
+  // getClaims() with no argument reads the cookie session; getClaims(jwt) verifies the token.
+  mocks.getClaims.mockImplementation(async (jwt?: string) => {
+    if (jwt === undefined)   return claimsFor(cookieAccount);
+    if (jwt === "valid-jwt") return claimsFor(tokenAccount);
+    return { data: null, error: new Error("invalid JWT") };
   });
   mocks.findUnique.mockResolvedValue({ id: 1, name: "Member", organizationId: 2,
     memberships: [{ id: 12, organizationId: 2, isOrgAdmin: false, name: null, role: "Member",
@@ -40,14 +42,14 @@ beforeEach(() => {
 describe("bearer-token auth", () => {
   it("falls back to the cookie session when no Authorization header is sent", async () => {
     await requireUser();
-    expect(mocks.getUser).toHaveBeenCalledWith();
+    expect(mocks.getClaims).toHaveBeenCalledWith();
     expect(mocks.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { authUserId: cookieAccount.id } }));
   });
 
   it("resolves the token's account when a Bearer token is sent", async () => {
     mocks.headers = new Headers({ authorization: "Bearer valid-jwt" });
     const user = await requireUser();
-    expect(mocks.getUser).toHaveBeenCalledWith("valid-jwt");
+    expect(mocks.getClaims).toHaveBeenCalledWith("valid-jwt");
     expect(mocks.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { authUserId: tokenAccount.id } }));
     expect(user?.orgId).toBe(2);
     expect(await sessionAuthUserId()).toBe(tokenAccount.id);
@@ -59,13 +61,13 @@ describe("bearer-token auth", () => {
     expect(await hasSession()).toBe(false);
     expect(await sessionAuthUserId()).toBeNull();
     expect(mocks.findUnique).not.toHaveBeenCalled();
-    expect(mocks.getUser).not.toHaveBeenCalledWith();
+    expect(mocks.getClaims).not.toHaveBeenCalledWith();
   });
 
   it("ignores non-Bearer Authorization schemes", async () => {
     mocks.headers = new Headers({ authorization: "Basic dXNlcjpwYXNz" });
     await requireUser();
-    expect(mocks.getUser).toHaveBeenCalledWith();
+    expect(mocks.getClaims).toHaveBeenCalledWith();
   });
 
   it("resolves the join-flow session from a Bearer token too", async () => {
@@ -75,5 +77,26 @@ describe("bearer-token auth", () => {
     expect((await getJoinSession())?.authUserId).toBe(tokenAccount.id);
     mocks.headers = new Headers({ authorization: "Bearer expired-jwt" });
     expect(await getJoinSession()).toBeNull();
+  });
+
+  it("refuses tokens that verify but aren't a signed-in user's", async () => {
+    // The anon key is a JWT from the same issuer; anonymous sign-ins carry a
+    // subject. Neither is a member identity.
+    mocks.headers = new Headers({ authorization: "Bearer other" });
+    mocks.getClaims.mockResolvedValueOnce({ data: { claims: { role: "anon", iss: "supabase" } }, error: null });
+    expect(await requireUser()).toBeNull();
+    mocks.getClaims.mockResolvedValueOnce(claimsFor(tokenAccount, { is_anonymous: true }));
+    expect(await requireUser()).toBeNull();
+    mocks.getClaims.mockResolvedValueOnce(claimsFor(tokenAccount, { role: "service_role" }));
+    expect(await requireUser()).toBeNull();
+    expect(mocks.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("treats a verification crash as no account, not a 500", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.headers = new Headers({ authorization: "Bearer valid-jwt" });
+    mocks.getClaims.mockRejectedValueOnce(new TypeError("bad JWK"));
+    expect(await requireUser()).toBeNull();
+    spy.mockRestore();
   });
 });
