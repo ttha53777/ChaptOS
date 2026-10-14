@@ -10,6 +10,7 @@ import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
 import { logError, logTiming } from "@/lib/observability";
+import type { ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
@@ -135,7 +136,9 @@ export async function POST(req: NextRequest) {
       // block itself. Swallow it: the work is already done or abandoned either
       // way, and throwing from here just turns a hangup into a logged error.
       let closed = false;
-      const send = (event: string, data: unknown) => {
+      // Typed against the shared stream protocol (lib/api-types/chat.ts), so an
+      // event the web and native clients don't know about can't be emitted.
+      const send = <E extends ChatStreamEventName>(event: E, data: ChatStreamEvents[E]) => {
         if (closed) return;
         try { controller.enqueue(encoder.encode(sseEvent(event, data))); }
         catch { closed = true; }

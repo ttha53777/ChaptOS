@@ -150,12 +150,9 @@ export async function listGhostAccounts(ctx: RequestContext): Promise<GhostAccou
   }));
 }
 
-/** What the member card shows beyond the roster row: contact + tenure. */
-export interface MemberProfile {
-  brotherId: number;
-  email:     string | null;
-  joinedAt:  string;
-}
+// The wire shape lives in lib/api-types (shared with the native app).
+export type { MemberProfile } from "@/lib/api-types";
+import type { MemberProfile } from "@/lib/api-types";
 
 /**
  * One member's email and join date, for the member card (MemberSpotlight).

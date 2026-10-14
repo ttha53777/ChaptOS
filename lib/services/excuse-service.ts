@@ -70,17 +70,9 @@ export async function listExcuses(
   }));
 }
 
-export interface MyExcuseItem {
-  id:              number;
-  calendarEventId: number;
-  eventTitle:      string;
-  eventDate:       string;
-  reason:          string;
-  status:          string;
-  submittedAt:     string;
-  decidedAt:       string | null;
-  rejectionNote:   string | null;
-}
+// The wire shape lives in lib/api-types (shared with the native app).
+export type { MyExcuseItem } from "@/lib/api-types";
+import type { MyExcuseItem } from "@/lib/api-types";
 
 /**
  * The caller's own excuses for the active semester, newest first. Any signed-in

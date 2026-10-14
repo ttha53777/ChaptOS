@@ -33,37 +33,10 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
   };
 }
 
-interface TreasuryData {
-  balance: number;
-  projected: number;
-  trend: { month: string; balance: number }[];
-  /**
-   * What was in the account when the org started keeping books here, or null if
-   * nobody has been asked. Already folded into `balance` and `trend` server-side —
-   * carried here so the treasury page's live client-side recompute can start from
-   * the same number instead of zero.
-   */
-  openingBalance: number | null;
-}
-
-/**
- * One of the org's own income/expense streams. The full set including hidden ones,
- * because a transaction filed under an archived category still has to render its
- * label and color.
- */
-export interface TransactionCategory {
-  id: number;
-  kind: "income" | "expense";
-  /** The value stored in Transaction.category. What a <select> submits. */
-  slug: string;
-  /** The display name. The only thing a user should ever see. */
-  label: string;
-  color: string;
-  colorDark: string | null;
-  builtin: boolean;
-  hidden: boolean;
-  displayOrder: number;
-}
+// Wire shapes shared with the native app (lib/api-types); TransactionCategory and
+// MembershipSummary stay importable from here for existing callers.
+export type { TransactionCategory, MembershipSummary } from "@/lib/api-types";
+import type { TreasuryData, TransactionCategory, MembershipSummary } from "@/lib/api-types";
 
 interface CurrentUserRole {
   id: number;
@@ -71,20 +44,6 @@ interface CurrentUserRole {
   color: string | null;
   rank: number;
   permissions: number;
-}
-
-export interface MembershipSummary {
-  id: number;
-  organizationId: number;
-  isOrgAdmin: boolean;
-  orgName: string;
-  orgSlug: string;
-  /** Display name in THIS org, or null when it falls back to the account name.
-   *  Mirrors MembershipSummary in lib/auth/require-user.ts. */
-  name: string | null;
-  orgLogoUrl: string | null;
-  /** Office title in this org (top-ranked role, else Membership.role). */
-  title: string;
 }
 
 export interface CurrentUser {

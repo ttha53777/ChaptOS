@@ -1,11 +1,20 @@
 import { fmtUsd, money } from "@/lib/money";
 import type { OwnerRef } from "@/lib/event-owner";
-import type { ActivityCategory } from "@/lib/activity-category";
+
+// ─── Wire types ───────────────────────────────────────────────────────────────
+// The API's JSON shapes live in lib/api-types (shared with the native app);
+// re-exported here so existing `from "../data"` imports keep working.
+export type {
+  Brother, Task, TaskStatus, TaskAssignment, TaskAssigneeBrother, TaskAssigneeRole,
+  Poll, PollOption, PollAssignment, PollPendingVoter,
+  CalendarEvent, CalEventType, Reimbursement, DuesPayment, Transaction, PaymentMethod,
+  ActivityEntry,
+} from "@/lib/api-types";
+import type { ActivityEntry, Brother, CalendarEvent, Task, TaskStatus, Reimbursement, Transaction, PaymentMethod } from "@/lib/api-types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type BrotherStatus = "Good" | "Watch" | "At Risk";
-export type TaskStatus = "Upcoming" | "Due Soon" | "Urgent" | "Complete";
 // Canonical post types — mirrors INSTAGRAM_TYPES in lib/validation/instagram.ts
 // (kept as a local literal so this mock-data module stays dependency-light).
 export type InstagramType = "Story" | "Reel" | "Carousel";
@@ -14,30 +23,12 @@ export type InstagramType = "Story" | "Reel" | "Carousel";
 export type { InstagramStatus } from "@/lib/state";
 import type { InstagramStatus } from "@/lib/state";
 // Built-in category slugs. Event categories are now per-org, admin-editable
-// CalendarEventType rows (see lib/event-types.ts + the CalEventType DTO below),
+// CalendarEventType rows (see lib/event-types.ts + the CalEventType DTO in lib/api-types),
 // so CalendarEvent.category is a free `string`. This union is retained only where
 // code still branches on the built-in slugs (e.g. the Programming page's fixed
 // subset) — it is NOT the exhaustive set of an org's categories.
 export type CalEventCategory = "chapter" | "social" | "fundy" | "program" | "party" | "deadline" | "service";
 export type CalLayer = "all" | "mandatory" | "deadlines" | "parties" | "service";
-
-// Per-org timeline event type — the client view of a CalendarEventType row.
-// Drives the timeline's labels/colors/legend and the add-event picker.
-export interface CalEventType {
-  id: number;
-  slug: string;
-  label: string;
-  color: string;              // light ("ivory") hex
-  colorDark: string | null;   // dark ("dusk") hex; falls back to color
-  workflowId: string | null;  // gates picker visibility; null = always available
-  builtin: boolean;
-  creatable: boolean;         // false = managed elsewhere (deadline)
-  hidden: boolean;
-  mandatoryDefault: boolean;
-  displayOrder: number;
-  /** Blank "More details" a new event of this type opens with (lib/event-details.ts). */
-  detailTemplate?: import("@/lib/event-details").EventDetail[] | null;
-}
 
 // Income and expense categories used to live here as two platform-wide constants,
 // which meant every org on the platform filed its money under one fraternity's
@@ -47,70 +38,7 @@ export interface CalEventType {
 //
 // Payment methods stay here: they are how money physically moved, not what an org
 // calls its money, so they genuinely are the same everywhere.
-export type PaymentMethod = "venmo" | "cash" | "check" | "invoice";
-
 export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "cash", "check", "invoice"];
-
-export interface Reimbursement {
-  id: number;
-  brotherId: number;
-  brother: { id: number; name: string; avatarUrl: string | null };
-  amount: number;
-  date: string;
-  description: string;
-  category?: string | null;
-  status: "pending" | "approved" | "rejected";
-  rejectionNote?: string | null;
-  // The ledger row approval minted. Null until approved; null again if reversed.
-  transactionId?: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface DuesPayment {
-  id: number;
-  brotherId: number;
-  brother: { id: number; name: string; avatarUrl: string | null };
-  amount: number;
-  date: string;
-  paymentMethod?: string | null;
-  status: "pending" | "approved" | "rejected";
-  rejectionNote?: string | null;
-  // The ledger row approval minted. Null until approved.
-  transactionId?: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Transaction {
-  id: number;
-  type: "income" | "expense";
-  category: string;
-  amount: number;
-  date: string;
-  description: string;
-  paymentMethod?: string;
-  semester?: string;
-  status?: string;
-  calendarEvents?: { id: number; title: string; date: string; category: string }[];
-  deletedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Brother {
-  id: number;
-  name: string;
-  role: string;
-  attendance: number;
-  duesOwed: number;
-  gpa: number;
-  serviceHours: number;
-  avatarUrl?: string | null;
-  roles?: { id: number; name: string; color: string | null; rank: number }[];
-  /** Per-member values for org-defined custom fields. Absent on old cached data — treat as {}. */
-  customFields?: Record<string, string | number | null>;
-}
 
 /**
  * The office title to SHOW for a brother. Relational roles are the source of
@@ -129,76 +57,6 @@ export function roleTitle(b: Pick<Brother, "role" | "roles">): string {
     return b.roles.map(r => r.name).join(" · ");
   }
   return b.role;
-}
-
-// A task assignee chip: either a member or a role. Mirrors the assignment join
-// rows resolved server-side in task-service (loadTasks include).
-export interface TaskAssigneeBrother { id: number; name: string; avatarUrl: string | null }
-export interface TaskAssigneeRole    { id: number; name: string; color: string | null }
-export interface TaskAssignment {
-  id: number;
-  brotherId: number | null;
-  roleId: number | null;
-  brother: TaskAssigneeBrother | null;
-  role: TaskAssigneeRole | null;
-}
-
-// The unified task. A task WITH a dueDate is what the UI calls a "deadline" (it
-// folds into the timeline). Status is just open/done — urgency is computed from
-// dueDate (see lib/tasks/urgency), never stored.
-export interface Task {
-  id: number;
-  title: string;
-  dueDate: string | null;
-  status: "open" | "done";
-  notes: string | null;
-  createdById: number | null;
-  completedById: number | null;
-  completedAt: string | null;
-  createdAt: string;
-  assignments: TaskAssignment[];
-  /** Live "Everyone" target (no assignment rows): "any" = one person finishes it
-   *  for the chapter, "each" = every member does their own. null = assignments. */
-  everyone: "any" | "each" | null;
-  /** "each" tasks only: members who've ticked their part, of the active roster.
-   *  `status` is then the VIEWER's own part (see task-service toDTOs). */
-  doneCount: number | null;
-  memberCount: number | null;
-}
-
-// A poll is task-shaped (members/roles + optional date) with a question and 2-10
-// options that attached members vote on. Single-choice. It's a BLIND ballot: the
-// server withholds per-option `voteCount` (null) until the viewer has voted, the
-// poll closes, or the viewer can manage polls — see poll-service buildDTOs. When
-// sealed, `voteCount` is null but `totalVotes` (the "N sealed" count) still ships.
-export interface PollOption { id: number; label: string; position: number; voteCount: number | null }
-export interface PollAssignment {
-  id: number;
-  brotherId: number | null;
-  roleId: number | null;
-  brother: TaskAssigneeBrother | null;
-  role: TaskAssigneeRole | null;
-}
-export interface PollPendingVoter { brotherId: number; name: string; avatarUrl: string | null }
-export interface Poll {
-  id: number;
-  question: string;
-  closeDate: string | null;
-  status: "open" | "closed";
-  createdById: number | null;
-  closedById: number | null;
-  closedAt: string | null;
-  createdAt: string;
-  options: PollOption[];
-  assignments: PollAssignment[];
-  totalVotes: number;
-  // Members who can vote (direct assignees ∪ current role holders).
-  assigneeCount: number;
-  myVoteOptionId: number | null;
-  // True when per-option counts are withheld from this viewer (blind ballot).
-  sealed: boolean;
-  // Manager-only (MANAGE_POLLS): assignees who have not voted yet. Undefined otherwise.
-  pendingVoters?: PollPendingVoter[];
 }
 
 export interface InstagramTask {
@@ -277,36 +135,6 @@ export interface PartyEvent {
   completedAt: string | null;
 }
 
-export interface CalendarEvent {
-  schedule?: import("@/lib/calendar-feed/schedule").Schedule | null;
-  id: number;
-  /** The party ledger attached to this calendar event. */
-  partyEventId?: number | null;
-  title: string;
-  date: string;
-  time?: string;
-  category: string; // a CalEventType slug (per-org); see CalEventType above
-  mandatory: boolean;
-  description?: string;
-  /** The agenda exactly as copied in from a template at creation; null when the notes started blank. */
-  notesSeed?: string | null;
-  agendaTemplateId?: number | null;
-  location?: string;
-  notesSummary?: string | null;
-  /** Structured summary (lib/meeting-summary.ts); parse before reading. */
-  notesSummaryData?: unknown;
-  notesSummaryAt?: string | null;
-  notesUpdatedAt?: string | null;
-  notesContentRevision?: number;
-  notesSummaryRevision?: number | null;
-  notesCollaborationEnabled?: boolean;
-  notesInitialized?: boolean;
-  /** When this calendar row was created by promoting a programming event, the id of
-   *  that ProgrammingEvent — lets the timeline deep-link into the Programming page. */
-  programmingEventId?: number | null;
-  /** "More details" (lib/event-details.ts). Members never receive checklist/budget. */
-  details?: import("@/lib/event-details").EventDetail[];
-}
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
@@ -477,15 +305,6 @@ export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt
 ];
 
 // ─── Activity Feed ────────────────────────────────────────────────────────────
-
-export interface ActivityEntry {
-  id: number;
-  message: string;
-  timestamp: string;
-  type: "success" | "warning" | "info";
-  /** From GET /api/activity: what the row is about, or null when unknown. */
-  category?: ActivityCategory | null;
-}
 
 export const seedActivity: ActivityEntry[] = [
   { id: 1, message: "Nathaniel Baccarey flagged At Risk automatically", timestamp: "3h ago", type: "warning" },

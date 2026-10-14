@@ -7,6 +7,7 @@ import { upsertAnnouncementInput } from "@/lib/validation/announcement";
 import { emit } from "@/lib/events";
 import { logError } from "@/lib/observability";
 import { db } from "@/lib/db";
+import type { Announcement } from "@/lib/api-types";
 
 // Dashboard announcement — one row per org (@@unique organizationId in schema).
 // GET is intentionally unauthenticated: used by the login splash and by the
@@ -15,15 +16,10 @@ import { db } from "@/lib/db";
 
 const AUTHOR_NAME_MAX = 80;
 
-type AnnouncementResponse = {
-  title: string; body: string; ctaLabel: string | null; ctaUrl: string | null;
-  authorName: string | null; updatedAt: string;
-} | null;
-
 function serialize(row: {
   title: string; body: string; ctaLabel: string | null; ctaUrl: string | null;
   authorName: string | null; updatedAt: Date;
-}): AnnouncementResponse {
+}): Announcement {
   return {
     title: row.title, body: row.body, ctaLabel: row.ctaLabel, ctaUrl: row.ctaUrl,
     authorName: row.authorName, updatedAt: row.updatedAt.toISOString(),

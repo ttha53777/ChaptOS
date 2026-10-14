@@ -17,6 +17,7 @@ import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 import { resolveProgrammingDisplay } from "@/lib/programming";
 import type { Schedule } from "@/lib/calendar-feed/schedule";
+import type { MeResponse } from "@/lib/api-types";
 
 export async function GET() {
   const user = await requireUser();
@@ -282,7 +283,7 @@ export async function GET() {
       permissions: effectivePermissions,
       maxRank: Number.isFinite(effectiveMaxRank) ? effectiveMaxRank : null,
       roles: perms.roles,
-    });
+    } satisfies MeResponse);
   } catch (e) {
     logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });
     return toResponse(e);

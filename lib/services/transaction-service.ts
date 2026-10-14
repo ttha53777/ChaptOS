@@ -75,11 +75,10 @@ const EVENT_INCLUDE = {
   },
 } as const;
 
-type RawWithEvents = {
-  amountCents: bigint | null;
-  calendarEvents: { calendarEvent: LinkedEvent }[];
-  [key: string]: unknown;
-};
+// The scoped wrapper's return type doesn't carry the `include` through, so callers
+// cast to the real payload; typing it (rather than an index signature) keeps
+// every column in the result type that the API contract checks.
+type RawWithEvents = Prisma.TransactionGetPayload<{ include: typeof EVENT_INCLUDE }>;
 
 function mapTx(raw: RawWithEvents) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

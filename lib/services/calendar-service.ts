@@ -1,4 +1,4 @@
-import { UNCLEAR_TIME, scheduleDate, scheduleEndTime, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, scheduleDate, scheduleEndTime, scheduleTime, timeIsClear, type Schedule } from "@/lib/calendar-feed/schedule";
 import { agendaValues, fillAgenda } from "@/lib/agenda-template";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
@@ -55,6 +55,8 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
   const officer = can(ctx, "MANAGE_EVENTS");
   return rows.map(({ programmingEvent, partyEvent, details, ...row }) => ({
     ...row,
+    // A Json column to Prisma; every write goes through scheduleSchema, so it is one.
+    schedule: (row.schedule ?? null) as Schedule | null,
     details: officer ? parseEventDetails(details) : forMembers(parseEventDetails(details)),
     notesInitialized: initialized.has(row.id),
     notesCollaborationEnabled: collaborativeNotesEnabled(ctx.orgId) && can(ctx, "MANAGE_EVENTS") && row.category === "chapter",

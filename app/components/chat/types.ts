@@ -2,6 +2,14 @@
 // protocol documented in app/api/ai/chat/route.ts — the server is the source
 // of truth; everything here is defensive-parsed off the wire.
 
+// The wire shapes (what POST /api/ai/chat streams) live in lib/api-types, shared
+// with the native app; re-exported so existing imports from here keep working.
+export type {
+  RefType, EntityRef, AnswerTier, AnswerRow, AskBackSelect, AskBackQuestion, AskBack,
+  AnswerData, ProposalPermInfo, ProposalDisplayInfo,
+} from "@/lib/api-types";
+import type { AnswerData, AnswerRow, ProposalDisplayInfo, ProposalPermInfo } from "@/lib/api-types";
+
 export type StepStatus = "pending" | "active" | "done";
 
 export interface LedgerStep {
@@ -15,29 +23,6 @@ export interface LedgerStep {
    * the trace, and dropped the moment the real batch is known. See intent.ts.
    */
   provisional?: boolean;
-}
-
-export type RefType = "member" | "event" | "task";
-
-export interface EntityRef {
-  type: RefType;
-  id: number;
-}
-
-export type AnswerTier = "high" | "medium" | "later";
-
-export interface AnswerRow {
-  kind: "person" | "money" | "event" | "task" | "generic";
-  title: string;
-  subtitle?: string;
-  value?: string;
-  ask?: string;
-  /** Server-attached record id — present when the row can open a peek. */
-  ref?: EntityRef;
-  /** Impact tier on an advisory row; fills the same slot as `value`. */
-  tier?: AnswerTier;
-  /** Server-resolved screen path, relative to the org (e.g. "/treasury/dues"). */
-  screen?: { label: string; path: string };
 }
 
 /**
@@ -77,25 +62,6 @@ export function rowAction(row: AnswerRow): RowAction | null {
 }
 
 /**
- * How a question's chips relate, and so what tapping one means. "one" (the
- * default when absent) — alternatives, so a tap sends that reply immediately,
- * exactly as a typed reply would. "many" — constraints that can all hold at
- * once, so taps stage a selection and the user sends them as one reply.
- */
-export type AskBackSelect = "one" | "many";
-
-export interface AskBackQuestion {
-  question: string;
-  chips: string[];
-  select?: AskBackSelect;
-}
-
-export interface AskBack {
-  lead?: string;
-  questions: AskBackQuestion[];
-}
-
-/**
  * Next row the arrows should land on, skipping any the server could resolve to
  * neither a record nor a follow-up. Selection paints a row as actionable, so
  * parking it where Enter does nothing reads as a broken key rather than as an
@@ -107,29 +73,6 @@ export function stepRow(rows: AnswerRow[], from: number, dir: 1 | -1): number {
     if (rowAction(rows[i])) return i;
   }
   return from;
-}
-
-export interface AnswerData {
-  verdict: string; // may contain one *emphasis* span — rendered, never injected
-  rows: AnswerRow[];
-  follows: Array<{ label: string; ask: string }>;
-  sources: string[];
-  /** Questions the answer asks back, each with tappable likely replies. */
-  askback?: AskBack;
-}
-
-export interface ProposalPermInfo {
-  /** null = self-service: the member acts on their own record, needs no permission, and nothing is filed in Approvals. */
-  name: string | null;
-  label: string;
-  canApprove: boolean;
-  holders?: { roleTitles: string[]; memberName?: string };
-}
-
-export interface ProposalDisplayInfo {
-  kind: string;
-  title: string;
-  rows: Array<{ k: string; v: string; em?: boolean }>;
 }
 
 export type WritState = "pending" | "confirming" | "approved" | "discarded" | "dismissed" | "error";

@@ -3,6 +3,7 @@ import { toResponse } from "@/lib/errors";
 import { money } from "@/lib/money";
 import { logError } from "@/lib/observability";
 import { netBalance } from "@/lib/treasury-balance";
+import type { TreasuryData } from "@/lib/api-types";
 
 const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -71,7 +72,7 @@ export async function GET() {
       projected: Math.round(balance * 1.3),
       trend,
       openingBalance,
-    });
+    } satisfies TreasuryData);
   } catch (e) {
     logError(e, { route: "/api/treasury", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

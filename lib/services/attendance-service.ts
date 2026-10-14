@@ -185,29 +185,9 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
 // EXIST, so a member with no row is not counted absent, they are not counted at
 // all. Without the close write every ratio would read 100%.
 
-export type LiveCheckIn = {
-  event: {
-    id: number;
-    title: string;
-    date: string;
-    time: string | null;
-    schedule?: unknown;
-    location: string | null;
-    mandatory: boolean;
-  };
-  state:         CheckInStatus;
-  openedAt:      string;
-  closedAt:      string | null;
-  closedByName:  string | null;
-  msRemaining:   number;
-  presentCount:  number;
-  eligibleCount: number;
-  me: {
-    checkedIn:   boolean;
-    checkedInAt: string | null;
-    excuse:      { status: ExcuseStatus; reason: string } | null;
-  };
-};
+// The wire shape lives in lib/api-types (shared with the native app).
+export type { LiveCheckIn } from "@/lib/api-types";
+import type { LiveCheckIn } from "@/lib/api-types";
 
 /** A closed window keeps showing its final tally for this long. */
 const CLOSED_LINGER_MS = 10 * 60 * 1000;

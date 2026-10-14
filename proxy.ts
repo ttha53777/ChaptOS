@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@/lib/auth/dev-bypass";
 import { isSameOrigin } from "@/lib/auth/same-origin";
+import { outdatedAppResponse } from "@/lib/mobile-config";
 
 /** Methods that mutate state and therefore need CSRF gating. */
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -37,6 +38,10 @@ export async function proxy(request: NextRequest) {
   // that covers all ~64 mutating routes, including the pre-auth bootstrap POSTs
   // (claim/redeem-invite/orgs/avatar) that never reach buildContext.
   if (request.nextUrl.pathname.startsWith("/api/")) {
+    // A native-app build below the supported floor gets one uniform 426 from
+    // every route instead of breaking on whatever response shape changed.
+    const outdated = outdatedAppResponse(request.nextUrl.pathname, request.headers);
+    if (outdated) return outdated;
     if (UNSAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

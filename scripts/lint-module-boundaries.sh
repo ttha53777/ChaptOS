@@ -33,6 +33,15 @@ if [[ -n "$C" ]]; then HITS="$HITS\n[SERVICE→SERVICE] Cross-service calls viol
 D=$(grep -rn 'from "@/app/api' lib/services/ 2>/dev/null | grep -v 'lint-modules:ignore')
 if [[ -n "$D" ]]; then HITS="$HITS\n[SERVICE→APP] Services must not reach into route handlers:\n$D\n"; fi
 
+# 5. lib/api-types is the wire contract the native app compiles against: type-only,
+#    so nothing it imports ever reaches the app's bundle (see lib/api-types/index.ts).
+E=$( {
+  grep -rn '^import ' lib/api-types/ 2>/dev/null | grep -v ':import type '
+  grep -rnE '^import type .* from "[^@.]' lib/api-types/ 2>/dev/null
+  grep -rnE '^export (default|const|let|var|function|async|class|enum|\{|\* )' lib/api-types/ 2>/dev/null
+} | grep -v 'lint-modules:ignore')
+if [[ -n "$E" ]]; then HITS="$HITS\n[API-TYPES RUNTIME] lib/api-types must stay type-only (import type / export type / interfaces):\n$E\n"; fi
+
 if [[ -z "$HITS" ]]; then
   echo "lint-modules: OK — module boundaries respected"
   exit 0
