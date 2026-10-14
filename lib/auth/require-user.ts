@@ -10,6 +10,47 @@ function withTimeout(ms: number): typeof fetch {
 export const ACTIVE_ORG_COOKIE = "active_org_id";
 
 /**
+ * The Supabase access token from `Authorization: Bearer <jwt>`, or null.
+ *
+ * The browser authenticates with the Supabase session cookie; the native app
+ * has no cookie jar to share, so it sends its access token in this header
+ * instead. Not ambient the way a cookie is, so it adds no CSRF surface.
+ */
+async function bearerToken(): Promise<string | null> {
+  try {
+    const value = (await headers()).get("authorization");
+    return value?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;
+  } catch {
+    // headers() is unavailable outside a request scope — no header to read.
+    return null;
+  }
+}
+
+/**
+ * The verified Supabase auth user for this request, or null.
+ *
+ * A bearer token, when present, is authoritative: an invalid or expired one
+ * yields null rather than falling back to whatever cookie rides along, so a
+ * client can never be silently authenticated as a different account than the
+ * one it presented.
+ */
+async function verifiedAuthUser(cookieStore: Awaited<ReturnType<typeof cookies>>) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
+      global: { fetch: withTimeout(5_000) },
+    }
+  );
+  const token = await bearerToken();
+  const { data: { user } } = token
+    ? await supabase.auth.getUser(token)
+    : await supabase.auth.getUser();
+  return user;
+}
+
+/**
  * Header the client sets on every API request, carrying the org slug from the
  * URL the user is actually viewing (/[slug]/*). The data layer trusts the URL
  * over the active_org cookie, so a freshly-switched org never shows stale data
@@ -122,16 +163,7 @@ export async function hasSession(): Promise<boolean> {
   if (devBypassEnabled() && verifyImpersonation(cookieStore.get(DEV_IMPERSONATE_COOKIE)?.value) !== null) {
     return true;
   }
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-      global: { fetch: withTimeout(5_000) },
-    }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  return !!user;
+  return !!(await verifiedAuthUser(cookieStore));
 }
 
 /**
@@ -148,15 +180,7 @@ export async function hasSession(): Promise<boolean> {
  */
 export async function sessionAuthUserId(): Promise<string | null> {
   const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-      global: { fetch: withTimeout(5_000) },
-    }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await verifiedAuthUser(cookieStore);
   return user?.id ?? null;
 }
 
@@ -177,18 +201,7 @@ export async function requireUser(opts?: { orgSlug?: string }) {
   let userMetadata: Record<string, unknown> | undefined;
 
   if (bypassBrotherId === null) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-        global: { fetch: withTimeout(5_000) },
-      }
-    );
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await verifiedAuthUser(cookieStore);
     if (!user) return null;
     authUserId = user.id;
     email = user.email ?? null;
