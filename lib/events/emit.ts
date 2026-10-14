@@ -75,47 +75,59 @@ export async function emit<A extends Action>(
     console.warn(`emit: unknown action "${action}"`);
   }
 
+  // 1) and 2) are independent rows, each its own scoped transaction, so they
+  // run concurrently: one wave of round-trips instead of two on every write.
+  // Each still fails alone — neither can block the other or the caller.
+  // (pairActivityCategories tolerates either landing first.)
+
   // 1) Insert the structured event.
-  try {
-    await ctx.db.operationalEvent.create({
-      data: {
-        requestId:      ctx.requestId,
-        actorId:        ctx.actorId,
-        action,
-        subjectType:    subject.type,
-        subjectId:      subject.id,
-        metadata:       metadata as object,
-      },
-    });
-  } catch (e) {
-    logError(e, {
-      route: "events/emit",
-      method: "INSERT",
-      userId: ctx.actorId,
-      extra: { action, subjectType: subject.type, subjectId: subject.id, requestId: ctx.requestId },
-    });
-    // Don't throw — losing telemetry shouldn't fail business writes.
-  }
+  const insertEvent = async () => {
+    try {
+      await ctx.db.operationalEvent.create({
+        data: {
+          requestId:      ctx.requestId,
+          actorId:        ctx.actorId,
+          action,
+          subjectType:    subject.type,
+          subjectId:      subject.id,
+          metadata:       metadata as object,
+        },
+      });
+    } catch (e) {
+      logError(e, {
+        route: "events/emit",
+        method: "INSERT",
+        userId: ctx.actorId,
+        extra: { action, subjectType: subject.type, subjectId: subject.id, requestId: ctx.requestId },
+      });
+      // Don't throw — losing telemetry shouldn't fail business writes.
+    }
+  };
 
   // 2) Dual-write ActivityLog (UI feed backward-compat) — unless suppressed.
-  if (options.activity !== false) try {
-    const type = options.activityType ?? defaultActivityType(action);
-    const message = options.activityMessage ?? formatActivityMessage(ctx, action, metadata);
-    await ctx.db.activityLog.create({
-      data: {
-        actorId:        ctx.actorId,
-        type,
-        message,
-      },
-    });
-  } catch (e) {
-    logError(e, {
-      route: "events/emit",
-      method: "ACTIVITY_LOG",
-      userId: ctx.actorId,
-      extra: { action, requestId: ctx.requestId },
-    });
-  }
+  const insertActivity = async () => {
+    if (options.activity === false) return;
+    try {
+      const type = options.activityType ?? defaultActivityType(action);
+      const message = options.activityMessage ?? formatActivityMessage(ctx, action, metadata);
+      await ctx.db.activityLog.create({
+        data: {
+          actorId:        ctx.actorId,
+          type,
+          message,
+        },
+      });
+    } catch (e) {
+      logError(e, {
+        route: "events/emit",
+        method: "ACTIVITY_LOG",
+        userId: ctx.actorId,
+        extra: { action, requestId: ctx.requestId },
+      });
+    }
+  };
+
+  await Promise.all([insertEvent(), insertActivity()]);
 
   // 3) Dispatch handlers (synchronous, in-process). Handler failures are
   // isolated per-handler and logged with requestId for correlation.
