@@ -125,7 +125,7 @@ function bez(x1: number, y1: number, x2: number, y2: number) {
 const FALL = bez(.75, 0, .2, 1);
 const SWIM = bez(.62, 0, .22, 1);
 
-function glideTo(main: HTMLElement, y: number, dur: number, ease: (t: number) => number = FALL.y) {
+export function glideTo(main: HTMLElement, y: number, dur: number, ease: (t: number) => number = FALL.y) {
   const y0 = main.scrollTop, t0 = performance.now();
   main.style.scrollBehavior = "auto";
   const step = (now: number) => {
@@ -141,7 +141,7 @@ function glideTo(main: HTMLElement, y: number, dur: number, ease: (t: number) =>
  *  the window, unless it's already comfortably on screen. With jump, a long way off
  *  covers most of the distance at once (the scrim is still up to hide it) and the
  *  caller glides the rest. */
-function scrollPlan(main: HTMLElement, top: number, height: number, jump: boolean): number {
+export function scrollPlan(main: HTMLElement, top: number, height: number, jump: boolean): number {
   const s0 = main.scrollTop, vh = main.clientHeight, rel = top - s0;
   const maxY = main.scrollHeight - vh;
   const want = rel >= 90 && rel + height <= vh - 70 ? s0 : Math.max(0, Math.min(maxY, top + height / 2 - vh * .45));

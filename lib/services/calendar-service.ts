@@ -210,6 +210,40 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
   return withoutNotesDoc(event);
 }
 
+/** What deleting an event would take with it, counted the way deleteCalendar removes it,
+ *  for the timeline's delete slip. `blocked` is the one refusal deleteCalendar makes
+ *  beyond the route's MANAGE_EVENTS: a party ledger needs MANAGE_PARTIES. Asked when the
+ *  slip opens, so a delete that can't happen is said up front instead of animated. */
+export interface DeletePreview {
+  attendance: number;
+  excuses: number;
+  party: { name: string; doorRevenue: number; expenses: number; completed: boolean } | null;
+  /** Members with service hours logged on its service event. */
+  serviceMembers: number;
+  /** A programming card scheduled onto this entry, which goes back to Ideas. */
+  programming: boolean;
+  blocked: "MANAGE_PARTIES" | null;
+}
+
+export async function previewDeleteCalendar(ctx: RequestContext, id: number): Promise<DeletePreview> {
+  const target = await ctx.db.calendarEvent.findUnique({ where: { id }, select: { id: true } });
+  if (!target) throw new NotFoundError("Calendar event");
+  // Two at a time: the scoped pool is small (see scoped-query budget).
+  const [attendance, excuses] = await Promise.all([
+    ctx.db.attendanceRecord.count({ where: { calendarEventId: id } }),
+    ctx.db.attendanceExcuse.count({ where: { calendarEventId: id } }),
+  ]);
+  const [party, serviceMembers] = await Promise.all([
+    ctx.db.partyEvent.findFirst({ where: { attendanceEventId: id }, select: { name: true, doorRevenue: true, expenses: true, completed: true } }),
+    ctx.db.serviceParticipation.count({ where: { serviceEvent: { calendarEventId: id } } }),
+  ]);
+  const programming = (await ctx.db.programmingEvent.count({ where: { calendarEventId: id } })) > 0;
+  return {
+    attendance, excuses, party, serviceMembers, programming,
+    blocked: party && !can(ctx, "MANAGE_PARTIES") ? "MANAGE_PARTIES" : null,
+  };
+}
+
 export async function deleteCalendar(ctx: RequestContext, id: number) {
   const target = await ctx.db.calendarEvent.findUnique({
     where: { id },

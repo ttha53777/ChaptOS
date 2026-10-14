@@ -16,9 +16,9 @@ import type { EventDetail } from "@/lib/event-details";
 import { isEventTypeVisibleInPicker } from "../../../lib/event-types";
 import { CalendarCategory } from "../../../lib/state/calendar-category";
 import { useChapter } from "../../context/ChapterContext";
-import { Modal, ConfirmDialog } from "../../components/dashboard/primitives";
+import { Modal } from "../../components/dashboard/primitives";
 import { inputCls } from "../../components/dashboard/styles";
-import { requestJson, orgFetch, ApiError, apiErrorCode } from "../../lib/api";
+import { requestJson, orgFetch, ApiError, apiErrorCode, apiErrorMessage } from "../../lib/api";
 import { pad, toDateStr, daysFromToday } from "../../lib/dates";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useOrgPath } from "../../hooks/useOrgPath";
@@ -27,6 +27,9 @@ import { useActiveSemester } from "../../hooks/useActiveSemester";
 import { useSemesterErrorHandler, resolveMutationError } from "../../hooks/useSemesterErrorHandler";
 import { closeQuietly, docTop, findRow, formPanel, landEdit, landNew, recordPositions, shootForm, type AddLanding, type FailWhy, type RowDiff } from "../../components/timeline/event-landing";
 import "../../components/timeline/event-landing.css";
+import { dropSlip, shootSlip, tearRow, type Tear } from "../../components/timeline/event-delete";
+import "../../components/timeline/event-delete.css";
+import { DeleteEventSlip, DeleteToastView, type DeletePreview, type DeleteToast, type SlipState } from "../../components/timeline/DeleteEventSlip";
 import { isNavVisible } from "../../components/Sidebar";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
@@ -94,6 +97,10 @@ function readSeenRejections(): Set<string> {
 function writeSeenRejections(seen: Set<string>) {
   try { localStorage.setItem(SEEN_REJECTIONS_KEY, JSON.stringify([...seen])); } catch {}
 }
+
+/** A delete under way: its tear (null off the spine) and where the request is. */
+interface Deletion { event: CalendarEvent; tear: Tear | null; sent: boolean; settled: boolean }
+const reducedMotionNow = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /** Paper only: the mock's pastel confetti when something is marked done. */
 function paperBurst(from: HTMLElement) {
@@ -1352,7 +1359,6 @@ export default function TimelinePage() {
   const [activeModal,     setActiveModal]     = useState<"create" | "edit" | null>(null);
   const [calendarLoading,      setCalendarLoading]      = useState(true);
   const [calendarError,        setCalendarError]        = useState<string | null>(null);
-  const [confirmDeleteEvent,   setConfirmDeleteEvent]   = useState<CalendarEvent | null>(null);
 
   // Pending-excuse review queue (admin-only)
   const [pendingExcuses, setPendingExcuses] = useState<PendingExcuse[]>([]);
@@ -1454,6 +1460,15 @@ export default function TimelinePage() {
     setFormPage(1);
     setActiveModal("create");
   }
+  // ── Strike, stamp, tear (components/timeline/event-delete.ts) ──────────────
+  const [deleteAsk, setDeleteAsk] = useState<{ event: CalendarEvent; state: SlipState; pressed: boolean } | null>(null);
+  const previewRef = useRef<{ id: number; promise: Promise<SlipState | "gone"> } | null>(null);
+  // Events whose delete is under way and whose slot has closed: out of every list.
+  const [hiddenIds, setHiddenIds] = useState<Set<number>>(() => new Set());
+  const deletions = useRef(new Map<number, Deletion>());
+  /** The one delete waiting in the undo window. */
+  const pendingDelete = useRef<number | null>(null);
+  const [delToast, setDelToast] = useState<{ toast: DeleteToast; leaving?: boolean } | null>(null);
   // A claim or tick from the rail: keep the row and the open rail in step.
   function setEventDetails(id: number, details: EventDetail[]) {
     setApiEvents(prev => prev.map(e => e.id === id ? { ...e, details } : e));
@@ -1620,12 +1635,14 @@ export default function TimelinePage() {
     const liveDeadlineTitles = new Set([...taskList.map(d => d.title), ...igTaskList.map(t => t.title)]);
 
     const deduped = apiEvents.filter(e => {
+      // Deleted, and its slot has closed: gone everywhere while the delete settles.
+      if (hiddenIds.has(e.id)) return false;
       if (e.category === "deadline") return !liveDeadlineTitles.has(e.title);
       return true;
     });
 
     return [...deduped, ...live];
-  }, [apiEvents, taskList, igTaskList]);
+  }, [apiEvents, taskList, igTaskList, hiddenIds]);
 
   const filtered    = useMemo(() => filterByLayer(allEvents, activeLayer), [allEvents, activeLayer]);
   const layerCounts = useMemo(
@@ -2023,26 +2040,180 @@ export default function TimelinePage() {
       });
   }
 
-  function handleDeleteEvent() {
-    if (!selectedEvent || !selectedEventCanEdit) return;
-    setConfirmDeleteEvent(selectedEvent);
-  }
-
-  function executeDeleteEvent(event: CalendarEvent) {
-    const previous = apiEvents.find(e => e.id === event.id);
-    if (!previous) return;
-    setApiEvents(prev => prev.filter(e => e.id !== previous.id));
-    setSelectedEvent(null);
-    setCalendarError(null);
-    requestJson<void>(`/api/calendar/${previous.id}`, { method: "DELETE" })
-      .then(() => { void refreshChapterData(); })
-      .catch(error => {
-        console.error(error);
-        setApiEvents(prev => [...prev, previous].sort((a, b) => a.id - b.id));
-        setSelectedEvent(previous);
-        setCalendarError("Calendar event delete failed. Local changes were reverted.");
+  /* Delete: the slip says what goes with it (and whether it can go at all), then the
+     card is struck, stamped and torn off the timeline (components/timeline/event-delete.ts).
+     The DELETE waits out a few seconds behind an Undo toast; a failure puts it back. */
+  function previewFor(id: number): Promise<SlipState | "gone"> {
+    return requestJson<DeletePreview>(`/api/calendar/${id}/delete-preview`)
+      .then((p): SlipState => p.blocked ? { kind: "blocked", why: "parties" } : { kind: "ready", preview: p })
+      .catch((error): SlipState | "gone" => {
+        const status = error instanceof ApiError ? error.status : 0;
+        if (status === 401) return { kind: "blocked", why: "signin" };
+        if (status === 403) return { kind: "blocked", why: "events" };
+        if (status === 404) return "gone";
+        return { kind: "unknown" };
       });
   }
+
+  function handleDeleteEvent() {
+    if (!selectedEvent || !selectedEventCanEdit) return;
+    const event = selectedEvent;
+    const promise = previewFor(event.id);
+    previewRef.current = { id: event.id, promise };
+    setDeleteAsk({ event, state: { kind: "checking" }, pressed: false });
+    void promise.then(state => {
+      if (previewRef.current?.promise !== promise) return;
+      if (state === "gone") { setDeleteAsk(null); goneAlready(event); return; }
+      setDeleteAsk(a => a && a.event.id === event.id ? { ...a, state } : a);
+    });
+  }
+
+  /** Someone else deleted it first: it's gone either way. */
+  function goneAlready(event: CalendarEvent) {
+    setApiEvents(prev => prev.filter(e => e.id !== event.id));
+    setSelectedEvent(prev => prev?.id === event.id ? null : prev);
+    showDelToast({ kind: "gone", id: event.id, title: event.title });
+  }
+
+  async function confirmDelete() {
+    const ask = deleteAsk;
+    if (!ask || ask.pressed) return;
+    let state: SlipState | "gone" = ask.state;
+    if (state.kind === "checking") {
+      // pressed before the slip finished counting: hold the press for the answer
+      setDeleteAsk({ ...ask, pressed: true });
+      state = await (previewRef.current?.promise ?? Promise.resolve<SlipState>({ kind: "unknown" }));
+      if (state === "gone") { setDeleteAsk(null); goneAlready(ask.event); return; }
+      if (state.kind === "blocked") { setDeleteAsk(a => a && { ...a, state: state as SlipState, pressed: false }); return; }
+    }
+    if (state.kind === "blocked") return;
+    const p = state.kind === "ready" ? state.preview : null;
+    const records = !p || !!(p.attendance || p.excuses || p.party || p.serviceMembers);
+    const shot = shootSlip();
+    flushSync(() => setDeleteAsk(null));
+    dropSlip(shot);
+    startDelete(ask.event, records);
+  }
+
+  function hide(id: number, on: boolean) {
+    setHiddenIds(prev => {
+      if (prev.has(id) === on) return prev;
+      const next = new Set(prev);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
+  function startDelete(event: CalendarEvent, records: boolean) {
+    // One delete waits in the undo window at a time: a new one sends the last.
+    const prev = pendingDelete.current;
+    if (prev != null && prev !== event.id) commitDelete(prev);
+    const main = mainRef.current;
+    const row = view === "timeline" ? findRow(main, event.id) : null;
+    flushSync(() => { setSelectedEvent(prev => prev?.id === event.id ? null : prev); setCalendarError(null); });
+    const tear = row ? tearRow({ row, date: event.date }) : null;
+    const d: Deletion = { event, tear, sent: false, settled: false };
+    deletions.current.set(event.id, d);
+    // the row stays until its slot has closed, then the event drops out of the page
+    if (tear) void tear.exit.then(torn => { if (torn && deletions.current.get(event.id) === d) hide(event.id, true); });
+    else hide(event.id, true);
+    pendingDelete.current = event.id;
+    setTimeout(() => {
+      if (pendingDelete.current === event.id && !d.settled) showDelToast({ kind: "undo", id: event.id, title: event.title, records });
+    }, tear && !reducedMotionNow() ? 1850 : 0);
+  }
+
+  /** The undo window is over (the fuse burned down, ✕, another delete, leaving): send it. */
+  function commitDelete(id: number) {
+    const d = deletions.current.get(id);
+    if (!d || d.sent || d.settled) return;
+    if (pendingDelete.current === id) pendingDelete.current = null;
+    setDelToast(t => t && t.toast.kind === "undo" && t.toast.id === id ? { ...t, leaving: true } : t);
+    d.sent = true;
+    sendDelete(d, 1);
+  }
+
+  function sendDelete(d: Deletion, attempt: number) {
+    requestJson<void>(`/api/calendar/${d.event.id}`, { method: "DELETE" })
+      .then(() => { void finishDelete(d, false); })
+      .catch(error => {
+        const status = error instanceof ApiError ? error.status : 0;
+        // Someone else got there first: gone either way.
+        if (status === 404) { void finishDelete(d, true); return; }
+        // A blip shouldn't cost a put-back: one quiet retry.
+        if ((status === 0 || status >= 500) && attempt === 1) { setTimeout(() => sendDelete(d, 2), 800); return; }
+        console.error(error);
+        const why = status === 401 ? "signin" as const
+          : status === 403 ? (d.event.partyEventId != null ? "parties" as const : "events" as const)
+          : status === 0 && typeof navigator !== "undefined" && navigator.onLine === false ? "offline" as const
+          : "server" as const;
+        const message = status >= 400 && status < 500 && status !== 401 && status !== 403 ? apiErrorMessage(error, "") || undefined : undefined;
+        void putBackDelete(d, { kind: "fail", id: d.event.id, title: d.event.title, why, message });
+      });
+  }
+
+  async function finishDelete(d: Deletion, gone: boolean) {
+    d.settled = true;
+    if (d.tear) await d.tear.done;
+    d.tear?.finish();
+    deletions.current.delete(d.event.id);
+    setApiEvents(prev => prev.filter(e => e.id !== d.event.id));
+    hide(d.event.id, false);
+    if (gone) showDelToast({ kind: "gone", id: d.event.id, title: d.event.title });
+    void refreshChapterData();
+  }
+
+  /** Undo, or a failure: the event comes back, and the card is put back together. */
+  async function putBackDelete(d: Deletion, fail?: DeleteToast) {
+    d.settled = true;
+    d.tear?.stop();
+    if (d.tear) await d.tear.done;
+    flushSync(() => hide(d.event.id, false));
+    deletions.current.delete(d.event.id);
+    if (d.tear) await d.tear.putBack(() => revealRow(d.event.id, d.event), { fail: !!fail, main: mainRef.current });
+    if (fail) showDelToast(fail);
+  }
+
+  function undoDelete() {
+    const id = pendingDelete.current;
+    if (id == null) return;
+    const d = deletions.current.get(id);
+    if (!d || d.sent || d.settled) return;
+    pendingDelete.current = null;
+    setDelToast(t => t && t.toast.kind === "undo" && t.toast.id === id ? { ...t, leaving: true } : t);
+    void putBackDelete(d);
+  }
+
+  function showDelToast(toast: DeleteToast) {
+    setDelToast({ toast });
+    if (toast.kind === "gone") setTimeout(() => setDelToast(t => t?.toast === toast ? { ...t, leaving: true } : t), 4500);
+  }
+
+  // ⌘Z undoes the delete in the window (not while typing somewhere).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== "z" || pendingDelete.current == null) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      undoDelete();
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  });
+  // Leaving with a delete still in the window sends it rather than dropping it.
+  useEffect(() => {
+    const flush = () => {
+      for (const d of deletions.current.values()) {
+        if (d.sent || d.settled) continue;
+        d.sent = true;
+        void requestJson(`/api/calendar/${d.event.id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      }
+    };
+    addEventListener("pagehide", flush);
+    const all = deletions.current;
+    return () => { removeEventListener("pagehide", flush); flush(); all.forEach(d => d.tear?.finish()); };
+  }, []);
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
   const railOpen = !!(selectedEvent || glanceFocus || (view === "calendar" && calDayOpen));
@@ -2098,7 +2269,7 @@ export default function TimelinePage() {
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}
         <main ref={mainRef} className="page-ambient flex-1 overflow-y-auto">
-          <div className={`dash dash-timeline${view === "calendar" ? " cal-view" : ""}${activeModal ? " modal-open" : ""}`} data-dashboard-theme="dusk">
+          <div className={`dash dash-timeline${view === "calendar" ? " cal-view" : ""}${activeModal || deleteAsk ? " modal-open" : ""}`} data-dashboard-theme="dusk">
 
             {/* Loading / error banner */}
             {(calendarLoading || calendarError) && (
@@ -2629,13 +2800,37 @@ export default function TimelinePage() {
           <CalendarEventForm initialEvent={selectedEvent} submitLabel="Save event" onCancel={() => setActiveModal(null)} onSubmit={handleUpdateEvent} categoryOptions={editCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} initialPage={editStartPage} onPageChange={setFormPage} />
         </Modal>
       )}
-      {confirmDeleteEvent && (
-        <ConfirmDialog
-          tone="dusk"
-          title="Delete Event"
-          message={<>Delete <span className="font-semibold text-[color:var(--ink)]">{confirmDeleteEvent.title}</span>? Its attendance records and excuse requests will also be removed.{confirmDeleteEvent.partyEventId ? " This also deletes its party ledger and financial totals." : ""} This cannot be undone.</>}
-          onCancel={() => setConfirmDeleteEvent(null)}
-          onConfirm={() => { executeDeleteEvent(confirmDeleteEvent); setConfirmDeleteEvent(null); }}
+      {deleteAsk && (
+        <DeleteEventSlip
+          event={deleteAsk.event}
+          catStyle={catStyleOf(typeMap, deleteAsk.event.category)}
+          catLabel={catLabelOf(typeMap, deleteAsk.event.category)}
+          time={formatEventTime(deleteAsk.event.time, deleteAsk.event.schedule)}
+          state={deleteAsk.state}
+          pressed={deleteAsk.pressed}
+          onKeep={() => { previewRef.current = null; setDeleteAsk(null); }}
+          onDelete={() => { void confirmDelete(); }}
+          onSignIn={() => router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`)}
+        />
+      )}
+      {delToast && (
+        <DeleteToastView
+          key={`${delToast.toast.kind}-${delToast.toast.id}`}
+          toast={delToast.toast}
+          leaving={!!delToast.leaving}
+          onUndo={undoDelete}
+          onExpire={() => commitDelete(delToast.toast.id)}
+          onRetry={() => {
+            const ev = apiEvents.find(e => e.id === delToast.toast.id);
+            setDelToast(t => t && { ...t, leaving: true });
+            if (ev && !deletions.current.has(ev.id)) startDelete(ev, true);
+          }}
+          onSignIn={() => router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`)}
+          onDismiss={() => {
+            if (delToast.toast.kind === "undo") commitDelete(delToast.toast.id);
+            else setDelToast(t => t && { ...t, leaving: true });
+          }}
+          onLeft={() => setDelToast(t => t?.leaving ? null : t)}
         />
       )}
     </div>

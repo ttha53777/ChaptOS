@@ -1,0 +1,210 @@
+/* Strike, stamp, tear — the timeline's half of _design/Event Delete Tear Mock.html.
+   The choreography is event-delete.ts; the slip and toasts are DeleteEventSlip.tsx. */
+
+:root {
+  --tl-del-ink: var(--pp-rose-ink, var(--rose));
+  --tl-del-tint: var(--pp-rose, var(--rose));
+  --tl-del-wash: color-mix(in srgb, var(--rose) 16%, var(--card));
+  /* what sits on the tint: Ledger's rose is a deep ink, paper's a pastel */
+  --tl-del-on: var(--paper);
+}
+html[data-aesthetic="paper"] { --tl-del-wash: color-mix(in srgb, var(--pp-rose) 40%, var(--card)); --tl-del-on: #26211B; }
+html[data-aesthetic="paper"][data-theme="dusk"] { --tl-del-wash: color-mix(in srgb, var(--pp-rose) 15%, var(--card)); }
+
+/* ── On the card ─────────────────────────────────────────────────────────────── */
+.dash .tl-row[data-going] { pointer-events: none; }
+.dash .tl-row[data-going] .tl-card .m { opacity: .5; transition: opacity .3s; }
+.dash .tl-row[data-going] .tl-card :is(.chev, .when) { opacity: 0; transition: opacity .3s; }
+
+.tl-strike { position: absolute; z-index: 2; overflow: visible; pointer-events: none; }
+.tl-strike path { fill: none; stroke: var(--tl-del-ink); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.tl-strike path + path { stroke-width: 1.8; opacity: .85; }
+
+.tl-stamp.off { color: var(--tl-del-ink); background: color-mix(in srgb, var(--card) 72%, transparent); z-index: 3; }
+.tl-splat.off { background: var(--tl-del-ink); }
+@media (max-width: 640px) {
+  /* a phone card is narrow: a smaller stamp, so the struck title still reads */
+  .tl-stamp.off { right: 10px; padding: 4px 8px 3px; border-width: 2px; outline-offset: 2px; font-size: .62rem; }
+  .tl-stamp.off small { font-size: .46rem; }
+}
+
+.tl-rip { position: absolute; left: -1.5px; top: -1.5px; overflow: visible; pointer-events: none; z-index: 4; }
+.tl-rip path { fill: none; stroke: var(--ink-soft, var(--muted)); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 1; }
+
+/* The halves (frozen copies of the card, on <body>) and the scraps off the rip */
+.tl-piece { position: fixed; z-index: 45; pointer-events: none; filter: drop-shadow(0 7px 10px rgba(38, 33, 27, .2)); will-change: transform, opacity; }
+html[data-theme="dusk"] .tl-piece { filter: drop-shadow(0 7px 12px rgba(0, 0, 0, .55)); }
+.tl-piece-edge { position: absolute; overflow: visible; pointer-events: none; }
+.tl-piece-edge polyline { fill: none; stroke: var(--line-med, var(--line)); stroke-width: 3; stroke-linejoin: round; }
+.tl-scrap { position: fixed; z-index: 45; pointer-events: none; background: var(--card); filter: drop-shadow(0 2px 2px rgba(38, 33, 27, .2)); }
+
+/* Washi tape over the seam, when it's put back */
+.tl-tape {
+  position: absolute; z-index: 4; pointer-events: none;
+  background: repeating-linear-gradient(-45deg,
+    color-mix(in srgb, var(--pp-butter, #FFE5A0) 82%, transparent) 0 7px,
+    color-mix(in srgb, var(--pp-butter, #FFE5A0) 58%, transparent) 7px 12px);
+  clip-path: polygon(0 4%, 12% 0, 25% 5%, 38% 0, 50% 4%, 63% 0, 76% 5%, 88% 0, 100% 4%, 100% 96%, 88% 100%, 76% 95%, 63% 100%, 50% 96%, 38% 100%, 25% 95%, 12% 100%, 0 96%);
+}
+html[data-theme="dusk"] .tl-tape { mix-blend-mode: screen; opacity: .8; }
+
+/* ── The slip ────────────────────────────────────────────────────────────────── */
+.tl-del-slip { color: var(--ink); }
+.tl-del-slip .ds-head { display: flex; align-items: center; gap: 10px; }
+.tl-del-slip .ds-tile {
+  width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border-radius: 9px; transform: rotate(-4deg);
+  background: var(--tl-del-tint); border: 1.5px solid var(--ink); color: var(--tl-del-on);
+}
+.tl-del-slip.blocked .ds-tile { background: var(--pp-peach, var(--gold, #FFD5C4)); }
+.tl-del-slip .ds-tile svg { width: 15px; height: 15px; }
+.tl-del-slip .ds-kick { font: 600 .66rem var(--font-geist-sans), system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.tl-del-slip .ds-title { margin: 14px 0; font: 700 1.5rem/1.15 var(--font-fraunces), var(--font-geist-sans), system-ui, sans-serif; letter-spacing: -.03em; color: var(--ink); overflow-wrap: anywhere; }
+.tl-del-slip .ds-title em {
+  font-style: normal; padding: 0 2px;
+  background: linear-gradient(transparent 58%, color-mix(in srgb, var(--tl-del-tint) 75%, transparent) 58% 92%, transparent 92%);
+}
+.tl-del-slip.blocked .ds-title em { background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-peach, var(--gold)) 75%, transparent) 58% 92%, transparent 92%); }
+
+/* the event as a ticket with a stub */
+.tl-del-slip .ds-ticket { display: flex; border: 1.5px solid var(--line-med, var(--line)); border-radius: 14px; background: var(--paper); overflow: hidden; }
+.tl-del-slip .ds-tk { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; padding: 12px 14px; }
+.tl-del-slip .ds-tk i { width: 11px; height: 11px; border-radius: 50%; background: var(--pcc, var(--catc)); flex-shrink: 0; }
+.tl-del-slip .ds-tk > div { min-width: 0; }
+.tl-del-slip .ds-tk b { display: block; font: 650 1rem/1.2 var(--font-fraunces), var(--font-geist-sans), system-ui, sans-serif; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-del-slip .ds-tk span { display: block; margin-top: 2px; font: .72rem var(--font-geist-mono), ui-monospace, monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-del-slip .ds-stub {
+  position: relative; width: 70px; flex-shrink: 0; display: grid; place-content: center; justify-items: center;
+  border-left: 1.5px dashed var(--line-med, var(--line)); background: var(--paper-2, var(--card));
+}
+.tl-del-slip .ds-stub::before, .tl-del-slip .ds-stub::after {
+  content: ""; position: absolute; left: -7.5px; width: 13px; height: 13px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--line-med, var(--line));
+}
+.tl-del-slip .ds-stub::before { top: -8px; }
+.tl-del-slip .ds-stub::after { bottom: -8px; }
+.tl-del-slip .ds-stub small { font: 600 .56rem var(--font-geist-mono), ui-monospace, monospace; letter-spacing: .14em; color: var(--muted); }
+.tl-del-slip .ds-stub b { font: 700 1.45rem/1 var(--font-fraunces), var(--font-geist-sans), system-ui, sans-serif; letter-spacing: -.03em; color: var(--pcc, var(--catc)); }
+
+.tl-del-slip .ds-goes { margin-top: 16px; }
+.tl-del-slip .ds-lbl { display: block; margin-bottom: 8px; font: 600 .62rem var(--font-geist-sans), system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.tl-del-slip .ds-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; }
+.tl-del-slip .ds-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 8px; border-radius: 999px; font-size: .8rem; color: var(--ink);
+  background: color-mix(in srgb, var(--tl-del-tint) 22%, var(--card)); border: 1.5px solid color-mix(in srgb, var(--tl-del-ink) 35%, transparent);
+  animation: ds-chip-in .38s cubic-bezier(.16,.9,.3,1.02) both;
+}
+.tl-del-slip .ds-chip b { font: 600 .8rem var(--font-geist-mono), ui-monospace, monospace; }
+.tl-del-slip .ds-chip svg { width: 14px; height: 14px; color: var(--tl-del-ink); flex-shrink: 0; }
+.tl-del-slip .ds-chip.ledger { background: color-mix(in srgb, var(--pp-butter, var(--gold)) 30%, var(--card)); border-color: color-mix(in srgb, var(--pp-butter-ink, var(--gold)) 40%, transparent); }
+.tl-del-slip .ds-chip.ledger svg { color: var(--pp-butter-ink, var(--gold)); }
+.tl-del-slip .ds-chip.keeps { background: var(--paper-2, var(--card)); border-color: var(--line-med, var(--line)); }
+.tl-del-slip .ds-chip.keeps svg { color: var(--muted); }
+.tl-del-slip .ds-chip.none { background: var(--paper-2, var(--card)); border: 1.5px dashed var(--line-med, var(--line)); color: var(--muted); }
+.tl-del-slip .ds-chip.wait { color: var(--muted); background: var(--paper-2, var(--card)); border-color: var(--line); animation: ds-wait 1.1s ease-in-out infinite alternate; }
+@keyframes ds-chip-in { from { opacity: 0; transform: translateY(5px) rotate(-2deg); } }
+@keyframes ds-wait { to { opacity: .45; } }
+.tl-del-slip .ds-why {
+  margin: 16px 0 0; padding: 11px 13px; border-radius: 12px; font-size: .86rem; line-height: 1.45; color: var(--ink-soft, var(--muted));
+  background: var(--paper-2, var(--card)); border: 1.5px dashed var(--line-med, var(--line));
+}
+
+.tl-del-slip .ds-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 14px; border-top: 1.5px dashed var(--line); }
+.tl-del-slip .ds-note { flex: 1; min-width: 0; font-size: .78rem; color: var(--muted); }
+.tl-del-slip .ds-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.tl-del-slip .ds-btn {
+  border: 1.5px solid var(--line-med, var(--line)); background: var(--card); color: var(--ink); border-radius: 12px; cursor: pointer;
+  padding: 9px 15px; font: 600 .86rem var(--font-geist-sans), system-ui, sans-serif;
+  transition: transform .12s, box-shadow .12s, border-color .15s, background .15s;
+}
+.tl-del-slip .ds-btn:hover { border-color: var(--ink); }
+.tl-del-slip .ds-btn:focus-visible { outline: 2px solid var(--pp-sky-ink, var(--vio)); outline-offset: 2px; }
+.tl-del-slip .ds-btn.go { background: var(--tl-del-tint); color: var(--tl-del-on); border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.tl-del-slip .ds-btn.go:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.tl-del-slip .ds-btn.go:active, .tl-del-slip .ds-btn.go[data-pressed] { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.tl-del-slip .ds-btn.go:disabled { cursor: progress; }
+.tl-del-slip.blocked .ds-btn.go { background: var(--pp-sky, var(--vio-bg, #CFE2FF)); }
+
+/* A bottom sheet on a phone, the buttons under the thumb */
+@keyframes ds-sheet-up { from { transform: translateY(105%); } }
+@media (max-width: 640px) {
+  .ui-modal:has(.tl-del-slip) { align-items: flex-end; padding: 0; }
+  .ui-modal:has(.tl-del-slip) .ui-modal-panel {
+    max-width: none; border-radius: 26px 26px 0 0; border-bottom: 0; max-height: 92dvh;
+    box-shadow: 0 -5px 0 var(--tl-del-tint); animation: ds-sheet-up .42s cubic-bezier(.16,.9,.3,1.02) both;
+  }
+  .ui-modal:has(.tl-del-slip.blocked) .ui-modal-panel { box-shadow: 0 -5px 0 var(--pp-peach, var(--gold)); }
+  .ui-modal:has(.tl-del-slip) .ui-modal-panel::before {
+    content: ""; position: absolute; top: 9px; left: 50%; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: var(--line-med, var(--line));
+  }
+  .ui-modal:has(.tl-del-slip) .ui-modal-body { padding: 24px 18px calc(18px + env(safe-area-inset-bottom)); }
+  .tl-del-slip .ds-title { font-size: 1.35rem; margin: 12px 0; }
+  .tl-del-slip .ds-foot { flex-wrap: wrap; }
+  .tl-del-slip .ds-note { flex-basis: 100%; }
+  .tl-del-slip .ds-btns { width: 100%; }
+  .tl-del-slip .ds-btn { flex: 1; padding: 13px 15px; font-size: .92rem; }
+}
+
+/* ── Toasts: the undo window, a failure, "already gone" ─────────────────────── */
+.tl-del-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 12px; overflow: hidden;
+  width: max-content; max-width: min(540px, calc(100vw - 24px)); padding: 11px 10px 11px 12px;
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--tl-del-tint);
+  transform: translateX(-50%); font: .86rem/1.4 var(--font-geist-sans), system-ui, sans-serif; color: var(--ink);
+  animation: tl-del-toast-in .42s cubic-bezier(.16,.9,.3,1.1) both;
+}
+.tl-del-toast.undo { padding-bottom: 15px; }
+.tl-del-toast.hard { box-shadow: 4px 4px 0 var(--pp-peach, var(--gold)); }
+.tl-del-toast.gone { box-shadow: 4px 4px 0 var(--pp-mint, var(--ok)); }
+.tl-del-toast.bye { animation: tl-del-toast-out .24s ease-in forwards; }
+@keyframes tl-del-toast-in { from { opacity: 0; transform: translate(-50%, 26px) rotate(-2deg); } }
+@keyframes tl-del-toast-out { to { opacity: 0; transform: translate(-50%, 20px) rotate(1deg); } }
+.tl-del-toast .ic {
+  width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border-radius: 9px; transform: rotate(-4deg);
+  background: var(--tl-del-tint); border: 1.5px solid var(--ink); color: var(--tl-del-on);
+}
+.tl-del-toast.hard .ic { background: var(--pp-peach, var(--gold)); }
+.tl-del-toast.gone .ic { background: var(--pp-mint, var(--ok)); }
+.tl-del-toast .ic svg { width: 15px; height: 15px; }
+.tl-del-toast .tx { min-width: 0; }
+.tl-del-toast .tx b { display: block; font-weight: 600; }
+.tl-del-toast .tx span { display: block; color: var(--muted); font-size: .78rem; }
+.tl-del-toast .act {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; cursor: pointer; padding: 7px 12px; border-radius: 12px;
+  border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); font: 600 .8rem var(--font-geist-sans), system-ui, sans-serif;
+  box-shadow: 2px 2px 0 var(--pp-butter, var(--gold)); transition: transform .15s, box-shadow .15s;
+}
+.tl-del-toast .act:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--pp-butter, var(--gold)); }
+.tl-del-toast .act svg { width: 14px; height: 14px; }
+.tl-del-toast .act kbd { font: 600 .66rem var(--font-geist-mono), ui-monospace, monospace; color: var(--muted); border: 1px solid var(--line-med, var(--line)); border-bottom-width: 2px; border-radius: 5px; padding: 0 4px; }
+.tl-del-toast .x { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border: 0; background: none; border-radius: 8px; color: var(--muted); cursor: pointer; }
+.tl-del-toast .x:hover { color: var(--ink); background: var(--paper-2, var(--card)); }
+.tl-del-toast .x svg { width: 14px; height: 14px; }
+/* the fuse: the undo window, burning down (hover or focus holds it) */
+.tl-del-toast .fuse {
+  position: absolute; left: 14px; bottom: 6px; height: 2px; width: calc(100% - 28px); border-radius: 2px;
+  background: repeating-linear-gradient(90deg, var(--tl-del-ink) 0 6px, transparent 6px 9px);
+  animation: tl-fuse 6s linear forwards;
+}
+.tl-del-toast .fuse::after {
+  content: ""; position: absolute; right: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--pp-peach-ink, var(--gold));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pp-butter, var(--gold)) 70%, transparent), 0 0 10px 3px color-mix(in srgb, var(--pp-peach, var(--gold)) 80%, transparent);
+  animation: tl-ember .22s steps(2) infinite alternate;
+}
+/* a touch screen leaves :hover stuck where you tapped (Delete sits right where the toast
+   lands on a phone), so only a real pointer's hover holds the fuse */
+.tl-del-toast:focus-within .fuse, .tl-del-toast:focus-within .fuse::after { animation-play-state: paused; }
+@media (hover: hover) and (pointer: fine) {
+  .tl-del-toast:hover .fuse, .tl-del-toast:hover .fuse::after { animation-play-state: paused; }
+}
+@keyframes tl-fuse { to { width: 0; } }
+@keyframes tl-ember { to { transform: scale(.7); } }
+
+@media (max-width: 640px) {
+  .tl-del-toast { width: calc(100vw - 24px); bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .tl-del-toast .act kbd { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-del-toast, .tl-del-toast.bye, .tl-del-slip .ds-chip { animation-duration: .01ms; }
+  .tl-del-toast .fuse::after, .tl-del-slip .ds-chip.wait { animation: none; }
+  .ui-modal:has(.tl-del-slip) .ui-modal-panel { animation: none; }
+}
