@@ -98,7 +98,8 @@ export function BriefingActions({
             <path d="M12 7v5l3 2" />
           </svg>
           <span className="lg-only">{openCheckInBusy ? "Opening…" : "Open check-in"}</span>
-          <span className="pp-only">{openCheckInBusy ? "Opening…" : "Open check-in"}</span>
+          {/* The hidden ellipsis keeps the chip as wide as the old "Open check-in…" label. */}
+          <span className="pp-only">{openCheckInBusy ? "Opening…" : <>Open check-in<span aria-hidden="true" style={{ visibility: "hidden" }}>…</span></>}</span>
         </button>
       )}
 
