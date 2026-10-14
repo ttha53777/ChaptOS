@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { getVerifiedAuthUser } from "@/lib/auth/session-user";
 import { parseAvatarFromMetadata } from "@/lib/avatar";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
@@ -24,13 +23,7 @@ import { submitJoinRequestInput } from "@/lib/validation/join-request";
  */
 export async function POST(req: NextRequest) {
   // ── Session ───────────────────────────────────────────────────────────────
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getVerifiedAuthUser();
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── Rate limit (per-user + per-IP) ────────────────────────────────────────

@@ -17,6 +17,7 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({ auth: { getUser: mocks.getUser } }),
 }));
 import { requireUser, hasSession, sessionAuthUserId } from "@/lib/auth/require-user";
+import { getJoinSession } from "@/lib/auth/join-session";
 
 const cookieAccount = { id: "cookie-account", email: "web@example.com" };
 const tokenAccount  = { id: "token-account",  email: "app@example.com" };
@@ -65,5 +66,14 @@ describe("bearer-token auth", () => {
     mocks.headers = new Headers({ authorization: "Basic dXNlcjpwYXNz" });
     await requireUser();
     expect(mocks.getUser).toHaveBeenCalledWith();
+  });
+
+  it("resolves the join-flow session from a Bearer token too", async () => {
+    // getJoinSession backs join-status / join-requests / invite-status — the
+    // app's "not a member yet" screen reads these before any roster row exists.
+    mocks.headers = new Headers({ authorization: "Bearer valid-jwt" });
+    expect((await getJoinSession())?.authUserId).toBe(tokenAccount.id);
+    mocks.headers = new Headers({ authorization: "Bearer expired-jwt" });
+    expect(await getJoinSession()).toBeNull();
   });
 });
