@@ -340,6 +340,7 @@ table {
 .auth-scope .auth-wordmark { display: flex; align-items: center; gap: 10px; }
 .auth-scope .auth-glyph { height: 28px; width: 28px; border-radius: 7px; background: var(--ink); color: var(--paper);
   font-family: var(--serif); font-weight: 600; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.auth-scope .brand__mark { width: 34px; height: 34px; flex: none; }
 .auth-scope .auth-wm-txt { font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
 .auth-scope .auth-meta { font-family: var(--mono); font-size: 11px; color: var(--ink-32); letter-spacing: .05em; }
 .auth-scope .auth-main { flex: 1; display: flex; align-items: center; }

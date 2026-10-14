@@ -2,6 +2,7 @@
 
 import { signInWithGoogle } from "@/lib/supabase/oauth";
 import { APP_NAME } from "@/lib/domains";
+import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -54,7 +55,7 @@ function LoginContent() {
       <div className="auth-page">
         <div className="auth-topbar">
           <div className="auth-wordmark">
-            <div className="auth-glyph">C</div>
+            <BrandMark />
             <div className="auth-wm-txt">{APP_NAME}</div>
           </div>
           <div className="auth-meta">01 / Sign in</div>
