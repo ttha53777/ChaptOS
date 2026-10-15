@@ -969,12 +969,14 @@ function EventDetail({
       {/* Meta. A meeting's description is its minutes, which get their own block
           below (summarized when the user asked for a summary) rather than being
           crammed into a one-line meta row. */}
-      {(formatEventTime(event.time, event.schedule) || event.location || (event.description && !isMeeting) || isDeadline || hasDetailFacts(details)) && (
+      {(formatEventTime(event.time, event.schedule) || event.location || event.partyTheme || event.partyCollabOrg || (event.description && !isMeeting) || isDeadline || hasDetailFacts(details)) && (
         <div className="ev-meta">
           {formatEventTime(event.time, event.schedule) && <div className="ev-meta-row"><span className="lab">Time</span>{formatEventTime(event.time, event.schedule)}</div>}
           {(event.location || details.some(d => d.type === "directions")) && (
             <div className="ev-meta-row"><span className="lab">Where</span><span>{event.location}<DirectionsNote details={details} /></span></div>
           )}
+          {event.partyTheme && <div className="ev-meta-row"><span className="lab">Theme</span>{event.partyTheme}</div>}
+          {event.partyCollabOrg && <div className="ev-meta-row"><span className="lab">Collab</span>{event.partyCollabOrg}</div>}
           <DetailFacts details={details} />
           {event.description && !isMeeting && <div className="ev-meta-row">{event.description}</div>}
           {isDeadline && !isComplete && (

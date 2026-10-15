@@ -36,7 +36,7 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
   // The scoped wrapper's return type doesn't carry the `include` through, so type the
   // payload explicitly. The runtime select matches this shape.
   type CalendarRowWithProgramming = Prisma.CalendarEventGetPayload<{
-    include: { programmingEvent: { select: { id: true } }; partyEvent: { select: { id: true } } };
+    include: { programmingEvent: { select: { id: true } }; partyEvent: { select: { id: true; theme: true; collabOrg: true } } };
     omit: { notesDoc: true };
   }>;
   const rows = await ctx.db.calendarEvent.findMany({
@@ -45,7 +45,7 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
     orderBy: [{ date: "desc" }, { id: "desc" }],
     // Pull the owning ProgrammingEvent id (1:1 back-relation) so the Timeline can
     // deep-link a programming-backed event into the Programming page.
-    include: { programmingEvent: { select: { id: true } }, partyEvent: { select: { id: true } } },
+    include: { programmingEvent: { select: { id: true } }, partyEvent: { select: { id: true, theme: true, collabOrg: true } } },
   }) as unknown as CalendarRowWithProgramming[];
   // Fetch only IDs of initialized documents, never the binary state in list reads.
   const initialized = new Set((await ctx.db.calendarEvent.findMany({ where: { ...where, notesDoc: { not: null } }, select: { id: true } })).map(row => row.id));
@@ -62,6 +62,9 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
     notesCollaborationEnabled: collaborativeNotesEnabled(ctx.orgId) && can(ctx, "MANAGE_EVENTS") && row.category === "chapter",
     programmingEventId: programmingEvent?.id ?? null,
     partyEventId: partyEvent?.id ?? null,
+    // Theme and collab live on the party ledger; the rail shows them as facts.
+    partyTheme: partyEvent?.theme || null,
+    partyCollabOrg: partyEvent?.collabOrg || null,
   }));
 }
 
@@ -203,7 +206,7 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
         data: svcData,
       });
     }
-    return { ...updated, partyEventId: attachedParty?.id ?? null };
+    return { ...updated, partyEventId: attachedParty?.id ?? null, partyTheme: attachedParty?.theme || null, partyCollabOrg: attachedParty?.collabOrg || null };
   });
 
   await emit(ctx, "calendar.updated", { type: "CalendarEvent", id: event.id }, {

@@ -28,6 +28,9 @@ export interface CalendarEvent {
   id: number;
   /** The party ledger attached to this calendar event. */
   partyEventId?: number | null;
+  /** The attached party ledger's theme / collab org; null when unset or not a party. */
+  partyTheme?: string | null;
+  partyCollabOrg?: string | null;
   title: string;
   date: string;
   time?: string | null;
