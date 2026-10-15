@@ -8,8 +8,9 @@
  * choice lives on <html> as data-aesthetic, stamped by APP_AESTHETIC_BOOT
  * before first paint, and app/paper-aesthetic.css keys every override off it.
  *
- * Stored per device (localStorage), like the theme. Paper is the default:
- * only a device that explicitly picked "ledger" gets the original look.
+ * Ledger is parked: every device resolves to "paper" regardless of what's
+ * stored, and the settings switch is hidden. The Ledger code stays so it can
+ * come back by restoring the `stored === "ledger"` checks below.
  */
 
 export type AppAesthetic = "ledger" | "paper";
@@ -20,9 +21,9 @@ export function isAppAesthetic(value: unknown): value is AppAesthetic {
   return value === "ledger" || value === "paper";
 }
 
-export function resolveAppAesthetic(stored: string | null | undefined): AppAesthetic {
-  return stored === "ledger" ? "ledger" : "paper";
+export function resolveAppAesthetic(_stored: string | null | undefined): AppAesthetic {
+  return "paper";
 }
 
 /** Mirrors resolveAppAesthetic() — it runs before any module graph exists. */
-export const APP_AESTHETIC_BOOT = `try{document.documentElement.dataset.aesthetic=localStorage.getItem(${JSON.stringify(APP_AESTHETIC_STORAGE_KEY)})==="ledger"?"ledger":"paper"}catch(e){document.documentElement.dataset.aesthetic="paper"}`;
+export const APP_AESTHETIC_BOOT = `document.documentElement.dataset.aesthetic="paper"`;

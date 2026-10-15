@@ -292,6 +292,8 @@ function SettingsPageBody() {
     // assertCanManageBilling in lib/services/billing-service.ts. A Treasurer
     // runs the chapter's money; the platform subscription is the account
     // holder's business, so MANAGE_SETTINGS deliberately doesn't reach it.
+    // Paper is the only look for now; the Ledger switch is parked, not deleted.
+    if (id === "aesthetic")      return false;
     if (id === "billing")        return isOrgAdmin;
     if (id === "roles")          return canManageRoles;
     if (id === "invitations")    return canManageSettings;
