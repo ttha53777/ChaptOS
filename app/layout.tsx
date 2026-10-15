@@ -21,7 +21,7 @@ import { SemesterGate } from "./components/SemesterGate";
 import { LiveCheckInGate } from "./components/LiveCheckInGate";
 import { ToastProvider } from "./components/dashboard/Toast";
 import { APP_THEME_BOOT } from "@/lib/theme";
-import { APP_AESTHETIC_BOOT } from "@/lib/aesthetic";
+import { APP_AESTHETIC } from "@/lib/aesthetic";
 import { landingFontClass } from "./components/landing/fonts";
 import { PaperSprite } from "./components/paper/PaperIcon";
 import { SIDEBAR_RAIL_BOOT } from "@/lib/sidebar-rail";
@@ -74,14 +74,19 @@ export default function RootLayout({
       // /create's theme boot script stamps data-crf-theme here before hydration
       // (see lib/onboarding/create-theme.ts), which React would otherwise report
       // as a server/client attribute mismatch, and APP_THEME_BOOT (lib/theme.ts)
-      // does the same with data-theme (APP_AESTHETIC_BOOT with data-aesthetic, SIDEBAR_RAIL_BOOT with data-sb). Same reason next-themes requires this.
+      // does the same with data-theme (SIDEBAR_RAIL_BOOT with data-sb). Same reason next-themes requires this.
       // Only ever affects attributes on <html> itself.
       suppressHydrationWarning
+      // A prop, not a boot-script stamp: React strips every attribute off <html>
+      // whenever it mounts a fresh one (after global-error, e.g. the chunk-load
+      // failure an open tab hits on every deploy) and restores only its props.
+      // As a script-set attribute it was wiped and the app fell back to Ledger.
+      data-aesthetic={APP_AESTHETIC}
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${landingFontClass} h-full antialiased`}
     >
       {/* Blocking, before any paint: stamps data-theme so ivory never flashes
           dusk, and data-sb so a collapsed sidebar never flashes open. */}
-      <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT + APP_AESTHETIC_BOOT + SIDEBAR_RAIL_BOOT }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT + SIDEBAR_RAIL_BOOT }} /></head>
       <body suppressHydrationWarning className="min-h-full flex flex-col"><PaperSprite /><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
     </html>
   );

@@ -22,7 +22,7 @@ export default function GlobalError({
   const mono = "var(--font-geist-mono), ui-monospace, Menlo, monospace";
 
   return (
-    <html lang="en">
+    <html lang="en" data-aesthetic="paper">
       <body
         style={{
           margin: 0,

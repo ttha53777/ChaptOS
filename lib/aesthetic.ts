@@ -5,12 +5,13 @@
  *
  * A second axis beside lib/theme.ts, not a third theme: paper has its own day
  * and night, so the Light / Dark / System switch keeps working inside it. The
- * choice lives on <html> as data-aesthetic, stamped by APP_AESTHETIC_BOOT
- * before first paint, and app/paper-aesthetic.css keys every override off it.
+ * look lives on <html> as data-aesthetic, rendered as a prop by app/layout.tsx,
+ * and app/paper-aesthetic.css keys every override off it.
  *
- * Ledger is parked: every device resolves to "paper" regardless of what's
- * stored, and the settings switch is hidden. The Ledger code stays so it can
- * come back by restoring the `stored === "ledger"` checks below.
+ * Paper is the only aesthetic users can get. Nothing reads the stored choice
+ * and nothing can switch it: the settings section is hidden and
+ * useAppAesthetic's setter no longer touches the page. The Ledger styles stay
+ * in the tree but are unreachable.
  */
 
 export type AppAesthetic = "ledger" | "paper";
@@ -21,9 +22,9 @@ export function isAppAesthetic(value: unknown): value is AppAesthetic {
   return value === "ledger" || value === "paper";
 }
 
-export function resolveAppAesthetic(_stored: string | null | undefined): AppAesthetic {
-  return "paper";
-}
+/** The aesthetic every user gets. */
+export const APP_AESTHETIC: AppAesthetic = "paper";
 
-/** Mirrors resolveAppAesthetic() — it runs before any module graph exists. */
-export const APP_AESTHETIC_BOOT = `document.documentElement.dataset.aesthetic="paper"`;
+export function resolveAppAesthetic(_stored: string | null | undefined): AppAesthetic {
+  return APP_AESTHETIC;
+}
