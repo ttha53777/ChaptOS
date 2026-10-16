@@ -24,7 +24,7 @@ export const inter = Inter({
 // Plex Mono has no variable axis, so the weights have to be listed.
 export const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-plex-mono",
 });
