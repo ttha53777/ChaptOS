@@ -1,130 +1,415 @@
 /* ============================================================================
    ChaptOS — /pricing
+   Ported 1:1 from _design/Pricing Paper Mock.html. The nav and footer are the
+   shared public chrome (landing.css + public-chrome.css); everything between
+   them is the mock's, scoped under `.lp.pp` so it outranks the landing rules
+   it sits beside.
 
-   Same paper, ink, pastels and typefaces as the marketing landing page. Scoped
-   under `.lp .pr` and imports NOTHING of its own: every token comes from
-   landing.css, and the always-stuck nav / page head / escalation band come from
-   public-chrome.css. Both are imported by the page alongside this file.
+   Four mock classes collide with landing.css primitives that style different
+   things, so they're renamed here and in page.tsx rather than fought with
+   overrides: .hero → .phero, .dial → .pdial, .chip → .pchip, .pill → .ppill.
+   Keyframes carry a pp- prefix for the same reason.
 
-   No motion — this page never mounts LandingMotion, so a [data-reveal] hook
-   here would stay invisible forever.
+   Light only, like the rest of the public site — the mock's dark theme toggle
+   was a mock aid and isn't ported.
 
-   Structure
-     1. band cards
-     2. estimator
-     3. what counts
-     4. everything included
-     5. FAQ
-     6. responsive
+   Motion is driven by PricingMotion.tsx: it adds .in to .rv nodes as they
+   scroll in and drops .boot once the highlighters may draw. Without JS the
+   <noscript> style in page.tsx shows the .rv nodes as-is.
    ========================================================================== */
 
-/* ---------- 1. band cards --------------------------------------------------- */
-.lp .pr__bands{ padding:clamp(38px,4.6vw,60px) 0 0 }
-.lp .pr__grid{
-  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px;
+/* ---------- tokens the landing scope doesn't define ---------- */
+.lp.pp{
+  --peach-bd:#F8D2C2; --sky-bd:#CCDFFB; --mint-bd:#BDE7D2;
+  --butter-bd:#F4DFA6; --lilac-bd:#DCD2FB; --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85; --wash-op:.55;
+  --btn-fg-on-ink:#FFFCF6;
 }
-.lp .pr__card{
-  padding:22px 20px 20px; background:var(--card); border:1.5px solid var(--line);
-  border-radius:var(--r-lg); box-shadow:var(--sh-1);
-  border-top:4px solid var(--bt, var(--mint));
-  display:flex; flex-direction:column;
-}
-.lp .pr__card--quote{ background:var(--paper-3, #FBF7EF); box-shadow:none }
-.lp .pr__plan{
-  font-family:var(--mono); font-size:.7rem; letter-spacing:.13em; text-transform:uppercase;
-  color:var(--bti, var(--ink-3)); margin-bottom:10px;
-}
-.lp .pr__price{ display:flex; align-items:baseline; gap:5px; margin-bottom:6px }
-.lp .pr__price .n{ font-size:clamp(1.9rem,2.9vw,2.35rem); font-weight:700; letter-spacing:-.03em; color:var(--ink) }
-.lp .pr__price .per{ font-size:.88rem; color:var(--ink-3) }
-.lp .pr__custom{ font-size:clamp(1.25rem,1.9vw,1.5rem); font-weight:600; letter-spacing:-.02em; color:var(--ink) }
-.lp .pr__range{ font-size:.92rem; font-weight:600; color:var(--ink-2); margin-bottom:9px }
-.lp .pr__note{ font-size:.85rem; line-height:1.55; color:var(--ink-3); margin-top:auto }
+/* the mock's own washes replace the landing paper */
+.lp.pp::before{display:none}
 
-/* ---------- 2. estimator ---------------------------------------------------- */
-.lp .pr__est{ padding:clamp(48px,6vw,80px) 0 0 }
-.lp .pr__esthead{ max-width:640px }
-.lp .pr__esthead h2{ margin-top:16px; font-size:clamp(1.55rem,2.7vw,2.05rem) }
-.lp .pr__esthead .lede{ margin-top:14px; max-width:56ch }
-.lp .pr__estcard{
-  margin-top:24px; display:flex; align-items:center; gap:clamp(18px,3vw,38px); flex-wrap:wrap;
-  padding:24px clamp(20px,3vw,30px); background:var(--card);
-  border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1);
-}
-.lp .pr__estfield{ display:flex; flex-direction:column; gap:8px; flex:0 0 auto }
-.lp .pr__estfield > span{
-  font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3);
-}
-.lp .pr__estfield input{
-  width:150px; padding:12px 14px; font:inherit; font-size:1.4rem; font-weight:700;
-  letter-spacing:-.02em; color:var(--ink);
-  background:var(--paper-3, #FBF7EF); border:1.5px solid var(--line); border-radius:var(--r-md);
-}
-.lp .pr__estfield input:focus{ outline:none; border-color:var(--sky); box-shadow:0 0 0 3px var(--sky-soft) }
-.lp .pr__estarrow{ font-size:1.5rem; color:var(--line-2, #D9CDB6); flex:0 0 auto }
-.lp .pr__estout{ flex:1 1 220px; min-width:0 }
-.lp .pr__estprice{ display:flex; align-items:baseline; gap:5px }
-.lp .pr__estprice .n{ font-size:clamp(2rem,3.2vw,2.6rem); font-weight:700; letter-spacing:-.03em; color:var(--ink) }
-.lp .pr__estprice .per{ font-size:.95rem; color:var(--ink-3) }
-.lp .pr__estband{ margin-top:6px; font-size:.92rem; color:var(--ink-2) }
-.lp .pr__estband a{ color:var(--sky-ink); text-underline-offset:3px }
-.lp .pr__estempty{ font-size:1rem; color:var(--ink-3) }
+/* ---------- base, as the mock's body set it ---------- */
+.lp.pp main{font-size:16px; line-height:1.6; letter-spacing:-.005em}
+.lp.pp main .wrap{width:min(1180px, 100% - 32px)}
+.lp.pp main h2{text-wrap:wrap}
+.lp.pp main h4{line-height:inherit; letter-spacing:inherit}
+.lp.pp main a{color:inherit}
+.lp.pp main .btn{color:var(--btn-fg)}
+.lp.pp main button{cursor:pointer}
+.lp.pp main :focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px; border-radius:6px}
+.lp.pp .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+.lp.pp .btn svg{width:18px; height:18px}
 
-/* ---------- 3. what counts -------------------------------------------------- */
-.lp .pr__counts{ padding:clamp(48px,6vw,80px) 0 0 }
-.lp .pr__countgrid{
-  display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.2fr); gap:clamp(24px,4vw,58px);
-  align-items:start;
-}
-.lp .pr__counthead h3{ margin-top:16px; font-size:clamp(1.35rem,2.2vw,1.7rem) }
-.lp .pr__counthead p{ margin-top:11px; color:var(--ink-2); font-size:.97rem; line-height:1.6 }
-.lp .pr__countlist{ list-style:none; display:flex; flex-direction:column; gap:14px }
-.lp .pr__countlist li{
-  display:flex; gap:13px; align-items:flex-start;
-  padding:16px 18px; background:var(--card); border:1.5px solid var(--line);
-  border-radius:var(--r-md); box-shadow:var(--sh-1);
-}
-.lp .pr__countlist .ic{
-  width:28px; height:28px; border-radius:9px; display:grid; place-items:center; flex:none; margin-top:1px;
-}
-.lp .pr__countlist .ic.ok{ background:var(--mint-soft); border:1.5px solid var(--mint); color:var(--mint-ink) }
-.lp .pr__countlist .ic.no{ background:var(--paper-3, #FBF7EF); border:1.5px solid var(--line); color:var(--ink-3) }
-.lp .pr__countlist .t{ font-size:.94rem; line-height:1.6; color:var(--ink-2) }
-.lp .pr__countlist .t b{ color:var(--ink); font-weight:650 }
 
-/* ---------- 4. everything included ------------------------------------------ */
-.lp .pr__incl{ padding:clamp(48px,6vw,80px) 0 0 }
-.lp .pr__inclcard{
-  display:flex; flex-wrap:wrap; gap:clamp(20px,3vw,40px); align-items:center; justify-content:space-between;
-  padding:clamp(26px,3.4vw,38px); background:var(--lilac-soft);
-  border:1.5px solid var(--lilac); border-radius:var(--r-xl);
-}
-.lp .pr__inclcard .t{ flex:1 1 380px; min-width:0 }
-.lp .pr__inclcard h3{ margin-top:16px; font-size:clamp(1.4rem,2.3vw,1.8rem) }
-.lp .pr__inclcard p{ margin-top:12px; color:var(--ink-2); font-size:.99rem; line-height:1.65; max-width:62ch }
-.lp .pr__inclcard .a{ flex:none }
+/* paper washes */
+.lp.pp .washes{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; opacity:var(--wash-op)}
+.lp.pp .washes i{position:absolute; border-radius:50%; filter:blur(60px)}
+.lp.pp .washes i:nth-child(1){width:560px; height:560px; left:-180px; top:-140px; background:radial-gradient(circle, var(--butter-soft), transparent 70%)}
+.lp.pp .washes i:nth-child(2){width:620px; height:620px; right:-220px; top:18vh; background:radial-gradient(circle, var(--lilac-soft), transparent 70%)}
+.lp.pp .washes i:nth-child(3){width:520px; height:520px; left:20vw; bottom:-200px; background:radial-gradient(circle, var(--sky-soft), transparent 70%)}
+.lp.pp .washes i:nth-child(4){width:420px; height:420px; right:10vw; bottom:10vh; background:radial-gradient(circle, var(--rose-soft), transparent 70%)}
 
-/* ---------- 5. FAQ ---------------------------------------------------------- */
-.lp .pr__faq{ padding:clamp(48px,6vw,80px) 0 0 }
-.lp .pr__faqhead h2{ font-size:clamp(1.55rem,2.7vw,2.05rem) }
-.lp .pr__faqgrid{
-  margin-top:26px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:clamp(18px,2.6vw,30px) clamp(24px,4vw,52px);
+/* highlighter */
+.lp.pp .hi{position:relative; white-space:nowrap; z-index:0}
+.lp.pp .hi::before{
+  content:''; position:absolute; z-index:-1; left:-.1em; right:-.1em; bottom:.06em; height:.46em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op);
+  transition:transform .9s var(--ease-spring) .35s;
 }
-.lp .pr__q h4{ font-size:1.02rem; letter-spacing:-.015em; color:var(--ink) }
-.lp .pr__q p{ margin-top:9px; font-size:.94rem; line-height:1.65; color:var(--ink-2) }
+.lp.pp .rv:not(.in) .hi::before, .lp.pp.boot .hi::before{--mx:0}
 
-/* ---------- 6. responsive --------------------------------------------------- */
-@media (max-width:980px){
-  .lp .pr__grid{ grid-template-columns:repeat(2,minmax(0,1fr)) }
-  .lp .pr__countgrid{ grid-template-columns:minmax(0,1fr); gap:24px }
+.lp.pp .eyebrow{display:inline-flex; align-items:center; gap:10px; font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.lp.pp .eyebrow::before{content:''; width:22px; height:2px; border-radius:2px; background:var(--eb, var(--peach-ink))}
+
+.lp.pp h1, .lp.pp h2, .lp.pp h3{font-family:var(--display); font-weight:600; letter-spacing:-.03em; line-height:1.05; font-variation-settings:'opsz' 96}
+.lp.pp h2{font-size:clamp(2rem, 4.2vw, 3.2rem)}
+.lp.pp .lede{font-size:1.1rem; color:var(--ink-2); max-width:56ch}
+
+/* ---------- reveal ---------- */
+.lp.pp .rv{opacity:0; transform:translateY(22px); transition:opacity .8s var(--ease-out), transform .9s var(--ease-spring)}
+.lp.pp .rv.in{opacity:1; transform:none}
+.lp.pp .rv[data-d="1"]{transition-delay:.08s} .lp.pp .rv[data-d="2"]{transition-delay:.16s} .lp.pp .rv[data-d="3"]{transition-delay:.24s} .lp.pp .rv[data-d="4"]{transition-delay:.32s}
+
+.lp.pp section{position:relative}
+.lp.pp .sec{padding:120px 0 40px}
+.lp.pp .sec-h{display:grid; gap:16px; max-width:760px; margin-bottom:52px}
+
+/* ---------- HERO ---------- */
+.lp.pp .phero{padding:44px 0 40px}
+.lp.pp .phero__grid{display:grid; grid-template-columns:minmax(0, .92fr) minmax(0, 1.08fr); gap:56px; align-items:center}
+.lp.pp .phero h1{font-size:clamp(2.6rem, 6vw, 4.6rem); margin-top:18px}
+.lp.pp .phero .lede{margin-top:22px}
+.lp.pp .phero__cta{display:flex; flex-wrap:wrap; gap:14px; margin-top:32px; align-items:center}
+.lp.pp .phero__fine{margin-top:18px; display:flex; flex-wrap:wrap; gap:8px 18px; font-size:.86rem; color:var(--ink-3)}
+.lp.pp .phero__fine span{display:inline-flex; gap:7px; align-items:center}
+.lp.pp .phero__fine svg{width:15px; height:15px; color:var(--mint-ink)}
+.lp.pp .scribble{position:absolute; color:var(--peach-ink); pointer-events:none}
+
+/* the meter */
+.lp.pp .meter{
+  --tone:var(--sky); --tone-soft:var(--sky-soft); --tone-ink:var(--sky-ink); --tone-bd:var(--sky-bd);
+  position:relative; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:6px 6px 0 var(--tone); padding:26px 26px 22px;
+  transition:box-shadow .5s var(--ease-spring);
 }
-@media (max-width:760px){
-  .lp .pr__faqgrid{ grid-template-columns:minmax(0,1fr) }
-  .lp .pr__estarrow{ display:none }
-  .lp .pr__estfield input{ width:100% }
-  .lp .pr__estfield{ flex:1 1 100% }
+.lp.pp .meter[data-band="free"]{--tone:var(--butter); --tone-soft:var(--butter-soft); --tone-ink:var(--butter-ink); --tone-bd:var(--butter-bd)}
+.lp.pp .meter[data-band="pro"]{--tone:var(--lilac); --tone-soft:var(--lilac-soft); --tone-ink:var(--lilac-ink); --tone-bd:var(--lilac-bd)}
+.lp.pp .meter[data-band="custom"]{--tone:var(--rose); --tone-soft:var(--rose-soft); --tone-ink:var(--rose-ink); --tone-bd:var(--rose-bd)}
+.lp.pp .meter__top{display:flex; justify-content:space-between; gap:16px; align-items:flex-start; min-height:150px}
+.lp.pp .meter__q{font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.lp.pp .meter__count{display:flex; align-items:baseline; gap:10px; margin-top:6px}
+.lp.pp .meter__count b{font-family:var(--display); font-weight:700; font-size:clamp(3.4rem, 7vw, 5rem); line-height:.95; letter-spacing:-.05em; font-variant-numeric:tabular-nums}
+.lp.pp .meter__count span{font-size:1rem; color:var(--ink-2); font-weight:500}
+.lp.pp .meter__band{display:inline-flex; align-items:center; gap:8px; margin-top:12px; padding:5px 12px 5px 8px; border-radius:var(--r-pill); background:var(--tone-soft); border:1px solid var(--tone-bd); color:var(--tone-ink); font-size:.8rem; font-weight:600; transition:background .4s, color .4s}
+.lp.pp .meter__band i{width:9px; height:9px; border-radius:50%; background:var(--tone-ink)}
+
+/* hanging price tag */
+.lp.pp .tag{position:relative; width:184px; flex:none; margin-top:-48px; transform-origin:50% 0; animation:pp-idle 6s ease-in-out infinite}
+.lp.pp .tag.swing{animation:pp-swing 1.3s var(--ease-out)}
+@keyframes pp-idle{0%,100%{transform:rotate(-1.4deg)} 50%{transform:rotate(1.4deg)}}
+@keyframes pp-swing{0%{transform:rotate(0)} 18%{transform:rotate(9deg)} 40%{transform:rotate(-6deg)} 62%{transform:rotate(3.5deg)} 82%{transform:rotate(-1.4deg)} 100%{transform:rotate(-1.4deg)}}
+.lp.pp .tag__string{display:block; margin:0 auto; width:2px; height:34px; background:var(--ink-3); border-radius:2px}
+.lp.pp .tag__body{
+  position:relative; background:var(--tone); color:var(--note-ink); filter:var(--note-filter);
+  border:1.5px solid var(--ink); border-radius:14px 14px 18px 18px; padding:28px 16px 16px; text-align:center;
+  clip-path:polygon(22% 0, 78% 0, 100% 16%, 100% 100%, 0 100%, 0 16%);
+  transition:background .45s var(--ease-out);
 }
-@media (max-width:520px){
-  .lp .pr__grid{ grid-template-columns:minmax(0,1fr) }
+.lp.pp .tag__hole{position:absolute; top:8px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink)}
+.lp.pp .tag__price{font-family:var(--display); font-weight:800; font-size:3.1rem; line-height:1; letter-spacing:-.05em; font-variant-numeric:tabular-nums; display:flex; justify-content:center; overflow:hidden; height:3.15rem}
+.lp.pp .tag__price .roll.word{font-size:2.2rem; line-height:1.45}
+.lp.pp .tag__price .roll{display:inline-block; animation:pp-roll .55s var(--ease-spring)}
+@keyframes pp-roll{from{transform:translateY(60%); opacity:0} to{transform:none; opacity:1}}
+.lp.pp .tag__per{font-size:.76rem; font-weight:600; margin-top:6px; line-height:1.3}
+.lp.pp .tag__per small{display:block; font-family:var(--mono); font-weight:500; font-size:.68rem; opacity:.72; margin-top:3px}
+
+/* rubber stamp */
+.lp.pp .stamp{
+  position:absolute; right:44px; top:var(--stamp-top, 236px); z-index:3; pointer-events:none;
+  padding:5px 13px; border:3px solid var(--st, var(--tone-ink)); border-radius:9px; color:var(--st, var(--tone-ink));
+  font-family:var(--mono); font-weight:700; font-size:1.02rem; letter-spacing:.16em; text-transform:uppercase;
+  transform:rotate(-11deg); opacity:0; mix-blend-mode:multiply;
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--st, var(--tone-ink)) 25%, transparent);
+}
+.lp.pp .meter .stamp{background:color-mix(in srgb, var(--card) 86%, transparent)}
+.lp.pp .stamp.thud{animation:pp-thud .6s var(--ease-spring) forwards}
+@keyframes pp-thud{0%{transform:rotate(-11deg) scale(2.3); opacity:0} 55%{transform:rotate(-11deg) scale(.92); opacity:.95} 100%{transform:rotate(-11deg) scale(1); opacity:.82}}
+
+/* crowd */
+.lp.pp .crowd{display:grid; grid-template-columns:repeat(24, minmax(0,1fr)); gap:4px; margin:20px 0 18px; padding:14px; border-radius:var(--r-md); background:var(--paper-2); border:1.5px dashed var(--line-2)}
+.lp.pp .p{position:relative; aspect-ratio:1/1.15; border-radius:5px}
+.lp.pp .p::before, .lp.pp .p::after{content:''; position:absolute; left:50%; background:var(--line); transition:background .3s, transform .45s var(--ease-spring)}
+.lp.pp .p::before{top:4%; width:46%; aspect-ratio:1; margin-left:-23%; border-radius:50%}
+.lp.pp .p::after{bottom:4%; width:84%; height:42%; margin-left:-42%; border-radius:50% 50% 22% 22%}
+.lp.pp .p.on::before, .lp.pp .p.on::after{background:var(--c, var(--sky-ink))}
+.lp.pp .p.on{animation:pp-pop .4s var(--ease-spring) both; animation-delay:var(--dl, 0s)}
+@keyframes pp-pop{0%{transform:scale(.2) translateY(6px)} 100%{transform:none}}
+.lp.pp .p[data-b="free"]{--c:var(--butter-ink)} .lp.pp .p[data-b="standard"]{--c:var(--sky-ink)} .lp.pp .p[data-b="pro"]{--c:var(--lilac-ink)} .lp.pp .p[data-b="custom"]{--c:var(--rose-ink)}
+.lp.pp .crowd .edge{outline:1.5px dashed var(--ink-3); outline-offset:1px}
+
+/* slider + band ruler */
+.lp.pp .pdial{position:relative; padding-top:6px}
+.lp.pp .pdial input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:44px; background:transparent; margin:0; position:relative; z-index:2; cursor:grab}
+.lp.pp .pdial input:active{cursor:grabbing}
+.lp.pp .pdial input::-webkit-slider-runnable-track{height:12px; background:transparent}
+.lp.pp .pdial input::-moz-range-track{height:12px; background:transparent}
+.lp.pp .pdial input::-webkit-slider-thumb{-webkit-appearance:none; width:30px; height:30px; margin-top:-9px; border-radius:50%; background:var(--card); border:2px solid var(--ink); box-shadow:2.5px 2.5px 0 var(--tone); transition:transform .15s var(--ease-spring)}
+.lp.pp .pdial input::-moz-range-thumb{width:28px; height:28px; border-radius:50%; background:var(--card); border:2px solid var(--ink); box-shadow:2.5px 2.5px 0 var(--tone)}
+.lp.pp .pdial input:active::-webkit-slider-thumb{transform:scale(1.12)}
+.lp.pp .ruler{position:absolute; left:15px; right:15px; top:22px; height:12px; display:flex; border-radius:6px; overflow:hidden; border:1.5px solid var(--ink); z-index:1}
+.lp.pp .ruler i{display:block; height:100%; transition:filter .3s}
+.lp.pp .ruler i+i{border-left:1.5px solid var(--ink)}
+.lp.pp .ruler .r-free{background:var(--butter)} .lp.pp .ruler .r-standard{background:var(--sky)} .lp.pp .ruler .r-pro{background:var(--lilac)}
+.lp.pp .ruler .r-custom{background:repeating-linear-gradient(135deg, var(--rose) 0 6px, var(--rose-soft) 6px 12px)}
+.lp.pp .ruler i.dim{filter:saturate(.25) opacity(.55)}
+.lp.pp .ticks{position:relative; height:34px; margin:0 15px; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.lp.pp .ticks span{position:absolute; top:4px; transform:translateX(-50%); white-space:nowrap; text-align:center; line-height:1.25}
+.lp.pp .ticks span b{display:block; color:var(--ink); font-weight:600}
+.lp.pp .meter__note{display:flex; gap:12px; align-items:flex-start; margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--tone-soft); border:1px solid var(--tone-bd); font-size:.9rem; color:var(--ink); min-height:68px; transition:background .4s}
+.lp.pp .meter__note svg{width:20px; height:20px; flex:none; color:var(--tone-ink); margin-top:2px}
+.lp.pp .meter__note p{transition:opacity .25s}
+.lp.pp .presets{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+.lp.pp .pchip{padding:6px 12px; border-radius:var(--r-pill); border:1.5px solid var(--line-2); background:var(--card); font-size:.8rem; font-weight:500; color:var(--ink-2); transition:border-color .2s, background .2s, transform .2s var(--ease-spring)}
+.lp.pp .pchip:hover{border-color:var(--ink); color:var(--ink); transform:translateY(-1px)}
+.lp.pp .pchip .mono{font-weight:600; color:var(--ink)}
+.lp.pp .pchip.on{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.lp.pp .pchip.on .mono{color:var(--paper)}
+.lp.pp .perhead{font-family:var(--mono); font-size:.74rem; color:var(--ink-3); margin-top:6px}
+
+@media (max-width: 980px){
+  .lp.pp .phero__grid{grid-template-columns:minmax(0,1fr); gap:72px}
+}
+@media (max-width: 560px){
+  .lp.pp .meter{padding:20px 16px 18px; box-shadow:4px 4px 0 var(--tone)}
+  .lp.pp .tag{width:136px; margin-top:-40px}
+  .lp.pp .tag__price{font-size:2.3rem; height:2.4rem}
+  .lp.pp .crowd{grid-template-columns:repeat(20, minmax(0,1fr)); gap:3px; padding:10px}
+  .lp.pp .meter .stamp{--stamp-top:250px; right:16px; font-size:.86rem}
+  .lp.pp .scribble{display:none}
+}
+
+/* ---------- clothesline of bands ---------- */
+.lp.pp .line-wrap{position:relative; padding-top:40px}
+.lp.pp .clothes{position:absolute; left:-4%; right:-4%; top:0; height:90px; pointer-events:none; color:var(--ink-3)}
+.lp.pp .bands{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:22px; position:relative}
+.lp.pp .band{
+  --tone:var(--sky); --tone-soft:var(--sky-soft); --tone-ink:var(--sky-ink);
+  position:relative; transform-origin:50% -30px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg); padding:34px 22px 22px;
+  box-shadow:4px 4px 0 var(--tone);
+  transition:transform .5s var(--ease-spring), box-shadow .4s var(--ease-spring);
+}
+.lp.pp .band:nth-child(1){--tone:var(--butter); --tone-soft:var(--butter-soft); --tone-ink:var(--butter-ink); --rot:-2deg; margin-top:22px}
+.lp.pp .band:nth-child(2){--rot:1.2deg; margin-top:6px}
+.lp.pp .band:nth-child(3){--tone:var(--lilac); --tone-soft:var(--lilac-soft); --tone-ink:var(--lilac-ink); --rot:-1deg; margin-top:6px}
+.lp.pp .band:nth-child(4){--tone:var(--rose); --tone-soft:var(--rose-soft); --tone-ink:var(--rose-ink); --rot:2deg; margin-top:22px}
+.lp.pp .band{transform:rotate(var(--rot))}
+.lp.pp .rv.band:not(.in){transform:rotate(calc(var(--rot) * 5)) translateY(-40px)}
+.lp.pp .band:hover{transform:rotate(0) translateY(-4px); box-shadow:7px 7px 0 var(--tone)}
+.lp.pp .band.lit{box-shadow:7px 7px 0 var(--tone), 0 0 0 5px var(--tone-soft)}
+.lp.pp .band .peg{position:absolute; top:-26px; left:50%; width:16px; height:44px; margin-left:-8px; border-radius:4px; background:var(--paper-3); border:1.5px solid var(--ink); z-index:2}
+.lp.pp .band .peg::after{content:''; position:absolute; left:50%; top:10px; width:4px; height:14px; margin-left:-2px; border-radius:2px; background:var(--ink-3)}
+.lp.pp .band__k{font-family:var(--mono); font-size:.7rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--tone-ink)}
+.lp.pp .band__name{font-family:var(--display); font-size:1.6rem; font-weight:700; letter-spacing:-.03em; margin-top:4px}
+.lp.pp .band__price{display:flex; align-items:baseline; gap:6px; margin-top:16px}
+.lp.pp .band__price b{font-family:var(--display); font-weight:800; font-size:3rem; letter-spacing:-.05em; line-height:1}
+.lp.pp .band__price span{font-size:.85rem; color:var(--ink-2)}
+.lp.pp .band__range{display:inline-block; margin-top:14px; padding:4px 10px; border-radius:8px; background:var(--tone-soft); font-family:var(--mono); font-size:.8rem; font-weight:600; color:var(--tone-ink)}
+.lp.pp .band p{margin-top:14px; font-size:.9rem; color:var(--ink-2)}
+.lp.pp .band .mini{margin-top:16px; padding-top:14px; border-top:1.5px dashed var(--line-2); font-size:.82rem; color:var(--ink-3); display:flex; gap:8px; align-items:center}
+.lp.pp .band .mini svg{width:16px; height:16px; color:var(--tone-ink); flex:none}
+.lp.pp .band.q .band__price b{font-size:2.3rem}
+@media (max-width: 980px){ .lp.pp .bands{grid-template-columns:repeat(2, minmax(0,1fr)); row-gap:56px} .lp.pp .clothes{display:none} }
+@media (max-width: 560px){ .lp.pp .bands{grid-template-columns:minmax(0,1fr)} .lp.pp .band{margin-top:0 !important; --rot:0deg !important} .lp.pp .rv.band:not(.in){transform:translateY(-30px)} }
+
+/* ---------- every feature, every plan ---------- */
+.lp.pp .sheet{position:relative; background:var(--card); border:1.5px solid var(--line-2); border-radius:var(--r-xl); box-shadow:var(--sh-2); overflow:hidden}
+.lp.pp .sheet::before{content:''; position:absolute; inset:0; background:repeating-linear-gradient(0deg, transparent 0 51px, var(--sky-bd) 51px 52px); opacity:.5; pointer-events:none}
+.lp.pp .sheet::after{content:''; position:absolute; top:0; bottom:0; left:64px; width:1.5px; background:var(--rose-bd); pointer-events:none}
+.lp.pp .grid-t{position:relative; width:100%; border-collapse:collapse}
+.lp.pp .grid-t th, .lp.pp .grid-t td{height:52px; padding:0 14px; text-align:center}
+.lp.pp .grid-t thead th{height:84px; vertical-align:bottom; padding-bottom:12px}
+.lp.pp .grid-t th:first-child, .lp.pp .grid-t td:first-child{text-align:left; padding-left:88px}
+.lp.pp .grid-t thead .col{display:inline-grid; gap:2px; justify-items:center}
+.lp.pp .grid-t thead .col b{font-family:var(--display); font-size:1.2rem; font-weight:700; letter-spacing:-.03em}
+.lp.pp .grid-t thead .col span{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); font-weight:500}
+.lp.pp .grid-t thead .col i{width:30px; height:6px; border-radius:3px; margin-bottom:6px}
+.lp.pp .grid-t td:first-child{font-weight:600; font-size:.95rem}
+.lp.pp .grid-t td:first-child small{display:block; font-weight:400; font-size:.78rem; color:var(--ink-3); line-height:1.2}
+.lp.pp .grid-t td:first-child .fx{display:flex; align-items:center; gap:12px}
+.lp.pp .grid-t td:first-child .fx svg{width:20px; height:20px; color:var(--ink-3); flex:none}
+.lp.pp .tick{display:inline-grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--mint-soft); color:var(--mint-ink)}
+.lp.pp .tick svg{width:18px; height:18px}
+.lp.pp .tick path{stroke-dasharray:24; stroke-dashoffset:24; transition:stroke-dashoffset .5s var(--ease-out); transition-delay:var(--td, 0s)}
+.lp.pp .sheet.in .tick path{stroke-dashoffset:0}
+.lp.pp .grid-t tr.cap td{font-family:var(--mono); font-weight:600; font-size:.88rem}
+.lp.pp .grid-t tr.cap td:first-child{font-family:var(--sans)}
+.lp.pp .sheet-foot{position:relative; display:flex; flex-wrap:wrap; gap:14px 24px; align-items:center; justify-content:space-between; padding:20px 28px 20px 88px; border-top:1.5px dashed var(--line-2); background:var(--paper-2)}
+.lp.pp .sheet-foot p{font-size:.92rem; color:var(--ink-2); max-width:62ch}
+.lp.pp .sheet .bigstamp{position:absolute; left:110px; right:auto; top:28px; bottom:auto; --st:var(--mint-ink); z-index:2}
+.lp.pp .sheet.in .bigstamp{animation:pp-thud .6s var(--ease-spring) 1.3s forwards}
+.lp.pp .scroll-x{overflow-x:auto}
+@media (max-width: 760px){
+  .lp.pp .sheet::after{left:22px}
+  .lp.pp .grid-t th:first-child, .lp.pp .grid-t td:first-child{padding-left:38px}
+  .lp.pp .grid-t th, .lp.pp .grid-t td{padding:0 6px}
+  .lp.pp .grid-t thead .col b{font-size:.95rem}
+  .lp.pp .grid-t thead .col span{font-size:.62rem}
+  .lp.pp .tick{width:24px; height:24px} .lp.pp .tick svg{width:14px; height:14px}
+  .lp.pp .grid-t td:first-child .fx svg{display:none}
+  .lp.pp .grid-t td:first-child small{display:none}
+  .lp.pp .grid-t td:first-child{font-size:.84rem}
+  .lp.pp .sheet-foot{padding:18px 18px 18px 38px}
+  .lp.pp .sheet .bigstamp{display:none}
+}
+
+/* ---------- who counts (clipboard) ---------- */
+.lp.pp .counts{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); gap:56px; align-items:center}
+.lp.pp .rules{display:grid; gap:14px; margin-top:28px}
+.lp.pp .rule{display:grid; grid-template-columns:36px minmax(0,1fr); gap:14px; align-items:start; padding:14px 16px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line)}
+.lp.pp .rule .ri{width:36px; height:36px; border-radius:11px; display:grid; place-items:center; background:var(--ri-bg); color:var(--ri-ink)}
+.lp.pp .rule .ri svg{width:19px; height:19px}
+.lp.pp .rule b{display:block; font-size:.98rem}
+.lp.pp .rule span{font-size:.88rem; color:var(--ink-2)}
+.lp.pp .rule.yes{--ri-bg:var(--mint-soft); --ri-ink:var(--mint-ink)}
+.lp.pp .rule.no{--ri-bg:var(--paper-3); --ri-ink:var(--ink-3)}
+
+.lp.pp .clip{position:relative; padding:44px 26px 24px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg); box-shadow:6px 6px 0 var(--sky); transform:rotate(.8deg)}
+.lp.pp .clip__clamp{position:absolute; top:-18px; left:50%; width:130px; height:40px; margin-left:-65px; border-radius:10px 10px 6px 6px; background:var(--paper-3); border:1.5px solid var(--ink); box-shadow:0 3px 0 var(--line-2)}
+.lp.pp .clip__clamp::after{content:''; position:absolute; top:8px; left:50%; width:34px; height:10px; margin-left:-17px; border-radius:6px; background:var(--card); border:1.5px solid var(--ink)}
+.lp.pp .clip__h{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; padding-bottom:12px; border-bottom:2px solid var(--ink)}
+.lp.pp .clip__h h3{font-size:1.25rem}
+.lp.pp .clip__h .tally{text-align:right}
+.lp.pp .clip__h .tally b{display:block; font-family:var(--display); font-weight:800; font-size:2.4rem; line-height:1; letter-spacing:-.05em; font-variant-numeric:tabular-nums}
+.lp.pp .clip__h .tally span{font-family:var(--mono); font-size:.68rem; color:var(--ink-3); text-transform:uppercase; letter-spacing:.1em}
+.lp.pp .roster{display:grid}
+.lp.pp .row{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:12px; align-items:center; padding:9px 2px; border-bottom:1px solid var(--paper-3); font-size:.9rem; transition:opacity .5s, transform .6s var(--ease-spring), max-height .5s var(--ease-out), padding .5s; max-height:56px; overflow:hidden}
+.lp.pp .av{width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-size:.68rem; font-weight:700; color:rgba(38,33,27,.72); background:var(--av)}
+.lp.pp .row .nm{font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp.pp .row .nm small{font-weight:400; color:var(--ink-3); margin-left:6px}
+.lp.pp .ppill{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--r-pill); font-size:.72rem; font-weight:600; background:var(--p-bg); color:var(--p-fg); border:1px solid var(--p-bd); white-space:nowrap}
+.lp.pp .ppill--y{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd)}
+.lp.pp .ppill--n{--p-bg:var(--paper-2); --p-fg:var(--ink-3); --p-bd:var(--line)}
+.lp.pp .ppill--s{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd)}
+.lp.pp .row.senior .nm{position:relative}
+.lp.pp .row.senior .nm::after{content:''; position:absolute; left:0; top:52%; height:2px; width:var(--strike, 0%); background:var(--peach-ink); transition:width .45s var(--ease-out); border-radius:2px}
+.lp.pp .archived .row.senior{--strike:100%}
+.lp.pp .archived .row.senior .ppill--y{display:none}
+.lp.pp .roster .ppill--a{display:none; --p-bg:var(--paper-2); --p-fg:var(--ink-3); --p-bd:var(--line)}
+.lp.pp .archived .row.senior .ppill--a{display:inline-flex}
+.lp.pp .archived .row.senior .nm{color:var(--ink-3)}
+.lp.pp .row.more{color:var(--ink-3); font-size:.84rem; grid-template-columns:30px minmax(0,1fr)}
+.lp.pp .row.more .av{background:var(--paper-2); border:1.5px dashed var(--line-2); color:var(--ink-3)}
+.lp.pp .reqs{margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--paper-2); border:1.5px dashed var(--line-2)}
+.lp.pp .reqs h4{font-family:var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:600; display:flex; justify-content:space-between}
+.lp.pp .reqs .row{border-bottom:0; padding:6px 0}
+.lp.pp .clip__foot{display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-top:18px}
+.lp.pp .bandchip{display:inline-flex; align-items:center; gap:10px; padding:8px 14px; border-radius:12px; border:1.5px solid var(--ink); background:var(--bc, var(--lilac)); color:var(--note-ink); font-weight:600; font-size:.9rem; transition:background .5s var(--ease-out)}
+.lp.pp .bandchip .mono{font-weight:700}
+.lp.pp .bandchip.flip{animation:pp-flip .6s var(--ease-spring)}
+@keyframes pp-flip{0%{transform:rotateX(0)} 50%{transform:rotateX(90deg)} 100%{transform:rotateX(0)}}
+.lp.pp .toggle-btn{display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:var(--r-pill); border:1.5px solid var(--ink); background:var(--card); font-weight:600; font-size:.86rem; box-shadow:2.5px 2.5px 0 var(--peach); transition:transform .18s var(--ease-spring), box-shadow .18s}
+.lp.pp .toggle-btn:hover{transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--peach)}
+.lp.pp .toggle-btn svg{width:16px; height:16px}
+.lp.pp .archive-box{position:absolute; right:-34px; bottom:-38px; width:110px; padding:10px 12px 12px; border-radius:10px; background:var(--peach); color:var(--note-ink); filter:var(--note-filter); border:1.5px solid var(--ink); transform:rotate(6deg) scale(.6); opacity:0; transition:opacity .4s, transform .6s var(--ease-spring); text-align:center; font-size:.74rem; font-weight:600; line-height:1.25}
+.lp.pp .archive-box b{display:block; font-family:var(--display); font-size:1.6rem; line-height:1}
+.lp.pp .archived .archive-box{opacity:1; transform:rotate(6deg) scale(1)}
+.lp.pp .clip .caveat{margin-top:12px; font-size:.78rem; color:var(--ink-3)}
+@media (max-width: 980px){ .lp.pp .counts{grid-template-columns:minmax(0,1fr)} .lp.pp .archive-box{right:6px; bottom:-44px} }
+
+/* ---------- only growth stops ---------- */
+.lp.pp .limit{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:48px; align-items:center}
+.lp.pp .house{position:relative; padding:24px; border-radius:var(--r-xl); background:var(--paper-2); border:1.5px solid var(--line-2); overflow:hidden}
+.lp.pp .room{position:relative; background:var(--card); border:1.5px solid var(--ink); border-radius:18px; padding:18px 18px 16px; box-shadow:5px 5px 0 var(--butter)}
+.lp.pp .room__h{display:flex; justify-content:space-between; align-items:center; gap:10px}
+.lp.pp .room__h b{font-family:var(--display); font-size:1.08rem}
+.lp.pp .lamp{display:inline-flex; align-items:center; gap:7px; font-size:.76rem; font-weight:600; color:var(--mint-ink)}
+.lp.pp .lamp i{width:9px; height:9px; border-radius:50%; background:var(--mint-ink); box-shadow:0 0 0 0 var(--mint); animation:pp-glow 2.4s ease-in-out infinite}
+@keyframes pp-glow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--mint-ink) 40%, transparent)} 50%{box-shadow:0 0 0 7px transparent}}
+.lp.pp .seats{display:grid; grid-template-columns:repeat(25, minmax(0,1fr)); gap:4px; margin-top:14px}
+.lp.pp .seats .p{background:transparent}
+.lp.pp .room__f{display:flex; justify-content:space-between; margin-top:12px; font-family:var(--mono); font-size:.74rem; color:var(--ink-3)}
+.lp.pp .room__f b{color:var(--ink)}
+.lp.pp .doorway{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; margin-top:18px}
+.lp.pp .queue{position:relative; height:84px}
+.lp.pp .ticket{
+  position:absolute; left:0; right:0; display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:10px; align-items:center;
+  padding:10px 14px; border-radius:12px; background:var(--card); border:1.5px solid var(--line-2); box-shadow:var(--sh-1); font-size:.84rem;
+  -webkit-mask:radial-gradient(circle 7px at 0 50%, transparent 98%, #000) , radial-gradient(circle 7px at 100% 50%, transparent 98%, #000);
+  -webkit-mask-composite:source-in; mask-composite:intersect;
+  transition:transform .7s var(--ease-spring), opacity .5s;
+}
+.lp.pp .ticket .nm{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.lp.pp .ticket .nm small{display:block; font-weight:400; font-size:.72rem; color:var(--ink-3)}
+.lp.pp .ticket .wait{font-family:var(--mono); font-size:.62rem; font-weight:700; letter-spacing:.1em; color:var(--butter-ink); border:2px solid var(--butter-ink); border-radius:6px; padding:2px 7px; transform:rotate(-6deg); white-space:nowrap}
+.lp.pp .gate{width:92px; text-align:center; font-size:.72rem; font-weight:600; color:var(--peach-ink); line-height:1.25}
+.lp.pp .gate .bar{height:10px; border-radius:5px; border:1.5px solid var(--ink); background:repeating-linear-gradient(135deg, var(--peach) 0 8px, var(--card) 8px 16px); margin-bottom:8px; transform-origin:left center; animation:pp-gatebob 3.4s var(--ease-out) infinite}
+@keyframes pp-gatebob{0%,70%,100%{transform:rotate(0)} 80%{transform:rotate(-14deg)} 90%{transform:rotate(0)}}
+.lp.pp .lists{display:grid; gap:20px; margin-top:26px}
+.lp.pp .lst h4{font-family:var(--mono); font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; font-weight:600; color:var(--ink-3); margin-bottom:10px}
+.lp.pp .lst li{display:grid; grid-template-columns:24px minmax(0,1fr); gap:10px; padding:8px 0; border-bottom:1px dashed var(--line-2); font-size:.95rem}
+.lp.pp .lst li svg{width:20px; height:20px; margin-top:2px}
+.lp.pp .lst.stop li svg{color:var(--peach-ink)}
+.lp.pp .lst.keep li svg{color:var(--mint-ink)}
+@media (max-width: 980px){ .lp.pp .limit{grid-template-columns:minmax(0,1fr)} }
+
+/* ---------- receipts: card fails / cancel ---------- */
+.lp.pp .stubs{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:36px}
+.lp.pp .stub{
+  position:relative; background:var(--card); padding:28px 28px 34px; border:1.5px solid var(--line-2); border-bottom:0;
+  box-shadow:var(--sh-2); transform:rotate(var(--rot, -.8deg));
+}
+.lp.pp .stub:nth-child(2){--rot:.9deg}
+.lp.pp .stub::after{content:''; position:absolute; left:-1.5px; right:-1.5px; bottom:-14px; height:14px; background:
+  linear-gradient(135deg, var(--card) 50%, transparent 50%) 0 0/14px 14px repeat-x,
+  linear-gradient(-135deg, var(--card) 50%, transparent 50%) 0 0/14px 14px repeat-x}
+.lp.pp .stub__k{display:flex; justify-content:space-between; font-family:var(--mono); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding-bottom:12px; border-bottom:1.5px dashed var(--line-2)}
+.lp.pp .stub h3{font-size:1.5rem; margin-top:16px}
+.lp.pp .stub > p{margin-top:8px; color:var(--ink-2); font-size:.95rem}
+.lp.pp .stub ol{margin-top:16px; display:grid; gap:2px; counter-reset:s}
+.lp.pp .stub ol li{counter-increment:s; display:grid; grid-template-columns:28px minmax(0,1fr); gap:10px; padding:9px 0; border-bottom:1px solid var(--paper-3); font-size:.92rem}
+.lp.pp .stub ol li::before{content:counter(s, decimal-leading-zero); font-family:var(--mono); font-size:.74rem; color:var(--ink-3); padding-top:2px}
+.lp.pp .stub .total{display:flex; justify-content:space-between; align-items:baseline; margin-top:16px; padding-top:12px; border-top:2px solid var(--ink); font-family:var(--mono); font-size:.84rem}
+.lp.pp .stub .total b{font-family:var(--display); font-size:1.2rem; letter-spacing:-.02em}
+.lp.pp .stub .stamp{position:absolute; right:110px; top:auto; bottom:22px; --st:var(--mint-ink)}
+.lp.pp .stub.in .stamp{animation:pp-thud .6s var(--ease-spring) .7s forwards}
+.lp.pp .stub:nth-child(2).in .stamp{animation-delay:.95s}
+@media (max-width: 860px){ .lp.pp .stubs{grid-template-columns:minmax(0,1fr); gap:56px} }
+
+/* ---------- fine print + faq ---------- */
+.lp.pp .fine{display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:48px; align-items:start}
+.lp.pp .receipt{position:relative; background:var(--card); padding:26px 24px 30px; border:1.5px solid var(--line-2); box-shadow:var(--sh-2); font-family:var(--mono); font-size:.84rem; transform:rotate(-1deg)}
+.lp.pp .receipt::after{content:''; position:absolute; left:-1.5px; right:-1.5px; bottom:-12px; height:12px; background:linear-gradient(135deg, var(--card) 50%, transparent 50%) 0 0/12px 12px repeat-x, linear-gradient(-135deg, var(--card) 50%, transparent 50%) 0 0/12px 12px repeat-x}
+.lp.pp .receipt h3{font-family:var(--mono); font-size:.86rem; letter-spacing:.14em; text-transform:uppercase; text-align:center; font-weight:700}
+.lp.pp .receipt .cut{text-align:center; color:var(--ink-3); margin:10px 0; letter-spacing:.2em; overflow:hidden; white-space:nowrap}
+.lp.pp .receipt dl{display:grid; gap:10px; margin:0}
+.lp.pp .receipt dl div{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:baseline}
+.lp.pp .receipt dt{color:var(--ink-2)}
+.lp.pp .receipt dd{margin:0; font-weight:600; text-align:right}
+.lp.pp .receipt .bc{margin-top:18px; height:38px; background:repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px, var(--ink) 8px 11px, transparent 11px 12px); opacity:.8}
+.lp.pp .receipt .bcn{text-align:center; font-size:.68rem; color:var(--ink-3); margin-top:6px; letter-spacing:.3em}
+.lp.pp .faq{display:grid; gap:10px}
+.lp.pp .qa{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); transition:border-color .2s, box-shadow .3s var(--ease-spring)}
+.lp.pp .qa[open]{border-color:var(--ink); box-shadow:4px 4px 0 var(--lilac)}
+.lp.pp .qa summary{list-style:none; display:flex; justify-content:space-between; gap:16px; align-items:center; padding:16px 20px; font-weight:600; cursor:pointer}
+.lp.pp .qa summary::-webkit-details-marker{display:none}
+.lp.pp .qa summary .pm{width:26px; height:26px; border-radius:50%; border:1.5px solid var(--line-2); display:grid; place-items:center; flex:none; transition:transform .35s var(--ease-spring), background .2s}
+.lp.pp .qa summary .pm svg{width:13px; height:13px}
+.lp.pp .qa[open] summary .pm{transform:rotate(45deg); background:var(--lilac-soft); border-color:var(--lilac-bd)}
+.lp.pp .qa .ans{padding:0 20px 18px; color:var(--ink-2); font-size:.94rem; max-width:64ch}
+@media (max-width: 980px){ .lp.pp .fine{grid-template-columns:minmax(0,1fr)} .lp.pp .receipt{max-width:420px} }
+
+/* ---------- closing ---------- */
+.lp.pp .close{padding:120px 0 80px; text-align:center}
+.lp.pp .close h2{font-size:clamp(2.4rem, 5.6vw, 4.2rem); max-width:14ch; margin:16px auto 0}
+.lp.pp .close p{margin:18px auto 0; color:var(--ink-2); max-width:48ch}
+.lp.pp .close .phero__cta{justify-content:center}
+.lp.pp .confetti{position:absolute; inset:0; pointer-events:none; overflow:hidden}
+.lp.pp .confetti i{position:absolute; width:10px; height:16px; border-radius:2px; opacity:.8; animation:pp-fall linear infinite}
+@keyframes pp-fall{from{transform:translateY(-40px) rotate(0)} to{transform:translateY(520px) rotate(540deg)}}
+@media (prefers-reduced-motion: reduce){
+  .lp.pp *, .lp.pp *::before, .lp.pp *::after{animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important}
+  .lp.pp .rv{opacity:1; transform:none}
+  .lp.pp .confetti{display:none}
 }
