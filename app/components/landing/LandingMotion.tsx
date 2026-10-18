@@ -1,728 +1,861 @@
 "use client";
 
-import { useEffect, useState } from "react";
+/**
+ * Everything that moves on the landing page, ported 1:1 from the script in
+ * _design/Landing Motion Mock.html.
+ *
+ * The page is server-rendered markup (LandingPage.tsx); this mounts once, finds
+ * its nodes by id and drives them imperatively — the same shape as the mock, so
+ * the timing and feel stay identical. It renders nothing.
+ *
+ * One rAF loop reads a lerped scroll value and hands it to every scene; native
+ * scrolling is never taken over. Scenes, top to bottom:
+ *   · nav: the paper tab under the hovered link, the section squiggle, the
+ *     phone sheet, the bottom bar
+ *   · hero: eight loose ends dock into one dashboard, the headline swaps
+ *     "loose ends" for "one page", then the dashboard re-forms per org type
+ *   · race: the group chat vs Ask Chapt, scrubbed by scroll (scroll back rewinds)
+ *   · how it works: one card morphing Timeline → ticket → tasks → budget
+ *   · the page wash, the handoff board, fits-your-org, FAQ, the close
+ *   · the thread sewn through every section, and the travellers that carry an
+ *     object out of one section into the next
+ *   · scroll-linked depth
+ *
+ * Differences from the mock, all forced by living inside the app:
+ *   · it tears itself down on unmount (listeners, rAF, timers, observers, the
+ *     nodes it added), and its one-time DOM rewrites are idempotent, so React's
+ *     dev double-mount and client navigation away and back both work
+ *   · links that leave the page (/pricing, /blog, /login, /create) navigate;
+ *     the mock swallowed any href that wasn't an in-page section
+ *   · the colour probe lives inside .lm, so it reads this page's tokens rather
+ *     than the app's paper palette on <body>
+ */
 
-/* ============================================================================
-   Motion + interaction for the landing page.
-
-   Ported from the vanilla-JS block in _design/ChaptOS Landing Doodle Mock
-   v5.html. The engines drive the page through data attributes on markup that
-   stays server-rendered, rather than being rewritten as React state — the
-   motion contract they implement is delicate and documented, and a client
-   boundary around ~1,600 lines of static JSX would buy nothing.
-
-   Everything is progressive: with JS off you get a complete, readable page
-   (see the <noscript> block in LandingPage.tsx).
-
-   Engines
-     reveal()     IntersectionObserver → .is-in, one-shot
-     parallax()   rAF + lerp; owns inline transform on [data-para] only
-     chrome()     sticky nav state + scroll progress bar
-     marquee()    exact loop seam measurement
-     scene()      THE pinned one — scroll-scrubbed six-beat conversation
-     dial()       the Tuesday clock; sweeps once on entry, click to steer
-     typer()      hero ask bar cycling three real questions + their answers
-     counters()   count-up + health ring on first view (everything below the hero)
-     heroBuild()  the hero card's cold open — [data-hb] delays, one shot
-     term()       semester-aware countdown + CTA plan labels
-     modtabs()    the modules stage — one surface on at a time
-
-   Every engine returns a disposer. The mock was a fire-and-forget IIFE, but
-   StrictMode runs this effect twice in dev — without teardown you get two
-   typing loops fighting over one <span> and a hero that rebuilds itself.
-   ========================================================================== */
-
-type Dispose = () => void;
-
-const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
+import { useEffect } from "react";
 
 export function LandingMotion() {
-  const [desktop, setDesktop] = useState(false);
-
-  useEffect(() => {
-    const media = matchMedia("(min-width: 768px)");
-    const sync = () => setDesktop(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  useEffect(() => {
-    // Hidden desktop content must not run scroll, typing, or animation loops.
-    // Crossing the layout boundary disposes/restarts all engines below.
-    if (!desktop) return;
-    const root = document.querySelector<HTMLElement>(".lp");
-    if (!root) return;
-
-    const q = <T extends Element>(s: string, r: ParentNode = root) => r.querySelector<T>(s);
-    const qa = <T extends Element>(s: string, r: ParentNode = root) =>
-      Array.from(r.querySelectorAll<T>(s));
-
-    const mqReduce = matchMedia("(prefers-reduced-motion: reduce)");
-    const mqMobile = matchMedia("(max-width: 860px)");
-    const isCalm = () => mqReduce.matches;
-
-    /* -------- counters + the health ring --------------------------------- */
-    /* Hoisted above the engines because heroBuild() drives the hero's own
-       count and ring off its timeline rather than an observer. */
-    const rafIds = new Set<number>();
-    function runCount(el: HTMLElement) {
-      const to = parseFloat(el.getAttribute("data-count") ?? "") || 0;
-      const dec = parseInt(el.getAttribute("data-decimals") ?? "0", 10);
-      const pre = el.getAttribute("data-prefix") ?? "";
-      const suf = el.getAttribute("data-suffix") ?? "";
-      const fmt = (v: number) =>
-        pre + (dec ? v.toFixed(dec) : Math.round(v).toLocaleString("en-US")) + suf;
-      if (isCalm()) {
-        el.textContent = fmt(to);
-        return;
-      }
-      const t0 = performance.now();
-      const dur = 1500;
-      const step = (t: number) => {
-        const p = clamp((t - t0) / dur, 0, 1);
-        el.textContent = fmt(to * (1 - Math.pow(1 - p, 3)));
-        if (p < 1) rafIds.add(requestAnimationFrame(step));
-      };
-      rafIds.add(requestAnimationFrame(step));
-    }
-
-    function runRing(el: HTMLElement) {
-      const pct = parseFloat(el.getAttribute("data-ring") ?? "") || 0;
-      rafIds.add(requestAnimationFrame(() => el.style.setProperty("--pct", String(pct))));
-    }
-
-    /* -------- reveal ------------------------------------------------------ */
-    function reveal(): Dispose {
-      const els = qa<HTMLElement>("[data-reveal]");
-      if (isCalm() || !("IntersectionObserver" in window)) {
-        els.forEach(el => el.classList.add("is-in"));
-        return () => {};
-      }
-      const io = new IntersectionObserver(
-        entries => {
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            e.target.classList.add("is-in");
-            io.unobserve(e.target);
-          }
-        },
-        { rootMargin: "0px 0px -12% 0px", threshold: 0.08 },
-      );
-      els.forEach(el => io.observe(el));
-      return () => io.disconnect();
-    }
-
-    /* -------- parallax ----------------------------------------------------- */
-    /* Layered depth with a little momentum: each element lerps toward its
-       target offset, so a fast flick overshoots slightly before settling. */
-    function parallax(): Dispose {
-      const items = qa<HTMLElement>("[data-para]").map(el => ({
-        el,
-        speed: parseFloat(el.getAttribute("data-speed") ?? "") || 0.06,
-        /* Opt-in floor for drift that only makes sense in one layout. The price
-           rungs stagger against each other while the ladder is a single row;
-           the moment it wraps to 2×2 the same offsets read as a misaligned
-           grid, which is exactly why the CSS lift is dropped there too. Below
-           the floor the target is pinned to 0 rather than the item being
-           skipped, so a resize lerps it home instead of snapping. */
-        min: parseFloat(el.getAttribute("data-para-min") ?? "") || 0,
-        cur: 0,
-        target: 0,
-      }));
-      if (!items.length) return () => {};
-
-      let vh = innerHeight;
-      let running = false;
-      let idleFrames = 0;
-      let raf = 0;
-
-      function measure() {
-        vh = innerHeight;
-        for (const it of items) {
-          if (innerWidth < it.min) {
-            it.target = 0;
-            continue;
-          }
-          const r = it.el.getBoundingClientRect();
-          it.target = (r.top + r.height / 2 - vh / 2) * it.speed;
-        }
-      }
-
-      function frame() {
-        // a frame can already be queued when the viewport crosses into mobile;
-        // bail rather than stamping a stale inline transform on the way out
-        if (mqMobile.matches || isCalm()) {
-          running = false;
-          return;
-        }
-        let moving = false;
-        for (const it of items) {
-          it.cur += (it.target - it.cur) * 0.11; // momentum
-          if (Math.abs(it.target - it.cur) > 0.08) moving = true;
-          it.el.style.transform = `translate3d(0,${it.cur.toFixed(2)}px,0)`;
-        }
-        idleFrames = moving ? 0 : idleFrames + 1;
-        if (idleFrames > 12) {
-          running = false; // sleep until the next scroll
-          return;
-        }
-        raf = requestAnimationFrame(frame);
-      }
-
-      function wake() {
-        if (mqMobile.matches || isCalm()) return;
-        measure();
-        idleFrames = 0;
-        if (!running) {
-          running = true;
-          raf = requestAnimationFrame(frame);
-        }
-      }
-
-      function clear() {
-        for (const it of items) {
-          it.cur = it.target = 0;
-          it.el.style.transform = "";
-        }
-        running = false;
-      }
-
-      // A desktop → mobile resize used to strand inline transforms mid-page.
-      const sync = () => (mqMobile.matches || isCalm() ? clear() : wake());
-
-      addEventListener("scroll", wake, { passive: true });
-      addEventListener("resize", sync);
-      mqMobile.addEventListener("change", sync);
-      sync();
-
-      return () => {
-        cancelAnimationFrame(raf);
-        removeEventListener("scroll", wake);
-        removeEventListener("resize", sync);
-        mqMobile.removeEventListener("change", sync);
-        clear();
-      };
-    }
-
-    /* -------- nav state + scroll progress ---------------------------------- */
-    function chrome(): Dispose {
-      const nav = q<HTMLElement>("[data-nav]");
-      const bar = q<HTMLElement>("[data-progress]");
-      function tick() {
-        const y = scrollY;
-        nav?.classList.toggle("is-stuck", y > 18);
-        if (bar) {
-          const max = document.documentElement.scrollHeight - innerHeight;
-          bar.style.width = `${(max > 0 ? clamp(y / max, 0, 1) : 0) * 100}%`;
-        }
-      }
-      addEventListener("scroll", tick, { passive: true });
-      addEventListener("resize", tick);
-      tick();
-      return () => {
-        removeEventListener("scroll", tick);
-        removeEventListener("resize", tick);
-      };
-    }
-
-    /* -------- marquee seam ------------------------------------------------- */
-    function marquee(): Dispose {
-      const sizers = qa<HTMLElement>("[data-marquee]").map(track => {
-        const size = () => {
-          const gap = parseFloat(getComputedStyle(track).columnGap || "20") || 20;
-          track.style.setProperty("--shift", `-${(track.scrollWidth + gap) / 2}px`);
-        };
-        size();
-        return size;
-      });
-      if (!sizers.length) return () => {};
-      const onResize = () => sizers.forEach(f => f());
-      addEventListener("resize", onResize);
-      return () => removeEventListener("resize", onResize);
-    }
-
-    /* -------- the ask scene (the pinned one) -------------------------------- */
-    /* Desktop: rail scroll position drives which beats have landed —
-       cumulative, so the transcript accumulates rather than swapping. Mobile:
-       no pin, no scrub, the conversation plays once on entry. Reduced motion:
-       all of it, immediately. */
-    function scene(): Dispose {
-      const sceneRoot = q<HTMLElement>("[data-scene]");
-      if (!sceneRoot) return () => {};
-      const rail = q<HTMLElement>(".scene__rail", sceneRoot);
-      const stage = q<HTMLElement>(".scene__stage", sceneRoot);
-      const beats = qa<HTMLElement>(".beat", sceneRoot);
-      const navs = qa<HTMLElement>("[data-beat-nav]", sceneRoot);
-      const ledger = q<HTMLElement>("[data-ledger]", sceneRoot);
-      if (!rail || !stage) return () => {};
-
-      const AT = [0, 0.13, 0.29, 0.47, 0.63, 0.8]; // rail progress per beat
-      const LEDGER_AT = AT[1] + 0.05; // the spinner reads before the ticks fill
-      let timers: ReturnType<typeof setTimeout>[] = [];
-      let io: IntersectionObserver | null = null;
-
-      function paint(active: number, ledgerLive: boolean) {
-        beats.forEach((b, i) => b.classList.toggle("is-in", i <= active));
-        navs.forEach((n, i) => {
-          n.classList.toggle("is-on", i === active);
-          n.classList.toggle("is-done", i < active);
-        });
-        ledger?.classList.toggle("is-live", ledgerLive);
-      }
-
-      // section.scene is position:relative, so rail.offsetTop is ~0 and a nav
-      // click would jump to the top of the page. Always go through the rect.
-      const railY = () => rail!.getBoundingClientRect().top + scrollY;
-      const span = () => rail!.offsetHeight - stage!.offsetHeight;
-
-      function scrub() {
-        const s = span();
-        const p = s > 0 ? clamp(-rail!.getBoundingClientRect().top / s, 0, 1) : 0;
-        let active = -1;
-        for (let i = 0; i < AT.length; i++) if (p >= AT[i]) active = i;
-        paint(active, p >= LEDGER_AT);
-      }
-
-      function playOnce() {
-        timers.forEach(clearTimeout);
-        timers = [];
-        beats.forEach((_, i) => {
-          timers.push(setTimeout(() => paint(i, i >= 1), 200 + i * 760));
-        });
-      }
-
-      let mode: string | null = null;
-      function setMode() {
-        const next = isCalm() ? "all" : mqMobile.matches ? "mobile" : "scrub";
-        if (next === mode) return;
-        mode = next;
-        removeEventListener("scroll", scrub);
-        timers.forEach(clearTimeout);
-        io?.disconnect();
-
-        if (mode === "all") return paint(beats.length - 1, true);
-        if (mode === "scrub") {
-          addEventListener("scroll", scrub, { passive: true });
-          scrub();
-          return;
-        }
-        // mobile: hold at beat 0 until the section is on screen, then play through
-        paint(0, false);
-        if (!("IntersectionObserver" in window)) return paint(beats.length - 1, true);
-        io = new IntersectionObserver(
-          entries => {
-            for (const e of entries) {
-              if (!e.isIntersecting) continue;
-              io?.disconnect();
-              playOnce();
-            }
-          },
-          { threshold: 0.22 },
-        );
-        io.observe(sceneRoot!);
-      }
-
-      const onNavClick = (i: number) => () => {
-        if (mode !== "scrub") return;
-        scrollTo({ top: railY() + span() * (AT[i] + 0.02), behavior: "smooth" });
-      };
-      const bound = navs.map((n, i) => {
-        const h = onNavClick(i);
-        n.style.cursor = "pointer";
-        n.addEventListener("click", h);
-        return [n, h] as const;
-      });
-
-      addEventListener("resize", setMode);
-      mqMobile.addEventListener("change", setMode);
-      mqReduce.addEventListener("change", setMode); // re-arm the moment it flips
-      setMode();
-
-      return () => {
-        removeEventListener("scroll", scrub);
-        removeEventListener("resize", setMode);
-        mqMobile.removeEventListener("change", setMode);
-        mqReduce.removeEventListener("change", setMode);
-        timers.forEach(clearTimeout);
-        io?.disconnect();
-        bound.forEach(([n, h]) => n.removeEventListener("click", h));
-      };
-    }
-
-    /* -------- the day dial -------------------------------------------------- */
-    /* Not pinned, not scrubbed — §5 spends the page's motion budget. The hand
-       sweeps through six marks once on entry and stops; clicking a mark takes
-       over. Below 600px the circle is abandoned for a chip row + a snap
-       carousel, so JS goes hands-off there. */
-    function dial(): Dispose {
-      const dialRoot = q<HTMLElement>("[data-dial]");
-      if (!dialRoot) return () => {};
-      const ticks = qa<HTMLElement>("[data-dial-tick]", dialRoot);
-      const cards = qa<HTMLElement>("[data-dial-card]", dialRoot);
-      const hand = q<SVGGElement>("[data-dial-hand]", dialRoot);
-      const prog = q<SVGPathElement>("[data-dial-prog]", dialRoot);
-      const count = q<HTMLElement>("[data-dial-count]", dialRoot);
-      const cap = q<HTMLElement>("[data-dial-cap]", dialRoot);
-      const replay = q<HTMLElement>("[data-dial-replay]", dialRoot);
-      const mqFlat = matchMedia("(max-width: 600px)"); // the dial's own breakpoint
-      const n = ticks.length;
-      if (!n) return () => {};
-
-      const STEP = 360 / n;
-      const DWELL = 3200;
-      let timers: ReturnType<typeof setTimeout>[] = [];
-      let io: IntersectionObserver | null = null;
-      let acc = 0;
-      let prev = 0;
-      let at = 0;
-
-      // the caption carries what the beat list used to say; the tick only says a time
-      const CAPS = ticks.map(t => t.getAttribute("data-dial-cap-text") ?? "");
-
-      let len = 0;
-      if (prog?.getTotalLength) {
-        len = prog.getTotalLength();
-        prog.style.strokeDasharray = String(len);
-        prog.style.strokeDashoffset = String(len);
-      }
-
-      const clearTimers = () => {
-        timers.forEach(clearTimeout);
-        timers = [];
-      };
-
-      // shortest signed delta, accumulated — otherwise 11:58 → 8:12 spins back 300°
-      function rotTo(deg: number) {
-        const d = ((deg - prev + 540) % 360) - 180;
-        acc += d;
-        prev = deg;
-        if (hand) hand.style.transform = `rotate(${acc}deg)`;
-      }
-
-      function go(i: number) {
-        at = i;
-        ticks.forEach((t, k) => {
-          t.classList.toggle("is-on", k === i);
-          t.classList.toggle("is-done", k < i);
-        });
-        cards.forEach((c, k) => c.classList.toggle("is-on", k === i));
-        rotTo(i * STEP);
-        if (prog && len) prog.style.strokeDashoffset = String(len * (1 - i / (n - 1)));
-        if (count) count.textContent = `0${i + 1}`.slice(-2);
-        if (cap && CAPS[i]) {
-          cap.style.opacity = "0";
-          timers.push(
-            setTimeout(() => {
-              cap.textContent = CAPS[i];
-              cap.style.opacity = "1";
-            }, 170),
-          );
-        }
-      }
-
-      function showAll() {
-        clearTimers();
-        ticks.forEach(t => {
-          t.classList.remove("is-on");
-          t.classList.add("is-done");
-        });
-        cards.forEach(c => c.classList.add("is-on"));
-      }
-
-      function play(from: number) {
-        clearTimers();
-        go(from);
-        for (let i = from + 1; i < n; i++) {
-          const k = i;
-          timers.push(setTimeout(() => go(k), DWELL * (k - from)));
-        }
-      }
-
-      const tickHandlers = ticks.map((t, i) => {
-        const h = () => {
-          clearTimers();
-          go(i);
-        };
-        t.addEventListener("click", h);
-        return [t, h] as const;
-      });
-      const onReplay = () => play(0);
-      replay?.addEventListener("click", onReplay);
-
-      let armed = false;
-      function setMode() {
-        clearTimers();
-        io?.disconnect();
-        if (isCalm() || mqFlat.matches) {
-          showAll();
-          armed = false;
-          return;
-        }
-        if (armed) return go(at); // a resize back from flat shouldn't replay
-        go(0);
-        if (!("IntersectionObserver" in window)) {
-          play(0);
-          armed = true;
-          return;
-        }
-        io = new IntersectionObserver(
-          entries => {
-            for (const e of entries) {
-              if (!e.isIntersecting) continue;
-              io?.disconnect();
-              play(0);
-            }
-          },
-          { threshold: 0.35 },
-        );
-        io.observe(dialRoot!);
-        armed = true;
-      }
-      addEventListener("resize", setMode);
-      mqFlat.addEventListener("change", setMode);
-      mqReduce.addEventListener("change", setMode);
-      setMode();
-
-      return () => {
-        removeEventListener("resize", setMode);
-        mqFlat.removeEventListener("change", setMode);
-        mqReduce.removeEventListener("change", setMode);
-        clearTimers();
-        io?.disconnect();
-        tickHandlers.forEach(([t, h]) => t.removeEventListener("click", h));
-        replay?.removeEventListener("click", onReplay);
-      };
-    }
-
-    /* -------- hero ask bar ------------------------------------------------- */
-    function typer(): Dispose {
-      const el = q<HTMLElement>("[data-typer]");
-      const mini = q<HTMLElement>("[data-spotmini]");
-      const out = q<HTMLElement>("[data-spotmini-a]");
-      if (!el) return () => {};
-
-      const SETS = [
-        {
-          q: "who still owes dues?",
-          a: "<b>9 of 52</b> still owe — $1,480 total, 4 past the late-fee date.",
-        },
-        {
-          q: "is anyone double-booked next week?",
-          a: "Thursday 8 PM: <b>the formal and the food drive</b> overlap for 9 volunteers.",
-        },
-        {
-          q: "who missed the last two meetings?",
-          a: "<b>Jordan T.</b> (2 unexcused) and <b>Sam W.</b> (1 excused, lab conflict).",
-        },
-      ];
-
-      const txt = document.createElement("span");
-      const caret = document.createElement("i");
-      caret.className = "caret";
-      el.textContent = "";
-      el.append(txt, caret);
-
-      if (isCalm()) {
-        txt.textContent = SETS[0].q;
-        if (out) out.innerHTML = SETS[0].a;
-        mini?.classList.add("is-live");
-        return () => {};
-      }
-
-      // StrictMode mounts this twice in dev; without the flag the first loop
-      // keeps typing into a span the second loop is also writing to.
-      let cancelled = false;
-      const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
-
-      void (async () => {
-        let i = 0;
-        // wait out heroBuild() — the spotlight itself doesn't land until 2290ms,
-        // and typing under a card that's still filling in reads as two things
-        // competing rather than one thing finishing
-        await sleep(2650);
-        while (!cancelled) {
-          const set = SETS[i % SETS.length];
-          for (let c = 1; c <= set.q.length; c++) {
-            if (cancelled) return;
-            txt.textContent = set.q.slice(0, c);
-            await sleep(30 + Math.random() * 46);
-          }
-          await sleep(430);
-          if (cancelled) return;
-          if (out) out.innerHTML = set.a;
-          mini?.classList.add("is-live");
-          await sleep(3600);
-          if (cancelled) return;
-          mini?.classList.remove("is-live");
-          await sleep(420);
-          for (let d = set.q.length; d >= 0; d--) {
-            if (cancelled) return;
-            txt.textContent = set.q.slice(0, d);
-            await sleep(15);
-          }
-          await sleep(280);
-          i++;
-        }
-      })();
-
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    /* -------- counters ----------------------------------------------------- */
-    function counters(): Dispose {
-      // the hero's figures belong to heroBuild()'s timeline, not this observer
-      const notHero = (el: Element) => !el.closest(".hero");
-      const nodes = qa<HTMLElement>(".counter").filter(notHero);
-      const rings = qa<HTMLElement>("[data-ring]").filter(notHero);
-
-      if (!("IntersectionObserver" in window)) {
-        nodes.forEach(runCount);
-        rings.forEach(runRing);
-        return () => {};
-      }
-      const io = new IntersectionObserver(
-        entries => {
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            io.unobserve(e.target);
-            const el = e.target as HTMLElement;
-            (el.classList.contains("counter") ? runCount : runRing)(el);
-          }
-        },
-        { threshold: 0.4 },
-      );
-      [...nodes, ...rings].forEach(el => io.observe(el));
-      return () => io.disconnect();
-    }
-
-    /* -------- hero cold open ----------------------------------------------- */
-    /* Walks the hero card's ~13 objects in on the headline's own three beats,
-       which is the only reason the lighter hero was easier to read. Each
-       [data-hb] carries its delay in ms.
-
-       Deliberately a timeline, not an IntersectionObserver: the hero is above
-       the fold by definition, so there is nothing to wait for. One shot. */
-    function heroBuild(): Dispose {
-      const hero = q<HTMLElement>(".hero");
-      if (!hero) return () => {};
-
-      const steps = qa<HTMLElement>("[data-hb]", hero);
-      const ring = q<HTMLElement>("[data-ring]", hero);
-      const nums = qa<HTMLElement>(".counter", hero);
-      if (!steps.length) return () => {};
-
-      // Reduced motion gets the finished card with no build at all — leaving
-      // .hb-in off entirely means the @media override is what's showing it.
-      if (isCalm()) {
-        if (ring) runRing(ring);
-        nums.forEach(runCount);
-        return () => {};
-      }
-
-      const timers = steps.map(el => {
-        const at = parseInt(el.getAttribute("data-hb") ?? "0", 10) || 0;
-        return setTimeout(() => {
-          el.classList.add("hb-in");
-          if (el === ring) runRing(el);
-          qa<HTMLElement>(".counter", el).forEach(runCount);
-        }, at);
-      });
-
-      return () => timers.forEach(clearTimeout);
-    }
-
-    /* -------- semester-aware CTA ------------------------------------------- */
-    /* Picks the next term start and words the countdown (and the 3-step plan)
-       around it — "starts in 30 days" in July reads very differently in week 4.
-       Runs after mount rather than on the server: a date rendered server-side
-       would either hydrate-mismatch or go stale in the static output. */
-    function term(): Dispose {
-      const days = q<HTMLElement>("[data-term-days]");
-      if (!days) return () => {};
-      const label = q<HTMLElement>("[data-term-label]");
-      const unit = q<HTMLElement>("[data-term-unit]");
-      const now = new Date();
-      const y = now.getFullYear();
-      const starts = [
-        { name: "Spring term", d: new Date(y, 0, 12) },
-        { name: "Fall term", d: new Date(y, 7, 24) },
-        { name: "Spring term", d: new Date(y + 1, 0, 12) },
-      ];
-      const next = starts.find(s => s.d > now) ?? starts[starts.length - 1];
-      const n = Math.max(0, Math.ceil((next.d.getTime() - now.getTime()) / 864e5));
-
-      if (label) label.textContent = next.name;
-      days.textContent = String(n);
-      if (unit) unit.textContent = n === 1 ? "day" : "days";
-
-      // In-term visitors get a nudge that doesn't lie about the calendar.
-      if (n > 120) q<HTMLElement>("[data-term-card]")?.classList.add("is-midterm");
-
-      const w1 = q<HTMLElement>("[data-term-w1]");
-      const w2 = q<HTMLElement>("[data-term-w2]");
-      if (w1) w1.textContent = n <= 21 ? "This week" : "Any afternoon";
-      if (w2) w2.textContent = n <= 21 ? "Before day one" : `${n} days out`;
-      return () => {};
-    }
-
-    /* -------- modules tabs ------------------------------------------------- */
-    /* Markup ships with the first tab and panel on, so this only swaps
-       classes. A switched-in panel replays its reveals (the shot lands again)
-       and the parallax engine is nudged to re-measure the new stage, which
-       was display:none — and so unmeasurable — until now. */
-    function modtabs(): Dispose {
-      const tabs = qa<HTMLButtonElement>("[data-modtab]");
-      const panels = qa<HTMLElement>("[data-modpanel]");
-      if (!tabs.length) return () => {};
-
-      function go(i: number) {
-        tabs.forEach((t, k) => {
-          t.classList.toggle("is-on", k === i);
-          t.setAttribute("aria-selected", String(k === i));
-        });
-        panels.forEach((p, k) => {
-          p.classList.toggle("is-on", k === i);
-          if (k !== i || isCalm()) return;
-          qa<HTMLElement>("[data-reveal]", p).forEach(el => {
-            el.classList.remove("is-in");
-            void el.offsetWidth; // restart the transition from the hidden state
-            el.classList.add("is-in");
-          });
-        });
-        dispatchEvent(new Event("scroll"));
-      }
-
-      const bound = tabs.map((t, i) => {
-        const h = () => go(i);
-        t.addEventListener("click", h);
-        return [t, h] as const;
-      });
-      return () => bound.forEach(([t, h]) => t.removeEventListener("click", h));
-    }
-
-    const disposers = [
-      reveal(),
-      parallax(),
-      chrome(),
-      marquee(),
-      scene(),
-      dial(),
-      typer(),
-      counters(),
-      heroBuild(),
-      term(),
-      modtabs(),
-    ];
-
-    return () => {
-      disposers.forEach(d => d());
-      rafIds.forEach(cancelAnimationFrame);
-      rafIds.clear();
-    };
-  }, [desktop]);
-
+  useEffect(() => mount(), []);
   return null;
+}
+
+type Scene = { measure?(): void; update(y: number): void };
+type Pose = { d: number[]; m: number[] };
+type Piece = {
+  el: HTMLElement; k: string; i: number; mi: HTMLElement; ci: HTMLElement; m: HTMLElement; c: HTMLElement; slot: HTMLElement;
+  w0: number; h0: number; pose: Pose; docked: boolean; ox: number; oy: number; w1: number; h1: number;
+};
+type OrgView = {
+  logo: string; c: string; name: string; meta: string; word: string; nav: [string, string, number?][];
+  bud: number; mod: number; [k: string]: unknown;
+};
+type Traveller = {
+  src: HTMLElement; dst: HTMLElement; el: HTMLElement; state: number; y0: number; y1: number;
+  init(o: Traveller): void; paint(o: Traveller, t: number): void; range(): [number, number];
+  measure?(o: Traveller): void; enabled?(): boolean; land?(): void;
+  arc: number; rot: number; fade: number; fs: HTMLElement[]; ws: number[];
+  sp: HTMLElement; ty: HTMLElement; ph: HTMLElement; kb: HTMLElement;
+};
+type CarryOpts = Partial<Traveller> & Pick<Traveller, "range">;
+
+function mount(): () => void {
+  const root = document.querySelector<HTMLElement>(".lm");
+  if (!root) return () => {};
+
+  const ac = new AbortController();
+  const on = { signal: ac.signal };
+  const timeouts = new Set<number>();
+  const later = (fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => { timeouts.delete(id); fn(); }, ms);
+    timeouts.add(id);
+    return id;
+  };
+  const cancel = (id: number) => { clearTimeout(id); timeouts.delete(id); };
+  let raf = 0, alive = true;
+  const cleanups: (() => void)[] = [];
+
+  const $ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => r.querySelector(s) as T;
+  const $$ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => [...r.querySelectorAll(s)] as T[];
+  const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+  const ease = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const eo = (t: number) => 1 - Math.pow(1 - t, 3);
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const absTop = (el: Element) => el.getBoundingClientRect().top + scrollY;
+  // an in-page target for an href, or null for one that leaves the page
+  const section = (h: string | null) => (h && h.length > 1 && h[0] === "#" ? $(h) : null);
+
+  let W = innerWidth, H = innerHeight, cur = scrollY, vel = 0, now = 0, MOB = W < 760;
+  // How it works stacks (card pinned on top, steps scrolling under it) on narrow portrait screens;
+  // a phone on its side is too short for that, so it keeps the side-by-side layout
+  const walkMob = () => W <= 900 && H > 500;
+  // layout position, ignoring any transform or translate the motion has applied
+  const docTop = (el: HTMLElement) => { let t = 0; for (let e: HTMLElement | null = el; e; e = e.offsetParent as HTMLElement | null) t += e.offsetTop; return t; };
+  const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+  const scenes: Scene[] = [];
+
+  /* page colours the wash blends between, read off the live tokens */
+  const probe = document.createElement("i"); probe.style.display = "none"; root.append(probe);
+  cleanups.push(() => probe.remove());
+  const rgba = (v: string) => { probe.style.color = v; const m = getComputedStyle(probe).color.match(/[\d.]+/g)!.map(Number); return [m[0], m[1], m[2], m[3] ?? 1]; };
+  let PAPER = [255, 252, 246], WASH: number[][] = [], TINT: Record<string, number[]> = {}, howTint = [255, 252, 246];
+  function readWash() {
+    PAPER = rgba("var(--paper)").slice(0, 3);
+    const flat = (v: string) => { const [r, g, b, a] = rgba(`var(${v})`); return [r, g, b].map((c, j) => c * a + PAPER[j] * (1 - a)); };
+    WASH = ["--sky-soft", "--butter-soft", "--peach-soft", "--mint-soft"].map(flat);
+    TINT = { peach: flat("--peach-soft"), mint: flat("--mint-soft") };
+  }
+  readWash();
+
+  const nav = $("#nav"), mbar = $("#mbar");
+  /* topbar: the paper tab follows the pointer between links; the squiggle marks
+     the section on screen (Pricing and Blog are pages, so they never light up) */
+  const navLinks = $("#navLinks"), navInk = $("#navInk"), nls = $$<HTMLAnchorElement>(".nl", navLinks);
+  const inkTo = (a: HTMLElement) => {
+    navInk.style.setProperty("--x", a.offsetLeft + "px");
+    navInk.style.width = a.offsetWidth + "px";
+    navInk.style.setProperty("--ink-c", getComputedStyle(a).getPropertyValue("--c"));
+  };
+  nls.forEach(a => {
+    a.addEventListener("pointerenter", () => { if (!navLinks.classList.contains("hov")) { navInk.style.transition = "none"; inkTo(a); void navInk.offsetWidth; navInk.style.transition = ""; } inkTo(a); navLinks.classList.add("hov"); }, on);
+    a.addEventListener("focus", () => { inkTo(a); navLinks.classList.add("hov"); }, on);
+    a.addEventListener("blur", () => navLinks.classList.remove("hov"), on);
+  });
+  navLinks.addEventListener("pointerleave", () => navLinks.classList.remove("hov"), on);
+  const spy = nls.map(a => [a, section(a.getAttribute("href"))] as const).filter((p): p is readonly [HTMLAnchorElement, HTMLElement] => !!p[1]);
+
+  const menuBtn = $("#menuBtn"), setMenu = (open: boolean) => { nav.classList.toggle("open", open); menuBtn.setAttribute("aria-expanded", String(open)); };
+  menuBtn.addEventListener("click", () => setMenu(!nav.classList.contains("open")), on);
+  $$("#navSheet a").forEach(a => a.addEventListener("click", () => setMenu(false), on));
+  addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); }, on);
+
+  scenes.push({ update() {
+    nav.classList.toggle("scrolled", scrollY > 30);
+    const y = scrollY + H * .4;
+    spy.forEach(([a, sec]) => { const t = docTop(sec); a.classList.toggle("on", y >= t && y < t + sec.offsetHeight); });
+    const nearEnd = scrollY + H > document.documentElement.scrollHeight - 500;
+    mbar.classList.toggle("on", scrollY > $("#top").offsetHeight - H * .5 && !nearEnd);
+  }});
+
+  /* word split + reveal. Rewrites the heading once; a remount finds it split. */
+  $$("[data-split]").forEach(el => {
+    if (el.dataset.split === "done") return;
+    el.dataset.split = "done";
+    const nodes = [...el.childNodes]; el.textContent = ""; let i = 0;
+    const word = (c: string | Node) => { const w = document.createElement("span"); w.className = "sw"; const s = document.createElement("span"); s.style.transitionDelay = (i++ * 55) + "ms";
+      if (typeof c === "string") s.textContent = c; else s.append(c); w.append(s); el.append(w); };
+    nodes.forEach(n => {
+      if (n.nodeType === 3) (n.textContent ?? "").split(/(\s+)/).forEach(t => { if (!t) return; if (/^\s+$/.test(t)) el.append(" "); else word(t); });
+      else if ((n as Element).tagName === "BR") el.append(n);
+      else if ((n as Element).classList.contains("hi") && /\s/.test((n.textContent ?? "").trim())) {
+        // a highlighted phrase becomes one highlight per word, so it can wrap on a phone
+        (n.textContent ?? "").trim().split(/\s+/).forEach((t, j) => { if (j) el.append(" "); const h = n.cloneNode(false); h.textContent = t; word(h); });
+      } else word(n);
+    });
+  });
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }), { rootMargin: "0px 0px -12% 0px" });
+  $$("[data-split],[data-rv]").forEach(el => io.observe(el));
+  cleanups.push(() => io.disconnect());
+
+  /* ── 1 · HERO ────────────────────────────────────────────────────────── */
+  const ORG: Record<string, OrgView> = {
+    club: { logo: "RC", c: "var(--mint)", name: "Robotics Club", meta: "FALL ’26 · 38", word: "club",
+      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Meetings", "butter"], ["Tasks", "peach"], ["Docs", "paper-3"], ["Budget", "mint"]],
+      nextT: "General meeting · Wed 6:00", nextS: "Union 210 · moved from Tue · on everyone’s calendar",
+      budK: "Budget left", budBig: "$1,240 <small>/ 2,000</small>", budS: "Student gov allocation · 1 reimbursement", bud: 62,
+      attN: "32<small>/38</small>", memK: "Members", memN: "38 <small>members</small>", memS: "2 requests to join",
+      minT: "Fall trip approved · 3 action items", modK: "Docs", modBig: "Officer handbook", modS: "updated by this year’s board", mod: 0 },
+    team: { logo: "DT", c: "var(--rose)", name: "Dance Team", meta: "FALL ’26 · 24", word: "team",
+      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Tasks", "peach"], ["Budget", "mint"], ["Fundraising", "butter", 1], ["Instagram", "peach", 1]],
+      nextT: "Rehearsal · Thu 8:00", nextS: "Studio B · costume fitting after",
+      budK: "Budget left", budBig: "$860 <small>/ 1,500</small>", budS: "Showcase costs · 2 receipts", bud: 57,
+      attN: "22<small>/24</small>", memK: "Members", memN: "24 <small>dancers</small>", memS: "1 request to join",
+      minT: "Showcase setlist locked · 2 action items", modK: "Fundraising", modBig: "$820 raised", modS: "Spring showcase · goal $1,500", mod: 55 },
+    chapter: { logo: "ΔH", c: "var(--butter)", name: "Delta House", meta: "FALL ’26 · 52", word: "chapter",
+      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Brotherhood", "lilac"], ["Chapter", "butter"], ["Treasury", "mint"], ["Dues", "mint", 1], ["Service", "sky", 1], ["Parties", "rose", 1]],
+      nextT: "Chapter meeting · Thu 7:00", nextS: "Room 204 · moved from Wed",
+      budK: "Treasury", budBig: "$12,480", budS: "+$1,320 this month", bud: 78,
+      attN: "46<small>/52</small>", memK: "Roster", memN: "52 <small>brothers</small>", memS: "3 requests to join",
+      minT: "Formal budget approved · 4 action items", modK: "Dues collected", modBig: "83%", modS: "$4,180 of $5,040 · 6 still owe", mod: 83 },
+    council: { logo: "EC", c: "var(--sky)", name: "Eng. Student Council", meta: "FALL ’26 · 19", word: "council",
+      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Meetings", "butter"], ["Tasks", "peach"], ["Docs", "paper-3"], ["Programming", "lilac", 1]],
+      nextT: "General assembly · Mon 6:30", nextS: "Union 210 · agenda posted",
+      budK: "Budget left", budBig: "$6,400 <small>/ 9,000</small>", budS: "4 funding requests open", bud: 71,
+      attN: "17<small>/19</small>", memK: "Members", memN: "19 <small>reps</small>", memS: "from 11 clubs",
+      minT: "Bylaws amendment passed · 2 action items", modK: "Programming", modBig: "5 events planned", modS: "2 confirmed on the Timeline", mod: 40 },
+  };
+  const ORDER = ["club", "team", "chapter", "council"];
+  let orgType = "club", autoOrg = true;
+  const dfNav = $("#dfNav"), oword = $("#oword"), brandMark = $("#df .df-org .mark");
+  const renderNav = (o: OrgView) => { dfNav.innerHTML = o.nav.map(([l, c, m], i) => `<div class="df-it${i === 0 ? " on" : ""}${m ? " mod" : ""}" style="--d:${i * 40}ms"><i style="--c:var(--${c})"></i>${l}</div>`).join(""); };
+  // eslint-disable-next-line prefer-const -- assigned below; rollWord needs it first
+  let hero: Scene & { measure(): void; pageY(): number; reswap(): void };
+  function setOrg(t: string, user?: boolean) {
+    if (user) autoOrg = false;
+    if (t === orgType) return; orgType = t; const o = ORG[t];
+    $$(".ot").forEach(b => b.classList.toggle("on", b.dataset.t === t));
+    const els = $$("[data-o]");
+    els.forEach(e => e.classList.add("osw"));
+    later(() => {
+      els.forEach(e => { const v = o[e.dataset.o!]; if (v != null) e.innerHTML = String(v); e.classList.remove("osw"); });
+      brandMark.style.background = o.c;
+      $('[data-bar="bud"]').style.setProperty("--v", o.bud + "%");
+      $('[data-bar="mod"]').style.setProperty("--v", o.mod + "%"); ($('[data-bar="mod"]').parentNode as HTMLElement).style.opacity = o.mod ? "1" : "0";
+      renderNav(o);
+      rollWord(o.word);
+    }, 240);
+  }
+  // the headline's org word rolls: the old one lifts out, the new one rises in, and the gap eases to its width
+  const WORDS = ["club", "council", "org", "fraternity", "sorority", "chapter"];
+  let curWord = "club", rollT = 0;
+  function rollWord(w: string) {
+    if (w === curWord) return; curWord = w;
+    const old = $$(".ow", oword), nw = document.createElement("span");
+    nw.className = "ow in"; nw.textContent = w;
+    oword.style.width = oword.offsetWidth + "px";
+    oword.appendChild(nw);
+    const to = nw.offsetWidth;
+    requestAnimationFrame(() => {
+      oword.style.width = to + "px"; nw.classList.remove("in");
+      old.forEach(e => e.classList.add("out"));
+    });
+    cancel(rollT);
+    rollT = later(() => {
+      $$(".ow.out", oword).forEach(e => e.remove()); oword.style.width = "";
+      // a wider word can rewrap the headline, so the copy and the docked size are re-fit
+      hero.measure();
+    }, 560);
+  }
+  // a remount starts from the mock's opening state: one word, the club's dashboard
+  $$(".ow", oword).forEach((e, i) => { if (i) e.remove(); else { e.className = "ow"; e.textContent = "club"; } });
+  oword.style.width = "";
+  renderNav(ORG.club);
+  $$(".ot").forEach(b => b.addEventListener("click", () => setOrg(b.dataset.t!, true), on));
+
+  hero = (() => {
+    const sec = $("#top"), df = $("#df"), copy = $("#heroCopy"), h1 = $("#heroH1"), ots = $("#otypes");
+    const fades = $$(".fade-a", copy);
+    const swap = $("#swap"), swA = $(".a", swap), swB = $(".b", swap);
+    // the loose ends frame the headline from the margins; nothing sits over the copy
+    const POSE: Record<string, Pose> = {
+      ask:     { d: [-.354, -.278, -6, .8], m: [-.36, -.33, -7, .8] },
+      next:    { d: [ .354, -.283,  4, .5], m: [ .34, -.32,  5, .5] },
+      budget:  { d: [ .417,  .033, -4, .9], m: [ .42,  .35, -4, .9] },
+      att:     { d: [-.417,  .022,  3, .6], m: [-.38,  .36,  3, .6] },
+      tasks:   { d: [-.405,  .400, -8, 1 ], m: [-.15,  .46, -8, 1 ] },
+      members: { d: [ .425,  .450,  3, .7], m: [ .30,  .48,  3, .7] },
+      minutes: { d: [ .310,  .265,  3, .45], m: [ .08,  .38,  2, .45] },
+      mod:     { d: [-.306,  .262, -3, .4], m: [-.01, -.37, -3, .4] },
+    };
+    const pcs: Piece[] = $$(".pc", sec).map((el, i) => {
+      const k = el.dataset.k!, mi = $(".pc-mi", el), ci = $(".pc-ci", el);
+      return { el, k, i, mi, ci, m: $(".pc-m", el), c: $(".pc-c", el), slot: $(`.slot[data-k="${k}"]`, df),
+        w0: parseFloat(mi.style.width), h0: parseFloat(mi.style.height), pose: POSE[k], docked: false, ox: 0, oy: 0, w1: 0, h1: 0 };
+    });
+    let top = 0, len = 1, mob = false, k = 1, dfL = 0, dfT = 0, copyTop = 0, endDy = 0, endS = 1, s0 = 1, low = 0, wA = 0, wB = 0, lastCycle = 0, wordAt = 0;
+    const api = {
+      reswap() { swap.style.width = "auto"; wA = swA.offsetWidth; wB = swB.offsetWidth; },
+      // the scroll position where the headline reads "runs on one page" and the dashboard has docked
+      pageY() { return top + .84 * len; },
+      measure() {
+        top = absTop(sec); len = sec.offsetHeight - H; mob = W < 760;
+        k = W >= 1280 ? .9 : W >= 1000 ? .74 : W >= 760 ? .64 : .5;
+        df.style.transform = "none";
+        const fw = df.offsetWidth, fh = df.offsetHeight;
+        dfL = (W - fw) / 2; dfT = Math.min(H * (mob ? .33 : .3), H - fh - 74);
+        df.style.left = dfL + "px"; df.style.top = dfT + "px";
+        ots.style.top = (dfT + fh + 18) + "px";
+        const dr = df.getBoundingClientRect();
+        pcs.forEach(pc => {
+          const r = pc.slot.getBoundingClientRect();
+          pc.ox = r.left - dr.left; pc.oy = r.top - dr.top; pc.w1 = r.width; pc.h1 = r.height;
+          pc.ci.style.width = pc.w1 + "px"; pc.ci.style.height = pc.h1 + "px";
+        });
+        copy.style.transform = "none";
+        api.reswap();
+        // a short screen (a phone on its side) shrinks the opening copy so the buttons aren't pinned below the fold
+        const ch = copy.offsetHeight; s0 = Math.min(1, (H - 84) / ch);
+        copyTop = Math.max(70, (H - ch * s0) / 2 - (mob ? 0 : 10)); copy.style.top = copyTop + "px";
+        // on a short phone the copy runs into the lower notes; drop them below it (the stage crops them)
+        low = mob ? Math.max(0, copyTop + ch * s0 - H * .84) : 0;
+        const h1H = h1.offsetHeight, h1Off = h1.offsetTop, bandT = 72, bandH = dfT - 14 - bandT;
+        endS = Math.min(mob ? .72 : .58, bandH / h1H);
+        endDy = bandT + (bandH - h1H * endS) / 2 - copyTop - h1Off * endS;
+      },
+      update(y: number) {
+        const p = clamp((y - top) / len);
+        const cp = ease(clamp((p - .04) / .44));
+        copy.style.transform = `translate3d(0, ${endDy * cp}px, 0) scale(${lerp(s0, endS, cp)})`;
+        fades.forEach(f => { const o = 1 - clamp(p / .16); f.style.opacity = String(o); f.style.pointerEvents = o < .5 ? "none" : ""; });
+        const sp = smooth(clamp((p - .44) / .16));
+        swap.style.width = lerp(wA, wB, sp) + "px";
+        swA.style.cssText = `opacity:${1 - sp}; transform:translateY(${-sp * .5}em); filter:blur(${sp * 8}px)`;
+        swB.style.cssText = `opacity:${sp}; transform:translateY(${(1 - sp) * .5}em); filter:blur(${(1 - sp) * 8}px); --mx:${clamp((p - .54) / .1)}`;
+        const rp = eo(clamp((p - .1) / .42));
+        const rise = (1 - rp) * (H - dfT + 60);
+        df.style.transform = `translate3d(0, ${rise}px, 0)`;
+        df.style.opacity = String(clamp(rp * 2.5));
+        pcs.forEach(pc => {
+          const [X, Y, R, Z] = mob ? pc.pose.m : pc.pose.d;
+          const t = ease(clamp((p - (.1 + pc.i * .032)) / .4));
+          const w0 = pc.w0 * k, h0 = pc.h0 * k, live = 1 - t;
+          const fl = RM ? 0 : Math.sin(now / 1100 + pc.i * 1.7) * 5 * live;
+          const sx = W / 2 + X * W - w0 / 2 + mouse.x * 26 * Z * live;
+          const sy = H / 2 + Y * H - h0 / 2 + (Y > .3 ? low : 0) - p * 220 * Z * live + mouse.y * 20 * Z * live + fl;
+          const tx = dfL + pc.ox, ty = dfT + rise + pc.oy;
+          const x = lerp(sx, tx, t), yy = lerp(sy, ty, t) - Math.sin(t * Math.PI) * 70;
+          const w = lerp(w0, pc.w1, t), h = lerp(h0, pc.h1, t);
+          const rot = lerp(R + (RM ? 0 : Math.sin(now / 1500 + pc.i) * live), 0, t);
+          const st = pc.el.style;
+          st.transform = `translate3d(${x}px, ${yy}px, 0) rotate(${rot}deg)`;
+          st.width = w + "px"; st.height = h + "px";
+          st.borderRadius = lerp(pc.k === "ask" ? 4 : 10, 12, t) + "px";
+          st.boxShadow = `0 ${lerp(18, 0, t)}px ${lerp(36, 0, t)}px -12px rgba(38,33,27,${lerp(.28, 0, t)})`;
+          st.zIndex = t > 0 && t < 1 ? "5" : "1";
+          pc.mi.style.transform = `scale(${w / pc.w0})`;
+          pc.m.style.opacity = String(1 - clamp(t / .5));
+          pc.ci.style.transform = `scale(${w / pc.w1})`;
+          pc.c.style.opacity = String(clamp((t - .42) / .4));
+          const d = t >= .999;
+          if (d !== pc.docked) { pc.docked = d; pc.slot.style.opacity = d ? "0" : "1"; }
+        });
+        // once it's one page: show the org types, and cycle them while the reader lingers
+        const done = p > .8;
+        ots.classList.toggle("on", done);
+        if (done && autoOrg && !RM) {
+          if (!lastCycle) lastCycle = now;
+          else if (now - lastCycle > 2600) { setOrg(ORDER[(ORDER.indexOf(orgType) + 1) % ORDER.length]); lastCycle = now; }
+        } else lastCycle = 0;
+        // before it's one page the headline cycles every kind of org; docked, it names the dashboard's
+        if (done) { wordAt = 0; rollWord(ORG[orgType].word); }
+        else if (!RM) {
+          if (!wordAt) wordAt = now;
+          else if (now - wordAt > 2000) { rollWord(WORDS[(WORDS.indexOf(curWord) + 1) % WORDS.length]); wordAt = now; }
+        }
+      }
+    };
+    return api;
+  })();
+  scenes.push(hero);
+  $("#seeHow").addEventListener("click", e => { e.preventDefault(); scrollTo({ top: hero.pageY(), behavior: RM ? "auto" : "smooth" }); }, on);
+
+  /* ── 2 · RACE ────────────────────────────────────────────────────────── */
+  const race = { pinned: false, end: 0, top: (el: HTMLElement) => docTop(el), pre: (el: HTMLElement) => docTop(el) };
+  /* Scrubbed by scroll, not played: both lanes run on one clock (ms of the old
+     playback) read off the scroll position, so scrolling back rewinds them.
+     Where the race fits on screen it pins while the clock runs; where it
+     doesn't (phones, short windows) each lane runs as it passes through. */
+  scenes.unshift((() => {
+    const run = $("#raceRun"), box = $("#raceBox"), lanes = $$(".lane", box);
+    const msgs = $$("#slowFeed > *"), steps = $$("#fastSteps .step"), verdict = $("#fastVerdict"), turn2 = $("#turn2"), step2 = $("#step2"), writ = $("#writ"), ok = $("#wrOk");
+    const tS = $("#tSlow"), tF = $("#tFast"), fS = $("#slowFoot"), fF = $("#fastFoot");
+    const SLOW = [300, 1100, 1900, 2700, 3500, 3700, 4700, 5300, 6100], END = 6600;
+    const fmt = (m: number) => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m`;
+    const CHK = '<svg class="ic" style="color:var(--mint-ink)"><use href="#i-check"/></svg>';
+    const FOOT_F = ["", `${CHK}<span><b>Answered in 3.2 s.</b> Owners and dates included.</span>`, `${CHK}<span><b>Answered and done in 5.6 s.</b> Logged in the Budget, on everyone’s calendar.</span>`];
+    const FOOT_S = ['<span class="typing"><i></i><i></i><i></i></span>', "<span><b>A day later:</b> the time, maybe. The trip and the van, nobody knows.</span>"];
+    let win: number[][] = [[0, 1], [0, 1]], pt = 0, extra = 0, runTop = 0, fStage = -1, sStage = -1;
+    const off = (el: HTMLElement) => docTop(el) - docTop(box);
+    // where an element sits in the page once the pin lets go (or always, unpinned)
+    race.top = el => race.pinned ? runTop + extra + off(el) : docTop(el);
+    // where it sits on the way in, before the pin catches it
+    race.pre = el => runTop + off(el);
+    const tog = (el: Element, c: string, v: boolean) => el.classList.toggle(c, v);
+    return {
+      measure() {
+        const bh = box.offsetHeight;
+        race.pinned = !RM && W > 860 && bh + 96 <= H;
+        tog(run, "pin", race.pinned);
+        pt = Math.max(84, (H - bh) / 2); extra = race.pinned ? Math.round(H * 1.5) : 0;
+        run.style.setProperty("--pt", pt + "px"); run.style.height = race.pinned ? bh + extra + "px" : "";
+        runTop = docTop(run);
+        const land = race.pre($("#askQ")) - H * .5; // the question arriving from the hero starts the clock
+        if (race.pinned) { const w = [land, runTop - pt + extra]; win = [w, w]; }
+        else win = lanes.map((l, i) => { const t = docTop(l), y0 = Math.max(t - H * .7, i ? land : -1e9); return [y0, Math.max(y0 + 300, t + l.offsetHeight - H * .8)]; });
+        race.end = win[1][1];
+      },
+      update(y: number) {
+        const [s, f] = win.map(([a, b]) => RM ? END : clamp((y - a) / (b - a)) * END);
+        // the group chat
+        msgs.forEach((m, i) => tog(m, "on", s >= SLOW[i]));
+        tS.textContent = fmt(clamp(s / 6100) * 1381);
+        const ss = s >= 6400 ? 1 : 0; if (ss !== sStage) { sStage = ss; fS.innerHTML = FOOT_S[ss]; }
+        // Ask Chapt: the answer, then the follow-up, approved by a person
+        tF.textContent = (f < 2700 ? clamp(f / 2600) * 3.2 : 3.2 + clamp((f - 3300) / 1500) * 2.4).toFixed(1) + " s";
+        steps.forEach((st, i) => { tog(st, "on", f >= 200 + i * 650); tog(st, "done", f >= 700 + i * 650); });
+        tog(verdict, "on", f >= 2650); tog(turn2, "on", f >= 3300);
+        tog(step2, "on", f >= 3700); tog(step2, "done", f >= 4200); tog(writ, "on", f >= 4200);
+        tog(ok, "press", f >= 4950 && f < 5150); tog(writ, "ok", f >= 5150); ok.textContent = f >= 5150 ? "Done" : "Approve";
+        const fs = f >= 5500 ? 2 : f >= 2650 ? 1 : 0; if (fs !== fStage) { fStage = fs; fF.innerHTML = FOOT_F[fs]; }
+      }
+    };
+  })());
+
+  /* ── 3 · HOW IT WORKS ────────────────────────────────────────────────── */
+  scenes.push((() => {
+    const sec = $("#how"), steps = $$("#steps .st"), dv = $("#dv"), scale = $("#dvScale");
+    const bgs = $$(".dv-bg", dv), ls = $$(".dv-l", dv), rail = $$("#rail i");
+    const S = [
+      { w: 420, h: 520, r: 24, rot: 0,    hs: "var(--sky)" },
+      { w: 520, h: 290, r: 16, rot: 1.5,  hs: "var(--peach)" },
+      { w: 390, h: 440, r: 6,  rot: -2.5, hs: "var(--butter)" },
+      { w: 460, h: 400, r: 30, rot: 0,    hs: "var(--mint)" },
+    ];
+    const notches = $$(".notch", dv), arr = $("#tkArr"), tkN = $("#tkN"), segs = $$("#ntSeg span"), rows = $$("#ntList li"), nBar = $("#ntBar"), nCnt = $("#ntCnt"), stack = $$("#bdStack i");
+    let top = 0, len = 1, active = -1, mob = false, timers: number[] = [], stT: number[] = [];
+    const stepLater = (fn: () => void, ms: number) => timers.push(later(fn, ms));
+    const stopTimers = () => { timers.forEach(cancel); timers = []; };
+    function enter(i: number) {
+      stopTimers();
+      stack.forEach(s => s.style.width = "0");
+      if (i === 1) {
+        const AV = ["peach", "sky", "mint", "butter", "rose", "lilac"];
+        let n = 26; tkN.textContent = String(n); arr.innerHTML = "";
+        for (let j = 0; j < 14; j++) arr.insertAdjacentHTML("beforeend", `<i class="av" style="--a:var(--${AV[j % 6]})"></i>`);
+        const add = () => { if (n >= 32) return; n++; tkN.textContent = String(n); arr.insertAdjacentHTML("beforeend", `<i class="av new" style="--a:var(--${AV[n % 6]})"></i>`); stepLater(add, 420); };
+        stepLater(add, 400);
+      }
+      if (i === 2) {
+        let n = 18; nBar.style.setProperty("--v", "75%"); nCnt.textContent = "18 of 24";
+        const cyc = (j: number) => { segs.forEach((s, q) => s.classList.toggle("on", q === j)); rows.forEach((r, q) => r.classList.toggle("hl", q === j)); stepLater(() => cyc((j + 1) % 3), 1500); };
+        cyc(0);
+        const tick = () => { if (n >= 22) return; n++; nBar.style.setProperty("--v", (n / 24 * 100) + "%"); nCnt.textContent = n + " of 24"; stepLater(tick, 700); };
+        stepLater(tick, 900);
+      }
+      if (i === 3) stepLater(() => stack.forEach(s => s.style.width = s.dataset.w!), 300);
+    }
+    // on a phone each step holds its own card face, still: no pin, no morph, nothing counting up
+    const clip = $(".dv-clip", dv);
+    const holds = steps.map((st, j) => {
+      const h = document.createElement("div"); h.className = "st-card"; h.setAttribute("aria-hidden", "true");
+      h.style.setProperty("--hs", S[j].hs); h.style.borderRadius = S[j].r + "px";
+      h.append(bgs[j].cloneNode()); if (j === 1) notches.forEach(n => { const c = n.cloneNode() as HTMLElement; c.style.opacity = "1"; h.append(c); });
+      st.prepend(h); return h;
+    });
+    function place() {
+      stopTimers(); active = -1;
+      ls.forEach((l, j) => {
+        const h = holds[j]; if (l.parentNode !== h) h.append(l);
+        const k = Math.min(1, h.clientWidth / S[j].w);
+        h.style.height = S[j].h * k + "px";
+        l.style.opacity = l.style.visibility = l.style.filter = "";
+        l.style.transform = `scale(${k})`;
+      });
+      // each card shows its settled state
+      tkN.textContent = "32"; arr.innerHTML = "";
+      const AV = ["peach", "sky", "mint", "butter", "rose", "lilac"];
+      for (let j = 0; j < 20; j++) arr.insertAdjacentHTML("beforeend", `<i class="av" style="--a:var(--${AV[j % 6]})"></i>`);
+      segs.forEach((g, q) => g.classList.toggle("on", !q)); rows.forEach((r, q) => r.classList.toggle("hl", !q));
+      nBar.style.setProperty("--v", "75%"); nCnt.textContent = "18 of 24";
+      stack.forEach(t => { t.style.transition = "none"; t.style.width = t.dataset.w!; });
+    }
+    function unplace() {
+      if (ls[0].parentNode === clip) return;
+      ls.forEach(l => clip.append(l)); stack.forEach(t => t.style.transition = ""); active = -1;
+    }
+    // the card faces go back where the server put them, so a remount finds the markup it expects
+    cleanups.push(() => { stopTimers(); unplace(); holds.forEach(h => h.remove()); });
+    return {
+      measure() {
+        top = docTop(sec); len = Math.max(1, sec.offsetHeight - H); mob = walkMob();
+        stT = steps.map(docTop);
+        const avail = mob ? Math.min(W - 40, 560) : Math.min($(".dv-col", sec).offsetWidth - 30, 560);
+        const vs = mob ? Math.min(avail / 540, (H * .54 - 78) / 520) : Math.min(1, avail / 540, (H - 110) / 520);
+        // stacked, each card is fitted on its own (a tall list and a wide ticket want different scales)
+        if (mob) place(); else unplace();
+        scale.style.transform = `scale(${vs})`;
+      },
+      update(y: number) {
+        // stacked, the page tint follows the step you're reading
+        let f: number;
+        if (mob) {
+          const line = y + H * .5; let j = 0;
+          while (j < 3 && line >= stT[j + 1]) j++;
+          f = j < 3 ? clamp(j + (line - stT[j]) / (stT[j + 1] - stT[j]) - .25, 0, 3) : 3;
+        } else f = clamp(clamp((y - top) / len) * 4 - .5, 0, 3);
+        const i = Math.min(2, Math.floor(f)), m = smooth(clamp((f - i - .3) / .4));
+        const wt = [0, 0, 0, 0]; wt[i] = 1 - m; wt[i + 1] = m;
+        // fade the colour in as the section arrives and back to paper as it leaves
+        howTint = [0, 1, 2].map(j => WASH.reduce((a, w, q) => a + w[j] * wt[q], 0));
+        if (mob) return;
+        const a = S[i], b = S[i + 1];
+        dv.style.width = lerp(a.w, b.w, m) + "px"; dv.style.height = lerp(a.h, b.h, m) + "px";
+        dv.style.borderRadius = lerp(a.r, b.r, m) + "px";
+        dv.style.transform = `rotate(${lerp(a.rot, b.rot, m)}deg) translateY(${Math.sin(m * Math.PI) * -12}px)`;
+        const ct = [0, 0, 0, 0]; ct[i] = smooth(clamp(1 - m * 1.8)); ct[i + 1] = smooth(clamp(m * 1.8 - .8));
+        bgs.forEach((g, j) => g.style.opacity = String(wt[j]));
+        notches.forEach(n => n.style.opacity = String(wt[1]));
+        ls.forEach((l, j) => {
+          const w = ct[j], dir = j <= i ? -1 : 1;
+          l.style.opacity = String(w); l.style.visibility = w < .01 ? "hidden" : "visible";
+          l.style.transform = `translate(-50%, -50%) translateY(${(1 - w) * 22 * dir}px) scale(${.94 + .06 * w})`;
+          l.style.filter = w > .98 ? "none" : `blur(${(1 - w) * 10}px)`;
+        });
+        const act = Math.round(f);
+        if (act !== active) {
+          active = act;
+          steps.forEach((s, j) => s.classList.toggle("on", j === act));
+          rail.forEach((r, j) => r.classList.toggle("on", j === act));
+          dv.style.setProperty("--hs", S[act].hs);
+          enter(act);
+        }
+      }
+    };
+  })());
+
+  /* ── the page colour ─────────────────────────────────────────────────────
+     Paper tints in from one section to the next and back to paper between:
+     How it works (its card's own colour) → the handoff in peach → fit in mint.
+     The race and the FAQ stay plain paper, so the page has somewhere to rest. */
+  scenes.push((() => {
+    const wash = $("#wash"), col = $("#how .dv-col");
+    const Z = ([["#how", () => howTint], ["#handoff", () => TINT.peach], ["#fit", () => TINT.mint]] as const).map(([id, c]) => ({ el: $(id), c, top: 0, h: 0 }));
+    return {
+      measure() { Z.forEach(z => { z.top = docTop(z.el); z.h = z.el.offsetHeight; }); },
+      update(y: number) {
+        let sum = 0; const mix = [0, 0, 0];
+        Z.forEach(z => {
+          const e = smooth(clamp((y + H * .6 - z.top) / (H * .6))) * smooth(clamp((z.top + z.h - H * .4 - y) / (H * .6)));
+          if (!e) return; sum += e; const c = z.c(); for (let j = 0; j < 3; j++) mix[j] += c[j] * e;
+        });
+        const amt = Math.min(1, sum) * .9;
+        const c = [0, 1, 2].map(j => Math.round(lerp(PAPER[j], sum ? mix[j] / sum : PAPER[j], amt)));
+        wash.style.opacity = amt > 0 ? "1" : "0";
+        wash.style.background = `rgb(${c})`;
+        col.style.backgroundColor = walkMob() ? `rgb(${c})` : "";
+      }
+    };
+  })());
+
+  /* ── 4 · THE HANDOFF ─────────────────────────────────────────────────── */
+  scenes.push((() => {
+    const sec = $("#handoff"), yrs = $$(".yr", sec), lines = $$(".yr-line i", sec), seats = $$(".seat", sec), stays = $$(".stay", sec), nums = $$("[data-st]", sec), boardYr = $("#boardYr"), note = $("#boardNote");
+    const BOARD = [
+      [["DK", "Dana K.", "peach"], ["LM", "Leo M.", "mint"], ["IR", "Ivy R.", "sky"], ["OS", "Omar S.", "butter"]],
+      [["PN", "Priya N.", "lilac"], ["JT", "Jordan T.", "sky"], ["IR", "Ivy R.", "sky"], ["BC", "Ben C.", "rose"]],
+      [["MA", "Maya A.", "rose"], ["AP", "Alex P.", "peach"], ["SO", "Sam O.", "mint"], ["BC", "Ben C.", "rose"]],
+    ];
+    const STAY = [[18, 22, 7, 46], [29, 44, 7, 97], [41, 63, 8, 151]];
+    const NOTE = ["3 open tasks follow the role to whoever holds it", "Jordan took over Leo’s 3 open tasks on day one", "Alex took over Jordan’s 2 open tasks on day one"];
+    let top = 0, h = 1, yr = -1, manual = -1, bucket = -1;
+    function show(y: number) {
+      if (y === yr) return; const prev = yr; yr = y;
+      yrs.forEach((b, j) => b.classList.toggle("on", j === y));
+      lines.forEach((l, j) => l.style.transform = `scaleX(${j < y ? 1 : 0})`);
+      boardYr.textContent = `${2024 + y}–${25 + y} board`;
+      note.textContent = NOTE[y];
+      seats.forEach((s, j) => {
+        const [ini, name, c] = BOARD[y][j], who = $(".who", s), nw = $(".new", s);
+        const changed = prev >= 0 && BOARD[prev][j][1] !== name;
+        const paint = () => { who.innerHTML = `<i class="av" style="--a:var(--${c})">${ini}</i>${name}`; };
+        nw.classList.toggle("on", changed);
+        if (!changed) { paint(); return; }
+        later(() => { who.classList.add("flip"); later(() => { paint(); who.classList.remove("flip"); }, 260); }, j * 90);
+      });
+      nums.forEach((n, j) => {
+        const from = prev < 0 ? STAY[y][j] : STAY[prev][j], to = STAY[y][j], lbl = n.querySelector("small")!.outerHTML, t0 = performance.now();
+        const f = () => { if (!alive) return; const t = clamp((performance.now() - t0) / 700); n.innerHTML = Math.round(lerp(from, to, eo(t))) + lbl; if (t < 1) requestAnimationFrame(f); };
+        requestAnimationFrame(f);
+        if (prev >= 0) { later(() => stays[j].classList.add("bump"), j * 60); later(() => stays[j].classList.remove("bump"), 300 + j * 60); }
+      });
+    }
+    yrs.forEach((b, j) => b.addEventListener("click", () => { manual = j; show(j); }, on));
+    show(0);
+    return {
+      measure() { top = absTop(sec); h = sec.offsetHeight; },
+      update(y: number) {
+        const p = clamp((y + H * .3 - top) / (h * .8));
+        const b = p < .4 ? 0 : p < .7 ? 1 : 2;
+        if (b !== bucket) { bucket = b; manual = -1; }
+        show(manual >= 0 ? manual : b);
+      }
+    };
+  })());
+
+  /* ── 5 · FITS YOUR ORG ───────────────────────────────────────────────── */
+  (() => {
+    // real nav order; Dashboard, Timeline and Members come with every org
+    const P: [string, string, string, number?][] = [["dash", "Dashboard", "butter", 1], ["timeline", "Timeline", "sky", 1], ["meetings", "Meetings", "sky"], ["tasks", "Tasks", "peach"],
+      ["members", "Members", "lilac", 1], ["ig", "Instagram", "peach"], ["treasury", "Treasury", "mint"], ["service", "Service", "mint"],
+      ["prog", "Programming", "lilac"], ["parties", "Parties", "rose"]];
+    const onSet = new Set(["meetings", "treasury"]);
+    const fxNav = $("#fxNav"), pv = $("#fxPv"), note = $("#fxNote"), acts = $$("#fxActs .act");
+    let cur = "dash";
+    fxNav.innerHTML = P.map(([id, l, c]) => `<div class="pv-it" data-id="${id}" style="--c:var(--${c})"><div><div class="pv-row"><i></i><span class="lb">${l}</span></div></div></div>`).join("");
+    const items = $$(".pv-it", fxNav);
+    function render() {
+      items.forEach((it, i) => { const [id, , , always] = P[i]; it.classList.toggle("on", !!(always || onSet.has(id))); it.classList.toggle("cur", id === cur); });
+      acts.forEach(a => a.classList.toggle("on", onSet.has(a.dataset.p!)));
+      pv.style.setProperty("--hs", `var(--${P.find(p => p[0] === cur)![2]})`);
+      later(placeNote, 560);
+    }
+    const mem = $('[data-id="members"]', fxNav), memL = $(".lb", mem);
+    function placeNote() { note.style.setProperty("--ny", (mem.offsetTop + 2) + "px"); }
+    acts.forEach(a => a.addEventListener("click", () => {
+      const id = a.dataset.p!;
+      if (onSet.has(id)) { onSet.delete(id); if (cur === id) cur = "dash"; } else { onSet.add(id); cur = id; }
+      render();
+    }, on));
+    // renaming, shown rather than explained: the roster label cycles through what orgs actually call it
+    const LABELS = ["Members", "Brothers", "Dancers", "Players", "Sisters", "Reps"];
+    let w = 0;
+    if (!RM) {
+      const iv = setInterval(() => {
+        const r = pv.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > H) return;
+        memL.classList.add("out");
+        later(() => { w = (w + 1) % LABELS.length; memL.textContent = LABELS[w]; memL.classList.remove("out"); }, 260);
+      }, 1900);
+      cleanups.push(() => clearInterval(iv));
+    }
+    render(); placeNote();
+  })();
+
+  /* ── FAQ ─────────────────────────────────────────────────────────────── */
+  $$("#faqList .qa").forEach(qa => $("button", qa).addEventListener("click", () => {
+    const open = !qa.classList.contains("open");
+    $$("#faqList .qa").forEach(o => { o.classList.remove("open"); $("button", o).setAttribute("aria-expanded", "false"); });
+    if (open) { qa.classList.add("open"); $("button", qa).setAttribute("aria-expanded", "true"); }
+  }, on));
+
+  /* ── close ───────────────────────────────────────────────────────────── */
+  scenes.push((() => {
+    const sec = $("#start"), hEl = $("#closeH");
+    if (!$(".cw", hEl)) hEl.innerHTML = (hEl.textContent ?? "").split(" ").map(w => `<span class="cw">${w}</span>`).join(" ");
+    const ws = $$(".cw", hEl);
+    let top = 0;
+    return {
+      measure() { top = docTop(sec); },
+      update(y: number) {
+        const p = clamp((y + H - top) / (H * .95));
+        ws.forEach((w, i) => w.style.opacity = String(lerp(.12, 1, clamp(p * (ws.length + 2) - i - 1))));
+      }
+    };
+  })());
+
+  /* ── the thread ──────────────────────────────────────────────────────────
+     The one loose end the hero couldn't dock. It runs down the margins, crosses
+     in the gaps between sections, ducks under the privacy card and is tied off
+     into a knot behind the closing line. A needle leads it, drawn to wherever
+     the reader is looking. */
+  scenes.push((() => {
+    const svg = $<SVGSVGElement>("#seam"), pg = $<SVGPathElement>("#seamPage"), kn = $<SVGPathElement>("#seamKnot"), ndl = $<SVGGElement>("#needle");
+    // the knot, authored on a 1440 × 520 board and stretched across the close
+    const KNOT: [string, ...number[]][] = [["M", -20, 120], ["C", 200, 40, 320, 260, 520, 180], ["S", 760, 20, 900, 160], ["S", 1060, 380, 1180, 250],
+      ["C", 1260, 160, 1340, 200, 1300, 270], ["C", 1260, 340, 1190, 290, 1230, 230], ["C", 1290, 150, 1400, 210, 1470, 300]];
+    const STEP = 8;
+    let Lp = 1, Lk = 1, ymax: number[] = [], jy = 0, last = NaN;
+    const curve = (P: number[][]) => P.map((p, i) => {
+      if (!i) return `M${p[0]} ${p[1]}`;
+      const a = P[i - 2] || P[i - 1], b = P[i - 1], d = P[i + 1] || p;
+      return `C${b[0] + (p[0] - a[0]) / 6} ${b[1] + (p[1] - a[1]) / 6} ${p[0] - (d[0] - b[0]) / 6} ${p[1] - (d[1] - b[1]) / 6} ${p[0]} ${p[1]}`;
+    }).join("");
+    const box = (id: string) => { const el = $(id); const t = docTop(el); return [t, t + el.offsetHeight]; };
+    function lenAt(y: number) {
+      let lo = 0, hi = ymax.length - 1;
+      if (hi < 0 || y <= ymax[0]) return 0;
+      if (y >= ymax[hi]) return Lp;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ymax[m] < y) lo = m; else hi = m; }
+      return (lo + (y - ymax[lo]) / Math.max(1e-3, ymax[hi] - ymax[lo])) * STEP;
+    }
+    function tip(path: SVGPathElement, l: number) {
+      const p = path.getPointAtLength(l), q = path.getPointAtLength(Math.max(0, l - 4));
+      ndl.setAttribute("transform", `translate(${p.x} ${p.y}) rotate(${Math.atan2(p.y - q.y, p.x - q.x) * 180 / Math.PI})`);
+    }
+    return {
+      measure() {
+        const wrapW = Math.min(1180, W - 32), gw = (W - wrapW) / 2, L = gw * .5, R = W - gw * .5, sw = gw * .3;
+        const [, hb] = box("#top"), [ra, rb] = box("#ask"), [ha, hz] = box("#how"), [oa, oz] = box("#handoff"),
+          [fa, fz] = box("#fit"), [pa, pz] = box("#trust"), [qa, qz] = box("#faq"), [ca] = box("#start");
+        const kx = W / 1440, ky = ca + 30;
+        jy = ky + 120;
+        const P = [[-30, hb - 30],
+          [L + sw, ra + 90], [L - sw, (ra + rb) / 2], [L + sw, rb - 70],
+          [R, ha + 80], [R - sw, ha + (hz - ha) * .4], [R + sw, ha + (hz - ha) * .75], [R, hz - 50],
+          [L, oa + 90], [L + sw, (oa + oz) / 2], [L, oz - 100],
+          [R, fa + 30], [R - sw, (fa + fz) / 2], [R, fz - 60],
+          [W * .62, (pa + pz) / 2],
+          [L, qa + 80], [L + sw, (qa + qz) / 2], [L, qz - 60],
+          [-20 * kx, jy]];
+        pg.setAttribute("d", curve(P));
+        kn.setAttribute("d", KNOT.map(([c, ...n]) => c + n.map((v, i) => i % 2 ? v + ky : v * kx).join(" ")).join(""));
+        svg.style.height = (ky + 560) + "px";
+        Lp = pg.getTotalLength(); Lk = kn.getTotalLength();
+        pg.style.strokeDasharray = String(Lp); kn.style.strokeDasharray = String(Lk);
+        ymax = []; let m = -Infinity;
+        for (let l = 0; l <= Lp; l += STEP) { m = Math.max(m, pg.getPointAtLength(l).y); ymax.push(m); }
+        last = NaN;
+      },
+      update(y: number) {
+        if (y === last) return; last = y;
+        if (RM) { pg.style.strokeDashoffset = kn.style.strokeDashoffset = "0"; return; }
+        const lead = y + H * .72, lp = lenAt(lead), kp = clamp((lead - jy) / (H * .9));
+        pg.style.strokeDashoffset = String(Lp - lp);
+        kn.style.strokeDashoffset = String(Lk * (1 - kp));
+        const live = lp > 1 && kp < 1;
+        ndl.classList.toggle("on", live);
+        if (live) { if (lp < Lp) tip(pg, lp); else tip(kn, kp * Lk); }
+      }
+    };
+  })());
+
+  /* ── travellers ──────────────────────────────────────────────────────────
+     An object lifts out of one section and is set down in the next while the
+     page scrolls beneath it: the question you'd ask leaves the hero and becomes
+     the race, the answer's date becomes the Timeline's next event, and the
+     Treasurer role leaves the budget for next year's board. */
+  const fly = $("#fly"), T: Traveller[] = [];
+  cleanups.push(() => { fly.replaceChildren(); T.forEach(o => { o.src.style.visibility = o.dst.style.visibility = ""; }); });
+  const rect = (el: Element) => el.getBoundingClientRect();
+  function traveller(o: Partial<Traveller>) { const t = o as Traveller; t.el = document.createElement("div"); t.el.className = "tv"; fly.append(t.el); t.state = -1; t.init(t); T.push(t); return t; }
+  // the same object on both ends: crossfade a copy of each, scaled to the box in flight
+  const carry = (src: HTMLElement, dst: HTMLElement, o: CarryOpts) => traveller(Object.assign({ src, dst, arc: 50, rot: -4, fade: .25,
+    init(o: Traveller) {
+      o.fs = [src, dst].map(n => { const f = document.createElement("div"); f.className = "tv-f"; const c = n.cloneNode(true) as HTMLElement; c.removeAttribute("id"); c.style.visibility = ""; f.append(c); o.el.append(f); return f; });
+    },
+    measure(o: Traveller) {
+      o.ws = [src, dst].map((n, i) => {
+        const c = o.fs[i].firstChild as HTMLElement, cs = getComputedStyle(n);
+        c.style.font = cs.font; c.style.letterSpacing = cs.letterSpacing;
+        c.style.background = cs.backgroundColor; c.style.color = cs.color; c.style.borderColor = cs.borderColor; c.style.width = n.offsetWidth + "px"; c.style.margin = "0";
+        return n.offsetWidth;
+      });
+    },
+    paint(o: Traveller, t: number) {
+      const a = rect(src), b = rect(dst), s = Math.sin(Math.PI * t), lift = 1 + s * .12;
+      const w = lerp(a.width, b.width, t), h = lerp(a.height, b.height, t);
+      const x = lerp(a.left, b.left, smooth(t)), y = lerp(a.top, b.top, t) - s * o.arc;
+      o.el.style.width = w + "px"; o.el.style.height = h + "px";
+      o.el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${s * o.rot}deg)`;
+      const f = smooth(clamp((t - o.fade) / .3));
+      o.fs.forEach((fc, i) => { fc.style.opacity = String(i ? f : 1 - f); fc.style.transform = `scale(${w / o.ws[i] * lift})`; });
+    } }, o));
+
+  const askPiece = $('.pc[data-k="ask"]'), askQ = $("#askQ"), Q = askQ.textContent ?? "";
+  traveller({
+    src: askPiece, dst: askQ,
+    init(o) {
+      o.el.classList.add("tv-ask");
+      o.el.innerHTML = '<svg class="ic sp"><use href="#i-spark"/></svg><span class="ty"></span><span class="ph">Ask Chapt anything…</span><kbd>⌘K</kbd>';
+      [o.sp, o.ty, o.ph, o.kb] = [...o.el.children] as HTMLElement[];
+    },
+    range() { const top = docTop($("#top")); return [top + ($("#top").offsetHeight - H) * .9, race.pre(askQ) - H * .5]; },
+    // the bar you'd type into becomes the question, typed as you scroll
+    paint(o, t) {
+      const a = rect(askPiece), b = rect(askQ), s = Math.sin(Math.PI * t), st = o.el.style;
+      const w = lerp(a.width, b.width, t), h = lerp(a.height, b.height, t);
+      st.width = w + "px"; st.height = h + "px";
+      st.transform = `translate3d(${lerp(a.left, b.left, smooth(t))}px, ${lerp(a.top, b.top, t) - s * 40}px, 0) rotate(${s * -3}deg)`;
+      const k = smooth(clamp((t - .58) / .16)) * 100;
+      st.background = `color-mix(in srgb, var(--ink) ${k}%, var(--card))`;
+      st.color = `color-mix(in srgb, var(--paper) ${k}%, var(--ink))`;
+      st.borderColor = `color-mix(in srgb, var(--ink) ${k}%, var(--line))`;
+      const r = lerp(12, 16, t);
+      st.borderRadius = `${r}px ${r}px ${lerp(12, 5, t)}px ${r}px`;
+      st.padding = `${lerp(0, 7.5, t)}px ${lerp(10, 12.5, t)}px`;
+      st.fontSize = lerp(.76, .9, t) + "rem";
+      st.boxShadow = `0 ${s * 18}px ${s * 34}px -12px rgba(38,33,27,${s * .3})`;
+      o.ty.textContent = Q.slice(0, Math.round(clamp((t - .08) / .55) * Q.length));
+      o.ph.style.display = t > .08 ? "none" : "";
+      const g = 1 - clamp((t - .5) / .3);
+      o.sp.style.width = 14 * g + "px"; o.sp.style.marginRight = 8 * g + "px"; o.sp.style.opacity = String(g); o.kb.style.opacity = String(g);
+    }
+  });
+  const vDate = $("#vDate"), tlNow = $("#tlNow");
+  carry(vDate, tlNow, { fade: .08,
+    enabled: () => !walkMob() && $("#fastVerdict").classList.contains("on"),
+    range() { const y0 = Math.max(race.end, race.top(vDate) - H * .35); return [y0, Math.max(y0 + 300, docTop($("#how")) - (walkMob() ? H * .1 : 0))]; }
+  });
+  // the approved deadline drops onto the Timeline next to the meeting
+  const wrDl = $("#wrDl"), tlDl = $("#tlDl");
+  carry(wrDl, tlDl, { fade: .2, arc: 80, rot: 5,
+    enabled: () => !walkMob() && $("#writ").classList.contains("ok"),
+    range() { const y0 = Math.max(race.end, race.top(wrDl) - H * .5); return [y0, Math.max(y0 + 300, docTop($("#how")) - (walkMob() ? H * .1 : 0))]; }
+  });
+  const bdRole = $("#bdRole"), boardRole = $("#boardRole");
+  carry(bdRole, boardRole, { arc: 70, rot: 6,
+    // How it works is still on a phone, so nothing flies into or out of its cards there
+    enabled: () => !walkMob(),
+    range() { const s = $("#how"), y0 = docTop(s) + (s.offsetHeight - H) * .97 - (walkMob() ? H * .2 : 0); return [y0, Math.max(y0 + 300, docTop(boardRole) - H * .6)]; }
+  });
+  scenes.push({
+    measure() { T.forEach(o => { [o.y0, o.y1] = o.range(); o.measure?.(o); o.state = -1; }); },
+    update(y: number) {
+      T.forEach(o => {
+        const t = (y - o.y0) / (o.y1 - o.y0);
+        const st = RM || (o.enabled && !o.enabled()) ? 3 : t <= 0 ? 0 : t >= 1 ? 2 : 1;
+        if (st !== o.state) {
+          const was = o.state; o.state = st;
+          o.src.style.visibility = st === 1 || st === 2 ? "hidden" : "";
+          o.dst.style.visibility = st === 0 || st === 1 ? "hidden" : "";
+          o.el.classList.toggle("on", st === 1);
+          if (st === 2 && was !== 2 && o.land) o.land();
+        }
+        if (st === 1) o.paint(o, t);
+      });
+    }
+  });
+
+  /* ── scroll-linked depth ─────────────────────────────────────────────────
+     e: 0 as an element's top meets the bottom of the screen, 1 a screen later.
+     c: where its middle sits against the screen's middle (0 centred, ±1 a screen away).
+     Only translate / rotate / scale are touched, so the reveal transitions keep theirs. */
+  type Fx = { el: HTMLElement; fn: (el: HTMLElement, e: number, c: number, i: number) => void; i: number; t: number; h: number };
+  const FX: Fx[] = [];
+  const fx = (sel: string, fn: Fx["fn"]) => $$(sel).forEach((el, i) => FX.push({ el, fn, i, t: 0, h: 0 }));
+  // headings sit a little further back than the page
+  fx(".hd, .walk-head, .priv-in > div:first-child", (el, e, c) => { el.style.translate = `0 ${c * -45}px`; });
+  // the two lanes swing in from either side and settle as one
+  fx("#raceBox .lane", (el, e, c, i) => { const k = 1 - eo(clamp(e / .8)), d = i ? 1 : -1;
+    el.style.translate = `${d * k * (MOB ? 26 : 90)}px ${race.pinned ? 0 : c * (i ? -26 : 26)}px`; el.style.rotate = `${d * k * 4}deg`; });
+  fx(".board", (el, e, c) => { el.style.translate = `0 ${c * -30}px`; el.style.rotate = `${-.8 + (1 - eo(clamp(e / .8))) * -3}deg`; });
+  fx(".stays .stay", (el, e, c, i) => { const k = 1 - eo(clamp((e - i * .06) / .65)); el.style.translate = `${k * (MOB ? 30 : 70)}px ${c * 24}px`; });
+  fx("#fxPv", (el, e, c) => { const k = 1 - eo(clamp(e / .85)); el.style.translate = `${k * (MOB ? 30 : 90)}px ${c * -50}px`; el.style.rotate = `${1.5 + k * 8}deg`; });
+  fx("#fxActs .act", (el, e, c, i) => { const k = 1 - eo(clamp((e - .1 - i * .04) / .5)); el.style.translate = `${k * -50}px 0`; el.style.opacity = String(1 - k); });
+  // the privacy card opens out to full size as it arrives
+  fx("#trust", (el, e) => { const k = eo(clamp(e / .75)); el.style.scale = String(lerp(.9, 1, k)); el.style.borderRadius = lerp(72, MOB ? 26 : 32, k) + "px"; });
+  fx("#trust .pp", (el, e, c, i) => { el.style.translate = `0 ${c * (i ? -60 : -30)}px`; });
+  fx("#faqList .qa", (el, e, c, i) => { const k = 1 - eo(clamp((e - i * .05) / .55)); el.style.translate = `0 ${k * 50}px`; el.style.opacity = String(1 - k); });
+  fx("#closeH", (el, e) => { el.style.scale = String(lerp(.9, 1, eo(clamp(e / .9)))); });
+  scenes.push({
+    measure() { FX.forEach(f => { f.t = docTop(f.el); f.h = f.el.offsetHeight; }); },
+    update(y: number) {
+      if (RM) return;
+      FX.forEach(f => {
+        const e = (y + H - f.t) / H, c = (f.t + f.h / 2 - y - H / 2) / H;
+        if (e < -.25 || c < -1.8) return; // well off screen: leave it where it was
+        f.fn(f.el, clamp(e), c, f.i);
+      });
+    }
+  });
+
+  /* ── loop ────────────────────────────────────────────────────────────── */
+  function measureAll() { if (!alive) return; W = innerWidth; H = innerHeight; MOB = W < 760; readWash(); scenes.forEach(s => s.measure?.()); }
+  addEventListener("pointermove", e => { mouse.tx = e.clientX / W * 2 - 1; mouse.ty = e.clientY / H * 2 - 1; }, { passive: true, signal: ac.signal });
+  let rt = 0; const remeasure = () => { cancel(rt); rt = later(measureAll, 120); };
+  addEventListener("resize", remeasure, on);
+  // FAQ answers and the fit preview change the page's height; everything below has to re-measure
+  const ro = new ResizeObserver(remeasure); ro.observe($("main", root));
+  cleanups.push(() => ro.disconnect());
+  function frame(t: number) {
+    now = t;
+    const prev = cur, tgt = scrollY;
+    cur += (tgt - cur) * (RM ? 1 : .11);
+    if (Math.abs(tgt - cur) < .1) cur = tgt;
+    vel = lerp(vel, cur - prev, .18);
+    if (!RM && W > 760) { mouse.x = lerp(mouse.x, mouse.tx, .06); mouse.y = lerp(mouse.y, mouse.ty, .06); }
+    scenes.forEach(s => s.update(cur));
+    raf = requestAnimationFrame(frame);
+  }
+  measureAll();
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(measureAll);
+  raf = requestAnimationFrame(frame);
+
+  return () => {
+    alive = false;
+    cancelAnimationFrame(raf);
+    ac.abort();
+    timeouts.forEach(id => clearTimeout(id)); timeouts.clear();
+    cleanups.forEach(fn => fn());
+  };
 }

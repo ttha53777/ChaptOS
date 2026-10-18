@@ -7,8 +7,8 @@ import { APP_NAME } from "@/lib/domains";
 export const metadata: Metadata = {
   title: `${APP_NAME} — the operating system for student orgs`,
   description:
-    "One workspace for the roster, the money, the meetings and the week — " +
-    "that opens on what today actually needs, and that you can just ask.",
+    "Meetings, money, members and minutes, on one page your whole org can see. " +
+    "Free to start, for every kind of student org.",
 };
 
 /**
