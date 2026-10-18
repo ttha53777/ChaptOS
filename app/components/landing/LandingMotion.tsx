@@ -73,6 +73,9 @@ function mount(): () => void {
   const $ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => r.querySelector(s) as T;
   const $$ = <T extends Element = HTMLElement>(s: string, r: ParentNode = document) => [...r.querySelectorAll(s)] as T[];
   const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // a touch screen already eases its own scroll (momentum), and its browser bar
+  // changes innerHeight mid-scroll; neither should move the motion
+  const TOUCH = matchMedia("(pointer: coarse)").matches;
   const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const ease = (t: number) => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -207,7 +210,7 @@ function mount(): () => void {
   $$(".ot").forEach(b => b.addEventListener("click", () => setOrg(b.dataset.t!, true), on));
 
   hero = (() => {
-    const sec = $("#top"), df = $("#df"), copy = $("#heroCopy"), h1 = $("#heroH1"), ots = $("#otypes");
+    const sec = $("#top"), stage = $("#heroStage"), df = $("#df"), copy = $("#heroCopy"), h1 = $("#heroH1"), ots = $("#otypes");
     const fades = $$(".fade-a", copy);
     const swap = $("#swap"), swA = $(".a", swap), swB = $(".b", swap);
     // the loose ends frame the headline from the margins; nothing sits over the copy
@@ -226,17 +229,19 @@ function mount(): () => void {
       return { el, k, i, mi, ci, m: $(".pc-m", el), c: $(".pc-c", el), slot: $(`.slot[data-k="${k}"]`, df),
         w0: parseFloat(mi.style.width), h0: parseFloat(mi.style.height), pose: POSE[k], docked: false, ox: 0, oy: 0, w1: 0, h1: 0 };
     });
-    let top = 0, len = 1, mob = false, k = 1, dfL = 0, dfT = 0, copyTop = 0, endDy = 0, endS = 1, s0 = 1, low = 0, wA = 0, wB = 0, lastCycle = 0, wordAt = 0;
+    // SH is the stage's own height, which follows a phone's browser bar (100dvh) while the rest of the page holds H
+    let SH = H, top = 0, len = 1, mob = false, k = 1, dfL = 0, dfT = 0, copyTop = 0, endDy = 0, endS = 1, s0 = 1, low = 0, wA = 0, wB = 0, lastCycle = 0, wordAt = 0;
     const api = {
       reswap() { swap.style.width = "auto"; wA = swA.offsetWidth; wB = swB.offsetWidth; },
       // the scroll position where the headline reads "runs on one page" and the dashboard has docked
       pageY() { return top + .84 * len; },
       measure() {
-        top = absTop(sec); len = sec.offsetHeight - H; mob = W < 760;
+        SH = stage.clientHeight || H;
+        top = absTop(sec); len = sec.offsetHeight - SH; mob = W < 760;
         k = W >= 1280 ? .9 : W >= 1000 ? .74 : W >= 760 ? .64 : .5;
         df.style.transform = "none";
         const fw = df.offsetWidth, fh = df.offsetHeight;
-        dfL = (W - fw) / 2; dfT = Math.min(H * (mob ? .33 : .3), H - fh - 74);
+        dfL = (W - fw) / 2; dfT = Math.min(SH * (mob ? .33 : .3), SH - fh - 74);
         df.style.left = dfL + "px"; df.style.top = dfT + "px";
         ots.style.top = (dfT + fh + 18) + "px";
         const dr = df.getBoundingClientRect();
@@ -248,10 +253,10 @@ function mount(): () => void {
         copy.style.transform = "none";
         api.reswap();
         // a short screen (a phone on its side) shrinks the opening copy so the buttons aren't pinned below the fold
-        const ch = copy.offsetHeight; s0 = Math.min(1, (H - 84) / ch);
-        copyTop = Math.max(70, (H - ch * s0) / 2 - (mob ? 0 : 10)); copy.style.top = copyTop + "px";
+        const ch = copy.offsetHeight; s0 = Math.min(1, (SH - 84) / ch);
+        copyTop = Math.max(70, (SH - ch * s0) / 2 - (mob ? 0 : 10)); copy.style.top = copyTop + "px";
         // on a short phone the copy runs into the lower notes; drop them below it (the stage crops them)
-        low = mob ? Math.max(0, copyTop + ch * s0 - H * .84) : 0;
+        low = mob ? Math.max(0, copyTop + ch * s0 - SH * .84) : 0;
         const h1H = h1.offsetHeight, h1Off = h1.offsetTop, bandT = 72, bandH = dfT - 14 - bandT;
         endS = Math.min(mob ? .72 : .58, bandH / h1H);
         endDy = bandT + (bandH - h1H * endS) / 2 - copyTop - h1Off * endS;
@@ -266,7 +271,7 @@ function mount(): () => void {
         swA.style.cssText = `opacity:${1 - sp}; transform:translateY(${-sp * .5}em); filter:blur(${sp * 8}px)`;
         swB.style.cssText = `opacity:${sp}; transform:translateY(${(1 - sp) * .5}em); filter:blur(${(1 - sp) * 8}px); --mx:${clamp((p - .54) / .1)}`;
         const rp = eo(clamp((p - .1) / .42));
-        const rise = (1 - rp) * (H - dfT + 60);
+        const rise = (1 - rp) * (SH - dfT + 60);
         df.style.transform = `translate3d(0, ${rise}px, 0)`;
         df.style.opacity = String(clamp(rp * 2.5));
         pcs.forEach(pc => {
@@ -275,7 +280,7 @@ function mount(): () => void {
           const w0 = pc.w0 * k, h0 = pc.h0 * k, live = 1 - t;
           const fl = RM ? 0 : Math.sin(now / 1100 + pc.i * 1.7) * 5 * live;
           const sx = W / 2 + X * W - w0 / 2 + mouse.x * 26 * Z * live;
-          const sy = H / 2 + Y * H - h0 / 2 + (Y > .3 ? low : 0) - p * 220 * Z * live + mouse.y * 20 * Z * live + fl;
+          const sy = SH / 2 + Y * SH - h0 / 2 + (Y > .3 ? low : 0) - p * 220 * Z * live + mouse.y * 20 * Z * live + fl;
           const tx = dfL + pc.ox, ty = dfT + rise + pc.oy;
           const x = lerp(sx, tx, t), yy = lerp(sy, ty, t) - Math.sin(t * Math.PI) * 70;
           const w = lerp(w0, pc.w1, t), h = lerp(h0, pc.h1, t);
@@ -708,6 +713,8 @@ function mount(): () => void {
   const askPiece = $('.pc[data-k="ask"]'), askQ = $("#askQ"), Q = askQ.textContent ?? "";
   traveller({
     src: askPiece, dst: askQ,
+    // on a phone the bar would sail over the race's headline and copy for a screen and a half
+    enabled: () => !MOB,
     init(o) {
       o.el.classList.add("tv-ask");
       o.el.innerHTML = '<svg class="ic sp"><use href="#i-spark"/></svg><span class="ty"></span><span class="ph">Ask Chapt anything…</span><kbd>⌘K</kbd>';
@@ -804,17 +811,24 @@ function mount(): () => void {
   });
 
   /* ── loop ────────────────────────────────────────────────────────────── */
-  function measureAll() { if (!alive) return; W = innerWidth; H = innerHeight; MOB = W < 760; readWash(); scenes.forEach(s => s.measure?.()); }
+  // on touch, H is the height the page loaded at (browser bar showing) until the width changes:
+  // the bar sliding away mid-scroll would otherwise re-place every pinned scene under your thumb
+  function measureAll() { if (!alive) return; if (!TOUCH || innerWidth !== W) H = innerHeight; W = innerWidth; MOB = W < 760; readWash(); scenes.forEach(s => s.measure?.()); }
   addEventListener("pointermove", e => { mouse.tx = e.clientX / W * 2 - 1; mouse.ty = e.clientY / H * 2 - 1; }, { passive: true, signal: ac.signal });
   let rt = 0; const remeasure = () => { cancel(rt); rt = later(measureAll, 120); };
-  addEventListener("resize", remeasure, on);
+  // a height-only resize on touch is the browser bar: only the hero, whose stage tracks it, re-fits
+  let ht = 0;
+  addEventListener("resize", () => {
+    if (!TOUCH || innerWidth !== W) remeasure();
+    else { cancel(ht); ht = later(() => { if (alive) hero.measure(); }, 80); }
+  }, on);
   // FAQ answers and the fit preview change the page's height; everything below has to re-measure
   const ro = new ResizeObserver(remeasure); ro.observe($("main", root));
   cleanups.push(() => ro.disconnect());
   function frame(t: number) {
     now = t;
     const prev = cur, tgt = scrollY;
-    cur += (tgt - cur) * (RM ? 1 : .11);
+    cur += (tgt - cur) * (RM || TOUCH ? 1 : .11);
     if (Math.abs(tgt - cur) < .1) cur = tgt;
     vel = lerp(vel, cur - prev, .18);
     if (!RM && W > 760) { mouse.x = lerp(mouse.x, mouse.tx, .06); mouse.y = lerp(mouse.y, mouse.ty, .06); }
