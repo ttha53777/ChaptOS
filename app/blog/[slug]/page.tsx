@@ -18,7 +18,7 @@ import { Footer } from "../../components/landing/sections/Footer";
 import { formatDate, getPost, getPosts } from "../posts";
 import { PostDemo } from "../demos";
 import { layoutPost } from "../layout-post";
-import { MinutesArt } from "../PostArt";
+import { MinutesArt, TimelineArt } from "../PostArt";
 import { PostRail } from "../PostRail";
 import { tagAccent } from "../tags";
 import { APP_NAME } from "@/lib/domains";
@@ -98,7 +98,7 @@ export default async function BlogPostPage({
                   </div>
                 </div>
               </div>
-              {post.tags.includes("meetings") && <MinutesArt />}
+              {post.tags.includes("meetings") ? <MinutesArt /> : post.tags.includes("timeline") ? <TimelineArt /> : null}
             </div>
           </section>
 

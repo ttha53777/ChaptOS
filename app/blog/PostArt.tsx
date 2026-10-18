@@ -40,6 +40,50 @@ export function MinutesArt() {
   );
 }
 
+/** The Timeline post's cover: the semester on one spine, the group-chat
+ *  question it settles, the spreadsheet it replaced, and the date already in
+ *  your calendar. */
+export function TimelineArt() {
+  const rows: { mon: string; day: number; t: string; m: string; c: string }[] = [
+    { mon: "Oct", day: 26, t: "Chapter Meeting", m: "8:00 PM · Chapter room", c: "#3f6ea3" },
+    { mon: "Oct", day: 31, t: "Halloween social", m: "10:00 PM · The house", c: "#b34f72" },
+    { mon: "Nov", day: 7, t: "Philanthropy 5K", m: "8:00 AM · Riverside Park", c: "#9a7224" },
+    { mon: "Nov", day: 21, t: "Fall formal", m: "7:00 PM · The Grand Hall", c: "#b34f72" },
+  ];
+  return (
+    <div className="bl__art bl__art--tl" aria-hidden>
+      <div className="bl__tlxls">
+        <div className="ttl"><i /><s>Fall calendar v3 FINAL (2)</s></div>
+        <div className="g"><span>Social</span><span>10/31?</span><span>Formal</span><span>11/14</span><span>5K</span><span>TBD</span></div>
+      </div>
+
+      <div className="bl__tlcard">
+        <span className="tape" />
+        <div className="hd">Fall semester</div>
+        <ol>
+          {rows.map(r => (
+            <li key={r.t} style={sx({ "--c": r.c })}>
+              <span className="d"><small>{r.mon}</small><b>{r.day}</b></span>
+              <span className="t">
+                <b>{r.t}</b><small>{r.m}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="bl__tlchat">is formal the <s>14th</s> or the 21st??</div>
+
+      <div className="bl__tlcal">
+        <span className="pg"><span className="m">Nov</span><span className="n">21</span></span>
+        <span className="tx"><b>Fall formal</b><small>Added to your calendar</small></span>
+      </div>
+
+      <Doodle id="star" size={28} viewBox="0 0 24 24" className="bl__artstar" style={sx({ color: "var(--peach-ink)" })} />
+    </div>
+  );
+}
+
 /** A post filed in a manila folder: the fallback cover for posts without art
  *  of their own. Everything written on it comes from the post's frontmatter. */
 function FolderArt({ post }: { post: PostMeta }) {
@@ -65,5 +109,7 @@ function FolderArt({ post }: { post: PostMeta }) {
 
 /** The cover a post shows on the blog index: its own art when it has some. */
 export function CoverArt({ post }: { post: PostMeta }) {
-  return post.tags.includes("meetings") ? <MinutesArt /> : <FolderArt post={post} />;
+  if (post.tags.includes("meetings")) return <MinutesArt />;
+  if (post.tags.includes("timeline")) return <TimelineArt />;
+  return <FolderArt post={post} />;
 }

@@ -1,0 +1,613 @@
+/* ============================================================================
+   Timeline post demos (Scattered, TimelineAdd, EventTypesDemo,
+   CalendarDemo, CheckInDemo). Scoped under `.lp` and prefixed tld-, drawn in
+   the landing palette so they sit on the blog's paper like the meetings demos.
+   Event colours arrive per element as --c.
+   ========================================================================== */
+
+.lp .bld .kick{font:600 .66rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.lp .bld .kick span{margin-left:6px; letter-spacing:.04em; text-transform:none; font-weight:500}
+.lp .bld .hint{font-size:.78rem; line-height:1.5; color:var(--ink-3)}
+
+/* ---------- buttons ---------------------------------------------------------- */
+.lp .tld-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:8px 16px; border-radius:999px;
+  font-weight:600; font-size:.86rem; color:var(--paper); background:var(--ink) !important; border:1.5px solid var(--ink) !important;
+  box-shadow:2.5px 2.5px 0 var(--ac, var(--sky)); transition:transform .15s var(--ease-spring), box-shadow .15s var(--ease-spring), opacity .15s;
+}
+.lp .tld-btn:hover:not(:disabled){transform:translate(-1px,-1px); box-shadow:3.5px 3.5px 0 var(--ac, var(--sky))}
+.lp .tld-btn:disabled{opacity:.45}
+.lp .tld-btn.ghost{color:var(--ink); background:var(--card) !important; box-shadow:none}
+.lp .tld-btn.ghost:hover:not(:disabled){box-shadow:2px 2px 0 var(--line-2)}
+.lp .tld-btn.sm{padding:6px 12px; font-size:.8rem}
+
+/* ---------- the spine ---------------------------------------------------------- */
+.lp .tld-spine{position:relative; display:grid; gap:10px; padding:2px 4px 6px 0}
+.lp .tld-spine::before{content:''; position:absolute; left:23px; top:30px; bottom:20px; border-left:2px dashed var(--line-2)}
+.lp .tld-month{position:relative; margin:6px 0 -2px 58px; font:700 .64rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.lp .tld-month:first-child{margin-top:0}
+.lp .tld-row{position:relative; display:grid; grid-template-columns:48px minmax(0,1fr); gap:10px; align-items:start}
+.lp .tld-day{position:relative; z-index:1; display:grid; justify-items:center; width:48px; padding:5px 0 4px; border-radius:12px; background:var(--card); border:1.5px solid var(--line)}
+.lp .tld-day b{font:700 1.05rem/1 var(--display); letter-spacing:-.03em; color:var(--ink)}
+.lp .tld-day small{font:600 .58rem var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.lp .tld-card{
+  position:relative; min-width:0; display:grid; gap:2px; padding:10px 14px 11px 16px;
+  background:var(--card); border:1.5px solid var(--line); border-radius:14px; overflow:hidden;
+  transition:border-color .2s;
+}
+.lp .tld-card::before{content:''; position:absolute; left:0; top:10px; bottom:10px; width:4px; border-radius:0 4px 4px 0; background:var(--c)}
+.lp .tld-row:hover .tld-card{border-color:var(--line-2)}
+.lp .tld-card .k,.lp .tld-sheet .k{display:flex; align-items:center; gap:7px; font:700 .62rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--c)}
+.lp .tld-card .k em{font-style:normal; padding:0 6px; border-radius:5px; font-size:.56rem; letter-spacing:.1em; color:var(--paper); background:var(--ink)}
+.lp .tld-card .t{font:600 1rem/1.25 var(--display); letter-spacing:-.018em; color:var(--ink); overflow-wrap:anywhere}
+.lp .tld-card .m{font:500 .74rem var(--mono); color:var(--ink-3)}
+.lp .tld-spine--empty{display:grid; place-items:center; min-height:260px; padding:24px; border:1.5px dashed var(--line-2); border-radius:16px; text-align:center}
+.lp .tld-spine--empty p{max-width:300px; font-size:.9rem; line-height:1.5; color:var(--ink-3)}
+.lp .tld-spine--empty b{display:block; margin-top:4px; color:var(--ink)}
+.lp .tld-scroll{position:relative; height:420px; overflow:auto; padding:4px 6px 4px 2px; scrollbar-width:thin; overscroll-behavior:contain}
+
+/* the stamp the add lands with */
+.lp .tld-ink{
+  position:absolute; right:14px; top:50%; z-index:2; pointer-events:none;
+  display:grid; justify-items:center; gap:1px; padding:5px 10px 4px;
+  color:var(--mint-ink); border:2.5px solid currentColor; border-radius:7px; outline:1.5px solid currentColor; outline-offset:2.5px;
+  background:rgba(255,255,255,.72);
+  font:700 .7rem/1 var(--mono); letter-spacing:.16em; text-indent:.16em; white-space:nowrap;
+  transform:translateY(-50%) rotate(-8deg);
+  animation:tld-thunk .34s cubic-bezier(.3,0,.2,1) both, tld-inkfade .8s ease 2.6s forwards;
+}
+.lp .tld-ink small{font:600 .52rem var(--mono); letter-spacing:.14em; opacity:.85}
+@keyframes tld-thunk{
+  0%{opacity:0; transform:translateY(-50%) rotate(-16deg) scale(2.3); filter:blur(1.5px)}
+  60%{opacity:1; transform:translateY(-50%) rotate(-7deg) scale(.94); filter:none}
+  100%{opacity:1; transform:translateY(-50%) rotate(-8deg) scale(1)}
+}
+@keyframes tld-inkfade{to{opacity:.16}}
+.lp .tld-row:has(.tld-ink) .tld-card{animation:tld-give .38s ease-out .2s}
+@keyframes tld-give{30%{transform:translateY(1.5px) scale(.988)}}
+
+/* ---------- 0. scattered ------------------------------------------------------ */
+.lp .tld-scatter-grid{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:22px; padding:20px}
+.lp .tld-desk{position:relative; display:grid; gap:14px; align-content:start}
+.lp .tld-src{background:var(--card); border:1.5px solid var(--ink); border-radius:14px; overflow:hidden; transition:opacity .4s, filter .4s}
+.lp .tld-src header{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1.5px solid var(--line); background:var(--paper-2); font-weight:600; font-size:.84rem}
+.lp .tld-src header .ic{display:grid; place-items:center; width:22px; height:22px; border-radius:7px; background:var(--card); border:1.5px solid var(--line)}
+.lp .tld-src header .ic svg{width:13px; height:13px}
+.lp .tld-src header small{margin-left:auto; font:500 .68rem var(--mono); color:var(--ink-3)}
+.lp .tld-chat{transform:rotate(-1.2deg); box-shadow:4px 4px 0 var(--mint)}
+.lp .tld-xls{transform:rotate(.8deg); box-shadow:4px 4px 0 var(--butter)}
+.lp .tld-doc{transform:rotate(-.6deg); box-shadow:4px 4px 0 var(--sky)}
+.lp .tld-chat ul{display:grid; gap:5px; padding:10px 12px 12px}
+.lp .tld-chat li{display:flex; align-items:baseline; gap:7px; max-width:92%; padding:5px 10px; border-radius:12px 12px 12px 4px; background:var(--paper-2); font-size:.82rem; line-height:1.35; transition:background .25s, box-shadow .25s}
+.lp .tld-chat li b{flex:none; font-size:.7rem; color:var(--ink-3)}
+.lp .tld-chat li.me{justify-self:end; margin-left:auto; border-radius:12px 12px 4px 12px; background:var(--sky-soft)}
+.lp .tld-xls table{width:100%; border-collapse:collapse; font:500 .76rem var(--mono)}
+.lp .tld-xls td{padding:6px 9px; border-bottom:1px solid var(--line); border-right:1px solid var(--line); white-space:nowrap; transition:background .25s}
+.lp .tld-xls td.n{width:28px; color:var(--ink-3); background:var(--paper-2); text-align:center}
+.lp .tld-xls tr:last-child td{border-bottom:0}
+.lp .tld-xls tr.wrong td:not(.n){color:var(--rose-ink); text-decoration:line-through; text-decoration-color:var(--rose-ink)}
+.lp .tld-doc ul{display:grid; gap:6px; padding:10px 14px 12px 30px; list-style:disc; font-size:.84rem; line-height:1.4}
+.lp .tld-doc li{transition:background .25s}
+.lp .tld-src .lit{background:var(--butter) !important; box-shadow:0 0 0 2px var(--butter)}
+.lp .tld-src tr.lit td{background:var(--butter)}
+.lp .tld-src .used:not(.lit){opacity:.55}
+.lp .tld-desk.is-done .tld-src{filter:saturate(.6); opacity:.72}
+.lp .tld-scatter-tl{display:grid; gap:12px; align-content:start; min-width:0}
+.lp .tld-scatter-h{display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:36px}
+.lp .tld-scatter .tld-scroll{height:560px}
+.lp .tld-scatter .tld-row.fresh{animation:tld-drop .45s var(--ease-spring) both}
+@keyframes tld-drop{from{opacity:0; transform:translate(-24px,-6px) rotate(-1.5deg)}}
+.lp .tld-from{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:3px; font-size:.72rem; color:var(--ink-3)}
+.lp .tld-from em{font-style:normal; font-weight:600; padding:0 7px; border-radius:999px; color:var(--mint-ink); background:var(--mint-soft); border:1px solid var(--mint)}
+
+.lp .tld-types{display:flex; flex-wrap:wrap; gap:6px}
+.lp .tld-type{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1.5px solid var(--line) !important; font-size:.8rem; font-weight:600; color:var(--ink-2); background:var(--card) !important; transition:border-color .15s, background .15s}
+.lp .tld-type i{width:8px; height:8px; border-radius:50%; background:var(--c)}
+.lp .tld-type:hover{border-color:var(--line-2) !important}
+.lp .tld-type.on{border-color:var(--c) !important; color:var(--ink); background:color-mix(in srgb, var(--c) 10%, var(--card)) !important}
+
+/* ---------- 2. event types: the app's settings sheet beside its timeline ------ */
+.lp .tld-types-grid{display:grid; grid-template-columns:minmax(0,420px) minmax(0,1fr); gap:28px; padding:22px 22px 24px}
+.lp .tld-types-tl{display:grid; gap:14px; align-content:start; min-width:0}
+.lp .tld-types-demo .tld-scroll{height:470px}
+
+/* a loose-leaf sheet: three punched holes and a rose margin rule (paper-settings.css) */
+.lp .ett-sheet{position:relative; display:grid; gap:12px; align-content:start; padding:18px 18px 18px 52px; background:var(--card); border:1.5px solid var(--ink); border-radius:6px 16px 10px 14px; box-shadow:4px 4px 0 var(--mint)}
+.lp .ett-sheet::before{content:''; position:absolute; left:16px; top:0; bottom:0; width:16px; pointer-events:none;
+  background:radial-gradient(circle 6px at 8px 40px, var(--paper-2) 5px, var(--line-2) 5.5px, transparent 6.5px), radial-gradient(circle 6px at 8px 50%, var(--paper-2) 5px, var(--line-2) 5.5px, transparent 6.5px), radial-gradient(circle 6px at 8px calc(100% - 40px), var(--paper-2) 5px, var(--line-2) 5.5px, transparent 6.5px)}
+.lp .ett-sheet::after{content:''; position:absolute; left:40px; top:0; bottom:0; width:1.5px; background:var(--rose-ink); opacity:.45; pointer-events:none}
+.lp .ett-crumb{font:600 .64rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3)}
+.lp .ett-h{margin:-6px 0 0; font:700 1.7rem/1.05 var(--display); letter-spacing:-.035em; color:var(--ink)}
+.lp .ett-lede{font-size:.84rem; line-height:1.5; color:var(--ink-2)}
+
+.lp .ett-card{border:1.5px solid var(--line); border-radius:14px; background:var(--paper); overflow:hidden}
+.lp .ett-row{display:flex; align-items:flex-start; gap:11px; min-height:52px; padding:10px 12px}
+.lp .ett-row + .ett-row{border-top:1px solid var(--line)}
+.lp .ett-dot{flex:none; width:12px; height:12px; margin-top:4px; border-radius:50%; border:1.5px solid var(--ink-2); transition:background .4s}
+.lp .ett-main{flex:1; min-width:0}
+.lp .ett-key{display:flex; flex-wrap:wrap; align-items:center; gap:7px; font-size:.9rem; font-weight:600; color:var(--ink)}
+.lp .ett-tag{padding:1px 6px; border-radius:5px; font:600 .54rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); background:var(--paper-2); border:1px solid var(--line-2)}
+.lp .ett-sub{margin-top:2px; font-size:.76rem; color:var(--ink-3)}
+.lp .ett-sub code,.lp .ett-note code{font:500 .76rem var(--mono)}
+.lp .ett-acts{display:flex; flex:none; gap:6px; align-items:center}
+.lp .ett-btn{padding:4px 11px; border-radius:999px; font-size:.76rem; font-weight:600; color:var(--ink); background:var(--card) !important; border:1.5px solid var(--line-2) !important; transition:border-color .15s}
+.lp .ett-btn:hover:not(:disabled){border-color:var(--ink) !important}
+.lp .ett-btn.del{color:var(--rose-ink); border-color:color-mix(in srgb, var(--rose-ink) 35%, transparent) !important}
+.lp .ett-btn.del:hover{background:var(--rose-soft) !important; border-color:var(--rose-ink) !important}
+.lp .ett-btn.pri{color:var(--paper); background:var(--ink) !important; border-color:var(--ink) !important; box-shadow:2px 2px 0 var(--mint)}
+.lp .ett-btn:disabled{opacity:.4}
+
+.lp .ett-edit{display:grid; gap:8px; padding:12px; background:var(--card)}
+.lp .ett-2{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+.lp .ett-2 label,.lp .ett-new label{display:grid; gap:4px}
+.lp .ett-ml{font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.lp .ett-in{width:100%; min-width:0; padding:5px 9px; border:1.5px solid var(--line-2); border-radius:9px; background:var(--card); font-size:.84rem; color:var(--ink)}
+.lp .ett-in:focus{outline:none; border-color:var(--ink)}
+.lp .ett-in.mono{font-family:var(--mono); color:var(--ink-3); background:var(--paper)}
+.lp .ett-sw{display:flex; flex-wrap:wrap; gap:7px}
+.lp .ett-sw button{width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line-2) !important; transition:transform .15s var(--ease-spring)}
+.lp .ett-sw button:hover{transform:scale(1.1)}
+.lp .ett-sw button.on{border-color:var(--ink) !important; box-shadow:0 0 0 2px var(--card), 0 0 0 3.5px var(--ink)}
+.lp .ett-edit .ett-acts,.lp .ett-new .ett-acts{padding-top:4px}
+
+.lp .ett-new{display:grid; gap:8px; padding:14px; border-radius:12px; background:var(--card); border:1.5px solid color-mix(in srgb, var(--lilac, #a78bfa) 55%, var(--line))}
+.lp .ett-new h4{font:650 .95rem var(--display); letter-spacing:-.015em}
+.lp .ett-note{font-size:.74rem; color:var(--ink-3)}
+.lp .ett-add{display:flex; align-items:center; gap:6px; padding:8px 12px; border-radius:10px; border:1px dashed var(--line-2) !important; font-size:.82rem; color:var(--ink-3); text-align:left; transition:border-color .15s, color .15s}
+.lp .ett-add:hover{border-color:var(--ink) !important; color:var(--ink)}
+.lp .ett-add span{font-size:1rem; line-height:1}
+.lp .ett-toast{padding:9px 13px; border-radius:12px; font-size:.8rem; line-height:1.45; color:var(--ink); border:1.5px solid var(--ink); animation:bld-fade .25s both}
+.lp .ett-toast.ok{background:var(--mint-soft); box-shadow:3px 3px 0 var(--mint)}
+.lp .ett-toast.err{background:var(--rose-soft); box-shadow:3px 3px 0 var(--rose)}
+.lp .ett-toast b{color:var(--rose-ink)}
+
+/* the timeline's segmented filter (paper-aesthetic.css .tl-seg) */
+.lp .ett-seg{display:flex; gap:3px; max-width:100%; padding:3px; overflow-x:auto; scrollbar-width:none; border-radius:999px; background:var(--paper-2); border:1.5px solid var(--line); justify-self:start}
+.lp .ett-seg::-webkit-scrollbar{display:none}
+.lp .ett-seg button{flex:none; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; font-size:.8rem; font-weight:600; color:var(--ink-3); transition:color .15s, background .15s}
+.lp .ett-seg button:hover{color:var(--ink)}
+.lp .ett-seg button.on{color:var(--ink); background:var(--card) !important; box-shadow:0 1px 0 var(--line-2), 0 2px 6px rgba(38,33,27,.08)}
+.lp .ett-seg button i{width:8px; height:8px; border-radius:50%; background:var(--c); transition:background .4s}
+.lp .ett-seg .ct{font:500 .68rem var(--mono); opacity:.7}
+.lp .ett .tld-card::before{transition:background-color .4s}
+.lp .ett .tld-card .k{transition:color .4s}
+@keyframes ett-flash{0%,30%{border-color:var(--c); box-shadow:3px 3px 0 var(--c)} 100%{border-color:var(--line); box-shadow:none}}
+
+/* ---------- 4. add to calendar ----------------------------------------------- */
+/* The member dialog as the app's Paper look draws it (ui-modal-panel +
+   calendar-subscription.css), beside a phone. Prefixed tlc-. Blocks sit on a
+   real time grid (--d day, --s hours from 3 PM, --l length); the chapter's
+   land in order of --i. */
+.lp .tlc{--hh:30px; --vio-deep:#4F33B3}
+.lp .tlc-grid{display:grid; grid-template-columns:minmax(0,420px) minmax(0,290px); justify-content:center; align-items:center; gap:28px 56px; padding:34px 24px 30px}
+
+.lp .tlc-dlg{display:grid; gap:14px; padding:18px 20px 20px; border:1.5px solid var(--ink); border-radius:22px; background:var(--card); box-shadow:6px 6px 0 var(--lilac)}
+.lp .tlc-dlg .hd{display:flex; align-items:center; gap:13px}
+.lp .tlc-dlg .tile{display:grid; place-items:center; width:42px; height:42px; flex:none; border-radius:13px; color:var(--sky-ink); background:var(--sky-soft); border:1.5px solid var(--sky); transform:rotate(-4deg)}
+.lp .tlc-dlg .tile svg{width:20px; height:20px}
+.lp .tlc-dlg .hd b{font:600 1.3rem/1.15 var(--display); letter-spacing:-.025em}
+.lp .tlc-dlg .lede{font-size:.85rem; line-height:1.5; color:var(--ink-2)}
+.lp .tlc-dlg .lede strong{color:var(--ink)}
+.lp .tlc-dlg .pick{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.lp .tlc-dlg .pick label{position:relative; display:flex; flex-direction:column; align-items:center; gap:9px; padding:18px 10px 14px; border:1px solid var(--line); border-radius:14px; background:var(--card); cursor:pointer; font-size:.78rem; font-weight:600; color:var(--ink-2); text-align:center; transition:border-color .12s, background .12s, color .12s}
+.lp .tlc-dlg .pick label:hover{border-color:var(--ink-3)}
+.lp .tlc-dlg .pick label.on{border-color:var(--lilac-ink); background:var(--lilac-soft); color:var(--ink)}
+.lp .tlc-dlg .pick input{position:absolute; inset:0; z-index:1; width:100%; height:100%; margin:0; opacity:0; cursor:pointer}
+.lp .tlc-dlg .pick label:has(input:focus-visible){box-shadow:0 0 0 3px var(--lilac-soft); border-color:var(--lilac-ink)}
+.lp .tlc-dlg .glyph{width:36px; height:36px; filter:drop-shadow(0 2px 6px rgba(38,33,27,.14)); opacity:.7; transition:opacity .12s}
+.lp .tlc-dlg .pick label.on .glyph{opacity:1}
+.lp .tlc-dlg .cta{position:relative; display:flex; align-items:center; justify-content:center; gap:9px; width:100%; padding:13px 18px; border-radius:12px; font-size:.9rem; font-weight:600; color:#fff; background:var(--vio-deep) !important; border:1px solid transparent !important; transition:background .12s, transform .15s var(--ease-spring)}
+.lp .tlc-dlg .cta:hover{background:color-mix(in srgb, var(--vio-deep) 85%, white) !important}
+.lp .tlc-dlg .cta:active{transform:scale(.985)}
+.lp .tlc-dlg .cta.busy{cursor:progress; background:color-mix(in srgb, var(--vio-deep) 80%, white) !important}
+.lp .tlc-dlg .cta svg{width:15px; height:15px}
+.lp .tlc-dlg .cta.nudge::after{content:''; position:absolute; inset:-5px; border-radius:16px; border:2px solid var(--lilac-ink); pointer-events:none; animation:tlc-nudge 1.8s ease-out infinite}
+@keyframes tlc-nudge{0%{opacity:.6; transform:scale(.97)} 100%{opacity:0; transform:scale(1.04)}}
+.lp .tlc-dlg .hint{margin-top:-4px; text-align:center; font-size:.78rem; color:var(--ink-3)}
+.lp .tlc-dlg .added{display:flex; justify-content:center; align-items:center; gap:8px; margin-top:-4px; font-size:.78rem; color:var(--ink-2); animation:bld-fade .3s both}
+.lp .tlc-dlg .added .tick{flex:none; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; color:var(--mint-ink); background:var(--mint-soft)}
+.lp .tlc-dlg .added .tick svg{width:11px; height:11px}
+
+.lp .tlc-side{display:grid; justify-items:center; gap:14px; min-width:0}
+.lp .tlc-side .hint{max-width:290px; min-height:3em; text-align:center}
+.lp .tlc-side .hint button{font-weight:600; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px}
+.lp .tlc-side .hint button:hover{color:var(--ink)}
+
+/* the phone: a three-day evening view */
+.lp .tlc-phone{--days:3; --today:#1A73E8; position:relative; width:100%; max-width:290px; display:grid; grid-template-columns:minmax(0,1fr); padding:28px 10px 10px; border-radius:34px; border:1.5px solid var(--ink); background:var(--card); box-shadow:6px 6px 0 var(--sky), inset 0 0 0 5px var(--paper-2)}
+.lp .tlc-phone.apple{--today:#E5484D}
+.lp .tlc-phone .notch{position:absolute; left:50%; top:9px; width:70px; height:16px; transform:translateX(-50%); border-radius:999px; background:var(--ink)}
+.lp .tlc-phone .ph-top{display:flex; align-items:baseline; gap:6px; padding:4px 4px 8px}
+.lp .tlc-phone .ph-top b{font:700 1.15rem var(--display); letter-spacing:-.03em}
+.lp .tlc-phone.apple .ph-top b{color:#E5484D}
+.lp .tlc-phone .ph-top span{font:500 .7rem var(--mono); color:var(--ink-3)}
+.lp .tlc-phone .days,.lp .tlc-phone .allday,.lp .tlc-phone .grid{display:grid; grid-template-columns:24px minmax(0,1fr)}
+.lp .tlc-phone .days{grid-template-columns:24px repeat(var(--days),minmax(0,1fr)); padding-bottom:5px}
+.lp .tlc-phone .dh{display:grid; justify-items:center; gap:1px}
+.lp .tlc-phone .dh small{font:600 .52rem var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--ink-3)}
+.lp .tlc-phone .dh b{display:grid; place-items:center; width:24px; height:24px; border-radius:50%; font:700 .88rem var(--display)}
+.lp .tlc-phone .dh.today b{color:#fff; background:var(--today)}
+.lp .tlc-phone .allday{min-height:22px; padding:2px 0; border-block:1px solid var(--line)}
+.lp .tlc-phone .allday .lab{align-self:center; font:600 .42rem var(--mono); line-height:1.1; color:var(--ink-3)}
+.lp .tlc-phone .cells{display:grid; grid-template-columns:repeat(var(--days),minmax(0,1fr)); align-items:center}
+.lp .tlc-phone .adc{grid-column:3; margin:0 2px; padding:2px 5px; border-radius:4px; font-size:.54rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#fff; background:var(--c)}
+.lp .tlc-phone .grid{padding-top:6px}
+.lp .tlc-phone .gut span{display:block; height:var(--hh); padding-right:4px; text-align:right; font:500 .5rem var(--mono); color:var(--ink-3); transform:translateY(-5px)}
+.lp .tlc-phone .area{position:relative; background:linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / calc(100% / var(--days)) 100%}
+.lp .tlc-phone .hr{display:block; height:var(--hh); border-top:1px solid var(--line)}
+.lp .tlc-phone .blk{
+  position:absolute; z-index:1; display:grid; align-content:start;
+  left:calc(var(--d) * 100% / var(--days) + 2px); width:calc(100% / var(--days) - 4px);
+  top:calc(var(--s) * var(--hh) + 1px); height:calc(var(--l) * var(--hh) - 2px);
+  padding:3px 5px; border-radius:6px; border-left:3px solid var(--c);
+  background:color-mix(in srgb, var(--c) 15%, var(--card));
+}
+.lp .tlc-phone .blk b{font-size:.58rem; font-weight:700; line-height:1.15; color:color-mix(in srgb, var(--c) 70%, var(--ink)); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere}
+.lp .tlc-phone .blk.mine{background:var(--paper-2); z-index:0}
+.lp .tlc-phone .blk.mine b{color:var(--ink-2); font-weight:600}
+/* the chapter's events drop in one after another, then ring once */
+.lp .tlc-phone .blk:not(.mine),.lp .tlc-phone .adc{
+  animation:tlc-land .62s var(--ease-spring) both, tlc-ring .9s ease-out both;
+  animation-delay:calc(var(--i) * 150ms + 80ms), calc(var(--i) * 150ms + 520ms);
+}
+@keyframes tlc-land{from{opacity:0; transform:translateY(-42px) scale(.86) rotate(-4deg)} 55%{opacity:1}}
+@keyframes tlc-ring{from{box-shadow:0 0 0 0 color-mix(in srgb, var(--c) 50%, transparent)} to{box-shadow:0 0 0 9px transparent}}
+.lp .tlc-phone .cals{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:6px; padding:8px 4px 2px; border-top:1px solid var(--line); font-size:.62rem; font-weight:600; color:var(--ink-2)}
+.lp .tlc-phone .cals span{display:inline-flex; align-items:center; gap:5px}
+.lp .tlc-phone .cals i{width:8px; height:8px; border-radius:3px}
+.lp .tlc-phone .cals .new{color:var(--ink); animation:bld-fade .4s .7s both}
+@media (prefers-reduced-motion: reduce){
+  .lp .tlc-phone .blk:not(.mine),.lp .tlc-phone .adc,.lp .tlc-dlg .cta.nudge::after{animation:none}
+}
+@media (max-width: 760px){
+  .lp .tlc-grid{grid-template-columns:minmax(0,420px); padding:22px 14px 18px}
+}
+@media (max-width: 420px){
+  .lp .tlc-dlg{padding:16px 16px 18px; box-shadow:4px 4px 0 var(--lilac)}
+  .lp .tlc-phone{box-shadow:4px 4px 0 var(--sky), inset 0 0 0 5px var(--paper-2)}
+}
+
+
+@keyframes tld-pop{from{opacity:0; transform:scale(.92) translateY(-3px)}}
+/* ---------- 5. live check-in -------------------------------------------------- */
+/* The dashboard band as the app's Paper look draws it (paper-checkin.css,
+   section.live) over a room of seats that fill as people arrive. Prefixed
+   tci-. One tone pair drives every state: --ci the ink, --ci-s the pastel. */
+.lp .tci-stage{display:grid; gap:20px; padding:26px 24px 24px}
+.lp .tci-band{--ci:var(--sky-ink); --ci-s:var(--sky); position:relative; border:1.5px solid var(--ink); border-radius:22px; background:var(--card); box-shadow:5px 5px 0 var(--ci-s); overflow:hidden; transition:box-shadow .35s, border-color .35s}
+.lp .tci-band.s-open,.lp .tci-band.s-done{--ci:var(--mint-ink); --ci-s:var(--mint)}
+.lp .tci-band.s-closing{--ci:var(--butter-ink); --ci-s:var(--butter)}
+.lp .tci-band.s-closed{--ci:var(--ink-3); --ci-s:var(--paper-3); border-color:var(--line-2)}
+.lp .tci-band .rule{position:absolute; left:12px; top:16px; bottom:16px; width:5px; border-radius:3px; background:var(--paper-3); overflow:hidden}
+.lp .tci-band .rule i{display:block; height:100%; border-radius:3px; background:var(--ci); transform-origin:bottom; transition:transform .3s linear, background .3s}
+.lp .tci-band .body{display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:14px 28px; align-items:center; padding:20px 22px 20px 32px}
+.lp .tci-band .what{min-width:0}
+.lp .tci-band .kicker{display:flex; flex-wrap:wrap; align-items:center; gap:8px; font:600 .7rem var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ci)}
+.lp .tci-band .kicker .el{font:500 .76rem var(--sans); letter-spacing:0; text-transform:none; color:var(--ink-3)}
+.lp .tci-band .dot{width:8px; height:8px; border-radius:50%; background:var(--ci)}
+.lp .tci-band .dot.beat{animation:tci-pulse 1.8s ease-out infinite}
+@keyframes tci-pulse{0%{box-shadow:0 0 0 0 var(--ci-s)} 70%,100%{box-shadow:0 0 0 8px transparent}}
+.lp .tci-band .title{margin:6px 0 0; font:600 clamp(1.35rem,2.4vw,1.7rem)/1.1 var(--display); letter-spacing:-.03em; color:var(--ink)}
+.lp .tci-band .receipt{display:flex; align-items:center; gap:9px; margin-top:9px; font-size:.88rem; color:var(--ink-2)}
+.lp .tci-band .receipt b{color:var(--ink); font-weight:650}
+.lp .tci-band .receipt button{color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.lp .tci-band .receipt button:hover{color:var(--ink)}
+.lp .tci-band .chk{display:grid; place-items:center; flex:none; width:22px; height:22px; border-radius:50%; color:var(--card); background:var(--mint-ink); animation:tci-thump .45s var(--ease-spring) both}
+.lp .tci-band .chk svg{width:12px; height:12px}
+@keyframes tci-thump{0%{transform:scale(.4)} 60%{transform:scale(1.15)}}
+.lp .tci-band .nudge{margin-top:9px; font-size:.84rem; line-height:1.4; color:var(--butter-ink); animation:bld-fade .3s both}
+.lp .tci-band .nudge b{font-weight:650}
+.lp .tci-band .meta{display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:10px; font-size:.82rem; color:var(--ink-3)}
+.lp .tci-band .meta b{color:var(--ink-2); font-weight:600}
+.lp .tci-band .meta .sep{color:var(--line-2)}
+.lp .tci-band .req{display:inline-flex; padding:1px 8px; border-radius:999px; font-size:.7rem; font-weight:600; color:var(--peach-ink); background:var(--peach-soft); border:1px solid color-mix(in srgb, var(--peach) 80%, var(--peach-ink))}
+.lp .tci-band .alt{font-size:.82rem; font-weight:600; color:var(--ink-2); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:4px}
+.lp .tci-band .alt:hover{color:var(--ink); text-decoration-color:var(--ink-3)}
+.lp .tci-band .alt.close{color:var(--peach-ink)}
+
+.lp .tci-band .count{min-width:128px; text-align:right}
+.lp .tci-band .count .n{font:600 2.35rem/1 var(--display); letter-spacing:-.05em; color:var(--ink); font-variant-numeric:tabular-nums}
+.lp .tci-band .count .n small{font-size:1rem; letter-spacing:-.02em; color:var(--ink-3)}
+.lp .tci-band .count .k{margin-top:3px; font:500 .66rem var(--mono); color:var(--ink-3)}
+.lp .tci-band .track{display:block; height:6px; margin-top:8px; border-radius:3px; background:var(--paper-3); overflow:hidden}
+.lp .tci-band .track i{display:block; height:100%; border-radius:3px; background:var(--ci); transition:width .4s var(--ease-out), background .3s}
+.lp .tci-band .stack{display:flex; justify-content:flex-end; align-items:center; gap:7px; min-height:24px; margin-top:9px; font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+.lp .tci-band .stack .s{display:flex}
+.lp .tci-band .av{display:grid; place-items:center; width:24px; height:24px; margin-left:-7px; border-radius:50%; border:2px solid var(--card); font-size:.56rem; font-weight:700; color:rgba(38,33,27,.75); background:var(--mint); animation:tci-pop .3s var(--ease-spring) both}
+.lp .tci-band .av:first-child{margin-left:0}
+.lp .tci-band .av:nth-child(2){background:var(--sky)} .lp .tci-band .av:nth-child(3){background:var(--butter)} .lp .tci-band .av:nth-child(4){background:var(--lilac)}
+.lp .tci-band .av.you{font-size:.46rem; color:var(--paper); background:var(--ink)}
+@keyframes tci-pop{from{transform:scale(.5); opacity:0}}
+
+.lp .tci-band .act{display:grid; justify-items:center; min-width:150px}
+.lp .tci-band .btn{position:relative; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:13px 20px; border-radius:999px; border:1.5px solid var(--ink) !important; background:var(--ink) !important; color:var(--paper); font-size:.94rem; font-weight:600; letter-spacing:-.01em; box-shadow:2.5px 2.5px 0 var(--ci-s); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.lp .tci-band .btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--ci-s)}
+.lp .tci-band .btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--ci-s)}
+.lp .tci-band .btn svg{width:16px; height:16px}
+.lp .tci-band .nudge-ring::after{content:''; position:absolute; inset:-6px; border-radius:999px; border:2px solid var(--ci); pointer-events:none; animation:tci-ring 1.8s ease-out infinite}
+@keyframes tci-ring{0%{opacity:.55; transform:scale(.96)} 100%{opacity:0; transform:scale(1.1)}}
+.lp .tci-band .stamp{display:grid; justify-items:center; gap:2px; padding:6px 13px 5px; color:var(--mint-ink); border:2.5px solid currentColor; border-radius:7px; outline:1.5px solid currentColor; outline-offset:2.5px; font:700 .92rem/1 var(--mono); letter-spacing:.18em; text-indent:.18em; transform:rotate(-8deg); animation:tld-thunk .34s cubic-bezier(.3,0,.2,1) both}
+.lp .tci-band .stamp small{font:600 .52rem var(--mono); letter-spacing:.14em; opacity:.85}
+
+/* the room: one seat per member */
+.lp .tci-room{padding:16px 18px 14px; border:1.5px solid var(--line); border-radius:18px; background:var(--card)}
+.lp .tci-room .hd{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 16px; margin-bottom:12px}
+.lp .tci-room .lab{font:700 .6rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.lp .tci-room .legend{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.74rem; color:var(--ink-2)}
+.lp .tci-room .legend span{display:inline-flex; align-items:center; gap:6px}
+.lp .tci-room .legend i{width:11px; height:11px; border-radius:50%}
+.lp .tci-room .legend .in{background:var(--mint)} .lp .tci-room .legend .excused{background:var(--butter-soft); border:1.5px dashed var(--butter-ink)}
+.lp .tci-room .legend .wait{background:var(--paper-2); border:1.5px dashed var(--line-2)} .lp .tci-room .legend .absent{background:var(--peach-soft); border:1.5px solid var(--peach)}
+.lp .tci-room .seats{display:grid; grid-template-columns:repeat(auto-fill, minmax(34px,1fr)); gap:7px}
+.lp .tci-room .seat{display:grid; place-items:center; aspect-ratio:1; border-radius:50%; font-size:.62rem; font-weight:700; color:var(--ink-3); background:var(--paper-2); border:1.5px dashed var(--line-2); transition:background .3s, color .3s, border-color .3s}
+.lp .tci-room .seat.in{color:rgba(38,33,27,.78); background:var(--t); border:1.5px solid rgba(38,33,27,.1); animation:tci-sit .5s var(--ease-spring) both}
+.lp .tci-room .seat.excused{color:var(--butter-ink); background:var(--butter-soft); border-color:var(--butter-ink)}
+.lp .tci-room .seat.absent{color:var(--peach-ink); background:var(--peach-soft); border:1.5px solid var(--peach); animation:tci-pop .35s var(--ease-spring) both}
+.lp .tci-room .seat.you{font-size:.52rem; outline:2px solid var(--ink); outline-offset:2px}
+.lp .tci-room .seat.you.in{color:var(--paper); background:var(--ink)}
+@keyframes tci-sit{0%{transform:scale(.55)} 60%{transform:scale(1.14)} 100%{transform:none}}
+.lp .tci-room .hint{margin-top:12px; min-height:3em}
+
+@media (prefers-reduced-motion: reduce){
+  .lp .tci-band .nudge-ring::after,.lp .tci-band .dot.beat{animation:none}
+}
+@media (max-width: 760px){
+  .lp .tci-stage{padding:16px 12px 14px; gap:16px}
+  .lp .tci-band .body{grid-template-columns:minmax(0,1fr); padding:18px 18px 18px 30px}
+  .lp .tci-band .count{min-width:0; text-align:left; display:grid; grid-template-columns:auto minmax(0,1fr); column-gap:14px; align-items:end}
+  .lp .tci-band .count .n{grid-row:1 / 3}
+  .lp .tci-band .count :is(.track,.stack){grid-column:1 / -1}
+  .lp .tci-band .stack{justify-content:flex-start}
+  .lp .tci-band .act{justify-items:stretch; min-width:0}
+  .lp .tci-band .act .stamp{justify-self:center}
+  .lp .tci-room{padding:14px 12px 12px}
+  .lp .tci-room .seats{grid-template-columns:repeat(auto-fill, minmax(30px,1fr)); gap:6px}
+}
+
+
+/* ---------- 1. add an event (TimelineAdd) ------------------------------------- */
+/* The app's event sheet (paper look) open over a timeline drawn in its likeness.
+   Prefixed tea-. Event colours arrive per element as --c. */
+.lp .tea-app{position:relative; height:760px; overflow:hidden; background:radial-gradient(900px 320px at 85% -12%, var(--sky-soft), transparent 70%), var(--paper)}
+.lp .tea-page{position:absolute; inset:0; overflow:auto; padding:26px 30px 36px; scrollbar-width:thin; overscroll-behavior:contain}
+.lp .tea-top{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:14px 20px}
+.lp .tea-top .date{display:inline-block; padding:3px 10px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); font:600 .6rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2)}
+.lp .tea-top h3{margin:10px 0 0; font:600 2.1rem/1 var(--display); letter-spacing:-.045em; color:var(--ink)}
+.lp .tea-top mark{color:inherit; padding:0 2px; background:linear-gradient(transparent 58%, var(--sky) 58%, var(--sky) 92%, transparent 92%)}
+.lp .tea-add{position:relative; display:inline-flex; align-items:center; gap:7px; padding:10px 18px; border-radius:999px; font-size:.9rem; font-weight:600; color:var(--paper); background:var(--ink) !important; border:1.5px solid var(--ink) !important; box-shadow:2.5px 2.5px 0 var(--lilac); transition:transform .15s var(--ease-spring), box-shadow .15s var(--ease-spring)}
+.lp .tea-add:hover{transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--lilac)}
+.lp .tea-add svg{width:15px; height:15px}
+.lp .tea-add.again::after{content:''; position:absolute; inset:-6px; border-radius:999px; border:2px solid var(--lilac-ink); pointer-events:none; animation:tea-ring 1.8s ease-out 3s infinite both}
+@keyframes tea-ring{0%{opacity:.6; transform:scale(.96)} 100%{opacity:0; transform:scale(1.1)}}
+
+.lp .tea-today{display:flex; align-items:center; gap:10px; margin:22px 0 4px}
+.lp .tea-today span{padding:4px 11px; border-radius:999px; font:700 .58rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--paper); background:var(--ink); box-shadow:2px 2px 0 var(--peach)}
+.lp .tea-today i{flex:1; border-top:2px solid var(--peach-ink); opacity:.7}
+
+.lp .tea-month h4{display:flex; align-items:baseline; gap:8px; margin:22px 0 12px}
+.lp .tea-month h4 b{font:600 1.45rem/1 var(--display); letter-spacing:-.035em; color:var(--ink)}
+.lp .tea-month h4 small{font:500 .66rem var(--mono); color:var(--ink-3)}
+.lp .tea-month h4 i{flex:1; border-top:1.5px dashed var(--line-2); transform:translateY(-4px)}
+.lp .tea-month h4 span{font:500 .62rem var(--mono); color:var(--ink-3)}
+
+.lp .tea-spine{position:relative; display:grid; gap:10px; margin:0; padding:0; list-style:none}
+.lp .tea-spine::before{content:''; position:absolute; left:66px; top:14px; bottom:14px; border-left:2px solid var(--line)}
+.lp .tea-row{position:relative; display:grid; grid-template-columns:48px 22px minmax(0,1fr); gap:8px; align-items:center}
+.lp .tea-row .dd{display:grid; justify-items:end; line-height:1}
+.lp .tea-row .dd small{font:600 .54rem var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.lp .tea-row .dd b{margin-top:2px; font:700 1.35rem/1 var(--display); letter-spacing:-.04em; color:var(--ink)}
+.lp .tea-row .node{position:relative; z-index:1; justify-self:center; width:13px; height:13px; border-radius:50%; border:2.5px solid var(--c); background:var(--card); transition:background .3s, box-shadow .3s}
+.lp .tea-row.landed .node{background:var(--c); box-shadow:0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent); animation:tea-node .5s var(--ease-spring) .15s both}
+@keyframes tea-node{0%{transform:scale(.4)} 60%{transform:scale(1.35)}}
+
+.lp .tea-card{position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 14px 12px 16px; border-radius:14px; border:1.5px solid var(--line); background:var(--card); box-shadow:0 1.5px 0 var(--line); transition:border-color .2s, box-shadow .2s var(--ease-spring), transform .2s var(--ease-spring)}
+.lp .tea-card::before{content:''; position:absolute; left:-1.5px; top:12px; bottom:12px; width:3.5px; border-radius:0 3px 3px 0; background:var(--c); opacity:.85}
+.lp .tea-row:hover .tea-card{border-color:var(--ink); transform:translate(-1px,-1px); box-shadow:3px 3px 0 color-mix(in srgb, var(--c) 30%, transparent)}
+.lp .tea-card.pending{visibility:hidden}
+.lp .tea-card .tx{min-width:0}
+.lp .tea-card .tt{display:block; font-size:.98rem; font-weight:650; line-height:1.25; letter-spacing:-.01em; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.lp .tea-card .mt{display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; margin-top:4px; font-size:.76rem; color:var(--ink-3)}
+.lp .tea-card .ty{display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--c)}
+.lp .tea-card .ty i{width:7px; height:7px; border-radius:50%; background:var(--c)}
+.lp .tea-card .rq{padding:1px 5px; border-radius:4px; border:1.5px solid var(--line-2); font:700 .54rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2)}
+.lp .tea-card .when{display:inline-flex; align-items:center; gap:6px; font:500 .64rem var(--mono); color:var(--ink-3); white-space:nowrap}
+.lp .tea-card .when svg{width:14px; height:14px}
+.lp .tea-row.landed .tea-card{border-color:var(--ink); background:color-mix(in srgb, var(--c) 9%, var(--card)); box-shadow:3px 3px 0 color-mix(in srgb, var(--c) 30%, transparent); animation:tld-give .38s ease-out .2s}
+.lp .tea-row.landed .tea-card .when{opacity:.35}
+.lp .tea-stamp{
+  position:absolute; right:42px; top:50%; z-index:2; pointer-events:none;
+  display:grid; justify-items:center; gap:2px; padding:5px 10px 4px;
+  color:var(--mint-ink); border:2.5px solid currentColor; border-radius:7px; outline:1.5px solid currentColor; outline-offset:2.5px;
+  background:rgba(255,255,255,.7);
+  font:700 .68rem/1 var(--mono); letter-spacing:.16em; text-indent:.16em; text-transform:uppercase; white-space:nowrap;
+  transform:translateY(-50%) rotate(-8deg);
+  animation:tld-thunk .34s cubic-bezier(.3,0,.2,1) both, tld-inkfade .8s ease 2.8s forwards;
+}
+.lp .tea-stamp small{font:600 .5rem var(--mono); letter-spacing:.14em}
+.lp .tea-end{margin:22px 0 0; text-align:center; font-size:.82rem; color:var(--ink-3)}
+.lp .tea-end button{margin-left:6px; font-weight:600; color:var(--ink); text-decoration:underline; text-underline-offset:4px}
+
+/* the sheet: the app's Paper event form — folder tabs out of its top edge, icon-led
+   rows, a cream foot; page 2 springs wide for More details with a sheet tucked under */
+.lp .tea-scrim{position:absolute; inset:0; z-index:3; background:rgba(38,33,27,.16); backdrop-filter:blur(3px) saturate(115%); opacity:0; pointer-events:none; transition:opacity .3s}
+.lp .tea-scrim.on{opacity:1; pointer-events:auto}
+.lp .tea-dlg{position:absolute; z-index:4; left:50%; top:52px; bottom:auto; width:min(700px, calc(100% - 28px)); max-height:calc(100% - 66px); display:flex; flex-direction:column; transform:translateX(-50%); animation:tea-in .32s var(--ease-spring) both; transition:width .5s var(--ease-spring)}
+.lp .tea-dlg.p2{width:min(900px, calc(100% - 28px)); height:calc(100% - 66px)}
+.lp .tea-dlg.p2::before{content:''; position:absolute; inset:10px -7px -7px 7px; z-index:-1; border-radius:22px; background:var(--paper-2); border:1.5px solid var(--line-2); transform:rotate(.9deg); animation:tea-fade .3s ease .3s both}
+@keyframes tea-in{from{opacity:0; transform:translateX(-50%) translateY(12px) scale(.98)}}
+@keyframes tea-fade{from{opacity:0}}
+.lp .tea-tabs{position:absolute; left:22px; bottom:100%; z-index:2; display:flex; align-items:flex-end; gap:4px}
+.lp .bld .tea-tabs button{display:inline-flex; align-items:center; gap:8px; padding:8px 16px 9px; border:1.5px solid var(--ink); border-bottom:0; border-radius:13px 13px 0 0; background:var(--paper-2); color:var(--ink-3); font-size:.8rem; font-weight:600; letter-spacing:-.005em; transform:translateY(4px); clip-path:inset(-12px -12px 5.5px -12px); transition:transform .25s var(--ease-spring), clip-path .25s var(--ease-spring), background .2s, color .2s}
+.lp .bld .tea-tabs button:hover{transform:translateY(1px); clip-path:inset(-12px -12px 2.5px -12px); color:var(--ink)}
+.lp .bld .tea-tabs button[aria-selected="true"]{background:var(--card); color:var(--ink); transform:none; clip-path:inset(-12px -12px 0 -12px)}
+.lp .tea-tabs svg{width:15px; height:15px}
+.lp .tea-tabs .n{min-width:19px; height:19px; padding:0 5px; border-radius:999px; display:inline-grid; place-items:center; font:600 .68rem var(--mono); background:var(--lilac); color:var(--lilac-ink); border:1.5px solid var(--ink)}
+
+.lp .tea-sheet{position:relative; display:flex; flex-direction:column; min-height:0; flex:1 1 auto; overflow:auto; scrollbar-width:thin; border:1.5px solid var(--ink); border-radius:22px; background:var(--card); box-shadow:6px 6px 0 var(--lilac); transition:box-shadow .4s}
+.lp .tea-sheet[data-page="2"]{overflow:hidden; box-shadow:6px 6px 0 var(--butter)}
+.lp .bld .tea-sheet > .x{position:absolute; right:14px; top:14px; z-index:2; display:grid; place-items:center; width:30px; height:30px; border-radius:9px; color:var(--ink-3)}
+.lp .bld .tea-sheet > .x:hover{color:var(--ink); background:var(--paper-2)}
+.lp .tea-sheet > .x svg{width:16px; height:16px}
+.lp .tea-p1{padding:20px 24px 0}
+.lp .tea-sheet .kick{display:block; font:600 .62rem var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.lp .tea-sheet .title{display:block; width:100%; margin:8px 0 0; padding:2px 0 12px; border:0; border-bottom:1.5px dashed var(--line-2); background:transparent; outline:none; font:600 1.85rem/1.15 var(--display); letter-spacing:-.035em; color:var(--ink)}
+.lp .tea-sheet .title:focus{border-bottom-color:var(--ink)}
+.lp .tea-sheet .title::placeholder{color:var(--line-2)}
+.lp .tea-sheet .rw{display:grid; grid-template-columns:22px minmax(0,1fr); gap:20px; align-items:start; padding:13px 0; border-bottom:1.5px solid var(--paper-3)}
+.lp .tea-sheet .rw > div{min-width:0}
+.lp .tea-sheet .ic{display:grid; place-items:center; height:40px; color:var(--ink-3); transition:color .15s}
+.lp .tea-sheet .rw:focus-within .ic{color:var(--ink)}
+.lp .tea-sheet .ic svg{width:18px; height:18px}
+.lp .tea-sheet .ins{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.lp .tea-sheet .ins input{height:42px; padding:0 12px; border-radius:10px; border:1.5px solid var(--line-2); background:var(--paper); font:500 .9rem var(--sans); font-variant-numeric:tabular-nums; color:var(--ink); outline:none; transition:border-color .15s, box-shadow .15s}
+.lp .tea-sheet .ins input:focus{border-color:var(--ink); box-shadow:2px 2px 0 var(--lilac)}
+.lp .tea-sheet .ins input[type=date]{flex:1 1 170px; min-width:0}
+.lp .tea-sheet .ins input[type=time]{flex:0 1 124px; min-width:0}
+.lp .tea-sheet .ins .ar{color:var(--ink-3)}
+.lp .tea-sheet .when .sub{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:10px}
+.lp .tea-sheet .when small{font:500 .7rem var(--mono); color:var(--ink-2)}
+.lp .tea-sheet .when small u{color:var(--ink-3); text-decoration:underline dotted; text-underline-offset:3px}
+.lp .tea-sheet .ad{display:inline-flex; align-items:center; gap:9px; font-size:.82rem; font-weight:550; color:var(--ink-2); cursor:pointer}
+.lp .tea-sheet .chips{display:flex; flex-wrap:wrap; gap:7px; padding-top:4px}
+.lp .tea-sheet .chips label{position:relative; display:inline-flex; align-items:center; gap:8px; padding:6px 12px 6px 11px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); cursor:pointer; font-size:.82rem; font-weight:550; color:var(--ink-2); transition:border-color .15s, background .15s, color .15s, box-shadow .15s}
+.lp .tea-sheet .chips label:hover{border-color:var(--ink-3)}
+.lp .tea-sheet .chips label.on{border-color:var(--ink); color:var(--ink); background:color-mix(in srgb, var(--c) 14%, var(--card)); box-shadow:1.5px 1.5px 0 color-mix(in srgb, var(--c) 35%, transparent)}
+.lp .tea-sheet .chips label:has(input:focus-visible){outline:2px solid var(--sky-ink); outline-offset:2px}
+.lp .tea-sheet .chips input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer}
+.lp .tea-sheet .chips i{width:9px; height:9px; border-radius:50%; background:var(--c)}
+.lp .tea-sheet .note{display:block; margin-top:10px; font-size:.78rem; color:var(--ink-3)}
+.lp .tea-sheet .req{grid-template-columns:22px minmax(0,1fr) auto; align-items:center; cursor:pointer}
+.lp .tea-sheet .req .ic{height:auto}
+.lp .tea-sheet .lbl b{display:block; font-size:.9rem; font-weight:600; color:var(--ink)}
+.lp .tea-sheet .lbl small{font-size:.78rem; color:var(--ink-3)}
+.lp .tea-sheet .sw{appearance:none; position:relative; flex:none; width:36px; height:21px; margin:0; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper-3); cursor:pointer; transition:background .2s, border-color .2s}
+.lp .tea-sheet .sw::before{content:''; position:absolute; left:2px; top:2px; width:14px; height:14px; border-radius:50%; background:var(--card); box-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .25s var(--ease-spring)}
+.lp .tea-sheet .sw:checked{background:var(--ink); border-color:var(--ink)}
+.lp .tea-sheet .sw:checked::before{transform:translateX(15px); background:var(--paper)}
+.lp .tea-sheet .sw:focus-visible{outline:2px solid var(--sky-ink); outline-offset:2px}
+.lp .tea-sheet .quiet{display:block; width:100%; min-height:40px; padding:9px 12px; border:0; border-radius:8px; background:none; outline:none; resize:none; font:400 .92rem/1.5 var(--sans); color:var(--ink); transition:background .12s, box-shadow .12s}
+.lp .tea-sheet .quiet::placeholder{color:var(--ink-3)}
+.lp .tea-sheet .quiet:hover{background:rgba(38,33,27,.03)}
+.lp .tea-sheet .quiet:focus{background:var(--paper); box-shadow:inset 0 0 0 1.5px var(--ink)}
+.lp .tea-sheet .rw:has(.cef-more, .cef-stamps){border-bottom:0}
+.lp .tea-sheet .ft{position:sticky; bottom:0; z-index:1; display:flex; align-items:center; gap:10px; margin:6px -24px 0; padding:16px 24px 18px; border-top:1.5px solid var(--paper-3); background:var(--paper-2)}
+.lp .tea-sheet .kbd{display:inline-flex; align-items:center; gap:4px; margin-right:auto; font-size:.74rem; color:var(--ink-3)}
+.lp .tea-sheet kbd{padding:1px 6px; border-radius:6px; border:1px solid var(--line-2); background:var(--paper-2); font:500 .68rem var(--mono); color:var(--ink-3)}
+.lp .bld .tea-sheet .cancel{padding:10px 18px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); font-size:.9rem; font-weight:600; color:var(--ink-2); transition:border-color .15s, color .15s}
+.lp .bld .tea-sheet .cancel:hover{border-color:var(--ink); color:var(--ink)}
+.lp .bld .tea-sheet .tea-go{padding:10px 18px; border-radius:999px; border:1.5px solid var(--ink); background:var(--ink); font-size:.9rem; font-weight:600; color:var(--paper); box-shadow:2.5px 2.5px 0 var(--lilac); transition:transform .15s var(--ease-spring), box-shadow .15s var(--ease-spring), opacity .15s}
+.lp .bld .tea-sheet .tea-go:hover:not(:disabled){transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--lilac)}
+.lp .tea-sheet .tea-go:disabled{opacity:.45}
+
+/* page 2: header, then the app's drawer + page (EventDetailsEditor), then the foot */
+.lp .tea-p2{display:flex; flex-direction:column; flex:1 1 auto; min-height:0}
+.lp .tea-p2h{display:flex; align-items:center; gap:14px; padding:20px 60px 14px 24px}
+.lp .bld .tea-p2h .back{width:36px; height:36px; flex:none; display:grid; place-items:center; border-radius:11px; border:1.5px solid var(--line-2); background:var(--paper); color:var(--ink-2); transition:transform .2s var(--ease-spring), border-color .2s}
+.lp .bld .tea-p2h .back:hover{border-color:var(--ink); color:var(--ink); transform:translateX(-2px)}
+.lp .tea-p2h .back svg{width:17px; height:17px}
+.lp .tea-p2h > div{min-width:0}
+.lp .tea-p2h h4{margin:2px 0 0; font:650 1.35rem/1.15 var(--display); letter-spacing:-.03em; color:var(--ink); overflow-wrap:anywhere}
+.lp .tea-p2h .meta{display:block; margin-top:3px; padding-left:20px; font:.74rem var(--mono); color:var(--ink-3)}
+.lp .tea-p2 .ft{margin:0; flex:none}
+.lp .tea-p2 .rem{display:flex; align-items:center; gap:10px; min-width:0; margin-right:auto; cursor:pointer; font-size:.8rem; color:var(--ink-2)}
+.lp .tea-p2 .rem b{font-weight:600; color:var(--ink)}
+.lp .tea-p2 .rem i{display:inline-block; width:8px; height:8px; margin:0 4px 1px 3px; border-radius:50%}
+.lp .tea-p2 .rem small{display:block; font-size:.72rem; color:var(--ink-3)}
+
+/* The editor's own stylesheet (components/timeline/event-details.css), fed the blog's
+   palette. The blog resets every button (`.lp .bld button`, `.lp button`), which
+   outranks the editor's one-class rules, so the boxes and type it draws on buttons
+   and inputs are restated here at the reset's weight. */
+.lp .tea{--pp-mint:var(--mint); --pp-mint-soft:var(--mint-soft); --pp-mint-ink:var(--mint-ink); --pp-butter:var(--butter); --pp-butter-soft:var(--butter-soft); --pp-butter-ink:var(--butter-ink); --pp-peach:var(--peach); --pp-peach-soft:var(--peach-soft); --pp-peach-ink:var(--peach-ink); --pp-sky:var(--sky); --pp-sky-soft:var(--sky-soft); --pp-sky-ink:var(--sky-ink); --pp-lilac:var(--lilac); --pp-lilac-soft:var(--lilac-soft); --pp-lilac-ink:var(--lilac-ink); --pp-rose:var(--rose); --pp-rose-soft:var(--rose-soft); --pp-rose-ink:var(--rose-ink); --pp-sh-1:var(--sh-1)}
+.lp .tea .cef-root{--ed-display:var(--display); --ed-sans:var(--sans); --ed-mono:var(--mono); --line-med:var(--line-2); --muted:var(--ink-3); --faint:#B3A894; --ink-soft:var(--ink-2); --card-3:var(--paper-3)}
+.lp .tea .edt{flex:1 1 auto; min-height:0; margin:0; border-bottom:0}
+.lp .tea :is(.edt-drawer, .edt-sheet){overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin}
+.lp .bld .cef-root .edt-kind{background:var(--card); border:1.5px solid var(--line)}
+.lp .bld .cef-root .edt-kind:hover:not(.used):not(:disabled){border-color:var(--ink)}
+.lp .bld .cef-root .edt-kind.used{background:transparent; border-style:dashed}
+.lp .bld .cef-root .edt-kind.custom{border-style:dashed; border-color:var(--line-2)}
+.lp .bld .cef-root .edt-qk{border:1.5px solid var(--ink); background:var(--hs); font:600 .8rem var(--sans); color:var(--ink)}
+.lp .bld .cef-root .edt-ib{border:1.5px solid transparent; color:var(--ink-3)}
+.lp .bld .cef-root .edt-ib:hover{color:var(--ink); border-color:var(--line); background:var(--paper)}
+.lp .bld .cef-root .edt-ib.rm:hover{color:var(--rose-ink); border-color:var(--rose)}
+.lp .bld .cef-root :is(.edt-chev){color:var(--ink-3)}
+.lp .bld .cef-root .edt-grip{color:var(--line-2)}
+.lp .bld .cef-root .edt-seg button{font:550 .78rem var(--sans); color:var(--ink-3)}
+.lp .bld .cef-root .edt-seg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:var(--sh-1)}
+.lp .bld .cef-root .edt-doors .door{border:1.5px solid var(--line-2); background:var(--paper)}
+.lp .bld .cef-root .edt-doors .door[aria-pressed="true"]{border-color:var(--ink); background:var(--lilac-soft)}
+.lp .bld .cef-root .edt-tkt .stepper button{border:1.5px solid var(--ink); background:var(--card); font:600 1rem var(--sans)}
+.lp .bld .cef-root .edt-tags .tag{border:1.5px solid var(--line-2); background:var(--paper); font:550 .82rem var(--sans); color:var(--ink-2)}
+.lp .bld .cef-root .edt-tags .tag[aria-pressed="true"]{color:var(--ink); border-color:var(--ink); background:var(--lilac-soft)}
+.lp .bld .cef-root .edt-yn button{border:1.5px solid var(--line-2); background:var(--card); font:600 .86rem var(--sans); color:var(--ink-2)}
+.lp .bld .cef-root .edt-yn button[aria-pressed="true"]{border-color:var(--ink); background:var(--butter-soft); color:var(--ink)}
+.lp .bld .cef-root .cef-more{background:var(--paper-2); border:1.5px dashed var(--line-2)}
+.lp .bld .cef-root .cef-more:hover{border-style:solid; border-color:var(--ink); background:var(--card)}
+.lp .bld .cef-root .cef-stamp{border:1.5px solid var(--ink); background:var(--hs); font:550 .78rem var(--sans); color:var(--ink)}
+.lp .bld .cef-root .cef-link{font:550 .8rem var(--sans); color:var(--ink-2); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.lp .tea .cef-root :is(.edt-inp, .edt-addrow input){font:500 .88rem var(--sans); color:var(--ink)}
+.lp .tea .cef-root .edt-addrow.mono input{font:.8rem var(--mono)}
+.lp .tea .cef-root .edt-bcard select{font:600 1.02rem var(--display)}
+.lp .tea .cef-root .edt-empty h4{margin:0 0 6px}
+.lp .tea .cef-root .edt-empty p{margin:0 auto 16px}
+.lp .tea .cef-root .edt-sheet{padding-bottom:28px}
+.lp .tea-card .evd-stack{display:flex}
+.lp .tea-card .evd-stack i{border-color:var(--card)}
+
+/* the flight: the sheet's copy fades as the card's face comes up */
+.lp .tea-ghost{position:absolute; z-index:5; overflow:hidden; pointer-events:none; border:1.5px solid var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--lilac)}
+.lp .tea-ghost .tea-ghost-form{position:absolute; left:-1.5px; top:-1.5px; width:var(--w); max-height:none; overflow:hidden; transform:none; animation:none; border:0; box-shadow:none}
+.lp .tea-ghost .tea-ghost-face{position:absolute; inset:-1.5px; border-color:transparent; box-shadow:none; transform:none; background:color-mix(in srgb, var(--c) 9%, var(--card))}
+
+@media (prefers-reduced-motion: reduce){
+  .lp .tea-dlg,.lp .tea-row.landed .node,.lp .tea-row.landed .tea-card{animation:none}
+  .lp .tea-add.again::after{animation:none}
+}
+@media (max-width: 620px){
+  .lp .tea-app{height:810px}
+  .lp .tea-page{padding:18px 14px 28px}
+  .lp .tea-top h3{font-size:1.65rem}
+  .lp .tea-add{padding:8px 14px; font-size:.84rem}
+  .lp .tea-spine::before{left:55px}
+  .lp .tea-row{grid-template-columns:40px 18px minmax(0,1fr); gap:6px}
+  .lp .tea-card{grid-template-columns:minmax(0,1fr); padding:10px 12px 10px 14px}
+  .lp .tea-card .when{display:none}
+  .lp .tea-stamp{right:10px}
+  .lp .tea-dlg,.lp .tea-dlg.p2{top:44px; width:calc(100% - 16px); max-height:calc(100% - 52px)}
+  .lp .tea-dlg.p2{height:calc(100% - 52px)}
+  .lp .tea-dlg.p2::before{display:none}
+  .lp .tea-tabs{left:14px}
+  .lp .bld .tea-tabs button{padding:7px 12px 8px}
+  .lp .tea-p1{padding:16px 16px 0}
+  .lp .tea-sheet .title{font-size:1.5rem}
+  .lp .tea-sheet .rw{grid-template-columns:18px minmax(0,1fr); gap:12px}
+  .lp .tea-sheet .req{grid-template-columns:18px minmax(0,1fr) auto}
+  .lp .tea-sheet .ins input[type=date]{flex-basis:100%}
+  .lp .tea-sheet .ins input[type=time]{flex:1 1 0}
+  .lp .tea-sheet .ft{padding:12px 16px; flex-wrap:wrap}
+  .lp .tea-p1 .ft{margin:6px -16px 0}
+  .lp .tea-sheet .kbd{display:none}
+  .lp .tea-sheet .cancel{margin-left:auto}
+  .lp .tea-p2h{padding:16px 52px 10px 16px}
+  .lp .tea-p2 .rem{flex:1 1 100%}
+  .lp .tea .edt{grid-template-rows:auto minmax(0,1fr)}
+  .lp .tea .edt-drawer{overflow:visible}
+  .lp .tea .cef-more .s,.lp .tea .edt-empty .doodle{display:none}
+}
+
+/* ---------- narrow ------------------------------------------------------------- */
+@media (max-width: 860px){
+  .lp .tld-scatter-grid,.lp .tld-types-grid{grid-template-columns:minmax(0,1fr)}
+  .lp .tld-types-demo .tld-scroll{height:380px}
+}
+@media (max-width: 620px){
+  .lp .tld-scatter-grid,.lp .tld-types-grid{padding:14px; gap:18px}
+  .lp .tld-chat,.lp .tld-xls,.lp .tld-doc{transform:none}
+  .lp .ett-sheet{padding:16px 14px 16px 44px}
+  .lp .ett-sheet::before{left:10px}
+  .lp .ett-sheet::after{left:33px}
+  .lp .ett-row{flex-wrap:wrap}
+  .lp .ett-2{grid-template-columns:minmax(0,1fr)}
+  .lp .tld-xls td{padding:5px 6px}
+  .lp .tld-ink{right:8px}
+}

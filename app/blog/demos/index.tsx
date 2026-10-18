@@ -6,6 +6,7 @@
 // ../[slug]/page.tsx splits the rendered post on these markers and mounts the
 // matching component in place; feeds keep the fallback text.
 import "./demos.css";
+import "./timeline.css";
 import { AgendaDemo } from "./AgendaDemo";
 import { AskDemo } from "./AskDemo";
 import { LiveMinutes } from "./LiveMinutes";
@@ -13,6 +14,11 @@ import { RollCall } from "./RollCall";
 import { SlashDemo } from "./SlashDemo";
 import { SummarizeDemo } from "./SummarizeDemo";
 import { RoomDemo } from "./Room";
+import { ScatteredDemo } from "./Scattered";
+import { TimelineAdd } from "./TimelineAdd";
+import { EventTypesDemo } from "./EventTypesDemo";
+import { CalendarDemo } from "./CalendarDemo";
+import { CheckInDemo } from "./CheckInDemo";
 
 const DEMOS: Record<string, () => React.ReactNode> = {
   minutes: LiveMinutes,
@@ -22,6 +28,11 @@ const DEMOS: Record<string, () => React.ReactNode> = {
   summarize: SummarizeDemo,
   attendance: RollCall,
   ask: AskDemo,
+  scattered: ScatteredDemo,
+  "tl-add": TimelineAdd,
+  "tl-types": EventTypesDemo,
+  "tl-calendar": CalendarDemo,
+  "tl-checkin": CheckInDemo,
 };
 
 export function PostDemo({ name }: { name: string }) {

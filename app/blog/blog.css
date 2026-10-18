@@ -532,6 +532,60 @@
 .lp .bl__artstar{position:absolute; left:-18px; bottom:52px}
 .lp .bl__artswirl{position:absolute; left:120px; bottom:-14px; transform:rotate(-8deg)}
 
+/* the Timeline post's cover */
+.lp .bl__tlxls{
+  position:absolute; left:-4px; top:14px; width:226px;
+  background:var(--card); border:1.5px solid var(--ink-3); border-radius:8px; overflow:hidden;
+  box-shadow:4px 4px 0 var(--paper-3); transform:rotate(-7deg); opacity:.82;
+}
+.lp .bl__tlxls .ttl{display:flex; align-items:center; gap:6px; padding:5px 9px; font-size:.66rem; font-weight:600; background:var(--paper-2); border-bottom:1px solid var(--line)}
+.lp .bl__tlxls .ttl i{width:9px; height:9px; border-radius:2px; background:#1F8B4C}
+.lp .bl__tlxls .ttl s{text-decoration-color:var(--rose-ink); text-decoration-thickness:1.5px; color:var(--ink-3)}
+.lp .bl__tlxls .g{display:grid; grid-template-columns:1fr 60px; font-size:.66rem; color:var(--ink-3)}
+.lp .bl__tlxls .g span{padding:3px 9px; border-bottom:1px solid var(--line); border-right:1px solid var(--line)}
+.lp .bl__tlcard{
+  position:absolute; left:28px; top:62px; width:330px; padding:18px 18px 20px;
+  background:#FFFDF2; border:1.5px solid var(--ink); border-radius:8px 8px 12px 10px;
+  box-shadow:6px 6px 0 var(--sky); transform:rotate(-1.5deg);
+}
+.lp .bl__tlcard .tape{
+  position:absolute; left:50%; top:-11px; width:84px; height:22px; transform:translateX(-50%) rotate(2deg);
+  background:rgba(255,229,160,.85); border-inline:1px dashed rgba(38,33,27,.16);
+}
+.lp .bl__tlcard .hd{margin-bottom:14px; font:600 1.02rem var(--display); letter-spacing:-.02em}
+.lp .bl__tlcard ol{position:relative; display:grid; gap:10px}
+.lp .bl__tlcard ol::before{content:''; position:absolute; left:21px; top:12px; bottom:12px; border-left:2px dashed var(--line-2)}
+.lp .bl__tlcard li{position:relative; height:44px; display:grid; grid-template-columns:44px minmax(0,1fr); gap:12px}
+.lp .bl__tlcard .d{
+  position:relative; display:grid; align-content:center; justify-items:center; line-height:1;
+  border-radius:10px; background:var(--card); border:1.5px solid var(--line);
+}
+.lp .bl__tlcard .d small{font:600 .5rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.lp .bl__tlcard .d b{margin-top:2px; font:700 1rem/1 var(--display)}
+.lp .bl__tlcard .t{
+  position:relative; min-width:0; display:grid; align-content:center; padding:0 12px 0 15px;
+  border-radius:11px; background:var(--card); border:1.5px solid var(--line);
+}
+.lp .bl__tlcard .t::before{content:''; position:absolute; left:0; top:8px; bottom:8px; width:4px; border-radius:0 4px 4px 0; background:var(--c)}
+.lp .bl__tlcard .t > b{font-weight:600; font-size:.86rem; line-height:1.25; white-space:nowrap}
+.lp .bl__tlcard .t > small{font-size:.68rem; line-height:1.3; color:var(--ink-3); white-space:nowrap}
+.lp .bl__tlchat{
+  position:absolute; right:6px; top:4px; padding:8px 14px; border-radius:16px 16px 16px 4px;
+  background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--mint); transform:rotate(3deg);
+  font-size:.82rem; line-height:1.3;
+}
+.lp .bl__tlchat s{text-decoration-color:var(--rose-ink); text-decoration-thickness:2px}
+.lp .bl__tlcal{
+  position:absolute; right:0; bottom:6px; display:flex; align-items:center; gap:11px; padding:10px 16px 10px 10px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md); box-shadow:5px 5px 0 var(--lilac); transform:rotate(2.5deg);
+}
+.lp .bl__tlcal .pg{display:grid; width:42px; overflow:hidden; border-radius:8px; border:1.5px solid var(--ink); text-align:center}
+.lp .bl__tlcal .pg .m{font:700 .54rem/1.7 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:#fff; background:var(--rose-ink)}
+.lp .bl__tlcal .pg .n{font:700 1.15rem/1.45 var(--display); background:var(--card)}
+.lp .bl__tlcal .tx b{display:block; font-size:.86rem}
+.lp .bl__tlcal .tx small{display:block; font-size:.72rem; color:var(--mint-ink); font-weight:600}
+.lp .bl__art--tl .bl__artstar{left:-6px; bottom:70px}
+
 @media (min-width: 1000px){
   .lp .bl__herogrid{grid-template-columns:minmax(0,1fr) 450px; gap:56px}
 }
