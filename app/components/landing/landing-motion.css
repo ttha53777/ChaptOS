@@ -133,16 +133,6 @@ body:has(.lm){margin:0; background:#FFFCF6; overflow-x:clip}
 .lm .tab-ink{position:absolute; z-index:0; left:0; top:0; border-radius:999px; background:var(--ink); box-shadow:2px 2px 0 var(--hs, var(--lilac));
   transition:transform .55s var(--ease-spring), width .55s var(--ease-spring), height .55s var(--ease-spring), box-shadow .4s}
 
-/* ── nav ─────────────────────────────────────────────────────────────────── */
-.lm .nav{position:fixed; inset:0 0 auto; z-index:80; padding:12px 16px; pointer-events:none}
-.lm .nav-in{
-  pointer-events:auto; margin-inline:auto; max-width:1320px; height:56px;
-  display:flex; align-items:center; gap:22px; padding:0 10px 0 14px;
-  border-radius:20px; border:1.5px solid transparent; background:transparent;
-  transition:max-width .6s var(--ease-spring), background .4s, border-color .4s, box-shadow .4s;
-}
-.lm .nav.scrolled .nav-in{max-width:940px; background:color-mix(in srgb, var(--card) 82%, transparent);
-  border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
 .lm .brand{display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:700; font-size:1.12rem; letter-spacing:-.03em}
 .lm .mark{width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex:none;
   background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink); font-size:.86rem;
@@ -150,66 +140,7 @@ body:has(.lm){margin:0; background:#FFFCF6; overflow-x:clip}
 .lm .brand:hover .mark{transform:rotate(6deg) scale(1.06)}
 .lm .brand .logo{width:32px; height:32px; flex:none; filter:var(--note-filter); transform:rotate(-4deg); transition:transform .4s var(--ease-spring)}
 .lm .brand:hover .logo{transform:rotate(6deg) scale(1.06)}
-/* four links; a paper tab slides under whichever one you're on, a hand-drawn
-   squiggle marks the section you're reading, and each link carries its tone */
-.lm .nav-links{position:relative; display:flex; align-items:center; gap:2px; margin-inline:auto}
-.lm .nl{--c:var(--lilac); --ci:var(--lilac-ink);
-  position:relative; z-index:1; display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 13px; border-radius:11px;
-  font-size:.88rem; font-weight:500; letter-spacing:-.01em; color:var(--ink-2); white-space:nowrap; transition:color .25s}
-.lm .nl > i{width:7px; height:7px; border-radius:2px; background:var(--c); rotate:45deg; flex:none;
-  transition:scale .45s var(--ease-spring), rotate .45s var(--ease-spring), background .3s}
-.lm .nl:hover, .lm .nl.on{color:var(--ink)}
-.lm .nl:hover > i{scale:1.35; rotate:135deg}
-.lm .nl:hover > i, .lm .nl.on > i{background:var(--ci)}
-.lm .nl-u{position:absolute; left:12px; right:12px; bottom:2px; height:6px; width:calc(100% - 24px); overflow:visible; pointer-events:none}
-.lm .nl-u path{fill:none; stroke:var(--ci); stroke-width:2; stroke-linecap:round; stroke-dasharray:1; stroke-dashoffset:1; opacity:0; transition:stroke-dashoffset .7s var(--ease-out), opacity .2s .5s}
-.lm .nl.on .nl-u path{stroke-dashoffset:0; opacity:1; transition:stroke-dashoffset .7s var(--ease-out), opacity 0s}
-.lm .nl-tag{font-family:var(--hand); font-weight:700; font-size:1.02rem; line-height:1; padding:1px 6px 2px; margin-right:-4px; border-radius:6px;
-  color:var(--peach-ink); background:var(--peach-soft); border:1px solid var(--peach-bd); rotate:-7deg; transition:rotate .45s var(--ease-spring)}
-.lm .nl:hover .nl-tag{rotate:5deg}
-.lm .nl-ink{position:absolute; z-index:0; left:0; top:50%; height:36px; width:0; border-radius:11px; pointer-events:none;
-  background:var(--paper-2); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--ink-c, var(--lilac));
-  opacity:0; transform:translate(var(--x,0), -50%);
-  transition:transform .5s var(--ease-spring), width .5s var(--ease-spring), box-shadow .3s, opacity .2s}
-.lm .nav-links.hov .nl-ink{opacity:1}
-.lm .nav-links:not(.hov) .nl-ink{transition:opacity .2s}
-
-/* phones: the four links fold into a sheet that drops out of the bar */
-.lm .nav-menu{display:none; width:40px; height:36px; border-radius:11px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--butter);
-  place-items:center; padding:0; transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring)}
-.lm .nav-menu:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--butter)}
-.lm .nav-menu span{position:relative; display:block; width:16px; height:10px}
-.lm .nav-menu span::before, .lm .nav-menu span::after{content:''; position:absolute; left:0; right:0; height:2px; border-radius:2px; background:var(--ink);
-  transition:transform .45s var(--ease-spring), top .45s var(--ease-spring), width .45s var(--ease-spring)}
-.lm .nav-menu span::before{top:0} .lm .nav-menu span::after{top:8px; width:11px}
-.lm .nav.open .nav-menu span::before{top:4px; transform:rotate(45deg)}
-.lm .nav.open .nav-menu span::after{top:4px; width:16px; transform:rotate(-45deg)}
-.lm .nav-sheet{display:none}
-@media (max-width:860px){
-  .lm .nav-menu{display:grid}
-  .lm .nav-sheet{display:block; pointer-events:auto; margin:8px auto 0; max-width:1320px; padding:8px; border-radius:20px;
-    background:var(--card); border:1.5px solid var(--ink); box-shadow:5px 5px 0 var(--lilac), var(--sh-3);
-    transform-origin:50% 0; opacity:0; visibility:hidden; transform:translateY(-10px) scale(.97);
-    transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring), visibility 0s .45s}
-  .lm .nav.open .nav-sheet{opacity:1; visibility:visible; transform:none; transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring)}
-  .lm .nav.open .nav-in{background:color-mix(in srgb, var(--card) 92%, transparent); border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
-  .lm .ns-l{display:flex; align-items:center; gap:14px; padding:14px 12px; border-radius:14px; border-bottom:1.5px dashed var(--line-2);
-    opacity:0; transform:translateY(-6px); transition:opacity .3s var(--ease-out), transform .45s var(--ease-spring), background .2s}
-  .lm .nav.open .ns-l{opacity:1; transform:none; transition-delay:calc(var(--i) * 45ms + 60ms), calc(var(--i) * 45ms + 60ms), 0s}
-  .lm .ns-l:last-of-type{border-bottom:0}
-  .lm .ns-l:active{background:var(--paper-2)}
-  .lm .ns-l .mono{font-size:.72rem; color:var(--ink-3); width:20px}
-  .lm .ns-l b{font-family:var(--display); font-weight:600; font-size:1.5rem; letter-spacing:-.03em; line-height:1.1; font-variation-settings:"opsz" 48}
-  .lm .ns-l > i{width:9px; height:9px; border-radius:2px; rotate:45deg; background:var(--c); margin-left:auto}
-  .lm .ns-l .nl-tag{font-size:1.1rem}
-  .lm .ns-f{display:flex; gap:10px; padding:10px 4px 4px}
-  .lm .ns-f .btn{flex:1}
-}
-.lm .nav-r{display:flex; align-items:center; gap:8px}
-.lm .nav-login{font-size:.88rem; font-weight:500; color:var(--ink-2); padding:7px 10px}
 @media (max-width:600px){ .lm .hero-copy .eyebrow::before{display:none} .lm .hero-copy .eyebrow{max-width:290px; margin-inline:auto; line-height:1.5} }
-@media (max-width:860px){ .lm .nav-links, .lm .nav-login{display:none} .lm .nav-in{gap:10px} .lm .brand{margin-right:auto} }
-@media (max-width:420px){ .lm .nav-r .btn--sm{display:none} }
 
 /* ── HERO ────────────────────────────────────────────────────────────────── */
 .lm .hero{position:relative; height:300vh}

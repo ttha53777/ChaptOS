@@ -13,15 +13,14 @@
 // names (--ink, --paper, --line) and must not leak in.
 //
 // Wiring: every "Start your org" goes to /create (the pre-auth org charter),
-// "Log in" goes straight to Google via <SignInLink>, "Talk to us" to /contact,
-// Pricing and Blog to their pages.
+// "Talk to us" to /contact. The top bar is the shared <SiteNav>.
 import "./landing-motion.css";
 
 import { sx } from "./Doodle";
 import { hand } from "./hand-font";
 import { landingFontClass } from "./fonts";
 import { LandingMotion } from "./LandingMotion";
-import { SignInLink } from "./SignInLink";
+import { SiteNav } from "./SiteNav";
 import { APP_NAME } from "@/lib/domains";
 
 // With JS off everything is present and readable, just still: the reveals are
@@ -62,30 +61,7 @@ export function LandingPage() {
         <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></symbol>
       </svg>
 
-      <header className="nav" id="nav">
-        <div className="nav-in">
-          <a className="brand" href="#top"><svg className="logo"><use href="#i-logo" /></svg>{APP_NAME}</a>
-          <nav className="nav-links" id="navLinks" aria-label="Primary">
-            <span className="nl-ink" id="navInk" aria-hidden="true" />
-            <a className="nl" href="#how" style={sx({ "--c": "var(--sky)", "--ci": "var(--sky-ink)" })}><i />How it works<svg className="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
-            <a className="nl" href="#fit" style={sx({ "--c": "var(--lilac)", "--ci": "var(--lilac-ink)" })}><i />Features<svg className="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
-            <a className="nl" href="/pricing" style={sx({ "--c": "var(--mint)", "--ci": "var(--mint-ink)" })}><i />Pricing<svg className="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
-            <a className="nl" href="/blog" style={sx({ "--c": "var(--peach)", "--ci": "var(--peach-ink)" })}><i />Blog<b className="nl-tag">new</b><svg className="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
-          </nav>
-          <div className="nav-r">
-            <SignInLink className="nav-login">Log in</SignInLink>
-            <a className="btn btn--sm" href="/create">Start your org</a>
-            <button className="nav-menu" id="menuBtn" aria-label="Menu" aria-expanded={false} aria-controls="navSheet"><span /></button>
-          </div>
-        </div>
-        <nav className="nav-sheet" id="navSheet" aria-label="Primary (mobile)">
-          <a className="ns-l" href="#how" style={sx({ "--c": "var(--sky)", "--i": "0" })}><span className="mono">01</span><b>How it works</b><i /></a>
-          <a className="ns-l" href="#fit" style={sx({ "--c": "var(--lilac)", "--i": "1" })}><span className="mono">02</span><b>Features</b><i /></a>
-          <a className="ns-l" href="/pricing" style={sx({ "--c": "var(--mint)", "--i": "2" })}><span className="mono">03</span><b>Pricing</b><i /></a>
-          <a className="ns-l" href="/blog" style={sx({ "--c": "var(--peach)", "--i": "3" })}><span className="mono">04</span><b>Blog</b><b className="nl-tag">new</b><i /></a>
-          <div className="ns-f"><SignInLink className="btn btn--ghost">Log in</SignInLink><a className="btn" href="/create">Start your org</a></div>
-        </nav>
-      </header>
+      <SiteNav onLanding />
 
       <svg className="seam" id="seam" aria-hidden="true">
         <path className="th" id="seamPage"/><path className="th" id="seamKnot"/>

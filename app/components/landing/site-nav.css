@@ -1,0 +1,132 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   The site's top bar: the landing page and every public page (/pricing, /blog,
+   /for, /help, /contact, /trust) render <SiteNav>, so the links, the buttons
+   and the motion can't drift apart. From _design/Landing Motion Mock.html.
+
+   Self-contained: its own tokens on .sn and its own class names (sn-brand,
+   sn-btn, sn-num where the mock said brand, btn, mono), because the public
+   pages sit inside landing.css's .lp scope, whose .nav/.brand/.btn/.mono would
+   otherwise style these too. Fixed, so it takes no room in the page; a page
+   that isn't built for that adds .sn-spacer under it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.sn{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --teal-ink:#1F8A80;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --dots:rgba(38,33,27,.09);
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --sans:var(--font-inter), 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:var(--font-bricolage), 'Bricolage Grotesque', var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --mono:var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --hand:var(--font-caveat), 'Caveat', 'Bricolage Grotesque', cursive;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+
+.sn{color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased}
+.sn *, .sn *::before, .sn *::after{box-sizing:border-box}
+.sn a{color:inherit; text-decoration:none}
+.sn button{font:inherit; color:inherit; cursor:pointer}
+.sn svg{display:block}
+.sn :focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px; border-radius:8px}
+.sn .sn-num{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+/* the bar's own height (12px inset + 56px), so a page's head starts below it */
+.sn-spacer{height:80px}
+
+.sn .sn-btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:11px 19px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.92rem; letter-spacing:-.01em;
+  box-shadow:3px 3px 0 var(--hs); white-space:nowrap;
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), background .25s, color .25s;
+}
+.sn .sn-btn:hover{transform:translate(-2px,-2px); box-shadow:5px 5px 0 var(--hs)}
+.sn .sn-btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.sn .sn-btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.sn .sn-btn--sm{padding:7px 14px; font-size:.84rem; box-shadow:2px 2px 0 var(--hs)}
+/* ── nav ─────────────────────────────────────────────────────────────────── */
+/* .lp header (landing.css) sets position:relative; z-index:1 on every header on the public pages */
+.sn, .lp .sn{position:fixed; inset:0 0 auto; z-index:80; padding:12px 16px; pointer-events:none}
+.sn .nav-in{
+  pointer-events:auto; margin-inline:auto; max-width:1320px; height:56px;
+  display:flex; align-items:center; gap:22px; padding:0 10px 0 14px;
+  border-radius:20px; border:1.5px solid transparent; background:transparent;
+  transition:max-width .6s var(--ease-spring), background .4s, border-color .4s, box-shadow .4s;
+}
+.sn.scrolled .nav-in{max-width:940px; background:color-mix(in srgb, var(--card) 82%, transparent);
+  border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
+.sn .sn-brand{display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:700; font-size:1.12rem; letter-spacing:-.03em}
+.sn .sn-brand .logo{width:32px; height:32px; flex:none; filter:var(--note-filter); transform:rotate(-4deg); transition:transform .4s var(--ease-spring)}
+.sn .sn-brand:hover .logo{transform:rotate(6deg) scale(1.06)}
+/* four links; a paper tab slides under whichever one you're on, a hand-drawn
+   squiggle marks the section you're reading, and each link carries its tone */
+.sn .nav-links{position:relative; display:flex; align-items:center; gap:2px; margin-inline:auto}
+.sn .nl{--c:var(--lilac); --ci:var(--lilac-ink);
+  position:relative; z-index:1; display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 13px; border-radius:11px;
+  font-size:.88rem; font-weight:500; letter-spacing:-.01em; color:var(--ink-2); white-space:nowrap; transition:color .25s}
+.sn .nl > i{width:7px; height:7px; border-radius:2px; background:var(--c); rotate:45deg; flex:none;
+  transition:scale .45s var(--ease-spring), rotate .45s var(--ease-spring), background .3s}
+.sn .nl:hover, .sn .nl.on{color:var(--ink)}
+.sn .nl:hover > i{scale:1.35; rotate:135deg}
+.sn .nl:hover > i, .sn .nl.on > i{background:var(--ci)}
+.sn .nl-u{position:absolute; left:12px; right:12px; bottom:2px; height:6px; width:calc(100% - 24px); overflow:visible; pointer-events:none}
+.sn .nl-u path{fill:none; stroke:var(--ci); stroke-width:2; stroke-linecap:round; stroke-dasharray:1; stroke-dashoffset:1; opacity:0; transition:stroke-dashoffset .7s var(--ease-out), opacity .2s .5s}
+.sn .nl.on .nl-u path{stroke-dashoffset:0; opacity:1; transition:stroke-dashoffset .7s var(--ease-out), opacity 0s}
+.sn .nl-tag{font-family:var(--hand); font-weight:700; font-size:1.02rem; line-height:1; padding:1px 6px 2px; margin-right:-4px; border-radius:6px;
+  color:var(--peach-ink); background:var(--peach-soft); border:1px solid var(--peach-bd); rotate:-7deg; transition:rotate .45s var(--ease-spring)}
+.sn .nl:hover .nl-tag{rotate:5deg}
+.sn .nl-ink{position:absolute; z-index:0; left:0; top:50%; height:36px; width:0; border-radius:11px; pointer-events:none;
+  background:var(--paper-2); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--ink-c, var(--lilac));
+  opacity:0; transform:translate(var(--x,0), -50%);
+  transition:transform .5s var(--ease-spring), width .5s var(--ease-spring), box-shadow .3s, opacity .2s}
+.sn .nav-links.hov .nl-ink{opacity:1}
+.sn .nav-links:not(.hov) .nl-ink{transition:opacity .2s}
+
+/* phones: the four links fold into a sheet that drops out of the bar */
+.sn .nav-menu{display:none; width:40px; height:36px; border-radius:11px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--butter);
+  place-items:center; padding:0; transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring)}
+.sn .nav-menu:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--butter)}
+.sn .nav-menu span{position:relative; display:block; width:16px; height:10px}
+.sn .nav-menu span::before, .sn .nav-menu span::after{content:''; position:absolute; left:0; right:0; height:2px; border-radius:2px; background:var(--ink);
+  transition:transform .45s var(--ease-spring), top .45s var(--ease-spring), width .45s var(--ease-spring)}
+.sn .nav-menu span::before{top:0} .sn .nav-menu span::after{top:8px; width:11px}
+.sn.open .nav-menu span::before{top:4px; transform:rotate(45deg)}
+.sn.open .nav-menu span::after{top:4px; width:16px; transform:rotate(-45deg)}
+.sn .nav-sheet{display:none}
+@media (max-width:860px){
+  .sn .nav-menu{display:grid}
+  .sn .nav-sheet{display:block; pointer-events:auto; margin:8px auto 0; max-width:1320px; padding:8px; border-radius:20px;
+    background:var(--card); border:1.5px solid var(--ink); box-shadow:5px 5px 0 var(--lilac), var(--sh-3);
+    transform-origin:50% 0; opacity:0; visibility:hidden; transform:translateY(-10px) scale(.97);
+    transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring), visibility 0s .45s}
+  .sn.open .nav-sheet{opacity:1; visibility:visible; transform:none; transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring)}
+  .sn.open .nav-in{background:color-mix(in srgb, var(--card) 92%, transparent); border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
+  .sn .ns-l{display:flex; align-items:center; gap:14px; padding:14px 12px; border-radius:14px; border-bottom:1.5px dashed var(--line-2);
+    opacity:0; transform:translateY(-6px); transition:opacity .3s var(--ease-out), transform .45s var(--ease-spring), background .2s}
+  .sn.open .ns-l{opacity:1; transform:none; transition-delay:calc(var(--i) * 45ms + 60ms), calc(var(--i) * 45ms + 60ms), 0s}
+  .sn .ns-l:last-of-type{border-bottom:0}
+  .sn .ns-l:active{background:var(--paper-2)}
+  .sn .ns-l .sn-num{font-size:.72rem; color:var(--ink-3); width:20px}
+  .sn .ns-l b{font-family:var(--display); font-weight:600; font-size:1.5rem; letter-spacing:-.03em; line-height:1.1; font-variation-settings:"opsz" 48}
+  .sn .ns-l > i{width:9px; height:9px; border-radius:2px; rotate:45deg; background:var(--c); margin-left:auto}
+  .sn .ns-l .nl-tag{font-size:1.1rem}
+  .sn .ns-f{display:flex; gap:10px; padding:10px 4px 4px}
+  .sn .ns-f .sn-btn{flex:1}
+}
+.sn .nav-r{display:flex; align-items:center; gap:8px}
+.sn .nav-login{font-size:.88rem; font-weight:500; color:var(--ink-2); padding:7px 10px}
+@media (max-width:860px){ .sn .nav-links, .sn .nav-login{display:none} .sn .nav-in{gap:10px} .sn .sn-brand{margin-right:auto} }
+@media (max-width:420px){ .sn .nav-r .sn-btn--sm{display:none} }

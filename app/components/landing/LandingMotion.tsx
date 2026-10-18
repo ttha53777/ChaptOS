@@ -10,8 +10,7 @@
  *
  * One rAF loop reads a lerped scroll value and hands it to every scene; native
  * scrolling is never taken over. Scenes, top to bottom:
- *   · nav: the paper tab under the hovered link, the section squiggle, the
- *     phone sheet, the bottom bar
+ *   · the bottom bar on phones (the top bar moves itself: SiteNavMotion)
  *   · hero: eight loose ends dock into one dashboard, the headline swaps
  *     "loose ends" for "one page", then the dashboard re-forms per org type
  *   · race: the group chat vs Ask Chapt, scrubbed by scroll (scroll back rewinds)
@@ -25,8 +24,6 @@
  *   · it tears itself down on unmount (listeners, rAF, timers, observers, the
  *     nodes it added), and its one-time DOM rewrites are idempotent, so React's
  *     dev double-mount and client navigation away and back both work
- *   · links that leave the page (/pricing, /blog, /login, /create) navigate;
- *     the mock swallowed any href that wasn't an in-page section
  *   · the colour probe lives inside .lm, so it reads this page's tokens rather
  *     than the app's paper palette on <body>
  */
@@ -107,32 +104,9 @@ function mount(): () => void {
   }
   readWash();
 
-  const nav = $("#nav"), mbar = $("#mbar");
-  /* topbar: the paper tab follows the pointer between links; the squiggle marks
-     the section on screen (Pricing and Blog are pages, so they never light up) */
-  const navLinks = $("#navLinks"), navInk = $("#navInk"), nls = $$<HTMLAnchorElement>(".nl", navLinks);
-  const inkTo = (a: HTMLElement) => {
-    navInk.style.setProperty("--x", a.offsetLeft + "px");
-    navInk.style.width = a.offsetWidth + "px";
-    navInk.style.setProperty("--ink-c", getComputedStyle(a).getPropertyValue("--c"));
-  };
-  nls.forEach(a => {
-    a.addEventListener("pointerenter", () => { if (!navLinks.classList.contains("hov")) { navInk.style.transition = "none"; inkTo(a); void navInk.offsetWidth; navInk.style.transition = ""; } inkTo(a); navLinks.classList.add("hov"); }, on);
-    a.addEventListener("focus", () => { inkTo(a); navLinks.classList.add("hov"); }, on);
-    a.addEventListener("blur", () => navLinks.classList.remove("hov"), on);
-  });
-  navLinks.addEventListener("pointerleave", () => navLinks.classList.remove("hov"), on);
-  const spy = nls.map(a => [a, section(a.getAttribute("href"))] as const).filter((p): p is readonly [HTMLAnchorElement, HTMLElement] => !!p[1]);
-
-  const menuBtn = $("#menuBtn"), setMenu = (open: boolean) => { nav.classList.toggle("open", open); menuBtn.setAttribute("aria-expanded", String(open)); };
-  menuBtn.addEventListener("click", () => setMenu(!nav.classList.contains("open")), on);
-  $$("#navSheet a").forEach(a => a.addEventListener("click", () => setMenu(false), on));
-  addEventListener("keydown", e => { if (e.key === "Escape") setMenu(false); }, on);
-
+  /* the bottom bar on phones: up once the hero's done, down near the end (the top bar is <SiteNav>'s) */
+  const mbar = $("#mbar");
   scenes.push({ update() {
-    nav.classList.toggle("scrolled", scrollY > 30);
-    const y = scrollY + H * .4;
-    spy.forEach(([a, sec]) => { const t = docTop(sec); a.classList.toggle("on", y >= t && y < t + sec.offsetHeight); });
     const nearEnd = scrollY + H > document.documentElement.scrollHeight - 500;
     mbar.classList.toggle("on", scrollY > $("#top").offsetHeight - H * .5 && !nearEnd);
   }});

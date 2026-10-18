@@ -13,19 +13,14 @@
         opacity:0 until LandingMotion (a client component) adds .is-in. These
         pages never mount it, so they must never carry those hooks — nothing
         here fades, pins or parallaxes.
-     2. THE NAV STILL GETS ITS SCROLLED STATE. `.lp .nav.is-stuck` is applied
-        by LandingMotion on the landing page and by <NavStick> (inside
-        <PublicNav>) here, so the bar looks and behaves the same everywhere.
+     2. THE NAV IS THE LANDING PAGE'S. <PublicNav> renders the shared
+        <SiteNav> (site-nav.css), which moves itself, so the bar looks and
+        behaves the same everywhere.
    ========================================================================== */
 
 /* Height of the scrolled (stuck) nav. Drives every heading's scroll-margin so an
    anchor jump can't land a heading underneath the bar. Mirrors --tp-nav-h. */
 .lp.pub{--pub-nav-h:68px}
-
-/* ---------- 1. nav --------------------------------------------------------- */
-/* The current page in the nav: reads as "you are here" without a link's
-   affordance. */
-.lp.pub .nav__links .is-here{color:var(--ink); background:var(--paper-3); font-weight:600}
 
 /* ---------- 2. page head -------------------------------------------------- */
 /* The band every public page opens with: eyebrow, h1, lede, then whatever the

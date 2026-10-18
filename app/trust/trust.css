@@ -15,8 +15,7 @@
         never mounts it, so it must never carry those hooks — nothing here fades,
         pins, or parallaxes. That's also the brief: a page someone reads under
         pressure should not animate.
-     2. THE NAV is the shared <PublicNav>, which drives its own scrolled
-        `.is-stuck` state (see NavStick), so it matches the landing page.
+     2. THE NAV is the shared <PublicNav> (the landing page's <SiteNav>).
 
    Structure
      1. nav
@@ -31,11 +30,6 @@
    and every heading's scroll-margin, so an anchor jump can't land a heading
    underneath the bar. */
 .lp.tp{--tp-nav-h:68px}
-
-/* ---------- 1. nav (the shared <PublicNav>) ---------------------------------- */
-/* The current page in the nav: readable as "you are here" without a link's
-   affordance. */
-.lp.tp .nav__links .is-here{color:var(--ink); background:var(--paper-3); font-weight:600}
 
 /* ---------- 2. hero + the short version ----------------------------------- */
 .lp .tp__hero{padding:clamp(46px,6vw,84px) 0 0}
