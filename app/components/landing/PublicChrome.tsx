@@ -2,10 +2,9 @@
 // /pricing, /help, /contact, /trust) render this one component, so the links,
 // the buttons and the scroll behaviour can't drift apart.
 //
-// On the landing page the links are in-page anchors and LandingMotion also
-// drives `.is-stuck`; everywhere else they point back at the landing page and
-// <NavStick> drives it. Either way the bar is clear over the page head and
-// frosted once you scroll.
+// The landing page itself has its own bar (LandingPage.tsx, from the motion
+// mock); here the section links point back into it and <NavStick> drives
+// `.is-stuck`, so the bar is clear over the page head and frosted once you scroll.
 import { BrandMark } from "./DoodleSprite";
 import { NavStick } from "./NavStick";
 import { SignInLink } from "./SignInLink";
@@ -31,7 +30,7 @@ export function PublicNav({ here = null, onLanding = false }: { here?: PublicNav
         </a>
         <nav className="nav__links">
           <a href={`${home}#ask`}>Just ask</a>
-          <a href={`${home}#day`}>A Tuesday</a>
+          <a href={`${home}#how`}>How it works</a>
           <a href="/blog" {...mark("blog")}>
             Blog
           </a>

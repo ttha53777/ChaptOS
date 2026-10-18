@@ -6,7 +6,7 @@ export function Footer() {
       <div className="wrap">
         <div className="foot__grid">
           <div className="foot__brand">
-            <a className="brand" href="#top">
+            <a className="brand" href="/">
               <BrandMark />
               ChaptOS
             </a>
@@ -19,19 +19,19 @@ export function Footer() {
             <h5>Product</h5>
             <ul>
               <li>
-                <a href="#ask">Ask Chapt</a>
+                <a href="/#ask">Ask Chapt</a>
               </li>
               <li>
-                <a href="#modules">Treasury &amp; dues</a>
+                <a href="/#how">Treasury &amp; dues</a>
               </li>
               <li>
-                <a href="#modules">Roster &amp; standing</a>
+                <a href="/#how">Roster &amp; standing</a>
               </li>
               <li>
-                <a href="#day">Timeline &amp; meetings</a>
+                <a href="/#how">Timeline &amp; meetings</a>
               </li>
               <li>
-                <a href="#modules">Docs &amp; activity</a>
+                <a href="/#how">Docs &amp; activity</a>
               </li>
             </ul>
           </div>
