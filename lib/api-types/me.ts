@@ -93,3 +93,28 @@ export interface OwnJoinRequest {
   decidedAt: string | null;
   org: { name: string; slug: string };
 }
+
+/** One org a deleted account would be removed from. */
+export interface AccountDeletionOrg {
+  name: string;
+  slug: string;
+  /**
+   * Why this org stops the deletion, or null when it doesn't. "last_admin":
+   * nobody else can manage it — promote another admin, or delete the org.
+   */
+  blocker: "last_admin" | null;
+  /** Nobody else is on this roster, so deleting the org is the usual way out. */
+  soleMember: boolean;
+}
+
+/**
+ * GET /api/auth/account — what deleting the signed-in account would do. Works
+ * with no roster row at all. DELETE /api/auth/account answers 409 with this same
+ * shape under `details` when something blocks it.
+ */
+export interface AccountDeletionPreview {
+  canDelete: boolean;
+  /** Platform staff grants are revoked by support, never by self-deletion. */
+  isPlatformAdmin: boolean;
+  orgs: AccountDeletionOrg[];
+}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
 import { LeaveOrgModal } from "../../../components/LeaveOrgModal";
+import { DeleteAccountModal } from "../../../components/DeleteAccountModal";
 import { BrotherRoleChips } from "./BrotherRoleChips";
 import { requestJson } from "../../../lib/api";
 
@@ -262,6 +263,7 @@ export function AccountsSection({
       )}
 
       <LeaveOrgZone onError={onError} />
+      <DeleteAccountZone onError={onError} />
     </div>
   );
 }
@@ -312,3 +314,32 @@ function LeaveOrgZone({ onError }: { onError: (msg: string) => void }) {
   );
 }
 
+
+// ─── Delete account ─────────────────────────────────────────────────────────
+// Self-serve erasure of the whole account, across every org — the irreversible
+// sibling of Leave organization, so rose rather than amber. The modal asks the
+// server what's blocking it before offering the confirm field.
+
+function DeleteAccountZone({ onError }: { onError: (msg: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div className="rounded-xl p-4" style={{ border: "1px solid var(--rose-bg)", background: "var(--rose-bg)" }}>
+        <h3 className="sc-h" style={{ color: "var(--rose)" }}>Delete account</h3>
+        <p className="sc-note mt-1 mb-3">
+          Permanently delete your login and remove yourself from every organization you&apos;re in.
+          Your history is erased; money you paid stays on the books without your name. This cannot be undone.
+        </p>
+        <button onClick={() => setOpen(true)} className="sc-btn sc-btn-sm sc-btn-danger">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete my account
+        </button>
+      </div>
+
+      {open && <DeleteAccountModal onClose={() => setOpen(false)} onError={onError} />}
+    </>
+  );
+}

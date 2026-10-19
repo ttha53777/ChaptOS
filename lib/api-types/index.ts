@@ -28,6 +28,8 @@
  *   GET    /api/mobile/config                  MobileConfig            (public)
  *   GET    /api/auth/me                        MeResponse
  *   GET    /api/auth/join-requests             OwnJoinRequest[]        (no roster row needed)
+ *   GET    /api/auth/account                   AccountDeletionPreview  (no roster row needed)
+ *   DELETE /api/auth/account                   { ok: true }            (body { confirm: "DELETE" }; 409 → details: AccountDeletionPreview)
  *   GET    /api/brothers                       Brother[]
  *   GET    /api/brothers/[id]/profile          MemberProfile
  *   GET    /api/calendar                       CalendarEvent[]

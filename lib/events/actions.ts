@@ -170,6 +170,11 @@ export interface EventMetadata {
 
   // Membership
   "membership.left": { brotherId: number; name: string; orgName: string };
+  // A member erased their own account. Deliberately nameless — the point of the
+  // erasure is that the org stops holding who they were — and written directly
+  // as an OperationalEvent by lib/auth/account-deletion.ts (there is no ctx: the
+  // person may belong to no org, and their Brother row is gone moments later).
+  "membership.account_deleted": Record<string, never>;
 
   // Invite links
   "invite.created":  { expiry: string };
@@ -281,7 +286,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "docFolder.created", "docFolder.renamed", "docFolder.deleted", "docFolder.pinned", "docFolder.reordered",
   "announcement.updated", "semester.created", "semester.activated",
   "org.created", "org.config.updated", "org.onboarding.completed", "org.logo.updated",
-  "membership.left",
+  "membership.left", "membership.account_deleted",
   "invite.created", "invite.revoked",
   "join_request.submitted", "join_request.approved", "join_request.rejected",
   "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
