@@ -3,6 +3,7 @@
 import { signInWithGoogle } from "@/lib/supabase/oauth";
 import { APP_NAME } from "@/lib/domains";
 import { BrandMark } from "@/app/components/landing/DoodleSprite";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -54,10 +55,10 @@ function LoginContent() {
     <div className="auth-scope">
       <div className="auth-page">
         <div className="auth-topbar">
-          <div className="auth-wordmark">
+          <Link href="/" className="auth-wordmark" aria-label={`${APP_NAME} home`}>
             <BrandMark />
             <div className="auth-wm-txt">{APP_NAME}</div>
-          </div>
+          </Link>
           <div className="auth-meta">01 / Sign in</div>
         </div>
 
