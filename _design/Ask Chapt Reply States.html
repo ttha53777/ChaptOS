@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Chapt Reply States</title>
+<!--
+  Ask Chapt — new reply states. EXPLORATION.
+
+  Today every structured answer is the same picture: a verdict, then a ruled list
+  of rows (AnswerData { verdict, rows, follows, sources, askback }). That's right
+  for "who / which / list me", and wrong when the honest picture is one number, a
+  share of a whole, a direction over time, a week, a quote, or "I couldn't find it".
+
+  Each state below is an optional `shape` on AnswerData, chosen by the model in
+  compose_answer but FILLED server-side from tool results it already ran (the same
+  rule as `sources` and row `ref`s): the model picks the shape and the verdict, never
+  the numbers. Every shape still ships its plain `rows`, so an older native build that
+  ignores `shape` keeps rendering verdict + rows — the change is additive.
+
+  Drawn in the paper idiom of _design/Dashboard Paper Mock.html (tokens, .spot shell,
+  .rl ledger, .res rows, .writ ticket, sprite) so it can drop into app/paper-chat.css.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (verbatim from Dashboard Paper Mock) -------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --mark-op:.42;
+  --av-ink:rgba(22,18,14,.78);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:clip; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em; background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op); transition:transform .8s var(--ease-spring) .35s}
+.ak-a:not(.in) .hi::before{--mx:0}
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+.avatar{width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.68rem; font-weight:700; letter-spacing:-.02em; background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08)}
+.avatar--sm{width:24px; height:24px; font-size:.6rem}
+.btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac); display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; box-shadow:3px 3px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn .ic{width:15px; height:15px}
+.btn--sm{padding:6px 12px; font-size:.8rem; box-shadow:2px 2px 0 var(--hs)}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--sky)}
+
+/* ---------- page shell (mock only) ------------------------------------------ */
+.pg{max-width:1180px; margin:0 auto; padding:44px 24px 120px}
+.pg-top{display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap}
+.pg-top h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,5vw,3rem); letter-spacing:-.035em; line-height:1.05; margin-top:12px}
+.pg-top .lede{margin-top:14px; max-width:62ch; color:var(--ink-2); font-size:1rem; text-wrap:pretty}
+.pg-top .lede code{font-family:var(--mono); font-size:.86em; padding:1px 6px; border-radius:6px; background:var(--paper-2); border:1px solid var(--line)}
+.theme{margin-left:auto; display:inline-flex; gap:2px; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card)}
+.theme button{border:0; background:none; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.theme button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+
+.index{position:sticky; top:0; z-index:5; margin:30px -24px 0; padding:10px 24px; background:color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter:blur(8px); border-bottom:1.5px solid var(--line); display:flex; gap:6px; overflow-x:auto; scrollbar-width:none}
+.index a{flex:none; display:inline-flex; align-items:center; gap:7px; padding:5px 12px 5px 6px; border-radius:999px; border:1.5px solid var(--line); background:var(--card); text-decoration:none; color:var(--ink-2); font-size:.8rem; font-weight:550; transition:border-color .15s, color .15s}
+.index a:hover,.index a.on{border-color:var(--ink); color:var(--ink)}
+.index a i{font-style:normal; font-family:var(--mono); font-size:.62rem; width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--c, var(--paper-2)); color:var(--ink)}
+
+.st{padding-top:64px; scroll-margin-top:40px}
+.st-h{display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 16px; align-items:baseline; margin-bottom:18px}
+.st-h .num{font-family:var(--mono); font-size:.8rem; color:var(--ink-3); grid-row:span 2}
+.st-h h2{font-family:var(--display); font-weight:600; font-size:1.7rem; letter-spacing:-.03em; line-height:1.1}
+.st-h p{color:var(--ink-2); font-size:.94rem; max-width:64ch}
+.st-g{display:grid; grid-template-columns:minmax(0,732px) minmax(0,1fr); gap:28px; align-items:start}
+@media (max-width:1120px){ .st-g{grid-template-columns:minmax(0,1fr)} }
+
+/* build notes: an index card beside each spotlight */
+.notes{position:sticky; top:72px; padding:16px 18px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--paper-2); font-size:.84rem; color:var(--ink-2); display:grid; gap:14px}
+.notes h4{margin:0 0 5px; font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.notes pre{margin:0; padding:10px 12px; border-radius:10px; background:var(--card); border:1.5px solid var(--line); font-family:var(--mono); font-size:.7rem; line-height:1.55; color:var(--ink-2); white-space:pre-wrap; overflow-wrap:anywhere}
+.notes pre b{color:var(--lilac-ink); font-weight:600}
+.notes .tools{display:flex; flex-wrap:wrap; gap:5px}
+.notes .tools span{font-family:var(--mono); font-size:.68rem; padding:2px 8px; border-radius:6px; background:var(--card); border:1px solid var(--line-2); color:var(--ink-2)}
+.notes .rule{padding-left:10px; border-left:2.5px solid var(--butter); line-height:1.5}
+@media (max-width:1120px){ .notes{position:static} }
+
+/* ---------- the spotlight shell (from the paper mock / paper-chat.css) ------ */
+.spot{display:flex; flex-direction:column; width:100%; background:var(--card); border:1.5px solid var(--ink); border-radius:20px; box-shadow:5px 5px 0 var(--lilac); overflow:hidden}
+.ak-bar{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1.5px solid var(--line)}
+.ak-bar .tick{width:7px; height:7px; border-radius:2px; background:var(--lilac-ink); transform:rotate(45deg)}
+.ak-bar .title{font-family:var(--display); font-weight:600; font-size:.9rem; letter-spacing:-.015em; margin-left:2px}
+.ak-bar .spacer{flex:1}
+.barbtn{border:1.5px solid var(--line); background:none; border-radius:999px; padding:4px 10px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); transition:border-color .15s, color .15s}
+.barbtn:hover{border-color:var(--ink-3); color:var(--ink)}
+.barbtn.plain{border-radius:7px}
+.barbtn.replay{border-style:dashed; color:var(--lilac-ink); border-color:var(--lilac-bd)}
+.asas{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.1em; color:var(--ink-3); padding:3px 9px; border-radius:999px; border:1.5px dashed var(--line-2)}
+.spot-b{padding:4px 18px 18px; font-size:.94em}
+.dock{display:flex; align-items:flex-end; gap:8px; margin:0 14px 14px; padding:6px 6px 6px 14px; border:1.5px solid var(--line-2); border-radius:14px; background:var(--paper-2)}
+.dock span{flex:1; padding:6px 0; font-size:.9rem; color:var(--ink-3)}
+.dock .send{width:34px; height:34px; flex:none; display:grid; place-items:center; border-radius:10px; border:0; background:var(--paper-3); color:var(--ink-3)}
+.dock .send .ic{width:15px; height:15px}
+
+.ak-turn{padding-top:14px}
+.ak-q{display:flex; justify-content:flex-end}
+.ak-q span{max-width:80%; padding:8px 14px; border-radius:16px 16px 4px 16px; background:var(--paper-2); border:1.5px solid var(--line); font-size:.92rem; font-weight:500}
+
+/* reasoning ledger + trace */
+.rl{margin-top:12px; position:relative; padding:2px 0 2px 2px}
+.rl ol{position:relative; display:grid; gap:2px}
+.rl ol::before{content:''; position:absolute; left:8px; top:10px; bottom:10px; width:1.5px; background:var(--line-2)}
+.rl li{position:relative; display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; align-items:center; padding:4px 0; font-size:.86rem; color:var(--ink-3); transition:color .25s}
+.rl .nd{width:18px; height:18px; border-radius:50%; background:var(--card); border:1.5px solid var(--line-2); display:grid; place-items:center; position:relative; z-index:1}
+.rl .nd .ic{width:10px; height:10px; color:var(--card); opacity:0}
+.rl li.active{color:var(--ink)}
+.rl li.active .nd{border-color:var(--lilac-ink); border-top-color:transparent; animation:spin .8s linear infinite; box-shadow:0 0 0 4px var(--lilac-soft)}
+.rl li.done{color:var(--ink-2)}
+.rl li.done .nd{background:var(--lilac-ink); border-color:var(--lilac-ink)}
+.rl li.done .nd .ic{opacity:1}
+html[data-theme="dark"] .rl li.done .nd .ic{color:#15110D}
+.rl .sc{color:var(--ink-3); font-size:.78rem; margin-left:6px}
+.rl .fd{font-family:var(--mono); font-size:.74rem; color:var(--ink-2); padding:1px 7px; border-radius:6px; opacity:0; transform:translateX(-4px); transition:opacity .3s, transform .35s var(--ease-spring)}
+.rl li.done .fd{opacity:1; transform:none}
+.rl.live li.done .fd{animation:post 1.2s var(--ease-out)}
+@keyframes post{0%,35%{background:var(--butter-soft); box-shadow:0 0 0 1.5px var(--butter-bd)}100%{background:transparent; box-shadow:0 0 0 1.5px transparent}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.trace{margin-top:12px; display:flex; align-items:center; gap:8px; width:100%; padding:7px 0; border:0; border-bottom:1px dashed var(--line-2); background:none; text-align:left; font-size:.8rem; color:var(--ink-3)}
+.trace:hover{color:var(--ink)}
+.trace .tk{width:16px; height:16px; border-radius:50%; background:var(--lilac-soft); border:1.5px solid var(--lilac-bd); color:var(--lilac-ink); display:grid; place-items:center; flex:none}
+.trace .tk .ic{width:9px; height:9px}
+.trace .chev{margin-left:auto; width:13px; height:13px; transition:transform .2s var(--ease-spring)}
+.trace[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.trace + .rl{margin-top:6px}
+.thinking .trace,.thinking .ak-a{display:none}
+
+/* answer chrome */
+.ak-a{animation:rise .45s var(--ease-spring) both}
+@keyframes rise{from{opacity:0; transform:translateY(8px)}}
+.verdict{margin-top:10px; font-family:var(--display); font-weight:500; font-size:1.16rem; letter-spacing:-.022em; line-height:1.38; color:var(--ink-2); text-wrap:pretty}
+.verdict .hi{color:var(--ink); font-weight:650}
+.res-list{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:var(--card)}
+.res{display:grid; grid-template-columns:28px minmax(0,1fr) auto 16px; gap:12px; align-items:center; width:100%; padding:8px 12px; border:0; border-top:1px solid var(--paper-3); background:none; text-align:left; transition:background .15s}
+.res:first-child{border-top:0}
+.res:hover{background:var(--paper-2)}
+.res .avatar,.res .glyph{width:28px; height:28px}
+.res .glyph{border-radius:10px; display:grid; place-items:center; background:var(--p-bg, var(--paper-2)); border:1.5px solid var(--p-bd, var(--line)); color:var(--p-fg, var(--ink-2))}
+.res .glyph .ic{width:14px; height:14px}
+.res .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .s{display:block; font-size:.76rem; color:var(--ink-3); margin-top:1px}
+.res .val{font-family:var(--mono); font-size:.8rem; color:var(--ink); white-space:nowrap}
+.res .val.risk{color:var(--peach-ink); font-weight:600}
+.res .chev{width:14px; height:14px; color:var(--ink-3); transition:transform .18s var(--ease-out)}
+.res:hover .chev{color:var(--ink); transform:translateX(2px)}
+.ak-meta{margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px}
+.sources{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.sources .lbl,.fb .lbl{font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.src{display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper); font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.src i{width:6px; height:6px; border-radius:50%; background:var(--c, var(--lilac-ink))}
+.fb{margin-left:auto; display:flex; align-items:center; gap:4px}
+.fb button{width:28px; height:28px; display:grid; place-items:center; border-radius:9px; border:1.5px solid transparent; background:none; color:var(--ink-3)}
+.fb button:hover{background:var(--paper-2); color:var(--ink)}
+.fb button[aria-pressed="true"]{border-color:var(--ink); color:var(--ink); background:var(--butter-soft)}
+.fb .ic{width:14px; height:14px}
+.fb .flip{transform:scaleY(-1)}
+.follows{margin-top:12px; display:flex; flex-wrap:wrap; gap:7px}
+.follows button{display:inline-flex; align-items:center; gap:6px; border:1.5px solid var(--line-2); background:var(--card); border-radius:999px; padding:5px 12px; font-size:.8rem; color:var(--ink-2); transition:border-color .15s, color .15s, background .15s}
+.follows button:hover{border-color:var(--lilac-ink); color:var(--ink); background:var(--lilac-soft)}
+.follows button .ic{width:12px; height:12px; color:var(--lilac-ink)}
+.follows button.do .ic{color:var(--butter-ink)}
+.cap{margin-top:8px; font-size:.74rem; color:var(--ink-3); display:flex; align-items:center; gap:6px}
+.cap .ic{width:12px; height:12px}
+
+/* shared "sheet" every shape sits on */
+.sheet{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); position:relative}
+.sheet-h{display:flex; align-items:center; gap:10px; padding:11px 14px 0; flex-wrap:wrap}
+.kicker{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.legend{margin-left:auto; display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.72rem; color:var(--ink-3)}
+.legend span{display:inline-flex; align-items:center; gap:5px}
+.legend i{width:9px; height:9px; border-radius:50%; border:1.5px solid var(--ink); background:var(--c)}
+.legend i.bar{width:2px; height:11px; border:0; border-radius:1px; background:var(--ink)}
+.legend i.dash{width:14px; height:0; border:0; border-top:1.5px dashed var(--ink-2); border-radius:0}
+
+/* ═════ 01 FIGURE — one number, and the receipt that adds up to it ═════ */
+.fig{border-color:var(--ink); box-shadow:4px 4px 0 var(--mint)}
+.fig-top{display:flex; align-items:flex-end; gap:12px 16px; flex-wrap:wrap; padding:14px 16px 16px}
+.fig-n{font-family:var(--display); font-weight:650; font-size:clamp(2.2rem,7vw,3rem); letter-spacing:-.045em; line-height:.95; font-variant-numeric:tabular-nums}
+.fig-n small{font-size:.48em; color:var(--ink-3); letter-spacing:-.02em; margin-left:1px}
+.fig-d{display:inline-flex; align-items:center; gap:6px; margin-bottom:5px; padding:3px 10px; border-radius:999px; background:var(--mint-soft); border:1.5px solid var(--mint-bd); color:var(--mint-ink); font-family:var(--mono); font-size:.74rem; font-weight:600}
+.fig-d svg{width:10px; height:10px}
+.fig-asof{margin-left:auto; margin-bottom:6px; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.tear{position:relative; border-top:1.5px dashed var(--line-2)}
+.tear::before,.tear::after{content:''; position:absolute; top:-9px; width:16px; height:16px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink)}
+.tear::before{left:-9px; clip-path:inset(0 0 0 50%)} .tear::after{right:-9px; clip-path:inset(0 50% 0 0)}
+.rcpt{padding:6px 16px 12px; font-size:.84rem}
+.rc{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:baseline; padding:6px 0; border-top:1px dotted var(--line-2); opacity:0; transform:translateY(4px); transition:opacity .3s, transform .35s var(--ease-spring); transition-delay:calc(var(--i)*110ms + 150ms)}
+.rc:first-child{border-top:0}
+.in .rc{opacity:1; transform:none}
+.rc .l{color:var(--ink-2)}
+.rc .l small{color:var(--ink-3); margin-left:6px; font-size:.86em}
+.rc .v{font-family:var(--mono); font-variant-numeric:tabular-nums; color:var(--ink)}
+.rc .v.up{color:var(--mint-ink)} .rc .v.dn{color:var(--peach-ink)}
+.rc.tot{border-top:3.5px double var(--ink); margin-top:4px; padding-top:8px; font-weight:650}
+.rc.tot .l{color:var(--ink)}
+.pend{display:flex; align-items:center; gap:10px; margin:0 16px 14px; padding:8px 12px; border-radius:10px; border:1.5px dashed var(--butter-bd); background:var(--butter-soft); font-size:.8rem; color:var(--ink-2)}
+.pend b{color:var(--ink)} .pend .mono{margin-left:auto; color:var(--butter-ink); font-weight:600}
+.pend .ic{width:14px; height:14px; color:var(--butter-ink)}
+
+/* ═════ 02 TALLY — the whole roster as dots, the ones that matter filled ═════ */
+.tally{padding-bottom:14px}
+.tl-n{font-family:var(--display); font-weight:650; font-size:1.9rem; letter-spacing:-.04em; line-height:1}
+.tl-n span{font-size:.5em; color:var(--ink-3); letter-spacing:-.02em}
+.dots{position:relative; margin:12px 14px 0; display:grid; grid-template-columns:repeat(26,minmax(0,1fr)); gap:6px}
+.dot{aspect-ratio:1; padding:0; border-radius:50%; border:1.5px solid var(--line-2); background:var(--paper-2); opacity:0; transform:scale(.3); transition:opacity .25s, transform .4s var(--ease-spring), box-shadow .15s; transition-delay:calc(var(--i)*14ms)}
+.in .dot{opacity:1; transform:none}
+.dot.owe{background:var(--peach); border-color:var(--ink)}
+.dot.heavy{background:var(--peach-ink); border-color:var(--ink)}
+.in .dot:hover,.in .dot:focus-visible{transform:scale(1.35); transition-delay:0s; box-shadow:2px 2px 0 var(--ink); outline:none}
+.dots .brk{grid-column:span 26; display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.62rem; color:var(--ink-3); letter-spacing:.06em; text-transform:uppercase}
+.dots .brk::after{content:''; flex:1; border-top:1px dashed var(--line-2)}
+.tip{position:absolute; z-index:3; pointer-events:none; padding:5px 10px; border-radius:8px; background:var(--ink); color:var(--paper); font-size:.74rem; white-space:nowrap; transform:translate(-50%,calc(-100% - 8px)); opacity:0; transition:opacity .12s}
+.tip.on{opacity:1}
+.tip b{font-family:var(--mono); font-weight:600; margin-left:6px}
+.tally .res-list{margin:14px 14px 0}
+.more[hidden]{display:none}
+.more{display:flex; flex-wrap:wrap; gap:6px; margin:10px 14px 0}
+.more .chip{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 3px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper); font-size:.76rem; color:var(--ink-2)}
+.more .chip b{font-family:var(--mono); font-weight:500; color:var(--peach-ink)}
+.more-btn{margin:10px 14px 0; border:0; background:none; padding:0; font-size:.78rem; font-weight:600; color:var(--lilac-ink)}
+@media (max-width:600px){ .dots{grid-template-columns:repeat(13,minmax(0,1fr)); gap:5px} .dots .brk{grid-column:span 13} }
+
+/* ═════ 03 BREAKDOWN — a share of a whole, ranked, with the budget line ═════ */
+.rib{display:flex; height:16px; margin:12px 14px 4px; border-radius:8px; border:1.5px solid var(--ink); overflow:hidden}
+.rib b{flex:0 0 var(--w); background:var(--c); border-left:1.5px solid var(--ink); transform:scaleX(0); transform-origin:left; transition:transform .55s var(--ease-spring); transition-delay:calc(var(--i)*70ms)}
+.rib b:first-child{border-left:0}
+.in .rib b{transform:none}
+.bk{padding:4px 0 6px}
+.bk-r{display:grid; grid-template-columns:minmax(0,128px) minmax(0,1fr) 84px 44px 14px; gap:12px; align-items:center; width:100%; padding:8px 14px; border:0; background:none; text-align:left; border-radius:0; transition:background .15s}
+.bk-r:hover{background:var(--paper-2)}
+.bk-r .nm{display:flex; align-items:center; gap:8px; font-size:.86rem; font-weight:550; min-width:0}
+.bk-r .nm i{width:10px; height:10px; border-radius:3px; flex:none; background:var(--c); border:1.5px solid var(--ink)}
+.bk-r .nm span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bk-r.lead .nm{font-weight:700}
+.trk{position:relative; height:12px; border-radius:6px; background:var(--paper-3)}
+.trk .fill{position:absolute; left:0; top:0; bottom:0; width:var(--w); border-radius:6px; background:var(--c); border:1.5px solid var(--ink); transform:scaleX(0); transform-origin:left; transition:transform .6s var(--ease-spring); transition-delay:calc(var(--i)*80ms + 200ms)}
+.in .trk .fill{transform:none}
+.trk .over{position:absolute; top:0; bottom:0; left:var(--b); width:calc(var(--w) - var(--b)); border-radius:0 6px 6px 0; background:repeating-linear-gradient(-45deg, var(--peach-ink) 0 2px, transparent 2px 5px); opacity:0; transition:opacity .3s; transition-delay:calc(var(--i)*80ms + 700ms)}
+.in .trk .over{opacity:.55}
+.trk .bud{position:absolute; left:var(--b); top:-5px; bottom:-5px; width:2.5px; margin-left:-1px; border-radius:2px; background:var(--ink)}
+.bk-r .amt{font-family:var(--mono); font-size:.8rem; text-align:right; color:var(--ink)}
+.bk-r .amt small{display:block; font-size:.66rem; color:var(--ink-3)}
+.bk-r .amt small.ov{color:var(--peach-ink); font-weight:600}
+.bk-r .pct{font-family:var(--mono); font-size:.74rem; color:var(--ink-3); text-align:right}
+.bk-r .chev{width:13px; height:13px; color:var(--ink-3)}
+.bk-foot{display:flex; justify-content:space-between; gap:10px; padding:10px 14px; border-top:1.5px dashed var(--line-2); font-size:.78rem; color:var(--ink-3)}
+.bk-foot b{font-family:var(--mono); color:var(--ink); font-weight:600}
+@media (max-width:600px){ .bk-r{grid-template-columns:minmax(0,1fr) 76px 14px; row-gap:6px} .bk-r .trk{grid-column:1 / -1; grid-row:2} .bk-r .pct{display:none} }
+
+/* ═════ 04 TREND — a direction over time against the org's own bar ═════ */
+.trend svg{width:100%; height:auto; overflow:visible}
+.trend .grid line{stroke:var(--paper-3); stroke-width:1}
+.trend .ax{font-family:var(--mono); font-size:10.5px; fill:var(--ink-3)}
+.trend .bar{stroke:var(--ink-2); stroke-width:1.5; stroke-dasharray:5 4}
+.trend .barlbl{font-family:var(--mono); font-size:10px; fill:var(--ink-2); font-weight:600}
+.trend .area{fill:var(--lilac-soft)}
+.trend .ln{fill:none; stroke:var(--ink); stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round; stroke-dasharray:var(--len); stroke-dashoffset:var(--len); transition:stroke-dashoffset 1.2s var(--ease-out) .2s}
+.in.trend .ln,.in .trend .ln{stroke-dashoffset:0}
+.trend .pt{fill:var(--card); stroke:var(--ink); stroke-width:1.8; opacity:0; transition:opacity .2s; transition-delay:calc(var(--i)*120ms + 300ms)}
+.trend .pt.low{fill:var(--peach)}
+.in .trend .pt{opacity:1}
+.trend .vl{font-family:var(--mono); font-size:10.5px; fill:var(--ink-2); text-anchor:middle; opacity:0; transition:opacity .2s; transition-delay:calc(var(--i)*120ms + 400ms)}
+.trend .vl.low{fill:var(--peach-ink); font-weight:600}
+.in .trend .vl{opacity:1}
+.trend .call{opacity:0; transition:opacity .4s 1.5s}
+.in .trend .call{opacity:1}
+.trend .call rect{fill:var(--ink)} .trend .call text{fill:var(--paper); font-family:var(--sans); font-size:11px; font-weight:600}
+.trend .plot{padding:4px 10px 6px}
+.trend .res-list{margin:4px 14px 14px}
+
+/* ═════ 05 WEEK — seven columns, today inked ═════ */
+.wk{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); overflow:hidden; border-radius:calc(var(--r-md) - 2px)}
+.wd{border-left:1px solid var(--paper-3); min-height:168px; display:flex; flex-direction:column}
+.wd:first-child{border-left:0}
+.wd-h{padding:9px 9px 7px; border-bottom:1px solid var(--paper-3)}
+.wd-h .dw{display:block; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.wd-h .dn{font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.03em; line-height:1.1}
+.wd.today{background:var(--lilac-soft)}
+.wd.today .wd-h{background:var(--ink); color:var(--paper); border-bottom-color:var(--ink)}
+.wd.today .wd-h .dw{color:color-mix(in srgb, var(--paper) 70%, transparent)}
+.wd.past .wd-h .dn{color:var(--ink-3)}
+.wd-b{flex:1; padding:7px; display:flex; flex-direction:column; gap:6px; background-image:repeating-linear-gradient(to bottom, transparent 0 25px, var(--paper-3) 25px 26px)}
+.wd.today .wd-b{background-image:none}
+.ev{display:block; width:100%; padding:6px 7px; border-radius:9px; border:1.5px solid var(--c-bd); background:var(--c-soft); text-align:left; font-size:.74rem; line-height:1.3; color:var(--ink); opacity:0; transform:translateY(6px) rotate(-.6deg); transition:opacity .3s, transform .45s var(--ease-spring), box-shadow .15s; transition-delay:calc(var(--i)*90ms + 150ms)}
+.in .ev{opacity:1; transform:none}
+.in .ev:hover{box-shadow:2px 2px 0 var(--ink); border-color:var(--ink); transition-delay:0s}
+.ev b{display:block; font-weight:600; overflow-wrap:anywhere}
+.ev .tm{display:block; margin-top:2px; font-family:var(--mono); font-size:.64rem; color:var(--ink-2)}
+.ev.dl{border-style:dashed; border-color:var(--peach-ink); background:var(--peach-soft)}
+.ev.dl .tm{color:var(--peach-ink); font-weight:600}
+.wd-none{margin:auto; font-family:var(--mono); font-size:.7rem; color:var(--line-2)}
+@media (max-width:600px){
+  .wk{grid-template-columns:minmax(0,1fr)}
+  .wd{min-height:0; flex-direction:row; border-left:0; border-top:1px solid var(--paper-3)}
+  .wd:first-child{border-top:0}
+  .wd-h{width:64px; flex:none; border-bottom:0; border-right:1px solid var(--paper-3)}
+  .wd-b{background-image:none}
+  .wd-none{margin:auto 0}
+}
+
+/* ═════ 06 COMPARE — two terms side by side, paired bars per measure ═════ */
+.cm{padding:4px 0 2px}
+.cm-h,.cm-r{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 70px; gap:14px; align-items:center; padding:9px 14px}
+.cm-h{padding-top:12px; padding-bottom:8px; border-bottom:1.5px solid var(--line)}
+.cm-h .term{display:inline-flex; align-items:center; gap:6px; font-size:.74rem; font-weight:600; color:var(--ink-2)}
+.cm-h .term i{width:10px; height:10px; border-radius:3px; border:1.5px solid var(--ink); background:var(--c)}
+.cm-h .term small{font-weight:400; color:var(--ink-3)}
+.cm-r{border-top:1px solid var(--paper-3)}
+.cm-r:first-of-type{border-top:0}
+.cm-r .m{font-size:.86rem; font-weight:550}
+.cm-r .m small{display:block; font-weight:400; font-size:.72rem; color:var(--ink-3)}
+.cv{display:grid; gap:4px}
+.cv .n{font-family:var(--mono); font-size:.86rem; color:var(--ink)}
+.cv.was .n{color:var(--ink-3)}
+.cv .b{height:7px; border-radius:4px; width:var(--w); background:var(--c); border:1.5px solid var(--ink); transform:scaleX(0); transform-origin:left; transition:transform .55s var(--ease-spring); transition-delay:calc(var(--i)*90ms + 200ms)}
+.cv.was .b{border-color:var(--ink-3); border-style:dashed}
+.in .cv .b{transform:none}
+.dl-chip{justify-self:end; font-family:var(--mono); font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:6px; border:1.5px solid var(--bd); background:var(--bg); color:var(--fg); white-space:nowrap}
+.dl-chip.up{--bd:var(--mint-bd); --bg:var(--mint-soft); --fg:var(--mint-ink)}
+.dl-chip.dn{--bd:var(--peach-bd); --bg:var(--peach-soft); --fg:var(--peach-ink)}
+.dl-chip.flat{--bd:var(--line-2); --bg:var(--paper-2); --fg:var(--ink-3)}
+.caveat{display:flex; gap:9px; align-items:flex-start; margin:6px 14px 14px; padding:9px 12px; border-radius:10px; border:1.5px dashed var(--butter-bd); background:var(--butter-soft); font-size:.8rem; color:var(--ink-2); line-height:1.45}
+.caveat .ic{width:14px; height:14px; color:var(--butter-ink); margin-top:2px}
+.caveat b{color:var(--ink)}
+@media (max-width:600px){ .cm-h,.cm-r{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 62px; gap:10px} .cm-h > :first-child{display:none} .cm-r .m{grid-column:1 / -1} }
+
+/* ═════ 07 EXCERPT — the minutes themselves, the deciding line marked ═════ */
+.pad{margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); overflow:hidden; box-shadow:4px 4px 0 var(--butter); background:var(--card)}
+.pad-h{display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1.5px solid var(--ink); background:var(--butter-soft); flex-wrap:wrap}
+.pad-h .what{font-family:var(--display); font-weight:600; font-size:.98rem; letter-spacing:-.02em}
+.pad-h .by{font-size:.76rem; color:var(--ink-3)}
+.pad-h .open{margin-left:auto; display:inline-flex; align-items:center; gap:5px; border:0; background:none; padding:0; font-size:.78rem; font-weight:600; color:var(--ink)}
+.pad-h .open .ic{width:13px; height:13px}
+.pad-b{position:relative; padding:6px 16px 10px 54px; --lh:28px; background-image:repeating-linear-gradient(to bottom, transparent 0 calc(var(--lh) - 1px), var(--sky-bd) calc(var(--lh) - 1px) var(--lh)); background-position:0 6px}
+.pad-b::before{content:''; position:absolute; left:40px; top:0; bottom:0; border-left:1.5px solid var(--rose-ink); opacity:.55}
+.pad-b p{position:relative; font-size:.88rem; line-height:var(--lh); color:var(--ink-2)}
+.pad-b p.el{color:var(--ink-3); font-family:var(--mono); font-size:.76rem}
+.pad-b p .ln{position:absolute; left:-46px; width:30px; text-align:right; font-family:var(--mono); font-size:.64rem; color:var(--ink-3)}
+.pad-b p.hit{color:var(--ink); font-weight:600}
+.pad-b p.hit .ln{color:var(--rose-ink); font-weight:600}
+.pad-b p.hit .mk{position:relative; z-index:0; box-decoration-break:clone; -webkit-box-decoration-break:clone; background-image:linear-gradient(to right, color-mix(in srgb, var(--butter) calc(var(--mark-op)*100%), transparent), color-mix(in srgb, var(--butter) calc(var(--mark-op)*100%), transparent)); background-repeat:no-repeat; background-position:0 82%; background-size:0% 55%; transition:background-size .9s var(--ease-out) .4s}
+.in .pad-b p.hit .mk{background-size:100% 55%}
+.pad-b .arrow{position:absolute; left:-24px; top:7px; width:14px; height:14px; color:var(--rose-ink)}
+.vote{position:absolute; right:14px; top:50%; transform:translateY(-50%) rotate(-7deg); padding:4px 10px; border:2.5px solid var(--mint-ink); border-radius:7px; color:var(--mint-ink); font-family:var(--mono); font-weight:600; font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; opacity:0; background:color-mix(in srgb, var(--card) 70%, transparent)}
+.in .vote{animation:thump .45s var(--ease-spring) 1.1s both}
+@keyframes thump{0%{transform:translateY(-50%) rotate(-7deg) scale(1.7); opacity:0} 60%{opacity:.9} 100%{transform:translateY(-50%) rotate(-7deg) scale(1); opacity:.88}}
+.also{margin-top:12px}
+.also .kicker{display:block; margin-bottom:6px}
+@media (max-width:600px){ .vote{display:none} .pad-b{padding-left:44px} .pad-b::before{left:32px} .pad-b p .ln{left:-40px; width:26px} }
+
+/* ═════ 08 WHICH ONE — ambiguous name → the people it could be ═════ */
+.pick{margin-top:12px; padding:14px; border-radius:var(--r-md); border:1.5px dashed var(--lilac-bd); background:var(--lilac-soft)}
+.pick-q{font-weight:600; font-size:.9rem; margin-bottom:10px}
+.pick-q small{font-weight:400; color:var(--ink-3); margin-left:6px}
+.pk{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); gap:10px}
+.who{display:grid; grid-template-columns:40px minmax(0,1fr); gap:4px 12px; align-items:center; padding:12px; border-radius:14px; border:1.5px solid var(--line-2); background:var(--card); text-align:left; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .15s}
+.who:hover,.who:focus-visible{border-color:var(--ink); transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 var(--lilac)}
+.who .avatar{width:40px; height:40px; font-size:.8rem; grid-row:span 2}
+.who .nm{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em}
+.who .rl2{font-size:.76rem; color:var(--ink-3)}
+.who .facts{grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:5px; margin-top:6px}
+.who .facts span{font-size:.7rem; padding:2px 8px; border-radius:999px; background:var(--paper-2); border:1px solid var(--line); color:var(--ink-2)}
+.who .facts span.diff{background:var(--butter-soft); border-color:var(--butter-bd); color:var(--ink); font-weight:600}
+.pick-or{margin-top:10px; font-size:.76rem; color:var(--ink-3)}
+.who.sent{border-color:var(--ink); box-shadow:3.5px 3.5px 0 var(--ink)}
+
+/* ═════ 09 NOT FOUND — show the search, not a shrug ═════ */
+.miss{border-style:dashed; border-color:var(--line-2); background:var(--paper-2); overflow:hidden}
+.miss .sheet-h{padding-bottom:4px}
+.looked{padding:2px 14px 12px}
+.lk{display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:10px; align-items:center; padding:7px 0; border-top:1px dashed var(--line-2); font-size:.84rem; opacity:0; transform:translateX(-6px); transition:opacity .3s, transform .35s var(--ease-spring); transition-delay:calc(var(--i)*140ms + 150ms)}
+.lk:first-child{border-top:0}
+.in .lk{opacity:1; transform:none}
+.lk .g{width:22px; height:22px; border-radius:7px; display:grid; place-items:center; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-3)}
+.lk .g .ic{width:12px; height:12px}
+.lk .w{color:var(--ink)} .lk .w small{display:block; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.lk .z{font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.nomatch{position:absolute; right:16px; top:4px; padding:4px 10px; border:2.5px solid var(--ink-3); border-radius:7px; color:var(--ink-3); font-family:var(--mono); font-weight:600; font-size:.7rem; letter-spacing:.16em; transform:rotate(8deg); opacity:0}
+.in .nomatch{animation:nm .45s var(--ease-spring) .8s both}
+@keyframes nm{0%{transform:rotate(8deg) scale(1.7); opacity:0} 100%{transform:rotate(8deg) scale(1); opacity:.75}}
+.closest .kicker{display:block; margin:14px 0 0}
+
+/* ═════ 10 WALLED — say whose it is, then what you CAN do ═════ */
+.wall{margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:4px 4px 0 var(--peach); overflow:hidden}
+.wall-h{display:grid; grid-template-columns:40px minmax(0,1fr); gap:12px; align-items:center; padding:14px 16px}
+.lock{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--peach-soft); border:1.5px solid var(--peach-bd); color:var(--peach-ink)}
+.lock .ic{width:18px; height:18px}
+.wall-h .t{font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em; line-height:1.2}
+.wall-h .s{font-size:.8rem; color:var(--ink-3); margin-top:2px}
+.wall-h .s code{font-family:var(--mono); font-size:.92em; color:var(--ink-2)}
+.holders{display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; padding:10px 16px; border-top:1px solid var(--paper-3); font-size:.8rem}
+.holders .kicker{width:100%}
+.holder{display:inline-flex; align-items:center; gap:8px; color:var(--ink)}
+.holder small{color:var(--ink-3)}
+.cando{padding:12px 16px 14px; border-top:1.5px dashed var(--line-2); background:var(--paper-2)}
+.cando .kicker{display:block; margin-bottom:8px}
+.cando .row{display:flex; flex-wrap:wrap; gap:8px}
+
+/* ═════ 11 CHECKLIST — a fixed procedure, each step checked against live data ═════ */
+.prog{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; margin:12px 14px 4px}
+.prog b{height:8px; border-radius:4px; background:var(--paper-3); border:1.5px solid var(--line-2)}
+.prog b.on{background:var(--mint); border-color:var(--ink); transform:scaleX(0); transform-origin:left; transition:transform .4s var(--ease-spring); transition-delay:calc(var(--i)*120ms + 150ms)}
+.in .prog b.on{transform:none}
+.prog b.nx{border-color:var(--butter-ink); border-style:dashed; background:var(--butter-soft)}
+.ck{padding:4px 0 6px}
+.ck-r{display:grid; grid-template-columns:24px minmax(0,1fr) auto 14px; gap:12px; align-items:center; width:100%; padding:9px 14px; border:0; background:none; text-align:left; transition:background .15s}
+button.ck-r:hover{background:var(--paper-2)}
+.ck-r .bx{width:22px; height:22px; border-radius:50%; display:grid; place-items:center; border:1.5px solid var(--line-2); background:var(--card); color:var(--card)}
+.ck-r .bx .ic{width:11px; height:11px; opacity:0}
+.ck-r.done .bx{background:var(--mint-ink); border-color:var(--mint-ink)}
+.ck-r.done .bx .ic{opacity:1}
+html[data-theme="dark"] .ck-r.done .bx{color:#15110D}
+.ck-r.done .tt{color:var(--ink-3)}
+.ck-r.next .bx{border:2px dashed var(--butter-ink); background:var(--butter-soft)}
+.ck-r .tt{font-size:.88rem; font-weight:600}
+.ck-r .dd{display:block; font-family:var(--mono); font-size:.72rem; font-weight:400; color:var(--ink-3); margin-top:1px}
+.ck-r.next .dd{color:var(--butter-ink)}
+.ck-r .scr{font-size:.7rem; font-weight:600; padding:2px 9px; border-radius:999px; border:1.5px solid var(--line-2); color:var(--ink-2); white-space:nowrap}
+.ck-r.next .scr{border-color:var(--ink); color:var(--ink)}
+.ck-r .chev{width:13px; height:13px; color:var(--ink-3)}
+.ck-r .nx-tag{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--butter-ink); margin-left:8px}
+.ck-sep{margin:2px 14px; border-top:1px dashed var(--line-2)}
+@media (max-width:600px){ .ck-r .scr{display:none} }
+
+/* ---------- small screens ----------------------------------------------- */
+@media (max-width:600px){
+  .pg{padding:28px 14px 80px}
+  .index{margin:24px -14px 0; padding:8px 14px}
+  .spot-b{padding:4px 12px 14px}
+  .res{grid-template-columns:28px minmax(0,1fr) 14px; gap:10px}
+  .res .val{grid-column:2; justify-self:start; margin-top:-4px}
+  .res .chev{grid-row:1; grid-column:3}
+  .asas{display:none}
+}
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{transition-duration:.01ms !important; animation-duration:.01ms !important; transition-delay:0s !important; animation-delay:0s !important} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <!-- app-only glyphs, drawn in the same hand -->
+    <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-monitor" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-door" viewBox="0 0 24 24"><path d="M13.4 3.8H6.6c-.8 0-1.4.6-1.4 1.4v13.6c0 .8.6 1.4 1.4 1.4h6.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M10.4 12h10m0 0-3.4-3.4m3.4 3.4-3.4 3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.4 15.4 5 5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-updown" viewBox="0 0 24 24"><path d="m7.6 9.4 4.4-4.4 4.4 4.4M7.6 14.6 12 19l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-l" viewBox="0 0 24 24"><path d="m14.6 5.6-6.4 6.4 6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-rail" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="15.2" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.4 4.6v14.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.6 9.6-2.4 2.4 2.4 2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-envelope" viewBox="0 0 24 24"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.6 6.4V4.4h4.8v2M6.6 6.8l.9 12.4c.1.8.7 1.4 1.5 1.4h6c.8 0 1.4-.6 1.5-1.4l.9-12.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.2 10.6v6M13.8 10.6v6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="d-pin" viewBox="0 0 24 24"><path d="M12 21s-6.4-5.6-6.4-11a6.4 6.4 0 0 1 12.8 0c0 5.4-6.4 11-6.4 11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-eye" viewBox="0 0 24 24"><path d="M2.6 12s3.4-6.4 9.4-6.4 9.4 6.4 9.4 6.4-3.4 6.4-9.4 6.4S2.6 12 2.6 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-thumb" viewBox="0 0 24 24"><path d="M7.4 10.6v9.6H4.2v-9.6h3.2Zm0 0 3.8-6.4c1.4 0 2.4 1.1 2.2 2.5l-.5 3.3h5.3c1.3 0 2.2 1.2 1.9 2.4l-1.6 6.1c-.3 1-1.2 1.7-2.2 1.7H7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-sheet" viewBox="0 0 24 24"><rect x="3.6" y="4.2" width="16.8" height="15.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.8 9.6h16.4M3.8 14.6h16.4M9.6 4.4v15.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="d-form" viewBox="0 0 24 24"><rect x="4.6" y="4.4" width="14.8" height="16.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.2 4.4c0-1.1 1.2-1.8 2.8-1.8s2.8.7 2.8 1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.6 13.2 2.2 2.2 4.4-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-drive" viewBox="0 0 24 24"><path d="M8.6 3.8h6.8l5.6 9.8-3.4 5.8H6.4L3 13.6l5.6-9.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 3.8 15 15M3.2 13.6h11.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="d-tack" viewBox="0 0 24 24"><path d="M9 3.2h6M10 3.4l-.6 6.2-3.4 3h12l-3.4-3-.6-6.2M12 12.8v8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="18" r="1.8"/></g></symbol>
+    <symbol id="d-out" viewBox="0 0 24 24"><path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-move" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 13.4h6.6m0 0-2.6-2.6m2.6 2.6-2.6 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-jar" viewBox="0 0 24 24"><path d="M7.4 3.4h9.2v3.2H7.4z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8 6.6c-2 1.1-3.2 2.9-3.2 5.2v6.4c0 1.3 1.1 2.4 2.4 2.4h9.6c1.3 0 2.4-1.1 2.4-2.4v-6.4c0-2.3-1.2-4.1-3.2-5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 4.9h4M8.6 14.4h6.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+<main class="pg">
+  <header class="pg-top">
+    <div>
+      <span class="eyebrow" style="--eb:var(--lilac-ink)">Ask Chapt · reply states · exploration</span>
+      <h1>Eleven new ways to <span class="hi">answer</span>.</h1>
+      <p class="lede">Today every structured answer is a verdict plus a ruled list of rows. That's right for <em>who</em> and <em>which</em> — and wrong when the honest picture is one number, a share, a direction, a week, a quote, or “I couldn't find it.” Each state here is an optional <code>shape</code> on the answer: the model picks the shape and writes the verdict; the server fills every number from tools Ask Chapt already calls. Older app builds ignore <code>shape</code> and keep rendering the rows.</p>
+    </div>
+    <div class="theme" role="group" aria-label="Theme">
+      <button aria-pressed="true" data-theme-set="light">Day</button>
+      <button aria-pressed="false" data-theme-set="dark">Night</button>
+    </div>
+  </header>
+
+  <nav class="index" aria-label="States">
+    <a href="#figure"><i style="--c:var(--mint)">01</i>Figure</a>
+    <a href="#tally"><i style="--c:var(--peach)">02</i>Tally</a>
+    <a href="#breakdown"><i style="--c:var(--butter)">03</i>Breakdown</a>
+    <a href="#trend"><i style="--c:var(--lilac)">04</i>Trend</a>
+    <a href="#week"><i style="--c:var(--sky)">05</i>Week</a>
+    <a href="#compare"><i style="--c:var(--rose)">06</i>Compare</a>
+    <a href="#excerpt"><i style="--c:var(--butter)">07</i>Excerpt</a>
+    <a href="#which"><i style="--c:var(--lilac)">08</i>Which one</a>
+    <a href="#missing"><i style="--c:var(--paper-3)">09</i>Not found</a>
+    <a href="#walled"><i style="--c:var(--peach)">10</i>Walled</a>
+    <a href="#checklist"><i style="--c:var(--mint)">11</i>Checklist</a>
+  </nav>
+
+  <!-- ═════════════════════════════ 01 FIGURE ═════════════════════════════ -->
+  <section class="st" id="figure">
+    <div class="st-h"><span class="num">01</span><h2>Figure</h2><p>When one number <em>is</em> the answer. The number is the hero; under a tear line, a receipt of the lines that add up to it — so “where did that come from?” is answered before it's asked.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>How much money do we have right now?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 3 sources · 1.4s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read the books<span class="sc">Treasury</span></span><span class="fd">$8,412.60</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Summed this term<span class="sc">Transactions</span></span><span class="fd">62 entries</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked what's owed out<span class="sc">Reimbursements</span></span><span class="fd">3 pending</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">Healthy — you're <span class="hi" style="--mark:var(--mint)">$2,650 ahead</span> of where Fall started.</p>
+            <div class="sheet fig">
+              <div class="fig-top">
+                <div><span class="kicker">On hand</span><div class="fig-n">$8,412<small>.60</small></div></div>
+                <span class="fig-d"><svg viewBox="0 0 10 10"><path d="M5 1.5 9 8H1z" fill="currentColor"/></svg>$2,650 this term</span>
+                <span class="fig-asof">as of today · 2:14 PM</span>
+              </div>
+              <div class="tear"></div>
+              <div class="rcpt">
+                <div class="rc" style="--i:0"><span class="l">Opened Fall 26<small>Aug 24</small></span><span class="v">$5,762.60</span></div>
+                <div class="rc" style="--i:1"><span class="l">Dues collected<small>38 payments</small></span><span class="v up">+ $6,240.00</span></div>
+                <div class="rc" style="--i:2"><span class="l">Fundraising<small>2 events</small></span><span class="v up">+ $860.00</span></div>
+                <div class="rc" style="--i:3"><span class="l">Spent<small>24 entries</small></span><span class="v dn">− $4,450.00</span></div>
+                <div class="rc tot" style="--i:4"><span class="l">On hand</span><span class="v">$8,412.60</span></div>
+              </div>
+              <div class="pend"><svg class="ic"><use href="#d-receipt"/></svg><span><b>Not counted yet:</b> 3 reimbursements awaiting approval</span><span class="mono">$410.00</span></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--mint-ink)"><i></i>Treasury</span><span class="src" style="--c:var(--butter-ink)"><i></i>Reimbursements</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>Where did the $4,450 go?</button><button><svg class="ic"><use href="#d-spark"/></svg>Who still owes dues?</button><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Log a transaction</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>A single quantity answers the question: balance, total, count, a member's own hours.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "figure",
+  value: "$8,412.60",
+  delta: { label: "this term", dir: "up", value: "$2,650" },
+  lines: [{ label, note, amount, sign }],
+  aside: { label, amount }   // pending, not counted }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>get_treasury</span><span>sum_transactions</span><span>list_reimbursements</span></div></div>
+        <div class="rule">Server builds <code>lines</code> and refuses a shape whose lines don't sum to <code>value</code>. The model only chooses it and writes the verdict.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 02 TALLY ═════════════════════════════ -->
+  <section class="st" id="tally">
+    <div class="st-h"><span class="num">02</span><h2>Tally</h2><p>“How many of us?” answered by drawing all of us. Every member is a dot; the ones the question is about are filled. You read the proportion before the number — then hover any dot for the person.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Who still owes dues?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 1.1s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read the roster<span class="sc">Brotherhood</span></span><span class="fd">52 members</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Matched payments<span class="sc">Dues</span></span><span class="fd">14 owe · $2,180</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict"><span class="hi" style="--mark:var(--peach)">14 of 52</span> still owe — $2,180 outstanding, most of it from four people.</p>
+            <div class="sheet tally">
+              <div class="sheet-h"><div class="tl-n">14<span> / 52 owe</span></div><div class="legend"><span><i style="--c:var(--peach-ink)"></i>$200+</span><span><i style="--c:var(--peach)"></i>Owes</span><span><i style="--c:var(--paper-2); border-color:var(--line-2)"></i>Paid up</span></div></div>
+              <div class="dots" id="dots"><div class="tip" id="tip"></div></div>
+              <div class="res-list" id="top-owers"></div>
+              <div class="more" id="more" hidden></div>
+              <button class="more-btn" id="more-btn">+ 10 more who owe</button>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--lilac-ink)"><i></i>Brotherhood</span><span class="src" style="--c:var(--mint-ink)"><i></i>Dues</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Record a payment</button><button><svg class="ic"><use href="#d-spark"/></svg>When do dues close?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>The question picks a subset of the roster: owes dues, missed the last 3, under the service bar, hasn't RSVP'd.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "tally",
+  of: 52, hit: 14,
+  marks: [{ ref, state: "heavy" | "hit" | "rest",
+            value?: "$420" }] }
+rows: top 4 by value — the peekable list</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_brothers</span><span>list_dues_payments</span></div></div>
+        <div class="rule">Marks come from the same id index row-peek uses (<code>lib/ai-refs.ts</code>), so every dot is a real member and opens their card. Over ~120 members the dots switch to a single filled bar.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 03 BREAKDOWN ═════════════════════════════ -->
+  <section class="st" id="breakdown">
+    <div class="st-h"><span class="num">03</span><h2>Breakdown</h2><p>A share of a whole, ranked. One ribbon shows the whole at a glance; each category gets its own bar with the budget drawn as an ink tick — so “over budget” is a hatched overhang, not a sentence you have to parse. No donut.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Where did our money go this semester?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 1.3s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Summed spending by category<span class="sc">Transactions</span></span><span class="fd">$4,450 · 6 cats</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read the budget<span class="sc">Budget</span></span><span class="fd">5 lines set</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict"><span class="hi">Socials took 41%</span> of the $4,450 you've spent — and ran $225 past their budget.</p>
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Spent · Fall 26</span><div class="legend"><span><i class="bar"></i>Budget</span><span><i style="background:repeating-linear-gradient(-45deg, var(--peach-ink) 0 2px, transparent 2px 4px)"></i>Over</span></div></div>
+              <div class="rib" aria-hidden="true">
+                <b style="--w:41%; --c:var(--rose); --i:0"></b><b style="--w:20%; --c:var(--mint); --i:1"></b><b style="--w:16%; --c:var(--sky); --i:2"></b><b style="--w:13.5%; --c:var(--lilac); --i:3"></b><b style="--w:6%; --c:var(--butter); --i:4"></b><b style="--w:3.5%; --c:var(--paper-3); --i:5"></b>
+              </div>
+              <div class="bk" id="bk"></div>
+              <div class="bk-foot"><span>Total spent this term</span><b>$4,450.00</b></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--mint-ink)"><i></i>Treasury</span><span class="src" style="--c:var(--butter-ink)"><i></i>Budget</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>What were the biggest social expenses?</button><button><svg class="ic"><use href="#d-spark"/></svg>Compare to last spring</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>A total split into parts: spend or income by category, service hours by event type, attendance by pledge class.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "breakdown",
+  total: "$4,450.00",
+  parts: [{ slug, label, amount, share,
+            budget?: number, screen }] }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>sum_transactions</span><span>get_budget</span></div></div>
+        <div class="rule">Colours come from the org's own category slugs (per-org categories), never the model. Rows navigate to Treasury filtered by that slug. Parts past 6 fold into “Other”.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 04 TREND ═════════════════════════════ -->
+  <section class="st" id="trend">
+    <div class="st-h"><span class="num">04</span><h2>Trend</h2><p>“Is it getting better or worse?” is a line, drawn against the bar the chapter set for itself in Settings. Points under the bar turn peach; the low point gets a callout. Rows underneath say who's driving it.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Is chapter attendance slipping?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 3 sources · 2.0s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Found chapter meetings<span class="sc">Timeline</span></span><span class="fd">8 since Aug 31</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read each roll<span class="sc">Attendance</span></span><span class="fd">avg 80%</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked who's missing<span class="sc">Attendance</span></span><span class="fd">6 missed 3 straight</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <div class="trend">
+              <p class="verdict">Yes — <span class="hi" style="--mark:var(--peach)">down 19 points</span> from September's peak, and under your 75% bar three weeks running.</p>
+              <div class="sheet">
+                <div class="sheet-h"><span class="kicker">Chapter meetings · % present</span><div class="legend"><span><i class="dash"></i>Your bar</span><span><i style="--c:var(--peach)"></i>Under it</span></div></div>
+                <div class="plot" id="trend-plot"></div>
+                <div class="res-list">
+                  <button class="res"><span class="glyph" style="--p-bg:var(--peach-soft); --p-bd:var(--peach-bd); --p-fg:var(--peach-ink)"><svg class="ic"><use href="#d-people"/></svg></span><span><span class="t">6 members missed all of the last three</span><span class="s">Jake M., Tyler B., Devin S. and 3 more</span></span><span class="val risk">−12 pts</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                  <button class="res"><span class="glyph" style="--p-bg:var(--sky-soft); --p-bd:var(--sky-bd); --p-fg:var(--sky-ink)"><svg class="ic"><use href="#d-cal"/></svg></span><span><span class="t">Lowest: Oct 12 · 36 of 52</span><span class="s">Chapter meeting · Pullman 140</span></span><span class="val">70%</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--lilac-ink)"><i></i>Attendance</span><span class="src" style="--c:var(--ink-3)"><i></i>Settings</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>Who are the other 3?</button><button><svg class="ic"><use href="#d-spark"/></svg>Did excused absences go up?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>The question is about direction: “slipping”, “improving”, “since”, “over the semester”. Needs ≥ 4 points, else it falls back to a Figure.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "trend",
+  unit: "%",
+  points: [{ label: "Aug 31", value: 88, ref }],
+  bar?: { value: 75, label: "Your bar" } }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>get_event_attendance</span><span>get_brother_attendance</span></div></div>
+        <div class="rule">The bar is the org's attendance threshold from Settings, never a model guess. No bar set → no line, and nothing is coloured “under”. Points peek into that meeting.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 05 WEEK ═════════════════════════════ -->
+  <section class="st" id="week">
+    <div class="st-h"><span class="num">05</span><h2>Week</h2><p>“What's coming up?” as a page from a desk calendar instead of a list of dates you have to map onto days in your head. Today is inked; deadlines are dashed flags; every block opens its event.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>What's happening this week?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 0.9s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Read the Timeline<span class="sc">Oct 19–25</span></span><span class="fd">4 events</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked deadlines<span class="sc">Tasks</span></span><span class="fd">1 due</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">A full one — <span class="hi" style="--mark:var(--sky)">five things</span> this week, and dues close Friday.</p>
+            <div class="sheet wk">
+              <div class="wd today"><div class="wd-h"><span class="dw">Mon · today</span><span class="dn">19</span></div><div class="wd-b"><button class="ev" style="--c-soft:var(--lilac-soft); --c-bd:var(--lilac-bd); --i:0"><b>Chapter meeting</b><span class="tm">7:00 PM</span></button></div></div>
+              <div class="wd"><div class="wd-h"><span class="dw">Tue</span><span class="dn">20</span></div><div class="wd-b"><span class="wd-none">—</span></div></div>
+              <div class="wd"><div class="wd-h"><span class="dw">Wed</span><span class="dn">21</span></div><div class="wd-b"><button class="ev" style="--c-soft:var(--mint-soft); --c-bd:var(--mint-bd); --i:1"><b>Food bank shift</b><span class="tm">4:00 PM · 6 of 8</span></button></div></div>
+              <div class="wd"><div class="wd-h"><span class="dw">Thu</span><span class="dn">22</span></div><div class="wd-b"><button class="ev" style="--c-soft:var(--sky-soft); --c-bd:var(--sky-bd); --i:2"><b>Exec meeting</b><span class="tm">8:30 PM</span></button></div></div>
+              <div class="wd"><div class="wd-h"><span class="dw">Fri</span><span class="dn">23</span></div><div class="wd-b"><button class="ev dl" style="--i:3"><b>Dues close</b><span class="tm">⚑ 11:59 PM</span></button><button class="ev" style="--c-soft:var(--rose-soft); --c-bd:var(--rose-bd); --i:4"><b>Mixer w/ ΚΔ</b><span class="tm">9:00 PM</span></button></div></div>
+              <div class="wd"><div class="wd-h"><span class="dw">Sat</span><span class="dn">24</span></div><div class="wd-b"><span class="wd-none">—</span></div></div>
+              <div class="wd"><div class="wd-h"><span class="dw">Sun</span><span class="dn">25</span></div><div class="wd-b"><span class="wd-none">—</span></div></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--peach-ink)"><i></i>Tasks</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>And next week?</button><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Add something Saturday</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>A bounded window of ≤ 7 days: “this week”, “next week”, “this weekend”. Longer windows stay as rows.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "week",
+  start: "2026-10-19",
+  items: [{ ref, date, time, title,
+            cat, kind: "event" | "deadline",
+            meta?: "6 of 8" }] }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_deadlines</span></div></div>
+        <div class="rule">Day columns are laid out by the client from <code>start</code>; the model never places an item on a day. Pastels come from the event type (PAPER_HUE by slug). Phone: columns stack into day rows.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 06 COMPARE ═════════════════════════════ -->
+  <section class="st" id="compare">
+    <div class="st-h"><span class="num">06</span><h2>Compare</h2><p>Two periods, same measures, side by side. Last term's bar is dashed (it's history); this term's is inked. When the window isn't over yet, a butter caveat says so — comparing half a rush to a whole one is the easiest way to mislead.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>How's rush going compared to last spring?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 3 sources · 1.8s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Found rush events<span class="sc">Timeline</span></span><span class="fd">6 vs 5</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Counted who joined<span class="sc">Join requests</span></span><span class="fd">14 vs 9</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Summed recruitment spend<span class="sc">Treasury</span></span><span class="fd">$940 vs $712</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">More people are showing up, but <span class="hi" style="--mark:var(--rose)">fewer are joining</span> — 9 so far against 14 last spring.</p>
+            <div class="sheet cm">
+              <div class="cm-h"><span></span><span class="term"><i style="--c:var(--paper-3)"></i>Spring 26</span><span class="term"><i style="--c:var(--rose)"></i>Fall 26 <small>so far</small></span><span></span></div>
+              <div class="cm-r"><span class="m">Rush events</span><div class="cv was"><span class="n">6</span><span class="b" style="--w:100%; --c:var(--paper-3); --i:0"></span></div><div class="cv"><span class="n">5</span><span class="b" style="--w:83%; --c:var(--rose); --i:0"></span></div><span class="dl-chip flat">−1</span></div>
+              <div class="cm-r"><span class="m">Avg turnout<small>per event</small></span><div class="cv was"><span class="n">31</span><span class="b" style="--w:82%; --c:var(--paper-3); --i:1"></span></div><div class="cv"><span class="n">38</span><span class="b" style="--w:100%; --c:var(--rose); --i:1"></span></div><span class="dl-chip up">+7</span></div>
+              <div class="cm-r"><span class="m">Joined<small>requests approved</small></span><div class="cv was"><span class="n">14</span><span class="b" style="--w:100%; --c:var(--paper-3); --i:2"></span></div><div class="cv"><span class="n">9</span><span class="b" style="--w:64%; --c:var(--rose); --i:2"></span></div><span class="dl-chip dn">−5</span></div>
+              <div class="cm-r"><span class="m">Spent<small>recruitment</small></span><div class="cv was"><span class="n">$940</span><span class="b" style="--w:100%; --c:var(--paper-3); --i:3"></span></div><div class="cv"><span class="n">$712</span><span class="b" style="--w:76%; --c:var(--rose); --i:3"></span></div><span class="dl-chip flat">−$228</span></div>
+              <div class="caveat"><svg class="ic"><use href="#d-clock"/></svg><span><b>Fall isn't finished.</b> 5 of 7 planned rush events are done; Spring's numbers are final. Bids still out could close the gap.</span></div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--lilac-ink)"><i></i>Join requests</span><span class="src" style="--c:var(--mint-ink)"><i></i>Treasury</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>Which event drew the most?</button><button><svg class="ic"><use href="#d-spark"/></svg>Who's still pending?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>Two named periods (terms, months, events) and ≥ 2 shared measures.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "compare",
+  a: { label: "Spring 26", final: true },
+  b: { label: "Fall 26", final: false,
+       progress: "5 of 7 events" },
+  rows: [{ label, note?, a, b,
+           better: "up" | "down" | null }] }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_join_requests</span><span>sum_transactions</span></div></div>
+        <div class="rule">Delta colour needs <code>better</code>; with none (spend, event count) the chip stays grey. The caveat is automatic whenever a side isn't <code>final</code> — the model can't omit it.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 07 EXCERPT ═════════════════════════════ -->
+  <section class="st" id="excerpt">
+    <div class="st-h"><span class="num">07</span><h2>Excerpt</h2><p>“What did we decide?” deserves the receipt, not a paraphrase. The answer quotes the minutes on a legal pad with the deciding line highlighted and its line number in the margin — tap through to the full page.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>What did we decide about formal?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 2 sources · 1.5s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Searched meeting minutes<span class="sc">“formal”</span></span><span class="fd">3 meetings</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Searched docs<span class="sc">Docs</span></span><span class="fd">1 sheet</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">You voted to <span class="hi">book Lakeview Lodge</span> for Feb 20 — it passed at the Oct 5 meeting.</p>
+            <div class="pad">
+              <div class="pad-h"><span class="what">Chapter meeting · Oct 5</span><span class="by">Minutes by Daniel O.</span><button class="open">Open minutes<svg class="ic"><use href="#d-arrow-r"/></svg></button></div>
+              <div class="pad-b">
+                <p class="el"><span class="ln">…</span>· · ·</p>
+                <p><span class="ln">14</span>Social chair presented three venues for Spring Formal: Lakeview Lodge ($2,400), The Grand ($3,100), Elks Hall ($1,450).</p>
+                <p class="hit"><span class="ln">15</span><span class="mk">Motion to book Lakeview Lodge for Feb 20. Seconded. Passed 31–6.</span></p>
+                <p><span class="ln">16</span>$600 deposit due Nov 1 — Treasurer to send.</p>
+                <p class="el"><span class="ln">…</span>· · ·</p>
+                <span class="vote">Passed</span>
+              </div>
+            </div>
+            <div class="also">
+              <span class="kicker">Also mentioned in</span>
+              <div class="res-list" style="margin-top:0">
+                <button class="res"><span class="glyph" style="--p-bg:var(--lilac-soft); --p-bd:var(--lilac-bd); --p-fg:var(--lilac-ink)"><svg class="ic"><use href="#d-gavel"/></svg></span><span><span class="t">Chapter meeting · Sep 28</span><span class="s">“Venue options tabled to next week.”</span></span><span class="val">line 22</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                <button class="res"><span class="glyph" style="--p-bg:var(--sky-soft); --p-bd:var(--sky-bd); --p-fg:var(--sky-ink)"><svg class="ic"><use href="#d-sheet"/></svg></span><span><span class="t">Formal planning</span><span class="s">Doc · edited Oct 11 by Ava R.</span></span><span class="val">Docs</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+              </div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--lilac-ink)"><i></i>Minutes</span><span class="src" style="--c:var(--sky-ink)"><i></i>Docs</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Add the $600 deposit as a deadline</button><button><svg class="ic"><use href="#d-spark"/></svg>Who voted against?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>The answer rests on something someone wrote: a decision, a motion, a policy line in a doc.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "excerpt",
+  hit: 0,          // index into this turn's snippets
+  context: 1 }     // lines either side
+// server fills: { ref, title, by, lines: [{ n, text }] }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>search_meeting_notes</span><span>search_docs</span></div></div>
+        <div class="rule">The model points at a snippet by index; the quoted text is copied verbatim from the search result server-side. A model can't put words in the minutes. The PASSED stamp only shows when the line itself contains “passed”.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 08 WHICH ONE ═════════════════════════════ -->
+  <section class="st" id="which">
+    <div class="st-h"><span class="num">08</span><h2>Which one</h2><p>A name that matches more than one person is answered with the people, not a guess. Each card carries the single fact that tells them apart, highlighted. One question, so one tap sends it.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>How's Chris doing?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 1 source · 0.6s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Looked up “Chris”<span class="sc">Brotherhood</span></span><span class="fd">2 matches</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">There are <span class="hi" style="--mark:var(--lilac)">two Chrises</span> on the roster.</p>
+            <div class="pick">
+              <p class="pick-q">Which one did you mean?<small>Tap to ask</small></p>
+              <div class="pk">
+                <button class="who"><span class="avatar" style="--av:var(--sky)">CL</span><span class="nm">Chris Lee</span><span class="rl2">Rush chair</span><span class="facts"><span class="diff">Joined Fall 25</span><span>Pledge class Δ</span></span></button>
+                <button class="who"><span class="avatar" style="--av:var(--mint)">CO</span><span class="nm">Chris Okafor</span><span class="rl2">Member</span><span class="facts"><span class="diff">Joined Spring 24</span><span>Pledge class Ω</span></span></button>
+              </div>
+              <p class="pick-or">Or type a last name.</p>
+            </div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>A person lookup returns 2–4 matches. 5+ falls back to the regular ask-back chips.</div>
+        <div><h4>Payload</h4><pre>askback: { questions: [{
+  question: "Which one did you mean?",
+  <b>people</b>: [{ ref, diff: "Joined Fall 25" }]
+}] }</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_brothers</span></div></div>
+        <div class="rule">An additive field on the existing ask-back — same one-reply-per-block rule, and a lone question sends on first tap. Name, role and avatar come from the ref; the model only picks the distinguishing fact.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 09 NOT FOUND ═════════════════════════════ -->
+  <section class="st" id="missing">
+    <div class="st-h"><span class="num">09</span><h2>Not found</h2><p>An honest miss shows its work: exactly where it looked and the window it searched, so “no” is trustworthy. Then the closest things it did find, and the move that would make the answer exist.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Did anyone sign up for the beach cleanup?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 3 sources · 1.2s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Searched the Timeline<span class="sc">“beach cleanup”</span></span><span class="fd">0 matches</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Searched service events<span class="sc">Service</span></span><span class="fd">0 matches</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Searched Programming<span class="sc">ideas included</span></span><span class="fd">0 matches</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">I couldn't find a <span class="hi" style="--mark:var(--line-2)">beach cleanup</span> anywhere — it may not be on the calendar yet.</p>
+            <div class="sheet miss">
+              <div class="sheet-h"><span class="kicker">Where I looked</span></div>
+              <span class="nomatch">No match</span>
+              <div class="looked">
+                <div class="lk" style="--i:0"><span class="g"><svg class="ic"><use href="#d-timeline"/></svg></span><span class="w">Timeline<small>Aug 24 – Dec 12 · all types</small></span><span class="z">0 of 41</span></div>
+                <div class="lk" style="--i:1"><span class="g"><svg class="ic"><use href="#d-plant"/></svg></span><span class="w">Service events<small>this term + next</small></span><span class="z">0 of 9</span></div>
+                <div class="lk" style="--i:2"><span class="g"><svg class="ic"><use href="#d-board"/></svg></span><span class="w">Programming board<small>ideas, drafts, confirmed</small></span><span class="z">0 of 14</span></div>
+              </div>
+            </div>
+            <div class="closest">
+              <span class="kicker">Closest I found</span>
+              <div class="res-list" style="margin-top:6px">
+                <button class="res"><span class="glyph" style="--p-bg:var(--mint-soft); --p-bd:var(--mint-bd); --p-fg:var(--mint-ink)"><svg class="ic"><use href="#d-plant"/></svg></span><span><span class="t">Lakeshore path cleanup</span><span class="s">Service · Sat Nov 8 · 10:00 AM</span></span><span class="val">6 signed up</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                <button class="res"><span class="glyph" style="--p-bg:var(--rose-soft); --p-bd:var(--rose-bd); --p-fg:var(--rose-ink)"><svg class="ic"><use href="#d-star"/></svg></span><span><span class="t">Beach volleyball social</span><span class="s">Party · Sep 13 · past</span></span><span class="val">42 came</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+              </div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--sky-ink)"><i></i>Timeline</span><span class="src" style="--c:var(--mint-ink)"><i></i>Service</span><span class="src" style="--c:var(--butter-ink)"><i></i>Programming</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button class="do"><svg class="ic"><use href="#d-pencil"/></svg>Add “Beach cleanup” to Programming</button><button><svg class="ic"><use href="#d-spark"/></svg>Did you mean the lakeshore one?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>Every search step in the ledger came back empty for the thing the question names.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "missing",
+  term: "beach cleanup" }
+// server fills looked[] from this turn's
+// tool calls: { source, scope, matched, of }
+rows: nearest by title similarity</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>list_calendar_events</span><span>list_service_events</span><span>list_programming_events</span></div></div>
+        <div class="rule">“Where I looked” is the ledger itself, rewritten as a receipt — the model can't claim it checked somewhere it didn't. The “do” follow-up opens the existing <code>propose_add_programming_event</code> writ.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 10 WALLED ═════════════════════════════ -->
+  <section class="st" id="walled">
+    <div class="st-h"><span class="num">10</span><h2>Walled</h2><p>Asked by a member, about something only officers can open. Instead of a refusal paragraph: whose it is, who holds the key, and what this person <em>can</em> do right now — usually the self-serve version of the same thing.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><span class="asas">AS MAYA · MEMBER</span><button class="barbtn replay">Replay</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>Who got reimbursed this month?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked access · 0.4s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked your access<span class="sc">Reimbursements</span></span><span class="fd">Treasury only</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict">That one's <span class="hi" style="--mark:var(--peach)">for the treasury</span> — other members' reimbursements aren't open to you.</p>
+            <div class="wall">
+              <div class="wall-h"><span class="lock"><svg class="ic"><use href="#d-lock"/></svg></span><div><p class="t">Reimbursements</p><p class="s">Needs <code>Manage treasury</code> — the same rule as the Treasury page.</p></div></div>
+              <div class="holders"><span class="kicker">Who can see it</span>
+                <span class="holder"><span class="avatar avatar--sm" style="--av:var(--butter)">MS</span>Marcus S. <small>Treasurer</small></span>
+                <span class="holder"><span class="avatar avatar--sm" style="--av:var(--lilac)">PN</span>Priya N. <small>President</small></span>
+              </div>
+              <div class="cando"><span class="kicker">What you can do</span>
+                <div class="row"><button class="btn btn--sm btn--ghost"><svg class="ic"><use href="#d-eye"/></svg>See my own reimbursements</button><button class="btn btn--sm btn--ghost" style="--hs:var(--butter)"><svg class="ic"><use href="#d-receipt"/></svg>Request one</button></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>A read tool is skipped because the asker lacks its permission — today that comes back as a prose refusal.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "walled",
+  area: "Reimbursements" }
+// server fills from the gate it hit:
+perm: { name, label, holders[] }
+self: [{ label, ask | proposal }]</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>findPermHolders</span><span>PROPOSAL_META</span></div></div>
+        <div class="rule">Reuses the proposal gate's machinery (<code>lib/permission-holders.ts</code>) for reads. The “can do” buttons are self-scoped: your own record, or <code>propose_request_reimbursement</code>.</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 11 CHECKLIST ═════════════════════════════ -->
+  <section class="st" id="checklist">
+    <div class="st-h"><span class="num">11</span><h2>Checklist</h2><p>A how-to that knows where you are. The steps are a fixed procedure; each one is ticked or not by a real count from the org's data, the next one is flagged, and every open step goes straight to its screen. This is the grounding advisory answers were missing.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span><button class="barbtn replay">Replay</button><button class="barbtn">Approvals</button><button class="barbtn plain">← New</button></div>
+        <div class="spot-b"><div class="ak-turn">
+          <div class="ak-q"><span>What's left before we close out the semester?</span></div>
+          <button class="trace" aria-expanded="false"><span class="tk"><svg class="ic"><use href="#d-check"/></svg></span>Checked 5 sources · 2.3s<svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+          <div class="rl" hidden><ol>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked minutes<span class="sc">Chapter</span></span><span class="fd">12 of 12</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked rolls<span class="sc">Attendance</span></span><span class="fd">2 missing</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked dues<span class="sc">Dues</span></span><span class="fd">14 owe</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked reimbursements<span class="sc">Treasury</span></span><span class="fd">3 pending</span></li>
+            <li class="done"><span class="nd"><svg class="ic"><use href="#d-check"/></svg></span><span>Checked spring roles<span class="sc">Roles</span></span><span class="fd">all 9 set</span></li>
+          </ol></div>
+          <div class="ak-a">
+            <p class="verdict"><span class="hi" style="--mark:var(--mint)">Three of six</span> done — the books are what's left.</p>
+            <div class="sheet">
+              <div class="sheet-h"><span class="kicker">Semester close-out</span><span class="legend"><span>3 / 6</span></span></div>
+              <div class="prog"><b class="on" style="--i:0"></b><b class="on" style="--i:1"></b><b class="on" style="--i:2"></b><b class="nx"></b><b></b><b></b></div>
+              <div class="ck">
+                <button class="ck-r next"><span class="bx"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="tt">Collect outstanding dues<span class="nx-tag">Next</span></span><span class="dd">14 members · $2,180 owed</span></span><span class="scr">Treasury · Dues</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                <button class="ck-r"><span class="bx"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="tt">Settle pending reimbursements</span><span class="dd">3 requests · $410</span></span><span class="scr">Treasury</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                <button class="ck-r"><span class="bx"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="tt">Take the roll on 2 events</span><span class="dd">Oct 3 mixer · Oct 10 study hall</span></span><span class="scr">Timeline</span><svg class="ic chev"><use href="#d-chev-r"/></svg></button>
+                <div class="ck-sep"></div>
+                <div class="ck-r done"><span class="bx"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="tt">Every chapter meeting has minutes</span><span class="dd">12 of 12</span></span><span></span><span></span></div>
+                <div class="ck-r done"><span class="bx"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="tt">Spring officers are set</span><span class="dd">9 of 9 roles filled</span></span><span></span><span></span></div>
+                <div class="ck-r done"><span class="bx"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="tt">Next term is created</span><span class="dd">Spring 27 · Jan 12 – May 8</span></span><span></span><span></span></div>
+              </div>
+            </div>
+            <div class="ak-meta"><div class="sources"><span class="lbl">Sources</span><span class="src" style="--c:var(--lilac-ink)"><i></i>Chapter</span><span class="src" style="--c:var(--sky-ink)"><i></i>Attendance</span><span class="src" style="--c:var(--mint-ink)"><i></i>Treasury</span><span class="src" style="--c:var(--ink-3)"><i></i>Roles</span></div><div class="fb"><span class="lbl">Helpful?</span><button aria-pressed="false"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-pressed="false"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="follows"><button><svg class="ic"><use href="#d-spark"/></svg>Who owes the most?</button><button><svg class="ic"><use href="#d-spark"/></svg>Which events are missing a roll?</button></div>
+          </div>
+        </div></div>
+        <div class="dock"><span>Ask a follow-up…</span><button class="send" disabled><svg class="ic"><use href="#d-send"/></svg></button></div>
+      </div>
+      <aside class="notes">
+        <div><h4>Fires when</h4>A procedural question matches a known playbook (close-out, officer handoff, start of term). Unknown how-tos stay as advisory rows.</div>
+        <div><h4>Payload</h4><pre>shape: { <b>type</b>: "checklist",
+  playbook: "semester_closeout" }
+// server runs each step's check:
+steps: [{ key, label, done, detail,
+          screen }]   // open first, then done</pre></div>
+        <div><h4>Fed by</h4><div class="tools"><span>search_meeting_notes</span><span>get_event_attendance</span><span>list_brothers</span><span>list_reimbursements</span><span>list_roles</span></div></div>
+        <div class="rule">Playbooks are a closed enum like <code>SCREEN_PATHS</code>: the steps and their checks live in code, the model only names the playbook. Screens resolve through <code>resolveScreen()</code>, never a raw href.</div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  function useIc(id, cls){ return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#d-' + id + '"/></svg>'; }
+
+  /* theme */
+  document.querySelectorAll('[data-theme-set]').forEach(function(b){
+    b.addEventListener('click', function(){
+      root.dataset.theme = b.dataset.themeSet;
+      document.querySelectorAll('[data-theme-set]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+
+  /* 02 tally — 52 members, the 14 who owe drawn first so the count reads */
+  var owers = [
+    ['Jake Morales', 420, 'Last paid Aug 30', 'peach'], ['Tyler Brooks', 380, 'No payment this term', 'butter'],
+    ['Devin Shah', 300, 'Last paid Sep 12', 'sky'], ['Owen Park', 260, 'Partial · Sep 26', 'mint'],
+    ['Luis Ortega', 120], ['Ben Carver', 100], ['Sam Whitley', 100], ['Ethan Cole', 90], ['Noah Reyes', 80],
+    ['Jordan Pike', 80], ['Ravi Menon', 70], ['Cole Hart', 60], ['Isaac Ford', 60], ['Max Duval', 60]
+  ];
+  var paid = ['Priya Nair','Marcus Shaw','Daniel Oyelaran','Ava Rossi','Chris Lee','Chris Okafor','Maya Chen','Leo Grant','Aiden Kim','Mateo Cruz','Henry Wu','Felix Stone','Gabe Ruiz','Ian Moss','Kai Turner','Liam Fox','Miles Reed','Nate Bell','Omar Haddad','Parker Lane','Quinn Ellis','Reid Cohen','Sean Doyle','Theo Marsh','Victor Hale','Wes Lowe','Xavier Hunt','Yusuf Ali','Zane Price','Adam Kerr','Blake Nunez','Caleb Ward','Dylan Shore','Eli Novak','Finn Byrne','Grant Iles','Hugo Vance','Jonah Pratt'];
+  var dots = document.getElementById('dots'), tip = document.getElementById('tip'), html = '', i = 0;
+  owers.forEach(function(o){ html += '<button class="dot ' + (o[1] >= 200 ? 'heavy' : 'owe') + '" style="--i:' + (i++) + '" data-n="' + o[0] + '" data-v="$' + o[1] + '" aria-label="' + o[0] + ', owes $' + o[1] + '"></button>'; });
+  paid.forEach(function(n){ html += '<button class="dot" style="--i:' + (i++) + '" data-n="' + n + '" data-v="paid" aria-label="' + n + ', paid up"></button>'; });
+  dots.insertAdjacentHTML('beforeend', html);
+  function showTip(d){
+    var r = d.getBoundingClientRect(), p = dots.getBoundingClientRect();
+    tip.innerHTML = d.dataset.n + '<b>' + d.dataset.v + '</b>';
+    tip.style.left = (r.left - p.left + r.width / 2) + 'px'; tip.style.top = (r.top - p.top) + 'px';
+    tip.classList.add('on');
+  }
+  dots.addEventListener('mouseover', function(e){ var d = e.target.closest('.dot'); if (d) showTip(d); });
+  dots.addEventListener('focusin', function(e){ var d = e.target.closest('.dot'); if (d) showTip(d); });
+  dots.addEventListener('mouseleave', function(){ tip.classList.remove('on'); });
+  dots.addEventListener('focusout', function(){ tip.classList.remove('on'); });
+  document.getElementById('top-owers').innerHTML = owers.slice(0, 4).map(function(o){
+    var ini = o[0].split(' ').map(function(s){ return s[0]; }).join('');
+    return '<button class="res"><span class="avatar" style="--av:var(--' + o[3] + ')">' + ini + '</span><span><span class="t">' + o[0] + '</span><span class="s">' + o[2] + '</span></span><span class="val risk">$' + o[1] + '</span>' + useIc('chev-r', 'chev') + '</button>';
+  }).join('');
+  var more = document.getElementById('more'), moreBtn = document.getElementById('more-btn');
+  more.innerHTML = owers.slice(4).map(function(o){
+    var ini = o[0].split(' ').map(function(s){ return s[0]; }).join('');
+    return '<span class="chip"><span class="avatar avatar--sm" style="--av:var(--paper-3)">' + ini + '</span>' + o[0] + ' <b>$' + o[1] + '</b></span>';
+  }).join('');
+  moreBtn.addEventListener('click', function(){ var open = more.hidden; more.hidden = !open; moreBtn.textContent = open ? 'Show fewer' : '+ 10 more who owe'; });
+
+  /* 03 breakdown — bars scaled to the largest of (spent, budget) */
+  var cats = [
+    ['Socials', 1825, 41, 1600, 'rose'], ['Philanthropy', 890, 20, 1200, 'mint'], ['Recruitment', 712, 16, 900, 'sky'],
+    ['Nationals', 600, 13.5, 600, 'lilac'], ['Supplies', 268, 6, 400, 'butter'], ['Other', 155, 3.5, null, 'paper-3']
+  ];
+  var max = 1825;
+  function money(n){ return '$' + n.toLocaleString('en-US'); }
+  document.getElementById('bk').innerHTML = cats.map(function(c, k){
+    var w = (c[1] / max * 100).toFixed(2) + '%', b = c[3] ? (c[3] / max * 100).toFixed(2) + '%' : null, over = c[3] && c[1] > c[3];
+    var sub = c[3] ? (over ? '<small class="ov">' + money(c[1] - c[3]) + ' over</small>' : '<small>of ' + money(c[3]) + '</small>') : '<small>no budget</small>';
+    return '<button class="bk-r' + (k === 0 ? ' lead' : '') + '" style="--c:var(--' + c[4] + '); --i:' + k + '">' +
+      '<span class="nm"><i></i><span>' + c[0] + '</span></span>' +
+      '<span class="trk" style="--w:' + w + (b ? '; --b:' + b : '') + '"><span class="fill"></span>' + (over ? '<span class="over"></span>' : '') + (b ? '<span class="bud" title="Budget ' + money(c[3]) + '"></span>' : '') + '</span>' +
+      '<span class="amt">' + money(c[1]) + sub + '</span><span class="pct">' + c[2] + '%</span>' + useIc('chev-r', 'chev') + '</button>';
+  }).join('');
+
+  /* 04 trend — 8 chapter meetings against the org's 75% bar */
+  var pts = [['Aug 31',88],['Sep 7',91],['Sep 14',86],['Sep 21',84],['Sep 28',79],['Oct 5',72],['Oct 12',70],['Oct 19',72]];
+  var W = 640, H = 210, L = 34, R = 16, T = 22, B = 30, lo = 50, hi = 100, bar = 75;
+  function x(k){ return L + k * (W - L - R) / (pts.length - 1); }
+  function y(v){ return T + (hi - v) / (hi - lo) * (H - T - B); }
+  var line = pts.map(function(p, k){ return (k ? 'L' : 'M') + x(k).toFixed(1) + ' ' + y(p[1]).toFixed(1); }).join(' ');
+  var area = line + ' L' + x(pts.length - 1).toFixed(1) + ' ' + y(lo) + ' L' + x(0) + ' ' + y(lo) + ' Z';
+  var len = 0; for (var k = 1; k < pts.length; k++) len += Math.hypot(x(k) - x(k - 1), y(pts[k][1]) - y(pts[k - 1][1]));
+  var lowK = 6, svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Attendance by chapter meeting, falling from 91% to 72%">';
+  svg += '<g class="grid">' + [50, 75, 100].map(function(v){ return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text class="ax" x="' + (L - 8) + '" y="' + (y(v) + 3.5) + '" text-anchor="end">' + v + '</text>'; }).join('') + '</g>';
+  svg += '<path class="area" d="' + area + '"/>';
+  svg += '<line class="bar" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(bar) + '" y2="' + y(bar) + '"/><text class="barlbl" x="' + (W - R) + '" y="' + (y(bar) - 6) + '" text-anchor="end">YOUR BAR · 75%</text>';
+  svg += '<path class="ln" style="--len:' + len.toFixed(0) + '" d="' + line + '"/>';
+  pts.forEach(function(p, k){
+    var under = p[1] < bar;
+    svg += '<circle class="pt' + (under ? ' low' : '') + '" style="--i:' + k + '" cx="' + x(k) + '" cy="' + y(p[1]) + '" r="' + (k === lowK ? 5.5 : 4.2) + '"/>';
+    if (k !== 1) svg += '<text class="vl' + (under ? ' low' : '') + '" style="--i:' + k + '" x="' + x(k) + '" y="' + (y(p[1]) + (under ? 17 : -10)) + '">' + p[1] + '</text>';
+    svg += '<text class="ax" x="' + x(k) + '" y="' + (H - 8) + '" text-anchor="middle">' + p[0] + '</text>';
+  });
+  var cx = x(1), cy = y(91);
+  svg += '<g class="call"><rect x="' + (cx - 44) + '" y="' + (cy - 34) + '" width="88" height="22" rx="6"/><text x="' + cx + '" y="' + (cy - 19) + '" text-anchor="middle">Peak · 91%</text></g>';
+  svg += '</svg>';
+  document.getElementById('trend-plot').innerHTML = svg;
+
+  /* 08 which one — a tap sends (lone question) */
+  document.querySelectorAll('.who').forEach(function(b){
+    b.addEventListener('click', function(){ document.querySelectorAll('.who').forEach(function(x){ x.classList.toggle('sent', x === b); }); });
+  });
+
+  /* helpful */
+  document.querySelectorAll('.fb').forEach(function(fb){
+    fb.addEventListener('click', function(e){ var b = e.target.closest('button'); if (!b) return;
+      fb.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b && x.getAttribute('aria-pressed') !== 'true')); }); });
+  });
+
+  /* trace toggle */
+  document.querySelectorAll('.trace').forEach(function(t){
+    t.addEventListener('click', function(){ var rl = t.nextElementSibling, open = t.getAttribute('aria-expanded') === 'true'; t.setAttribute('aria-expanded', String(!open)); rl.hidden = open; });
+  });
+
+  /* entrance on first view */
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .25 });
+  document.querySelectorAll('.ak-a').forEach(function(a){ io.observe(a); });
+
+  /* replay: run the ledger live, then re-enter the answer */
+  document.querySelectorAll('.replay').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var spot = btn.closest('.spot'), turn = spot.querySelector('.ak-turn'), tr = turn.querySelector('.trace'), rl = turn.querySelector('.rl'), a = turn.querySelector('.ak-a');
+      if (turn.classList.contains('thinking')) return;
+      var lis = [].slice.call(rl.querySelectorAll('li'));
+      turn.classList.add('thinking'); a.classList.remove('in');
+      tr.setAttribute('aria-expanded', 'false'); rl.hidden = false; rl.classList.add('live');
+      lis.forEach(function(li){ li.className = ''; });
+      var k = 0;
+      (function step(){
+        if (k > 0) lis[k - 1].className = 'done';
+        if (k < lis.length){ lis[k].className = 'active'; k++; setTimeout(step, 620); return; }
+        setTimeout(function(){
+          rl.hidden = true; rl.classList.remove('live'); turn.classList.remove('thinking');
+          a.style.animation = 'none'; void a.offsetWidth; a.style.animation = '';
+          requestAnimationFrame(function(){ a.classList.add('in'); });
+        }, 420);
+      })();
+    });
+  });
+
+  /* index highlights the section in view */
+  var links = [].slice.call(document.querySelectorAll('.index a'));
+  var so = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting) links.forEach(function(l){ l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id); }); }); }, { rootMargin: '-40% 0px -55% 0px' });
+  document.querySelectorAll('.st').forEach(function(s){ so.observe(s); });
+})();
+</script>
+</body>
+</html>

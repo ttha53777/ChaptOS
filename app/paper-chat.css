@@ -437,3 +437,108 @@ html[data-aesthetic="paper"] .chat-root .inbox-empty .note { color: var(--muted)
   html[data-aesthetic="paper"] .chat-root .writ,
   html[data-aesthetic="paper"] .chat-root .writ .rubber { animation: none; }
 }
+
+/* ── Answer shapes: tally, breakdown, week, people ───────────────────────────
+   1:1 with _design/Ask Chapt Reply States.html §02, §03, §05, §08. Mock tokens
+   map: --paper-3 → --card-3, --line-2 → --line-med, --ink-2 → --ink-soft,
+   --ink-3 → --muted, pastels → --pp-*. Category colours arrive as the
+   --pcc/--pcf/--pcs/--pcb triplet (catVars in AnswerShape.tsx, = catStyleOf). */
+html[data-aesthetic="paper"] .chat-root .shp { margin-top: 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--card); }
+html[data-aesthetic="paper"] .chat-root .shp-kicker { font-family: var(--font-geist-mono); font-size: 9.9px; font-weight: 600; letter-spacing: .1em; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .shp-legend { font-family: var(--font-geist-sans); font-size: 11.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .shp-legend i { border: 1.5px solid var(--ink); box-shadow: none; }
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-top { background: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-hit { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-rest { background: var(--paper-2); border-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-bud { border: 0; background: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-over { border: 0; background: repeating-linear-gradient(-45deg, var(--pp-peach-ink) 0 2px, transparent 2px 4px); }
+
+/* tally */
+html[data-aesthetic="paper"] .chat-root .shp-tally { padding-bottom: 14px; }
+html[data-aesthetic="paper"] .chat-root .tl-n { font-family: var(--font-fraunces); font-weight: 650; font-size: 30px; letter-spacing: -.04em; }
+html[data-aesthetic="paper"] .chat-root .tl-n span { color: var(--muted); letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .chat-root .tl-dot { border: 1.5px solid var(--line-med); background: var(--paper-2); animation-timing-function: var(--pp-ease-spring); transition: transform .15s var(--pp-ease-spring), box-shadow .15s; }
+html[data-aesthetic="paper"] .chat-root .tl-dot.hit { background: var(--pp-peach); border-color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .tl-dot.top { background: var(--pp-peach-ink); border-color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .tl-dot:hover,
+html[data-aesthetic="paper"] .chat-root .tl-dot:focus-visible { transform: scale(1.35); box-shadow: 2px 2px 0 var(--ink); }
+html[data-aesthetic="paper"] .chat-root .tl-tip { font-family: var(--font-geist-sans); font-size: 11.8px; }
+html[data-aesthetic="paper"] .chat-root .tl-bar { border: 1.5px solid var(--ink); background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .tl-bar b { background: var(--pp-peach); border-right: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .chat-root .shp-tally .reslist { margin: 14px 14px 0; }
+html[data-aesthetic="paper"] .chat-root .tl-chip { border: 1.5px solid var(--line); background: var(--paper); font-size: 12.2px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .tl-chip:hover { border-color: var(--ink-soft); color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .tl-chip .av { width: 24px; height: 24px; background: var(--card-3); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-size: 9.6px; font-weight: 700; }
+html[data-aesthetic="paper"] .chat-root .tl-chip b { font-family: var(--font-geist-mono); font-weight: 500; color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .tl-more-btn { font-family: var(--font-geist-sans); font-size: 12.5px; color: var(--pp-lilac-ink); }
+
+/* breakdown */
+html[data-aesthetic="paper"] .chat-root .bk-rib { height: 16px; border: 1.5px solid var(--ink); border-radius: 8px; }
+html[data-aesthetic="paper"] .chat-root .bk-rib b { background: var(--pcf); border-left: 1.5px solid var(--ink); animation-timing-function: var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .chat-root .bk-rib b:first-child { border-left: 0; }
+html[data-aesthetic="paper"] .chat-root .bk-r { font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .chat-root .bk-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .bk-r.sel { background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .chat-root .bk-r .nm { font-size: 13.8px; font-weight: 550; }
+html[data-aesthetic="paper"] .chat-root .bk-r.lead .nm { font-weight: 700; }
+html[data-aesthetic="paper"] .chat-root .bk-r .nm i { background: var(--pcf); border: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .chat-root .bk-r .trk { height: 12px; border-radius: 6px; background: var(--card-3); }
+html[data-aesthetic="paper"] .chat-root .bk-r .fill { border-radius: 6px; background: var(--pcf); border: 1.5px solid var(--ink); animation-timing-function: var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .chat-root .bk-r .over { border-radius: 0 6px 6px 0; background: repeating-linear-gradient(-45deg, var(--pp-peach-ink) 0 2px, transparent 2px 5px); opacity: .55; }
+html[data-aesthetic="paper"] .chat-root .bk-r .bud { top: -5px; bottom: -5px; width: 2.5px; }
+html[data-aesthetic="paper"] .chat-root .bk-r .amt { font-family: var(--font-geist-mono); font-size: 12.8px; }
+html[data-aesthetic="paper"] .chat-root .bk-r .amt small { color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .bk-r .amt small.ov { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .bk-r .pct { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .bk-r .chev { color: var(--muted); transition: color .15s, transform .18s var(--pp-ease-out); }
+html[data-aesthetic="paper"] .chat-root .bk-r:hover:not(:disabled) .chev { color: var(--ink); transform: translateX(2px); }
+html[data-aesthetic="paper"] .chat-root .bk-foot { border-top: 1.5px dashed var(--line-med); font-family: var(--font-geist-sans); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .bk-foot b { font-family: var(--font-geist-mono); }
+
+/* week */
+html[data-aesthetic="paper"] .chat-root .wd { border-left: 1px solid var(--card-3); min-height: 168px; }
+html[data-aesthetic="paper"] .chat-root .wd-h { border-bottom: 1px solid var(--card-3); }
+html[data-aesthetic="paper"] .chat-root .wd-h .dw { font-family: var(--font-geist-mono); font-size: 9.6px; font-weight: 600; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .wd-h .dn { font-family: var(--font-fraunces); font-weight: 600; font-size: 20px; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .chat-root .wd.past .wd-h .dn { color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .wd.today { background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .chat-root .wd.today .wd-h { background: var(--ink); color: var(--paper); border-bottom-color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .wd.today .wd-h .dw { color: color-mix(in srgb, var(--paper) 70%, transparent); }
+html[data-aesthetic="paper"] .chat-root .wd.today .wd-h .dn { color: var(--paper); }
+html[data-aesthetic="paper"] .chat-root .wd-b { background-image: repeating-linear-gradient(to bottom, transparent 0 25px, var(--card-3) 25px 26px); }
+html[data-aesthetic="paper"] .chat-root .wd.today .wd-b { background-image: none; }
+html[data-aesthetic="paper"] .chat-root .wd-none { color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .wk-ev {
+  border: 1.5px solid var(--pcb, var(--line-med)); background: var(--pcs, var(--paper-2)); font-family: var(--font-geist-sans); font-size: 11.8px;
+  animation-name: pp-wk-in; animation-timing-function: var(--pp-ease-spring); transition: box-shadow .15s, border-color .15s;
+}
+@keyframes pp-wk-in { from { opacity: 0; transform: translateY(6px) rotate(-.6deg); } to { opacity: 1; transform: none; } }
+html[data-aesthetic="paper"] .chat-root .wk-ev:hover:not(:disabled),
+html[data-aesthetic="paper"] .chat-root .wk-ev.sel { box-shadow: 2px 2px 0 var(--ink); border-color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .wk-ev .tm { font-family: var(--font-geist-mono); font-size: 10.2px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .wk-ev.dl { border: 1.5px dashed var(--pp-peach-ink); background: var(--pp-peach-soft); }
+html[data-aesthetic="paper"] .chat-root .wk-ev.dl .tm { color: var(--pp-peach-ink); }
+
+/* people: the ask-back cards */
+html[data-aesthetic="paper"] .chat-root .ab-who {
+  border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--card);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .15s;
+}
+html[data-aesthetic="paper"] .chat-root .ab-who:hover,
+html[data-aesthetic="paper"] .chat-root .ab-who:focus-visible { border-color: var(--ink); transform: translate(-1.5px,-1.5px); box-shadow: 3.5px 3.5px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .chat-root .ab-who.on { border-color: var(--ink); box-shadow: 3.5px 3.5px 0 var(--ink); }
+html[data-aesthetic="paper"] .chat-root .ab-who .av { background: var(--pp-sky); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-size: 12.8px; font-weight: 700; border: 1.5px solid rgba(38,33,27,.08); }
+html[data-aesthetic="paper"] .chat-root .ab-who:nth-child(2n) .av { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .ab-who:nth-child(3n) .av { background: var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .ab-who .nm { font-family: var(--font-fraunces); font-weight: 600; font-size: 16px; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .chat-root .ab-who .rl { font-family: var(--font-geist-sans); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .ab-who .facts span { font-family: var(--font-geist-sans); background: var(--paper-2); border: 1px solid var(--line); }
+html[data-aesthetic="paper"] .chat-root .ab-who .facts span.diff { background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .askback .ab-qt small { font-family: var(--font-geist-sans); color: var(--muted); }
+
+@media (max-width: 600px) {
+  html[data-aesthetic="paper"] .chat-root .wd { min-height: 0; border-left: 0; border-top: 1px solid var(--card-3); }
+  html[data-aesthetic="paper"] .chat-root .wd:first-child { border-top: 0; }
+  html[data-aesthetic="paper"] .chat-root .wd-h { border-bottom: 0; border-right: 1px solid var(--card-3); }
+  html[data-aesthetic="paper"] .chat-root .wd-b { background-image: none; }
+}

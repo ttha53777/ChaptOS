@@ -5,6 +5,7 @@ import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
+import { createShapeEvidence, buildShape, attachPeople } from "@/lib/ai-shapes";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
@@ -163,6 +164,11 @@ export async function POST(req: NextRequest) {
       // Records seen in this turn's tool results, so answer rows can carry the id
       // of what they stand for and open a peek instead of asking a follow-up.
       const refIndex = createRefIndex();
+      // What the model read this turn, so a shape it names is only drawn from
+      // data it actually consulted (lib/ai-shapes).
+      const evidence = createShapeEvidence();
+      let shapeType: string | null = null;
+      let shapeMs: number | null = null;
 
       try {
         // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
@@ -395,7 +401,7 @@ export async function POST(req: NextRequest) {
           }));
 
           // Emit results in tool_calls order so client step states stay aligned.
-          for (const { tc, resultPayload, proposalEvent } of results) {
+          for (const { tc, argsObj, resultPayload, proposalEvent } of results) {
             if (proposalEvent) send("proposal", proposalEvent);
             if (isReadTool(tc.name)) {
               const src = TOOL_UI[tc.name]?.source;
@@ -403,6 +409,7 @@ export async function POST(req: NextRequest) {
               // Fold this payload's ids in while it's already in hand. In-memory
               // only — no query, nothing added to the wait before the answer.
               refIndex.add(tc.name, resultPayload);
+              evidence.add(tc.name, argsObj, resultPayload);
             }
             messages.push({
               role: "tool",
@@ -421,9 +428,22 @@ export async function POST(req: NextRequest) {
             if ("error" in parsed) {
               messages.push({ role: "tool", tool_call_id: answerCall.tc.id, content: JSON.stringify(parsed) });
             } else {
+              // The shape the model named is drawn from org reads here, after the
+              // model is done — DB time, not another model round trip. Its rows
+              // replace the model's, which stay the fallback if the build fails.
+              const { shapeRequest, ...answer } = parsed;
+              const shapeStart = performance.now();
+              const [built, askback] = await Promise.all([
+                shapeRequest ? buildShape(shapeRequest, evidence, ctx.db, ctx.orgId) : Promise.resolve(null),
+                answer.askback ? attachPeople(answer.askback, refIndex, ctx.db, ctx.orgId) : Promise.resolve(undefined),
+              ]);
+              if (shapeRequest || answer.askback) shapeMs = Math.round(performance.now() - shapeStart);
+              if (built) shapeType = built.shape.type;
               send("answer", {
-                ...parsed,
-                rows: attachRefs(parsed.rows, refIndex).map(resolveScreen),
+                ...answer,
+                ...(askback ? { askback } : {}),
+                rows: (built ? built.rows : attachRefs(answer.rows, refIndex)).map(resolveScreen),
+                ...(built ? { shape: built.shape } : {}),
                 sources: consulted,
               });
               answeredStructured = true;
@@ -471,6 +491,9 @@ export async function POST(req: NextRequest) {
             iters: totalIters,
             perIterMs,
             toolMs,
+            // The picture drawn (null = rows only) and the DB time spent drawing it.
+            shape: shapeType,
+            shapeMs,
             ttftMs: ttftMs === null ? null : Math.round(ttftMs),
             totalMs: Math.round(performance.now() - reqStart),
           },

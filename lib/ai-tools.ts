@@ -27,7 +27,9 @@ import { findPermHolders, type PermHolders } from "@/lib/permission-holders";
 import { getMetricStatus } from "@/lib/metrics";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { hasMinutes } from "@/lib/agenda-template";
+import { ExcuseStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
+import { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
 
 /**
  * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
@@ -52,7 +54,7 @@ type Scoped = ReturnType<typeof db>;
  */
 const thresholdsCache = new Map<number, { value: Thresholds; expires: number }>();
 
-async function orgThresholds(scoped: Scoped, orgId: number): Promise<Thresholds> {
+export async function orgThresholds(scoped: Scoped, orgId: number): Promise<Thresholds> {
   const now = Date.now();
   const cached = thresholdsCache.get(orgId);
   if (cached && cached.expires > now) return cached.value;
@@ -955,6 +957,21 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             },
             required: ["questions"],
           },
+          shape: {
+            type: "object",
+            description:
+              "OPTIONAL: draw the answer as a picture instead of a list. You only NAME it; the server draws it from the data, so never put numbers here. " +
+              "tally — the question picks a subset of the roster (who owes dues, who's at risk, who has no service hours); needs list_brothers this turn. " +
+              "breakdown — a total split by category (where the money went / came from); needs sum_transactions with group_by_category, plus get_budget when it's this semester's spending. " +
+              "week — what's on during a window of 7 days or fewer ('this week', 'next week', 'this weekend'); needs list_calendar_events and list_deadlines for that window. " +
+              "Omit for anything else. Still send your rows: they're shown if the picture can't be drawn.",
+            properties: {
+              type:   { type: "string", enum: [...SHAPE_TYPES] },
+              metric: { type: "string", enum: [...TALLY_METRICS], description: "tally only: which subset." },
+              start:  { type: "string", description: "week only: the first day, YYYY-MM-DD." },
+            },
+            required: ["type"],
+          },
         },
         required: ["verdict"],
       },
@@ -1064,6 +1081,12 @@ export interface AnswerPayload {
   follows: Array<{ label: string; ask: string }>;
   /** Present only when the answer genuinely needs input to narrow further. */
   askback?: AskBack;
+  /**
+   * The picture the model asked for. A REQUEST, not wire data: the chat route
+   * builds the real shape from org reads (lib/ai-shapes) and must strip this
+   * before sending.
+   */
+  shapeRequest?: ShapeRequest;
 }
 
 const ANSWER_ROW_KINDS = new Set(["person", "money", "event", "task", "generic"]);
@@ -1176,8 +1199,13 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
   }
 
   const askback = parseAskBack(args.askback);
+  const shapeRequest = parseShapeRequest(args.shape);
 
-  return { verdict: verdict.slice(0, 240), rows, follows, ...(askback ? { askback } : {}) };
+  return {
+    verdict: verdict.slice(0, 240), rows, follows,
+    ...(askback ? { askback } : {}),
+    ...(shapeRequest ? { shapeRequest } : {}),
+  };
 }
 
 /**

@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
+import { ShapeBlock, isKnownShape } from "./AnswerShape";
 import { initialsOf, rowAction, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 
 function Verdict({ text }: { text: string }) {
@@ -144,7 +145,33 @@ function AskBackBlock({ askback, onAsk }: { askback: AskBack; onAsk: (q: string)
       {askback.lead && <p className="ab-lead">{askback.lead}</p>}
       {questions.map((q, qi) => (
         <div className="ab-q" key={`${q.question}-${qi}`}>
-          <span className="ab-qt">{q.question}</span>
+          <span className="ab-qt">{q.question}{q.people && instant && <small>Tap to ask</small>}</span>
+          {q.people && q.people.length === q.chips.length ? (
+            // Every chip is a member: draw who each one is. The tap still sends
+            // the chip's own text, exactly as the plain chip would.
+            <div className="ab-people">
+              {q.people.map((p, pi) => {
+                const chip = q.chips[pi];
+                const on = !instant && (picks[qi] ?? []).includes(chip);
+                return (
+                  <button
+                    key={`${p.ref.id}`}
+                    type="button"
+                    className={`ab-who${on ? " on" : ""}`}
+                    aria-pressed={instant ? undefined : on}
+                    onClick={() => tap(qi, q, chip)}
+                  >
+                    <span className="av">{initialsOf(p.name)}</span>
+                    <span className="nm">{p.name}</span>
+                    <span className="rl">{p.role || "Member"}</span>
+                    <span className="facts">
+                      {p.facts.map(f => <span key={f.label} className={f.diff ? "diff" : undefined}>{f.label}</span>)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
           <div className="chiprow">
             {q.chips.map(c => {
               const on = !instant && (picks[qi] ?? []).includes(c);
@@ -161,6 +188,7 @@ function AskBackBlock({ askback, onAsk }: { askback: AskBack; onAsk: (q: string)
               );
             })}
           </div>
+          )}
         </div>
       ))}
       {/* One send for the whole block, and only once there's something to send —
@@ -215,15 +243,27 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   onIdea: (row: AnswerRow) => void;
   onFeedback: (v: "up" | "down") => void;
 }) {
+  const renderRow = (r: AnswerRow, i: number) => (
+    <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} onIdea={onIdea} />
+  );
+  // One dispatcher for anything a shape draws over a row — the same precedence
+  // a ResultRow's own click uses.
+  const act = (row: AnswerRow) => {
+    const action = rowAction(row);
+    if (action === "peek") onPeek(row);
+    else if (action === "idea") onIdea(row);
+    else if (action === "nav") onNav(row);
+    else if (action === "ask") onAsk(row.ask!);
+  };
+  const shape = isKnownShape(answer.shape) ? answer.shape : null;
   return (
     <div className="answer">
       <TraceBlock steps={steps} />
       <Verdict text={answer.verdict} />
-      {answer.rows.length > 0 && (
+      {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek }} renderRow={renderRow} />}
+      {!shape && answer.rows.length > 0 && (
         <div className="reslist in in-3">
-          {answer.rows.map((r, i) => (
-            <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} onIdea={onIdea} />
-          ))}
+          {answer.rows.map(renderRow)}
         </div>
       )}
       {answer.askback && <AskBackBlock askback={answer.askback} onAsk={onAsk} />}

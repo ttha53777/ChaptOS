@@ -516,6 +516,9 @@ export function ChatWidget() {
               ...(a.askback && Array.isArray(a.askback.questions) && a.askback.questions.length > 0
                 ? { askback: a.askback }
                 : {}),
+              ...(a.shape && typeof a.shape === "object" && typeof a.shape.type === "string"
+                ? { shape: a.shape }
+                : {}),
             };
             patchMessage(aid, m => ({ ...m, answer, steps: settleLedger(m.steps) }));
           }

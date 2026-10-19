@@ -56,6 +56,20 @@ export interface AskBackQuestion {
   question: string;
   chips: string[];
   select?: AskBackSelect;
+  /**
+   * Present when every chip names a member (a name that matched several people):
+   * who each one is, in chip order. Tapping a card sends that chip's text, so a
+   * client that ignores this still works from `chips` alone.
+   */
+  people?: AskBackPerson[];
+}
+
+export interface AskBackPerson {
+  ref: EntityRef;
+  name: string;
+  role: string | null;
+  /** Short facts; `diff` marks the ones that tell the candidates apart. */
+  facts: Array<{ label: string; diff: boolean }>;
 }
 
 export interface AskBack {
@@ -70,6 +84,83 @@ export interface AnswerData {
   sources: string[];
   /** Questions the answer asks back, each with tappable likely replies. */
   askback?: AskBack;
+  /**
+   * The picture the answer is drawn as, built server-side from org data (never
+   * model text). When present, `rows` are the shape's own fallback rows, so a
+   * client that doesn't know `shape` — or this shape's `type` — renders those.
+   */
+  shape?: AnswerShape;
+}
+
+/** Discriminated by `type`. New types may be added; ignore ones you don't know. */
+export type AnswerShape = TallyShape | BreakdownShape | WeekShape;
+
+export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
+
+export interface TallyMark {
+  id: number; // brotherId — peek with { type: "member", id }
+  name: string;
+  /** "top" = the biggest few of a dollar-ranked metric; "rest" = not in the subset. */
+  state: "top" | "hit" | "rest";
+  value: string | null;
+}
+
+/** The whole roster as dots, the subset the question is about filled. */
+export interface TallyShape {
+  type: "tally";
+  metric: TallyMetric;
+  of: number;
+  hit: number;
+  /** "owe" → "14 / 52 owe". */
+  hitWord: string;
+  hitLegend: string;
+  restLegend: string;
+  /** "$260+" when the top marks are set apart; null otherwise. */
+  topLabel: string | null;
+  /** Hits first (in rank order), then everyone else by name. null past 150 members — draw a bar. */
+  marks: TallyMark[] | null;
+}
+
+export interface BreakdownPart {
+  /** The category slug; null for the folded "Other" line. */
+  slug: string | null;
+  label: string;
+  /** The org's category hex (light), and its dark override. */
+  color: string | null;
+  colorDark: string | null;
+  amount: number;
+  /** Percent of `total`, one decimal. */
+  share: number;
+  /** This semester's planned amount, when a budget covers the category. */
+  budget: number | null;
+}
+
+/** A total split by category, ranked. `rows` line up 1:1 with `parts`. */
+export interface BreakdownShape {
+  type: "breakdown";
+  kind: "income" | "expense";
+  /** "Spent · Fall 2026". */
+  period: string;
+  total: number;
+  parts: BreakdownPart[];
+  hasBudget: boolean;
+}
+
+export interface WeekItem {
+  ref: EntityRef;
+  kind: "event" | "deadline";
+  date: string; // YYYY-MM-DD, inside the week
+  time: string | null;
+  title: string;
+  /** The event's type; null for a deadline. */
+  cat: { slug: string; label: string; color: string | null; colorDark: string | null } | null;
+}
+
+/** Seven days from `start`. `rows` line up 1:1 with `items`. */
+export interface WeekShape {
+  type: "week";
+  start: string; // YYYY-MM-DD
+  items: WeekItem[];
 }
 
 export interface ProposalPermInfo {
