@@ -26,12 +26,12 @@
  */
 import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY, duesPaymentWhere, sumDuesPaidByBrother } from "@/lib/dues";
-import { ledgerOwesCents, loadDuesLedger } from "@/lib/dues-ledger-db";
+import { ledgerOwesCents, loadDuesLedger, predatesCutover, writeChargeTx, writeWaiverTx } from "@/lib/dues-ledger-db";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { emit } from "@/lib/events";
 import { atLeast, money, toCents } from "@/lib/money";
 import { hasPermission } from "@/lib/permissions";
-import { TransactionType } from "@/lib/state";
+import { DuesAudience, TransactionStatus, TransactionType } from "@/lib/state";
 import type {
   AdjustDuesInput,
   AttributeDuesPaymentInput,
@@ -57,17 +57,19 @@ function assertCanManageDues(ctx: RequestContext): void {
 /**
  * Change what a member OWES, without any money changing hands.
  *
- * Positive delta charges dues (the treasury "+ Add"); negative waives or corrects them.
+ * Positive delta charges dues (Spotlight's "charge"); negative waives them.
  *
- * This deliberately writes NO ledger row, and the asymmetry with an approved
- * DuesPayment is the accounting principle the whole design rests on: an assessment is
- * a *receivable*, not cash. The ledger records money that actually moved. Booking an
- * assessment as income would inflate the treasury balance with money the chapter does
- * not have.
+ * This deliberately writes NO ledger row, and the asymmetry with a dues payment
+ * is the accounting principle the whole design rests on: an assessment is a
+ * *receivable*, not cash. The ledger records money that actually moved. Booking
+ * an assessment as income would inflate the treasury balance with money the
+ * chapter does not have.
  *
- * It is also what replaces duesOwed-as-free-text: admins keep the ability to correct a
- * balance, but it becomes an auditable, reasoned adjustment rather than an anonymous
- * overwrite.
+ * Since dues became charges it also never moves the balance bare: a charge is a
+ * one-person "single" charge named after the reason (no due date, so never
+ * overdue), and a waiver is a DuesWaiver row. Both go through the same
+ * primitives as the Dues tab (lib/dues-ledger-db.ts), so the balance stays equal
+ * to what the charges say it is.
  */
 export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
   assertCanManageDues(ctx);
@@ -79,43 +81,35 @@ export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
   if (!member) throw new NotFoundError("Brother");
 
   const { delta } = input;
+  const reason = input.reason?.trim() || null;
+  const cents = toCents(Math.abs(delta));
+  if (cents === 0) throw new ConflictError("That's less than a cent.");
 
-  // A waiver can't push the balance below zero — the same compare-and-set guard as a
-  // payment, for the same reason (and it's race-safe against a concurrent payment).
-  // compareAndSetDues is org-scoped, so the org filter is injected for us.
-  //
-  // Half-a-cent tolerance, same as recordDuesPayment: waiving a member's full
-  // $200 balance must not be refused because repeated float arithmetic left the
-  // row holding 199.99999999999997. See atLeast in lib/money.ts.
-  const guard = delta < 0 ? { duesOwed: { gte: atLeast(-delta) } } : {};
-
-  const claimed = await ctx.db.member.compareAndSetDues(member.id, {
-    guard,
-    data: { duesOwed: { increment: delta } },
-  });
-  if (claimed.count === 0) {
-    throw new ConflictError(
-      `Cannot reduce ${member.name}'s dues by $${money(-delta).toFixed(2)} — they owe `
-      + `$${money(member.duesOwed).toFixed(2)}.`,
-    );
-  }
-
-  const updated = await ctx.db.member.findRosterRow(member.id);
-
-  // Snap a sub-cent remainder to exactly zero — same reason as recordDuesPayment
-  // in transaction-service.ts. Waiving someone's full balance subtracts two
-  // floats that rarely cancel to 0.0, and "owes money" is `duesOwed > 0`
-  // throughout the app, so the residue would keep a fully-waived member on the
-  // outstanding list showing "$0.00".
-  const newOwed = money(updated?.duesOwed ?? 0);
-  if (newOwed === 0 && (updated?.duesOwed ?? 0) !== 0) {
-    await ctx.db.member.updateManyByBrotherIds([member.id], { duesOwed: 0 });
+  let newOwed: number;
+  if (delta > 0) {
+    const term = await ctx.db.semester.findFirst({ where: { isActive: true }, select: { id: true } });
+    await ctx.db.$transaction(tx => writeChargeTx(tx, ctx, {
+      name:          (reason ?? "Dues").slice(0, 60),
+      dueDate:       null,
+      note:          null,
+      audienceKind:  DuesAudience.Single,
+      audienceLabel: member.name,
+      semesterId:    term?.id ?? null,
+    }, [{ brotherId: member.id, amountCents: cents }]));
+    newOwed = money((await ctx.db.member.findRosterRow(member.id))?.duesOwed ?? 0);
+  } else {
+    // A waiver can't push the balance below zero — the same compare-and-set
+    // guard as a payment, race-safe against a concurrent one, with the same
+    // half-cent tolerance (see writeWaiverTx).
+    ({ newOwed } = await ctx.db.$transaction(tx => writeWaiverTx(tx, ctx, {
+      brotherId: member.id, amountCents: cents, reason, chargeId: null, memberName: member.name, owed: member.duesOwed,
+    })));
   }
 
   await emit(ctx, "dues.adjusted", { type: "Brother", id: member.id }, {
     brotherId: member.id,
     delta,
-    reason:    input.reason ?? null,
+    reason,
     newOwed,
   });
 
@@ -123,12 +117,18 @@ export async function adjustDues(ctx: RequestContext, input: AdjustDuesInput) {
 }
 
 /**
- * Attach a pre-migration dues row to the member who actually paid it.
+ * Attach an unattributed dues row to the member who actually paid it.
  *
- * Pure attribution: it sets brotherId and must NOT touch duesOwed. That balance was
- * already hand-adjusted back when the row was written (that was the old, broken
- * workflow) — decrementing it again here would double-count the payment and take the
- * member's balance below what they really owe.
+ * A row from before the org started keeping charges (its createdAt predates
+ * OrganizationConfig.duesLedgerStartedAt) is pure attribution: it sets brotherId
+ * and must NOT touch duesOwed. That balance was already hand-adjusted back when the
+ * row was written (the old, broken workflow), and the allocator skips pre-cutover
+ * payments — decrementing it again would double-count the payment.
+ *
+ * A row from after the cutover is different: nothing can hand-adjust a balance any
+ * more, so that money never came off anyone's tab. Attributing it makes it a real
+ * payment, and it lowers the balance the way recording one would — guarded the same
+ * way, so it can't leave a credit.
  */
 export async function attributeDuesPayment(ctx: RequestContext, input: AttributeDuesPaymentInput) {
   assertCanManageDues(ctx);
@@ -138,7 +138,7 @@ export async function attributeDuesPayment(ctx: RequestContext, input: Attribute
 
   const row = await ctx.db.transaction.findUnique({
     where:  { id: input.transactionId },
-    select: { id: true, category: true, type: true, brotherId: true, deletedAt: true },
+    select: { id: true, category: true, type: true, brotherId: true, deletedAt: true, status: true, amount: true, createdAt: true },
   });
   if (!row || row.deletedAt !== null) throw new NotFoundError("Transaction");
   if (row.category !== DUES_CATEGORY || row.type !== TransactionType.Income) {
@@ -148,10 +148,36 @@ export async function attributeDuesPayment(ctx: RequestContext, input: Attribute
     throw new ConflictError("This payment is already attributed.");
   }
 
-  await ctx.db.transaction.update({
-    where: { id: row.id },
-    data:  { brotherId: member.brotherId },
-  });
+  const config = await ctx.db.organizationConfig.find();
+  const counts = row.status === TransactionStatus.Posted
+    && !predatesCutover(row.createdAt, config?.duesLedgerStartedAt ?? null);
+
+  if (!counts) {
+    await ctx.db.transaction.update({
+      where: { id: row.id },
+      data:  { brotherId: member.brotherId },
+    });
+  } else {
+    const roster = await ctx.db.member.findRosterRow(member.brotherId);
+    const orgId = ctx.orgId;
+    await ctx.db.$transaction(async (tx) => {
+      const claimed = await ctx.db.member.onTx(tx).compareAndSetDues(member.brotherId, {
+        guard: { duesOwed: { gte: atLeast(row.amount) } },
+        data:  { duesOwed: { decrement: row.amount } },
+      });
+      if (claimed.count === 0) {
+        throw new ConflictError(
+          `This $${money(row.amount).toFixed(2)} payment is more than ${roster?.name ?? "they"} owe `
+          + `($${money(roster?.duesOwed ?? 0).toFixed(2)}). Charge the difference first.`,
+        );
+      }
+      const linked = await tx.transaction.updateMany({
+        where: { id: row.id, organizationId: orgId, brotherId: null, deletedAt: null },
+        data:  { brotherId: member.brotherId },
+      });
+      if (linked.count === 0) throw new ConflictError("This payment is already attributed.");
+    });
+  }
 
   await emit(ctx, "dues.payment_attributed", { type: "Transaction", id: row.id }, {
     brotherId:     member.brotherId,

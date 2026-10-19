@@ -412,6 +412,8 @@ describe("reconciliation", () => {
     const orphan = await testPrisma.transaction.create({
       data: { organizationId: org.id, type: "income", category: "Dues", amount: 75, date: "2026-01-10", description: "Dues" },
     });
+    // Historical = written before the org started keeping charges.
+    await testPrisma.organizationConfig.create({ data: { organizationId: org.id, duesLedgerStartedAt: new Date() } });
 
     await attributeDuesPayment(ctx, { transactionId: orphan.id, brotherId: member.id });
 
@@ -423,6 +425,32 @@ describe("reconciliation", () => {
     const rec = await getDuesReconciliation(ctx);
     expect(rec.unattributed).toHaveLength(0);
     expect(rec.ledgerCollected).toBe(75);
+  });
+
+  it("attributing a row from after the cutover is a real payment: it lowers the balance", async () => {
+    const { org, member, ctx } = await chapterWithDebtor(75);
+    await testPrisma.organizationConfig.create({ data: { organizationId: org.id, duesLedgerStartedAt: new Date(Date.now() - 60_000) } });
+    // Logged through the generic form with no member attached, so nobody's tab came down.
+    const loose = await testPrisma.transaction.create({
+      data: { organizationId: org.id, type: "income", category: "Dues", amount: 30, date: "2026-10-01", description: "Venmo dues" },
+    });
+
+    await attributeDuesPayment(ctx, { transactionId: loose.id, brotherId: member.id });
+
+    expect((await rosterOf(member.id))?.duesOwed).toBe(45);
+    expect((await getDuesReconciliation(ctx)).members.find(m => m.id === member.id)).toMatchObject({ owed: 45, paid: 30 });
+  });
+
+  it("refuses to attribute a post-cutover row bigger than what they owe, and links nothing", async () => {
+    const { org, member, ctx } = await chapterWithDebtor(20);
+    const loose = await testPrisma.transaction.create({
+      data: { organizationId: org.id, type: "income", category: "Dues", amount: 30, date: "2026-10-01", description: "Venmo dues" },
+    });
+
+    await expect(attributeDuesPayment(ctx, { transactionId: loose.id, brotherId: member.id })).rejects.toBeInstanceOf(ConflictError);
+
+    expect((await rosterOf(member.id))?.duesOwed).toBe(20);
+    expect((await testPrisma.transaction.findUnique({ where: { id: loose.id } }))?.brotherId).toBeNull();
   });
 
   it("attribution and adjustment are treasury-only", async () => {

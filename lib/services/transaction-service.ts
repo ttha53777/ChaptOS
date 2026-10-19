@@ -1,6 +1,7 @@
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY } from "@/lib/dues";
+import { predatesCutover, reinstateCarryoverTx } from "@/lib/dues-ledger-db";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError } from "@/lib/errors";
 import { atLeast, money, toCents } from "@/lib/money";
@@ -393,17 +394,18 @@ export async function updateTransaction(ctx: RequestContext, id: number, input: 
   //   - re-pricing it here would leave the ledger and the roster disagreeing by exactly
   //     the difference;
   //   - re-bucketing it out of "Dues" would make the payment vanish from every dues
-  //     total while the member stays credited for it.
+  //     total while the member stays credited for it;
+  //   - flipping it to "scheduled" does the same (only posted rows count as paid).
   // Neither has a safe silent answer, so refuse and point at the one that does. Voiding
   // restores the balance (softDeleteTransaction, below); re-recording re-decrements it.
   const existing = await ctx.db.transaction.findUnique({
     where:  { id },
-    select: { id: true, brotherId: true, category: true, type: true },
+    select: { id: true, brotherId: true, category: true, type: true, status: true },
   });
   if (!existing) throw new NotFoundError("Transaction");
 
   if (isDuesPayment(existing)) {
-    const desyncing = (["amount", "category", "type"] as const)
+    const desyncing = (["amount", "category", "type", "status"] as const)
       .filter(k => scalarInput[k] !== undefined && scalarInput[k] !== existing[k]);
     if (desyncing.length > 0) {
       throw new ConflictError(
@@ -468,7 +470,7 @@ export async function updateTransaction(ctx: RequestContext, id: number, input: 
 export async function softDeleteTransaction(ctx: RequestContext, id: number) {
   const existing = await ctx.db.transaction.findUnique({
     where: { id },
-    select: { description: true, amount: true, brotherId: true, category: true, type: true, deletedAt: true },
+    select: { description: true, amount: true, brotherId: true, category: true, type: true, deletedAt: true, status: true, createdAt: true },
   });
   if (!existing) throw new NotFoundError("Transaction");
 
@@ -478,6 +480,13 @@ export async function softDeleteTransaction(ctx: RequestContext, id: number) {
   if (existing.deletedAt === null && isDuesPayment(existing)) {
     const brotherId = existing.brotherId!;
     const orgId     = ctx.orgId;
+    // A payment from before the org kept charges was netted into the "Earlier
+    // balance" carryover, which the allocator treats as the whole story — so
+    // putting that debt back has to grow the carryover too (see
+    // reinstateCarryoverTx), or the books disagree by exactly this payment.
+    const config = await ctx.db.organizationConfig.find();
+    const precharges = existing.status === TransactionStatus.Posted
+      && predatesCutover(existing.createdAt, config?.duesLedgerStartedAt ?? null);
 
     // Both sides in one DB transaction, same as the payment that created them. The
     // deletedAt guard makes this idempotent: a double-delete restores the balance once.
@@ -493,6 +502,7 @@ export async function softDeleteTransaction(ctx: RequestContext, id: number) {
       // chapter it was paid to, and nobody else's books.
       const memberTx = ctx.db.member.onTx(tx);
       await memberTx.updateManyByBrotherIds([brotherId], { duesOwed: { increment: existing.amount } });
+      if (precharges) await reinstateCarryoverTx(tx, orgId, brotherId, toCents(existing.amount));
 
       const member = await memberTx.findByBrotherId(brotherId);
       return money(member?.duesOwed ?? 0);

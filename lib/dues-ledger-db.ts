@@ -14,10 +14,12 @@
  *              were already netted into the "Earlier balance" carryover charge
  *              the cutover minted, so counting them again would pay it twice.
  */
+import type { Prisma } from "@/app/generated/prisma/client";
 import { db } from "@/lib/db";
 import { duesPaymentWhere } from "@/lib/dues";
 import { allocate, type LedgerCredit, type LedgerLine, type LineAllocation } from "@/lib/dues-ledger";
-import { toCents } from "@/lib/money";
+import { ConflictError } from "@/lib/errors";
+import { atLeast, money, toCents } from "@/lib/money";
 import type { DuesAudience } from "@/lib/state";
 
 type Scoped = ReturnType<typeof db>;
@@ -130,4 +132,162 @@ export async function loadDuesLedger(scoped: Scoped, opts: { brotherId?: number 
 export function ledgerOwesCents(ledger: LoadedLedger, brotherId: number): number {
   const lines = ledger.allocated.get(brotherId) ?? [];
   return lines.reduce((s, l) => s + l.restCents, 0) - (ledger.unapplied.get(brotherId) ?? 0);
+}
+
+// ── Writes ───────────────────────────────────────────────────────────────────
+//
+// The two primitives every balance-moving dues write is made of, run inside the
+// caller's ctx.db.$transaction. They live here, not in a service, because both
+// dues-charge-service (the Dues tab) and dues-service (adjustDues, Spotlight's
+// charge/waive) need them, and services don't call each other.
+
+type Tx = Prisma.TransactionClient;
+interface WriteCtx { orgId: number; actorId: number; db: Scoped }
+
+export interface NewCharge {
+  name:          string;
+  dueDate:       string | null;
+  note:          string | null;
+  audienceKind:  DuesAudience;
+  audienceLabel: string;
+  rateCard?:     Prisma.InputJsonValue;
+  semesterId:    number | null;
+}
+
+/**
+ * Create a charge and its lines, and raise each member's balance by their line.
+ *
+ * Balances are raised in one statement per distinct amount (a by-role charge has
+ * a handful), and each statement must touch exactly the members it names: a
+ * member who left the roster between the caller's read and this write would get
+ * a line with no balance behind it, so the whole charge rolls back instead.
+ */
+export async function writeChargeTx(
+  tx: Tx,
+  ctx: WriteCtx,
+  charge: NewCharge,
+  lines: readonly { brotherId: number; amountCents: number }[],
+): Promise<{ chargeId: number }> {
+  if (lines.length === 0) throw new ConflictError("Nobody to bill.");
+  const created = await tx.duesCharge.create({
+    data: { ...charge, organizationId: ctx.orgId, createdById: ctx.actorId },
+    select: { id: true },
+  });
+  await tx.duesChargeLine.createMany({
+    data: lines.map(l => ({ organizationId: ctx.orgId, chargeId: created.id, brotherId: l.brotherId, amountCents: l.amountCents })),
+  });
+
+  const memberTx = ctx.db.member.onTx(tx);
+  const byAmount = new Map<number, number[]>();
+  for (const l of lines) byAmount.set(l.amountCents, [...(byAmount.get(l.amountCents) ?? []), l.brotherId]);
+  for (const [cents, ids] of byAmount) {
+    const { count } = await memberTx.updateManyByBrotherIds(ids, { duesOwed: { increment: cents / 100 } });
+    if (count !== ids.length) throw new ConflictError("The roster changed while this was being handed out. Try again.");
+  }
+  return { chargeId: created.id };
+}
+
+/**
+ * Lower a member's balance without money moving, and record why.
+ *
+ * Compare-and-set like a payment: a waiver can't take a balance below zero, with
+ * the same half-cent tolerance (lib/money.ts atLeast) so waiving a drifted
+ * $199.99999999999997 "$200" in full isn't refused. A sub-cent remainder is
+ * snapped to exactly zero, for the same reason as recordDuesPayment.
+ */
+export async function writeWaiverTx(
+  tx: Tx,
+  ctx: WriteCtx,
+  w: { brotherId: number; amountCents: number; reason: string | null; chargeId: number | null; memberName: string; owed: number },
+): Promise<{ waiverId: number; newOwed: number }> {
+  const memberTx = ctx.db.member.onTx(tx);
+  const dollars = w.amountCents / 100;
+  const claimed = await memberTx.compareAndSetDues(w.brotherId, {
+    guard: { duesOwed: { gte: atLeast(dollars) } },
+    data:  { duesOwed: { decrement: dollars } },
+  });
+  if (claimed.count === 0) {
+    throw new ConflictError(
+      `Cannot waive $${dollars.toFixed(2)} — ${w.memberName} owes $${money(w.owed).toFixed(2)}.`,
+    );
+  }
+  const waiver = await tx.duesWaiver.create({
+    data: {
+      organizationId: ctx.orgId, brotherId: w.brotherId, amountCents: w.amountCents,
+      reason: w.reason, chargeId: w.chargeId, createdById: ctx.actorId,
+    },
+    select: { id: true },
+  });
+  return { waiverId: waiver.id, newOwed: await snapOwed(memberTx, w.brotherId) };
+}
+
+/**
+ * Lower each member's balance by their line when a line comes off (a charge
+ * taken back, or one person taken off it). All-or-nothing: if anyone no longer
+ * owes their full line — they've paid toward it, or it was waived — nothing
+ * moves, because taking it back would leave them owed a credit.
+ */
+export async function unbillTx(
+  tx: Tx,
+  ctx: WriteCtx,
+  lines: readonly { brotherId: number; amountCents: number }[],
+): Promise<void> {
+  const memberTx = ctx.db.member.onTx(tx);
+  const blocked: number[] = [];
+  for (const l of lines) {
+    const { count } = await memberTx.compareAndSetDues(l.brotherId, {
+      guard: { duesOwed: { gte: atLeast(l.amountCents / 100) } },
+      data:  { duesOwed: { decrement: l.amountCents / 100 } },
+    });
+    if (count === 0) blocked.push(l.brotherId);
+    else await snapOwed(memberTx, l.brotherId);
+  }
+  if (blocked.length) {
+    throw new ConflictError(
+      blocked.length === 1
+        ? "1 person has already paid toward this or had it waived. Take back what's left with a waiver instead."
+        : `${blocked.length} people have already paid toward this or had it waived. Take them off one by one, or waive what's left.`,
+      { brotherIds: blocked },
+    );
+  }
+}
+
+/**
+ * A dues payment made before the cutover was voided: its money had been netted
+ * into the "Earlier balance" carryover, which the allocator treats as the whole
+ * story. Voiding it raises duesOwed, so the carryover line has to grow by the
+ * same amount or the books disagree by exactly that payment.
+ */
+export async function reinstateCarryoverTx(tx: Tx, orgId: number, brotherId: number, amountCents: number): Promise<void> {
+  if (amountCents <= 0) return;
+  const carry = await tx.duesCharge.findFirst({
+    where:  { organizationId: orgId, audienceKind: "carryover", voidedAt: null },
+    select: { id: true },
+  }) ?? await tx.duesCharge.create({
+    data:   { organizationId: orgId, name: "Earlier balance", audienceKind: "carryover", audienceLabel: "Carried over" },
+    select: { id: true },
+  });
+  const line = await tx.duesChargeLine.findFirst({
+    where:  { organizationId: orgId, chargeId: carry.id, brotherId },
+    select: { id: true, voidedAt: true },
+  });
+  if (!line) {
+    await tx.duesChargeLine.create({ data: { organizationId: orgId, chargeId: carry.id, brotherId, amountCents } });
+  } else if (line.voidedAt) {
+    await tx.duesChargeLine.update({ where: { id: line.id }, data: { amountCents, voidedAt: null } });
+  } else {
+    await tx.duesChargeLine.update({ where: { id: line.id }, data: { amountCents: { increment: amountCents } } });
+  }
+}
+
+/** Was this dues payment made before the org started keeping charges? */
+export function predatesCutover(createdAt: Date, cutover: Date | null): boolean {
+  return cutover !== null && createdAt < cutover;
+}
+
+async function snapOwed(memberTx: ReturnType<Scoped["member"]["onTx"]>, brotherId: number): Promise<number> {
+  const row = await memberTx.findByBrotherId(brotherId);
+  const owed = money(row?.duesOwed ?? 0);
+  if (owed === 0 && (row?.duesOwed ?? 0) !== 0) await memberTx.updateManyByBrotherIds([brotherId], { duesOwed: 0 });
+  return owed;
 }

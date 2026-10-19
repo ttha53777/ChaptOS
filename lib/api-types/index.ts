@@ -51,6 +51,9 @@
  *   GET    /api/reimbursements                 Reimbursement[]
  *   GET    /api/dues                           DuesBoard               (?semester=<label>)
  *   GET    /api/dues/members/[brotherId]       MemberDuesBook
+ *   POST   /api/dues/charges/preview           DuesChargePreview       (treasury; body = issueDuesChargeInput)
+ *   POST   /api/dues/charges                   DuesChargeIssued        (treasury; PATCH/DELETE [id], DELETE [id]/lines/[brotherId])
+ *   POST   /api/dues/waivers                   DuesWaived              (treasury; DELETE [id] → DuesWaived)
  *
  * Errors are `{ error: string, code?: string, details?: unknown }` with an HTTP
  * status (see lib/errors). 426 + code APP_UPDATE_REQUIRED means update the app.

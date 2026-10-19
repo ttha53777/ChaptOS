@@ -150,6 +150,22 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
     }
     case "dues.payment_voided":
       return `${who} voided a $${Number(m.amount).toFixed(2)} dues payment — the balance was restored`;
+    case "dues.charge_issued": {
+      const due = m.dueDate ? `, due ${m.dueDate}` : "";
+      return `${who} handed out “${m.name}” to ${m.people} ${Number(m.people) === 1 ? "person" : "people"} — $${Number(m.total).toFixed(2)} in all${due}`;
+    }
+    case "dues.charge_updated":
+      return `${who} updated the “${m.name}” charge`;
+    case "dues.charge_voided":
+      return `${who} took back “${m.name}” — ${m.people} ${Number(m.people) === 1 ? "tab" : "tabs"} lowered by $${Number(m.total).toFixed(2)}`;
+    case "dues.line_voided":
+      return `${who} took member #${m.brotherId} off “${m.name}” ($${Number(m.amount).toFixed(2)})`;
+    case "dues.waived": {
+      const reason = m.reason ? ` — ${m.reason}` : "";
+      return `${who} waived $${Number(m.amount).toFixed(2)} in dues${reason}`;
+    }
+    case "dues.waiver_voided":
+      return `${who} undid a $${Number(m.amount).toFixed(2)} dues waiver`;
     case "dues.payment_attributed":
       return `${who} attributed a dues payment to brother #${m.brotherId}`;
     case "dues_payment.submitted":

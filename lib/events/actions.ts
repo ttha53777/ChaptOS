@@ -15,6 +15,8 @@ export type SubjectType =
   | "AttendanceRecord"
   | "Transaction"
   | "TransactionCategory"
+  | "DuesCharge"
+  | "DuesWaiver"
   | "Budget"
   | "Role"
   | "BrotherRole"
@@ -215,6 +217,15 @@ export interface EventMetadata {
   "dues.adjusted":            { brotherId: number; delta: number; reason: string | null; newOwed: number };
   "dues.payment_voided":      { brotherId: number; amount: number; transactionId: number; restoredOwed: number };
   "dues.payment_attributed":  { brotherId: number; transactionId: number };
+  // Charges (lib/services/dues-charge-service.ts): a named, dated bill handed out
+  // to some members. Receivables like dues.adjusted — no ledger row, ever. Amounts
+  // are dollars; `people` is how many tabs went up (or came down, when voided).
+  "dues.charge_issued":       { chargeId: number; name: string; people: number; total: number; dueDate: string | null };
+  "dues.charge_updated":      { chargeId: number; name: string; changedFields: string[] };
+  "dues.charge_voided":       { chargeId: number; name: string; people: number; total: number };
+  "dues.line_voided":         { chargeId: number; name: string; brotherId: number; amount: number };
+  "dues.waived":              { brotherId: number; amount: number; reason: string | null; chargeId: number | null; newOwed: number };
+  "dues.waiver_voided":       { brotherId: number; amount: number; restoredOwed: number };
 
   // A dues payment is staged here, not moved yet — see updateDuesPayment for the
   // approval that actually mints the ledger row (dues.paid, above).
@@ -293,6 +304,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "metric_value.updated",
   "reimbursement.created", "reimbursement.updated", "reimbursement.approved",
   "dues.paid", "dues.adjusted", "dues.payment_voided", "dues.payment_attributed",
+  "dues.charge_issued", "dues.charge_updated", "dues.charge_voided", "dues.line_voided", "dues.waived", "dues.waiver_voided",
   "dues_payment.submitted", "dues_payment.rejected",
   "assistant.proposal_approved", "assistant.feedback",
   "billing.plan_changed", "billing.checkout_started", "billing.subscription_activated", "billing.tier_changed",

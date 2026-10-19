@@ -83,3 +83,40 @@ export interface MemberDuesBook {
   entries: DuesBookEntry[];
   open: { chargeId: number; name: string; dueDate: string | null; rest: number }[];
 }
+
+/**
+ * POST /api/dues/charges/preview — the receipt, resolved server-side against the
+ * live roster with the same code that writes the charge.
+ */
+export interface DuesChargePreview {
+  audienceLabel: string;
+  /** Everyone the audience selects, before the duplicate skip. */
+  selected: number;
+  people: number;
+  total: number;
+  lines: { brotherId: number; amount: number; parts: { key: number | "base" | "none"; amount: number }[] | null }[];
+  /** A live charge of the same name this term, if there is one. */
+  duplicateOf: { id: number; name: string; createdAt: string } | null;
+  /** Selected people who already have it, and how many of them are being left off. */
+  already: number;
+  skipped: number;
+  /** By role: people billed on two or more rows (they pay the sum). */
+  stacked: number;
+}
+
+/** POST /api/dues/charges. */
+export interface DuesChargeIssued {
+  id: number;
+  name: string;
+  people: number;
+  total: number;
+  /** Left off because they already had a same-named charge. */
+  skipped: number;
+}
+
+/** POST /api/dues/waivers. */
+export interface DuesWaived {
+  waiverId: number;
+  brotherId: number;
+  duesOwed: number;
+}
