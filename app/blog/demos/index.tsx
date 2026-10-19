@@ -7,6 +7,7 @@
 // matching component in place; feeds keep the fallback text.
 import "./demos.css";
 import "./timeline.css";
+import "./handoff.css";
 import { AgendaDemo } from "./AgendaDemo";
 import { AskDemo } from "./AskDemo";
 import { LiveMinutes } from "./LiveMinutes";
@@ -19,6 +20,10 @@ import { TimelineAdd } from "./TimelineAdd";
 import { EventTypesDemo } from "./EventTypesDemo";
 import { CalendarDemo } from "./CalendarDemo";
 import { CheckInDemo } from "./CheckInDemo";
+import { HandoffScatter } from "./HandoffScatter";
+import { DocsLibrary } from "./DocsLibrary";
+import { SeatHandoff } from "./SeatHandoff";
+import { TermDemo } from "./TermDemo";
 
 const DEMOS: Record<string, () => React.ReactNode> = {
   minutes: LiveMinutes,
@@ -33,6 +38,10 @@ const DEMOS: Record<string, () => React.ReactNode> = {
   "tl-types": EventTypesDemo,
   "tl-calendar": CalendarDemo,
   "tl-checkin": CheckInDemo,
+  "ho-scatter": HandoffScatter,
+  "ho-docs": DocsLibrary,
+  "ho-seat": SeatHandoff,
+  "ho-term": TermDemo,
 };
 
 export function PostDemo({ name }: { name: string }) {

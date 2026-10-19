@@ -1,0 +1,395 @@
+/* ============================================================================
+   Handoff post demos (HandoffScatter, DocsLibrary, SeatHandoff, TermDemo).
+   Scoped under `.lp` and prefixed ho-, in the landing palette. Borrows the
+   paper Docs page's language (app/paper-docs.css): taped index cards, manila
+   tabs on ink-bordered ledgers, one pastel per kind and per folder (--fc).
+   Shares .tld-btn, .kick and .hint with timeline.css.
+   ========================================================================== */
+
+.lp .bld .k-doc{--kc:var(--sky); --kc-ink:var(--sky-ink); --kc-soft:var(--sky-soft)}
+.lp .bld .k-sheet{--kc:var(--mint); --kc-ink:var(--mint-ink); --kc-soft:var(--mint-soft)}
+.lp .bld .k-form{--kc:var(--lilac); --kc-ink:var(--lilac-ink); --kc-soft:var(--lilac-soft)}
+.lp .bld .k-drive{--kc:var(--butter); --kc-ink:var(--butter-ink); --kc-soft:var(--butter-soft)}
+.lp .bld .k-link{--kc:var(--peach); --kc-ink:var(--peach-ink); --kc-soft:var(--peach-soft)}
+.lp .bld mark{background:var(--butter); color:inherit; border-radius:3px; padding:0 1px}
+
+.lp .ho-av{
+  flex:none; display:inline-grid; place-items:center; width:30px; height:30px; border-radius:50%;
+  font:700 .62rem/1 var(--sans); color:var(--ink); background:var(--t); border:1.5px solid var(--ink);
+}
+.lp .ho-av.sm{width:22px; height:22px; font-size:.5rem; border-width:1.25px}
+
+/* ---------- 0. scattered: four places, three locked -------------------------- */
+.lp .ho-scatter-grid{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:26px; padding:22px}
+.lp .ho-desk{position:relative; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-content:start}
+.lp .ho-src{
+  min-width:0; background:var(--card); border:1.5px solid var(--ink); border-radius:14px; overflow:hidden;
+  transition:opacity .45s, filter .45s, transform .45s var(--ease-spring);
+}
+.lp .ho-src header{display:grid; grid-template-columns:22px minmax(0,1fr); column-gap:8px; align-items:center; padding:8px 11px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.lp .ho-src header .ic{grid-row:span 2; display:grid; place-items:center; width:22px; height:22px; border-radius:7px; background:var(--card); border:1.5px solid var(--line)}
+.lp .ho-src header .ic svg{width:12px; height:12px}
+.lp .ho-src header b{font-size:.8rem; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp .ho-src header small{font:500 .62rem var(--mono); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp .ho-src ul{display:grid; gap:2px; padding:7px}
+.lp .ho-src li button{
+  display:flex; align-items:center; gap:8px; width:100%; padding:6px 7px; border-radius:9px; text-align:left;
+  font-size:.8rem; line-height:1.3; color:var(--ink); transition:background .2s, opacity .3s;
+}
+.lp .ho-src li button:disabled{cursor:default}
+.lp .ho-src li .g{flex:none; display:grid; place-items:center; width:20px; height:20px; color:var(--ink-3)}
+.lp .ho-src li .g svg{width:14px; height:14px}
+.lp .ho-src li .l{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.lp .ho-src li .lk{flex:none; display:grid; place-items:center; width:22px; height:22px; border-radius:7px; color:var(--rose-ink); background:var(--rose-soft); border:1px solid var(--rose)}
+.lp .ho-src li .lk svg{width:12px; height:12px}
+.lp .ho-src li.locked button:hover{background:var(--rose-soft)}
+.lp .ho-src li.locked .l{color:var(--ink-2)}
+.lp .ho-src li.knocked button{background:var(--rose-soft); animation:ho-knock .4s ease}
+@keyframes ho-knock{20%,60%{transform:translateX(-3px)}40%,80%{transform:translateX(3px)}}
+.lp .ho-src li.lit button{background:var(--butter); box-shadow:0 0 0 2px var(--butter)}
+.lp .ho-src li.gone:not(.lit) button{opacity:.35; text-decoration:line-through; text-decoration-color:var(--ink-3)}
+.lp .s-drive{transform:rotate(-1.4deg); box-shadow:4px 4px 0 var(--butter)}
+.lp .s-chat{transform:rotate(1deg) translateY(10px); box-shadow:4px 4px 0 var(--mint)}
+.lp .s-mail{transform:rotate(.8deg); box-shadow:4px 4px 0 var(--sky)}
+.lp .s-disk{transform:rotate(-.9deg) translateY(8px); box-shadow:4px 4px 0 var(--lilac)}
+.lp .ho-chatq{margin:0 7px 8px; padding:5px 10px; border-radius:12px 12px 12px 4px; background:var(--paper-2); font-size:.76rem; line-height:1.35; color:var(--ink-2)}
+.lp .ho-chatq b{margin-right:6px; font-size:.68rem; color:var(--ink-3)}
+.lp .ho-desk.is-done .ho-src{filter:saturate(.4); opacity:.55}
+
+.lp .ho-wall{
+  position:absolute; z-index:5; left:50%; top:50%; width:min(300px, 92%);
+  display:grid; justify-items:center; gap:8px; padding:22px 20px 18px; text-align:center;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:18px; box-shadow:6px 6px 0 var(--rose);
+  transform:translate(-50%,-50%); animation:ho-pop .3s var(--ease-spring) both;
+}
+@keyframes ho-pop{from{opacity:0; transform:translate(-50%,-46%) scale(.94)}}
+.lp .ho-wall > .lk{display:grid; place-items:center; width:44px; height:44px; border-radius:50%; color:var(--rose-ink); background:var(--rose-soft); border:1.5px solid var(--rose-ink)}
+.lp .ho-wall > .lk svg{width:20px; height:20px}
+.lp .ho-wall > b{font:600 1.15rem/1.2 var(--display); letter-spacing:-.02em}
+.lp .ho-wall p{font-size:.82rem; line-height:1.45; color:var(--ink-2)}
+.lp .ho-wall p.sent{font-weight:600; color:var(--rose-ink)}
+.lp .ho-wall .x{position:absolute; right:10px; top:8px; width:26px; height:26px; border-radius:50%; font-size:1.1rem; color:var(--ink-3)}
+.lp .ho-wall .x:hover{background:var(--paper-2); color:var(--ink)}
+.lp .ho-denied{
+  position:absolute; right:-12px; bottom:-14px; padding:5px 10px 4px; transform:rotate(9deg);
+  font:700 .64rem/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--rose-ink);
+  border:2.5px solid currentColor; outline:1.5px solid currentColor; outline-offset:2px; border-radius:7px; background:rgba(255,255,255,.85);
+  animation:tld-thunk .34s cubic-bezier(.3,0,.2,1) both;
+}
+
+.lp .ho-shelf{display:grid; gap:14px; align-content:start; min-width:0}
+.lp .ho-shelf-h{display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:36px}
+.lp .ho-folders{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px 14px; padding-top:14px}
+.lp .ho-mf{position:relative; min-width:0; transition:transform .3s var(--ease-spring)}
+.lp .ho-mf .tab{
+  position:absolute; left:0; top:-17px; max-width:88%; display:inline-flex; align-items:center; gap:7px; height:19px; padding:0 10px;
+  border:1.5px solid var(--ink); border-bottom:0; border-radius:8px 10px 0 0; background:var(--fc);
+  font-size:.7rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.lp .ho-mf .tab i{font:600 .6rem var(--mono); font-style:normal; color:var(--ink-2)}
+.lp .ho-mf .body{
+  display:grid; gap:1px; min-height:118px; align-content:start; padding:9px 8px;
+  background:color-mix(in srgb, var(--fc) 30%, var(--card)); border:1.5px solid var(--ink); border-radius:0 12px 12px 12px;
+  box-shadow:3px 3px 0 var(--fc);
+}
+.lp .ho-mf .body li{display:flex; align-items:center; gap:7px; padding:5px 6px; border-radius:7px; font-size:.76rem; font-weight:600; line-height:1.25; background:var(--card); border:1px solid var(--line)}
+.lp .ho-mf .body li + li{margin-top:4px}
+.lp .ho-mf .body li .g{flex:none; display:grid; place-items:center; width:18px; height:18px; border-radius:5px; color:var(--kc-ink); background:var(--kc-soft)}
+.lp .ho-mf .body li .g svg{width:11px; height:11px}
+.lp .ho-mf .body li.empty{justify-content:center; min-height:30px; font-weight:500; color:var(--ink-3); background:none; border:1px dashed var(--line-2)}
+.lp .ho-mf .body li.fresh{animation:ho-file .5s var(--ease-spring) both}
+@keyframes ho-file{from{opacity:0; transform:translate(-30px,-14px) rotate(-4deg) scale(.96)}}
+.lp .ho-mf.took{transform:translateY(2px)}
+.lp .ho-shelf-f{padding:12px 14px; border-radius:14px; border:1.5px dashed var(--line-2); font-size:.84rem; line-height:1.5; color:var(--ink-2)}
+.lp .ho-shelf-f b{color:var(--ink)}
+.lp .ho-shelf-f.on{border-style:solid; border-color:var(--mint-ink); background:var(--mint-soft); animation:ho-pop2 .35s var(--ease-spring) both}
+@keyframes ho-pop2{from{opacity:0; transform:translateY(6px)}}
+
+/* ---------- 1. the library ---------------------------------------------------- */
+.lp .ho-lib{box-shadow:6px 6px 0 var(--sky)}
+.lp .ho-lib-in{display:grid; gap:18px; padding:22px 24px 20px}
+.lp .ho-lib-head{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:14px 20px}
+.lp .ho-lib-head h4{margin-top:6px; font:600 clamp(1.6rem,3vw,2.1rem)/1.02 var(--display); letter-spacing:-.04em; color:var(--ink)}
+.lp .ho-lib-head h4 em{font-style:normal; position:relative; z-index:0}
+.lp .ho-lib-head h4 em::before{content:''; position:absolute; z-index:-1; left:-.08em; right:-.08em; bottom:.06em; height:.42em; background:var(--sky); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg)}
+.lp .ho-lib-head .meta{margin-top:8px; font-size:.8rem; color:var(--ink-3)}
+.lp .ho-lib-head .meta b{color:var(--ink); font-weight:600}
+.lp .ho-as{display:inline-flex; align-items:center; gap:3px; padding:3px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper-2)}
+.lp .ho-as > span{padding:0 8px 0 10px; font:600 .6rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.lp .ho-as button{padding:5px 12px; border-radius:999px; font-size:.8rem; font-weight:600; color:var(--ink-3); transition:background .15s, color .15s, box-shadow .15s}
+.lp .ho-as button:hover{color:var(--ink)}
+.lp .ho-as button.on{background:var(--card) !important; color:var(--ink); box-shadow:0 0 0 1.5px var(--ink)}
+
+.lp .ho-tools{display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+.lp .ho-search{
+  display:flex; align-items:center; gap:8px; flex:1 1 220px; max-width:300px; padding:6px 8px 6px 12px; border-radius:999px;
+  border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-3); transition:border-color .15s, box-shadow .15s;
+}
+.lp .ho-search:focus-within{border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--butter)}
+.lp .ho-search svg{flex:none; width:15px; height:15px}
+.lp .ho-search input{flex:1; min-width:0; border:0; outline:0; background:none; font:inherit; font-size:.86rem; color:var(--ink)}
+.lp .ho-search kbd,.lp .ho-search button{flex:none; display:grid; place-items:center; min-width:22px; height:22px; padding:0 6px; border-radius:6px; font-size:.7rem; color:var(--ink-3); border:1px solid var(--line-2); background:var(--paper-2)}
+.lp .ho-search button{border-radius:50%; padding:0; font-size:.95rem; line-height:1}
+.lp .ho-seg{display:flex; flex-wrap:wrap; gap:2px; padding:3px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper-2)}
+.lp .ho-seg button{display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.lp .ho-seg button:hover{color:var(--ink)}
+.lp .ho-seg button.on{background:var(--card) !important; color:var(--ink); box-shadow:0 0 0 1.5px var(--ink)}
+.lp .ho-seg button:not(.k-all)::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--kc)}
+.lp .ho-seg .ct{font:500 .64rem var(--mono); color:var(--ink-3)}
+
+/* pinned: taped index cards */
+.lp .ho-pins{display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:16px}
+.lp .ho-card{
+  --rot:-.6deg;
+  position:relative; display:grid; align-content:start; gap:4px; min-height:150px; padding:22px 14px 12px;
+  background:
+    linear-gradient(var(--rose-ink),var(--rose-ink)) 0 44px/100% 1.5px no-repeat,
+    linear-gradient(transparent 21px, #E2EBF8 21px, #E2EBF8 22px) 0 52px/100% 22px,
+    #FFFEF8;
+  border:1.5px solid var(--ink); border-radius:4px 4px 8px 6px; box-shadow:3px 3px 0 var(--kc);
+  transform:rotate(var(--rot)); transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring);
+  animation:ho-pop2 .3s var(--ease-spring) both;
+}
+.lp .ho-card:nth-child(3n+2){--rot:.7deg}
+.lp .ho-card:nth-child(3n){--rot:-.2deg}
+.lp .ho-card:hover{transform:rotate(0) translateY(-2px); box-shadow:5px 5px 0 var(--kc)}
+.lp .ho-card .tape{position:absolute; left:50%; top:-9px; width:58px; height:17px; transform:translateX(-50%) rotate(2deg); background:color-mix(in srgb, var(--butter) 80%, transparent); border-inline:1px dashed rgba(38,33,27,.16)}
+.lp .ho-card .top{display:flex; align-items:center; gap:7px; margin:-8px 0 8px}
+.lp .ho-card .fav,.lp .ho-row .fav{flex:none; display:grid; place-items:center; width:26px; height:26px; border-radius:8px; color:var(--kc-ink); background:var(--kc-soft); border:1.5px solid var(--kc)}
+.lp .ho-card .fav svg,.lp .ho-row .fav svg{width:14px; height:14px}
+.lp .ho-card .kind,.lp .ho-row .kind{font:600 .58rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--kc-ink)}
+.lp .ho-card .unpin{margin-left:auto; width:22px; height:22px; border-radius:50%; font-size:1rem; line-height:1; color:var(--ink-3)}
+.lp .ho-card .unpin:hover{background:var(--paper-2); color:var(--ink)}
+.lp .ho-card > b{font:600 1rem/1.25 var(--display); letter-spacing:-.02em}
+.lp .ho-card > small{font-size:.76rem; line-height:22px; color:var(--ink-2)}
+.lp .ho-card .go{justify-self:start; display:inline-flex; align-items:center; gap:4px; margin-top:auto; padding-top:6px; font-size:.78rem; font-weight:600; color:var(--ink-2)}
+.lp .ho-card .go svg{width:12px; height:12px; transition:transform .2s var(--ease-out)}
+.lp .ho-card .go:hover{color:var(--ink)}
+.lp .ho-card .go:hover svg{transform:translate(2px,-2px)}
+
+/* folders: a manila tab on an ink ledger */
+.lp .ho-secs{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px 18px; align-items:start}
+.lp .ho-sec.unfiled{grid-column:1 / -1}
+.lp .ho-sec:not(.unfiled) .ho-row .host{display:none}
+.lp .ho-sec{position:relative; min-width:0; animation:ho-pop2 .3s var(--ease-spring) both}
+.lp .ho-tab{
+  position:relative; z-index:1; display:inline-flex; align-items:center; gap:9px; max-width:100%; margin-bottom:-1.5px; padding:6px 14px 6px;
+  background:var(--fc) !important; border:1.5px solid var(--ink) !important; border-bottom-color:transparent !important; border-radius:10px 12px 0 0;
+  font:600 .98rem/1.2 var(--display); letter-spacing:-.02em; color:var(--ink);
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), background .2s;
+}
+.lp .ho-tab .nm{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp .ho-tab .ct{font:600 .66rem var(--mono); color:var(--ink-2)}
+.lp .ho-tab .drop{padding:1px 8px; border-radius:999px; font:700 .58rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--paper); background:var(--ink); animation:ho-pop2 .25s var(--ease-spring) both}
+.lp .ho-ledger{display:grid; background:var(--card); border:1.5px solid var(--ink); border-radius:0 14px 14px 14px; box-shadow:4px 4px 0 var(--fc); overflow:hidden}
+.lp .ho-sec.unfiled .ho-tab{background:var(--paper-2) !important; border-style:dashed !important; border-bottom-color:transparent !important}
+.lp .ho-sec.unfiled .ho-ledger{border-style:dashed; box-shadow:none; background:color-mix(in srgb, var(--card) 70%, transparent)}
+.lp .ho-lip{height:16px; border:1.5px solid var(--ink); border-radius:0 12px 12px 12px; box-shadow:3px 3px 0 var(--fc); background:repeating-linear-gradient(90deg, var(--card) 0 10px, color-mix(in srgb, var(--fc) 40%, var(--card)) 10px 20px)}
+.lp .ho-sec.target .ho-tab{animation:ho-beckon 1.2s ease-in-out infinite}
+@keyframes ho-beckon{50%{transform:translateY(-3px)}}
+.lp .ho-sec.over .ho-tab{transform:translateY(-5px); background:var(--butter) !important; box-shadow:3px 3px 0 var(--ink)}
+.lp .ho-sec.over .ho-ledger{border-color:var(--ink); box-shadow:4px 4px 0 var(--butter)}
+
+.lp .ho-row{position:relative; display:flex; align-items:center; gap:6px; padding-right:10px; transition:background .15s, opacity .2s, transform .2s var(--ease-spring)}
+.lp .ho-row + .ho-row::before{content:''; position:absolute; left:58px; right:14px; top:0; border-top:1px dashed var(--line)}
+.lp .ho-row:hover{background:var(--paper-2)}
+.lp .ho-row .main{flex:1; min-width:0; display:flex; align-items:center; gap:12px; padding:10px 6px 10px 16px; text-align:left}
+.lp .ho-lib:not(.as-member) .ho-row{cursor:grab}
+.lp .ho-row .what{flex:1; min-width:0; display:grid; gap:1px}
+.lp .ho-row .what b{font-size:.92rem; font-weight:600; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp .ho-row .what small{font-size:.76rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp .ho-row .host{flex:none; width:122px; font:500 .68rem var(--mono); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lp .ho-row .kind{flex:none; width:44px; padding:2px 0; text-align:center; border-radius:6px; background:var(--kc-soft); border:1px solid var(--kc)}
+.lp .ho-row .pin{flex:none; display:grid; place-items:center; width:30px; height:30px; border-radius:9px; color:var(--ink-3); opacity:.5; transition:opacity .15s, background .15s, color .15s}
+.lp .ho-row:hover .pin,.lp .ho-row .pin.go{opacity:1}
+.lp .ho-row .pin:hover{background:var(--card); color:var(--ink)}
+.lp .ho-row .pin svg{width:15px; height:15px}
+.lp .ho-row .pin.on{color:var(--peach-ink); opacity:1}
+.lp .ho-row.held{z-index:2; background:var(--butter-soft); box-shadow:inset 0 0 0 1.5px var(--ink), 3px 3px 0 var(--butter); transform:translate(-2px,-2px); border-radius:12px}
+.lp .ho-row.held + .ho-row::before{opacity:0}
+.lp .ho-row.landed{animation:ho-land .8s ease-out}
+@keyframes ho-land{0%{background:var(--butter)}100%{background:transparent}}
+.lp .ho-none{padding:14px 16px; font-size:.8rem; color:var(--ink-3); text-align:center}
+.lp .ho-empty{padding:28px; text-align:center; font-size:.9rem; color:var(--ink-3); border:1.5px dashed var(--line-2); border-radius:14px}
+.lp .ho-lib-f{font-size:.8rem; color:var(--ink-3)}
+.lp .ho-lib.as-member .ho-lib-f{color:var(--mint-ink); font-weight:600}
+.lp .ho-toast{
+  position:absolute; left:50%; top:52px; z-index:6; max-width:calc(100% - 40px); padding:9px 16px; border-radius:999px;
+  font-size:.82rem; font-weight:600; color:var(--paper); background:var(--ink); box-shadow:3px 3px 0 var(--sky);
+  transform:translateX(-50%); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; animation:ho-toast .3s var(--ease-spring) both;
+}
+@keyframes ho-toast{from{opacity:0; transform:translate(-50%,-10px)}}
+
+/* ---------- 2. the seat ------------------------------------------------------- */
+.lp .ho-seats{box-shadow:6px 6px 0 var(--mint)}
+.lp .ho-seats-grid{display:grid; grid-template-columns:minmax(0,340px) minmax(0,1fr); gap:26px; padding:22px}
+.lp .ho-board{
+  position:relative; align-self:start; display:grid; gap:14px; align-content:start; padding:18px; background:var(--paper-2);
+  border:1.5px solid var(--ink); border-radius:16px; box-shadow:4px 4px 0 var(--peach);
+}
+.lp .ho-board .hd{display:flex; align-items:center; justify-content:space-between; gap:10px}
+.lp .ho-board .hd b{font:600 1.15rem var(--display); letter-spacing:-.02em}
+.lp .ho-board .yr{padding:2px 10px; border-radius:999px; font:600 .64rem var(--mono); letter-spacing:.04em; color:var(--peach-ink); background:var(--peach-soft); border:1.5px solid var(--peach)}
+.lp .ho-board .yr.new{color:var(--mint-ink); background:var(--mint-soft); border-color:var(--mint-ink)}
+.lp .ho-board ul{display:grid; gap:8px}
+.lp .ho-seat{
+  position:relative; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 8px; width:100%; padding:10px 12px 10px 16px; text-align:left;
+  background:var(--card) !important; border:1.5px solid var(--line) !important; border-radius:12px; overflow:hidden;
+  transition:border-color .15s, box-shadow .2s var(--ease-spring), transform .2s var(--ease-spring);
+}
+.lp .ho-seat::before{content:''; position:absolute; left:0; top:9px; bottom:9px; width:4px; border-radius:0 4px 4px 0; background:var(--c)}
+.lp .ho-seat:hover{border-color:var(--line-2) !important}
+.lp .ho-seat.on{border-color:var(--ink) !important; box-shadow:3px 3px 0 var(--c); transform:translate(-1px,-1px)}
+.lp .ho-seat .role{font:700 .62rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.lp .ho-seat .who{grid-column:1; display:flex; align-items:center; gap:8px; font-size:.9rem; font-weight:600; animation:ho-in .4s var(--ease-spring) both}
+@keyframes ho-in{from{opacity:0; transform:translateX(14px)}}
+.lp .ho-seat .new{grid-column:2; grid-row:1 / span 2; align-self:center; padding:2px 8px; border-radius:999px; font:700 .58rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--mint-ink); background:var(--mint-soft); border:1.5px solid var(--mint-ink); animation:ho-pop2 .3s var(--ease-spring) both}
+.lp .ho-board-f{display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:44px}
+.lp .ho-board-f.hint{display:block; min-height:0}
+.lp .ho-stamp{
+  display:grid; justify-items:center; gap:2px; padding:6px 12px 5px; transform:rotate(-7deg);
+  font:700 .74rem/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--mint-ink);
+  border:2.5px solid currentColor; outline:1.5px solid currentColor; outline-offset:2.5px; border-radius:7px; background:rgba(255,255,255,.7);
+  animation:ho-thunk .34s cubic-bezier(.3,0,.2,1) both;
+}
+.lp .ho-stamp small{font-size:.56rem; letter-spacing:.14em; opacity:.85}
+@keyframes ho-thunk{0%{opacity:0; transform:rotate(-16deg) scale(2.2); filter:blur(1.5px)} 60%{opacity:1; transform:rotate(-6deg) scale(.94); filter:none} 100%{transform:rotate(-7deg) scale(1)}}
+
+.lp .ho-seat-d{display:grid; gap:18px; align-content:start; min-width:0}
+.lp .ho-seat-d > .hd{display:grid; gap:8px; padding-bottom:14px; border-bottom:1.5px dashed var(--line-2)}
+.lp .ho-seat-d > .hd .role{font:600 clamp(1.6rem,3vw,2.1rem)/1 var(--display); letter-spacing:-.04em; position:relative; justify-self:start; z-index:0}
+.lp .ho-seat-d > .hd .role::before{content:''; position:absolute; z-index:-1; left:-.08em; right:-.08em; bottom:.04em; height:.42em; background:var(--c); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg)}
+.lp .ho-seat-d .holder{display:flex; align-items:center; gap:9px; font-weight:600; animation:ho-in .4s var(--ease-spring) both}
+.lp .ho-seat-d .holder em{font-style:normal; padding:1px 8px; border-radius:999px; font-size:.72rem; color:var(--mint-ink); background:var(--mint-soft); border:1px solid var(--mint)}
+.lp .ho-seat-d .hand{display:grid; gap:8px}
+.lp .ho-seat-d .cands{display:flex; flex-wrap:wrap; gap:8px}
+.lp .ho-seat-d .cand{
+  display:inline-flex; align-items:center; gap:8px; padding:5px 14px 5px 5px; border-radius:999px; font-size:.86rem; font-weight:600; color:var(--ink);
+  background:var(--card) !important; border:1.5px solid var(--line-2) !important; transition:border-color .15s, box-shadow .2s var(--ease-spring), transform .2s var(--ease-spring);
+}
+.lp .ho-seat-d .cand:hover:not(:disabled){border-color:var(--ink) !important; box-shadow:2.5px 2.5px 0 var(--c); transform:translate(-1px,-1px)}
+.lp .ho-seat-d .cand.on{border-color:var(--ink) !important; background:color-mix(in srgb, var(--c) 35%, var(--card)) !important}
+.lp .ho-seat-d .cand.undo{padding:5px 14px; color:var(--ink-3); border-style:dashed !important}
+.lp .ho-seat-d .cand:disabled{opacity:.6}
+.lp .ho-seat-d .comes{display:grid; gap:6px; padding:16px; background:var(--card); border:1.5px solid var(--ink); border-radius:16px; box-shadow:4px 4px 0 var(--c)}
+.lp .ho-seat-d h5{display:flex; align-items:center; gap:8px; margin-top:6px; font:700 .62rem var(--sans); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.lp .ho-seat-d h5:first-child{margin-top:0}
+.lp .ho-seat-d h5::before{content:''; width:14px; height:2px; border-radius:2px; background:var(--ink)}
+.lp .ho-seat-d h5 span{padding:0 6px; border-radius:5px; font:600 .62rem var(--mono); color:var(--ink); background:var(--paper-2); letter-spacing:0}
+.lp .ho-seat-d .comes ul{display:grid; gap:2px}
+.lp .ho-seat-d .comes li{display:flex; align-items:center; gap:10px; min-height:38px; padding:4px 6px; border-radius:9px}
+.lp .ho-seat-d .comes li:hover{background:var(--paper-2)}
+.lp .ho-seat-d .comes .ck{flex:none; display:grid; place-items:center; width:20px; height:20px; border-radius:6px; font-size:.7rem; font-weight:700; color:var(--mint-ink); background:var(--mint-soft); border:1px solid var(--mint)}
+.lp .ho-seat-d .comes .bx{flex:none; width:16px; height:16px; margin:0 2px; border-radius:4px; border:1.5px solid var(--ink-3)}
+.lp .ho-seat-d .comes .t{flex:1; min-width:0; display:flex; align-items:baseline; gap:8px; font-size:.88rem; font-weight:500}
+.lp .ho-seat-d .comes .t small{font:500 .68rem var(--mono); color:var(--ink-3); white-space:nowrap}
+.lp .ho-seat-d .to{flex:none; display:inline-flex; align-items:center; gap:6px; padding:2px 10px 2px 2px; border-radius:999px; font-size:.76rem; font-weight:600; color:var(--ink-2); background:var(--paper-2); border:1px solid var(--line)}
+.lp .ho-seat-d .to.flip{animation:ho-flip .45s var(--ease-spring) both; border-color:var(--ink); background:var(--card)}
+@keyframes ho-flip{0%{transform:translateX(-18px) scale(.9); opacity:0} 100%{transform:none; opacity:1}}
+.lp .ho-seat-d .ho-foot{font-size:.84rem; line-height:1.5; color:var(--ink-2)}
+.lp .ho-seat-d .ho-foot b{color:var(--ink)}
+
+/* ---------- 3. the term ------------------------------------------------------- */
+.lp .ho-term{box-shadow:6px 6px 0 var(--butter)}
+.lp .ho-term-grid{display:grid; grid-template-columns:minmax(0,320px) minmax(0,1fr); gap:26px; padding:22px}
+.lp .ho-terms{
+  position:relative; display:grid; gap:10px; align-content:start; padding:18px 18px 18px 50px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:6px 16px 10px 14px; box-shadow:4px 4px 0 var(--lilac);
+}
+.lp .ho-terms::before{content:''; position:absolute; left:15px; top:0; bottom:0; width:16px; pointer-events:none;
+  background:radial-gradient(circle 6px at 8px 40px, var(--paper-2) 5px, var(--line-2) 5.5px, transparent 6.5px), radial-gradient(circle 6px at 8px 50%, var(--paper-2) 5px, var(--line-2) 5.5px, transparent 6.5px), radial-gradient(circle 6px at 8px calc(100% - 40px), var(--paper-2) 5px, var(--line-2) 5.5px, transparent 6.5px)}
+.lp .ho-terms::after{content:''; position:absolute; left:38px; top:0; bottom:0; width:1.5px; background:var(--rose-ink); opacity:.45; pointer-events:none}
+.lp .ho-terms .kick.sub{margin-top:8px}
+.lp .ho-tm,.lp .ho-next{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px}
+.lp .ho-tm{border:1.5px solid var(--ink); background:var(--butter-soft); animation:ho-pop2 .4s var(--ease-spring) both}
+.lp .ho-tm.leaving{animation:ho-leave .7s ease forwards}
+@keyframes ho-leave{to{opacity:0; transform:translateY(60px) scale(.94)}}
+.lp .ho-tm .dot{flex:none; width:9px; height:9px; border-radius:50%; background:var(--mint-ink); box-shadow:0 0 0 3px var(--mint)}
+.lp .ho-tm .nm,.lp .ho-next .nm{flex:1; min-width:0; display:grid}
+.lp .ho-tm .nm b,.lp .ho-next .nm b{font:600 1rem/1.2 var(--display); letter-spacing:-.02em}
+.lp .ho-tm .nm small,.lp .ho-next .nm small{font:500 .66rem var(--mono); color:var(--ink-3)}
+.lp .ho-tm .badge{padding:1px 8px; border-radius:6px; font:700 .58rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--paper); background:var(--ink)}
+.lp .ho-next{border:1.5px dashed var(--line-2); flex-wrap:wrap}
+.lp .ho-filed{display:grid; gap:24px; padding:14px 0 6px}
+.lp .ho-filed li button{
+  position:relative; display:grid; width:100%; padding:16px 12px 8px; text-align:left;
+  background:color-mix(in srgb, var(--butter) 30%, var(--card)) !important; border:1.5px solid var(--ink) !important; border-radius:0 10px 10px 10px;
+  box-shadow:3px 3px 0 var(--butter); transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring);
+}
+.lp .ho-filed li button:disabled{cursor:default; opacity:.7; box-shadow:none}
+.lp .ho-filed li button:hover:not(:disabled),.lp .ho-filed li button.on{transform:translate(-1px,-2px); box-shadow:4px 5px 0 var(--butter)}
+.lp .ho-filed li button.on{background:var(--butter-soft) !important}
+.lp .ho-filed .tab{position:absolute; left:-1.5px; top:-14px; height:16px; padding:0 9px; border:1.5px solid var(--ink); border-bottom:0; border-radius:7px 9px 0 0; background:var(--butter); font-size:.66rem; font-weight:700; line-height:14px}
+.lp .ho-filed small{font:500 .66rem var(--mono); color:var(--ink-3)}
+.lp .ho-filed li.fresh{animation:ho-drop .55s var(--ease-spring) both}
+@keyframes ho-drop{from{opacity:0; transform:translateY(-40px) rotate(-3deg)}}
+
+.lp .ho-dash-col{display:grid; gap:18px; align-content:start; min-width:0}
+.lp .ho-dash{padding:18px; background:var(--card); border:1.5px solid var(--ink); border-radius:16px; box-shadow:4px 4px 0 var(--sky); animation:ho-pop2 .4s var(--ease-spring) both; transition:background .3s}
+.lp .ho-dash.filing{animation:ho-leave .7s ease forwards}
+.lp .ho-dash.old{background:var(--butter-soft); box-shadow:4px 4px 0 var(--butter)}
+.lp .ho-dash .hd{display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; margin-bottom:14px}
+.lp .ho-dash .hd b{font:600 1.5rem/1 var(--display); letter-spacing:-.035em}
+.lp .ho-dash .hd .day1{padding:2px 9px; border-radius:999px; font:700 .6rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--mint-ink); background:var(--mint-soft); border:1.5px solid var(--mint-ink)}
+.lp .ho-dash .hd .back{margin-left:auto; font-size:.8rem; font-weight:600; color:var(--ink-2); text-decoration:underline; text-underline-offset:3px}
+.lp .ho-dash .stats{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+.lp .ho-dash .st{display:grid; gap:2px; padding:12px 14px; border-radius:12px; background:var(--paper-2); border:1.5px solid var(--line)}
+.lp .ho-dash .st small{font:600 .6rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.lp .ho-dash .st b{font:600 1.45rem/1.15 var(--display); letter-spacing:-.03em}
+.lp .ho-dash .st span{font-size:.74rem; color:var(--ink-3)}
+.lp .ho-dash .st.quiet{background:none; border-style:dashed}
+.lp .ho-dash .st.quiet b{font-size:1.02rem; font-weight:500; line-height:1.4; color:var(--ink-2)}
+
+.lp .ho-ask{display:grid; gap:12px; padding:16px; border-radius:18px; background:var(--lilac-soft); border:1.5px solid var(--lilac); opacity:.55; transition:opacity .3s}
+.lp .ho-ask.on{opacity:1}
+.lp .ho-ask .hd{display:flex; align-items:center; gap:8px; color:var(--lilac-ink)}
+.lp .ho-ask .hd b{font-size:.9rem; color:var(--ink)}
+.lp .ho-ask .hd small{margin-left:auto; font-size:.74rem; color:var(--ink-3)}
+.lp .ho-ask .chips{display:flex; flex-wrap:wrap; gap:6px}
+.lp .ho-ask .chips button{padding:6px 12px; border-radius:999px; font-size:.8rem; font-weight:500; color:var(--ink); background:var(--card) !important; border:1.5px solid var(--lilac) !important; transition:border-color .15s, box-shadow .2s var(--ease-spring)}
+.lp .ho-ask .chips button:hover:not(:disabled){border-color:var(--lilac-ink) !important; box-shadow:2px 2px 0 var(--lilac)}
+.lp .ho-ask .chips button.on{border-color:var(--lilac-ink) !important; background:var(--lilac) !important}
+.lp .ho-ask .ans{display:grid; gap:8px; padding:14px; border-radius:14px; background:var(--card); border:1.5px solid var(--ink); animation:ho-pop2 .3s var(--ease-spring) both}
+.lp .ho-ask .ans .v{font:500 1.02rem/1.4 var(--display); letter-spacing:-.016em}
+.lp .ho-ask .ans ul{display:grid}
+.lp .ho-ask .ans li{display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px dashed var(--line); font-size:.84rem}
+.lp .ho-ask .ans li b{font-family:var(--mono); font-size:.8rem}
+.lp .ho-ask .ans .cite{font:500 .66rem var(--mono); color:var(--lilac-ink)}
+.lp .ho-ask .think{display:flex; align-items:center; gap:4px; font-size:.84rem; color:var(--ink-3)}
+.lp .ho-ask .think i{width:6px; height:6px; border-radius:50%; background:var(--lilac-ink); animation:bld-pulse 1s ease-in-out infinite}
+.lp .ho-ask .think i:nth-child(2){animation-delay:.15s}
+.lp .ho-ask .think i:nth-child(3){animation-delay:.3s; margin-right:6px}
+
+/* ---------- responsive / motion ---------------------------------------------- */
+@media (max-width: 900px){
+  .lp .ho-scatter-grid,.lp .ho-seats-grid,.lp .ho-term-grid,.lp .ho-secs{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width: 620px){
+  .lp .ho-scatter-grid,.lp .ho-seats-grid,.lp .ho-term-grid{padding:14px; gap:20px}
+  .lp .ho-lib-in{padding:16px 14px}
+  .lp .ho-desk{grid-template-columns:minmax(0,1fr); gap:12px}
+  .lp .s-chat,.lp .s-disk{transform:rotate(.6deg)}
+  .lp .ho-row .host{display:none}
+  .lp .ho-row .main{padding-left:10px; gap:10px}
+  .lp .ho-row + .ho-row::before{left:48px}
+  .lp .ho-pins{grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px}
+  .lp .ho-card{min-height:130px}
+  .lp .ho-card > small{display:none}
+  .lp .ho-search{max-width:none}
+  .lp .ho-terms{padding-left:44px}
+  .lp .ho-dash .st b{font-size:1.2rem}
+}
+@media (max-width: 420px){
+  .lp .ho-folders{gap:22px 10px}
+  .lp .ho-mf .body{min-height:64px; padding:7px 6px}
+  .lp .ho-mf .body li{font-size:.7rem; padding:4px 5px}
+  .lp .ho-mf .body li .g{display:none}
+  .lp .ho-mf .tab{font-size:.64rem; padding:0 7px}
+  .lp .ho-card{min-height:0; padding:20px 10px 10px}
+  .lp .ho-card > b{font-size:.9rem}
+  .lp .ho-row .kind{display:none}
+  .lp .ho-dash .stats{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion: reduce){
+  .lp [class^="ho-"],.lp [class^="ho-"] *{animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important}
+}

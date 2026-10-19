@@ -84,6 +84,43 @@ export function TimelineArt() {
   );
 }
 
+/** The handoff post's cover: the library's manila folder with its index card,
+ *  the seat changing hands, and the access wall it retires. */
+export function HandoffArt() {
+  return (
+    <div className="bl__art bl__art--ho" aria-hidden>
+      <div className="bl__hofolder">
+        <span className="tab">Bylaws &amp; handbook</span>
+        <div className="body">
+          <div className="card">
+            <span className="tape" />
+            <b>Officer handbook</b>
+            <small>One page per seat. Update yours before you hand it over.</small>
+          </div>
+          <div className="row"><i style={sx({ "--c": "var(--sky)" })} />Bylaws (2024 revision)</div>
+          <div className="row"><i style={sx({ "--c": "var(--mint)" })} />Dues tracker</div>
+          <div className="row"><i style={sx({ "--c": "var(--lilac)" })} />Reimbursement form</div>
+        </div>
+      </div>
+
+      <div className="bl__holock"><span className="lk" /><s>You need access</s></div>
+
+      <div className="bl__hoseat">
+        <span className="role">Treasurer</span>
+        <div className="pass">
+          <span className="p old"><i style={sx({ "--c": "var(--mint)" })}>AW</i>Andre</span>
+          <Doodle id="arrow-r" size={18} viewBox="0 0 24 24" />
+          <span className="p"><i style={sx({ "--c": "var(--lilac)" })}>NK</i>Noah</span>
+        </div>
+        <small>3 open tasks follow the seat</small>
+      </div>
+
+      <div className="bl__hostamp"><span>Handed over</span><small>2026–27</small></div>
+      <Doodle id="star" size={28} viewBox="0 0 24 24" className="bl__artstar" style={sx({ color: "var(--peach-ink)" })} />
+    </div>
+  );
+}
+
 /** A post filed in a manila folder: the fallback cover for posts without art
  *  of their own. Everything written on it comes from the post's frontmatter. */
 function FolderArt({ post }: { post: PostMeta }) {
@@ -111,5 +148,6 @@ function FolderArt({ post }: { post: PostMeta }) {
 export function CoverArt({ post }: { post: PostMeta }) {
   if (post.tags.includes("meetings")) return <MinutesArt />;
   if (post.tags.includes("timeline")) return <TimelineArt />;
+  if (post.tags.includes("handoff")) return <HandoffArt />;
   return <FolderArt post={post} />;
 }

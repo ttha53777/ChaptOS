@@ -586,6 +586,52 @@
 .lp .bl__tlcal .tx small{display:block; font-size:.72rem; color:var(--mint-ink); font-weight:600}
 .lp .bl__art--tl .bl__artstar{left:-6px; bottom:70px}
 
+/* the handoff post's cover */
+.lp .bl__hofolder{position:absolute; left:6px; top:42px; width:318px; transform:rotate(-2.5deg)}
+.lp .bl__hofolder .tab{
+  position:relative; z-index:1; display:inline-block; margin-bottom:-1.5px; padding:5px 14px;
+  border:1.5px solid var(--ink); border-bottom-color:transparent; border-radius:10px 12px 0 0; background:var(--sky);
+  font:600 .9rem/1.2 var(--display); letter-spacing:-.02em;
+}
+.lp .bl__hofolder .body{
+  display:grid; gap:6px; padding:14px 14px 16px; background:color-mix(in srgb, var(--sky) 30%, var(--card));
+  border:1.5px solid var(--ink); border-radius:0 14px 14px 14px; box-shadow:6px 6px 0 var(--sky);
+}
+.lp .bl__hofolder .card{
+  position:relative; display:grid; gap:4px; margin-bottom:6px; padding:16px 14px 12px;
+  background:linear-gradient(var(--rose-ink),var(--rose-ink)) 0 40px/100% 1.5px no-repeat, linear-gradient(transparent 21px, #E2EBF8 21px, #E2EBF8 22px) 0 46px/100% 22px, #FFFEF8;
+  border:1.5px solid var(--ink); border-radius:4px 4px 8px 6px; box-shadow:3px 3px 0 var(--sky); transform:rotate(1.2deg);
+}
+.lp .bl__hofolder .card .tape{position:absolute; left:50%; top:-9px; width:62px; height:17px; transform:translateX(-50%) rotate(-2deg); background:rgba(255,229,160,.85); border-inline:1px dashed rgba(38,33,27,.16)}
+.lp .bl__hofolder .card b{font:600 1rem/1.25 var(--display); letter-spacing:-.02em}
+.lp .bl__hofolder .card small{font-size:.74rem; line-height:22px; color:var(--ink-2)}
+.lp .bl__hofolder .row{display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:9px; background:var(--card); border:1px solid var(--line); font-size:.8rem; font-weight:600}
+.lp .bl__hofolder .row i{width:16px; height:16px; border-radius:5px; background:var(--c); border:1.25px solid var(--ink)}
+.lp .bl__holock{
+  position:absolute; right:10px; top:6px; display:flex; align-items:center; gap:8px; padding:7px 13px 7px 8px;
+  background:var(--card); border:1.5px solid var(--ink-3); border-radius:var(--r-pill); box-shadow:3px 3px 0 var(--rose); transform:rotate(4deg);
+  font-size:.8rem; font-weight:600; color:var(--ink-3);
+}
+.lp .bl__holock s{text-decoration-color:var(--rose-ink); text-decoration-thickness:2px}
+.lp .bl__holock .lk{width:20px; height:20px; border-radius:50%; background:var(--rose-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23C23C77' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 11V8a5 5 0 0110 0v3M5 11h14v10H5z'/%3E%3C/svg%3E") center/12px no-repeat; border:1px solid var(--rose)}
+.lp .bl__hoseat{
+  position:absolute; right:0; bottom:22px; width:236px; display:grid; gap:9px; padding:14px 16px 13px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md); box-shadow:6px 6px 0 var(--mint); transform:rotate(2.4deg);
+}
+.lp .bl__hoseat .role{font:700 .64rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--mint-ink)}
+.lp .bl__hoseat .pass{display:flex; align-items:center; gap:8px; color:var(--ink-3)}
+.lp .bl__hoseat .p{display:inline-flex; align-items:center; gap:6px; font-size:.86rem; font-weight:600; color:var(--ink)}
+.lp .bl__hoseat .p.old{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--ink-3)}
+.lp .bl__hoseat .p i{display:grid; place-items:center; width:24px; height:24px; border-radius:50%; font:700 .52rem/1 var(--sans); font-style:normal; background:var(--c); border:1.25px solid var(--ink); color:var(--ink)}
+.lp .bl__hoseat small{font-size:.72rem; color:var(--ink-3)}
+.lp .bl__hostamp{
+  position:absolute; left:34px; bottom:2px; display:grid; justify-items:center; gap:2px; padding:7px 12px 6px; transform:rotate(-9deg);
+  font:700 .74rem/1 var(--mono); letter-spacing:.16em; text-transform:uppercase; color:var(--peach-ink);
+  border:2.5px solid currentColor; outline:1.5px solid currentColor; outline-offset:2.5px; border-radius:7px; background:rgba(255,252,246,.8);
+}
+.lp .bl__hostamp small{font-size:.56rem; letter-spacing:.14em}
+.lp .bl__art--ho .bl__artstar{left:-16px; top:14px; bottom:auto}
+
 @media (min-width: 1000px){
   .lp .bl__herogrid{grid-template-columns:minmax(0,1fr) 450px; gap:56px}
 }
