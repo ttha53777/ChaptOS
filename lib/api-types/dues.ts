@@ -46,6 +46,12 @@ export interface MemberDuesStanding {
   nextDueDate: string | null;
   /** What's still open, per charge, in the order payments will cover it. */
   open: { chargeId: number; rest: number }[];
+  /**
+   * Every line in view, open or not, in allocation order: what they were billed
+   * on each charge and what's left of it. Lets a view scoped to one charge say
+   * "$60 of $140 paid" without another request.
+   */
+  lines: { chargeId: number; amount: number; rest: number }[];
 }
 
 /** GET /api/dues?semester=<label>. Without `semester`: every live charge. */

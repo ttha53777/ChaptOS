@@ -4,7 +4,6 @@ import React, { useState, useMemo, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { catColor } from "../../components/treasury/chart-colors";
 import { Sidebar } from "../../components/Sidebar";
-import { BrotherAvatar } from "../../components/BrotherAvatar";
 
 const TreasuryAreaChart = dynamic(
   () => import("../../components/treasury/TreasuryCharts").then(m => m.TreasuryAreaChart),
@@ -36,19 +35,22 @@ import { PaperBalanceChart, PaperBreakdown, type PaperEntry, type PaperRange } f
 import { TreasuryOpenBooks } from "../../components/treasury/TreasuryOpenBooks";
 import { useSemesters } from "../../hooks/useActiveSemester";
 import { termOfTx, inTerm } from "../../../lib/treasury-term";
+import { DuesTab, toPeople, type DuesFilter, type DuesJump } from "../../components/treasury/dues/DuesTab";
+import { DuesQuickCard } from "../../components/treasury/dues/DuesQuickCard";
+import { useDuesBoard } from "../../hooks/useDuesBoard";
+import { refreshDuesStandings } from "../../hooks/useDuesStandings";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-type NavTab = "Overview" | "Budget" | "Transactions" | "Reports" | "Reimbursements";
+type NavTab = "Overview" | "Budget" | "Transactions" | "Dues" | "Reports" | "Reimbursements";
 
 // "Budget" is intentionally omitted from the nav for now — the tab is hidden but
 // the type/render path below are kept so it can be re-enabled by re-adding it here.
-const NAV_TABS: NavTab[] = ["Overview", "Transactions", "Reports", "Reimbursements"];
+const NAV_TABS: NavTab[] = ["Overview", "Transactions", "Dues", "Reports", "Reimbursements"];
 
 type TxModal =
   | { kind: "addTx" }
   | { kind: "editTx"; tx: Transaction }
-  | { kind: "duesTx"; brother: Brother; amount: number }
   | null;
 
 type PartyModal =
@@ -58,7 +60,7 @@ type PartyModal =
 
 type TxTab = "all" | "income" | "expense";
 
-import { apiErrorMessage, requestJson } from "../../lib/api";
+import { requestJson } from "../../lib/api";
 import { todayStr } from "../../lib/dates";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,7 +226,7 @@ function ppDay(s: string): { d: number; m: string; w: string } {
   return { d, m: PP_MONTHS[m - 1] ?? "", w };
 }
 const PP_TAB_ICON: Record<string, PaperIconName> = {
-  Overview: "home", Transactions: "receipt", Reports: "bars", Reimbursements: "hand", Budget: "wallet",
+  Overview: "home", Transactions: "receipt", Dues: "jar", Reports: "bars", Reimbursements: "hand", Budget: "wallet",
 };
 
 function relativeAge(iso: string): string {
@@ -722,19 +724,31 @@ export default function TreasuryPage() {
   const [partyModal,    setPartyModal]    = useState<PartyModal>(null);
   const [deleteModal,   setDeleteModal]   = useState<{ kind: "tx"; tx: Transaction } | { kind: "party"; event: PartyEvent } | null>(null);
   const [mutErr,        setMutErr]        = useState<string | null>(null);
-  const [duesTarget,    setDuesTarget]    = useState<Brother | null>(null);
-  const [duesAction,    setDuesAction]    = useState<"assign" | "deduct">("deduct");
-  const [duesAmountStr, setDuesAmountStr] = useState("");
   const [reimbModal,       setReimbModal]       = useState(false);
   const [reimbArchived,    setReimbArchived]    = useState(false);
   // Reimbursements come from ChapterContext so the dashboard "needs attention"
   // queue and the sidebar count badge stay in lockstep with approve/reject here.
 
+  // Where the Dues tab opens when something hands you through its door: a deep
+  // link (?tab=Dues&f=overdue&m=12) or the Overview's dues card. Cleared when the
+  // tab is opened by hand, so a stale jump can't re-open someone's drawer.
+  const [duesJump, setDuesJump] = useState<DuesJump | null>(null);
+
   // Deep-link: the dashboard "needs attention" Review button lands here with
-  // ?tab=Reimbursements to drop the viewer straight on the reimbursement queue.
+  // ?tab=Reimbursements to drop the viewer straight on the reimbursement queue;
+  // ?tab=Dues can also carry a standing filter (f) and a member to open (m).
   useEffect(() => {
-    const target = new URLSearchParams(window.location.search).get("tab");
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("tab");
     if (target && (NAV_TABS as string[]).includes(target)) setNavTab(target as NavTab);
+    if (target === "Dues") {
+      const f = params.get("f");
+      const m = Number(params.get("m"));
+      setDuesJump({
+        filter: f === "overdue" || f === "due" || f === "paid" || f === "none" ? f : null,
+        memberId: Number.isInteger(m) && m > 0 ? m : null,
+      });
+    }
   }, []);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
@@ -766,6 +780,31 @@ export default function TreasuryPage() {
   // Active term, else the newest term anything is filed under, else everything.
   const semester = pickedTerm ?? activeTerm?.label ?? semesters[semesters.length - 1] ?? "";
   const termRow = termRows.find(r => r.label === semester) ?? null;
+
+  // Dues follow the same term pill. A legacy label with no Semester row behind it
+  // can't be asked for by name, so that view shows every charge instead.
+  const dues = useDuesBoard(termRow ? termRow.label : null);
+  const duesOwing = dues.board?.members.filter(m => m.standing === "overdue" || m.standing === "due").length ?? 0;
+
+  // After any Dues tab write: the board, the roster's duesOwed (roster, dashboard and
+  // Spotlight read it) and — when a payment posted an income row — the books.
+  const reloadDues = dues.reload;
+  const refreshAfterDues = useCallback(async ({ tx }: { tx?: boolean }) => {
+    await Promise.all([
+      reloadDues(),
+      refreshDuesStandings(),
+      requestJson<Brother[]>("/api/brothers").then(setBrotherList),
+      tx ? requestJson<Transaction[]>("/api/transactions").then(setTransactionList) : null,
+    ]);
+  }, [reloadDues, setBrotherList, setTransactionList]);
+
+  // Overview → Dues, carrying a filter, a member, or the Hand out sheet through the door.
+  const goDues = useCallback((filter: DuesFilter | null, memberId: number | null = null, sheet = false) => {
+    setDuesJump({ filter, memberId, sheet });
+    setNavTab("Dues");
+    document.querySelector(".tr-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  const duesPeople = useMemo(() => toPeople(brotherList), [brotherList]);
 
   const activeTxns = useMemo(() =>
     transactionList.filter(t => !t.deletedAt && (!semester || txTerm(t) === semester))
@@ -944,10 +983,6 @@ export default function TreasuryPage() {
     [transactionList]
   );
 
-  const brothersOwing = useMemo(
-    () => [...brotherList].sort((a, b) => b.duesOwed - a.duesOwed),
-    [brotherList]
-  );
 
   // Editorial kicker date (e.g. "Sat · Jun 13") — matches sibling ledger pages.
   const dateLabel = useMemo(() => {
@@ -963,6 +998,11 @@ export default function TreasuryPage() {
     .filter(p => p.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 4);
+  // Charges still collecting, by due date: what Coming up owes the treasurer a nudge about.
+  const upcomingDues = (dues.board?.charges ?? [])
+    .filter(c => c.dueDate !== null && c.dueDate >= (dues.board?.today ?? today) && c.outstanding > 0)
+    .sort((a, b) => a.dueDate!.localeCompare(b.dueDate!))
+    .slice(0, 3);
   const upcomingTxns = transactionList
     .filter(t => !t.deletedAt && t.date > today)
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -1104,62 +1144,6 @@ export default function TreasuryPage() {
     window.location.href = url;
   }
 
-  // Charging dues ("+ Add") is a receivable — it moves the balance and writes no ledger
-  // row, because no money moved, so it applies immediately. Recording a payment ("Pay")
-  // instead hands off to the pre-filled transaction form: posting that mints the ledger
-  // row and decrements the balance together (see recordDuesTx / createTransaction).
-  async function submitDuesAction() {
-    if (!duesTarget) return;
-    const amount = Math.max(0, parseFloat(duesAmountStr) || 0);
-    if (amount === 0) return;
-    const b = duesTarget;
-    setDuesTarget(null);
-    setDuesAmountStr("");
-    setMutErr(null);
-
-    if (duesAction === "deduct") {
-      // Open the transaction form, pre-filled — the treasurer confirms the ledger entry
-      // and posts it there.
-      setTxModal({ kind: "duesTx", brother: b, amount });
-      return;
-    }
-
-    try {
-      const res = await requestJson<{ duesOwed: number }>("/api/dues/adjustments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brotherId: b.id, delta: amount, reason: "Dues assigned" }),
-      });
-      setBrotherList(prev => prev.map(x => x.id === b.id ? { ...x, duesOwed: res.duesOwed } : x));
-    } catch (e) {
-      setMutErr(apiErrorMessage(e, "Failed to update dues. Please try again."));
-    }
-  }
-
-  // Post a dues payment through the ordinary transaction endpoint. The server mints the
-  // income row and decrements the balance in one DB transaction (createTransaction), so
-  // after it succeeds we pull both books back in — the new ledger row and the lowered
-  // balance. Overpayment or a lost race arrives here as a 409 whose message names the
-  // real balance, surfaced in the banner rather than silently swallowed.
-  const recordDuesTx = useCallback(async (
-    data: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "deletedAt" | "calendarEvents"> & { calendarEventIds: number[]; brotherId?: number },
-  ) => {
-    setTxModal(null);
-    setMutErr(null);
-    try {
-      await requestJson<Transaction>("/api/transactions", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
-      });
-      const [freshTxns, freshBrothers] = await Promise.all([
-        requestJson<Transaction[]>("/api/transactions"),
-        requestJson<Brother[]>("/api/brothers"),
-      ]);
-      setTransactionList(freshTxns);
-      setBrotherList(freshBrothers);
-    } catch (e) {
-      setMutErr(apiErrorMessage(e, "Failed to record dues payment. Please try again."));
-    }
-  }, [setTransactionList, setBrotherList]);
 
 
   const handleSubmitReimbursement = useCallback(async (data: { date: string; amount: number; description: string; category: string; file: File | null }) => {
@@ -1244,10 +1228,16 @@ export default function TreasuryPage() {
     ?? [...ppPosted.map(e => e.date)].sort()[0]
     ?? ppAsOf;
 
+  // Who's past a due date, from the Dues board (the roster's duesOwed can't say when).
+  const duesOverdue = useMemo(() => {
+    const late = dues.board?.members.filter(m => m.standing === "overdue") ?? [];
+    return { n: late.length, amt: late.reduce((s, m) => s + m.overdue, 0) };
+  }, [dues.board]);
+
   // One-line editorial digest built from live figures (mirrors sibling pages' AI line).
   const digest = `${fmt$(Math.round(balance))} in the books${bwDelta != null ? (bwDelta >= 0 ? " and trending up" : " and trending down") : ""}` +
     (scheduledDrain > 0 ? `, with ${fmt$(Math.round(scheduledDrain))} still scheduled` : "") +
-    (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues.` : ".");
+    (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues${duesOverdue.n ? `, ${duesOverdue.n} overdue · ${fmt$(Math.round(duesOverdue.amt))}` : ""}.` : ".");
 
   // Paper's digest reads like the mock's: the balance and how far it moved this
   // term, who still owes, whose reimbursement is waiting (only to someone who
@@ -1265,7 +1255,8 @@ export default function TreasuryPage() {
       : `${pendingReimbs.length} requests`}</b>{" "}{pendingReimbs.length === 1 ? "reimbursement is" : "reimbursements are"} waiting on you</>
   );
   const duesClause = owingCount > 0
-    ? <><b>{owingCount} {memberWord(owingCount)}</b>{" "}still {owingCount === 1 ? "owes" : "owe"}{" "}<b>{fmt$(Math.round(duesTotal))}</b>{" "}in dues</>
+    ? <><b>{owingCount} {memberWord(owingCount)}</b>{" "}still {owingCount === 1 ? "owes" : "owe"}{" "}<b>{fmt$(Math.round(duesTotal))}</b>{" "}in {v("Dues").toLowerCase()}
+        {duesOverdue.n > 0 && <>,{" "}<b>{duesOverdue.n} overdue · {fmt$(Math.round(duesOverdue.amt))}</b></>}</>
     : duesUnassigned ? null : <>Every {memberWord(1)} is paid up</>;
   const paperDigest = (
     <>
@@ -1406,12 +1397,15 @@ export default function TreasuryPage() {
             {/* ── Tab nav (kept) ── */}
             <nav className="tr-tabs">
               {NAV_TABS.map(tab => (
-                <button key={tab} data-tab={tab} className={navTab === tab ? "on" : ""} aria-selected={navTab === tab} onClick={() => setNavTab(tab)}>
+                <button key={tab} data-tab={tab} className={navTab === tab ? "on" : ""} aria-selected={navTab === tab} onClick={() => { setNavTab(tab); if (tab === "Dues") setDuesJump(null); }}>
                   <PaperIcon name={PP_TAB_ICON[tab] ?? "home"} className="pp-ic pp-only" />
-                  {tab}
+                  {tab === "Dues" ? v("Dues") : tab}
                   {tab === "Reimbursements" && pendingReimbCount > 0 && (
                     <span className="tr-tab-badge" aria-label={`${pendingReimbCount} requests awaiting review`}>{pendingReimbCount > 9 ? "9+" : pendingReimbCount}</span>
                   )}
+                  {tab === "Dues" && dues.board && (dues.board.charges.length === 0
+                    ? <span className="tr-tab-new pp-only">NEW</span>
+                    : duesOwing > 0 && <span className="tr-tab-badge" aria-label={`${duesOwing} members owe`}>{duesOwing > 99 ? "99+" : duesOwing}</span>)}
                   {tab === "Transactions" && activeTxns.length > 0 && (
                     <span className="tr-tab-count pp-only">{activeTxns.length}</span>
                   )}
@@ -1727,73 +1721,13 @@ export default function TreasuryPage() {
             {/* ── Bottom row: Dues, Upcoming, Reports ── Overview only ──────── */}
             {navTab === "Overview" && <div className="tr-lower">
 
-              {/* ── Brothers with Dues ───────────────────────────────────── */}
-              <FinanceCard className="tr-dues-card">
-                <div className="card-h">
-                  <PaperTile icon="wallet" tone="butter" />
-                  <h2><span className="lg-only">{v("Member", true)} with {v("Dues")}</span><span className="pp-only">Who still owes</span></h2>
-                  <span className="sub">{duesUnassigned ? "none assigned" : <>{owingCount} owing · {fmt$(duesTotal)}</>}</span>
-                </div>
-                {/* "No brothers yet" was wrong on any roster whose members simply
-                    owe nothing — it reported an empty ROSTER when the truth is an
-                    empty dues ledger. */}
-                {brotherList.length === 0 ? (
-                  <PpCalm icon="people" tone="butter" title={`No ${v("Member", true).toLowerCase()} yet.`}>
-                    Once people join the roster, what each of them owes shows up here.
-                  </PpCalm>
-                ) : duesUnassigned ? (
-                  <PpCalm icon="wallet" tone="butter" title={`No ${v("Dues").toLowerCase()} billed yet.`}>
-                    {canTreasury
-                      ? <>Use <b>+ Add</b> beside a name to bill someone. They’ll see what they owe, and you’ll see who’s paid.</>
-                      : <>When your treasurer bills {v("Dues").toLowerCase()}, who still owes shows up here.</>}
-                  </PpCalm>
-                ) : owingCount === 0 ? (
-                  <PpCalm icon="plant" tone="mint" title="Everyone’s paid up.">
-                    Nothing outstanding right now.
-                  </PpCalm>
-                ) : null}
-                {brothersOwing.length === 0 ? (
-                  <div className="tr-empty-stack lg-only">
-                    <p>{brotherList.length === 0
-                      ? `No ${v("Member", true).toLowerCase()} on the roster yet`
-                      : duesUnassigned
-                        ? `No ${v("Dues").toLowerCase()} assigned yet`
-                        : `All ${v("Dues").toLowerCase()} settled`}</p>
-                  </div>
-                ) : (
-                  // With nobody owing, a member's view of this list is every name
-                  // beside a dash; paper keeps it only for the officer's + Add.
-                  <div className={`max-h-[280px] overflow-y-auto${owingCount === 0 && !canTreasury ? " lg-only" : ""}`}>
-                    {brothersOwing.map(b => (
-                      <div key={b.id} className="tr-row">
-                        <BrotherAvatar
-                          brother={b}
-                          selfId={selfId}
-                          selfAvatarUrl={currentUser?.avatarUrl}
-                          avatarRevision={avatarRevision}
-                          size="sm"
-                        />
-                        <div className="who">
-                          <p className="nm">{b.name}</p>
-                          <p className="rl">{b.role}</p>
-                        </div>
-                        {b.duesOwed > 0
-                          ? <span className="owe">{fmt$(b.duesOwed)}</span>
-                          : <span className="owe zero">—</span>
-                        }
-                        {canTreasury && (
-                          <div className="acts">
-                            {b.duesOwed > 0 && (
-                              <button className="tr-mini-btn" onClick={() => { setDuesTarget(b); setDuesAction("deduct"); setDuesAmountStr(String(b.duesOwed)); }}>Pay</button>
-                            )}
-                            <button className="tr-mini-btn ghost" onClick={() => { setDuesTarget(b); setDuesAction("assign"); setDuesAmountStr(""); }}>+ Add</button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </FinanceCard>
+              {/* ── Dues: how they stand, and a door into the Dues tab ─────── */}
+              <DuesQuickCard
+                board={dues.board} error={dues.error} people={duesPeople}
+                duesWord={v("Dues")} canTreasury={canTreasury} selfId={selfId} avatarRevision={avatarRevision}
+                onGo={(f, m) => goDues(f, m ?? null)}
+                onHandOut={() => goDues(null, null, true)}
+              />
 
               {/* ── Upcoming ──────────────────────────────────────────────── */}
               <FinanceCard className="tr-up-card">
@@ -1802,7 +1736,7 @@ export default function TreasuryPage() {
                   <h2><span className="lg-only">Upcoming</span><span className="pp-only">Coming up</span></h2>
                   <span className="sub">Events & txns</span>
                 </div>
-                {upcomingParties.length === 0 && upcomingTxns.length === 0 ? (<>
+                {upcomingDues.length === 0 && upcomingParties.length === 0 && upcomingTxns.length === 0 ? (<>
                   <div className="tr-empty-stack lg-only">
                     <p>No upcoming treasury items</p>
                     <button onClick={() => setPartyModal({ kind: "addParty" })}>+ Schedule an event</button>
@@ -1818,6 +1752,17 @@ export default function TreasuryPage() {
                   </PpCalm>
                 </>) : (
                   <div>
+                    {/* A charge still collecting: its due date, and how many haven't paid. Opens Dues on "not due yet". */}
+                    {upcomingDues.map(c => (
+                      <button key={`dues-${c.id}`} type="button" className="tr-ev-row tr-ev-dues" onClick={() => goDues("due")}>
+                        <div className="tr-dd pp-only"><small>{ppDay(c.dueDate!).w}</small><b>{ppDay(c.dueDate!).d}</b><small>{ppDay(c.dueDate!).m}</small></div>
+                        <div className="body">
+                          <p className="t">{c.name} due</p>
+                          <p className="m"><span className="tr-dues-chip">{v("Dues")}</span>{c.people - c.paidPeople} {c.people - c.paidPeople === 1 ? "person still owes" : "people still owe"}</p>
+                        </div>
+                        <span className="amt dues">{fmt$(c.outstanding)} out</span>
+                      </button>
+                    ))}
                     {upcomingParties.map(p => (
                       <div key={`party-${p.id}`} className="tr-ev-row">
                         <div className="tr-dd pp-only"><small>{ppDay(p.date).w}</small><b>{ppDay(p.date).d}</b><small>{ppDay(p.date).m}</small></div>
@@ -1968,6 +1913,10 @@ export default function TreasuryPage() {
                           </td>
                           <td>
                             <div className="desc">{t.description || "—"}</div>
+                            {/* A dues payment is half of someone's tab: open it there. */}
+                            {t.type === "income" && t.category === "Dues" && t.brotherId != null && (
+                              <button type="button" className="tr-dues-link" onClick={() => goDues(null, t.brotherId)}>see in {v("Dues")}</button>
+                            )}
                             {t.calendarEvents?.map(ev => (
                               <div key={ev.id} className="tr-ev-link">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -2178,6 +2127,21 @@ export default function TreasuryPage() {
               </FinanceCard>
             </div>)}
 
+            {navTab === "Dues" && (
+              <DuesTab
+                board={dues.board}
+                error={dues.error}
+                loading={dues.loading}
+                roster={brotherList}
+                selfId={selfId}
+                avatarRevision={avatarRevision}
+                canTreasury={canTreasury}
+                duesWord={v("Dues")}
+                jump={duesJump}
+                onChanged={refreshAfterDues}
+              />
+            )}
+
             {navTab === "Reimbursements" && (
               <ReimbursementsView
                 reimbursements={reimbursements}
@@ -2217,30 +2181,15 @@ export default function TreasuryPage() {
       {txModal && (
         <Modal
           tone="dusk"
-          title={txModal.kind === "duesTx" ? "Record Dues Payment" : txModal.kind === "addTx" ? "Add Transaction" : "Edit Transaction"}
+          title={txModal.kind === "addTx" ? "Add Transaction" : "Edit Transaction"}
           onClose={() => setTxModal(null)}
         >
           <TxForm
             tone="dusk"
-            initial={
-              txModal.kind === "editTx" ? txModal.tx
-              : txModal.kind === "duesTx" ? {
-                  type:        "income",
-                  category:    "Dues",
-                  amount:      txModal.amount,
-                  date:        todayStr(),
-                  description: `Dues payment — ${txModal.brother.name}`,
-                }
-              : undefined
-            }
-            duesFor={txModal.kind === "duesTx" ? { id: txModal.brother.id, name: txModal.brother.name } : undefined}
-            onSubmit={data =>
-              txModal.kind === "duesTx" ? recordDuesTx(data)
-              : txModal.kind === "addTx" ? handleAddTx(data)
-              : handleEditTx(txModal.tx, data)
-            }
+            initial={txModal.kind === "editTx" ? txModal.tx : undefined}
+            onSubmit={data => txModal.kind === "addTx" ? handleAddTx(data) : handleEditTx(txModal.tx, data)}
             onCancel={() => setTxModal(null)}
-            events={txModal.kind === "duesTx" ? undefined : calendarEvents}
+            events={calendarEvents}
           />
         </Modal>
       )}
@@ -2273,64 +2222,6 @@ export default function TreasuryPage() {
         </Modal>
       )}
 
-      {duesTarget && (
-        <Modal
-          tone="dusk"
-          title={duesAction === "deduct" ? "Record Payment" : "Assign Dues"}
-          onClose={() => setDuesTarget(null)}
-        >
-          <div className="space-y-4">
-            <div>
-              <p className="text-[12px] text-[color:var(--muted)] mb-3">
-                {duesTarget.name} currently owes{" "}
-                <span className="font-semibold text-[color:var(--gold)]">{fmt$(duesTarget.duesOwed)}</span>
-              </p>
-              <FieldLabel tone="dusk">{duesAction === "deduct" ? "Amount Paid ($)" : "Amount to Assign ($)"}</FieldLabel>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className={inputDuskCls}
-                value={duesAmountStr}
-                onChange={e => setDuesAmountStr(e.target.value)}
-                autoFocus
-                onKeyDown={e => { if (e.key === "Enter") submitDuesAction(); }}
-              />
-              {(() => {
-                const amt = parseFloat(duesAmountStr) || 0;
-                if (amt <= 0) return null;
-                if (duesAction === "deduct") {
-                  return (
-                    <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">
-                      Opens the transaction form pre-filled — review and post it to
-                      record the payment.
-                    </p>
-                  );
-                }
-                const newOwed = duesTarget.duesOwed + amt;
-                return (
-                  <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">
-                    New balance:{" "}
-                    <span className="text-[color:var(--ink-soft)]">{fmt$(newOwed)}</span>
-                  </p>
-                );
-              })()}
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setDuesTarget(null)} className={btnDuskGhostCls}>
-                Cancel
-              </button>
-              <button
-                onClick={submitDuesAction}
-                disabled={!(parseFloat(duesAmountStr) > 0)}
-                className={btnDuskActionCls}
-              >
-                {duesAction === "deduct" ? "Continue" : "Assign Dues"}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 // Money wire shapes. Type-only: see lib/api-types/index.ts for the rules.
 
 // How money physically moved — the same everywhere, unlike the per-org categories.
-export type PaymentMethod = "venmo" | "cash" | "check" | "invoice";
+export type PaymentMethod = "venmo" | "zelle" | "cash" | "card" | "check" | "invoice";
 
 /** GET /api/reimbursements. */
 export interface Reimbursement {
@@ -48,6 +48,8 @@ export interface Transaction {
   status?: string;
   calendarEvents?: { id: number; title: string; date: string; category: string }[];
   deletedAt?: string | null;
+  /** The member a Dues payment came from; null on every other row. */
+  brotherId?: number | null;
   createdAt: string;
   updatedAt: string;
 }

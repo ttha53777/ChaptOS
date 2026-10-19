@@ -162,7 +162,6 @@ html[data-aesthetic="paper"] .dash .tr-donut-toggle button.on { background: var(
 html[data-aesthetic="paper"] .dash .tr-lower { margin-top: 22px; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr) minmax(0,.9fr); gap: 22px; }
 html[data-aesthetic="paper"] .dash .tr-lower .card-h { gap: 10px; }
 html[data-aesthetic="paper"] .dash .tr-lower .card-h .sub { margin-left: auto; font-family: var(--font-geist-mono); font-size: 11.5px; color: var(--muted); letter-spacing: 0; text-transform: none; }
-html[data-aesthetic="paper"] .dash .tr-dues-card > div:last-child { border-top: 1.5px solid var(--line); }
 html[data-aesthetic="paper"] .dash .tr-row { padding: 9px 18px; border-bottom: 1px solid var(--line-soft); gap: 11px; }
 html[data-aesthetic="paper"] .dash .tr-row:hover { background: var(--paper-2); }
 html[data-aesthetic="paper"] .dash .tr-row .who .nm { font-size: 14px; font-weight: 600; }

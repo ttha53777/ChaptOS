@@ -9,6 +9,7 @@ import "./paper-chapter.css";
 import "./paper-templates.css";
 import "./paper-chat.css";
 import "./paper-treasury.css";
+import "./paper-dues.css";
 import "./paper-docs.css";
 import "./paper-parties.css";
 import "./paper-settings.css";

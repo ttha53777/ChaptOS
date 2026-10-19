@@ -106,6 +106,7 @@ export function RosterTable({
   onInvite,
   inviteLabel,
   tracked = ALL_TRACKED,
+  duesLate,
   measured,
   seats = null,
 }: {
@@ -143,6 +144,8 @@ export function RosterTable({
   inviteLabel?: string;
   /** Which metrics get a COLUMN — the org's tracked set. */
   tracked?: TrackedMetrics;
+  /** brotherId → days past due (Treasury → Dues), for the "18d late" tag beside a balance. */
+  duesLate?: ReadonlyMap<number, number>;
   /** Which metrics may decide a member's STANDING — the tracked set narrowed to
    *  those with at least one record org-wide. The two differ only before an org
    *  has recorded anything, where a column of "—" is right but a status chip
@@ -366,7 +369,10 @@ export function RosterTable({
                     {tracked.duesOwed && (
                       <td className="num c-num" data-k={v("Dues")}>
                         {b.duesOwed > 0 ? (
-                          <span className="mono gold">{fmt$(b.duesOwed)}</span>
+                          <>
+                            <span className="mono gold">{fmt$(b.duesOwed)}</span>
+                            {(duesLate?.get(b.id) ?? 0) > 0 && <span className="dues-late">{duesLate!.get(b.id)}d late</span>}
+                          </>
                         ) : (
                           <span className="mono muted">—</span>
                         )}

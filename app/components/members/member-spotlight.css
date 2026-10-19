@@ -211,3 +211,5 @@
 @media (prefers-reduced-motion: reduce) {
   .ms-overlay, .ms-overlay * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.ms-overlay .ms-dues-link { font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-med); text-underline-offset: 3px; }
+.ms-overlay .ms-dues-link:hover { text-decoration-color: currentColor; }

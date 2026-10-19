@@ -7,6 +7,7 @@ import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { Modal, FieldLabel } from "../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../components/dashboard/styles";
 import { MemberSpotlight } from "../../components/members/MemberSpotlight";
+import { refreshDuesStandings, useDuesStandings } from "../../hooks/useDuesStandings";
 import { JoinRequestsPanel } from "../../components/dashboard/JoinRequestsPanel";
 import { TxForm } from "../../components/treasury/TxForm";
 import { useToast } from "../../components/dashboard/Toast";
@@ -115,6 +116,7 @@ export default function BrothersPage() {
   // A metric the org switched off is a stored 0, not a measurement: no column,
   // no measure, and it never moves anyone's standing.
   const tracked = useTrackedMetrics();
+  const duesStandings = useDuesStandings(tracked.duesOwed);
   const canBrothers = can("MANAGE_BROTHERS");
   const canTreasury = can("MANAGE_TREASURY");
   // Invite links are gated on MANAGE_SETTINGS, not MANAGE_BROTHERS — roster CRUD
@@ -327,6 +329,7 @@ export default function BrothersPage() {
       });
       const fresh = await requestJson<Brother[]>("/api/brothers");
       setBrotherList(fresh);
+      void refreshDuesStandings();
       if (b) toast.success(`Recorded ${fmt$(data.amount)} from ${b.name}.`);
     } catch (e) {
       setPageError(apiErrorMessage(e, "Dues payment failed. Nothing was recorded."));
@@ -392,6 +395,9 @@ export default function BrothersPage() {
 
   // Live "needs attention" sentence for the editorial header.
   const duesOwingCount = tracked.duesOwed ? brotherList.filter(b => b.duesOwed > 0).length : 0;
+  // Days late per member, from Treasury → Dues — the balance alone can't say since when.
+  const duesLate = (id: number) => { const st = duesStandings?.get(id); return st?.standing === "overdue" ? st.lateDays : 0; };
+  const duesOverdueCount = tracked.duesOwed && duesStandings ? brotherList.filter(b => b.duesOwed > 0 && duesLate(b.id) > 0).length : 0;
   const belowAttend    = tracked.attendance ? brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length : 0;
 
   // Day one: the founder is pinned to the roster at creation, so "nobody yet" is
@@ -586,7 +592,7 @@ export default function BrothersPage() {
                 />}
                 {tracked.duesOwed && <Measure
                   label={`${v("Dues")} outstanding`} prefix="$" value={kpis.duesTotal.toLocaleString()}
-                  note={duesOwingCount > 0 ? `${duesOwingCount} ${memberPlural} owe` : "all paid up"}
+                  note={duesOwingCount > 0 ? `${duesOwingCount} ${memberPlural} owe${duesOverdueCount ? ` · ${duesOverdueCount} overdue` : ""}` : "all paid up"}
                   noteTone={duesOwingCount > 0 ? "warn" : "ok"}
                   icon="wallet" color="var(--pp-butter-ink)" onClick={() => focusRoster("duesOwed")}
                 />}
@@ -851,6 +857,7 @@ export default function BrothersPage() {
                               {b.duesOwed > 0 ? (
                                 <>
                                   <span className="mono gold">{fmt$(b.duesOwed)}</span>
+                                  {duesLate(b.id) > 0 && <span className="dues-late" title={`${duesLate(b.id)} days past due`}>{duesLate(b.id)}d late</span>}
                                   {canTreasury && (
                                     <button type="button" className="row-act pay-act" onClick={e => { e.stopPropagation(); payDues(b); }}>Pay</button>
                                   )}

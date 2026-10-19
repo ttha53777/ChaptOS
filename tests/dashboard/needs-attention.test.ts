@@ -52,6 +52,20 @@ describe("deriveNeedsAttention", () => {
     expect(dues.brothers.map((b) => b.name)).toEqual(["Nathaniel B", "Noah Kim"]); // sorted desc by amount
   });
 
+  it("puts overdue members first, latest first, and counts them", () => {
+    const brothers = [
+      brother({ id: 1, name: "Big Balance", duesOwed: 300 }),
+      brother({ id: 2, name: "Few Days Late", duesOwed: 40 }),
+      brother({ id: 3, name: "Long Late", duesOwed: 60 }),
+    ];
+    const late = new Map([[2, 3], [3, 30]]);
+    const items = deriveNeedsAttention(brothers, [], TODAY, [], undefined, [], late);
+    const dues = items.find((i) => i.kind === "dues");
+    if (dues?.kind !== "dues") throw new Error("expected dues item");
+    expect(dues.overdue).toBe(2);
+    expect(dues.brothers.map((b) => [b.name, b.lateDays])).toEqual([["Long Late", 30], ["Few Days Late", 3], ["Big Balance", undefined]]);
+  });
+
   it("excludes at-risk members (below attendance or GPA cutoff)", () => {
     const brothers = [
       brother({ id: 1, name: "At Risk Att", attendance: 58, gpa: 3.3 }),   // attendance < 65

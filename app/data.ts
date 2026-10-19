@@ -38,7 +38,7 @@ export type CalLayer = "all" | "mandatory" | "deadlines" | "parties" | "service"
 //
 // Payment methods stay here: they are how money physically moved, not what an org
 // calls its money, so they genuinely are the same everywhere.
-export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "cash", "check", "invoice"];
+export const PAYMENT_METHODS: PaymentMethod[] = ["venmo", "zelle", "cash", "card", "check", "invoice"];
 
 /**
  * The office title to SHOW for a brother. Relational roles are the source of
@@ -414,7 +414,7 @@ export type AttentionItem =
   | { kind: "deadline-overdue"; id: number; title: string; assignees: string; dueDate: string; daysLate: number }
   | { kind: "wrap-up"; id: number; title: string; dueDate: string | null; daysAgo: number | null }
   | { kind: "reimbursement"; count: number; total: number; requests: { id: number; name: string; amount: number }[] }
-  | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number }[] };
+  | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number; lateDays?: number }[]; overdue?: number };
 
 /** Whole days from ISO `from` to ISO `to` (both yyyy-mm-dd), via UTC to dodge DST. */
 function isoDaysBetween(from: string, to: string): number {
@@ -444,6 +444,8 @@ export function deriveNeedsAttention(
   /** Confirmed events that already happened, from useWrapUpsDue() — already
    *  filtered to the viewer's local date and to MANAGE_EVENTS holders. */
   wrapUps: { id: number; title: string; dueDate: string | null }[] = [],
+  /** brotherId → days past due, from Treasury → Dues (useDuesStandings). Overdue members lead the dues row. */
+  duesLate: ReadonlyMap<number, number> = new Map(),
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -488,14 +490,18 @@ export function deriveNeedsAttention(
   // Outstanding dues (gold): aggregated into a single row, largest balance first.
   // Skipped entirely when the org doesn't track dues — the column is then a
   // stored 0 for everyone and there is nothing to chase.
+  // Members past a due date come first (latest first), then the rest by balance.
+  const late = (b: Brother) => duesLate.get(b.id) ?? 0;
   const owing = tracked.duesOwed
-    ? [...brothers].filter(b => b.duesOwed > 0).sort((a, b) => b.duesOwed - a.duesOwed)
+    ? [...brothers].filter(b => b.duesOwed > 0).sort((a, b) => late(b) - late(a) || b.duesOwed - a.duesOwed)
     : [];
   if (owing.length > 0) {
+    const overdue = owing.filter(b => late(b) > 0).length;
     items.push({
       kind: "dues",
       total: owing.reduce((s, b) => s + b.duesOwed, 0),
-      brothers: owing.map(b => ({ id: b.id, name: b.name, amount: b.duesOwed })),
+      brothers: owing.map(b => ({ id: b.id, name: b.name, amount: b.duesOwed, ...(late(b) ? { lateDays: late(b) } : {}) })),
+      ...(overdue ? { overdue } : {}),
     });
   }
 

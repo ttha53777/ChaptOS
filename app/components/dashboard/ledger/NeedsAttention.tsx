@@ -139,9 +139,9 @@ export function NeedsAttention({
                 <span className="dot bg-gold" />
                 <span className="tag gold">DUES</span>
                 <div className="body">
-                  <p className="t">{fmt$(it.total)} outstanding across {it.brothers.length} {v("Member", it.brothers.length !== 1).toLowerCase()}</p>
+                  <p className="t">{fmt$(it.total)} outstanding across {it.brothers.length} {v("Member", it.brothers.length !== 1).toLowerCase()}{it.overdue ? ` · ${it.overdue} overdue` : ""}</p>
                   <p className="m">
-                    {it.brothers.slice(0, 3).map((b) => `${b.name.split(" ")[0]} ${fmt$(b.amount)}`).join(" · ")}
+                    {it.brothers.slice(0, 3).map((b) => `${b.name.split(" ")[0]} ${fmt$(b.amount)}${b.lateDays ? ` (${b.lateDays}d late)` : ""}`).join(" · ")}
                     {it.brothers.length > 3 ? " · …" : ""}
                   </p>
                 </div>

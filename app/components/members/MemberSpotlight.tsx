@@ -12,6 +12,8 @@ import { useChapter } from "../../context/ChapterContext";
 import { useThresholds } from "../../hooks/useThresholds";
 import { useTrackedMetrics } from "../../hooks/useTrackedMetrics";
 import { useVocab } from "../../hooks/useVocab";
+import { refreshDuesStandings, useDuesStandings } from "../../hooks/useDuesStandings";
+import type { DuesChargeIssued, DuesWaived } from "@/lib/api-types/dues";
 import { useToast } from "../dashboard/Toast";
 import { apiErrorMessage, requestJson } from "../../lib/api";
 import { standingVerdict, toneAttendance, toneGpa } from "./spotlight-standing";
@@ -118,6 +120,7 @@ export function MemberSpotlight({
   const selfId = currentUser?.id ?? null;
   const isSelf = brother !== null && brother.id === selfId;
 
+  const orgSlug = currentUser?.org?.slug ?? null;
   const canBrothers   = can("MANAGE_BROTHERS");
   const canTreasury   = can("MANAGE_TREASURY");
   const canAttendance = can("MANAGE_ATTENDANCE");
@@ -128,6 +131,7 @@ export function MemberSpotlight({
   // here because Log hours lives on the full card; without it a service chair could
   // no longer log hours from the roster at all.
   const full = canBrothers || canTreasury || canAttendance || canService || isSelf;
+  const duesStandings = useDuesStandings(full && tracked.duesOwed);
   const canEditProfile = canBrothers || isSelf; // name, custom fields, metrics (server allows self)
   const myMaxRank = currentUser?.maxRank ?? 0;
   const fieldDefs = useMemo(
@@ -334,26 +338,54 @@ export function MemberSpotlight({
         return { text: `Exempt from attendance this ${v("Period").toLowerCase()}`, undo: () => clearExemption(b) };
       },
     };
+    // Charge and waive write the same records as Treasury → Dues: a one-person
+    // charge (named, optionally dated, so it can go overdue) or a waiver with its
+    // reason. Both undo. A payment still goes through the page's ledger form, so
+    // the income row and the balance move together.
     if (key === "dues") return {
       label: v("Dues"),
-      initial: () => ({ kind: b.duesOwed > 0 ? "payment" : "charge", amount: "", reason: "" }),
+      initial: () => ({ kind: b.duesOwed > 0 ? "payment" : "charge", amount: "", reason: "", name: "", due: "" }),
       validate: d => {
         if (d.kind === "payment") return null;
         const n = Number(d.amount);
         if (!(n > 0)) return "Enter an amount above $0.";
+        if (Math.abs(Math.round(n * 100) - n * 100) > 1e-6) return "At most two decimal places.";
+        if (d.kind === "charge" && !d.name.trim()) return "Name it, so they know what it's for.";
         if (d.kind === "waive" && n > b.duesOwed) return `That's more than the ${fmt$(b.duesOwed)} they owe.`;
-        if (!d.reason.trim()) return "Add a reason. It's kept in the audit log.";
+        if (d.kind === "waive" && !d.reason.trim()) return "Add a reason. It's kept on their tab.";
         return null;
       },
       commit: async d => {
         if (d.kind === "payment") { onPayDues(b); return; }
         const n = Math.round(Number(d.amount) * 100) / 100;
-        const res = await requestJson<{ duesOwed: number }>("/api/dues/adjustments", {
-          method: "POST", headers: JSON_HEADERS,
-          body: JSON.stringify({ brotherId: b.id, delta: d.kind === "charge" ? n : -n, reason: d.reason.trim() }),
+        const resync = async () => {
+          const fresh = await requestJson<Brother[]>("/api/brothers");
+          setBrotherList(fresh);
+          void refreshDuesStandings();
+        };
+        if (d.kind === "charge") {
+          const c = await requestJson<DuesChargeIssued>("/api/dues/charges", {
+            method: "POST", headers: JSON_HEADERS,
+            body: JSON.stringify({
+              name: d.name.trim(), dueDate: d.due || null, note: null, onDuplicate: "bill",
+              audience: { kind: "pick", brotherIds: [b.id], amount: { mode: "each", amount: n } },
+            }),
+          });
+          await resync();
+          return {
+            text: `${c.name} · ${fmt$(n)} on ${firstName(b.name)}’s tab`,
+            undo: async () => { await requestJson(`/api/dues/charges/${c.id}`, { method: "DELETE" }); await resync(); },
+          };
+        }
+        const w = await requestJson<DuesWaived>("/api/dues/waivers", {
+          method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ brotherId: b.id, amount: n, reason: d.reason.trim() }),
         });
-        patchLocal(b.id, { duesOwed: res.duesOwed });
-        return { text: d.kind === "charge" ? `Charged ${fmt$(n)}` : `Waived ${fmt$(n)}` };
+        patchLocal(b.id, { duesOwed: w.duesOwed });
+        void refreshDuesStandings();
+        return {
+          text: `Waived ${fmt$(n)}`,
+          undo: async () => { await requestJson(`/api/dues/waivers/${w.waiverId}`, { method: "DELETE" }); await resync(); },
+        };
       },
     };
     if (key.startsWith("excuse:")) {
@@ -573,7 +605,11 @@ export function MemberSpotlight({
 
   // ── Derived display ──────────────────────────────────────────────────────
   const exempt = isAttendanceExempt(b.attendance);
-  const verdict = standingVerdict(b, thresholds, tracked, { self: isSelf, duesLabel: v("Dues"), serviceLabel: v("Service") });
+  const duesSt = duesStandings?.get(b.id);
+  const verdict = standingVerdict(b, thresholds, tracked, {
+    self: isSelf, duesLabel: v("Dues"), serviceLabel: v("Service"),
+    duesLateDays: duesSt?.standing === "overdue" ? duesSt.lateDays : 0,
+  });
   const roleNames = (b.roles ?? []).map(r => r.name);
   const subParts = [roleNames.join(" · ") || "Member"];
   if (profile) subParts.push(`since ${new Date(profile.joinedAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`);
@@ -683,14 +719,27 @@ export function MemberSpotlight({
   }
   if (full && tracked.duesOwed) {
     const kind = draft.kind ?? "payment";
+    // Standing comes from the shared dues board, so "overdue" here is the same call
+    // Treasury → Dues makes; before it loads, the balance alone still shows.
+    const late = duesSt?.standing === "overdue";
+    const duesCaption = b.duesOwed <= 0 ? "nothing owed"
+      : late ? `${duesSt!.lateDays}d late`
+      : duesSt?.standing === "due" && duesSt.nextDueDate ? `due ${fmtEventDate(duesSt.nextDueDate).replace(/^\w+, /, "")}`
+      : "owed";
+    const duesLine = b.duesOwed > 0
+      ? `${fmt$(b.duesOwed)} owed${late ? `, ${duesSt!.lateDays} ${duesSt!.lateDays === 1 ? "day" : "days"} past due` : ""}.`
+      : "Nothing owed.";
+    const tabLink = orgSlug && (
+      <a className="ms-dues-link" href={`/${orgSlug}/treasury?tab=Dues&m=${b.id}`}>See {isSelf ? "your" : "their"} tab line by line →</a>
+    );
     stats.push(
       <Stat key="dues" id="dues" label={v("Dues")} edit={edit} align="right"
-        value={b.duesOwed > 0 ? fmt$(b.duesOwed) : "Paid"} valueCls={b.duesOwed > 0 ? "t-warn" : ""}
-        caption={b.duesOwed > 0 ? "owed" : "nothing owed"}>
+        value={b.duesOwed > 0 ? fmt$(b.duesOwed) : "Paid"} valueCls={late ? "t-risk" : b.duesOwed > 0 ? "t-warn" : ""}
+        caption={duesCaption}>
         {canTreasury ? (
           <>
             <p className="ttl">{v("Dues")}</p>
-            <p className="sm">{b.duesOwed > 0 ? `${fmt$(b.duesOwed)} owed.` : "Nothing owed."}</p>
+            <p className="sm">{duesLine}</p>
             <div className="seg" role="group" aria-label="Kind">
               {(["payment", "charge", "waive"] as const).map(k => (
                 <button key={k} type="button" aria-pressed={kind === k} disabled={k !== "charge" && b.duesOwed === 0}
@@ -709,17 +758,29 @@ export function MemberSpotlight({
                 <div className="fr">
                   <span className="of">$</span>
                   <DraftInput edit={edit} field="amount" label="Amount" numeric wide={false} step="0.01" />
-                  <input className="wide" placeholder="Reason" aria-label="Reason" value={draft.reason ?? ""} onChange={e => edit.set("reason", e.target.value)} />
+                  {kind === "charge"
+                    ? <input className="wide" placeholder="What for? e.g. Late fine" aria-label="Charge name" maxLength={60} value={draft.name ?? ""} onChange={e => edit.set("name", e.target.value)} />
+                    : <input className="wide" placeholder="Why? e.g. hardship" aria-label="Reason" maxLength={200} value={draft.reason ?? ""} onChange={e => edit.set("reason", e.target.value)} />}
                 </div>
-                <Hint edit={edit} text="No money moves. Kept with your reason in the audit log." />
+                {kind === "charge" && (
+                  <div className="fr">
+                    <span className="of">Due</span>
+                    <input className="wide" type="date" aria-label="Due date (optional)" value={draft.due ?? ""} onChange={e => edit.set("due", e.target.value)} />
+                  </div>
+                )}
+                <Hint edit={edit} text={kind === "charge"
+                  ? "Goes on their tab in Treasury → Dues. Leave the date empty and it's never late."
+                  : "No money moves. The waiver and your reason stay on their tab."} />
                 <SaveFoot edit={edit} label={kind === "charge" ? "Charge" : "Waive"} />
               </>
             )}
+            {tabLink && <p className="sm last">{tabLink}</p>}
           </>
         ) : (
           <>
             <p className="ttl">{v("Dues")}</p>
-            <p className="sm last">{b.duesOwed > 0 ? `${fmt$(b.duesOwed)} owed.` : "Nothing owed."} {isSelf ? "Pay the treasurer and it shows up here." : "Recording payments needs Manage treasury."}</p>
+            <p className="sm last">{duesLine} {isSelf ? "Pay the treasurer and it shows up here." : "Recording payments needs Manage treasury."}</p>
+            {tabLink && <p className="sm last">{tabLink}</p>}
             <DoneFoot edit={edit} />
           </>
         )}

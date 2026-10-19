@@ -21,6 +21,7 @@ import { useThresholds } from "../hooks/useThresholds";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
 import { useTrackedMetrics } from "../hooks/useTrackedMetrics";
+import { refreshDuesStandings, useDuesStandings } from "../hooks/useDuesStandings";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { useRollingToday } from "../hooks/useRollingToday";
 import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
@@ -112,6 +113,7 @@ function KPIDetailDrawer({
   isAdmin = true,
   canTreasury = false,
   hasDuesData = true,
+  duesLate,
 }: {
   activeKey: KPIDrawerKey | null;
   onClose: () => void;
@@ -137,6 +139,8 @@ function KPIDetailDrawer({
   /** False when no member carries a balance and the books are empty — i.e. dues
    *  were never assigned, so there is nothing to be "paid up" on. */
   hasDuesData?: boolean;
+  /** brotherId → days past due (Treasury → Dues). Absent until the standings load. */
+  duesLate?: ReadonlyMap<number, number>;
 }) {
   const THRESHOLDS = useThresholds();
   const v = useVocab();
@@ -205,7 +209,9 @@ function KPIDetailDrawer({
       }
 
       case "dues": {
-        const oweList = brotherList.filter(b => b.duesOwed > 0);
+        const lateOf = (id: number) => duesLate?.get(id) ?? 0;
+        const oweList = brotherList.filter(b => b.duesOwed > 0).sort((a, b) => lateOf(b.id) - lateOf(a.id) || b.duesOwed - a.duesOwed);
+        const overdueCount = oweList.filter(b => lateOf(b.id) > 0).length;
         const paidList = brotherList.filter(b => b.duesOwed === 0);
         // An org that has never assigned dues also has $0 outstanding, and used
         // to be congratulated for it. "Paid up" is a claim about dues that
@@ -226,7 +232,7 @@ function KPIDetailDrawer({
             </div>
             {oweList.length > 0 && (
               <div>
-                <p className="dd-label">Outstanding Balances</p>
+                <p className="dd-label">Outstanding Balances{overdueCount > 0 && <span className="ct"> · {overdueCount} overdue</span>}</p>
                 <div className="dd-feed">
                   {oweList.map(b => (
                     <div key={b.id} className="dd-item gold">
@@ -236,6 +242,7 @@ function KPIDetailDrawer({
                       </div>
                       <div className="amt">
                         <span className="m">{fmt$(b.duesOwed)}</span>
+                        {lateOf(b.id) > 0 && <span className="dues-late">{lateOf(b.id)}d late</span>}
                         {canTreasury && (
                           <button onClick={() => openPayDues(b)} className="dd-row-act ok">Pay</button>
                         )}
@@ -860,6 +867,13 @@ export default function Home() {
   // org switched off in onboarding stores a 0 for everyone, so it must not
   // become a roster column, feed the health score, or flag anyone At Risk.
   const tracked = useTrackedMetrics();
+  // Who's past a due date and by how many days (Treasury → Dues), for needs-attention, the roster and the dues drawer.
+  const duesStandings = useDuesStandings(tracked.duesOwed);
+  const duesLate = useMemo(() => {
+    const m = new Map<number, number>();
+    duesStandings?.forEach((st, id) => { if (st.standing === "overdue") m.set(id, st.lateDays); });
+    return m;
+  }, [duesStandings]);
   // Today, as local ISO. State rather than a mount-time const: dashboards get
   // left open for days, and a frozen "today" silently freezes the week's agenda
   // and every overdue calculation with it.
@@ -1396,8 +1410,8 @@ export default function Home() {
   const wrapUpsDue = useWrapUpsDue();
   const wrapUps = eventsEnabled ? wrapUpsDue : NO_WRAP_UPS;
   const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, taskList, todayISO, reimbursementList, measured, wrapUps),
-    [brotherList, taskList, todayISO, reimbursementList, measured, wrapUps],
+    () => deriveNeedsAttention(brotherList, taskList, todayISO, reimbursementList, measured, wrapUps, duesLate),
+    [brotherList, taskList, todayISO, reimbursementList, measured, wrapUps, duesLate],
   );
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
@@ -2046,6 +2060,7 @@ export default function Home() {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
       });
       await refreshChapterData();
+      void refreshDuesStandings();
       addActivity(`${b?.name ?? "Member"} — ${fmt$(data.amount)} dues payment recorded`, "success");
     } catch (e) {
       addActivity(apiErrorMessage(e, "Dues payment failed. Nothing was recorded."), "warning");
@@ -2417,6 +2432,7 @@ export default function Home() {
                   <div className="area-roster">
                   <RosterTable
                     brothers={filteredBrothers}
+                    duesLate={duesLate}
                     totalCount={brotherList.length}
                     statusCounts={statusCounts}
                     statusFilter={statusFilter}
@@ -2888,6 +2904,7 @@ export default function Home() {
         isAdmin={isAdmin}
         canTreasury={canTreasury}
         hasDuesData={duesKnown && hasDuesData}
+        duesLate={duesLate}
       />
       <CustomMetricDetailDrawer
         snap={customMetricSnapshots.find(s => s.definitionId === activeCustomMetricId) ?? null}

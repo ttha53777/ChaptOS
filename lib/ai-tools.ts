@@ -27,6 +27,10 @@ import { findPermHolders, type PermHolders } from "@/lib/permission-holders";
 import { getMetricStatus } from "@/lib/metrics";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { hasMinutes } from "@/lib/agenda-template";
+import { buildDuesBoard } from "@/lib/services/dues-charge-service";
+import { loadDuesLedger } from "@/lib/dues-ledger-db";
+import { duesPaymentWhere } from "@/lib/dues";
+import { compareLines } from "@/lib/dues-ledger";
 import { ExcuseStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
 import { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
@@ -577,18 +581,40 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "list_dues_payments",
       description:
-        "Dues payment HISTORY (who paid, amount, date, method, status pending/approved/rejected) — list_brothers only has the current balance owed. " +
-        "Use for 'when did X last pay?', 'payments awaiting approval', 'how much dues came in this month'. " +
-        "Treasury managers see everyone; other members see only their own payments. `summary` holds exact totals.",
+        "Dues payment HISTORY — money that actually came in: who paid, amount, date, method. These are the Dues income entries in the treasury books; " +
+        "a payment posts the moment it's recorded, there is NO approval queue or pending state. " +
+        "Use for 'when did X last pay?', 'how much dues came in this month', 'who paid by Venmo'. " +
+        "For what's OWED — balances, what for, who's overdue — use list_dues_charges instead. " +
+        "Treasury managers see everyone (plus `notCredited`: old payments with no member on them); other members see only their own. `summary` holds exact totals.",
       parameters: {
         type: "object",
         properties: {
-          status: { type: "string", enum: ["pending", "approved", "rejected"] },
           member: { type: "string", description: "Member name fragment." },
           start:  { type: "string", description: "Inclusive YYYY-MM-DD start." },
           end:    { type: "string", description: "Inclusive YYYY-MM-DD end." },
           order:  { type: "string", enum: ["asc", "desc"], description: "By date, default desc (latest first)." },
           limit:  { type: "integer", minimum: 1, maximum: 100, description: "Default 25." },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_dues_charges",
+      description:
+        "Dues as CHARGES (Treasury → Dues): every bill handed out — name, due date, who it went to, collected vs outstanding, overdue — and where each member stands: " +
+        "overdue (with days late), owes but not due yet, paid up, nothing billed. list_brothers has only the bare balance and can't say what's LATE or what a balance is FOR. " +
+        "Use for 'who's overdue on dues?', 'how's fall dues collection going?', 'what does X still owe for?', 'when are dues due?'. " +
+        "Every member can see this (the Dues tab is open to all). `summary` holds exact totals; `members` lists the most overdue first.",
+      parameters: {
+        type: "object",
+        properties: {
+          term:     { type: "string", description: "A semester label (e.g. 'FA26') to scope charges to it. Omit for every live charge." },
+          standing: { type: "string", enum: ["overdue", "due", "paid", "none"], description: "Only members in this standing." },
+          member:   { type: "string", description: "Member name fragment — also returns what each matched member still owes, charge by charge." },
+          charge:   { type: "string", description: "Charge name fragment, e.g. 'fall dues' — members are then scoped to that charge." },
+          limit:    { type: "integer", minimum: 1, maximum: 100, description: "Members to list. Default 25." },
         },
       },
     },
@@ -737,7 +763,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_record_dues_payment",
       description:
-        "Propose recording a dues payment from a brother. On confirm this only STAGES the payment as a pending request — it does not post to the treasury ledger or change what the brother owes. A treasurer must separately approve the request (on the Treasury page) before either book moves; that approval is the one atomic operation, not this confirm. Returns a confirm card; nothing is changed until confirmed, and nothing posts until approved after that. Defaults to paying off their full outstanding balance; pass amount for a partial payment. Requires treasury authority to confirm. Do NOT use this to waive or correct a balance where no money changed hands.",
+        "Propose recording a dues payment from a brother. On confirm it posts a Dues income transaction and lowers their balance in one step; it settles their charges oldest-due first (the card names which). Returns a confirm card; nothing changes until confirmed. Defaults to paying off their full outstanding balance; pass amount for a partial payment. Requires treasury authority to confirm. Do NOT use this to waive or correct a balance where no money changed hands.",
       parameters: {
         type: "object",
         properties: {
@@ -2516,45 +2542,140 @@ async function listReimbursements(args: ToolArgs, scoped: Scoped, orgId: number)
   };
 }
 
+// The ledger is the record: a dues payment is a posted, undeleted "Dues" income
+// transaction (duesPaymentWhere) — the same rows the Dues tab allocates and the
+// reconciliation counts. It used to read the DuesPayment table, a staging step
+// the app no longer writes, so it missed real payments and reported "pending"
+// ones nothing could ever approve.
 async function listDuesPayments(args: ToolArgs, scoped: Scoped, orgId: number, access?: ToolAccess): Promise<ToolResult> {
   // Treasury holders see the chapter's payments; everyone else only their own.
   const all = canAccess(access, "MANAGE_TREASURY");
   if (!all && !access) return denied("Manage treasury");
-  const status = typeof args.status === "string" ? args.status : undefined;
   const range = dateRange(args);
-  const [rows, names] = await Promise.all([
-    scoped.duesPayment.findMany({
+  const [rows, names, config] = await Promise.all([
+    scoped.transaction.findMany({
       where: {
+        ...duesPaymentWhere,
         ...(all ? {} : { brotherId: access!.actorId }),
-        ...(status ? { status } : {}),
         ...(range ? { date: range } : {}),
       },
       orderBy: [{ date: args.order === "asc" ? "asc" : "desc" }, { id: "desc" }],
-      select: { brotherId: true, amount: true, date: true, paymentMethod: true, status: true },
+      select: { brotherId: true, amount: true, date: true, paymentMethod: true, description: true, createdAt: true },
     }),
     rosterNames(scoped, orgId),
+    scoped.organizationConfig.find(),
   ]);
+  const cutover = config?.duesLedgerStartedAt ?? null;
   const who = idsMatching(names, args.member);
-  const matched = who ? rows.filter(r => who.has(r.brotherId)) : rows;
+  // A payment with no member on it (pre-attribution history) is real money but nobody's:
+  // reported apart, never folded into a name.
+  const credited = rows.filter(r => r.brotherId !== null && (!who || who.has(r.brotherId)));
+  const loose = all && !who ? rows.filter(r => r.brotherId === null) : [];
   const scope = all ? {} : { scope: "Only the asker's own payments — they can't see other members' payments." };
-  if (matched.length === 0) {
-    return { ...listResult([], !!(status || range || who)), ...scope } as ToolResult;
+  const looseNote = loose.length ? {
+    notCredited: {
+      count: loose.length,
+      total: r2(loose.reduce((s, r) => s + r.amount, 0)),
+      note: "Older Dues income with no member attached: it counts in the books but sits on nobody's tab. Say so plainly; there is no screen in the app yet for crediting it to someone.",
+    },
+  } : {};
+  if (credited.length === 0) {
+    return { ...listResult([], !!(range || who)), ...scope, ...looseNote } as ToolResult;
   }
-  const approved = matched.filter(r => r.status === "approved");
   return {
     ...scope,
-    summary: {
-      count: matched.length,
-      approvedTotal: r2(approved.reduce((s, r) => s + r.amount, 0)),
-      pendingCount: matched.filter(r => r.status === "pending").length,
-    },
-    payments: matched.slice(0, clampLimit(args.limit, 25)).map(r => ({
-      id: r.brotherId,
-      name: names.get(r.brotherId) ?? "Former member",
+    summary: { count: credited.length, total: r2(credited.reduce((s, r) => s + r.amount, 0)) },
+    ...looseNote,
+    payments: credited.slice(0, clampLimit(args.limit, 25)).map(r => ({
+      id: r.brotherId!,
+      name: names.get(r.brotherId!) ?? "Former member",
       amount: r2(r.amount),
       date: r.date,
       ...(r.paymentMethod ? { method: r.paymentMethod } : {}),
-      status: r.status,
+      ...(r.description ? { description: r.description } : {}),
+      // Already netted into the "Earlier balance" carryover, so it won't show as a line on the Dues tab.
+      ...(cutover && r.createdAt < cutover ? { beforeDuesLedger: true } : {}),
+    })),
+  };
+}
+
+// The Dues tab's own board (buildDuesBoard), so "overdue" here is exactly the call
+// the app makes: payments are allocated oldest-due-first across a member's lines.
+async function listDuesCharges(args: ToolArgs, scoped: Scoped, orgId: number): Promise<ToolResult> {
+  const term = typeof args.term === "string" && args.term.trim() ? args.term.trim() : undefined;
+  const [board, names] = await Promise.all([buildDuesBoard(scoped, { semester: term }), rosterNames(scoped, orgId)]);
+  if (board.charges.length === 0) {
+    return { today: board.today, ...(term ? { term } : {}), charges: [], members: [], note: "Nothing has been billed" + (term ? ` in ${term}.` : " yet.") } as ToolResult;
+  }
+  const needle = typeof args.charge === "string" ? args.charge.trim().toLowerCase() : "";
+  const charges = needle ? board.charges.filter(c => c.name.toLowerCase().includes(needle)) : board.charges;
+  if (needle && charges.length === 0) {
+    return { error: `No charge matching "${args.charge}". Charges: ${board.charges.map(c => c.name).join(", ")}.` };
+  }
+  const chargeName = new Map(board.charges.map(c => [c.id, c]));
+  const scopeIds = needle ? new Set(charges.map(c => c.id)) : null;
+  const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+
+  // A member's position over the charges in scope: the whole board, or the matched charge(s).
+  const rows = board.members.map(m => {
+    if (!scopeIds) return { m, owes: m.owes, billed: m.billed, standing: m.standing, lateDays: m.lateDays };
+    const lines = m.lines.filter(l => scopeIds.has(l.chargeId));
+    if (!lines.length) return null;
+    const owes = r2(lines.reduce((s, l) => s + l.rest, 0));
+    const lateLine = lines.filter(l => l.rest > 0 && (chargeName.get(l.chargeId)?.dueDate ?? "9999") < board.today)
+      .map(l => chargeName.get(l.chargeId)!.dueDate!).sort()[0];
+    return {
+      m, owes, billed: r2(lines.reduce((s, l) => s + l.amount, 0)),
+      standing: owes === 0 ? "paid" as const : lateLine ? "overdue" as const : "due" as const,
+      lateDays: lateLine ? daysBetween(lateLine, board.today) : 0,
+    };
+  }).filter((r): r is NonNullable<typeof r> => r !== null);
+
+  const who = idsMatching(names, args.member);
+  const standing = typeof args.standing === "string" ? args.standing : null;
+  const order = { overdue: 0, due: 1, paid: 2, none: 3 } as const;
+  const listed = rows
+    .filter(r => (!who || who.has(r.m.brotherId)) && (!standing || r.standing === standing))
+    .sort((a, b) => order[a.standing] - order[b.standing] || b.lateDays - a.lateDays || b.owes - a.owes);
+
+  const overdueRows = rows.filter(r => r.standing === "overdue");
+  const billed = r2(charges.reduce((s, c) => s + c.total, 0));
+  const outstanding = r2(charges.reduce((s, c) => s + c.outstanding, 0));
+  return {
+    today: board.today,
+    ...(term ? { term } : {}),
+    summary: {
+      charges: charges.length,
+      billed, collected: r2(billed - outstanding), outstanding,
+      percentCollected: billed ? Math.floor(((billed - outstanding) / billed) * 100) : 0,
+      overdueMembers: overdueRows.length,
+      overdueAmount: r2(scopeIds ? overdueRows.reduce((s, r) => s + r.owes, 0) : board.members.reduce((s, m) => s + m.overdue, 0)),
+      owingMembers: rows.filter(r => r.owes > 0).length,
+      paidUpMembers: rows.filter(r => r.standing === "paid").length,
+    },
+    charges: charges.map(c => ({
+      name: c.name,
+      dueDate: c.dueDate,
+      audience: c.audienceLabel,
+      people: c.people,
+      paidPeople: c.paidPeople,
+      total: c.total,
+      outstanding: c.outstanding,
+      ...(c.overdue && c.dueDate ? { overdueDays: daysBetween(c.dueDate, board.today) } : {}),
+      ...(c.note ? { note: c.note } : {}),
+    })),
+    matched: listed.length,
+    members: listed.slice(0, clampLimit(args.limit, 25)).map(r => ({
+      id: r.m.brotherId,
+      name: names.get(r.m.brotherId) ?? "Former member",
+      standing: r.standing,
+      owes: r.owes,
+      ...(r.lateDays ? { daysLate: r.lateDays } : {}),
+      ...(who ? {
+        open: r.m.lines.filter(l => l.rest > 0 && (!scopeIds || scopeIds.has(l.chargeId))).map(l => ({
+          charge: chargeName.get(l.chargeId)?.name ?? "Charge", rest: l.rest, dueDate: chargeName.get(l.chargeId)?.dueDate ?? null,
+        })),
+      } : {}),
     })),
   };
 }
@@ -2826,6 +2947,27 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
     ? `$${remaining.toFixed(2)} would remain owing.`
     : "That clears their balance.";
 
+  // Which charges this pays, in the order the Dues tab applies money: oldest due
+  // first. Best-effort — the amount above is already settled, so a failed read
+  // only drops the "Covers" line.
+  let covers: string | null = null;
+  try {
+    const ledger = await loadDuesLedger(scoped, { brotherId: id });
+    const today = todayISO(); // the same day the payment is dated
+    let left = Math.round(amount * 100);
+    const parts: string[] = [];
+    for (const l of [...(ledger.allocated.get(id) ?? [])].sort(compareLines)) {
+      if (left <= 0) break;
+      if (l.restCents <= 0) continue;
+      const take = Math.min(left, l.restCents);
+      left -= take;
+      const late = l.dueDate !== null && l.dueDate < today;
+      const nm = ledger.charges.get(l.chargeId)?.name ?? "a charge";
+      parts.push(`${nm} ${fmtUsd(take / 100)}${take < l.restCents ? " (part)" : ""}${late ? ", overdue" : ""}`);
+    }
+    if (parts.length) covers = parts.join(" · ");
+  } catch { /* keep the card without it */ }
+
   return {
     kind: "proposal",
     action: "propose_record_dues_payment",
@@ -2841,10 +2983,11 @@ async function proposeRecordDuesPayment(args: ToolArgs, scoped: Scoped): Promise
     },
     summary: `Record a $${amount.toFixed(2)} dues payment from ${name} (currently owes `
       + `$${currentOwed.toFixed(2)}). This posts an income transaction and lowers their `
-      + `balance. ${tail}`,
+      + `balance. ${covers ? `It covers ${covers}. ` : ""}${tail}`,
     rows: [
       { k: "Brother", v: name },
       { k: "Amount", v: fmtUsd(amount), em: true },
+      ...(covers ? [{ k: "Covers", v: covers.length > 60 ? `${covers.slice(0, 57)}…` : covers }] : []),
       { k: "Date", v: todayISO() },
       { k: "Balance after", v: fmtUsd(remaining) },
     ],
@@ -3355,6 +3498,7 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
   list_polls:              (args, scoped, orgId, _now, access) => listPolls(args, scoped, orgId, access),
   list_reimbursements:     (args, scoped, orgId) => listReimbursements(args, scoped, orgId),
   list_dues_payments:      (args, scoped, orgId, _now, access) => listDuesPayments(args, scoped, orgId, access),
+  list_dues_charges:       (args, scoped, orgId) => listDuesCharges(args, scoped, orgId),
   search_docs:             (args, scoped) => searchDocs(args, scoped),
   get_announcement:        (_args, scoped) => getAnnouncement(scoped),
   list_join_requests:      (args, scoped, orgId, _now, access) => listJoinRequests(args, scoped, orgId, access),
@@ -3574,6 +3718,16 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
     finding: r => (isErr(r) ? null : (r as { none?: boolean }).none ? "none posted" : "posted"),
   },
   list_join_requests: { verb: "Checking join requests", source: "Join requests", finding: countFinding("request") },
+  list_dues_charges: {
+    verb: "Checking dues charges",
+    source: "Treasury · dues",
+    finding: r => {
+      if (isErr(r)) return null;
+      const s = (r as { summary?: { overdueMembers: number; percentCollected: number } }).summary;
+      if (!s) return "nothing billed";
+      return s.overdueMembers ? `${s.overdueMembers} overdue · ${s.percentCollected}% in` : `${s.percentCollected}% collected`;
+    },
+  },
   list_attendance_exemptions: { verb: "Checking exemptions", source: "Attendance · exemptions", finding: countFinding("exemption") },
   // Proposal drafts: no source chip (their reads are incidental) and no posted
   // finding — the writ card that follows IS the result.

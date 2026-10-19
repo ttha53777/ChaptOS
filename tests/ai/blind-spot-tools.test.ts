@@ -78,29 +78,41 @@ describe("permission-gated tools", () => {
   });
 
   it("list_dues_payments scopes a non-treasurer to their own payments in the query", async () => {
-    const { scoped, calls, orgId } = stub({ member: ROSTER, duesPayment: [] }, nextOrg++);
+    const { scoped, calls, orgId } = stub({ member: ROSTER, transaction: [] }, nextOrg++);
     const out = await runTool("list_dues_payments", {}, scoped, orgId, undefined, MEMBER) as { scope?: string };
-    const q = calls.find(c => c.model === "duesPayment")!;
+    const q = calls.find(c => c.model === "transaction")!;
     expect((q.args as { where: { brotherId?: number } }).where.brotherId).toBe(2);
     expect(out.scope).toMatch(/own payments/);
   });
 
-  it("list_dues_payments shows a treasurer everyone", async () => {
+  it("list_dues_payments reads posted Dues income, never the old DuesPayment table", async () => {
+    const { scoped, calls, orgId } = stub({ member: ROSTER, transaction: [] }, nextOrg++);
+    await runTool("list_dues_payments", {}, scoped, orgId, undefined, TREASURER);
+    expect(calls.some(c => c.model === "duesPayment")).toBe(false);
+    const q = calls.find(c => c.model === "transaction")!;
+    expect((q.args as { where: Record<string, unknown> }).where).toMatchObject({ type: "income", category: "Dues", status: "posted", deletedAt: null });
+  });
+
+  it("list_dues_payments shows a treasurer everyone, and keeps uncredited money apart", async () => {
     const { scoped, calls, orgId } = stub({
       member: ROSTER,
-      duesPayment: [
-        { brotherId: 1, amount: 100, date: "2026-09-02", paymentMethod: "venmo", status: "approved" },
-        { brotherId: 2, amount: 50, date: "2026-09-01", paymentMethod: null, status: "pending" },
+      transaction: [
+        { brotherId: 1, amount: 100, date: "2026-09-02", paymentMethod: "venmo", description: "Dues payment — Rob", createdAt: new Date("2026-09-02") },
+        { brotherId: 2, amount: 50, date: "2026-09-01", paymentMethod: null, description: "", createdAt: new Date("2026-09-01") },
+        { brotherId: null, amount: 30, date: "2026-03-01", paymentMethod: "cash", description: "old dues", createdAt: new Date("2026-03-01") },
       ],
     }, nextOrg++);
     const out = await runTool("list_dues_payments", {}, scoped, orgId, undefined, TREASURER) as {
-      summary: { count: number; approvedTotal: number; pendingCount: number };
-      payments: { id: number; name: string }[];
+      summary: { count: number; total: number };
+      notCredited?: { count: number; total: number };
+      payments: { id: number; name: string; status?: string }[];
     };
-    const q = calls.find(c => c.model === "duesPayment")!;
+    const q = calls.find(c => c.model === "transaction")!;
     expect((q.args as { where: { brotherId?: number } }).where.brotherId).toBeUndefined();
-    expect(out.summary).toEqual({ count: 2, approvedTotal: 100, pendingCount: 1 });
+    expect(out.summary).toEqual({ count: 2, total: 150 });
+    expect(out.notCredited).toMatchObject({ count: 1, total: 30 });
     expect(out.payments.map(p => [p.id, p.name])).toEqual([[1, "Rob Chen"], [2, "Sam"]]);
+    expect(out.payments.every(p => p.status === undefined)).toBe(true);
   });
 });
 

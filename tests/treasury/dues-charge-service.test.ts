@@ -23,7 +23,8 @@ import {
 import { adjustDues, getDuesReconciliation } from "@/lib/services/dues-service";
 import { createTransaction, softDeleteTransaction, updateTransaction } from "@/lib/services/transaction-service";
 import { issueDuesChargeInput, type IssueDuesChargeInput } from "@/lib/validation/dues";
-import { PERMISSIONS } from "@/lib/permissions";
+import { ALL_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
+import { runProposal, runTool } from "@/lib/ai-tools";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import type { RequestContext } from "@/lib/context";
 
@@ -301,9 +302,16 @@ describe("voidDuesCharge (take back / undo)", () => {
 
   it("lets a payment re-flow to what's left when the member still owes at least their line", async () => {
     const { leo, ctx } = await chapter();
-    await issueDuesCharge(ctx, everyone("Fall dues", 140));
+    const fall = await issueDuesCharge(ctx, everyone("Fall dues", 140));
     const photo = await issueDuesCharge(ctx, everyone("Composite photo", 20));
     await pay(ctx, leo.id, 100); // covered Fall dues first; Leo still owes 60 ≥ 20
+
+    // Every line, in the order payments cover it, so a one-charge view can say "$100 of $140 paid".
+    const before = (await getDuesBoard(ctx)).members.find(m => m.brotherId === leo.id)!;
+    expect(before.lines).toEqual([
+      { chargeId: fall.id, amount: 140, rest: 40 },
+      { chargeId: photo.id, amount: 20, rest: 20 },
+    ]);
 
     await voidDuesCharge(ctx, photo.id);
     expect(await owed(leo.id)).toBe(40);
@@ -461,5 +469,84 @@ describe("payments keep the books agreeing", () => {
       waiveDues(ctx, { brotherId: maya.id, amount: 5 }),
     ]);
     await expectBooksAgree(ctx);
+  });
+});
+
+describe("Ask Chapt reads the same ledger", () => {
+  type DuesAnswer = {
+    summary: { charges: number; billed: number; collected: number; outstanding: number; overdueMembers: number; paidUpMembers: number };
+    members: { id: number; standing: string; owes: number; daysLate?: number; open?: { charge: string; rest: number }[] }[];
+  };
+
+  async function billed() {
+    const c = await chapter();
+    await issueDuesCharge(c.ctx, everyone("Fall dues", 140, { dueDate: "2026-01-15" }));
+    await issueDuesCharge(c.ctx, everyone("Composite photo", 20, { dueDate: "2099-01-01" }));
+    await pay(c.ctx, c.maya.id, 160); // square
+    await pay(c.ctx, c.leo.id, 100);  // Fall dues first: $40 of it still out, and late
+    return c;
+  }
+
+  it("list_dues_charges says who's overdue, how late, and for what", async () => {
+    const { org, dev, jordan, maya, leo } = await billed();
+    const out = await runTool("list_dues_charges", {}, db(org.id), org.id) as unknown as DuesAnswer;
+    expect(out.summary).toMatchObject({ charges: 2, billed: 640, collected: 260, outstanding: 380, overdueMembers: 3, paidUpMembers: 1 });
+    expect(out.members.map(m => [m.id, m.standing, m.owes])).toEqual([
+      [dev.id, "overdue", 160], [jordan.id, "overdue", 160], [leo.id, "overdue", 60], [maya.id, "paid", 0],
+    ]);
+    expect(out.members[0].daysLate).toBeGreaterThan(0);
+
+    const one = await runTool("list_dues_charges", { member: "Leo" }, db(org.id), org.id) as unknown as DuesAnswer;
+    expect(one.members).toHaveLength(1);
+    expect(one.members[0].open).toEqual([
+      { charge: "Fall dues", rest: 40, dueDate: "2026-01-15" },
+      { charge: "Composite photo", rest: 20, dueDate: "2099-01-01" },
+    ]);
+
+    const photo = await runTool("list_dues_charges", { charge: "photo" }, db(org.id), org.id) as unknown as DuesAnswer;
+    expect(photo.summary).toMatchObject({ charges: 1, outstanding: 60, overdueMembers: 0, paidUpMembers: 1 });
+  });
+
+  it("the payment proposal names the charges it settles, oldest due first", async () => {
+    const { org, dev, leo } = await billed();
+    const out = await runProposal("propose_record_dues_payment", { brother_id: leo.id, brother_name: "Leo Park", amount: 50 }, db(org.id),
+      { orgId: org.id, actorId: dev.id, permissions: ALL_PERMISSIONS, isOrgAdmin: false, isPlatformAdmin: false });
+    if ("error" in out) throw new Error(out.error);
+    expect(JSON.stringify(out)).toMatch(/Fall dues \$40(\.00)?, overdue · Composite photo \$10(\.00)? \(part\)/);
+  });
+});
+
+describe("Ask Chapt: list_dues_payments reads the books", () => {
+  type Payments = { scope?: string; summary?: { count: number; total: number }; notCredited?: { count: number; total: number }; payments?: { id: number; amount: number; method?: string }[] };
+  const access = (actorId: number, permissions: number) => ({ actorId, permissions, isOrgAdmin: false, isPlatformAdmin: false });
+
+  it("lists recorded dues payments, drops voided ones, and scopes members to their own", async () => {
+    const { org, ctx, dev, leo, maya } = await chapter();
+    await issueDuesCharge(ctx, everyone("Fall dues", 140));
+    await pay(ctx, leo.id, 100);
+    const voided = await pay(ctx, maya.id, 40);
+    await pay(ctx, maya.id, 60);
+    await softDeleteTransaction(ctx, voided.id);
+    // Neither an expense nor other income is a dues payment.
+    await createTransaction(ctx, { type: "income", category: "Door", amount: 500, date: "2026-10-19", description: "Party", status: "posted", calendarEventIds: [] });
+
+    const all = await runTool("list_dues_payments", {}, db(org.id), org.id, undefined, access(dev.id, PERMISSIONS.MANAGE_TREASURY)) as Payments;
+    expect(all.summary).toEqual({ count: 2, total: 160 });
+    expect(all.payments!.map(p => [p.id, p.amount]).sort()).toEqual([[leo.id, 100], [maya.id, 60]].sort());
+
+    const mine = await runTool("list_dues_payments", {}, db(org.id), org.id, undefined, access(leo.id, 0)) as Payments;
+    expect(mine.scope).toMatch(/own payments/);
+    expect(mine.payments!.map(p => p.id)).toEqual([leo.id]);
+  });
+
+  it("shows a treasurer old payments credited to nobody, separately", async () => {
+    const { org, ctx, dev } = await chapter();
+    await testPrisma.transaction.create({ data: {
+      organizationId: org.id, type: "income", category: "Dues", amount: 75, amountCents: BigInt(7500),
+      date: "2026-02-01", description: "old dues", status: "posted",
+    } });
+    const out = await runTool("list_dues_payments", {}, db(org.id), org.id, undefined, access(dev.id, PERMISSIONS.MANAGE_TREASURY)) as Payments;
+    expect(out.notCredited).toMatchObject({ count: 1, total: 75 });
+    expect(out.payments ?? []).toEqual([]);
   });
 });

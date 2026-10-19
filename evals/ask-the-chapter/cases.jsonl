@@ -20,7 +20,7 @@
 {"id":"tx-category-spend","question":"How much have we spent on Party Supplies?","category":"filter","expectedTools":["sum_transactions"],"expectedToolArgs":{"sum_transactions":{"category":"Party Supplies","type_filter":"expense"}},"mustInclude":["775"],"expectAnswerType":"data"}
 {"id":"treasury-balance","question":"What's our treasury balance?","category":"single-tool","expectedTools":["get_treasury"],"expectAnswerType":"data"}
 {"id":"budget-overview","question":"How are we doing on the budget?","category":"single-tool","expectedTools":["get_budget"],"expectAnswerType":"data"}
-{"id":"dues-status","question":"How are we doing on dues?","category":"compound","expectedTools":["list_brothers","sum_transactions"],"toolMatch":"any","expectAnswerType":"data"}
+{"id": "dues-status", "question": "How are we doing on dues?", "category": "compound", "expectedTools": ["list_brothers", "sum_transactions", "list_dues_charges"], "toolMatch": "any", "expectAnswerType": "data"}
 {"id":"name-fragment","question":"How is Bryan doing?","category":"name-lookup","expectedTools":["get_brother"],"expectedToolArgs":{"get_brother":{"name":"Bryan"}},"mustInclude":["Bryan Lee"],"expectAnswerType":"data"}
 {"id":"name-disambiguation","question":"How is Lee doing?","category":"name-lookup","expectedTools":["get_brother"],"expectedToolArgs":{"get_brother":{"name":"Lee"}},"expectAnswerType":"data"}
 {"id":"recent-activity","question":"What were the recent warnings?","category":"filter","expectedTools":["recent_activity"],"expectedToolArgs":{"recent_activity":{"type":"warning"}},"mustInclude":["deleted"],"expectAnswerType":"data"}
@@ -48,3 +48,6 @@
 {"id":"deadlines-empty-broaden-future","question":"Are there any deadlines due in 2027?","category":"empty-broaden","expectedTools":["list_deadlines"],"expectAnswerType":"data","mustNotInclude":["error"]}
 {"id":"propose-deadline-role-assignee","question":"Add a deadline 'Submit chapter budget' due 2026-09-15 for the President.","category":"proposal","expectedTools":["list_roles","propose_add_deadline"],"toolMatch":"all","expectedProposalAction":"propose_add_deadline","expectAnswerType":"proposal"}
 {"id":"deadlines-done-filter","question":"Which deadlines have we already finished?","category":"status-filter","expectedTools":["list_deadlines"],"expectedToolArgs":{"list_deadlines":{"status":"done"}},"mustInclude":["IFC Chapter Report"],"expectAnswerType":"data"}
+{"id": "dues-overdue-none", "question": "Is anyone overdue on their dues?", "category": "filter", "expectedTools": ["list_dues_charges"], "toolMatch": "any", "mustNotInclude": ["days late", "overdue since"], "expectAnswerType": "data"}
+{"id": "dues-balance-for-what", "question": "What is Arijit Das's dues balance for?", "category": "lookup", "expectedTools": ["list_dues_charges"], "toolMatch": "any", "mustInclude": ["Earlier balance", "118"], "expectAnswerType": "data"}
+{"id": "dues-payment-last", "question": "When did Elvin De La Cruz last pay dues?", "category": "lookup", "expectedTools": ["list_dues_payments"], "toolMatch": "any", "mustInclude": ["56"], "mustNotInclude": ["pending", "approval"], "expectAnswerType": "data"}

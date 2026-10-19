@@ -32,7 +32,8 @@ export function standingVerdict(
   b: Brother,
   t: Thresholds,
   tracked: TrackedMetrics,
-  opts: { self: boolean; duesLabel: string; serviceLabel: string },
+  /** duesLateDays: days past the earliest missed due date (Treasury → Dues), 0 when nothing is overdue. */
+  opts: { self: boolean; duesLabel: string; serviceLabel: string; duesLateDays?: number },
 ): Verdict {
   const first = b.name.trim().split(/\s+/)[0] || b.name;
   const subj = opts.self ? "You're" : `${first} is`;
@@ -49,7 +50,10 @@ export function standingVerdict(
     worst = Math.max(worst, b.gpa < t.gpaAtRisk ? 2 : 1);
   }
   if (tracked.duesOwed && b.duesOwed > 0) {
-    issues.push(`${fmt$(b.duesOwed)} in ${opts.duesLabel.toLowerCase()} is outstanding`);
+    const late = opts.duesLateDays ?? 0;
+    issues.push(late > 0
+      ? `${fmt$(b.duesOwed)} in ${opts.duesLabel.toLowerCase()} is ${late} ${late === 1 ? "day" : "days"} overdue`
+      : `${fmt$(b.duesOwed)} in ${opts.duesLabel.toLowerCase()} is outstanding`);
     worst = Math.max(worst, 1);
   }
   if (tracked.serviceHours && b.serviceHours < t.serviceHoursGoal) {

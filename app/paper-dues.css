@@ -1,0 +1,572 @@
+/* ── Paper aesthetic: Treasury → Dues (app/components/treasury/dues) ────────────
+   _design/Treasury Dues Paper Mock.html over real data: the term as an
+   ink-bordered hero on a butter hard shadow with a paid / not-due / overdue
+   money bar and one punch square per member; every charge as a ticket stub;
+   the roster as a wall of dues tags (punched hole, edge coloured by standing)
+   or a list; a member's tab in a right-hand drawer with a rose-margin ledger.
+
+   Everything is prefixed du- — the mock's bare .tag / .stub / .lane / .strip /
+   .hero / .tbl would collide with other pages' classes in this global sheet.
+   Standing colours key off data-s="overdue|due|paid|none".
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.du {
+  --du-display: var(--font-fraunces);
+  --du-mono: var(--font-geist-mono);
+  --du-ink-2: var(--ink-soft);
+  --du-ink-3: var(--muted);
+  --du-line-2: var(--line-med);
+  --du-paper-3: var(--card-3);
+  color: var(--ink);
+}
+.du .du-mono { font-family: var(--du-mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.du [data-s="paid"]    { --s: var(--pp-mint);   --s-ink: var(--pp-mint-ink);   --s-soft: var(--pp-mint-soft);   --s-bd: var(--pp-mint-bd); }
+.du [data-s="due"]     { --s: var(--pp-butter); --s-ink: var(--pp-butter-ink); --s-soft: var(--pp-butter-soft); --s-bd: var(--pp-butter-bd); }
+.du [data-s="overdue"] { --s: var(--pp-rose);   --s-ink: var(--pp-rose-ink);   --s-soft: var(--pp-rose-soft);   --s-bd: var(--pp-rose-bd); }
+.du [data-s="none"]    { --s: transparent;      --s-ink: var(--du-ink-3);      --s-soft: var(--paper-2);        --s-bd: var(--line); }
+.du [data-s="role"]    { --s: var(--pp-lilac); }
+
+.du-card { background: var(--card); border: 1.5px solid var(--line); border-radius: 22px; }
+.du-k { display: flex; align-items: center; gap: 7px; font-size: .72rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--du-ink-3); margin: 0; }
+.du-k .pp-ic { width: 14px; height: 14px; }
+.du-link { border: 0; background: none; padding: 0; color: var(--du-ink-2); font-weight: 600; font-size: .82rem; text-decoration: underline; text-decoration-color: var(--du-line-2); text-underline-offset: 3px; cursor: pointer; }
+.du-link:hover { color: var(--ink); text-decoration-color: var(--ink); }
+.du-empty { padding: 40px; text-align: center; color: var(--du-ink-3); border: 1.5px dashed var(--du-line-2); border-radius: 18px; margin-top: 18px; }
+.du-btn {
+  --hs: var(--pp-lilac);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 17px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); font-weight: 600; font-size: .88rem; letter-spacing: -.01em;
+  box-shadow: 2.5px 2.5px 0 var(--hs); white-space: nowrap; cursor: pointer;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+.du-btn:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.du-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--hs); }
+.du-btn[disabled] { opacity: .4; pointer-events: none; }
+.du-btn.du-ghost { --hs: var(--pp-peach); background: var(--card); color: var(--ink); }
+.du-btn .pp-ic { width: 15px; height: 15px; }
+
+/* ── the term at a glance ───────────────────────────────────────────────────── */
+.du-top { margin-top: 28px; display: grid; grid-template-columns: minmax(0,1.35fr) minmax(0,1fr); gap: 20px; align-items: start; }
+.du-hero { border-color: var(--ink); box-shadow: 4px 4px 0 var(--pp-butter); padding: 24px 26px 22px; display: flex; flex-direction: column; min-width: 0; }
+.du-big { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.du-big b { font-family: var(--du-display); font-weight: 600; font-size: 3.1rem; letter-spacing: -.05em; line-height: 1; }
+.du-big span { color: var(--du-ink-3); font-size: .98rem; }
+.du-big span em { font-style: normal; color: var(--ink); font-weight: 600; }
+
+.du-mbar { margin-top: 20px; height: 22px; border: 1.5px solid var(--ink); border-radius: 999px; overflow: hidden; display: flex; background: var(--paper-2); }
+.du-mbar i { display: block; height: 100%; transition: flex-basis .9s var(--pp-ease-spring); }
+.du-mbar i + i { border-left: 1.5px solid var(--ink); }
+.du-mbar .du-p { background: var(--pp-mint); }
+.du-mbar .du-d { background: repeating-linear-gradient(-45deg, var(--pp-butter) 0 6px, var(--pp-butter-soft) 6px 11px); }
+.du-mbar .du-o { background: repeating-linear-gradient(-45deg, var(--pp-rose) 0 6px, var(--pp-rose-soft) 6px 11px); }
+.du-legend { display: flex; gap: 8px 18px; flex-wrap: wrap; margin-top: 12px; font-size: .82rem; color: var(--du-ink-2); }
+.du-legend button { border: 0; background: none; padding: 3px 6px; margin: -3px -6px; border-radius: 8px; display: inline-flex; align-items: center; gap: 7px; color: inherit; cursor: pointer; }
+.du-legend button:hover { background: var(--paper-2); }
+.du-legend button[aria-pressed="true"] { background: var(--du-paper-3); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.du-legend .du-sw { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid var(--ink); background: var(--s); }
+.du-legend b { font-family: var(--du-mono); font-weight: 600; font-size: .8rem; }
+.du-legend .du-n { color: var(--du-ink-3); }
+
+/* the punch strip: one square per member */
+.du-hint-touch { display: none; }
+@media (hover: none) { .du-hint-hover { display: none; } .du-hint-touch { display: inline; } }
+.du-strip-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 22px; font-size: .78rem; color: var(--du-ink-3); }
+.du-strip { margin-top: 8px; display: grid; grid-template-columns: repeat(26, minmax(0,1fr)); gap: 4px; }
+.du-strip > * { aspect-ratio: 1; border-radius: 5px; border: 1.5px solid var(--s-ink, var(--du-line-2)); padding: 0; background: var(--s); position: relative; transition: transform .15s var(--pp-ease-spring), opacity .15s; }
+.du-strip > [data-s="none"] { border-style: dashed; border-color: var(--du-line-2); }
+.du-strip > button { cursor: pointer; }
+.du-strip > button:hover { transform: scale(1.35); z-index: 2; border-color: var(--ink); }
+.du-strip.du-dim > :not(.du-on) { opacity: .18; }
+.du-tip {
+  position: fixed; z-index: 90; pointer-events: none; background: var(--ink); color: var(--paper); padding: 6px 10px; border-radius: 9px;
+  font-size: .76rem; font-weight: 600; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px));
+}
+.du-tip span { font-family: var(--du-mono); font-weight: 500; opacity: .75; margin-left: 6px; }
+
+/* charges: one ticket stub per bill handed out */
+.du-charges { padding: 20px 20px 16px; display: flex; flex-direction: column; min-width: 0; }
+.du-charges-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px; }
+.du-charges-h h3 { font-family: var(--du-display); font-weight: 600; font-size: 1.15rem; letter-spacing: -.03em; margin: 0; }
+.du-stubs { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.du-stub {
+  --c: var(--pp-sky);
+  position: relative; display: grid; grid-template-columns: 6px minmax(0,1fr) auto; gap: 0 14px; align-items: center; text-align: left; width: 100%;
+  padding: 12px 16px 12px 0; border: 1.5px solid var(--du-line-2); border-radius: 14px; background: var(--paper); color: var(--ink); cursor: pointer;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .18s;
+}
+.du-stub > i { grid-row: 1 / span 2; align-self: stretch; background: var(--c); border-radius: 12px 0 0 12px; margin: -12px 0; border-right: 1.5px dashed var(--du-ink-3); }
+.du-stub:hover { transform: translate(-1px,-1px); border-color: var(--ink); box-shadow: 3px 3px 0 var(--c); }
+.du-stub[aria-pressed="true"] { border-color: var(--ink); background: var(--card); box-shadow: 3px 3px 0 var(--c); }
+.du-stub .du-nm { font-weight: 600; font-size: .93rem; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.du-stub .du-nm > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-stub .du-meta { grid-column: 2; font-size: .76rem; color: var(--du-ink-3); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.du-stub .du-meta .du-od { color: var(--pp-rose-ink); font-weight: 600; }
+.du-stub .du-amt { grid-row: 1 / span 2; grid-column: 3; text-align: right; }
+.du-stub .du-amt b { display: block; font-family: var(--du-mono); font-weight: 600; font-size: .92rem; }
+.du-stub .du-amt small { font-size: .72rem; color: var(--du-ink-3); font-family: var(--du-mono); }
+.du-stub .du-prog { display: block; margin: 5px 0 0 auto; width: 84px; height: 5px; border-radius: 9px; background: var(--du-paper-3); overflow: hidden; }
+.du-stub .du-prog i { display: block; height: 100%; background: var(--pp-mint-ink); border-radius: 9px; }
+.du-aud { font-size: .68rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--du-paper-3); color: var(--du-ink-2); white-space: nowrap; }
+.du-foot { margin-top: 12px; padding: 10px 4px 0; border-top: 1.5px dashed var(--du-line-2); font-size: .78rem; color: var(--du-ink-3); display: flex; justify-content: space-between; gap: 10px; }
+
+/* ── your own tab (members without treasury rights) ─────────────────────────── */
+.du-you { margin-top: 28px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; border-color: var(--ink); box-shadow: 4px 4px 0 var(--s, var(--pp-mint)); }
+.du-you .du-big b { font-size: 2.3rem; }
+.du-note { margin: 8px 0 0; font-size: .86rem; color: var(--du-ink-2); padding: 6px 10px; border-radius: 9px; background: var(--paper-2); border: 1px dashed var(--du-line-2); display: inline-block; }
+
+/* ── the wall of dues tags ──────────────────────────────────────────────────── */
+.du-wall-h { margin-top: 40px; display: flex; align-items: flex-end; gap: 14px 20px; flex-wrap: wrap; }
+.du-wall-h h2 { font-family: var(--du-display); font-weight: 600; font-size: 1.65rem; letter-spacing: -.035em; line-height: 1.1; margin: 0; }
+.du-wall-h p { color: var(--du-ink-3); font-size: .86rem; margin: 3px 0 0; }
+.du-wall-h .du-tools { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.du-seg { display: inline-flex; padding: 3px; border: 1.5px solid var(--du-line-2); border-radius: 999px; background: var(--paper-2); }
+.du-seg button { border: 0; background: none; padding: 6px 12px; border-radius: 999px; font-size: .8rem; font-weight: 600; color: var(--du-ink-3); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.du-seg button .pp-ic { width: 14px; height: 14px; }
+.du-seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.du-srch { display: flex; align-items: center; gap: 8px; padding: 7px 13px; border: 1.5px solid var(--du-line-2); border-radius: 999px; background: var(--card); width: 210px; }
+.du-srch:focus-within { border-color: var(--ink); }
+.du-srch input { border: 0; outline: 0; background: none; width: 100%; font-size: .85rem; color: var(--ink); }
+.du-srch .pp-ic { width: 15px; height: 15px; color: var(--du-ink-3); flex: none; }
+.du-filt { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.du-fchip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border: 1.5px solid var(--du-line-2); border-radius: 999px; background: var(--card); font-size: .82rem; font-weight: 600; color: var(--du-ink-2); cursor: pointer; }
+.du-fchip .du-c { font-family: var(--du-mono); font-size: .72rem; color: var(--du-ink-3); }
+.du-fchip .du-sw { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ink); background: var(--s); }
+.du-fchip .du-sw[data-s="none"] { border-style: dashed; }
+.du-fchip:hover { border-color: var(--du-ink-3); }
+.du-fchip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.du-fchip[aria-pressed="true"] .du-c { color: var(--paper); opacity: .7; }
+.du-filt .du-note { font-size: .8rem; color: var(--du-ink-3); display: inline-flex; align-items: center; gap: 8px; margin-left: 4px; }
+
+.du-lane { margin-top: 26px; }
+.du-lane-h { display: flex; align-items: center; gap: 10px; padding-bottom: 10px; border-bottom: 1.5px solid var(--line); }
+.du-lane-h .du-sw { width: 14px; height: 14px; border-radius: 5px; border: 1.5px solid var(--ink); background: var(--s); }
+.du-lane-h .du-sw[data-s="none"] { border-style: dashed; }
+.du-lane-h h3 { font-weight: 600; font-size: .98rem; margin: 0; }
+.du-lane-h .du-c { font-family: var(--du-mono); font-size: .76rem; color: var(--du-ink-3); }
+.du-lane-h .du-sum { margin-left: auto; font-family: var(--du-mono); font-size: .82rem; font-weight: 600; }
+.du-tags { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 12px; }
+
+/* a dues tag: punched hole, coloured edge by standing */
+.du-tag {
+  position: relative; display: block; width: 100%; text-align: left; padding: 13px 14px 12px 16px; border: 1.5px solid var(--du-line-2); border-radius: 12px 16px 16px 12px;
+  background: var(--card); color: var(--ink); overflow: hidden; cursor: pointer;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .18s;
+}
+.du-tag::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--s); }
+.du-tag::after { content: ''; position: absolute; right: 12px; top: 12px; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--du-line-2); background: var(--paper); }
+.du-tag:hover { transform: translate(-1.5px,-1.5px) rotate(-.4deg); border-color: var(--ink); box-shadow: 3px 3px 0 var(--s); }
+.du-tag[data-s="none"] { border-style: dashed; background: transparent; }
+.du-tag .du-who { display: flex; align-items: center; gap: 9px; padding-right: 14px; min-width: 0; }
+.du-tag .du-who .du-nm { min-width: 0; display: block; }
+.du-tag .du-who b { display: block; font-size: .86rem; font-weight: 600; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-tag .du-who small { display: block; font-size: .7rem; color: var(--du-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-tag .du-owe { margin-top: 11px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.du-tag .du-owe b { font-family: var(--du-display); font-weight: 600; font-size: 1.45rem; letter-spacing: -.04em; line-height: 1; }
+.du-tag .du-owe .du-st { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--s-ink); white-space: nowrap; }
+.du-tag[data-s="paid"] .du-owe b { color: var(--pp-mint-ink); font-size: 1.05rem; display: flex; align-items: center; gap: 5px; }
+.du-tag[data-s="paid"] .du-owe b .pp-ic { width: 16px; height: 16px; }
+.du-tag[data-s="none"] .du-owe b { color: var(--du-ink-3); font-size: 1rem; }
+.du-tag .du-bar { display: block; margin-top: 9px; height: 5px; background: var(--du-paper-3); border-radius: 9px; overflow: hidden; }
+.du-tag .du-bar i { display: block; height: 100%; background: var(--pp-mint-ink); border-radius: 9px; }
+.du-tag .du-sub { display: block; margin-top: 5px; font-family: var(--du-mono); font-size: .66rem; color: var(--du-ink-3); }
+.du-av { width: 22px !important; height: 22px !important; font-size: 9px !important; flex: none; }
+.du-av-lg { width: 52px !important; height: 52px !important; font-size: 1rem !important; border: 1.5px solid var(--ink); flex: none; }
+
+/* list view */
+.du-tbl { margin-top: 18px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--card); overflow: hidden; }
+.du-tbl .du-tr {
+  display: grid; grid-template-columns: minmax(0,2.2fr) minmax(0,1.2fr) 90px 90px 100px 116px; gap: 12px; align-items: center; padding: 10px 18px;
+  border: 0; border-top: 1px solid var(--line); width: 100%; background: none; text-align: left; color: var(--ink); font: inherit;
+}
+.du-tbl .du-tr:first-child { border-top: 0; }
+.du-tbl .du-tr.du-th { background: var(--paper-2); font-size: .68rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--du-ink-3); padding-block: 9px; }
+.du-tbl .du-tr .du-nm { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 600; font-size: .88rem; }
+.du-tbl .du-tr .du-nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-tbl .du-tr .du-rl { font-size: .82rem; color: var(--du-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-tbl .du-tr .du-n { font-family: var(--du-mono); font-size: .84rem; text-align: right; }
+.du-tbl .du-tr .du-n.du-owe { font-weight: 600; }
+.du-tbl button.du-tr { cursor: pointer; }
+.du-tbl button.du-tr:hover { background: var(--paper-2); }
+.du-stp { display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--s-soft); color: var(--s-ink); border: 1px solid var(--s-bd); white-space: nowrap; }
+
+/* ── day one ────────────────────────────────────────────────────────────────── */
+.du-d1 { margin-top: 30px; border: 1.5px solid var(--ink); border-radius: 26px; background: var(--card); box-shadow: 5px 5px 0 var(--pp-butter); padding: 40px 40px 34px; text-align: center; }
+.du-eyebrow { display: inline-flex; align-items: center; gap: 9px; font-size: .7rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--du-ink-3); }
+.du-eyebrow::before { content: ''; width: 18px; height: 2px; border-radius: 2px; background: var(--pp-butter); }
+.du-d1 h2 { font-family: var(--du-display); font-weight: 600; font-size: 2.1rem; letter-spacing: -.04em; line-height: 1.1; margin: 10px 0 0; }
+.du-d1 > p { color: var(--du-ink-3); max-width: 520px; margin: 10px auto 0; }
+.du-hi { position: relative; white-space: nowrap; z-index: 0; }
+.du-hi::before { content: ''; position: absolute; z-index: -1; left: -.12em; right: -.12em; bottom: .04em; height: .5em; background: var(--pp-butter); border-radius: .4em .55em .38em .6em; transform: rotate(-.8deg); opacity: var(--pp-mark-op); }
+.du-ways { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; text-align: left; }
+.du-way { --c: var(--pp-sky); text-align: left; padding: 20px 20px 18px; border: 1.5px solid var(--du-line-2); border-radius: 18px; background: var(--paper); color: var(--ink); }
+button.du-way { cursor: pointer; transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .18s; }
+button.du-way:hover { transform: translate(-2px,-2px); border-color: var(--ink); box-shadow: 4px 4px 0 var(--c); }
+.du-way .du-g { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--c); border: 1.5px solid var(--pp-note-ink); color: var(--pp-note-ink); }
+.du-way .du-g .pp-ic { width: 20px; height: 20px; }
+.du-way h4 { font-family: var(--du-display); font-weight: 600; font-size: 1.12rem; letter-spacing: -.025em; margin: 14px 0 0; }
+.du-way p { font-size: .84rem; color: var(--du-ink-3); margin: 4px 0 0; }
+.du-way .du-eg { margin-top: 12px; font-family: var(--du-mono); font-size: .72rem; color: var(--du-ink-2); padding: 6px 9px; border-radius: 8px; background: var(--paper-2); border: 1px dashed var(--du-line-2); }
+.du-d1-strip { margin: 30px auto 0; max-width: 640px; }
+.du-d1-strip p { font-size: .8rem; color: var(--du-ink-3); margin-top: 10px; }
+
+/* ── the member drawer ──────────────────────────────────────────────────────── */
+.du-scrim { position: fixed; inset: 0; z-index: 60; background: var(--scrim, rgba(38,33,27,.28)); backdrop-filter: blur(2px); animation: du-fade .25s var(--pp-ease-out); }
+.du-drawer {
+  position: fixed; z-index: 70; top: 12px; right: 12px; bottom: 12px; width: min(440px, calc(100vw - 24px)); background: var(--paper);
+  border: 1.5px solid var(--ink); border-radius: 24px; box-shadow: var(--pp-sh-3); display: flex; flex-direction: column; overflow: hidden;
+  animation: du-in-r .34s var(--pp-ease-spring);
+}
+@keyframes du-fade { from { opacity: 0; } }
+@keyframes du-in-r { from { transform: translateX(calc(100% + 30px)); } }
+@keyframes du-in-b { from { transform: translateY(105%); } }
+.du-dr-h { display: flex; align-items: flex-start; gap: 14px; padding: 22px 22px 18px; border-bottom: 1.5px solid var(--line); }
+.du-dr-h h3 { font-family: var(--du-display); font-weight: 600; font-size: 1.4rem; letter-spacing: -.03em; line-height: 1.15; margin: 0; }
+.du-dr-h p { font-size: .82rem; color: var(--du-ink-3); margin: 0; }
+.du-x { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--du-line-2); background: var(--card); display: grid; place-items: center; flex: none; color: var(--ink); cursor: pointer; }
+.du-x:hover { border-color: var(--ink); }
+.du-x .pp-ic { width: 14px; height: 14px; }
+.du-dr-b { flex: 1; overflow: auto; padding: 20px 22px 28px; }
+.du-acct { border: 1.5px solid var(--ink); border-radius: 18px; background: var(--card); padding: 18px 18px 16px; box-shadow: 3px 3px 0 var(--s, var(--du-paper-3)); }
+.du-acct[data-s="none"] { --s: var(--du-paper-3); }
+.du-acct .du-row1 { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 8px; }
+.du-acct .du-row1 b { font-family: var(--du-display); font-weight: 600; font-size: 2.3rem; letter-spacing: -.05em; line-height: 1; }
+.du-acct-bar { margin-top: 14px; height: 6px; background: var(--du-paper-3); border-radius: 9px; overflow: hidden; }
+.du-acct-bar i { display: block; height: 100%; background: var(--pp-mint-ink); border-radius: 9px; }
+.du-acct-sub { margin: 5px 0 0; font-family: var(--du-mono); font-size: .7rem; color: var(--du-ink-3); }
+.du-sec-t { margin: 24px 0 10px; font-size: .7rem; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--du-ink-3); }
+.du-book {
+  border: 1.5px solid var(--line); border-radius: 16px; background: var(--card); overflow: hidden;
+  background-image: linear-gradient(90deg, transparent 52px, var(--pp-rose-bd) 52px, var(--pp-rose-bd) 53.5px, transparent 53.5px);
+}
+.du-book .du-bk { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 10px 14px 10px 10px; border-top: 1px solid var(--line); font-size: .85rem; }
+.du-book .du-bk:first-child { border-top: 0; }
+.du-book .du-bk .du-d { font-family: var(--du-mono); font-size: .68rem; color: var(--du-ink-3); text-align: right; }
+.du-book .du-bk .du-t { min-width: 0; }
+.du-book .du-bk .du-t b { font-weight: 600; }
+.du-book .du-bk .du-t small { display: block; font-size: .72rem; color: var(--du-ink-3); }
+.du-book .du-bk .du-a { font-family: var(--du-mono); font-weight: 600; font-size: .84rem; white-space: nowrap; }
+.du-book .du-bk .du-a.du-neg { color: var(--pp-mint-ink); }
+.du-book .du-bk.du-tot { background: var(--paper-2); font-weight: 600; }
+
+/* ── responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .du-top { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 900px) {
+  .du-tbl .du-tr { grid-template-columns: minmax(0,1fr) 84px 96px; }
+  .du-tbl .du-tr > :nth-child(2), .du-tbl .du-tr > :nth-child(3), .du-tbl .du-tr > :nth-child(4) { display: none; }
+  .du-ways { grid-template-columns: minmax(0,1fr); }
+  .du-d1 { padding: 30px 20px 26px; }
+  .du-drawer { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 88dvh; border-radius: 24px 24px 0 0; animation-name: du-in-b; }
+}
+@media (max-width: 640px) {
+  .du-strip { grid-template-columns: repeat(13, minmax(0,1fr)); }
+  .du-big b { font-size: 2.5rem; }
+  .du-hero { padding: 20px 18px 18px; }
+  .du-tags { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  .du-wall-h .du-tools { margin-left: 0; width: 100%; }
+  .du-srch { flex: 1; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .du *, .du-drawer, .du-scrim { animation: none !important; transition: none !important; }
+}
+
+/* ── the tab itself, on Treasury's folder rule ──────────────────────────────── */
+html[data-aesthetic="paper"] .dash .tr-tabs > button[data-tab="Dues"] { --tb: var(--pp-butter); }
+html[data-aesthetic="paper"] .dash .tr-tabs > button[data-tab="Reports"] { --tb: var(--pp-lilac); }
+.tr-tab-new { font-family: var(--font-geist-mono); font-size: .58rem; letter-spacing: .1em; color: var(--pp-lilac-ink); border: 1px dashed var(--pp-lilac-ink); border-radius: 5px; padding: 0 4px; }
+
+/* ── officer controls (Phase 4): hero CTAs, stub edit, lane bill link, toast ── */
+.du-cta { margin-top: auto; padding-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; border-top: 1.5px dashed var(--du-line-2); }
+.du-hero .du-cta { margin-top: 22px; }
+.du-foot .du-link { display: inline-flex; align-items: center; gap: 5px; }
+.du-foot .du-link .pp-ic { width: 13px; height: 13px; }
+.du-stub-w { position: relative; }
+.du-stub-more {
+  position: absolute; top: -9px; right: -9px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid var(--du-line-2); background: var(--card); color: var(--du-ink-2); cursor: pointer; opacity: 0;
+  transition: opacity .15s, border-color .15s;
+}
+.du-stub-more .pp-ic { width: 14px; height: 14px; }
+.du-stub-w:hover .du-stub-more, .du-stub-more:focus-visible { opacity: 1; }
+.du-stub-more:hover { border-color: var(--ink); color: var(--ink); }
+@media (hover: none) { .du-stub-more { opacity: 1; } }
+.du-lane-bill { margin-left: 12px; font-size: .78rem; }
+.du-d1-go { margin-top: 26px; }
+
+.du-toast {
+  position: fixed; z-index: 95; left: 50%; bottom: 84px; transform: translateX(-50%); max-width: calc(100vw - 32px);
+  display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 16px; border-radius: 999px;
+  background: var(--ink); color: var(--paper); font-size: .86rem; font-weight: 600; box-shadow: 3px 3px 0 var(--pp-mint);
+  animation: du-toast-in .3s var(--pp-ease-spring);
+}
+.du-toast span { min-width: 0; }
+.du-toast button { flex: none; border: 1.5px solid color-mix(in srgb, var(--paper) 40%, transparent); background: none; color: var(--paper); border-radius: 999px; padding: 4px 12px; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.du-toast button:hover { border-color: var(--paper); }
+@keyframes du-toast-in { from { transform: translate(-50%, 30px); opacity: 0; } }
+
+/* ── shared form bits ───────────────────────────────────────────────────────── */
+.du-r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.du-mt12 { margin-top: 12px; }
+.du-mt0 { margin-top: 0 !important; }
+.du-m0 { margin: 0 !important; }
+.du-btn.du-sm { padding: 7px 14px; font-size: .82rem; }
+.du-sg { padding: 4px 11px; border: 1.5px solid var(--du-line-2); border-radius: 999px; background: var(--paper); font-size: .76rem; font-weight: 600; color: var(--du-ink-2); cursor: pointer; }
+.du-sg:hover { border-color: var(--ink); color: var(--ink); }
+.du-sg[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.du-txt { width: 100%; padding: 10px 14px; border: 1.5px solid var(--du-line-2); border-radius: 13px; background: var(--card); color: var(--ink); outline: 0; font-size: .95rem; font-family: inherit; }
+.du-txt:focus { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-butter); }
+textarea.du-txt { resize: vertical; min-height: 62px; font-size: .88rem; }
+.du-money { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border: 1.5px solid var(--du-line-2); border-radius: 11px; background: var(--card); }
+.du-money:focus-within { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-butter); }
+.du-money span { font-family: var(--du-mono); color: var(--du-ink-3); font-size: .9rem; }
+.du-money input { border: 0; outline: 0; background: none; width: 100%; min-width: 0; color: var(--ink); font-family: var(--du-mono); font-weight: 600; font-size: .95rem; text-align: right; }
+.du-money .du-ea { font-size: .7rem; }
+.du-money.du-lg { padding: 10px 14px; border-radius: 14px; max-width: 220px; }
+.du-money.du-lg span { font-size: 1.3rem; }
+.du-money.du-lg input { font-size: 1.6rem; text-align: left; font-family: var(--du-display); letter-spacing: -.03em; }
+.du-money.du-dis { opacity: .4; pointer-events: none; }
+.du-w130 { width: 112px; }
+.du-bad { margin: 8px 0 0; font-size: .78rem; font-weight: 600; color: var(--pp-rose-ink); }
+.du-err { margin-top: 14px; padding: 10px 13px; border-radius: 12px; background: var(--pp-rose-soft); border: 1.5px solid var(--pp-rose-bd); color: var(--pp-rose-ink); font-size: .8rem; font-weight: 600; }
+.du-link.du-rose { color: var(--pp-rose-ink); }
+.du-hint { font-size: .8rem; color: var(--du-ink-3); margin: 10px 0 0; }
+.du-opt { font-weight: 400; color: var(--du-ink-3); }
+
+/* ── drawer: actions, inline pay / waive, take off ──────────────────────────── */
+.du-acts { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-top: 16px; }
+.du-acts button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 6px 9px; border: 1.5px solid var(--du-line-2); border-radius: 13px; background: var(--paper); font-size: .76rem; font-weight: 600; color: var(--du-ink-2); cursor: pointer; }
+.du-acts button:hover, .du-acts button[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+.du-acts button[disabled] { opacity: .45; pointer-events: none; }
+.du-acts .du-g { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--g); border: 1.5px solid var(--pp-note-ink); color: var(--pp-note-ink); }
+.du-acts .du-g .pp-ic { width: 15px; height: 15px; }
+.du-inline { margin-top: 12px; border: 1.5px dashed var(--du-ink-3); border-radius: 14px; padding: 14px; }
+.du-inline > b { font-size: .88rem; }
+.du-inline > p { font-size: .76rem; color: var(--du-ink-3); margin: 2px 0 0; }
+.du-why { flex: 1; min-width: 160px; padding: 7px 12px; font-size: .84rem; }
+.du-book .du-bk.du-bk-act { grid-template-columns: 48px minmax(0,1fr) auto auto; }
+.du-off-b { font-size: .72rem; color: var(--du-ink-3); }
+.du-off-q { grid-column: 2 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .78rem; color: var(--du-ink-2); }
+
+/* ── sheets: Hand out dues (wide) and Edit charge (narrow) ──────────────────── */
+.du-sheet {
+  position: fixed; z-index: 70; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1080px, calc(100vw - 32px)); max-height: calc(100vh - 40px);
+  background: var(--paper); color: var(--ink); border: 1.5px solid var(--ink); border-radius: 26px; box-shadow: var(--pp-sh-3);
+  display: flex; flex-direction: column; overflow: hidden; animation: du-sheet-in .34s var(--pp-ease-spring);
+}
+.du-sheet-sm { width: min(520px, calc(100vw - 32px)); }
+@keyframes du-sheet-in { from { transform: translate(-50%, -46%) scale(.98); opacity: 0; } }
+.du-sh-h { display: flex; align-items: center; gap: 14px; padding: 18px 22px; border-bottom: 1.5px solid var(--line); flex: none; }
+.du-sh-h .du-g { width: 40px; height: 40px; border-radius: 12px; background: var(--pp-butter); border: 1.5px solid var(--pp-note-ink); color: var(--pp-note-ink); display: grid; place-items: center; box-shadow: 2px 2px 0 var(--pp-note-ink); flex: none; }
+.du-sh-h .du-g .pp-ic { width: 20px; height: 20px; }
+.du-sh-h h3 { font-family: var(--du-display); font-weight: 600; font-size: 1.35rem; letter-spacing: -.03em; line-height: 1.1; margin: 0; }
+.du-sh-h p { font-size: .8rem; color: var(--du-ink-3); margin: 0; }
+.du-sh-b { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr) 360px; }
+.du-form { overflow: auto; padding: 22px 26px 30px; }
+.du-side { border-left: 1.5px solid var(--line); background: var(--paper-2); overflow: auto; padding: 22px 22px 24px; display: flex; flex-direction: column; }
+
+.du-step { display: grid; grid-template-columns: 30px minmax(0,1fr); gap: 0 14px; }
+.du-step + .du-step { margin-top: 26px; }
+.du-num { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--ink); display: grid; place-items: center; font-family: var(--du-mono); font-weight: 600; font-size: .8rem; background: var(--card); }
+.du-rail { grid-column: 1; justify-self: center; width: 0; border-left: 1.5px dashed var(--du-line-2); margin-top: 6px; }
+.du-step h4 { font-family: var(--du-display); font-weight: 600; font-size: 1.12rem; letter-spacing: -.025em; line-height: 30px; margin: 0; }
+.du-body { grid-column: 2; min-width: 0; }
+
+.du-modes { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
+.du-mode { --c: var(--pp-sky); text-align: left; padding: 14px 14px 13px; border: 1.5px solid var(--du-line-2); border-radius: 16px; background: var(--card); color: var(--ink); display: flex; flex-direction: column; gap: 3px; cursor: pointer; transition: transform .16s var(--pp-ease-spring), box-shadow .16s var(--pp-ease-spring), border-color .16s; }
+.du-mode:hover { border-color: var(--du-ink-3); }
+.du-mode .du-g { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--paper-2); border: 1.5px solid var(--du-line-2); color: var(--du-ink-2); margin-bottom: 7px; }
+.du-mode .du-g .pp-ic { width: 16px; height: 16px; }
+.du-mode > div { display: flex; flex-direction: column; }
+.du-mode b { font-size: .92rem; }
+.du-mode small { font-size: .74rem; color: var(--du-ink-3); line-height: 1.35; }
+.du-mode[aria-pressed="true"] { border-color: var(--ink); box-shadow: 3px 3px 0 var(--c); transform: translate(-1px,-1px); }
+.du-mode[aria-pressed="true"] .du-g { background: var(--c); border-color: var(--pp-note-ink); color: var(--pp-note-ink); }
+
+.du-who-panel { margin-top: 14px; }
+.du-stack { display: inline-flex; align-items: center; }
+.du-stack .du-av { margin-left: -5px; box-shadow: 0 0 0 2px var(--card); border-radius: 50%; background-color: var(--card-3) !important; }
+.du-stack .du-av:first-child { margin-left: 0; }
+.du-more { margin-left: 4px; font-family: var(--du-mono); font-size: .7rem; color: var(--du-ink-3); }
+.du-everyone { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--card); flex-wrap: wrap; }
+.du-everyone b { font-size: .92rem; }
+.du-everyone small { display: block; font-size: .76rem; color: var(--du-ink-3); }
+.du-excl { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: .8rem; color: var(--du-ink-3); }
+.du-xchip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; background: var(--du-paper-3); color: var(--du-ink-2); font-weight: 600; font-size: .76rem; border: 0; cursor: pointer; }
+.du-xchip:hover { background: var(--pp-rose-soft); color: var(--pp-rose-ink); }
+.du-xchip .pp-ic { width: 10px; height: 10px; }
+.du-xsrch { position: relative; }
+.du-xsrch .du-srch { width: 190px; padding: 4px 11px; }
+.du-xpop { position: absolute; z-index: 3; top: calc(100% + 4px); left: 0; min-width: 220px; display: flex; flex-direction: column; padding: 4px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--card); box-shadow: var(--pp-sh-3); }
+.du-xpop button { display: flex; flex-direction: column; align-items: flex-start; border: 0; background: none; padding: 6px 10px; border-radius: 8px; text-align: left; font-size: .82rem; font-weight: 600; color: var(--ink); cursor: pointer; }
+.du-xpop button:hover { background: var(--paper-2); }
+.du-xpop small { font-weight: 400; font-size: .72rem; color: var(--du-ink-3); }
+
+.du-rates { border: 1.5px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+.du-rate { display: grid; grid-template-columns: 26px minmax(0,1fr) auto 130px; gap: 12px; align-items: center; padding: 11px 14px; border-top: 1px solid var(--line); }
+.du-rate:first-child { border-top: 0; }
+.du-rate.du-off { background: var(--paper-2); }
+.du-rate.du-off .du-rn, .du-rate.du-off .du-stack { opacity: .45; }
+.du-rn b { font-size: .9rem; display: block; }
+.du-rn small { font-size: .74rem; color: var(--du-ink-3); }
+.du-cb { width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--du-ink-3); background: var(--card); display: grid; place-items: center; padding: 0; color: var(--paper); cursor: pointer; }
+.du-cb[aria-checked="true"] { background: var(--ink); border-color: var(--ink); }
+.du-cb .pp-ic { width: 13px; height: 13px; opacity: 0; }
+.du-cb[aria-checked="true"] .pp-ic { opacity: 1; }
+
+.du-pick-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.du-pick-tools .du-srch { width: auto; flex: 1; min-width: 180px; }
+.du-picked { font-size: .8rem; color: var(--du-ink-3); }
+.du-picked b { color: var(--ink); }
+.du-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 7px; max-height: 250px; overflow: auto; padding: 2px; margin: -2px; }
+.du-pk { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border: 1.5px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); text-align: left; font-size: .8rem; font-weight: 600; min-width: 0; cursor: pointer; }
+.du-pk > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.du-pk:hover { border-color: var(--du-ink-3); }
+.du-pk[aria-pressed="true"] { border-color: var(--ink); background: var(--pp-sky-soft); box-shadow: 2px 2px 0 var(--pp-sky); }
+.du-tk { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--du-line-2); display: grid; place-items: center; flex: none; }
+.du-pk[aria-pressed="true"] .du-tk { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.du-tk .pp-ic { width: 10px; height: 10px; opacity: 0; }
+.du-pk[aria-pressed="true"] .du-tk .pp-ic { opacity: 1; }
+.du-ow { width: 8px; height: 8px; border-radius: 50%; background: var(--pp-rose); border: 1.5px solid var(--pp-rose-ink); flex: none; }
+
+.du-fld { margin-top: 14px; }
+.du-lb { display: block; font-size: .78rem; font-weight: 600; color: var(--du-ink-2); margin-bottom: 6px; }
+.du-sugg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.du-seg-txt { margin-bottom: 10px; }
+.du-amt-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.du-split-note { font-size: .8rem; color: var(--du-ink-3); }
+.du-split-note b { color: var(--ink); font-family: var(--du-mono); }
+.du-dates { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.du-dt { display: flex; flex-direction: column; align-items: flex-start; padding: 8px 13px; border: 1.5px solid var(--du-line-2); border-radius: 13px; background: var(--card); color: var(--ink); text-align: left; min-width: 108px; cursor: pointer; }
+.du-dt b { font-size: .84rem; }
+.du-dt small { font-family: var(--du-mono); font-size: .7rem; color: var(--du-ink-3); }
+.du-dt:hover { border-color: var(--du-ink-3); }
+.du-dt[aria-pressed="true"] { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-peach); }
+.du-dt input[type=date] { border: 0; background: none; font-family: var(--du-mono); font-size: .72rem; color: var(--du-ink-2); padding: 0; outline: 0; color-scheme: light dark; }
+
+/* the live receipt */
+.du-rcpt { position: relative; background: var(--card); border: 1.5px solid var(--ink); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 18px 18px 22px; font-family: var(--du-mono); font-size: .78rem; color: var(--du-ink-2); }
+.du-rcpt::after { content: ''; position: absolute; left: -1.5px; right: -1.5px; bottom: -9px; height: 10px; background: linear-gradient(-45deg, transparent 6px, var(--card) 6px) 0 0/12px 10px repeat-x, linear-gradient(45deg, transparent 6px, var(--card) 6px) 0 0/12px 10px repeat-x; filter: drop-shadow(0 1.5px 0 var(--ink)); }
+.du-rcpt .du-hd { text-align: center; border-bottom: 1.5px dashed var(--du-line-2); padding-bottom: 12px; display: flex; flex-direction: column; gap: 2px; }
+.du-rcpt .du-hd b { display: block; font-family: var(--du-display); font-size: 1.15rem; letter-spacing: -.02em; color: var(--ink); font-weight: 600; line-height: 1.2; word-break: break-word; }
+.du-rcpt .du-hd > span { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
+.du-untitled { color: var(--du-ink-3); }
+.du-lines { padding: 8px 0; border-bottom: 1.5px dashed var(--du-line-2); max-height: 210px; overflow: auto; }
+.du-ln { display: flex; gap: 8px; padding: 5px 0; align-items: baseline; }
+.du-ln .du-l { flex: 1; min-width: 0; display: flex; gap: 6px; align-items: baseline; }
+.du-ln .du-l span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.du-ln .du-l::after { content: ''; flex: 1; border-bottom: 1.5px dotted var(--du-line-2); min-width: 10px; transform: translateY(-3px); }
+.du-ln .du-v { color: var(--ink); font-weight: 600; }
+.du-zero { padding: 22px 0; text-align: center; color: var(--du-ink-3); font-family: var(--font-geist-sans, inherit); font-size: .84rem; }
+.du-rc-note { margin: 4px 0 0; font-size: .7rem; color: var(--pp-lilac-ink); }
+.du-rcpt .du-tot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 12px; }
+.du-rcpt .du-tot b { font-family: var(--du-display); font-size: 1.7rem; letter-spacing: -.04em; color: var(--ink); font-weight: 600; }
+.du-who-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-family: var(--font-geist-sans, inherit); font-size: .78rem; }
+.du-stamp { position: absolute; left: 50%; top: 46%; transform: translate(-50%,-50%) rotate(-14deg) scale(2.4); opacity: 0; padding: 6px 16px; border: 3px solid var(--pp-mint-ink); color: var(--pp-mint-ink); border-radius: 10px; font-family: var(--du-display); font-weight: 700; font-size: 1.7rem; letter-spacing: .12em; pointer-events: none; background: color-mix(in srgb, var(--card) 70%, transparent); }
+.du-stamp.du-on { animation: du-stamp .45s var(--pp-ease-spring) forwards; }
+@keyframes du-stamp { to { opacity: .95; transform: translate(-50%,-50%) rotate(-14deg) scale(1); } }
+.du-warn { margin-top: 22px; padding: 12px 14px; border-radius: 14px; background: var(--pp-butter-soft); border: 1.5px solid var(--pp-butter-bd); font-size: .8rem; color: var(--du-ink-2); }
+.du-warn b { color: var(--pp-butter-ink); }
+.du-go { margin-top: auto; padding-top: 18px; }
+.du-go .du-btn { width: 100%; }
+.du-lg-btn { padding: 13px 20px; font-size: .95rem; }
+.du-go p { text-align: center; font-size: .74rem; color: var(--du-ink-3); margin: 9px 0 0; }
+.du-mob-sum, .du-mob-only { display: none; }
+
+/* edit charge */
+.du-ce-acts { display: flex; align-items: center; gap: 14px; margin-top: 20px; }
+.du-danger { margin-top: 24px; padding-top: 18px; border-top: 1.5px dashed var(--du-line-2); }
+.du-danger p { font-size: .82rem; color: var(--du-ink-3); margin: 0 0 10px; }
+.du-danger p b { color: var(--ink); }
+.du-danger-btn { --hs: var(--pp-rose); background: var(--pp-rose-ink); border-color: var(--pp-rose-ink); }
+.du-danger-ghost { --hs: var(--pp-rose); color: var(--pp-rose-ink); border-color: var(--pp-rose-bd); }
+
+@media (prefers-reduced-motion: reduce) {
+  .du-sheet, .du-toast, .du-stamp.du-on { animation: none !important; }
+  .du-stamp.du-on { opacity: .95; transform: translate(-50%,-50%) rotate(-14deg) scale(1); }
+}
+@media (max-width: 1100px) {
+  .du-sh-b { grid-template-columns: minmax(0,1fr) 320px; }
+}
+@media (max-width: 900px) {
+  /* the sheet becomes a full-height page; the receipt folds into a sticky footer */
+  .du-sheet { left: 0; top: 0; transform: none; width: 100vw; max-height: none; height: 100dvh; border-radius: 0; border: 0; animation-name: du-sheet-in-b; }
+  .du-sheet-sm { top: auto; bottom: 0; height: auto; max-height: 92dvh; border-radius: 24px 24px 0 0; border: 1.5px solid var(--ink); border-bottom: 0; }
+  .du-sh-b { grid-template-columns: minmax(0,1fr); }
+  .du-side { display: none; }
+  .du-mob-only { display: block; }
+  .du-mob-only .du-warn { margin-top: 14px; }
+  .du-form { padding: 20px 16px 30px; }
+  .du-mob-sum { display: flex; align-items: center; gap: 12px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1.5px solid var(--ink); background: var(--card); flex: none; }
+  .du-mob-sum .du-t { flex: 1; min-width: 0; }
+  .du-mob-sum .du-t b { font-family: var(--du-display); font-size: 1.35rem; letter-spacing: -.03em; display: block; line-height: 1.1; }
+  .du-mob-sum .du-t small { font-size: .74rem; color: var(--du-ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .du-toast { bottom: 24px; }
+}
+@keyframes du-sheet-in-b { from { transform: translateY(30px); opacity: 0; } }
+@media (max-width: 640px) {
+  .du-modes { grid-template-columns: minmax(0,1fr); }
+  .du-mode { flex-direction: row; align-items: center; gap: 12px; }
+  .du-mode .du-g { margin: 0; }
+  .du-rate { grid-template-columns: 26px minmax(0,1fr) 108px; }
+  .du-rate .du-stack { display: none; }
+  .du-cta .du-btn { flex: 1; }
+}
+
+/* The Ask Chapt launcher floats over the sheet's Bill button and the drawer's last
+   rows; step it aside while a Dues overlay is open (the mock hides its own bar the same way). */
+body:has(.du-sheet, .du-drawer) .chat-launcher { visibility: hidden; }
+
+/* ── Overview: the short Dues card, Coming up dues rows, the log's "see in Dues" ── */
+.du-dq {
+  position: relative; display: flex; flex-direction: column; min-width: 0; padding: 0; text-align: left; cursor: pointer;
+  border: 1.5px solid var(--ink); border-radius: 22px; background: var(--card); box-shadow: 4px 4px 0 var(--pp-butter);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+.du-dq:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--pp-butter); }
+.du-dq:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.du-dq-h { display: flex; align-items: center; gap: 11px; padding: 18px 20px 12px; }
+.du-dq-h h3 { font-family: var(--du-display); font-weight: 600; font-size: 1.1rem; letter-spacing: -.025em; margin: 0; }
+.du-tile { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: var(--pp-butter); border: 1.5px solid var(--pp-note-ink); color: var(--pp-note-ink); flex: none; }
+.du-tile .pp-ic { width: 17px; height: 17px; }
+.du-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; white-space: nowrap; }
+.du-pill.du-rose { background: var(--pp-rose-soft); color: var(--pp-rose-ink); border: 1px solid var(--pp-rose-bd); }
+.du-pill.du-mint { background: var(--pp-mint-soft); color: var(--pp-mint-ink); border: 1px solid var(--pp-mint-bd); }
+.du-go-ar { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--ink); display: grid; place-items: center; margin-left: auto; flex: none; transition: background .18s, color .18s, transform .18s var(--pp-ease-spring); }
+.du-go-ar .pp-ic { width: 15px; height: 15px; }
+.du-dq:hover .du-go-ar { background: var(--ink); color: var(--paper); transform: translateX(2px); }
+.du-dq-sum { display: flex; align-items: baseline; gap: 10px; padding: 0 20px; flex-wrap: wrap; }
+.du-dq-sum b { font-family: var(--du-display); font-weight: 600; font-size: 2.3rem; letter-spacing: -.05em; line-height: 1; }
+.du-dq-sum span { font-size: .82rem; color: var(--du-ink-3); }
+.du-dq-sum em { font-style: normal; color: var(--ink); font-weight: 600; }
+.du-dq .du-strip { padding: 0 20px; margin-top: 14px; gap: 3px; grid-template-columns: repeat(18, minmax(0,1fr)); }
+.du-dq .du-strip > * { border-radius: 3px; border-width: 1px; }
+.du-dq .du-strip > button:hover { transform: scale(1.5); }
+.du-dq-rows { margin: 14px 12px 0; display: flex; flex-direction: column; }
+.du-dq-row { display: grid; grid-template-columns: 12px minmax(0,1fr) auto auto 13px; gap: 10px; align-items: center; padding: 8px; border: 0; background: none; border-radius: 10px; text-align: left; font-size: .84rem; width: 100%; color: var(--ink); cursor: pointer; }
+.du-dq-row:hover { background: var(--paper-2); }
+.du-dq-row .du-sw { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid var(--ink); background: var(--s); }
+.du-dq-row .du-nm { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.du-dq-row .du-nm b { font-weight: 600; white-space: nowrap; }
+.du-dq-row .du-c { font-family: var(--du-mono); font-size: .74rem; color: var(--du-ink-3); }
+.du-dq-row .du-v { font-family: var(--du-mono); font-weight: 600; font-size: .82rem; min-width: 56px; text-align: right; }
+.du-dq-row .du-ch { width: 13px; height: 13px; color: var(--du-ink-3); opacity: 0; transition: opacity .15s, transform .15s; }
+.du-dq-row:hover .du-ch { opacity: 1; transform: translateX(2px); }
+.du-dq-f { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1.5px dashed var(--du-line-2); font-size: .78rem; color: var(--du-ink-3); }
+.du-dq-rows + .du-dq-f, .du-dq-d1 + .du-dq-f { margin-top: 12px; }
+.du-dq-f b { color: var(--ink); }
+.du-open { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); font-size: .82rem; border: 0; background: none; padding: 0; cursor: pointer; white-space: nowrap; }
+.du-open .pp-ic { width: 14px; height: 14px; }
+.du-dq-d1 { padding: 2px 20px 4px; }
+.du-dq-d1 p { font-size: .86rem; color: var(--du-ink-2); margin: 0; }
+.du-dq-d1 .du-strip { padding: 0; }
+
+html[data-aesthetic="paper"] .dash button.tr-ev-row.tr-ev-dues { width: 100%; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+html[data-aesthetic="paper"] .dash .tr-ev-dues:hover .t { text-decoration: underline; text-underline-offset: 3px; }
+html[data-aesthetic="paper"] .dash .tr-ev-row .amt.dues { color: var(--pp-butter-ink); }
+.tr-dues-chip { display: inline-flex; margin-right: 6px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; background: var(--pp-butter-soft); color: var(--pp-butter-ink); border: 1px solid var(--pp-butter-bd); }
+.tr-dues-link { margin-top: 2px; border: 0; background: none; padding: 0; font-size: 11.5px; font-weight: 600; color: var(--pp-butter-ink); cursor: pointer; text-decoration: underline; text-decoration-color: var(--pp-butter-bd); text-underline-offset: 3px; }
+.tr-dues-link:hover { text-decoration-color: currentColor; }
+
+/* Roster / dashboard: "18d late" beside a balance, keyed off the shared dues standing. */
+.dues-late { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-family: var(--font-geist-mono); font-size: 10.5px; font-weight: 600; letter-spacing: -.01em; line-height: 17px; white-space: nowrap; background: var(--pp-rose-soft); color: var(--pp-rose-ink); border: 1px solid var(--pp-rose-bd); }

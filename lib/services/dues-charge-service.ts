@@ -15,7 +15,7 @@ import type {
   DuesBoard, DuesBookEntry, DuesChargeIssued, DuesChargePreview, DuesChargeSummary, DuesWaived,
   MemberDuesBook, MemberDuesStanding,
 } from "@/lib/api-types/dues";
-import { chargeStats, duesToday, summarize, type LineAllocation } from "@/lib/dues-ledger";
+import { chargeStats, compareLines, duesToday, summarize, type LineAllocation } from "@/lib/dues-ledger";
 import { loadDuesLedger, unbillTx, writeChargeTx, writeWaiverTx, type ChargeRow } from "@/lib/dues-ledger-db";
 import { audienceLabel, resolveTargets, type DuesTargetSpec, type ExistingCharge } from "@/lib/dues-targets";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
@@ -35,7 +35,11 @@ const fmtDue = (iso: string) => {
 };
 
 async function orgToday(ctx: RequestContext): Promise<string> {
-  const org = await ctx.db.organization.findFirst({ select: { timeZone: true } });
+  return orgTodayOf(ctx.db);
+}
+
+async function orgTodayOf(scoped: RequestContext["db"]): Promise<string> {
+  const org = await scoped.organization.findFirst({ select: { timeZone: true } });
   return duesToday(org?.timeZone);
 }
 
@@ -52,6 +56,7 @@ function standingDTO(brotherId: number, lines: readonly LineAllocation[], today:
     nextChargeId: s.next?.chargeId ?? null,
     nextDueDate:  s.next?.dueDate ?? null,
     open:         lines.filter(l => l.restCents > 0).map(l => ({ chargeId: l.chargeId, rest: dollars(l.restCents) })),
+    lines:        [...lines].sort(compareLines).map(l => ({ chargeId: l.chargeId, amount: dollars(l.amountCents), rest: dollars(l.restCents) })),
   };
 }
 
@@ -67,12 +72,25 @@ function inTerm(c: ChargeRow, termId: number | null, outCents: number): boolean 
 }
 
 export async function getDuesBoard(ctx: RequestContext, opts: { semester?: string } = {}): Promise<DuesBoard> {
+  return buildDuesBoard(ctx.db, { ...opts, viewerId: ctx.actorId });
+}
+
+/**
+ * The board over an org-scoped client. getDuesBoard's body, split out so Ask
+ * Chapt's read tool (which holds a scoped db, not a request context) answers from
+ * the very same allocation the Dues tab shows. Read-only; no permission check —
+ * every member may see the board.
+ */
+export async function buildDuesBoard(
+  scoped: RequestContext["db"],
+  opts: { semester?: string; viewerId?: number | null } = {},
+): Promise<DuesBoard> {
   const [ledger, roster, today, term] = await Promise.all([
-    loadDuesLedger(ctx.db),
-    ctx.db.member.listRoster(),
-    orgToday(ctx),
+    loadDuesLedger(scoped),
+    scoped.member.listRoster(),
+    orgTodayOf(scoped),
     opts.semester
-      ? ctx.db.semester.findFirst({ where: { label: opts.semester }, select: { id: true, label: true } })
+      ? scoped.semester.findFirst({ where: { label: opts.semester }, select: { id: true, label: true } })
       : Promise.resolve(null),
   ]);
   if (opts.semester && !term) throw new NotFoundError("Semester");
@@ -131,7 +149,7 @@ export async function getDuesBoard(ctx: RequestContext, opts: { semester?: strin
     charges,
     members,
     totals: { billed: sum("billed"), paid: sum("paid"), owes: sum("owes"), overdue: sum("overdue") },
-    viewer: members.find(m => m.brotherId === ctx.actorId) ?? null,
+    viewer: members.find(m => m.brotherId === opts.viewerId) ?? null,
   };
 }
 
