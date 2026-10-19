@@ -139,7 +139,7 @@ html[data-crf-theme="dusk"] .ocp{--paper:#15110D; --paper-2:#1B1712; --paper-3:#
   height:66px; padding:0 clamp(16px,3vw,32px);
   background:color-mix(in srgb, var(--paper) 86%, transparent); backdrop-filter:blur(12px); border-bottom:1.5px solid var(--line);}
 .ocp .wm{display:flex; align-items:center; gap:11px; font-family:var(--display); font-weight:700; font-size:1.06rem; letter-spacing:-.025em; text-decoration:none}
-.ocp .wm .orglogo{width:32px; height:32px; border-radius:10px; font-size:.86rem}
+.ocp .wm .brand__mark{width:34px; height:34px; flex:none}
 .ocp .rail{justify-self:center; display:flex; gap:3px; padding:3px; border-radius:999px; background:var(--paper-2); border:1.5px solid var(--line); max-width:100%; overflow-x:auto; scrollbar-width:none}
 .ocp .rail::-webkit-scrollbar{display:none}
 .ocp .rail button{flex:none; display:inline-flex; align-items:center; gap:7px; padding:4px 12px 4px 4px; border:0; border-radius:999px; background:none; font-size:.8rem; font-weight:550; color:var(--ink-3); transition:background .18s, color .18s, box-shadow .18s}

@@ -1,7 +1,9 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import { APP_NAME } from "@/lib/domains";
+import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { InviteDeadReason } from "@/lib/auth/invite-lookup";
 
@@ -264,10 +266,10 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="auth-scope">
       <div className="auth-page">
         <div className="auth-topbar">
-          <div className="auth-wordmark">
-            <div className="auth-glyph">C</div>
+          <Link href="/" className="auth-wordmark" aria-label={`${APP_NAME} home`}>
+            <BrandMark />
             <div className="auth-wm-txt">{APP_NAME}</div>
-          </div>
+          </Link>
           <div className="auth-meta">02 / Invite</div>
         </div>
         <div className="auth-main">

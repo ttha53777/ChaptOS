@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { APP_NAME } from "@/lib/domains";
+import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import type { CreateStep } from "@/lib/onboarding/draft";
 import { draftSlug, useCreateTheme, useDraft } from "./flow-state";
 import { Charter, type CharterFlash, type CharterSection } from "./Charter";
@@ -148,7 +149,7 @@ export function CreateFlow() {
       <div className="shell">
         <header className="top">
           <a className="wm" href="/" aria-label={`${APP_NAME} home`}>
-            <span className="orglogo">{APP_NAME[0]}</span>
+            <BrandMark />
             <span className="wt">{APP_NAME}</span>
           </a>
           <div className="top-r">

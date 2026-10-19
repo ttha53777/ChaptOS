@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/domains";
+import { BrandMark } from "@/app/components/landing/DoodleSprite";
 
 /**
  * Shown when a signed-in user lands on /<slug> and has no business there yet.
@@ -34,10 +35,10 @@ export function NeedsInvite({
     <div className="auth-scope">
       <div className="auth-page">
         <div className="auth-topbar">
-          <div className="auth-wordmark">
-            <div className="auth-glyph">C</div>
+          <Link href="/" className="auth-wordmark" aria-label={`${APP_NAME} home`}>
+            <BrandMark />
             <div className="auth-wm-txt">{APP_NAME}</div>
-          </div>
+          </Link>
           <div className="auth-meta">Invite required</div>
         </div>
 

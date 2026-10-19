@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/domains";
+import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import { JoinRequestStatus } from "@/app/components/JoinRequestStatus";
 
 /** Waiting at the org URL uses the same own-account status poll as /join. */
@@ -8,10 +9,10 @@ export function AwaitingApproval({ slug }: { slug: string }) {
     <div className="auth-scope">
       <div className="auth-page">
         <div className="auth-topbar">
-          <div className="auth-wordmark">
-            <div className="auth-glyph">C</div>
+          <Link href="/" className="auth-wordmark" aria-label={`${APP_NAME} home`}>
+            <BrandMark />
             <div className="auth-wm-txt">{APP_NAME}</div>
-          </div>
+          </Link>
           <div className="auth-meta">Pending review</div>
         </div>
 
