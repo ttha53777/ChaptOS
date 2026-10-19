@@ -119,6 +119,38 @@ export function DoodleSprite() {
           <path d="M5.4 21V3.6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
           <path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinejoin="round" />
         </symbol>
+        {/* /contact's letter + send row */}
+        <symbol id="d-envelope" viewBox="0 0 24 24">
+          <rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" strokeWidth="2.1" />
+          <path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+        </symbol>
+        <symbol id="d-send" viewBox="0 0 24 24">
+          <path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinejoin="round" />
+        </symbol>
+        <symbol id="d-copy" viewBox="0 0 24 24">
+          <rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" strokeWidth="2.1" />
+          <path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+        </symbol>
+        <symbol id="d-dots" viewBox="0 0 24 24">
+          <circle cx="5.5" cy="12" r="1.9" fill="currentColor" />
+          <circle cx="12" cy="12" r="1.9" fill="currentColor" />
+          <circle cx="18.5" cy="12" r="1.9" fill="currentColor" />
+        </symbol>
+        <symbol id="d-monitor" viewBox="0 0 24 24">
+          <rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" strokeWidth="2.1" />
+          <path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+        </symbol>
+        <symbol id="d-lock" viewBox="0 0 24 24">
+          <rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" strokeWidth="2.1" />
+          <path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" />
+        </symbol>
+        <symbol id="d-out" viewBox="0 0 24 24">
+          <path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </symbol>
+        <symbol id="d-doc" viewBox="0 0 24 24">
+          <path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinejoin="round" />
+          <path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+        </symbol>
       </defs>
     </svg>
   );

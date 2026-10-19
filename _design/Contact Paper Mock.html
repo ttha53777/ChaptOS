@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Contact · Paper</title>
+<!--
+  /contact rebuilt in the in-app Paper language (_design/Dashboard Paper Mock.html): cream paper,
+  brown ink, pastel triplets, 1.5px warm hairlines, hard pastel offset shadows, highlighter, tape.
+
+  The metaphor is a letter on a desk, because that's literally what this page produces:
+    1. Calling card (hero)  — the address itself, copyable in one press, plus "write in Gmail".
+                              Ease of contact first: nobody has to scroll to find how to reach us.
+    2. Postage stamps       — the six reasons. Picking one stamps the letter and loads its template.
+    3. The letter           — To / Subject / ruled body. Prompts tick off in the margin as you
+                              answer them, so "what should I write?" is answered while you write.
+    4. Send                 — Gmail first (every account is Google), Copy second, the rest folded.
+                              Pressing either postmarks the letter and lights "what happens next".
+    5. After you send       — three tickets on a thread: you send → a person reads → a reply.
+    6. Probably faster      — three sticky notes to the help articles that answer themselves.
+
+  Same honesty as the shipped page: no ticket system, no server-side send. Every channel composes
+  from the LIVE draft. All six reasons + their checklists/notes are carried over verbatim.
+  MOCK bar: Fresh / From a help article, Light / Dark. No backend.
+-->
+<script>
+  (function () {
+    var t = "light";
+    try { t = localStorage.getItem("contact-mock-theme") || "light"; } catch (e) {}
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (verbatim from the Paper mock) ------------------------ */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85; --wash-op:.55;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  --lh:30px;
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --note-filter:brightness(.93) saturate(.85); --mark-op:.42; --wash-op:.9;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:clip;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+h1,h2,h3,h4,h5,p,ul,ol,figure{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+
+/* the four washes behind everything */
+.washes{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:var(--wash-op)}
+.washes i{position:absolute; border-radius:50%; filter:blur(70px)}
+.washes i:nth-child(1){width:520px; height:420px; left:-140px; top:-120px; background:var(--peach-soft)}
+.washes i:nth-child(2){width:560px; height:480px; right:-180px; top:120px; background:var(--lilac-soft)}
+.washes i:nth-child(3){width:520px; height:420px; left:20%; top:58%; background:var(--mint-soft)}
+.washes i:nth-child(4){width:440px; height:380px; right:6%; bottom:-120px; background:var(--butter-soft)}
+
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg); opacity:var(--mark-op);
+}
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+.btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:11px 18px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.9rem; letter-spacing:-.01em;
+  box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap; text-decoration:none;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s;
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn .ic{width:16px; height:16px}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.btn--soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.btn--soft:hover{border-color:var(--ink-3); color:var(--ink); box-shadow:none; transform:translateY(-1px)}
+.btn--sm{padding:7px 13px; font-size:.8rem; box-shadow:2px 2px 0 var(--hs)}
+.btn.is-ok{--bg:var(--mint-soft); --fg:var(--mint-ink); border-color:var(--mint-ink); --hs:var(--mint)}
+
+.tile{width:34px; height:34px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--p-bg); border:1.5px solid var(--p-bd); color:var(--p-fg)}
+.t-peach{--p-bg:var(--peach-soft); --p-fg:var(--peach-ink); --p-bd:var(--peach-bd); --p:var(--peach)}
+.t-sky{--p-bg:var(--sky-soft); --p-fg:var(--sky-ink); --p-bd:var(--sky-bd); --p:var(--sky)}
+.t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd); --p:var(--mint)}
+.t-butter{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd); --p:var(--butter)}
+.t-lilac{--p-bg:var(--lilac-soft); --p-fg:var(--lilac-ink); --p-bd:var(--lilac-bd); --p:var(--lilac)}
+.t-rose{--p-bg:var(--rose-soft); --p-fg:var(--rose-ink); --p-bd:var(--rose-bd); --p:var(--rose)}
+
+.tape{position:absolute; width:78px; height:20px; background:color-mix(in srgb, var(--tp, var(--butter)) 72%, transparent); border-inline:1px dashed rgba(38,33,27,.16); z-index:3; pointer-events:none}
+
+.wrap{position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:0 28px}
+
+/* ---------- top bar ------------------------------------------------------- */
+.top{position:sticky; top:0; z-index:40; background:color-mix(in srgb, var(--paper) 86%, transparent); backdrop-filter:blur(10px); border-bottom:1.5px solid var(--line)}
+.top .wrap{display:flex; align-items:center; gap:22px; height:64px}
+.brand{display:flex; align-items:center; gap:10px; text-decoration:none; font-family:var(--display); font-weight:700; font-size:1.12rem; letter-spacing:-.03em}
+.brand .mk{width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:var(--ink); color:var(--paper); box-shadow:2px 2px 0 var(--peach); font-size:.95rem}
+.top nav{display:flex; gap:4px; margin-left:auto}
+.top nav a{padding:7px 12px; border-radius:999px; text-decoration:none; font-size:.86rem; font-weight:500; color:var(--ink-2)}
+.top nav a:hover{background:var(--paper-3); color:var(--ink)}
+.top nav a[aria-current]{color:var(--ink); background:var(--paper-3)}
+
+/* ---------- hero ---------------------------------------------------------- */
+.hero{padding:70px 0 34px}
+.hero .wrap{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); gap:56px; align-items:center}
+.hero h1{margin-top:16px; font-family:var(--display); font-weight:600; font-size:clamp(2.3rem,4.6vw,3.6rem); line-height:1.02; letter-spacing:-.035em; text-wrap:balance}
+.hero .lede{margin-top:20px; max-width:31em; font-size:1.08rem; line-height:1.62; color:var(--ink-2)}
+.hero .jump{margin-top:26px; display:flex; flex-wrap:wrap; gap:10px}
+
+/* the calling card — the address itself */
+.cc{position:relative; padding:26px 26px 0; background:var(--card); border:1.5px solid var(--ink); border-radius:8px 22px 14px 20px; box-shadow:5px 5px 0 var(--peach); transform:rotate(.8deg)}
+.cc .tape{top:-11px; left:38px; transform:rotate(-5deg)}
+.cc .tape.b{left:auto; right:30px; transform:rotate(6deg); --tp:var(--sky)}
+.cc-k{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.cc-k .who{display:flex; align-items:center; gap:10px; font-size:.84rem; color:var(--ink-2)}
+.cc-k .who b{color:var(--ink); font-weight:600}
+.av{width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:var(--lilac); color:rgba(38,33,27,.72); font-size:.72rem; font-weight:700; border:1.5px solid rgba(38,33,27,.08)}
+.live{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--mint-ink); background:var(--mint-soft); border:1px solid var(--mint-bd); padding:3px 9px; border-radius:999px}
+.live::before{content:''; width:6px; height:6px; border-radius:50%; background:currentColor; box-shadow:0 0 0 3px color-mix(in srgb, var(--mint) 60%, transparent)}
+.cc-addr{margin-top:22px; display:block; width:100%; text-align:left; background:none; border:0; padding:0}
+.cc-addr .l{display:block; font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.cc-addr .v{display:inline-block; margin-top:6px; font-family:var(--mono); font-weight:600; font-size:clamp(1.05rem,2.3vw,1.42rem); letter-spacing:-.03em; overflow-wrap:anywhere; border-bottom:2px dashed var(--line-2); padding-bottom:2px; transition:border-color .2s}
+.cc-addr:hover .v{border-color:var(--ink-3)}
+.cc-act{margin-top:20px; display:flex; flex-wrap:wrap; gap:10px}
+.cc-foot{margin:22px -26px 0; padding:13px 26px; border-top:1.5px dashed var(--line-2); display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; background:var(--paper-2); border-radius:0 0 14px 20px}
+.cc-foot div{display:flex; gap:8px; align-items:flex-start; font-size:.76rem; line-height:1.4; color:var(--ink-3)}
+.cc-foot b{display:block; color:var(--ink); font-weight:600; font-size:.8rem}
+.cc-foot .ic{width:15px; height:15px; margin-top:2px; color:var(--ink-2)}
+
+/* ---------- section heads ------------------------------------------------- */
+.sec{padding:64px 0 0}
+.sec-h{display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap}
+.sec-h h2{margin-top:12px; font-family:var(--display); font-weight:600; font-size:clamp(1.7rem,3vw,2.3rem); line-height:1.08; letter-spacing:-.03em}
+.sec-h p{max-width:30em; color:var(--ink-2); font-size:.95rem}
+
+/* ---------- postage stamps (the reasons) --------------------------------- */
+.stamps{margin-top:26px; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:14px}
+.stp{
+  position:relative; padding:7px; border:0; text-align:left; background:
+    radial-gradient(circle, transparent 3px, var(--card) 3.4px) -6px -6px / 12px 12px;
+  filter:drop-shadow(0 1px 1px rgba(38,33,27,.12)) drop-shadow(0 6px 12px rgba(38,33,27,.06));
+  transform:rotate(var(--rot,0deg)); transition:transform .22s var(--ease-spring), filter .22s;
+}
+.stp:nth-child(odd){--rot:-1.2deg} .stp:nth-child(even){--rot:1deg}
+.stp:hover{transform:rotate(var(--rot)) translateY(-3px)}
+.stp-in{display:flex; flex-direction:column; gap:12px; min-height:142px; padding:12px 12px 11px; border-radius:2px; background:var(--p-bg); border:1.5px solid var(--p-bd); color:var(--ink)}
+.stp-in .top-r{display:flex; justify-content:space-between; align-items:flex-start}
+.stp-in .ic{width:26px; height:26px; color:var(--p-fg)}
+.stp-in .den{font-family:var(--mono); font-size:.62rem; font-weight:700; color:var(--p-fg); letter-spacing:.04em}
+.stp-in b{margin-top:auto; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em; line-height:1.15}
+.stp-in small{font-size:.72rem; line-height:1.35; color:var(--ink-2)}
+.stp[aria-checked="true"]{--rot:-2.5deg; filter:drop-shadow(3px 3px 0 var(--p)) drop-shadow(0 0 0 var(--ink))}
+.stp[aria-checked="true"] .stp-in{border-color:var(--ink); background:color-mix(in srgb, var(--p) 55%, var(--card))}
+html[data-theme="dark"] .stp[aria-checked="true"] .stp-in{background:color-mix(in srgb, var(--p) 22%, var(--card))}
+.stp[aria-checked="true"]::after{content:'Selected'; position:absolute; top:-9px; right:8px; font-family:var(--mono); font-size:.58rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; padding:2px 7px; border-radius:5px; background:var(--ink); color:var(--paper)}
+
+/* ---------- the desk: letter + margin rail ------------------------------- */
+.desk{margin-top:34px; display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:28px; align-items:start}
+
+.lt{position:relative; background:var(--card); border:1.5px solid var(--ink); border-radius:6px 18px 12px 16px; box-shadow:5px 5px 0 var(--p, var(--lilac)); transition:box-shadow .3s}
+.lt-head{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:20px; padding:22px 24px 16px; border-bottom:1.5px solid var(--line)}
+.lt-fields{display:grid; gap:10px; min-width:0}
+.fld{display:grid; grid-template-columns:70px minmax(0,1fr); align-items:center; gap:10px; padding-bottom:9px; border-bottom:1.5px dashed var(--line)}
+.fld:last-child{border-bottom:0; padding-bottom:0}
+.fld .l{font-family:var(--mono); font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.fld .to{display:flex; align-items:center; gap:8px; min-width:0; font-family:var(--mono); font-size:.9rem; font-weight:600}
+.fld .to span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.icbtn{display:inline-grid; place-items:center; width:28px; height:28px; flex:none; border-radius:8px; border:1.5px solid var(--line-2); background:var(--paper-2); color:var(--ink-2); transition:.15s}
+.icbtn:hover{border-color:var(--ink-3); color:var(--ink)}
+.icbtn .ic{width:14px; height:14px}
+.icbtn.is-ok{color:var(--mint-ink); border-color:var(--mint-ink); background:var(--mint-soft)}
+.fld input{width:100%; min-width:0; border:0; background:none; padding:4px 0; font-family:var(--display); font-weight:600; font-size:1.18rem; letter-spacing:-.02em; outline:none}
+.fld input:focus-visible{outline:none; box-shadow:0 2px 0 var(--lilac-ink)}
+
+/* the stamp in the letter's corner + the postmark that lands on send */
+.lt-stamp{position:relative; width:86px; height:100px; transform:rotate(4deg)}
+.lt-stamp .s{position:absolute; inset:0; padding:6px; background:radial-gradient(circle, transparent 2.6px, var(--card) 3px) -5px -5px / 10px 10px; filter:drop-shadow(0 1px 1px rgba(38,33,27,.18))}
+.lt-stamp .s > div{height:100%; display:grid; place-items:center; align-content:center; gap:4px; border-radius:2px; background:color-mix(in srgb, var(--p) 65%, var(--card)); border:1.5px solid var(--p-bd)}
+html[data-theme="dark"] .lt-stamp .s > div{background:color-mix(in srgb, var(--p) 25%, var(--card))}
+.lt-stamp .ic{width:30px; height:30px; color:var(--p-fg)}
+.lt-stamp .den{font-family:var(--mono); font-size:.58rem; font-weight:700; letter-spacing:.06em; color:var(--p-fg)}
+.lt-stamp.swap{animation:stampIn .45s var(--ease-spring)}
+@keyframes stampIn{0%{transform:rotate(14deg) scale(1.25); opacity:0} 100%{transform:rotate(4deg) scale(1); opacity:1}}
+.pm{position:absolute; left:-50px; top:18px; width:118px; height:70px; color:var(--ink); opacity:0; pointer-events:none; transform:rotate(-10deg) scale(1.3); mix-blend-mode:multiply}
+html[data-theme="dark"] .pm{mix-blend-mode:screen}
+.lt.sent .pm{animation:pmIn .5s var(--ease-spring) forwards}
+@keyframes pmIn{to{opacity:.62; transform:rotate(-10deg) scale(1)}}
+
+.lt-from{display:none; margin:14px 24px 0; padding:9px 12px; border-radius:10px; background:var(--sky-soft); border:1px solid var(--sky-bd); font-size:.84rem; color:var(--ink-2)}
+.lt-from a{color:var(--sky-ink); font-weight:600}
+.from .lt-from{display:flex; gap:9px; align-items:center}
+.lt-from .ic{width:15px; height:15px; color:var(--sky-ink)}
+
+.lt-body{position:relative; padding:12px 24px 0 64px}
+.lt-body::before{content:''; position:absolute; left:46px; top:0; bottom:0; width:1.5px; background:var(--rose); opacity:.7}
+.lt-body label{position:absolute; left:-9999px}
+textarea.draft{
+  display:block; width:100%; min-height:calc(var(--lh) * 12 + 8px); resize:vertical; border:0; outline:none; padding:2px 0 0;
+  font-size:.98rem; line-height:var(--lh); background:
+    linear-gradient(transparent calc(var(--lh) - 1px), var(--line) 0) 0 -4px / 100% var(--lh) local, transparent;
+  color:var(--ink);
+}
+textarea.draft::selection{background:var(--butter)}
+
+.lt-prog{display:flex; align-items:center; gap:10px; padding:12px 24px 14px 64px; font-size:.8rem; color:var(--ink-3)}
+.dots{display:flex; gap:5px}
+.dots i{width:9px; height:9px; border-radius:50%; border:1.5px solid var(--line-2); transition:.25s var(--ease-spring)}
+.dots i.on{background:var(--mint-ink); border-color:var(--mint-ink); transform:scale(1.1)}
+.lt-prog .reset{margin-left:auto; border:0; background:none; padding:0; font-size:.8rem; font-weight:600; color:var(--lilac-ink); text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--lilac-bd)}
+.lt-prog .reset[hidden]{display:none}
+
+.lt-send{display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:16px 24px; border-top:1.5px solid var(--line); background:var(--paper-2); border-radius:0 0 12px 16px}
+.lt-send .more{position:relative; margin-left:auto}
+.menu{position:absolute; right:0; bottom:calc(100% + 8px); z-index:20; width:250px; padding:6px; background:var(--card); border:1.5px solid var(--ink); border-radius:14px; box-shadow:3px 3px 0 var(--sky), var(--sh-2); display:none}
+.menu.open{display:block; animation:menuIn .2s var(--ease-spring)}
+@keyframes menuIn{from{opacity:0; transform:translateY(6px)}}
+.menu a{display:flex; gap:10px; align-items:center; padding:9px 10px; border-radius:9px; text-decoration:none; font-size:.86rem; font-weight:500}
+.menu a:hover{background:var(--paper-2)}
+.menu a small{display:block; font-size:.72rem; color:var(--ink-3); font-weight:400}
+.menu a .ic{width:16px; height:16px; color:var(--ink-3)}
+.menu p{padding:8px 10px 6px; font-size:.72rem; line-height:1.45; color:var(--ink-3); border-top:1.5px dashed var(--line); margin-top:4px}
+.status{min-height:0; padding:0 24px; font-size:.82rem; color:var(--mint-ink); font-weight:500}
+.status:not(:empty){padding:10px 24px 12px; border-top:1.5px dashed var(--line); background:var(--mint-soft); border-radius:0 0 12px 16px}
+.status.warn{color:var(--butter-ink); background:var(--butter-soft)}
+.lt-send:has(+ .status:not(:empty)){border-radius:0}
+
+/* the margin rail */
+.rl{position:sticky; top:84px; display:grid; gap:22px}
+.ix{position:relative; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); overflow:hidden}
+.ix-h{display:flex; align-items:center; gap:11px; padding:15px 16px 10px}
+.ix-h h3{font-family:var(--display); font-weight:600; font-size:1.04rem; letter-spacing:-.02em}
+.ix-h .n{margin-left:auto; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.ix ul{padding:0 16px 14px; display:grid}
+.ix li{position:relative; padding:9px 0 9px 28px; font-size:.86rem; line-height:1.45; color:var(--ink-2); border-top:1.5px dashed var(--line)}
+.ix li::before{content:''; position:absolute; left:2px; top:11px; width:15px; height:15px; border-radius:5px; border:1.5px solid var(--line-2); background:var(--paper)}
+.ix li.on{color:var(--ink)}
+.ix li.on::before{background:var(--mint-ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 13 9.5 17.5 19 7' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/11px no-repeat; border-color:var(--mint-ink)}
+.ix li .tag{display:inline-block; margin-left:4px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3)}
+.ix-f{padding:10px 16px; border-top:1.5px solid var(--line); background:var(--paper-2); font-size:.76rem; color:var(--ink-3)}
+
+/* the taped sticky note the reason carries */
+.sticky{position:relative; padding:20px 18px 18px; background:var(--nt, var(--butter)); color:var(--note-ink); filter:var(--note-filter); border-radius:2px 2px 14px 2px; box-shadow:0 1px 1px rgba(38,33,27,.08), 0 12px 20px -12px rgba(38,33,27,.35); transform:rotate(-1.4deg)}
+.sticky .tape{top:-10px; left:50%; margin-left:-39px; transform:rotate(3deg); --tp:var(--paper-3); width:78px}
+.sticky h4{font-family:var(--display); font-weight:600; font-size:.98rem; letter-spacing:-.015em; line-height:1.25}
+.sticky p{margin-top:7px; font-size:.84rem; line-height:1.5; color:rgba(38,33,27,.78)}
+.sticky a{color:var(--note-ink); font-weight:600}
+.sticky[hidden]{display:none}
+.sticky.warn{--nt:var(--peach)} .sticky.good{--nt:var(--mint)} .sticky.info{--nt:var(--sky)}
+
+/* ---------- after you send: tickets on a thread -------------------------- */
+.thread{position:relative; margin-top:30px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px}
+.thread::before{content:''; position:absolute; left:8%; right:8%; top:42px; border-top:2px dashed var(--line-2); z-index:0}
+.tk{position:relative; z-index:1; display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px; padding:18px; background:var(--card); border:1.5px solid var(--line); border-radius:14px; box-shadow:var(--sh-1); transition:border-color .3s, box-shadow .3s, transform .3s var(--ease-spring)}
+.tk::before,.tk::after{content:''; position:absolute; top:50%; width:16px; height:16px; margin-top:-8px; border-radius:50%; background:var(--paper); border:1.5px solid var(--line)}
+.tk::before{left:-9px; clip-path:inset(0 0 0 50%)} .tk::after{right:-9px; clip-path:inset(0 50% 0 0)}
+.tk .num{width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:1.1rem; background:var(--paper-2); border:1.5px dashed var(--line-2); color:var(--ink-3); transition:.3s}
+.tk h3{font-family:var(--display); font-weight:600; font-size:1.06rem; letter-spacing:-.02em}
+.tk p{margin-top:5px; font-size:.86rem; line-height:1.5; color:var(--ink-2)}
+.tk .when{display:inline-block; margin-top:9px; font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3)}
+.tk.on{border-color:var(--ink); box-shadow:3px 3px 0 var(--mint); transform:translateY(-2px)}
+.tk.on .num{background:var(--mint); border:1.5px solid var(--ink); color:#26211B}
+.tk.next .num{border-color:var(--ink-3); color:var(--ink)}
+
+/* ---------- probably faster: sticky notes -------------------------------- */
+.notes{margin-top:30px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:26px}
+.qn{position:relative; display:block; padding:24px 20px 20px; text-decoration:none; color:var(--note-ink); background:var(--nt); filter:var(--note-filter); border-radius:2px 2px 16px 2px; box-shadow:0 1px 1px rgba(38,33,27,.08), 0 14px 24px -14px rgba(38,33,27,.4); transform:rotate(var(--r)); transition:transform .25s var(--ease-spring)}
+.qn:hover{transform:rotate(0deg) translateY(-4px)}
+.qn .tape{top:-10px; left:50%; margin-left:-39px; transform:rotate(-4deg); --tp:var(--paper-3)}
+.qn h3{font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.02em; line-height:1.22}
+.qn p{margin-top:8px; font-size:.86rem; line-height:1.5; color:rgba(38,33,27,.76)}
+.qn .go{margin-top:14px; display:inline-flex; align-items:center; gap:6px; font-size:.8rem; font-weight:600; border-bottom:1.5px solid rgba(38,33,27,.35)}
+.qn .go .ic{width:14px; height:14px}
+
+/* ---------- read first ---------------------------------------------------- */
+.rf{margin:72px 0 0; display:flex; align-items:center; gap:24px; flex-wrap:wrap; padding:26px 28px; border:1.5px dashed var(--line-2); border-radius:var(--r-xl); background:color-mix(in srgb, var(--paper-2) 70%, transparent)}
+.rf h3{font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.02em}
+.rf p{margin-top:4px; max-width:36em; font-size:.9rem; color:var(--ink-2)}
+.rf .a{margin-left:auto; display:flex; gap:10px; flex-wrap:wrap}
+
+footer{position:relative; z-index:1; margin-top:64px; border-top:1.5px solid var(--line); padding:26px 0 110px; font-size:.82rem; color:var(--ink-3)}
+footer .wrap{display:flex; gap:18px; flex-wrap:wrap; align-items:center}
+footer a{text-decoration:none} footer a:hover{color:var(--ink)}
+footer .sp{margin-left:auto}
+
+/* ---------- MOCK bar ------------------------------------------------------ */
+.mock{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:60; display:flex; align-items:center; gap:6px; padding:6px; border-radius:999px; background:#26211B; color:#F2EADC; box-shadow:var(--sh-3); font-size:.76rem; max-width:calc(100vw - 24px); overflow-x:auto}
+.mock b{padding:0 8px 0 10px; font-family:var(--mono); font-size:.66rem; letter-spacing:.14em; color:#948876}
+.mock button{border:0; background:none; color:inherit; padding:6px 11px; border-radius:999px; white-space:nowrap; font-weight:500}
+.mock button[aria-pressed="true"]{background:#F2EADC; color:#26211B}
+.mock i{width:1px; height:18px; background:#43382B}
+
+/* ---------- responsive ---------------------------------------------------- */
+@media (max-width:1080px){
+  .stamps{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .rl{position:static; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start}
+}
+@media (max-width:900px){
+  .hero{padding-top:44px}
+  .hero .wrap{grid-template-columns:minmax(0,1fr); gap:40px}
+  .cc{transform:none}
+  .thread,.notes{grid-template-columns:minmax(0,1fr)}
+  .thread::before{left:39px; right:auto; top:30px; bottom:30px; border-top:0; border-left:2px dashed var(--line-2)}
+  .notes{gap:30px; max-width:520px}
+}
+@media (max-width:640px){
+  .wrap{padding:0 16px}
+  .top nav a:not(.keep){display:none}
+  .stamps{grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px}
+  .stp-in{min-height:118px}
+  .rl{grid-template-columns:minmax(0,1fr)}
+  .cc{padding:22px 18px 0}
+  .cc-foot{margin:20px -18px 0; padding:12px 18px; grid-template-columns:minmax(0,1fr)}
+  .cc-act .btn{flex:1}
+  .lt-head{grid-template-columns:minmax(0,1fr); padding:18px 16px 14px}
+  .lt-stamp{position:absolute; right:14px; top:-26px; width:62px; height:72px}
+  .lt-stamp .ic{width:22px; height:22px}
+  .pm{left:-60px; top:4px; width:96px; height:58px}
+  .fld{grid-template-columns:56px minmax(0,1fr)}
+  .fld:first-child{padding-right:52px}
+  .lt-body{padding:10px 16px 0 38px}
+  .lt-body::before{left:26px}
+  .lt-prog{padding:10px 16px 12px 38px; flex-wrap:wrap}
+  .lt-send{padding:14px 16px}
+  .lt-send > .btn{flex:1 1 140px}
+  .lt-send .more{margin-left:0; flex-basis:100%}
+  .lt-send .more .btn{width:100%}
+  .menu{left:0; right:0; width:auto}
+  .lt-from{margin:14px 16px 0}
+  .rf .a{margin-left:0}
+}
+@media (max-width:400px){
+  .top .wrap{gap:10px}
+  .top nav a.keep:not([aria-current]){display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-envelope" viewBox="0 0 24 24"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-out" viewBox="0 0 24 24"><path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="d-monitor" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-shield" viewBox="0 0 24 24"><path d="M12 3 4.6 5.8v5.6c0 4.6 3.1 8.2 7.4 9.6 4.3-1.4 7.4-5 7.4-9.6V5.8L12 3Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="m8.8 12 2.3 2.3 4.2-4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-export" viewBox="0 0 24 24"><path d="M12 15V3.6m0 0-4.2 4.2M12 3.6l4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.6 13.6v4.6c0 1.3 1 2.3 2.3 2.3h10.2c1.3 0 2.3-1 2.3-2.3v-4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="washes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><span class="mk">C</span>ChaptOS</a>
+    <nav aria-label="Site">
+      <a href="#">Product</a>
+      <a href="#">Pricing</a>
+      <a href="#" class="keep">Help</a>
+      <a href="#" aria-current="page" class="keep">Contact</a>
+    </nav>
+    <a class="btn btn--sm btn--ghost" href="#">Sign in</a>
+  </div>
+</header>
+
+<main id="page">
+  <!-- ============ 1. the address, before anything else ============ -->
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="eyebrow" style="--eb:var(--peach)">Talk to a human</span>
+        <h1>Write to a person, <span class="hi" style="--mark:var(--peach)">not a queue.</span></h1>
+        <p class="lede">No ticket number, no chatbot, no phone tree. One address, read by the people who built
+          this — who also ran the meeting, took the minutes and chased the dues. Hours, not seconds, but a real answer.</p>
+        <div class="jump">
+          <a class="btn" href="#write" style="--hs:var(--peach)"><svg class="ic"><use href="#d-envelope"/></svg>Help me write it</a>
+          <a class="btn btn--soft" href="#faster">Check the common fixes</a>
+        </div>
+      </div>
+
+      <div class="cc" aria-label="Our address">
+        <span class="tape"></span><span class="tape b"></span>
+        <div class="cc-k">
+          <div class="who"><span class="av">TT</span><span><b>The ChaptOS team</b><br>Reading the inbox</span></div>
+          <span class="live">Read daily</span>
+        </div>
+        <button class="cc-addr" type="button" data-copy-addr title="Copy address">
+          <span class="l">Email us at</span>
+          <span class="v" id="addr">thalhat.011@gmail.com</span>
+        </button>
+        <div class="cc-act">
+          <button class="btn btn--ghost" type="button" data-copy-addr style="--hs:var(--butter)"><svg class="ic"><use href="#d-copy"/></svg><span>Copy address</span></button>
+          <a class="btn" id="ccGmail" href="#" target="_blank" rel="noreferrer noopener" style="--hs:var(--sky)">Write in Gmail<svg class="ic"><use href="#d-out"/></svg></a>
+        </div>
+        <div class="cc-foot">
+          <div><svg class="ic"><use href="#d-people"/></svg><span><b>A person</b>No bot, no macro.</span></div>
+          <div><svg class="ic"><use href="#d-clock"/></svg><span><b>Within a day</b>Usually. Weekends slower.</span></div>
+          <div><svg class="ic"><use href="#d-lock"/></svg><span><b>No passwords</b>We'll never ask for one.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2–4. pick a stamp, write the letter ============ -->
+  <section class="sec" id="write">
+    <div class="wrap">
+      <div class="sec-h">
+        <div>
+          <span class="eyebrow" style="--eb:var(--lilac)">Write in</span>
+          <h2>Pick a stamp. We'll start the letter.</h2>
+        </div>
+        <p>Each one loads a short template so the first reply can be the answer, not a question back. Fill it in here — every button sends what you actually wrote.</p>
+      </div>
+
+      <div class="stamps" role="radiogroup" aria-label="What's it about?" id="stamps"></div>
+
+      <div class="desk">
+        <article class="lt" id="letter">
+          <div class="lt-head">
+            <div class="lt-fields">
+              <div class="fld"><span class="l">To</span>
+                <div class="to"><span id="toAddr">thalhat.011@gmail.com</span>
+                  <button class="icbtn" type="button" data-copy-addr aria-label="Copy address"><svg class="ic"><use href="#d-copy"/></svg></button></div>
+              </div>
+              <div class="fld"><label class="l" for="subj">Subject</label><input id="subj" autocomplete="off"></div>
+            </div>
+            <div class="lt-stamp" id="ltStamp" aria-hidden="true">
+              <div class="s"><div><svg class="ic"><use id="ltIcon" href="#d-flag"/></svg><span class="den" id="ltDen">01</span></div></div>
+              <svg class="pm" viewBox="0 0 120 72" fill="none" stroke="currentColor">
+                <circle cx="36" cy="36" r="30" stroke-width="2.2"/><circle cx="36" cy="36" r="23" stroke-width="1.2"/>
+                <text x="36" y="33" text-anchor="middle" font-family="IBM Plex Mono" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" letter-spacing="1">SENT</text>
+                <text x="36" y="45" text-anchor="middle" font-family="IBM Plex Mono" font-size="7" font-weight="600" fill="currentColor" stroke="none" id="pmDate">18 OCT</text>
+                <path d="M70 22c8-4 14 4 22 0s14 4 24 0M70 36c8-4 14 4 22 0s14 4 24 0M70 50c8-4 14 4 22 0s14 4 24 0" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+          </div>
+          <div class="lt-from"><svg class="ic"><use href="#d-doc"/></svg><span>Coming from <a href="#" id="fromLink">Signing in with the right account</a> — it's already named in the letter.</span></div>
+          <div class="lt-body">
+            <label for="draft">Your message</label>
+            <textarea id="draft" class="draft" spellcheck="true" aria-describedby="prog"></textarea>
+          </div>
+          <div class="lt-prog" id="prog" aria-live="polite">
+            <span class="dots" id="dots"></span><span id="progT">0 of 4 answered</span>
+            <button class="reset" type="button" id="reset" hidden>Load this stamp's template</button>
+          </div>
+          <div class="lt-send">
+            <a class="btn" id="sendGmail" href="#" target="_blank" rel="noreferrer noopener" style="--hs:var(--sky)"><svg class="ic"><use href="#d-send"/></svg>Send with Gmail</a>
+            <button class="btn btn--ghost" type="button" id="copyMail" style="--hs:var(--butter)"><svg class="ic"><use href="#d-copy"/></svg><span>Copy email</span></button>
+            <div class="more">
+              <button class="btn btn--soft" type="button" id="moreBtn" aria-expanded="false" aria-controls="moreMenu"><svg class="ic"><use href="#d-dots"/></svg>Other ways</button>
+              <div class="menu" id="moreMenu">
+                <a id="viaMail" href="#"><svg class="ic"><use href="#d-monitor"/></svg><span>Your mail app<small>Apple Mail, Outlook desktop…</small></span></a>
+                <a id="viaSchool" href="#" target="_blank" rel="noreferrer noopener"><svg class="ic"><use href="#d-envelope"/></svg><span>Outlook for school<small>Your university Microsoft account</small></span></a>
+                <a id="viaPersonal" href="#" target="_blank" rel="noreferrer noopener"><svg class="ic"><use href="#d-envelope"/></svg><span>Personal Outlook<small>@outlook.com, @hotmail.com</small></span></a>
+                <p id="mailCaveat">"Your mail app" does nothing on a computer with none set up — and can't tell us it failed. If nothing opens, use Gmail or Copy.</p>
+              </div>
+            </div>
+          </div>
+          <p class="status" id="status" role="status"></p>
+        </article>
+
+        <aside class="rl">
+          <div class="ix">
+            <div class="ix-h"><span class="tile" id="ixTile"><svg class="ic"><use id="ixIcon" href="#d-flag"/></svg></span><h3 id="ixTitle">Something's broken</h3><span class="n" id="ixN">0/4</span></div>
+            <ul id="inc"></ul>
+            <div class="ix-f">Ticks fill in as you answer each prompt in the letter.</div>
+          </div>
+          <div class="sticky" id="note" hidden><span class="tape"></span><h4 id="noteH"></h4><p id="noteT"></p></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. what happens next ============ -->
+  <section class="sec" id="next">
+    <div class="wrap">
+      <div class="sec-h">
+        <div>
+          <span class="eyebrow" style="--eb:var(--mint)">After you send</span>
+          <h2>Here's exactly what happens.</h2>
+        </div>
+        <p>No portal to check and no reference number to keep. The whole conversation lives in your own inbox.</p>
+      </div>
+      <div class="thread" id="thread">
+        <div class="tk next" data-step="1"><span class="num">1</span><div><h3>You send it</h3><p>From any address you like. Your inbox keeps the copy, so there's nothing to log in to.</p><span class="when" id="tk1When">Whenever you're ready</span></div></div>
+        <div class="tk" data-step="2"><span class="num">2</span><div><h3>A person reads it</h3><p>Someone who can actually change the product — not a triage bot, not a canned macro.</p><span class="when">Usually within a day</span></div></div>
+        <div class="tk" data-step="3"><span class="num">3</span><div><h3>You get a reply</h3><p>Straight back to you. Nothing after three business days? Send it again — it was missed, not ignored.</p><span class="when">From thalhat.011@gmail.com</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 6. probably faster ============ -->
+  <section class="sec" id="faster">
+    <div class="wrap">
+      <div class="sec-h">
+        <div>
+          <span class="eyebrow" style="--eb:var(--butter)">Probably faster</span>
+          <h2>Three that answer themselves.</h2>
+        </div>
+        <p>Not a brush-off — these are the questions that come in most, and each has a written answer more complete than a reply would be.</p>
+      </div>
+      <div class="notes">
+        <a class="qn" href="#" style="--nt:var(--butter); --r:-1.8deg"><span class="tape"></span>
+          <h3>It won't let me past a screen</h3>
+          <p>Almost always the term. The app blocks until an org has an active one — an admin can fix it in about thirty seconds.</p>
+          <span class="go">Set the first term<svg class="ic"><use href="#d-arrow-r"/></svg></span></a>
+        <a class="qn" href="#" style="--nt:var(--sky); --r:1.2deg"><span class="tape"></span>
+          <h3>I'm signed in but can't see my org</h3>
+          <p>Usually a second Google account. Your personal and university addresses are two different people to the app.</p>
+          <span class="go">Signing in<svg class="ic"><use href="#d-arrow-r"/></svg></span></a>
+        <a class="qn" href="#" style="--nt:var(--mint); --r:-.8deg"><span class="tape"></span>
+          <h3>I need everything as a spreadsheet</h3>
+          <p>The ledger and the roster export themselves. Attendance and documents don't yet — for those, write in.</p>
+          <span class="go">Export your data<svg class="ic"><use href="#d-arrow-r"/></svg></span></a>
+      </div>
+
+      <div class="rf">
+        <div><h3>Rather read first?</h3><p>The help centre covers setup, money, attendance and the assistant — including what isn't built yet. Trust &amp; privacy covers what happens to your org's records.</p></div>
+        <div class="a"><a class="btn" href="#">Help centre<svg class="ic"><use href="#d-arrow-r"/></svg></a><a class="btn btn--ghost" href="#">Trust &amp; privacy</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer><div class="wrap"><span>© 2026 ChaptOS</span><a href="#">Help</a><a href="#">Trust &amp; privacy</a><a href="#">Pricing</a><span class="sp mono" id="ftAddr">thalhat.011@gmail.com</span></div></footer>
+
+<div class="mock" role="toolbar" aria-label="Mock controls">
+  <b>MOCK</b>
+  <button type="button" data-ctx="fresh" aria-pressed="true">Fresh visit</button>
+  <button type="button" data-ctx="from" aria-pressed="false">From a help article</button>
+  <i></i>
+  <button type="button" data-theme-set="light">Light</button>
+  <button type="button" data-theme-set="dark">Dark</button>
+</div>
+
+<script>
+(function () {
+  // Stand-in for SUPPORT_EMAIL (lib/support.ts) — the real page renders the env-configured one.
+  var EMAIL = "thalhat.011@gmail.com";
+
+  // Carried over from app/contact/ContactPicker.tsx. `short`/`den` are the stamp face.
+  var REASONS = [
+    { id:"broken", short:"Something's broken", hint:"An error, a page that won't load, a wrong number.", icon:"flag", tint:"peach",
+      label:"Something's broken", subject:"Something's broken",
+      body:"What I was doing:\n\n\nWhat I expected:\n\n\nWhat happened instead:\n\n\nMy org (and the page URL):\n\n",
+      include:["The URL you were on — it names the org and the page.","What you clicked, and what happened instead.","The exact error text, if there was any. A screenshot is fine.","Whether it happens every time or happened once."] },
+    { id:"stuck", short:"How do I…", hint:"It's probably possible. Or genuinely not yet.", icon:"hand", tint:"sky",
+      label:"I can't work out how to do something", subject:"How do I…",
+      body:"What I'm trying to do:\n\n\nWhat I've tried:\n\n\nMy role in the org (president, treasurer, member…):\n\n",
+      include:["What you're trying to achieve, not just which button you're hunting for.","Your role in the org — half of \"I can't see it\" is a permission.","Whether you've searched the help centre, so we don't send you back to a page you've read."] },
+    { id:"setup", short:"Setting up an org", hint:"Getting a real chapter in and running.", icon:"plant", tint:"butter",
+      label:"I'm setting up an org", subject:"Setting up an org",
+      body:"What kind of org:\n\nRoughly how many members:\n\nWhat we're using today (spreadsheet, GroupMe, nothing):\n\nWhat we most need it to fix:\n\n",
+      include:["What kind of org, and roughly how many people.","What you're running on today — a spreadsheet, five spreadsheets, someone's memory.","The one thing that would make this worth switching for."],
+      note:{ h:"Setting up is meant to take about ten minutes", t:"If it's taking longer than that, something is wrong with the flow rather than with you — and that's a useful thing to hear about.", tone:"good" } },
+    { id:"missing", short:"Missing a feature", hint:"An export, a page, a thing that doesn't exist yet.", icon:"star", tint:"lilac",
+      label:"You don't have the thing I need", subject:"Feature request",
+      body:"What I need:\n\n\nWhat I'm doing instead today:\n\n\nHow often this comes up:\n\n",
+      include:["What you need it to do, in the words your org would use.","What you do instead today. The workaround tells us more than the request.","How often it comes up — once a year at audit is a different problem from every Tuesday."],
+      note:{ h:"Some gaps are already known", t:"Attendance and document exports don't exist yet. Saying you need one still helps — it moves it up.", tone:"warn" } },
+    { id:"security", short:"Security or privacy", hint:"A vulnerability, a leak, something off.", icon:"shield", tint:"mint",
+      label:"Security or privacy", subject:"Security report",
+      body:"What I found:\n\n\nHow to reproduce it:\n\n\nWhat it exposes:\n\n\nWhether it's been disclosed anywhere else:\n\n",
+      include:["What you found, and how to reproduce it.","What it exposes, as far as you can tell.","Whether you've told anyone else yet."],
+      note:{ h:"Please write before disclosing publicly", t:"We won't pursue anyone who reports a genuine issue in good faith, and we'll tell you what we did about it. What's enforced today is written down in <a href=\"#\">Trust &amp; privacy</a>.", tone:"good" } },
+    { id:"data", short:"My data", hint:"Access, correction, deletion, or all of it out.", icon:"export", tint:"rose",
+      label:"My data, or my org's", subject:"Data request",
+      body:"What I'm asking for (access, correction, deletion, export):\n\n\nWhich org this concerns:\n\nThe email address on my account:\n\n",
+      include:["Which of access, correction, deletion or export you want.","Which org it concerns.","The email on your account — we may ask you to write from it to verify."],
+      note:{ h:"Acknowledged within 5 business days, done within 30", t:"The shorter of the windows the major privacy laws set. If a request needs longer, we'll say so before the 30 days are up. <a href=\"#\">Read the policy</a>.", tone:"info" } }
+  ];
+  var MAILTO_SAFE = 1500;
+
+  var $ = function (s) { return document.querySelector(s); };
+  var letter = $("#letter"), draft = $("#draft"), subj = $("#subj");
+  var state = { id:"broken", seeded:"broken", subjTouched:false, from:null };
+
+  // ---- url builders: same strict encoding as lib/support.ts ----
+  function q(o){ return Object.keys(o).map(function(k){ return k + "=" + encodeURIComponent(o[k]); }).join("&"); }
+  function gmail(s,b){ return "https://mail.google.com/mail/?" + q({view:"cm", fs:"1", to:EMAIL, su:s, body:b}); }
+  function mailto(s,b){ return "mailto:" + EMAIL + "?" + q(b ? {subject:s, body:b} : {subject:s}); }
+  function outlook(s,b,v){ var x = q({to:EMAIL, subject:s, body:b}); return v === "school" ? "https://outlook.office.com/mail/deeplink/compose?" + x : "https://outlook.live.com/mail/0/deeplink/compose?" + x; }
+
+  function R(){ return REASONS.find(function(r){ return r.id === state.id; }); }
+  function ctx(){ return state.from ? "I was reading /help/" + state.from.slug + " and I'm still stuck.\n\n" : ""; }
+  function tpl(r){ return ctx() + r.body; }
+  function subjFor(r){ return state.from ? r.subject + " (" + state.from.title + ")" : r.subject; }
+  function prompts(r){ return r.body.split("\n").filter(function(l){ return /:\s*$/.test(l); }); }
+
+  // ---- stamps ----
+  var stamps = $("#stamps");
+  REASONS.forEach(function (r, i) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "stp t-" + r.tint; b.setAttribute("role","radio"); b.dataset.id = r.id;
+    b.innerHTML = '<span class="stp-in"><span class="top-r"><svg class="ic"><use href="#d-' + r.icon + '"/></svg><span class="den">0' + (i+1) + '</span></span>' +
+      '<b>' + r.short + '</b><small>' + r.hint + '</small></span>';
+    b.addEventListener("click", function(){ pick(r.id); });
+    stamps.appendChild(b);
+  });
+  // arrow-key roving within the radiogroup
+  stamps.addEventListener("keydown", function (e) {
+    var k = { ArrowRight:1, ArrowDown:1, ArrowLeft:-1, ArrowUp:-1 }[e.key]; if (!k) return;
+    e.preventDefault();
+    var i = REASONS.findIndex(function(r){ return r.id === state.id; });
+    var n = REASONS[(i + k + REASONS.length) % REASONS.length];
+    pick(n.id); stamps.querySelector('[data-id="' + n.id + '"]').focus();
+  });
+
+  function pick(id) {
+    var cur = R(), next = REASONS.find(function(r){ return r.id === id; });
+    if (!next || id === state.id) return;
+    var untouched = draft.value.trim() === tpl(cur).trim() || draft.value.trim() === "";
+    state.id = id;
+    if (untouched) { draft.value = tpl(next); state.seeded = id; }
+    if (!state.subjTouched) subj.value = subjFor(next);
+    var st = $("#ltStamp"); st.classList.remove("swap"); void st.offsetWidth; st.classList.add("swap");
+    unsend(); render();
+  }
+
+  // ---- render everything that depends on reason / draft ----
+  function render() {
+    var r = R(), i = REASONS.indexOf(r);
+    stamps.querySelectorAll(".stp").forEach(function (b) {
+      var on = b.dataset.id === r.id; b.setAttribute("aria-checked", on); b.tabIndex = on ? 0 : -1;
+    });
+    letter.className = "lt t-" + r.tint + (letter.classList.contains("sent") ? " sent" : "");
+    $("#ltIcon").setAttribute("href", "#d-" + r.icon);
+    $("#ltDen").textContent = "0" + (i + 1);
+    $("#ixTile").className = "tile t-" + r.tint;
+    $("#ixIcon").setAttribute("href", "#d-" + r.icon);
+    $("#ixTitle").textContent = r.label;
+
+    // prompts answered = a template label still in the draft with something written under it
+    var ps = prompts(r), body = draft.value, present = [], done = 0;
+    ps.forEach(function (p, k) {
+      var at = body.indexOf(p); if (at < 0) return;
+      var rest = body.slice(at + p.length), cut = rest.length;
+      ps.forEach(function (o) { var j = rest.indexOf(o); if (j >= 0 && j < cut) cut = j; });
+      var ok = rest.slice(0, cut).trim().length > 0; present.push(ok); if (ok) done++;
+    });
+    var total = present.length;
+    var free = total === 0 && body.trim().length > 0;
+    $("#dots").innerHTML = (total ? present : [free]).map(function(ok){ return '<i class="' + (ok ? "on" : "") + '"></i>'; }).join("");
+    $("#progT").textContent = total ? done + " of " + total + " answered" + (done === total ? " — ready to send" : "") : (free ? "Written in your own words" : "Empty letter");
+    $("#reset").hidden = state.seeded === r.id;
+
+    // checklist: tick item k when prompt k (paired by order) is answered; extras tick when all are
+    var ticks = r.include.map(function (_, k) { return total && (k < present.length ? present[k] : done === total); });
+    $("#inc").innerHTML = r.include.map(function (t, k) { return '<li class="' + (ticks[k] ? "on" : "") + '">' + t + '</li>'; }).join("");
+    $("#ixN").textContent = ticks.filter(Boolean).length + "/" + r.include.length;
+
+    var n = $("#note");
+    if (r.note) { n.hidden = false; n.className = "sticky " + (r.note.tone || "info"); $("#noteH").textContent = r.note.h; $("#noteT").innerHTML = r.note.t; }
+    else n.hidden = true;
+
+    links();
+  }
+
+  function links() {
+    var s = subj.value || R().subject, b = draft.value;
+    $("#sendGmail").href = gmail(s, b);
+    $("#viaMail").href = mailto(s, b);
+    $("#viaSchool").href = outlook(s, b, "school");
+    $("#viaPersonal").href = outlook(s, b, "personal");
+    $("#ccGmail").href = gmail("Hello", "");
+    $("#mailCaveat").textContent = '"Your mail app" does nothing on a computer with none set up — and can\'t tell us it failed. If nothing opens, use Gmail or Copy.' +
+      (b.length > MAILTO_SAFE ? " Your letter is also long enough that some mail apps would cut it off." : "");
+  }
+
+  // ---- sending = postmark + light the thread ----
+  function markSent(msg, warn) {
+    letter.classList.add("sent");
+    var st = $("#status"); st.textContent = msg; st.classList.toggle("warn", !!warn);
+    var t = document.querySelectorAll(".tk");
+    t[0].classList.add("on"); t[0].classList.remove("next"); t[1].classList.add("next");
+    $("#tk1When").textContent = warn ? "Paste it into any mail app" : "Just now";
+  }
+  function unsend() {
+    letter.classList.remove("sent"); $("#status").textContent = "";
+    var t = document.querySelectorAll(".tk"); t.forEach(function(x){ x.classList.remove("on","next"); }); t[0].classList.add("next");
+    $("#tk1When").textContent = "Whenever you're ready";
+  }
+
+  $("#sendGmail").addEventListener("click", function () {
+    markSent("Opened in Gmail with your letter filled in — press Send there. If you'd rather not, Copy works from anywhere.");
+  });
+  ["#viaMail","#viaSchool","#viaPersonal"].forEach(function (s) {
+    $(s).addEventListener("click", function () { closeMenu(); markSent("Opened your letter there — press Send in that window."); });
+  });
+
+  function copy(text, ok, fail) {
+    var p = navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject();
+    p.then(ok, fail);
+  }
+  $("#copyMail").addEventListener("click", function () {
+    var b = this, s = subj.value || R().subject;
+    copy("To: " + EMAIL + "\nSubject: " + s + "\n\n" + draft.value, function () {
+      b.classList.add("is-ok"); b.querySelector("span").textContent = "Copied";
+      setTimeout(function(){ b.classList.remove("is-ok"); b.querySelector("span").textContent = "Copy email"; }, 2400);
+      markSent("Address, subject and letter are on your clipboard — paste into any mail app.", true);
+    }, function () {
+      draft.focus(); draft.select();
+      var keys = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘C" : "Ctrl+C";
+      $("#status").textContent = "Your browser blocked the clipboard — the letter is selected, so press " + keys + " now.";
+      $("#status").classList.add("warn");
+    });
+  });
+  document.querySelectorAll("[data-copy-addr]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      copy(EMAIL, function () {
+        document.querySelectorAll("[data-copy-addr]").forEach(function (x) {
+          x.classList.add("is-ok"); var sp = x.querySelector("span:not(.l):not(.v)"); if (sp) sp.textContent = "Copied";
+        });
+        $("#addr").textContent = "Copied ✓";
+        setTimeout(function () {
+          document.querySelectorAll("[data-copy-addr]").forEach(function (x) {
+            x.classList.remove("is-ok"); var sp = x.querySelector("span:not(.l):not(.v)"); if (sp) sp.textContent = "Copy address";
+          });
+          $("#addr").textContent = EMAIL;
+        }, 1800);
+      }, function () {
+        var r = document.createRange(); r.selectNodeContents($("#addr"));
+        var sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      });
+    });
+  });
+
+  // ---- other ways menu ----
+  var menu = $("#moreMenu"), mb = $("#moreBtn");
+  function closeMenu(){ menu.classList.remove("open"); mb.setAttribute("aria-expanded","false"); }
+  mb.addEventListener("click", function (e) { e.stopPropagation(); var o = menu.classList.toggle("open"); mb.setAttribute("aria-expanded", o); });
+  document.addEventListener("click", function (e) { if (!menu.contains(e.target)) closeMenu(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeMenu(); });
+
+  draft.addEventListener("input", function () { if (letter.classList.contains("sent")) unsend(); render(); });
+  subj.addEventListener("input", function () { state.subjTouched = true; links(); });
+  $("#reset").addEventListener("click", function () { draft.value = tpl(R()); state.seeded = state.id; render(); draft.focus(); });
+
+  // ---- mock controls ----
+  function setCtx(c) {
+    state.from = c === "from" ? { slug:"signing-in", title:"Signing in with the right account" } : null;
+    // Arriving from an article that didn't answer you opens on "How do I…", like the real page.
+    state.id = state.from ? "stuck" : "broken"; state.seeded = state.id; state.subjTouched = false;
+    document.body.classList.toggle("from", !!state.from);
+    draft.value = tpl(R()); subj.value = subjFor(R());
+    document.querySelectorAll("[data-ctx]").forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.ctx === c); });
+    unsend(); render();
+  }
+  document.querySelectorAll("[data-ctx]").forEach(function(b){ b.addEventListener("click", function(){ setCtx(b.dataset.ctx); }); });
+  function setTheme(t) {
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem("contact-mock-theme", t); } catch (e) {}
+    document.querySelectorAll("[data-theme-set]").forEach(function(b){ b.setAttribute("aria-pressed", b.dataset.themeSet === t); });
+  }
+  document.querySelectorAll("[data-theme-set]").forEach(function(b){ b.addEventListener("click", function(){ setTheme(b.dataset.themeSet); }); });
+  setTheme(document.documentElement.dataset.theme);
+
+  var d = new Date(); $("#pmDate").textContent = d.getDate() + " " + d.toLocaleString("en", { month:"short" }).toUpperCase();
+  ["#addr","#toAddr","#ftAddr"].forEach(function(s){ $(s).textContent = EMAIL; });
+  setCtx("fresh");
+})();
+</script>
+</body>
+</html>

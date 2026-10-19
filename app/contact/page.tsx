@@ -2,8 +2,9 @@
 // from every help article that didn't answer the question.
 //
 // There is no ticket system behind this and the page doesn't pretend there is.
-// It's an email address, a picker that pre-fills a good email, and an honest
-// account of what happens after you press send.
+// It's an email address (the calling card, first thing on the page), a letter
+// that pre-fills a good email, and an honest account of what happens after you
+// press send. Built from _design/Contact Paper Mock.html.
 //
 // Deliberately static and motionless — no LandingMotion in this tree, so no
 // [data-reveal] hooks. See ../components/landing/public-chrome.css.
@@ -18,10 +19,10 @@ import { DoodleSprite } from "../components/landing/DoodleSprite";
 import { landingFontClass } from "../components/landing/fonts";
 import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
+import { AddressCard } from "./AddressCard";
 import { ContactPicker } from "./ContactPicker";
 import { ARTICLES_BY_SLUG } from "../help/content";
 import { APP_NAME } from "@/lib/domains";
-import { SUPPORT_EMAIL } from "@/lib/support";
 
 export const metadata: Metadata = {
   title: `Talk to a human — ${APP_NAME}`,
@@ -56,139 +57,86 @@ export default async function ContactPage({
       <PublicNav />
 
       <main id="top">
-        <section className="pub__hero">
-          <div className="wrap">
-            <div className="pub__head">
+        {/* ---- the address, before anything else ---- */}
+        <section className="ct__hero">
+          <div className="wrap ct__herogrid">
+            <div>
               <span className="eyebrow" style={sx({ "--eb": "var(--peach)" })}>
                 Talk to a human
               </span>
-              <h1>No queue, no bot, no phone tree. One address, and someone who reads it.</h1>
+              <h1>
+                Write to a person,{" "}
+                <span className="hi" style={sx({ "--mark": "var(--peach)" })}>not a queue.</span>
+              </h1>
               <p className="lede">
-                This is a small thing made by people who ran the meeting, took the minutes and
-                chased the dues. When you write in, one of them answers — which is the good
-                news and also the reason a reply takes hours rather than seconds.
+                No ticket number, no chatbot, no phone tree. One address, read by the people who
+                built this — who also ran the meeting, took the minutes and chased the dues.
+                Hours, not seconds, but a real answer.
               </p>
-            </div>
-
-            {/* The three things worth knowing before you write, in the order
-                they'd change what you do next. */}
-            <div className="ct__facts">
-              <div className="ct__fact">
-                <span className="ct__fic" style={sx({ "--g": "var(--mint-soft)", "--gb": "var(--mint)" })}>
-                  <Doodle
-                    id="chat"
-                    className="doodle doodle--thin"
-                    size={19}
-                    viewBox="0 0 24 24"
-                    style={sx({ color: "var(--mint-ink)" })}
-                  />
-                </span>
-                <h4>A person, not a form</h4>
-                <p>
-                  Nothing here is triaged by a bot or answered by a macro. You get a reply from
-                  someone who can actually change the product.
-                </p>
-              </div>
-              <div className="ct__fact">
-                <span className="ct__fic" style={sx({ "--g": "var(--butter-soft)", "--gb": "var(--butter)" })}>
-                  <Doodle
-                    id="clock"
-                    className="doodle doodle--thin"
-                    size={19}
-                    viewBox="0 0 24 24"
-                    style={sx({ color: "var(--butter-ink)" })}
-                  />
-                </span>
-                <h4>Usually within a day</h4>
-                <p>
-                  If it&apos;s been three business days and you&apos;ve heard nothing, send it
-                  again. It means the email was missed, not that it was ignored.
-                </p>
-              </div>
-              <div className="ct__fact">
-                <span className="ct__fic" style={sx({ "--g": "var(--sky-soft)", "--gb": "var(--sky)" })}>
-                  <Doodle
-                    id="shield"
-                    className="doodle doodle--thin"
-                    size={19}
-                    viewBox="0 0 24 24"
-                    style={sx({ color: "var(--sky-ink)" })}
-                  />
-                </span>
-                <h4>Never send a password</h4>
-                <p>
-                  We will never ask for one, and there isn&apos;t one to ask for — signing in
-                  goes through Google. Nobody legitimate needs your credentials.
-                </p>
+              <div className="ct__jump">
+                <a className="btn" href="#write" style={sx({ "--btn-shadow": "var(--peach)" })}>
+                  <Doodle id="pencil" size={17} viewBox="0 0 24 24" />
+                  Help me write it
+                </a>
+                <a className="btn btn--ghost ct__soft" href="#faster">
+                  Check the common fixes
+                </a>
               </div>
             </div>
+            <AddressCard />
           </div>
         </section>
 
-        {/* ---- the picker ---- */}
-        <section className="ct__main">
+        {/* ---- pick a stamp, write the letter, then what happens ---- */}
+        <section className="ct__write" id="write">
           <div className="wrap">
-            <div className="ct__mainhead">
-              <h2>Write in</h2>
-              <p className="lede">
-                Pick what it&apos;s about and we&apos;ll draft the email for you. Fill it in
-                right here, then send it whichever way suits — nothing on this page needs a
-                mail app installed.
+            <div className="ct__sechead">
+              <div>
+                <span className="eyebrow" style={sx({ "--eb": "var(--lilac)" })}>
+                  Write in
+                </span>
+                <h2>Pick a stamp. We&apos;ll start the letter.</h2>
+              </div>
+              <p>
+                Each one loads a short template so the first reply can be the answer, not a
+                question back. Fill it in here — every button sends what you actually wrote.
               </p>
-              {fromArticle && (
-                <p className="ct__from">
-                  Coming from <a href={`/help/${fromArticle.slug}`}>{fromArticle.title}</a>
-                  {" "}— it&apos;s already named in the draft.
-                </p>
-              )}
             </div>
             <ContactPicker fromArticle={fromArticle} />
           </div>
         </section>
 
         {/* ---- faster than an email ---- */}
-        <section className="ct__faster">
+        <section className="ct__faster" id="faster">
           <div className="wrap">
-            <div className="ct__fastgrid">
-              <div className="ct__fasthead">
-                <span className="eyebrow" style={sx({ "--eb": "var(--lilac)" })}>
+            <div className="ct__sechead">
+              <div>
+                <span className="eyebrow" style={sx({ "--eb": "var(--butter)" })}>
                   Probably faster
                 </span>
-                <h3>Three things that answer themselves</h3>
-                <p>
-                  Not a brush-off — these are the questions that come in most, and each one has
-                  a written answer that&apos;s more complete than a reply would be.
-                </p>
+                <h2>Three that answer themselves.</h2>
               </div>
-              <ul className="ct__fastlist">
-                <li>
-                  <a href="/help/first-term">
-                    <span className="t">It won&apos;t let me past a screen</span>
-                    <span className="b">
-                      Almost always the term. The app blocks until an org has an active one, and
-                      an admin can fix it in about thirty seconds.
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="/help/signing-in">
-                    <span className="t">I&apos;m signed in but I can&apos;t see my org</span>
-                    <span className="b">
-                      Usually a second Google account. Your personal and university addresses are
-                      two different people as far as the app is concerned.
-                    </span>
-                  </a>
-                </li>
-                <li>
-                  <a href="/help/export-your-data">
-                    <span className="t">I need everything out as a spreadsheet</span>
-                    <span className="b">
-                      The ledger and the roster export themselves. Attendance and documents
-                      don&apos;t yet — for those, write in and we&apos;ll get them to you.
-                    </span>
-                  </a>
-                </li>
-              </ul>
+              <p>
+                Not a brush-off — these are the questions that come in most, and each has a
+                written answer more complete than a reply would be.
+              </p>
+            </div>
+            <div className="ct__notes">
+              {FASTER.map(n => (
+                <a
+                  key={n.href}
+                  className="ct__qn"
+                  href={n.href}
+                  style={sx({ "--nt": `var(--${n.tint})`, "--r": n.rot })}
+                >
+                  <span className="ct__tape" aria-hidden="true" />
+                  <h3>{n.t}</h3>
+                  <p>{n.b}</p>
+                  <span className="go">
+                    {n.go} <Doodle id="arrow-r" size={14} viewBox="0 0 24 24" />
+                  </span>
+                </a>
+              ))}
             </div>
           </div>
         </section>
@@ -219,12 +167,34 @@ export default async function ContactPage({
       </main>
 
       <Footer />
-
-      {/* The address in plain, machine-readable markup — for anyone whose way of
-          finding it is Cmd+F or a screen reader rather than the picker above. */}
-      <div className="ct__sr">
-        Contact address: <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
-      </div>
     </div>
   );
 }
+
+/** The three questions that come in most, each with a written answer. */
+const FASTER = [
+  {
+    href: "/help/first-term",
+    t: "It won't let me past a screen",
+    b: "Almost always the term. The app blocks until an org has an active one, and an admin can fix it in about thirty seconds.",
+    go: "Set the first term",
+    tint: "butter",
+    rot: "-1.8deg",
+  },
+  {
+    href: "/help/signing-in",
+    t: "I'm signed in but I can't see my org",
+    b: "Usually a second Google account. Your personal and university addresses are two different people as far as the app is concerned.",
+    go: "Signing in",
+    tint: "sky",
+    rot: "1.2deg",
+  },
+  {
+    href: "/help/export-your-data",
+    t: "I need everything out as a spreadsheet",
+    b: "The ledger and the roster export themselves. Attendance and documents don't yet — for those, write in and we'll get them to you.",
+    go: "Export your data",
+    tint: "mint",
+    rot: "-.8deg",
+  },
+];
