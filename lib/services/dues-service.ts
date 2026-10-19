@@ -26,9 +26,10 @@
  */
 import type { RequestContext } from "@/lib/context";
 import { DUES_CATEGORY, duesPaymentWhere, sumDuesPaidByBrother } from "@/lib/dues";
+import { ledgerOwesCents, loadDuesLedger } from "@/lib/dues-ledger-db";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { emit } from "@/lib/events";
-import { atLeast, money } from "@/lib/money";
+import { atLeast, money, toCents } from "@/lib/money";
 import { hasPermission } from "@/lib/permissions";
 import { TransactionType } from "@/lib/state";
 import type {
@@ -168,7 +169,7 @@ export async function getDuesReconciliation(ctx: RequestContext) {
   // second name-resolution pass here any more.
   const roster = await ctx.db.member.listRoster();
 
-  const [paidByBrotherId, unattributed] = await Promise.all([
+  const [paidByBrotherId, unattributed, ledger] = await Promise.all([
     sumDuesPaidByBrother(ctx.db, roster.map(b => b.id)),
     // Pre-migration payments: real money, no idea who paid it. Shown, not guessed at.
     ctx.db.transaction.findMany({
@@ -176,14 +177,23 @@ export async function getDuesReconciliation(ctx: RequestContext) {
       select:  { id: true, amount: true, date: true, description: true },
       orderBy: { date: "desc" },
     }),
+    loadDuesLedger(ctx.db),
   ]);
 
-  const members = roster.map(b => ({
-    id:       b.id,
-    name:     b.name,
-    owed:     money(b.duesOwed),
-    paid:     money(paidByBrotherId.get(b.id) ?? 0),
-  }));
+  // The third book: what the charges say each member owes. `drift` is the stored
+  // balance minus that, and every write keeps it at zero (see
+  // dues-charge-service) — anything else is a bug to chase, not a number to show.
+  const members = roster.map(b => {
+    const charged = ledgerOwesCents(ledger, b.id);
+    return {
+      id:          b.id,
+      name:        b.name,
+      owed:        money(b.duesOwed),
+      paid:        money(paidByBrotherId.get(b.id) ?? 0),
+      chargedOwed: charged / 100,
+      drift:       (toCents(b.duesOwed) - charged) / 100,
+    };
+  });
 
   const rosterOutstanding = money(members.reduce((s, m) => s + m.owed, 0));
   const ledgerCollected   = money(members.reduce((s, m) => s + m.paid, 0));
@@ -192,6 +202,7 @@ export async function getDuesReconciliation(ctx: RequestContext) {
   return {
     rosterOutstanding,
     ledgerCollected,
+    driftCount: members.filter(m => m.drift !== 0).length,
     unattributedTotal,
     unattributed,
     members,

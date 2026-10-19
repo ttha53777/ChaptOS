@@ -411,6 +411,10 @@ async function eraseOrgScopedRecords(ctx: RequestContext, brotherId: number): Pr
     const scoped = { brotherId, organizationId: orgId };
     await tx.attendanceExemption.deleteMany({ where: scoped });
     await tx.duesPayment.deleteMany({ where: scoped });
+    // What they were billed here goes with them; the charge itself (and everyone
+    // else's line on it) stays.
+    await tx.duesChargeLine.deleteMany({ where: scoped });
+    await tx.duesWaiver.deleteMany({ where: scoped });
     await tx.reimbursement.deleteMany({ where: scoped });
     await tx.brotherMetricValue.deleteMany({ where: scoped });
     await tx.serviceParticipation.deleteMany({ where: scoped });

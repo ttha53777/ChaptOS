@@ -29,3 +29,9 @@ export const attributeDuesPaymentInput = z.object({
   brotherId:     z.number().int().positive(),
 });
 export type AttributeDuesPaymentInput = z.infer<typeof attributeDuesPaymentInput>;
+
+// GET /api/dues. Without a semester, the board covers every live charge.
+export const duesBoardQuery = z.object({
+  semester: z.string().trim().min(1).max(60).optional(),
+});
+export type DuesBoardQuery = z.infer<typeof duesBoardQuery>;

@@ -20,7 +20,7 @@
  * typed against ChatStreamEvents.
  */
 import type {
-  ActivityEntry, Brother, CalEventType, CalendarEvent, LiveCheckIn, MemberProfile,
+  ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, Transaction, TransactionCategory,
 } from "@/lib/api-types";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
@@ -36,6 +36,7 @@ import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
 import type { listTransactions } from "@/lib/services/transaction-service";
 import type { listReimbursements } from "@/lib/services/reimbursement-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
+import type { getDuesBoard, getMemberDuesBook } from "@/lib/services/dues-charge-service";
 
 type Fn = (...args: never[]) => unknown;
 
@@ -87,3 +88,6 @@ export const ownJoinRequests: Widen<OwnJoinRequest[]> = served<Served<typeof lis
 export const transactions: Widen<Transaction[]> = served<Served<typeof listTransactions>>();
 export const reimbursements: Widen<Reimbursement[]> = served<Served<typeof listReimbursements>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
+
+export const duesBoard: Widen<DuesBoard> = served<Served<typeof getDuesBoard>>();
+export const memberDuesBook: Widen<MemberDuesBook> = served<Served<typeof getMemberDuesBook>>();

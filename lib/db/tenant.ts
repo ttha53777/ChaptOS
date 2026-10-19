@@ -1131,6 +1131,77 @@ function scopedTransaction(orgId: number, run: Run) {
   };
 }
 
+// Dues receivables (prisma/schema.prisma DuesCharge). No delete on any of the
+// three: a charge, a line and a waiver are voided (voidedAt), never removed, so
+// a member's tab can always be read back. deleteOrg / eraseOrgScopedRecords
+// clear them through the raw tx. Every write that moves duesOwed runs in
+// ctx.db.$transaction with organizationId spelled out, hence onTx.
+function scopedDuesCharge(orgId: number, run: Run) {
+  type W = Prisma.DuesChargeWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.DuesChargeWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.duesCharge.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   <T extends Prisma.DuesChargeFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.DuesChargeFindManyArgs>) =>
+      run(p => p.duesCharge.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.DuesChargeFindManyArgs>)),
+    findFirst:  <T extends Prisma.DuesChargeFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.DuesChargeFindFirstArgs>) =>
+      run(p => p.duesCharge.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.DuesChargeFindFirstArgs>)),
+    create:     (args: Omit<Prisma.DuesChargeCreateArgs, "data"> & { data: Omit<Prisma.DuesChargeUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.duesCharge.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.DuesChargeUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.duesCharge.update({ ...args, where: { id } }));
+    },
+    updateMany: (args: Omit<Prisma.DuesChargeUpdateManyArgs, "where"> & { where?: W }) =>
+      run(p => p.duesCharge.updateMany({ ...args, where: org(args.where) })),
+    count:      (args?: Prisma.DuesChargeCountArgs) => run(p => p.duesCharge.count({ ...args, where: org(args?.where) })),
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedDuesCharge(orgId, f => f(tx as P)),
+  };
+}
+
+function scopedDuesChargeLine(orgId: number, run: Run) {
+  type W = Prisma.DuesChargeLineWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   <T extends Prisma.DuesChargeLineFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.DuesChargeLineFindManyArgs>) =>
+      run(p => p.duesChargeLine.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.DuesChargeLineFindManyArgs>)),
+    createMany: (args: { data: Omit<Prisma.DuesChargeLineCreateManyInput, "organizationId">[] }) =>
+      run(p => p.duesChargeLine.createMany({ data: args.data.map(d => ({ ...d, organizationId: orgId })) })),
+    updateMany: (args: Omit<Prisma.DuesChargeLineUpdateManyArgs, "where"> & { where?: W }) =>
+      run(p => p.duesChargeLine.updateMany({ ...args, where: org(args.where) })),
+    count:      (args?: Prisma.DuesChargeLineCountArgs) => run(p => p.duesChargeLine.count({ ...args, where: org(args?.where) })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedDuesChargeLine(orgId, f => f(tx as P)),
+  };
+}
+
+function scopedDuesWaiver(orgId: number, run: Run) {
+  type W = Prisma.DuesWaiverWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  return {
+    findMany:   <T extends Prisma.DuesWaiverFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.DuesWaiverFindManyArgs>) =>
+      run(p => p.duesWaiver.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.DuesWaiverFindManyArgs>)),
+    findFirst:  <T extends Prisma.DuesWaiverFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.DuesWaiverFindFirstArgs>) =>
+      run(p => p.duesWaiver.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.DuesWaiverFindFirstArgs>)),
+    create:     (args: Omit<Prisma.DuesWaiverCreateArgs, "data"> & { data: Omit<Prisma.DuesWaiverUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.duesWaiver.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    updateMany: (args: Omit<Prisma.DuesWaiverUpdateManyArgs, "where"> & { where?: W }) =>
+      run(p => p.duesWaiver.updateMany({ ...args, where: org(args.where) })),
+    count:      (args?: Prisma.DuesWaiverCountArgs) => run(p => p.duesWaiver.count({ ...args, where: org(args?.where) })),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedDuesWaiver(orgId, f => f(tx as P)),
+  };
+}
+
 function scopedBudget(orgId: number, run: Run) {
   type W = Prisma.BudgetWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -1992,6 +2063,9 @@ export function db(orgId: number) {
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
+    duesCharge:          scopedDuesCharge(orgId, run),
+    duesChargeLine:      scopedDuesChargeLine(orgId, run),
+    duesWaiver:          scopedDuesWaiver(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
     joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
@@ -2111,6 +2185,9 @@ export function _dbWithClient(orgId: number, client: P) {
     transaction:         scopedTransaction(orgId, run),
     reimbursement:       scopedReimbursement(orgId, run),
     duesPayment:         scopedDuesPayment(orgId, run),
+    duesCharge:          scopedDuesCharge(orgId, run),
+    duesChargeLine:      scopedDuesChargeLine(orgId, run),
+    duesWaiver:          scopedDuesWaiver(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
     joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),

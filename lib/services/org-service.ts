@@ -943,6 +943,11 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     }
 
     // ── 3. Finance ───────────────────────────────────────────────────────────
+    // Dues receivables first: waivers and lines FK the charge, and the charge
+    // FKs Semester (deleted in step 5).
+    await tx.duesWaiver.deleteMany({ where: { organizationId: orgId } });
+    await tx.duesChargeLine.deleteMany({ where: { organizationId: orgId } });
+    await tx.duesCharge.deleteMany({ where: { organizationId: orgId } });
     await tx.transaction.deleteMany({ where: { organizationId: orgId } });
     await tx.budget.deleteMany({ where: { organizationId: orgId } });
 

@@ -49,6 +49,8 @@
  *   GET    /api/treasury                       TreasuryData
  *   GET    /api/transactions                   Transaction[]
  *   GET    /api/reimbursements                 Reimbursement[]
+ *   GET    /api/dues                           DuesBoard               (?semester=<label>)
+ *   GET    /api/dues/members/[brotherId]       MemberDuesBook
  *
  * Errors are `{ error: string, code?: string, details?: unknown }` with an HTTP
  * status (see lib/errors). 426 + code APP_UPDATE_REQUIRED means update the app.
@@ -58,6 +60,7 @@ export type * from "./roster";
 export type * from "./tasks";
 export type * from "./calendar";
 export type * from "./treasury";
+export type * from "./dues";
 export type * from "./activity";
 export type * from "./chat";
 export type * from "./mobile";

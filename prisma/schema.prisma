@@ -63,6 +63,9 @@ model Organization {
   agendaTemplates           AgendaTemplate[]
   reimbursements            Reimbursement[]
   duesPayments              DuesPayment[]
+  duesCharges               DuesCharge[]
+  duesChargeLines           DuesChargeLine[]
+  duesWaivers               DuesWaiver[]
   chatApprovals             ChatApproval[]
   budgets                   Budget[]
   activityLogs              ActivityLog[]
@@ -136,6 +139,12 @@ model OrganizationConfig {
   // Float + BigInt cents mirror, matching Transaction.amount / Budget.carryoverBalance.
   openingBalance        Float?
   openingBalanceCents   BigInt?
+  // When this org's dues started being kept as charges (DuesCharge) instead of a
+  // bare balance. Dues payments created before it were already netted into the
+  // "Earlier balance" carryover charge the cutover minted, so the allocator
+  // (lib/dues-ledger.ts) must not count them a second time. Null = the org never
+  // had a pre-charge balance (created after the cutover): every payment counts.
+  duesLedgerStartedAt   DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -267,6 +276,8 @@ model Brother {
   serviceParticipations ServiceParticipation[]
   reimbursements        Reimbursement[]
   duesPayments          DuesPayment[]
+  duesChargeLines       DuesChargeLine[]
+  duesWaivers           DuesWaiver[]
   chatApprovals         ChatApproval[]
   // Ledger rows attributed to this member — dues payments. Without this link,
   // "does the roster agree with the ledger?" is a question the DB cannot answer.
@@ -461,6 +472,7 @@ model Semester {
   exemptions     AttendanceExemption[]
   transactions   Transaction[]
   budgets        Budget[]
+  duesCharges    DuesCharge[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -1335,6 +1347,92 @@ model DuesPayment {
   @@index([organizationId])
   @@index([brotherId])
   @@index([organizationId, status])
+}
+
+// A named, dated bill handed out to some members: "Fall dues · due Oct 1".
+//
+// The receivable side of dues. Membership.duesOwed stays the stored balance every
+// surface reads, and every write here moves it in the same DB transaction, so
+// for each roster row:
+//
+//   duesOwed = Σ live lines − Σ dues payments since cutover − Σ live waivers
+//
+// (see lib/services/dues-charge-service.ts and the invariant check in
+// getDuesReconciliation). Payments are NOT tied to a charge; lib/dues-ledger.ts
+// allocates them oldest-due-first at read time, which is what makes "overdue",
+// per-charge progress and "already billed for this" answerable.
+//
+// Voided, never deleted: "Take back" keeps the history of what was billed.
+model DuesCharge {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  name           String
+  // YYYY-MM-DD. Null = "no due date": owed, but never overdue.
+  dueDate        String?
+  // Shown to the members billed ("Venmo @oozma-kappa").
+  note           String?
+  // all | role | pick | single | carryover — lib/state/dues-audience.ts, CHECK-constrained.
+  audienceKind   String
+  // A snapshot for the charge stub ("Everyone", "By role", "3 people"); never re-derived.
+  audienceLabel  String
+  // role mode only: the rate card as issued, [{ key, label, amountCents }].
+  rateCard       Json?
+  semesterId     Int?
+  // brotherId of the officer who issued it. No FK, like AgendaTemplate.createdById:
+  // removing that officer must not touch the bill.
+  createdById    Int?
+  voidedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  semester     Semester?        @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  lines        DuesChargeLine[]
+  waivers      DuesWaiver[]
+
+  @@index([organizationId, voidedAt])
+  @@index([organizationId, semesterId])
+}
+
+// One person's share of a charge. Integer cents: the allocator is exact.
+model DuesChargeLine {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  chargeId       Int
+  brotherId      Int
+  amountCents    Int
+  // "Take them off this charge."
+  voidedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  charge       DuesCharge   @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+
+  @@unique([chargeId, brotherId])
+  @@index([organizationId, brotherId])
+}
+
+// Part of a tab forgiven: no money moved, so nothing on the ledger. Before this
+// table a waiver was only an ActivityLog line, which is why a member's dues could
+// not be read back line by line.
+model DuesWaiver {
+  id             Int       @id @default(autoincrement())
+  organizationId Int
+  brotherId      Int
+  amountCents    Int
+  reason         String?
+  // Optional pin: the allocator applies it to this charge's line first.
+  chargeId       Int?
+  createdById    Int?
+  voidedAt       DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  brother      Brother      @relation(fields: [brotherId], references: [id], onDelete: Cascade)
+  charge       DuesCharge?  @relation(fields: [chargeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, brotherId])
 }
 
 // ChatApproval: the durable record behind the Ask Chapt "Approvals" view — one

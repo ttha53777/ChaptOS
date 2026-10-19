@@ -64,6 +64,10 @@ export default async function setup() {
     const agenda = [
       `CREATE UNIQUE INDEX "AgendaTemplate_one_default_per_org" ON "AgendaTemplate"("organizationId") WHERE "isDefault" AND "archivedAt" IS NULL`,
       `ALTER TABLE "AgendaTemplate" ADD CONSTRAINT agenda_template_category CHECK ("category" IN ('meetings', 'leadership', 'committees'))`,
+      // Dues charges: the CHECKs the services' guards assume.
+      `ALTER TABLE "DuesCharge" ADD CONSTRAINT dues_charge_audience_kind CHECK ("audienceKind" IN ('all', 'role', 'pick', 'single', 'carryover'))`,
+      `ALTER TABLE "DuesChargeLine" ADD CONSTRAINT dues_charge_line_positive CHECK ("amountCents" > 0)`,
+      `ALTER TABLE "DuesWaiver" ADD CONSTRAINT dues_waiver_positive CHECK ("amountCents" > 0)`,
     ].join(";\n");
     try { await pool.query(sql.slice(sql.indexOf("-- No permissive policy"))); await pool.query(agenda); }
     finally { await pool.end(); }
