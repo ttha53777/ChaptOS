@@ -9,7 +9,6 @@ import "./site-nav.css";
 
 import { sx } from "./Doodle";
 import { hand } from "./hand-font";
-import { SignInLink } from "./SignInLink";
 import { SiteNavMotion } from "./SiteNavMotion";
 import { APP_NAME } from "@/lib/domains";
 
@@ -53,7 +52,7 @@ export function SiteNav({ here = null, onLanding = false }: { here?: SiteNavHere
           ))}
         </nav>
         <div className="nav-r">
-          <SignInLink className="nav-login">Log in</SignInLink>
+          <a className="nav-login" href="/login">Log in</a>
           <a className="sn-btn sn-btn--sm" href="/create">Start your org</a>
           <button className="nav-menu" aria-label="Menu" aria-expanded={false} aria-controls="navSheet"><span /></button>
         </div>
@@ -68,7 +67,7 @@ export function SiteNav({ here = null, onLanding = false }: { here?: SiteNavHere
           </a>
         ))}
         <div className="ns-f">
-          <SignInLink className="sn-btn sn-btn--ghost">Log in</SignInLink>
+          <a className="sn-btn sn-btn--ghost" href="/login">Log in</a>
           <a className="sn-btn" href="/create">Start your org</a>
         </div>
       </nav>
