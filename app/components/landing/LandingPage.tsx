@@ -30,7 +30,8 @@ const NO_JS_CSS = `
 .lm [data-rv]{opacity:1 !important; transform:none !important; filter:none !important}
 .lm .hero{height:auto}
 .lm .hero-stage{position:static; height:auto; overflow:visible; padding:120px 0 60px}
-.lm .hero-copy{position:static}
+.lm .hero-copy{position:static; transform:none}
+.lm .swap .b{opacity:1}
 .lm .swap .a{display:none}
 .lm .df,.lm .pieces,.lm .otypes{display:none}
 .lm .dv-col{display:none}

@@ -838,6 +838,9 @@ function mount(): () => void {
   measureAll();
   (document.fonts ? document.fonts.ready : Promise.resolve()).then(measureAll);
   raf = requestAnimationFrame(frame);
+  // the loose ends have their first pose once that frame runs; only then may they show
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (alive) root.classList.add("lm-live"); }));
+  cleanups.push(() => root.classList.remove("lm-live"));
 
   return () => {
     alive = false;
