@@ -4,7 +4,6 @@ date: 2026-10-19
 summary: One library every member can open, officer seats that hand over their own access and open tasks, and terms that close without losing a thing. How ChaptOS carries an org through the officer handoff.
 tags: [product, handoff]
 author: Thalha Thabish
-draft: true
 ---
 
 It's the second week of September, and the new treasurer needs last year's budget. They know it exists. They find a link to it pinned in the group chat, open it, and get a page that says *You need access*. The person who owns it graduated in May. They send the request anyway, and then they start rebuilding the budget from bank statements.
