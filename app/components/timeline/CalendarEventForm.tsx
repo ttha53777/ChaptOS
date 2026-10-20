@@ -78,6 +78,7 @@ export function CalendarEventForm({
   onPageChange,
   draft,
   failure,
+  initialDate,
 }: {
   /** Small kicker above the title field; defaults to New/Edit calendar event. */
   heading?: string;
@@ -109,11 +110,13 @@ export function CalendarEventForm({
   draft?: CalendarDraft;
   /** Why that save failed, shown on top; `field` marks the input at fault. */
   failure?: { message: string; field?: "date" };
+  /** Prefill a new event on this day (YYYY-MM-DD) instead of today. */
+  initialDate?: string;
 }) {
   // Default a new event to today, but clamp into the semester so the prefilled
   // date isn't already out of range (string dates compare lexicographically).
   const today = toDateStr(TODAY.year, TODAY.month, TODAY.day);
-  const defaultDate = minDate && today < minDate ? minDate : maxDate && today > maxDate ? maxDate : today;
+  const defaultDate = initialDate ?? (minDate && today < minDate ? minDate : maxDate && today > maxDate ? maxDate : today);
   // Prefill: the event being edited, else a failed add's draft, else blank.
   const seed = initialEvent ?? draft;
   const [title, setTitle] = useState(seed?.title ?? "");

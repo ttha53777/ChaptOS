@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DuesBoard } from "@/lib/api-types/dues";
 import { apiErrorMessage, requestJson } from "../lib/api";
+import { useOnDuesChanged } from "./useDuesStandings";
 
 /**
  * The Dues board for one term (GET /api/dues): every live charge in view and
@@ -42,6 +43,9 @@ export function useDuesBoard(semester: string | null, enabled = true) {
   useEffect(() => {
     if (enabled) void reload();
   }, [enabled, reload]);
+
+  // A dues write from anywhere (Spotlight, Ask Chapt, a voided payment) re-reads the board.
+  useOnDuesChanged(() => { if (enabled) void reload(); });
 
   return { board, error, loading, reload };
 }

@@ -1439,7 +1439,10 @@ export default function TimelinePage() {
   const detailMembers = useMemo(() => brotherList.map(b => ({ id: b.id, name: b.name, title: roleTitle(b) })), [brotherList]);
   const [formPage, setFormPage] = useState<1 | 2>(1);
   const [editStartPage, setEditStartPage] = useState<1 | 2>(1);
-  function openEventModal(kind: "create" | "edit", page: 1 | 2 = 1) {
+  // The calendar's day rail opens the add form already on that day.
+  const [createDate, setCreateDate] = useState<string | undefined>();
+  function openEventModal(kind: "create" | "edit", page: 1 | 2 = 1, date?: string) {
+    setCreateDate(date);
     setEditStartPage(page);
     setFormPage(page);
     setRestore(null);
@@ -2695,7 +2698,7 @@ export default function TimelinePage() {
                       doneById={doneById}
                       onClose={() => setCalDayOpen(false)}
                       onSelectEvent={setSelectedEvent}
-                      onAdd={canManageEvents ? () => openEventModal("create") : undefined}
+                      onAdd={canManageEvents ? () => openEventModal("create", 1, calDay) : undefined}
                     />
                   )
                 ) : (
@@ -2777,7 +2780,7 @@ export default function TimelinePage() {
 
       {activeModal === "create" && (
         <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={formPage === 2 ? "max-w-[940px]" : "max-w-[740px]"} onClose={() => setActiveModal(null)}>
-          <CalendarEventForm key={restore ? "restore" : "new"} submitLabel={restore ? "Try again" : "Add event"} draft={restore?.draft} failure={restore?.failure} onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} />
+          <CalendarEventForm key={restore ? "restore" : "new"} submitLabel={restore ? "Try again" : "Add event"} draft={restore?.draft} failure={restore?.failure} initialDate={createDate} onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} />
         </Modal>
       )}
       {failToast && (

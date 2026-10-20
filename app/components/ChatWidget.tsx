@@ -28,6 +28,7 @@ import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
 import { WritCard } from "./chat/WritCard";
 import { useProposalChoices } from "./chat/useProposalChoices";
 import { ApprovalsView } from "./chat/ApprovalsView";
+import { refreshDuesStandings } from "../hooks/useDuesStandings";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
 import {
   newId,
@@ -162,7 +163,7 @@ function SparkleIcon({ className = "" }: { className?: string }) {
 }
 
 export function ChatWidget() {
-  const { currentUser } = useChapter();
+  const { currentUser, refreshChapterData } = useChapter();
   const router = useRouter();
   const [enabled, setEnabled] = useState<boolean | null>(null); // null = unknown
   const [open, setOpen] = useState(false);
@@ -592,6 +593,10 @@ export function ChatWidget() {
       if (res.ok) {
         const stamp = `${timeStamp()} · ${actorName}`;
         updateProposal(msgId, card.id, { state: "approved", resultMessage: approvedText(card), stamp });
+        // The write landed server-side; pull it into the page behind the widget
+        // (a recorded dues payment moves the roster, dashboard and Dues tab).
+        void refreshChapterData().catch(() => undefined);
+        void refreshDuesStandings();
         // Record the approval (fire-and-forget — the domain write already
         // happened; a missing audit row must not un-settle the card). The
         // server verifies the signed blob before writing anything.

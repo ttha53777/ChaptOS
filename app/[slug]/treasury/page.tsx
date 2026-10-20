@@ -788,15 +788,14 @@ export default function TreasuryPage() {
 
   // After any Dues tab write: the board, the roster's duesOwed (roster, dashboard and
   // Spotlight read it) and — when a payment posted an income row — the books.
-  const reloadDues = dues.reload;
+  // refreshDuesStandings() also reloads the board (useDuesBoard listens for it).
   const refreshAfterDues = useCallback(async ({ tx }: { tx?: boolean }) => {
     await Promise.all([
-      reloadDues(),
       refreshDuesStandings(),
       requestJson<Brother[]>("/api/brothers").then(setBrotherList),
       tx ? requestJson<Transaction[]>("/api/transactions").then(setTransactionList) : null,
     ]);
-  }, [reloadDues, setBrotherList, setTransactionList]);
+  }, [setBrotherList, setTransactionList]);
 
   // Overview → Dues, carrying a filter, a member, or the Hand out sheet through the door.
   const goDues = useCallback((filter: DuesFilter | null, memberId: number | null = null, sheet = false) => {
@@ -1088,8 +1087,12 @@ export default function TreasuryPage() {
     } catch {
       setTransactionList(prev => [tx, ...prev]);
       setMutErr("Failed to delete transaction. It was restored.");
+      return;
     }
-  }, [setTransactionList]);
+    // Voiding a member's dues payment puts it back on their balance server-side;
+    // re-read it so the Dues tab, roster and dashboard stop showing them as paid.
+    if (tx.brotherId != null) void refreshAfterDues({}).catch(() => undefined);
+  }, [setTransactionList, refreshAfterDues]);
 
   // ── Mutations: Party Events ───────────────────────────────────────────────
 
