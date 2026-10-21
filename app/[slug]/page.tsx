@@ -56,7 +56,7 @@ import { HealthDial } from "../components/dashboard/ledger/HealthDial";
 import { PinnedAnnouncement } from "../components/dashboard/ledger/PinnedAnnouncement";
 import { LedgerStrip, Measure } from "../components/dashboard/ledger/LedgerStrip";
 import { NeedsAttention } from "../components/dashboard/ledger/NeedsAttention";
-import { RosterTable } from "../components/dashboard/ledger/RosterTable";
+import { MembersCard } from "../components/dashboard/MembersCard";
 import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
 import { WeekItemPeek, type WeekPeekTarget } from "../components/dashboard/ledger/WeekItemPeek";
 import { BallotCard } from "../components/dashboard/ledger/BallotCard";
@@ -879,10 +879,6 @@ export default function Home() {
   // and every overdue calculation with it.
   const todayISO = useRollingToday();
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [search,         setSearch]         = useState("");
-  const [statusFilter,   setStatusFilter]   = useState("All");
-  const [sortKey,        setSortKey]        = useState<keyof Brother | null>(null);
-  const [sortDir,        setSortDir]        = useState<"asc" | "desc">("asc");
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [activeModal,    setActiveModal]    = useState<"deadline" | "task" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | "pick-event-for-checkin" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
@@ -1356,7 +1352,7 @@ export default function Home() {
   const maxRevenue      = useMemo(() => partyList.length ? Math.max(...partyList.map(e => e.doorRevenue)) : 0, [partyList]);
   const bestEvent       = useMemo(() => partyList.length ? partyList.reduce((a, b) => b.doorRevenue > a.doorRevenue ? b : a) : null, [partyList]);
 
-  // ── Day-one invite link ───────────────────────────────────────────────────
+  // ── Invite link ───────────────────────────────────────────────────
   // The founder is pinned to the roster at org creation, so "day one" is a
   // one-row table of your own name — not the zero-row state the roster's empty
   // copy was written for. `founderOnlyRoster` is that real state, and the invite
@@ -1365,12 +1361,12 @@ export default function Home() {
   // The link is FETCHED, never minted here: pressing a button must not silently
   // create a credential. An existing active link is copied; with none, the
   // button hands off to the settings section that creates one, and says so.
-  // Listing invites requires MANAGE_SETTINGS, so the request is gated on both
-  // the permission and the state that would show the button.
-  const founderOnlyRoster = rosterLoaded && brotherList.length <= 1;
+  // Listing invites requires MANAGE_SETTINGS, so the request is gated on that
+  // permission. The Members card shows the link in every state (day one's
+  // invite note, Standing's footer), so it no longer waits for a founder-only roster.
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   useEffect(() => {
-    if (!canSettings || !founderOnlyRoster) return;
+    if (!canSettings) return;
     let cancelled = false;
     requestJson<InviteSummary[]>("/api/invites")
       .then(rows => {
@@ -1380,7 +1376,7 @@ export default function Home() {
       })
       .catch(() => { /* non-fatal — the button falls back to the settings route */ });
     return () => { cancelled = true; };
-  }, [canSettings, founderOnlyRoster]);
+  }, [canSettings]);
 
   const goToInvites = useCallback(() => {
     router.push(`${orgPath("/settings")}?section=invitations`);
@@ -1523,39 +1519,6 @@ export default function Home() {
 
     return () => controller.abort();
   }, [digestKey, digestHasSignal, weekRange, weeklyDigest, igEnabled, calendarLoaded, loadedSections]);
-
-  // A metric the org stops tracking loses its roster column, so a sort still
-  // pointing at it would silently order rows by an invisible value.
-  useEffect(() => {
-    if (sortKey && sortKey in tracked && !tracked[sortKey as BuiltinMetricId]) setSortKey(null);
-  }, [sortKey, tracked]);
-
-  // ── Filtered/sorted brothers ───────────────────────────────────────────────
-  const filteredBrothers = useMemo((): Brother[] => {
-    let result = brotherList.filter(b => {
-      const q = search.trim().toLowerCase();
-      // Match the title the roster actually SHOWS (relational roles, joined),
-      // not just the free-text `role` — searching "Treasurer" should find the
-      // treasurer even when their free-text label says something else.
-      return (q === "" || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q)) &&
-             (statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, measured) === statusFilter);
-    });
-    if (sortKey) {
-      result = [...result].sort((a, b) => {
-        const av = a[sortKey] as number, bv = b[sortKey] as number;
-        return sortDir === "asc" ? av - bv : bv - av;
-      });
-    }
-    return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, measured]);
-
-  function toggleSort(key: keyof Brother) {
-    // A new column opens DESCENDING: every sortable column here is a metric,
-    // and "worst first" is the question being asked. Opening ascending meant
-    // the first click on Dues showed the people who owe nothing.
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("desc"); }
-  }
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
 
@@ -2430,33 +2393,24 @@ export default function Home() {
                 )}
                 {feature("operations", "brother-tracking") && (
                   <div className="area-roster">
-                  <RosterTable
-                    brothers={filteredBrothers}
-                    duesLate={duesLate}
-                    totalCount={brotherList.length}
-                    statusCounts={statusCounts}
-                    statusFilter={statusFilter}
-                    onFilter={setStatusFilter}
-                    search={search}
-                    onSearch={setSearch}
-                    sortKey={sortKey}
-                    sortDir={sortDir}
-                    onSort={toggleSort}
-                    onRowClick={(id) => setSelectedBrotherId(id)}
-                    selectedId={selectedBrotherId}
-                    onOpenAll={() => router.push(orgPath("/brothers"))}
-                    onInvite={canSettings ? handleInvite : undefined}
-                    inviteLabel={inviteLink ? "Copy invite link" : "Create an invite link"}
+                  <MembersCard
+                    brothers={brotherList}
                     loading={!rosterLoaded}
                     error={rosterFailed}
                     onRetry={retrySections}
                     thresholds={THRESHOLDS}
+                    tracked={tracked}
+                    measured={measured}
                     selfId={selfId}
                     selfAvatarUrl={currentUser?.avatarUrl}
                     avatarRevision={avatarRevision}
-                    tracked={tracked}
-                    measured={measured}
-                    seats={currentUser?.org?.seats ?? null}
+                    onOpenMember={(id) => setSelectedBrotherId(id)}
+                    onOpenAll={(hash) => router.push(orgPath(`/brothers${hash ?? ""}`))}
+                    canReview={canBrothers}
+                    onApproved={retrySections}
+                    inviteLink={inviteLink}
+                    canInvite={canSettings}
+                    onCopyInvite={handleInvite}
                     hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
                   />
                   </div>

@@ -89,6 +89,7 @@ export async function listVisibleBrothers(ctx: RequestContext) {
     duesOwed:     b.duesOwed,
     gpa:          b.gpa,
     serviceHours: b.serviceHours,
+    joinedAt:     b.joinedAt,
     avatarUrl:    b.avatarUrl,
     // `authUserId` is deliberately kept: hydrateBrotherAvatars() keys on it, and
     // publicBrother() strips it before the response is serialized.

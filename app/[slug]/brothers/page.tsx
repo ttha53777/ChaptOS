@@ -72,7 +72,7 @@ function Measure({ label, prefix, value, unit, note, noteTone, icon, color, onCl
   );
 }
 
-// Status pill in the warm pane — mirrors RosterTable's STATUS_TAG so rows match
+// Status pill in the warm pane — the same three bands as the dashboard Members card, in
 // the `.dash` palette (the member card uses its own standing tones).
 const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
   "Good":    { cls: "st-good",  label: "GOOD" },

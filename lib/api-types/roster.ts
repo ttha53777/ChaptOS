@@ -9,6 +9,8 @@ export interface Brother {
   duesOwed: number;
   gpa: number;
   serviceHours: number;
+  /** When this person joined THIS org (Membership.joinedAt), ISO. Absent on old cached data. */
+  joinedAt?: string;
   avatarUrl?: string | null;
   roles?: { id: number; name: string; color: string | null; rank: number }[];
   /** Per-member values for org-defined custom fields. Absent on old cached data — treat as {}. */

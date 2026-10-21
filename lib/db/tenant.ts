@@ -211,6 +211,8 @@ export interface RosterRow {
   serviceHours: number;
   customFields: Prisma.JsonValue;
   archivedAt:   Date | null;
+  /** Membership.joinedAt as ISO, so a row still casts to the client `Brother`. */
+  joinedAt:     string;
   isOrgAdmin:   boolean;
   avatarUrl:    string | null;
   authUserId:   string | null;
@@ -258,6 +260,7 @@ function scopedMember(orgId: number, run: Run) {
     gpa:          true,
     serviceHours: true,
     archivedAt:   true,
+    joinedAt:     true,
     customFields: true,
     brother: {
       select: {
@@ -282,6 +285,7 @@ function scopedMember(orgId: number, run: Run) {
     serviceHours: m.serviceHours,
     customFields: m.customFields,
     archivedAt:   m.archivedAt,
+    joinedAt:     m.joinedAt.toISOString(),
     isOrgAdmin:   m.isOrgAdmin,
     avatarUrl:    m.brother.avatarUrl,
     authUserId:   m.brother.authUserId,
