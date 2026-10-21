@@ -270,6 +270,18 @@ export const updateOrgConfigInput = z.object({
   // ignored rather than 400-ing — a reorder shouldn't fail because the client
   // and server disagree on which pages exist.
   navOrder: z.array(z.string().max(40)).max(NAV_LABELS.length).optional(),
+  // The org's dashboard arrangement, or null to go back to the default. Loosely
+  // validated (shape + caps); the service runs normalizeDashboardLayout, which
+  // drops unknown ids rather than 400-ing on a client a release ahead or behind.
+  dashboardLayout: z
+    .object({
+      main: z.array(z.string().max(32)).max(20),
+      rail: z.array(z.string().max(32)).max(20),
+      hidden: z.array(z.string().max(32)).max(40),
+      numbers: z.array(z.string().max(40)).max(20).nullable(),
+    })
+    .nullable()
+    .optional(),
   // Set true on the final wizard step to stamp OrganizationConfig.onboardingCompletedAt.
   // Folded into this PATCH so finishing setup is one round-trip alongside the
   // config save. Idempotent in the service, so re-sending it is harmless.

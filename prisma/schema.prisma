@@ -115,6 +115,10 @@ model OrganizationConfig {
   // keep its slot so re-enabling it lands back where the admin put it. See
   // lib/nav-order.ts.
   navOrder              String[]  @default([])
+  // The admin-arranged dashboard (card order + column, hidden widgets, headline
+  // numbers) that every member of the org sees. Null = never customized, which
+  // renders the default. Shape and normalizer: lib/dashboard-layout.ts.
+  dashboardLayout       Json?
   // Displayed in the content planner; no account connection or credentials.
   instagramHandle       String?
   // When the founder finished the post-creation setup wizard, or null while

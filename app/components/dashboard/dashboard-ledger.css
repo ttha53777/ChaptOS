@@ -185,13 +185,10 @@
 .dash .measure svg polyline { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── Grid ──────────────────────────────────────────────────
-   Desktop: two real flex columns. `.col-main` stacks Needs attention → Roster;
-   `.col-rail` stacks the priority pair (This Week + Treasury) → the rest of the
-   rail (Socials/Instagram/Activity). Each column is its own continuous flex
-   stack, so the left side has no gap between Needs attention and Roster
-   regardless of how tall the right side is. The inner `.area-*` wrappers are
-   themselves flex columns (see below) so multi-card regions keep their rhythm;
-   on tablet they're promoted to direct grid items and reordered. */
+   Desktop: two real flex columns, filled in the org's arranged order (DashGrid,
+   lib/dashboard-layout.ts). Each column is its own continuous flex stack, so
+   neither side has row-coupling gaps however tall the other is. Below desktop
+   the columns dissolve and the cards reflow (see the 1279px block). */
 /* A child combinator (`.dash > .grid`), not a descendant one: Settings mounts Modals inside its own
    .dash wrapper, and a descendant selector gave every Tailwind `grid` in those
    forms this page's 1fr + rail columns. */
@@ -207,10 +204,11 @@
    Treasury) keep the standard gap between them. Between regions, the column's own
    gap provides the spacing — net result is a single consistent gap throughout
    each column, matching the original continuous rail rhythm. */
-.dash .col > .area-needs,
-.dash .col > .area-roster,
-.dash .col > .area-priority,
-.dash .col > .area-rail { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
+/* One wrapper per card (DashGrid). A card that renders nothing right now (the
+   ballot, between votes) leaves an empty wrapper, which must not hold a gap. */
+.dash .col > .dw { min-width: 0; }
+.dash .dw > .dw-body { display: flex; flex-direction: column; gap: var(--dash-section-gap); min-width: 0; }
+.dash:not(.editing) .dw:has(> .dw-body:empty) { display: none; }
 
 .dash .card { border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .dash .card-h { display: flex; align-items: baseline; justify-content: space-between; padding: 15px 18px 12px; border-bottom: 1px solid var(--line-soft); }
@@ -580,23 +578,9 @@ html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-
 .dash footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line-soft); text-align: center;
   font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
 
-/* Hidden-widgets tray (reused admin affordance), themed for the warm pane. */
-.dash .hidden-tray { border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); padding: 12px 16px; margin-top: 14px; }
-.dash .hidden-tray .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
-.dash .hidden-tray .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.dash .hidden-tray button { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--ink-soft);
-  border: 1px solid var(--line); background: var(--card); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
-.dash .hidden-tray button:hover { color: var(--vio); border-color: var(--vio); }
-
-/* Admin "hide this widget" affordance — reveals on hover of a `.dash-group` ancestor. */
+/* Health dial wrapper: anchors Customize mode's edit chrome. */
 .dash .dash-group { position: relative; }
-.dash .widget-hide { position: absolute; right: 10px; top: 10px; z-index: 5; display: grid; place-items: center;
-  height: 24px; width: 24px; border-radius: 7px; border: 1px solid var(--line); background: var(--card);
-  color: var(--muted); opacity: 0; cursor: pointer; transition: opacity .15s; }
-.dash .dash-group:hover .widget-hide,
-.dash .measure:hover .widget-hide,
-.dash .widget-hide:focus-visible { opacity: 1; }
-.dash .widget-hide:hover { color: var(--rose); border-color: var(--rose); }
+
 
 /* ── Responsive reflow (Phase 1) ─────────────────────────────────────────────
    The ledger only renders at md+ (768px) — below that the mobile tabbed tree
@@ -609,39 +593,18 @@ html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-
 /* Below desktop: drop the right rail under the main column and let both the KPI
    strip and the rails wrap instead of holding fixed column counts. */
 @media (max-width: 1279px) {
-  /* Collapse to one column. Dissolve the two desktop columns with
-     `display: contents` so their inner regions (needs / priority / roster / rail)
-     become direct grid children, then place them via single-column areas: the
-     high-signal This Week + Treasury pair (priority) is lifted above the Roster,
-     with the rest of the rail last. `display: contents` reorders nothing on its
-     own — the order comes from the area map — and visual order still matches the
-     reading order of the regions, so focus order stays sensible. */
+  /* Collapse to one flow. The two desktop columns dissolve (`display:
+     contents`) so every card becomes a direct grid child, ordered by the inline
+     `order` DashGrid sets (main and rail interleaved, so each column's top card
+     stays near the top). Narrow cards pair up 2-up; the wide ones (Needs
+     attention, the members card) take the full row. The 340px floor keeps it at
+     two columns across the whole 768–1279 band. */
   .dash > .grid {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "needs"
-      "priority"
-      "roster"
-      "rail";
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    grid-auto-flow: row dense;
   }
-  .dash > .grid > .col-main,
-  .dash > .grid > .col-rail { display: contents; }
-  .dash > .grid > .col-main > .area-needs    { grid-area: needs; }
-  .dash > .grid > .col-main > .area-roster   { grid-area: roster; }
-  .dash > .grid > .col-rail > .area-priority { grid-area: priority; }
-  .dash > .grid > .col-rail > .area-rail     { grid-area: rail; }
-  /* The priority pair and the remaining rail each become their own wrapping row
-     so cards pair up 2-up rather than forming one tall stack. The 340px floor
-     keeps them at 2 columns across the whole 768–1279 band (a 3rd column needs
-     ~1040px of content width, which this band — minus the pushed sidebar — never
-     reaches), so they read as balanced 2-up rather than a lopsided 3+2. */
-  .dash > .grid > .col-rail > .area-priority,
-  .dash > .grid > .col-rail > .area-rail {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-    gap: var(--dash-section-gap);
-    align-content: start;
-  }
+  .dash > .grid > .col { display: contents; }
+  .dash > .grid > .col > .dw.wide { grid-column: 1 / -1; }
   /* KPI ledger strip: column-flow → wrapping grid. Restore inter-row borders
      since wrapped rows lose the single-row right-border rhythm. */
   .dash .ledger {
@@ -685,11 +648,8 @@ html[data-theme="ivory"] .dash .cat-pill { color: var(--cat); background: color-
     padding: 18px var(--dash-gutter) 32px;
     font-size: 13px;
   }
-  /* Stack the priority pair and the rail one card per row. */
-  .dash > .grid > .col-rail > .area-priority,
-  .dash > .grid > .col-rail > .area-rail {
-    grid-template-columns: 1fr;
-  }
+  /* One card per row. */
+  .dash > .grid { grid-template-columns: 1fr; }
   /* KPI strip: 2-up tiles read fine at phone width and keep the strip compact
      instead of one tall stack; drop the floor so two always fit. */
   .dash .ledger {

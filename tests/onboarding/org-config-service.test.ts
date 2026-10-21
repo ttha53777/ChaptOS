@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { setWorkflows, setThresholds, setDisabledFeatures, setNavOrder, completeOnboarding } from "@/lib/services/org-config-service";
+import { setWorkflows, setThresholds, setDisabledFeatures, setNavOrder, setDashboardLayout, completeOnboarding } from "@/lib/services/org-config-service";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
@@ -434,5 +434,50 @@ describe("setNavOrder", () => {
 
     const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
     expect(bRow?.navOrder).toEqual([]);
+  });
+});
+
+describe("setDashboardLayout", () => {
+  const layout = { main: ["week", "members"], rail: ["needs", "activity"], hidden: ["health"], numbers: ["members", "week"] };
+
+  it("persists the normalized layout for an admin, re-appending cards it left out", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+
+    const out = await setDashboardLayout(ctx, { dashboardLayout: { ...layout, main: [...layout.main, "bogus", "week"] } });
+
+    const expected = { main: ["week", "members"], rail: ["needs", "activity", "ballot", "treasury"], hidden: ["health"], numbers: ["members", "week"] };
+    expect(out.dashboardLayout).toEqual(expected);
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.dashboardLayout).toEqual(expected);
+  });
+
+  it("clears back to SQL NULL (the default) when sent null", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: true });
+    await setDashboardLayout(ctx, { dashboardLayout: layout });
+
+    const out = await setDashboardLayout(ctx, { dashboardLayout: null });
+
+    expect(out.dashboardLayout).toBeNull();
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.dashboardLayout).toBeNull();
+  });
+
+  it("rejects a non-admin: one dashboard per org, so arranging it is an owner action", async () => {
+    const { org, admin } = await seedAdminOrg();
+    const ctx = ctxFor(org.id, admin.id, { isOrgAdmin: false });
+    await expect(setDashboardLayout(ctx, { dashboardLayout: layout })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("only writes the actor's own org", async () => {
+    const { org: orgA, admin: adminA } = await seedAdminOrg();
+    const orgB = await createOrg("Other Org", "other-dash-org");
+    await testPrisma.organizationConfig.create({ data: { organizationId: orgB.id, enabledWorkflows: ["operations"] } });
+
+    await setDashboardLayout(ctxFor(orgA.id, adminA.id, { isOrgAdmin: true }), { dashboardLayout: layout });
+
+    const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
+    expect(bRow?.dashboardLayout).toBeNull();
   });
 });

@@ -36,7 +36,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
 // Wire shapes shared with the native app (lib/api-types); TransactionCategory and
 // MembershipSummary stay importable from here for existing callers.
 export type { TransactionCategory, MembershipSummary } from "@/lib/api-types";
-import type { TreasuryData, TransactionCategory, MembershipSummary } from "@/lib/api-types";
+import type { TreasuryData, TransactionCategory, MembershipSummary, DashboardLayout } from "@/lib/api-types";
 
 interface CurrentUserRole {
   id: number;
@@ -72,7 +72,9 @@ export interface CurrentUser {
    *  read via useThresholds() rather than directly.
    *  `disabledFeatures` is the OPT-OUT map of hidden page sections (workflow id →
    *  feature ids) — read via useFeature() rather than directly. */
-  org: { instagramHandle?: string | null; timeZone?: string | null; name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; navOrder: string[]; metricDefinitionCount: number; pendingReimbursementCount: number;
+  org: { instagramHandle?: string | null; timeZone?: string | null; name: string; slug: string; orgType: string | null; logoUrl: string | null; enabledWorkflows: string[]; vocabularyOverrides: Record<string, string>; thresholds: Thresholds; disabledFeatures: Record<string, string[]>; customMemberFields: CustomMemberFieldDef[]; navOrder: string[];
+    /** The admin-arranged dashboard every member sees; null = the default. */
+    dashboardLayout?: DashboardLayout | null; metricDefinitionCount: number; pendingReimbursementCount: number;
     /** People waiting on an officer to admit them. Server-zeroed for viewers
      *  without MANAGE_BROTHERS, so the sidebar badge can render it unguarded. */
     pendingJoinRequestCount: number;
@@ -148,6 +150,8 @@ interface ChapterContextValue {
    */
   setDisabledFeaturesLocal: (disabledFeatures: Record<string, string[]>) => void;
   setNavOrderLocal: (navOrder: string[]) => void;
+  /** Patch the org's dashboard arrangement locally (Customize → Done), PATCH in the background. */
+  setDashboardLayoutLocal: (dashboardLayout: DashboardLayout | null) => void;
   /**
    * Patch the signed-in user's own display name in local state without a refetch.
    * Call it when a roster edit renames the actor themselves, so the greeting and
@@ -378,6 +382,11 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
   // setDisabledFeaturesLocal's targeted setCurrentUser patch.
   const setNavOrderLocal = useCallback((navOrder: string[]) => {
     setCurrentUser(prev => (prev?.org ? { ...prev, org: { ...prev.org, navOrder } } : prev));
+  }, []);
+
+  // Same targeted patch for the org's dashboard arrangement.
+  const setDashboardLayoutLocal = useCallback((dashboardLayout: DashboardLayout | null) => {
+    setCurrentUser(prev => (prev?.org ? { ...prev, org: { ...prev.org, dashboardLayout } } : prev));
   }, []);
 
   // Patch the signed-in user's OWN display name in local state only — no network.
@@ -674,6 +683,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     refreshChapterData, hasLoaded,
     setDisabledFeaturesLocal,
     setNavOrderLocal,
+    setDashboardLayoutLocal,
     setSelfNameLocal,
     setPendingJoinRequestCountLocal,
   }), [
@@ -687,6 +697,7 @@ export function ChapterProvider({ children }: { children: React.ReactNode }) {
     refreshChapterData,
     setDisabledFeaturesLocal,
     setNavOrderLocal,
+    setDashboardLayoutLocal,
     setSelfNameLocal,
     setPendingJoinRequestCountLocal,
   ]);

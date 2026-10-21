@@ -8,7 +8,6 @@
   font: inherit; font-size: .82rem; font-weight: 600; color: var(--ink-soft); cursor: pointer;
 }
 /* the admin hide button sits absolute at the top-right corner; keep "Roster →" clear of it */
-.dash .mc:has(> .widget-hide) > .card-h { padding-right: 46px; }
 .dash .mc .mc-lnk:hover { color: var(--ink); }
 .dash .mc .mc-lnk svg { width: 14px; height: 14px; }
 .dash .mc-b { padding: 0 18px 18px; container-type: inline-size; }

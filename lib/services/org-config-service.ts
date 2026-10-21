@@ -19,6 +19,8 @@ import { normalizeWorkflows, type WorkflowId } from "@/lib/org-types";
 import { normalizeNavOrder, NAV_LABELS } from "@/lib/nav-order";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import { normalizeDashboardLayout, type DashboardLayout } from "@/lib/dashboard-layout";
+import { Prisma } from "@/app/generated/prisma/client";
 import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow-features";
 import {
   sanitizeFieldDefs,
@@ -273,4 +275,33 @@ export async function setCustomMemberFields(
   });
 
   return sanitized;
+}
+
+/**
+ * Replace the org's dashboard arrangement, or clear it (null) back to the
+ * default. Authorization: org admins only.
+ *
+ * Same posture as setNavOrder: there is one dashboard per org and every member
+ * sees it, so arranging it is an org-owner action. The payload is normalized
+ * (unknown ids dropped, missing cards re-appended to their default column), so a
+ * client from another release can't store a layout that loses a card.
+ */
+export async function setDashboardLayout(
+  ctx: RequestContext,
+  input: { dashboardLayout: unknown },
+): Promise<{ dashboardLayout: DashboardLayout | null }> {
+  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
+    throw new ForbiddenError("Only an org admin can arrange the dashboard");
+  }
+  const dashboardLayout = input.dashboardLayout === null ? null : normalizeDashboardLayout(input.dashboardLayout);
+
+  await ctx.db.organizationConfig.upsert({
+    dashboardLayout: dashboardLayout === null ? Prisma.DbNull : (dashboardLayout as unknown as Prisma.InputJsonValue),
+  });
+
+  await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, {
+    dashboardLayout: dashboardLayout ? "customized" : "reset",
+  });
+
+  return { dashboardLayout };
 }

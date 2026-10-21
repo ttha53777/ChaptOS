@@ -30,6 +30,8 @@ export function BriefingActions({
   onSearchChange,
   searchPlaceholder = "Search…",
   onExport,
+  onCustomize,
+  customizing,
 }: {
   /** Opens the viewer's own Brother drawer. Omit when there's no self record. */
   onMyStanding?: () => void;
@@ -60,6 +62,9 @@ export function BriefingActions({
   searchPlaceholder?: string;
   /** Export/print handler. Omit to hide the Export chip. */
   onExport?: () => void;
+  /** Enters / leaves the dashboard's arrange mode. Omit to hide (non-admins). */
+  onCustomize?: () => void;
+  customizing?: boolean;
 }) {
   const hasSearch = search !== undefined && onSearchChange !== undefined;
 
@@ -111,6 +116,13 @@ export function BriefingActions({
           variant="ledger"
           enabledWorkflows={enabledWorkflows}
         />
+      )}
+
+      {onCustomize && (
+        <button type="button" className={`ba-chip customize${customizing ? " on" : ""}`} onClick={onCustomize} aria-pressed={!!customizing} aria-label={customizing ? "Done arranging the dashboard" : "Customize the dashboard"} title={customizing ? "Done arranging" : "Customize the dashboard"}>
+          <PaperIcon name={customizing ? "check" : "grip"} />
+          <span className="ba-label">{customizing ? "Done" : "Customize"}</span>
+        </button>
       )}
 
       {(hasSearch || onExport) && <span className="ba-sep" aria-hidden="true" />}

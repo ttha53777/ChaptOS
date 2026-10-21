@@ -25,6 +25,21 @@ export interface MeRole {
   permissions: number;
 }
 
+/**
+ * The org's dashboard arrangement (see lib/dashboard-layout.ts for the ids and
+ * the normalizer). One per org — every member sees the same page.
+ */
+export interface DashboardLayout {
+  /** Card ids, top to bottom, in the wide left column. */
+  main: string[];
+  /** Card ids, top to bottom, in the right rail. */
+  rail: string[];
+  /** Cards and bands the admin switched off. */
+  hidden: string[];
+  /** Headline-number ids in strip order, or null for "whatever the org tracks". */
+  numbers: string[] | null;
+}
+
 /** The active org as /api/auth/me describes it. Admin-only fields arrive null/0/[] for everyone else. */
 export interface MeOrg {
   name: string;
@@ -42,6 +57,8 @@ export interface MeOrg {
   /** OPT-OUT map of hidden page sections: workflow id → feature ids. */
   disabledFeatures: Record<string, string[]>;
   navOrder: string[];
+  /** The admin-arranged dashboard every member sees. Null until someone customizes it. */
+  dashboardLayout: DashboardLayout | null;
   customMemberFields: CustomMemberFieldDef[];
   metricDefinitionCount: number;
   pendingReimbursementCount: number;

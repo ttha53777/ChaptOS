@@ -29,7 +29,6 @@ import { useSharedLiveCheckIn } from "../context/LiveCheckInContext";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import { trackedCount } from "@/lib/tracked-metrics";
 import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
-import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { isAttendanceExempt } from "@/lib/thresholds";
 import { taskUrgency, type TaskUrgency } from "@/lib/tasks/urgency";
 import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../components/Sidebar";
@@ -64,10 +63,16 @@ import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
 import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
-import { DashHideButton } from "../components/dashboard/ledger/DashHideButton";
+import { DashGrid, type GridCard } from "../components/dashboard/customize/DashGrid";
+import { DashNumbers, type DashStat } from "../components/dashboard/customize/DashNumbers";
+import { DashCustomizeTray, DashEditBar, type TrayWidget } from "../components/dashboard/customize/DashCustomizeTray";
+import { EditChrome } from "../components/dashboard/customize/EditChrome";
+import { useDashboardLayout } from "../components/dashboard/customize/useDashboardLayout";
+import "../components/dashboard/customize/dash-customize.css";
+import { DASH_PRESETS, setWidgetHidden, type DashCardId, type DashStatId } from "@/lib/dashboard-layout";
 import { BillingAlert } from "../components/dashboard/BillingAlert";
 import { apiErrorMessage, orgFetch, requestJson } from "../lib/api";
-import { todayStr } from "../lib/dates";
+import { todayStr, toDateStr } from "../lib/dates";
 import type { MetricSnapshot } from "@/lib/metrics";
 
 // ─── Activity ID counter (module-level, reset-safe) ───────────────────────────
@@ -923,7 +928,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, loadError, loadedSections, sectionErrors, mutationError, setMutationError, refreshChapterData, setDisabledFeaturesLocal, setSelfNameLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, loadError, loadedSections, sectionErrors, mutationError, setMutationError, refreshChapterData, setSelfNameLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -949,49 +954,19 @@ export default function Home() {
   const handleSemesterError = useSemesterErrorHandler();
 
   // Whether the viewer is an admin of the *active* org. This — not a permission
-  // bit — is what gates the inline "hide widget" affordance, because the server
-  // (setDisabledFeatures) authorizes on isOrgAdmin/isPlatformAdmin, not on
-  // MANAGE_SETTINGS. Resolved the same way /api/auth/me does. Platform admins
+  // bit — is what gates Customize, because the server (setDashboardLayout)
+  // authorizes on isOrgAdmin/isPlatformAdmin, not on MANAGE_SETTINGS. Resolved the same way /api/auth/me does. Platform admins
   // pass because /me marks their active membership isOrgAdmin.
   const isActiveOrgAdmin =
     currentUser?.memberships?.find(m => m.organizationId === currentUser.orgId)?.isOrgAdmin ?? false;
 
-  // The dashboard's currently-hidden widgets, intersected with the registry so a
-  // stale/unknown id never leaks into the tray. Drives the "Hidden widgets" tray.
-  const hiddenOps = useMemo(() => {
-    const disabled = new Set((currentUser?.org?.disabledFeatures as DisabledFeatures | undefined)?.operations ?? []);
-    return WORKFLOW_FEATURES.operations.filter(f => disabled.has(f.id));
-  }, [currentUser?.org?.disabledFeatures]);
-
-  // Hide or re-show a dashboard widget by rewriting the org's disabledFeatures
-  // map (operations workflow). Optimistic: we patch local state first so the
-  // widget appears/disappears on the very next render (no network wait), then
-  // PATCH in the background and roll back only if it fails. This avoids the
-  // round-trip + full refreshChapterData() refetch the slow path would incur.
-  // Sending only disabledFeatures leaves enabledWorkflows/vocab/thresholds
-  // untouched (each setter is independent server-side). Admin-gated at the call
-  // sites; the server re-checks isOrgAdmin regardless.
-  const setWidgetHidden = useCallback(async (featureId: string, hidden: boolean) => {
-    const current = (currentUser?.org?.disabledFeatures ?? {}) as DisabledFeatures;
-    const ops = new Set(current.operations ?? []);
-    if (hidden) ops.add(featureId); else ops.delete(featureId);
-    const next: DisabledFeatures = { ...current };
-    if (ops.size) next.operations = [...ops]; else delete next.operations;
-
-    // Optimistic local update — instant visual change.
-    setDisabledFeaturesLocal(next as Record<string, string[]>);
-    try {
-      await requestJson("/api/orgs/config", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disabledFeatures: next }),
-      });
-    } catch {
-      // Roll back to the pre-toggle map and surface the error.
-      setDisabledFeaturesLocal(current as Record<string, string[]>);
-      setMutationError("Couldn't update the dashboard. Try again.");
-    }
-  }, [currentUser?.org?.disabledFeatures, setDisabledFeaturesLocal, setMutationError]);
+  // The org's dashboard arrangement — one per org, shared by every member — and
+  // Customize mode's live draft of it. Only org admins can arrange it; the server
+  // re-checks on PATCH /api/orgs/config. Whether a widget exists at all is still
+  // the org's workflows + Settings switches (feature()); the layout only orders
+  // and hides what those leave.
+  const dash = useDashboardLayout();
+  const [trayOpen, setTrayOpen] = useState(false);
 
   // Welcome toast after sign-in. /auth/callback redirects linked users to
   // /?toast=welcome; once the org name resolves we show a one-time toast and
@@ -2088,6 +2063,300 @@ export default function Home() {
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Dashboard: headline numbers + cards, keyed for the org's layout ────────
+  // Each entry exists only when this org can show it (workflow + Settings
+  // switches + permissions); the layout picks order and visibility among them.
+  const tasksEnabled = isNavVisible("Tasks", currentUser?.org?.enabledWorkflows ?? []);
+  const openTaskCount = taskList.filter(t => t.status !== "done").length;
+  const overdueTaskCount = weeklyDigest.overdueCount;
+  const monthAgoISO = (() => { const d = new Date(`${todayISO}T00:00:00`); d.setDate(d.getDate() - 30); return toDateStr(d.getFullYear(), d.getMonth(), d.getDate()); })();
+  const joinedRecently = brotherList.filter(b => (b.joinedAt ?? "").slice(0, 10) >= monthAgoISO).length;
+  const pendingJoins = currentUser?.org?.pendingJoinRequestCount ?? 0;
+  const dashStats: Partial<Record<DashStatId, DashStat>> = {};
+  if (feature("operations", "kpi-attendance")) dashStats.attendance = { label: "Attendance", icon: "people", tone: "var(--pp-mint-ink)", el: (
+    <Measure
+      label="Attendance"
+      icon="people"
+      tone="var(--pp-mint-ink)"
+      meter={hasAttendanceData ? avgAttendance : undefined}
+      meterLabel={`${avgAttendance.toFixed(1)}% average attendance`}
+      loading={!rosterLoaded}
+      error={rosterFailed}
+      onRetry={retrySections}
+      unset={!hasAttendanceData}
+      value={hasAttendanceData ? avgAttendance.toFixed(1) : "—"}
+      unit="%"
+      note={hasAttendanceData
+        ? `${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`
+        : rosterLoaded ? "No meetings recorded yet." : undefined}
+      noteWarn={hasAttendanceData && belowAttCount > 0}
+      onClick={() => setActiveDrawer("attendance")}
+    />
+  ) };
+  if (feature("operations", "kpi-dues")) dashStats.dues = { label: `${v("Dues")} outstanding`, icon: "wallet", tone: "var(--pp-butter-ink)", el: (
+    <Measure
+      label={`${v("Dues")} outstanding`}
+      icon="wallet"
+      tone="var(--pp-butter-ink)"
+      meter={duesKnown && hasDuesData && brotherList.length > 0 ? ((brotherList.length - owingCount) / brotherList.length) * 100 : undefined}
+      meterLabel={`${brotherList.length - owingCount} of ${brotherList.length} paid up`}
+      /* Two sections, per duesKnown above — the roster holds the
+         balances and the books are the tiebreak. */
+      loading={!duesKnown}
+      error={rosterFailed || treasuryFailed}
+      onRetry={retrySections}
+      unset={!duesKnown || !hasDuesData}
+      unitLeading="$"
+      value={duesKnown && hasDuesData ? outstandingDues.toLocaleString() : "—"}
+      note={duesKnown && hasDuesData
+        ? `${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owe`
+        : duesKnown ? `No ${v("Dues").toLowerCase()} set yet.` : undefined}
+      noteWarn={duesKnown && hasDuesData && owingCount > 0}
+      noteAction={duesKnown && !hasDuesData && canTreasury && financeEnabled
+        ? { label: "Set an amount", onClick: () => router.push(orgPath("/treasury")) }
+        : undefined}
+      onClick={() => setActiveDrawer("dues")}
+    />
+  ) };
+  if (feature("operations", "kpi-gpa")) dashStats.gpa = { label: "Average GPA", icon: "star", tone: "var(--pp-lilac-ink)", el: (
+    <Measure
+      label="Average GPA"
+      icon="star"
+      tone="var(--pp-lilac-ink)"
+      meter={hasGpaData ? (chapterGPA / 4) * 100 : undefined}
+      meterLabel={`${chapterGPA.toFixed(2)} of 4.00`}
+      loading={!rosterLoaded}
+      error={rosterFailed}
+      onRetry={retrySections}
+      unset={!hasGpaData}
+      value={hasGpaData ? chapterGPA.toFixed(2) : "—"}
+      note={hasGpaData
+        ? `${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`
+        : rosterLoaded ? "No grades on file yet." : undefined}
+      onClick={() => setActiveDrawer("gpa")}
+    />
+  ) };
+  if (feature("operations", "kpi-service")) dashStats.service = { label: v("Service"), icon: "heart", tone: "var(--pp-sky-ink)", el: (
+    <Measure
+      label={v("Service")}
+      icon="heart"
+      tone="var(--pp-sky-ink)"
+      meter={hasServiceData && brotherList.length > 0 ? (onTrackSvc / brotherList.length) * 100 : undefined}
+      meterLabel={`${onTrackSvc} of ${brotherList.length} on track`}
+      loading={!rosterLoaded}
+      error={rosterFailed}
+      onRetry={retrySections}
+      unset={!hasServiceData}
+      value={hasServiceData ? `${totalServiceHrs}` : "—"}
+      unit="h"
+      note={hasServiceData
+        ? `${onTrackSvc} of ${brotherList.length} on track`
+        : rosterLoaded ? "Nothing logged this term." : undefined}
+      onClick={() => setActiveDrawer("service")}
+    />
+  ) };
+  dashStats.members = { label: v("Member", true), icon: "people", tone: "var(--pp-sky-ink)", el: (
+    <Measure
+      label={v("Member", true)}
+      icon="people"
+      tone="var(--pp-sky-ink)"
+      loading={!rosterLoaded}
+      error={rosterFailed}
+      onRetry={retrySections}
+      value={String(brotherList.length)}
+      note={joinedRecently > 0 ? `+${joinedRecently} in the last 30 days` : "on the roster"}
+      noteGood={joinedRecently > 0}
+      onClick={() => router.push(orgPath("/brothers"))}
+    />
+  ) };
+  dashStats.week = { label: "This week", icon: "cal", tone: "var(--pp-butter-ink)", el: (
+    <Measure
+      label="This week"
+      icon="cal"
+      tone="var(--pp-butter-ink)"
+      loading={!digestReady}
+      error={weekFailed}
+      onRetry={retryWeek}
+      value={String(agendaEvents.length)}
+      unit={agendaEvents.length === 1 ? " event" : " events"}
+      note={weeklyDigest.deadlinesDue.length
+        ? `${weeklyDigest.deadlinesDue.length} deadline${weeklyDigest.deadlinesDue.length === 1 ? "" : "s"} due`
+        : "no deadlines due"}
+      onClick={() => setWidgetDrawer("deadlines")}
+    />
+  ) };
+  if (tasksEnabled) dashStats.tasks = { label: "Open tasks", icon: "box", tone: "var(--pp-peach-ink)", el: (
+    <Measure
+      label="Open tasks"
+      icon="box"
+      tone="var(--pp-peach-ink)"
+      loading={!loadedSections.has("deadlines")}
+      error={sectionErrors.has("deadlines")}
+      onRetry={retrySections}
+      value={String(openTaskCount)}
+      note={overdueTaskCount > 0 ? `${overdueTaskCount} overdue` : openTaskCount > 0 ? "nothing overdue" : "all done"}
+      noteWarn={overdueTaskCount > 0}
+      noteGood={overdueTaskCount === 0}
+      onClick={() => router.push(orgPath("/tasks"))}
+    />
+  ) };
+  if (canBrothers) dashStats.requests = { label: "Asking to join", icon: "door", tone: "var(--pp-lilac-ink)", el: (
+    <Measure
+      label="Asking to join"
+      icon="door"
+      tone="var(--pp-lilac-ink)"
+      value={String(pendingJoins)}
+      note={pendingJoins > 0 ? "waiting on an officer" : "no one waiting"}
+      noteWarn={pendingJoins > 0}
+      onClick={() => router.push(orgPath("/brothers"))}
+    />
+  ) };
+  if (financeEnabled) dashStats.balance = { label: "Balance", icon: "wallet", tone: "var(--pp-mint-ink)", el: (
+    <Measure
+      label="Balance"
+      icon="wallet"
+      tone="var(--pp-mint-ink)"
+      loading={!treasuryLoaded}
+      error={treasuryFailed}
+      onRetry={retrySections}
+      unitLeading="$"
+      value={liveBalance != null ? Math.round(liveBalance).toLocaleString() : "—"}
+      unset={liveBalance == null}
+      note={liveProjected != null ? `$${Math.round(liveProjected).toLocaleString()} projected` : undefined}
+      onClick={() => router.push(orgPath("/treasury"))}
+    />
+  ) };
+  for (const snap of customMetricSnapshots) {
+    const fmtHeadline = Number.isInteger(snap.headline) ? String(snap.headline) : snap.headline.toFixed(1);
+    const headline =
+      snap.aggregation === "count_on_track"
+        ? `${snap.headline} / ${snap.totalCount}`
+        : snap.unit
+        ? `${fmtHeadline}${snap.unit}`
+        : fmtHeadline;
+    const note =
+      snap.aggregation === "count_on_track"
+        ? `${snap.onTrackCount} on track`
+        : `Goal ${snap.goal}${snap.unit ?? ""}`;
+    dashStats[`metric:${snap.definitionId}`] = { label: snap.name, icon: "bars", tone: "var(--pp-rose-ink)", el: (
+      <Measure
+        key={snap.definitionId}
+        label={snap.name}
+        icon="bars"
+        tone="var(--pp-rose-ink)"
+        value={headline}
+        note={note}
+        onClick={() => setActiveCustomMetricId(snap.definitionId)}
+      />
+    ) };
+  }
+  // A never-customized org shows what it tracks, exactly as before: the four
+  // built-in measures it hasn't switched off, then its custom metrics.
+  const dashNumbers = (dash.layout.numbers as DashStatId[] | null
+    ?? (["attendance", "dues", "gpa", "service", ...customMetricSnapshots.map(s => `metric:${s.definitionId}` as const)] as DashStatId[])
+  ).filter(k => dashStats[k]);
+
+  const dashCards: Partial<Record<DashCardId, GridCard>> = {};
+  if (feature("operations", "needs-attention")) dashCards.needs = { label: "Needs attention", wide: true, node: (
+    <NeedsAttention
+      items={needsAttention}
+      onMarkDone={completeDeadline}
+      onSendReminder={() => setActiveDrawer("dues")}
+      onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
+      onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
+      hasData={hasAnyData}
+      loading={!attentionLoaded}
+      error={attentionFailed}
+      onRetry={retrySections}
+    />
+  ) };
+  if (feature("operations", "brother-tracking")) dashCards.members = { label: v("Member", true), wide: true, node: (
+    <MembersCard
+      brothers={brotherList}
+      loading={!rosterLoaded}
+      error={rosterFailed}
+      onRetry={retrySections}
+      thresholds={THRESHOLDS}
+      tracked={tracked}
+      measured={measured}
+      selfId={selfId}
+      selfAvatarUrl={currentUser?.avatarUrl}
+      avatarRevision={avatarRevision}
+      onOpenMember={(id) => setSelectedBrotherId(id)}
+      onOpenAll={(hash) => router.push(orgPath(`/brothers${hash ?? ""}`))}
+      canReview={canBrothers}
+      onApproved={retrySections}
+      inviteLink={inviteLink}
+      canInvite={canSettings}
+      onCopyInvite={handleInvite}
+    />
+  ) };
+  // The ballot is the only card that expires and asks for an action, so its
+  // default slot is the top of the rail; it renders nothing while no vote waits.
+  if (ballotEnabled) dashCards.ballot = { label: "Votes", ghost: "Only shows up while a vote is waiting on someone.", node: (
+    <BallotCard
+      polls={ballotPolls}
+      today={todayISO}
+      onVote={castBallotVote}
+      onDismiss={dismissBallot}
+    />
+  ) };
+  dashCards.week = { label: "This week", node: (
+    <ThisWeek
+      events={agendaEvents}
+      deadlines={weeklyDigest.deadlinesDue}
+      weekStart={weekRange.start}
+      weekEnd={weekRange.end}
+      today={todayISO}
+      onAll={() => setWidgetDrawer("deadlines")}
+      onSelect={setWeekPeek}
+      eventTypes={eventTypeMap}
+      calendarEmpty={calendarLoaded && calendarList.length === 0}
+      /* Same two sections the digest waits on — the agenda merges
+         calendar events with deadlines due this week. */
+      loading={!digestReady}
+      error={weekFailed}
+      onRetry={retryWeek}
+      onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
+    />
+  ) };
+  if (financeEnabled) dashCards.treasury = { label: "Treasury", node: (
+    <TreasuryRail
+      balance={liveBalance}
+      projected={liveProjected}
+      trend={liveTrend}
+      openingBalance={treasuryData?.openingBalance ?? null}
+      loading={!treasuryLoaded}
+      error={treasuryFailed}
+      onRetry={retrySections}
+      onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
+    />
+  ) };
+  dashCards.activity = { label: "Activity", node: (
+    <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={() => setWidgetDrawer("activity")} />
+  ) };
+
+  // Everything the Customize tray can switch, in page order.
+  const trayWidgets: TrayWidget[] = [
+    { id: "numbers" as const, label: "Headline numbers", blurb: "The strip of numbers up top. You pick which.", tone: "lilac" as const, on: true },
+    { id: "health" as const, label: "Health dial", blurb: "One score from everything you track.", tone: "mint" as const, on: feature("operations", "health") },
+    { id: "announcement" as const, label: "Pinned note", blurb: "One message everyone should see.", tone: "butter" as const, on: feature("operations", "announcement") },
+    { id: "needs" as const, label: "Needs attention", blurb: "Overdue deadlines, dues and reimbursements.", tone: "peach" as const, on: !!dashCards.needs },
+    { id: "members" as const, label: v("Member", true), blurb: "Who's on the roster, who's drifting.", tone: "sky" as const, on: !!dashCards.members },
+    { id: "ballot" as const, label: "Votes", blurb: "Appears only while a vote is waiting on someone.", tone: "lilac" as const, on: !!dashCards.ballot },
+    { id: "week" as const, label: "This week", blurb: "Seven days of events and deadlines.", tone: "butter" as const, on: true },
+    { id: "treasury" as const, label: "Treasury", blurb: "The balance and where it's heading.", tone: "mint" as const, on: !!dashCards.treasury },
+    { id: "activity" as const, label: "Activity", blurb: "What changed while you were away.", tone: "rose" as const, on: true },
+  ].filter(w => w.on).map(({ on: _on, ...w }) => w);
+  const dashPresets = DASH_PRESETS.filter(p => !p.needs || dashStats[p.needs]);
+  const isShown = (id: "health" | "announcement") => !dash.layout.hidden.includes(id);
+
+  async function finishCustomizing() {
+    setTrayOpen(false);
+    const r = await dash.done();
+    if (r === "saved") toast.success("Dashboard saved · everyone in the org sees this layout");
+  }
+
   return (
     <div className="main-route-transition flex h-screen overflow-hidden bg-[color:var(--paper)]">
       <Sidebar
@@ -2149,7 +2418,7 @@ export default function Home() {
               the dashboard now reflows like every other page instead of swapping
               in a bespoke tabbed shell. The sidebar, toolbar, drawers, and modals
               live outside this wrapper and keep their own styling. */}
-          <div className="dash" data-dashboard-theme="dusk">
+          <div className={`dash${dash.editing ? " editing" : ""}`} data-dashboard-theme="dusk">
 
             {/* ── Briefing + health dial ──────────────────────────────────── */}
             <BriefingHeader
@@ -2176,6 +2445,8 @@ export default function Home() {
                   quickActionsAdmin={isAdmin || canTreasury || canAttendance}
                   quickActionsCanManageTasks={canTasks}
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
+                  onCustomize={isActiveOrgAdmin ? () => (dash.editing ? void finishCustomizing() : dash.start()) : undefined}
+                  customizing={dash.editing}
                 />
               }
               // `hasAnyData` on top of `healthMeaningful`: the latter tests
@@ -2183,18 +2454,28 @@ export default function Home() {
               // scored 0 out of nothing and got "Critical" in rose as the first
               // thing on its first screen. Hiding beats scoring an absence; the
               // dial returns on its own once any tracked measure has a record.
-              health={feature("operations", "health") && healthMeaningful && hasAnyData ? (
-                <div className="dash-group">
+              health={feature("operations", "health") && isShown("health") && healthMeaningful && hasAnyData ? (
+                <div className="dash-group dw-band" data-w="health">
                   <HealthDial
                     score={health.score}
                     label={health.label}
                     breakdown={health.breakdown}
                     onExpand={() => setWidgetDrawer("health")}
                   />
-                  {isActiveOrgAdmin && <DashHideButton label="Health widget" onHide={() => setWidgetHidden("health", true)} />}
+                  {dash.editing && <EditChrome label="Health dial" onHide={() => dash.update(setWidgetHidden(dash.layout, "health", true))} />}
                 </div>
               ) : null}
             />
+
+            {/* ── Customize mode ──────────────────────────────────────────── */}
+            {dash.editing && (
+              <DashEditBar
+                onWidgets={() => setTrayOpen(true)}
+                onReset={() => dash.reset()}
+                onDone={() => void finishCustomizing()}
+                saving={dash.saving}
+              />
+            )}
 
             {/* ── Billing needs attention ─────────────────────────────────── */}
             {/* Self-gating and admin-only: org.billingAlert is null for anyone
@@ -2224,263 +2505,55 @@ export default function Home() {
             <CalendarInviteCard />
 
             {/* ── Pinned announcement ─────────────────────────────────────── */}
-            {feature("operations", "announcement") && (
-              <PinnedAnnouncement
-                announcement={announcement}
-                onEdit={() => setAnnouncementEditorOpen(true)}
-                canEdit={canAnnounce}
-                hideButton={isActiveOrgAdmin ? <DashHideButton label="Announcement" onHide={() => setWidgetHidden("announcement", true)} /> : undefined}
-              />
+            {feature("operations", "announcement") && isShown("announcement") && (
+              <div className="dw-band" data-w="announcement">
+                <PinnedAnnouncement
+                  announcement={announcement}
+                  onEdit={() => setAnnouncementEditorOpen(true)}
+                  canEdit={canAnnounce}
+                />
+                {dash.editing && <EditChrome label="Pinned note" onHide={() => dash.update(setWidgetHidden(dash.layout, "announcement", true))} />}
+              </div>
             )}
 
             {/* ── Ledger strip ────────────────────────────────────────────── */}
             {/* No sparklines: the app stores no metric history, so the only
                 series available would be invented. A real trend needs a
                 periodic snapshot table — until then the headline stands alone. */}
-            {(feature("operations", "kpi-attendance") || feature("operations", "kpi-dues") ||
-              feature("operations", "kpi-gpa") || feature("operations", "kpi-service") ||
-              customMetricSnapshots.length > 0) && (
-              <LedgerStrip>
-                {/* Each measure below asks the same question first: is there a
-                    single record behind this number? With none, it prints an
-                    em-dash and a reason rather than a 0 that was never measured,
-                    and — where the viewer can act — the one next move. The
-                    em-dash keeps the value's size and baseline so the strip
-                    doesn't jump when real data lands. While the roster fetch is
-                    still in flight nothing is known either way, so the note is
-                    omitted instead of guessing. */}
-                {feature("operations", "kpi-attendance") && (
-                  <Measure
-                    label="Attendance"
-                    icon="people"
-                    tone="var(--pp-mint-ink)"
-                    meter={hasAttendanceData ? avgAttendance : undefined}
-                    meterLabel={`${avgAttendance.toFixed(1)}% average attendance`}
-                    loading={!rosterLoaded}
-                    error={rosterFailed}
-                    onRetry={retrySections}
-                    unset={!hasAttendanceData}
-                    value={hasAttendanceData ? avgAttendance.toFixed(1) : "—"}
-                    unit="%"
-                    note={hasAttendanceData
-                      ? `${belowAttCount} below ${THRESHOLDS.attendanceWatch}%`
-                      : rosterLoaded ? "No meetings recorded yet." : undefined}
-                    noteWarn={hasAttendanceData && belowAttCount > 0}
-                    onClick={() => setActiveDrawer("attendance")}
-                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Attendance KPI" onHide={() => setWidgetHidden("kpi-attendance", true)} /> : undefined}
-                  />
-                )}
-                {feature("operations", "kpi-dues") && (
-                  <Measure
-                    label={`${v("Dues")} outstanding`}
-                    icon="wallet"
-                    tone="var(--pp-butter-ink)"
-                    meter={duesKnown && hasDuesData && brotherList.length > 0 ? ((brotherList.length - owingCount) / brotherList.length) * 100 : undefined}
-                    meterLabel={`${brotherList.length - owingCount} of ${brotherList.length} paid up`}
-                    /* Two sections, per duesKnown above — the roster holds the
-                       balances and the books are the tiebreak. */
-                    loading={!duesKnown}
-                    error={rosterFailed || treasuryFailed}
-                    onRetry={retrySections}
-                    unset={!duesKnown || !hasDuesData}
-                    unitLeading="$"
-                    value={duesKnown && hasDuesData ? outstandingDues.toLocaleString() : "—"}
-                    note={duesKnown && hasDuesData
-                      ? `${owingCount} ${v("Member", owingCount !== 1).toLowerCase()} owe`
-                      : duesKnown ? `No ${v("Dues").toLowerCase()} set yet.` : undefined}
-                    noteWarn={duesKnown && hasDuesData && owingCount > 0}
-                    noteAction={duesKnown && !hasDuesData && canTreasury && financeEnabled
-                      ? { label: "Set an amount", onClick: () => router.push(orgPath("/treasury")) }
-                      : undefined}
-                    onClick={() => setActiveDrawer("dues")}
-                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Dues KPI" onHide={() => setWidgetHidden("kpi-dues", true)} /> : undefined}
-                  />
-                )}
-                {feature("operations", "kpi-gpa") && (
-                  <Measure
-                    label="Average GPA"
-                    icon="star"
-                    tone="var(--pp-lilac-ink)"
-                    meter={hasGpaData ? (chapterGPA / 4) * 100 : undefined}
-                    meterLabel={`${chapterGPA.toFixed(2)} of 4.00`}
-                    loading={!rosterLoaded}
-                    error={rosterFailed}
-                    onRetry={retrySections}
-                    unset={!hasGpaData}
-                    value={hasGpaData ? chapterGPA.toFixed(2) : "—"}
-                    note={hasGpaData
-                      ? `${belowGpaCount} below ${THRESHOLDS.gpaWatch.toFixed(1)}`
-                      : rosterLoaded ? "No grades on file yet." : undefined}
-                    onClick={() => setActiveDrawer("gpa")}
-                    hideButton={isActiveOrgAdmin ? <DashHideButton label="GPA KPI" onHide={() => setWidgetHidden("kpi-gpa", true)} /> : undefined}
-                  />
-                )}
-                {feature("operations", "kpi-service") && (
-                  <Measure
-                    label={v("Service")}
-                    icon="heart"
-                    tone="var(--pp-sky-ink)"
-                    meter={hasServiceData && brotherList.length > 0 ? (onTrackSvc / brotherList.length) * 100 : undefined}
-                    meterLabel={`${onTrackSvc} of ${brotherList.length} on track`}
-                    loading={!rosterLoaded}
-                    error={rosterFailed}
-                    onRetry={retrySections}
-                    unset={!hasServiceData}
-                    value={hasServiceData ? `${totalServiceHrs}` : "—"}
-                    unit="h"
-                    note={hasServiceData
-                      ? `${onTrackSvc} of ${brotherList.length} on track`
-                      : rosterLoaded ? "Nothing logged this term." : undefined}
-                    onClick={() => setActiveDrawer("service")}
-                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Service Hours KPI" onHide={() => setWidgetHidden("kpi-service", true)} /> : undefined}
-                  />
-                )}
-                {customMetricSnapshots.map(snap => {
-                  const fmtHeadline = Number.isInteger(snap.headline) ? String(snap.headline) : snap.headline.toFixed(1);
-                  const headline =
-                    snap.aggregation === "count_on_track"
-                      ? `${snap.headline} / ${snap.totalCount}`
-                      : snap.unit
-                      ? `${fmtHeadline}${snap.unit}`
-                      : fmtHeadline;
-                  const note =
-                    snap.aggregation === "count_on_track"
-                      ? `${snap.onTrackCount} on track`
-                      : `Goal ${snap.goal}${snap.unit ?? ""}`;
-                  return (
-                    <Measure
-                      key={snap.definitionId}
-                      label={snap.name}
-                      icon="bars"
-                      tone="var(--pp-rose-ink)"
-                      value={headline}
-                      note={note}
-                      onClick={() => setActiveCustomMetricId(snap.definitionId)}
-                    />
-                  );
-                })}
-              </LedgerStrip>
+            {!dash.layout.hidden.includes("numbers") && (
+              <DashNumbers
+                ids={dashNumbers}
+                stats={dashStats}
+                editing={dash.editing}
+                onChange={numbers => dash.update({ ...dash.layout, numbers })}
+                onHide={() => dash.update(setWidgetHidden(dash.layout, "numbers", true))}
+              />
             )}
 
             {/* ── Content grid ────────────────────────────────────────────────
-                Two real columns on desktop: the left column stacks Needs
-                attention → Roster, the right column is the rail (This Week +
-                Treasury, then Socials/Instagram/Activity). Stacking each side in
-                its own flex column keeps them continuous (no cross-column row
-                coupling / gaps). On tablet (≤1279) both columns dissolve via
-                `display: contents` and the regions reflow into one column with
-                the high-signal This Week + Treasury pair lifted above the Roster
-                (see dashboard-ledger.css). DOM order within each column equals
-                the on-screen order at every width, so focus order stays correct. */}
-            <div className="grid">
-              {/* Left column — Needs attention, then Roster */}
-              <div className="col col-main">
-                {feature("operations", "needs-attention") && (
-                  <div className="area-needs">
-                  <NeedsAttention
-                    items={needsAttention}
-                    onMarkDone={completeDeadline}
-                    onSendReminder={() => setActiveDrawer("dues")}
-                    onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
-                    onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
-                    hasData={hasAnyData}
-                    loading={!attentionLoaded}
-                    error={attentionFailed}
-                    onRetry={retrySections}
-                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Needs attention" onHide={() => setWidgetHidden("needs-attention", true)} /> : undefined}
-                  />
-                  </div>
-                )}
-                {feature("operations", "brother-tracking") && (
-                  <div className="area-roster">
-                  <MembersCard
-                    brothers={brotherList}
-                    loading={!rosterLoaded}
-                    error={rosterFailed}
-                    onRetry={retrySections}
-                    thresholds={THRESHOLDS}
-                    tracked={tracked}
-                    measured={measured}
-                    selfId={selfId}
-                    selfAvatarUrl={currentUser?.avatarUrl}
-                    avatarRevision={avatarRevision}
-                    onOpenMember={(id) => setSelectedBrotherId(id)}
-                    onOpenAll={(hash) => router.push(orgPath(`/brothers${hash ?? ""}`))}
-                    canReview={canBrothers}
-                    onApproved={retrySections}
-                    inviteLink={inviteLink}
-                    canInvite={canSettings}
-                    onCopyInvite={handleInvite}
-                    hideButton={isActiveOrgAdmin ? <DashHideButton label="Member tracking" onHide={() => setWidgetHidden("brother-tracking", true)} /> : undefined}
-                  />
-                  </div>
-                )}
-              </div>
+                Two real columns on desktop, in the org's arranged order (see
+                lib/dashboard-layout.ts). Below desktop both columns dissolve and
+                the cards interleave into one stack (dashboard-ledger.css). */}
+            <DashGrid
+              layout={dash.layout}
+              cards={dashCards}
+              editing={dash.editing}
+              onChange={next => dash.update(next)}
+            />
 
-              {/* Right column — rail: This Week + Treasury (priority), then the rest */}
-              <div className="col rail col-rail">
-                {/* Priority pair — lifts above the Roster on tablet */}
-                <div className="area-priority">
-                  {/* Above This Week on purpose: a ballot is the only rail item
-                      that expires and asks for an action, so it outranks the
-                      agenda while it exists — and it renders nothing at all the
-                      rest of the time. */}
-                  {ballotEnabled && (
-                    <BallotCard
-                      polls={ballotPolls}
-                      today={todayISO}
-                      onVote={castBallotVote}
-                      onDismiss={dismissBallot}
-                    />
-                  )}
-                  <ThisWeek
-                    events={agendaEvents}
-                    deadlines={weeklyDigest.deadlinesDue}
-                    weekStart={weekRange.start}
-                    weekEnd={weekRange.end}
-                    today={todayISO}
-                    onAll={() => setWidgetDrawer("deadlines")}
-                    onSelect={setWeekPeek}
-                    eventTypes={eventTypeMap}
-                    calendarEmpty={calendarLoaded && calendarList.length === 0}
-                    /* Same two sections the digest waits on — the agenda merges
-                       calendar events with deadlines due this week. */
-                    loading={!digestReady}
-                    error={weekFailed}
-                    onRetry={retryWeek}
-                    onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
-                  />
-                  {financeEnabled && (
-                    <TreasuryRail
-                      balance={liveBalance}
-                      projected={liveProjected}
-                      trend={liveTrend}
-                      openingBalance={treasuryData?.openingBalance ?? null}
-                      loading={!treasuryLoaded}
-                      error={treasuryFailed}
-                      onRetry={retrySections}
-                      onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
-                    />
-                  )}
-                </div>
-
-                {/* Remaining rail — Activity */}
-                <div className="area-rail">
-                <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={() => setWidgetDrawer("activity")} />
-                </div>
-              </div>
-            </div>
-
-            {/* ── Hidden widgets tray (admin un-hide path) ────────────────── */}
-            {isActiveOrgAdmin && hiddenOps.length > 0 && (
-              <div className="hidden-tray">
-                <p className="lbl">Hidden widgets</p>
-                <div className="chips">
-                  {hiddenOps.map(f => (
-                    <button key={f.id} onClick={() => setWidgetHidden(f.id, false)} title={`Show ${f.label}`}>{f.label}</button>
-                  ))}
-                </div>
-              </div>
+            {isActiveOrgAdmin && (
+              <DashCustomizeTray
+                open={dash.editing && trayOpen}
+                onClose={() => setTrayOpen(false)}
+                layout={dash.layout}
+                onChange={next => dash.update(next)}
+                widgets={trayWidgets}
+                stats={dashStats}
+                numbers={dashNumbers}
+                onNumbers={numbers => dash.update({ ...dash.layout, numbers })}
+                presets={dashPresets}
+                onReset={() => dash.reset()}
+              />
             )}
 
             {/* ── Footer ──────────────────────────────────────────────────── */}

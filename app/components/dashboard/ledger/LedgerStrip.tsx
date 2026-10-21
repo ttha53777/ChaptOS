@@ -48,6 +48,7 @@ export function Measure({
   loading = false,
   error = false,
   onRetry,
+  editSlot,
 }: {
   label: string;
   /** Paper aesthetic only: the doodle beside the label, and the colour it and
@@ -80,7 +81,11 @@ export function Measure({
    *  an unrecorded one look the same in the strip, and the note says which. */
   error?: boolean;
   onRetry?: () => void;
+  /** Customize mode: the tile goes inert and this overlay (swap / remove) sits
+   *  on top of it. Rendered inside the tile, so it shares its box in every state. */
+  editSlot?: React.ReactNode;
 }) {
+  if (editSlot) { onClick = undefined; hideButton = editSlot; noteAction = undefined; onRetry = undefined; }
   const toneStyle = tone ? ({ "--c": tone } as React.CSSProperties) : undefined;
 
   if (error) {
@@ -121,8 +126,8 @@ export function Measure({
     <div
       className="measure"
       style={toneStyle}
-      role="button"
-      tabIndex={0}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={(e) => {
         if (onClick && (e.key === "Enter" || e.key === " ")) {

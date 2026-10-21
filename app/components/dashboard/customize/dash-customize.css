@@ -1,0 +1,255 @@
+/* Dashboard Customize mode — edit chrome, edit bar, number swapping, and the
+   "Make it yours" tray. Ported from _design/Dashboard Universal Paper Mock.html.
+   Scoped under `.dash`; the mode itself is `.dash.editing`. */
+
+.dash .dw,
+.dash .dw-band { position: relative; }
+
+/* ── The Customize chip in the briefing ─────────────────────────────────── */
+html[data-aesthetic="paper"] .dash .ba-chip.customize { order: 5; --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; padding: 10px 14px; }
+html[data-aesthetic="paper"] .dash .ba-chip.customize:hover { color: var(--ink); border-color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ba-chip.customize.on { --bg: var(--pp-lilac-soft, var(--card-2)); --fg: var(--ink); border-color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ba-chip.customize svg { width: 14px; height: 14px; }
+
+/* ── Edit chrome: the pill on every widget ──────────────────────────────── */
+.dash .ed {
+  position: absolute; top: 10px; right: 10px; z-index: 6; display: flex; align-items: center; gap: 1px; padding: 3px;
+  border-radius: 999px; background: var(--card); border: 1.5px solid var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac, var(--line-med));
+  animation: dc-pop .2s var(--pp-ease-spring, ease-out);
+}
+.dash .ed button,
+.dash .ed .ed-grip { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-soft); background: none; border: 0; cursor: pointer; }
+.dash .ed button:hover { background: var(--card-3); color: var(--ink); }
+.dash .ed button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.dash .ed svg { width: 13px; height: 13px; }
+.dash .ed .ed-grip { cursor: grab; color: var(--muted); }
+.dash .ed .ed-x { margin-left: 2px; border-left: 1px solid var(--line); border-radius: 0 50% 50% 0; }
+.dash .ed .ed-x:hover { background: var(--pp-peach-soft, var(--card-3)); color: var(--pp-peach-ink, var(--ink)); }
+.dash .dn > .ed { top: -17px; right: 16px; }
+.dash .dash-group.dw-band > .ed { top: -8px; right: -8px; }
+
+/* ── Arranging: outlines, inert bodies, drag states ─────────────────────── */
+.dash.editing .dw,
+.dash.editing .dw-band { outline: 2px dashed var(--line-med); outline-offset: 5px; border-radius: 22px; transition: outline-color .15s; }
+.dash.editing .dw:hover,
+.dash.editing .dw-band:hover { outline-color: var(--pp-lilac-ink, var(--ink-soft)); }
+/* A card's own buttons stay put while arranging, so a drag can't approve
+   someone or cast a vote by accident. */
+.dash.editing .dw > .dw-body,
+.dash.editing [data-w="announcement"] > :not(.ed),
+.dash.editing [data-w="health"] > :not(.ed) { pointer-events: none; user-select: none; }
+.dash.editing .dw[draggable] { cursor: grab; }
+.dash .dw.dragging { opacity: .35; }
+.dash .dw.landed { animation: dc-land .7s var(--pp-ease-spring, ease-out); }
+.dash .dw.drop-b::before,
+.dash .dw.drop-a::after {
+  content: ""; position: absolute; left: 6px; right: 6px; height: 4px; border-radius: 4px; background: var(--pp-lilac-ink, var(--ink)); z-index: 7;
+}
+.dash .dw.drop-b::before { top: calc(var(--dash-section-gap, 18px) / -2 - 2px); }
+.dash .dw.drop-a::after { bottom: calc(var(--dash-section-gap, 18px) / -2 - 2px); }
+.dash.editing .col.drop-end { outline: 2px dashed var(--pp-lilac-ink, var(--ink-soft)); outline-offset: 8px; border-radius: 22px; }
+.dash .dw-empty {
+  display: grid; place-items: center; min-height: 140px; border: 2px dashed var(--line-med); border-radius: 22px;
+  font-size: .84rem; color: var(--muted);
+}
+
+/* A card that has nothing to show right now still gets a stand-in to place. */
+.dash .dw-ghost { display: none; }
+.dash.editing .dw > .dw-body:empty { display: none; }
+.dash.editing .dw > .dw-body:empty + .dw-ghost {
+  display: flex; flex-direction: column; gap: 4px; padding: 18px 20px; min-height: 96px; justify-content: center;
+  border: 1.5px dashed var(--line-med); border-radius: 22px; background: var(--card-2);
+}
+.dash .dw-ghost b { font-size: .92rem; font-weight: 600; color: var(--ink); }
+.dash .dw-ghost span { font-size: .8rem; color: var(--muted); padding-right: 120px; }
+
+/* ── Edit bar ───────────────────────────────────────────────────────────── */
+.dash .edit-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 22px; padding: 12px 14px 12px 12px;
+  border-radius: 18px; border: 1.5px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--pp-lilac, var(--line-med)); position: sticky; top: 12px; z-index: 25;
+  /* The lilac tint is translucent in the dark theme; lay it over the card colour
+     so cards scrolling under the sticky bar don't show through. */
+  background: linear-gradient(var(--pp-lilac-soft, var(--card-2)), var(--pp-lilac-soft, var(--card-2))) var(--card);
+  animation: dc-pop .25s var(--pp-ease-spring, ease-out);
+}
+.dash .edit-bar > .pp-tile { display: grid; flex: none; }
+.dash .edit-bar p { flex: 1; min-width: 220px; font-size: .88rem; color: var(--ink-soft); line-height: 1.4; }
+.dash .edit-bar p b { color: var(--ink); }
+html[data-aesthetic="paper"] .dash .edit-bar .ba-chip,
+html[data-aesthetic="paper"] .dash .dt-f .ba-chip { padding: 7px 13px; font-size: .82rem; }
+html[data-aesthetic="paper"] .dash .ba-chip.eb-widgets { --hs: var(--pp-mint); }
+html[data-aesthetic="paper"] .dash .ba-chip.eb-ghost { --bg: transparent; border-color: var(--line-med); box-shadow: none; }
+html[data-aesthetic="paper"] .dash .ba-chip.eb-done { --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-lilac); }
+.dash .edit-bar svg,
+.dash .dt-f svg { width: 13px; height: 13px; }
+
+/* ── Headline numbers while arranging ───────────────────────────────────── */
+.dash.editing .ledger .measure { border-color: var(--pp-lilac-bd, var(--line-med)); }
+.dash .dn-cover {
+  position: absolute; inset: 0; z-index: 3; width: 100%; background: none; border: 0; border-radius: inherit; cursor: pointer;
+}
+.dash .dn-cover:hover,
+.dash .dn-cover.on { background: color-mix(in srgb, var(--pp-lilac-soft, var(--card-2)) 45%, transparent); }
+.dash .dn-cover:focus-visible { outline: 2px solid var(--ink); outline-offset: -3px; }
+.dash .dn-swap {
+  position: absolute; right: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px;
+  background: var(--pp-lilac-soft, var(--card-2)); border: 1px solid var(--pp-lilac-bd, var(--line)); color: var(--pp-lilac-ink, var(--ink));
+  font-size: .66rem; font-weight: 600;
+}
+.dash .dn-swap svg { width: 11px; height: 11px; }
+.dash .dn-x {
+  position: absolute; top: 8px; right: 8px; z-index: 4; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--card); border: 1.5px solid var(--line-med); color: var(--ink-soft); cursor: pointer;
+}
+.dash .dn-x:hover { border-color: var(--pp-peach-ink, var(--ink)); color: var(--pp-peach-ink, var(--ink)); background: var(--pp-peach-soft, var(--card-2)); }
+.dash .dn-x svg { width: 11px; height: 11px; }
+.dash .measure.dn-add {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 96px;
+  border: 1.5px dashed var(--line-med); background: transparent; box-shadow: none; color: var(--muted); font-size: .82rem; font-weight: 600; cursor: pointer;
+}
+.dash .measure.dn-add:hover { color: var(--ink); border-color: var(--pp-lilac-ink, var(--ink-soft)); background: var(--card-2); }
+.dash .measure.dn-add svg { width: 18px; height: 18px; position: static; opacity: 1; }
+
+.dash .dn-pick {
+  position: fixed; z-index: 85; width: min(272px, calc(100vw - 32px)); max-height: min(420px, calc(100vh - 32px)); overflow-y: auto; padding: 6px;
+  border-radius: 16px; background: var(--card); border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--pp-lilac, var(--line-med));
+  animation: dc-pop .18s var(--pp-ease-spring, ease-out);
+}
+.dash .dn-pick > p {
+  padding: 6px 8px 4px; font-family: var(--mono); font-size: .62rem; font-weight: 600; letter-spacing: .1em; color: var(--muted); text-transform: uppercase;
+}
+.dash .dn-pick button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 10px; border: 0; background: none;
+  font-size: .86rem; font-weight: 500; text-align: left; color: var(--ink); cursor: pointer;
+}
+.dash .dn-pick button:hover:not(:disabled),
+.dash .dn-pick button.on { background: var(--card-2); }
+.dash .dn-pick button.on { font-weight: 600; }
+.dash .dn-pick button:disabled { opacity: .45; cursor: default; }
+.dash .dn-pick small { margin-left: auto; font-family: var(--mono); font-size: .62rem; color: var(--muted); }
+.dash .dn-pick .dn-on { margin-left: auto; width: 14px; height: 14px; color: var(--pp-mint-ink, var(--ink)); }
+.dash .dn-tile {
+  flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center;
+  color: var(--c, var(--ink-soft)); background: color-mix(in srgb, var(--c, var(--ink-soft)) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--c, var(--ink-soft)) 30%, transparent);
+}
+.dash .dn-tile svg { width: 12px; height: 12px; }
+
+/* ── "Make it yours" tray ───────────────────────────────────────────────── */
+.dash .dt-scrim { position: fixed; inset: 0; z-index: 88; background: var(--scrim, rgba(20, 16, 12, .35)); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.dash .dt-scrim.on { opacity: 1; pointer-events: auto; }
+.dash .dt {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 89; width: min(500px, 100vw); display: flex; flex-direction: column;
+  background: var(--paper); border-left: 1.5px solid var(--ink); transform: translateX(102%); transition: transform .35s var(--pp-ease-out, ease-out);
+  visibility: hidden;
+}
+.dash .dt.on { transform: none; visibility: visible; }
+.dash .dt:not(.on) { transition: transform .35s var(--pp-ease-out, ease-out), visibility 0s .35s; }
+.dash .dt-h { display: flex; align-items: flex-start; gap: 12px; padding: 22px 22px 6px; }
+.dash .dt-h h3 { font-family: var(--font-fraunces, var(--serif)); font-weight: 600; font-size: 1.5rem; letter-spacing: -.03em; color: var(--ink); }
+.dash .dt-h p { margin-top: 4px; font-size: .86rem; color: var(--ink-soft); }
+.dash .dt-close {
+  margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1.5px solid var(--line-med); background: none;
+  display: grid; place-items: center; color: var(--ink-soft); cursor: pointer;
+}
+.dash .dt-close:hover { color: var(--ink); border-color: var(--ink); }
+.dash .dt-close svg { width: 15px; height: 15px; }
+.dash .dt-b { flex: 1; overflow-y: auto; padding: 6px 22px 24px; display: flex; flex-direction: column; gap: 10px; }
+.dash .dt-sec {
+  display: flex; align-items: baseline; gap: 8px; margin-top: 14px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); text-transform: uppercase;
+}
+.dash .dt-sec span { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: .76rem; color: var(--faint); }
+.dash .dt-f { display: flex; justify-content: space-between; gap: 10px; padding: 12px 22px; border-top: 1.5px solid var(--line); background: var(--paper-2, var(--card-2)); }
+
+.dash .dt-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dash .dt-preset {
+  display: flex; flex-direction: column; gap: 2px; padding: 11px 12px; text-align: left; border-radius: 14px; border: 1.5px solid var(--line);
+  background: var(--card); color: var(--ink); cursor: pointer; transition: border-color .15s, transform .18s var(--pp-ease-spring, ease-out);
+}
+.dash .dt-preset:hover { border-color: var(--line-med); transform: translateY(-1px); }
+.dash .dt-preset.on { border-color: var(--ink); box-shadow: 2.5px 2.5px 0 var(--pp-lilac, var(--line-med)); }
+.dash .dt-preset b { font-size: .86rem; font-weight: 600; }
+.dash .dt-preset small { font-size: .74rem; color: var(--muted); line-height: 1.3; }
+.dash .dt-preset .pv { display: flex; gap: 3px; margin-bottom: 6px; min-height: 20px; }
+.dash .dt-preset .pv i {
+  width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center;
+  color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
+}
+.dash .dt-preset .pv svg { width: 11px; height: 11px; }
+
+.dash .dt-gal { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dash .gw {
+  position: relative; display: flex; flex-direction: column; overflow: hidden; text-align: left; border-radius: 16px; border: 1.5px solid var(--line);
+  background: var(--card); color: var(--ink); cursor: pointer; transition: border-color .15s, transform .18s var(--pp-ease-spring, ease-out), box-shadow .18s;
+}
+.dash .gw:hover { border-color: var(--line-med); transform: translateY(-1px); }
+.dash .gw.on { border-color: var(--ink); box-shadow: 2.5px 2.5px 0 var(--p-fg, var(--line-med)); }
+.dash .gw .th { display: block; height: 76px; padding: 12px 16px; background: var(--p-bg, var(--card-2)); border-bottom: 1.5px solid var(--line-soft); }
+.dash .gw .th svg { display: block; width: 100%; height: 100%; }
+.dash .gw:not(.on) .th { filter: grayscale(.8); opacity: .55; }
+.dash .gw .tx { display: block; padding: 9px 12px 12px; }
+.dash .gw b { display: block; font-size: .86rem; font-weight: 600; }
+.dash .gw small { display: block; margin-top: 2px; font-size: .72rem; line-height: 1.3; color: var(--muted); }
+.dash .gw .sw { position: absolute; top: 8px; right: 8px; }
+
+.dash .dt-nums { display: flex; flex-direction: column; gap: 6px; }
+.dash .dt-num {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: var(--card); color: var(--ink); font-size: .86rem; font-weight: 500; text-align: left; cursor: pointer;
+}
+.dash .dt-num:hover:not(:disabled) { border-color: var(--line-med); }
+.dash .dt-num.on { border-color: var(--ink); font-weight: 600; }
+.dash .dt-num:disabled { opacity: .5; cursor: default; }
+.dash .dt-num-l { flex: 1; min-width: 0; }
+.dash .dt-num small {
+  font-family: var(--mono); font-size: .66rem; color: var(--muted); border: 1px solid var(--line-med); border-radius: 999px; padding: 0 7px;
+}
+.dash .dt-note { font-size: .78rem; color: var(--muted); }
+
+.dash .sw {
+  display: block; flex: none; position: relative; width: 40px; height: 24px; border-radius: 999px;
+  background: var(--card-3); border: 1.5px solid var(--line-med); transition: background .2s;
+}
+.dash .sw::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%;
+  background: var(--card); border: 1.5px solid var(--line-med); transition: transform .25s var(--pp-ease-spring, ease-out);
+}
+.dash .sw.on { background: var(--pp-mint, var(--card-3)); border-color: var(--pp-note-ink, var(--ink)); }
+.dash .sw.on::after { transform: translateX(16px); border-color: var(--pp-note-ink, var(--ink)); }
+
+@keyframes dc-pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@keyframes dc-land { 0% { transform: scale(.97); } 60% { transform: scale(1.01); } 100% { transform: none; } }
+
+/* The briefing's action row is full at laptop widths (and the health dial sits
+   beside it), so the chip drops its label there rather than wrapping alone onto
+   a second row. The edit bar says what mode you're in. */
+@media (min-width: 768px) and (max-width: 1599px) {
+  .dash .ba-chip.customize .ba-label { display: none; }
+  html[data-aesthetic="paper"] .dash .ba-chip.customize { padding: 10px 12px; }
+}
+
+@media (max-width: 767px) {
+  .dash .edit-bar { top: 64px; gap: 8px; padding: 10px; }
+  .dash .edit-bar p { min-width: 0; flex-basis: 100%; }
+  .dash .edit-bar .eb-more,
+  .dash .edit-bar > .pp-tile { display: none; }
+  .dash .dt-presets,
+  .dash .dt-gal { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .dash .gw .th { height: 60px; padding: 10px 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash .ed, .dash .edit-bar, .dash .dn-pick, .dash .dw.landed { animation: none; }
+  .dash .dt { transition: none; }
+}
+
+/* The tile's own sparkline rule (`.dash .measure svg`) positions and, below
+   1024px, hides every svg in a measure; the edit overlay's glyphs opt out. */
+.dash .measure .dn-x svg,
+.dash .measure .dn-swap svg,
+.dash .measure.dn-add svg { position: static; display: block; opacity: 1; }
+
+/* Header asides (sub-captions, "All →" links, counts) sit under the edit pill
+   while arranging; the title is what identifies the card. */
+.dash.editing .dw .card-h > :not(h2):not(h3):not(.pp-tile),
+.dash.editing .dw .card-h > a { visibility: hidden; }

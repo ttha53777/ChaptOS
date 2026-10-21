@@ -2,14 +2,15 @@ import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse } from "@/lib/errors";
 import { updateOrgConfigInput } from "@/lib/validation/org";
-import { setInstagramHandle, setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields, setNavOrder, completeOnboarding } from "@/lib/services/org-config-service";
+import { setInstagramHandle, setWorkflows, setVocab, setThresholds, setDisabledFeatures, setCustomMemberFields, setNavOrder, setDashboardLayout, completeOnboarding } from "@/lib/services/org-config-service";
 import { logError } from "@/lib/observability";
 
 // PATCH /api/orgs/config — update the active org's config.
 //
 // Accepts `enabledWorkflows` (workflow toggle set), `vocabularyOverrides` (term
 // substitution map), `thresholds` (member-status cutoffs), `disabledFeatures`
-// (hidden page sections), `navOrder` (admin-chosen sidebar order), or any
+// (hidden page sections), `navOrder` (admin-chosen sidebar order), `dashboardLayout` (the org's
+// dashboard arrangement), or any
 // combination. Each field is optional; only the
 // ones present are mutated. The org is resolved by buildContext() from the
 // x-org-slug header so there is no slug in the path to drift out of sync with
@@ -39,6 +40,9 @@ export async function PATCH(req: NextRequest) {
     }
     if (input.navOrder !== undefined) {
       await setNavOrder(ctx, { navOrder: input.navOrder });
+    }
+    if (input.dashboardLayout !== undefined) {
+      await setDashboardLayout(ctx, { dashboardLayout: input.dashboardLayout });
     }
     // Stamp completion LAST, after every config field is persisted, so the
     // marker is never set on a partially-saved org.

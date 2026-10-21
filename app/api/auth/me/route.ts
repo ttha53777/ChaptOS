@@ -12,6 +12,7 @@ import { SubscriptionStatus } from "@/lib/state/subscription-status";
 import { ReimbursementStatus, JoinRequestStatus } from "@/lib/state";
 import { computePermissions, hasPermission } from "@/lib/permissions";
 import { resolveThresholds } from "@/lib/thresholds";
+import { normalizeDashboardLayout } from "@/lib/dashboard-layout";
 import { sanitizeFieldDefs, type CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
@@ -90,7 +91,7 @@ export async function GET() {
               timeZone: true,
               // The sidebar and onboarding picker filter surfaces by the org's
               // enabled workflows. Pull it in the same round-trip as the org name.
-              config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, instagramHandle: true, onboardingCompletedAt: true } },
+              config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, dashboardLayout: true, instagramHandle: true, onboardingCompletedAt: true } },
             },
           }),
           scoped.orgMetricDefinition.onTx(tx).count({ where: { deletedAt: null } }),
@@ -236,6 +237,9 @@ export async function GET() {
             // config) means the default order — the sidebar's applyNavOrder
             // no-ops on an empty list.
             navOrder: org.config?.navOrder ?? [],
+            // Every member renders the same arrangement, so this goes to
+            // everyone. Normalized so a stale stored blob can't drop a card.
+            dashboardLayout: normalizeDashboardLayout(org.config?.dashboardLayout),
             // Org-defined extra fields. Empty [] means no custom fields — roster
             // and drawer render identically to today. Sanitized through the same
             // helper used by the service so the client always gets a clean list.
