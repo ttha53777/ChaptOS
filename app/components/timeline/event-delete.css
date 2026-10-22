@@ -22,11 +22,6 @@ html[data-aesthetic="paper"][data-theme="dusk"] { --tl-del-wash: color-mix(in sr
 
 .tl-stamp.off { color: var(--tl-del-ink); background: color-mix(in srgb, var(--card) 72%, transparent); z-index: 3; }
 .tl-splat.off { background: var(--tl-del-ink); }
-@media (max-width: 640px) {
-  /* a phone card is narrow: a smaller stamp, so the struck title still reads */
-  .tl-stamp.off { right: 10px; padding: 4px 8px 3px; border-width: 2px; outline-offset: 2px; font-size: .62rem; }
-  .tl-stamp.off small { font-size: .46rem; }
-}
 
 .tl-rip { position: absolute; left: -1.5px; top: -1.5px; overflow: visible; pointer-events: none; z-index: 4; }
 .tl-rip path { fill: none; stroke: var(--ink-soft, var(--muted)); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 1; }

@@ -21,6 +21,8 @@ const FAIL_FAST = 2600;
 /** The panel's 1.5px edge, which the card's is too. */
 const B = 1.5;
 
+const buzz = (p: number | number[]) => { try { navigator.vibrate?.(p); } catch { /* not allowed here */ } };
+
 export const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ── Measuring ──────────────────────────────────────────────────────────────── */
@@ -171,7 +173,7 @@ function fadeScrim(shot: FormShot) {
  *  outside the page's stylesheet scope (the flyer lives on <body>). */
 const COPY = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "letterSpacing", "lineHeight", "textTransform", "color",
   "backgroundColor", "borderRadius", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "display", "alignItems",
-  "gap", "flexWrap", "whiteSpace", "fontVariantNumeric"] as const;
+  "gap", "flexWrap", "whiteSpace", "fontVariantNumeric", "borderWidth", "borderStyle", "borderColor"] as const;
 function copyOf(el: Element): HTMLElement {
   const copy = el.cloneNode(true) as HTMLElement;
   // pair every element first: the ::before stand-ins prepended below would shift the indexes
@@ -196,12 +198,49 @@ function copyOf(el: Element): HTMLElement {
 interface Box { left: number; top: number; width: number; height: number }
 const box = (r: DOMRect, dy = 0): Box => ({ left: r.left, top: r.top + dy, width: r.width, height: r.height });
 
+/** On a phone the form is a sheet nearly the height of the screen, and shrinking all
+ *  of it into a card reads as a tall blank box sliding down. So it comes apart instead:
+ *  the sheet drops away the way a sheet is dismissed, and its head (the kicker and the
+ *  name) tears off along a perforation as a ticket, which is what flies to the date. */
+const isSheet = (shot: FormShot, cardH: number) =>
+  shot.panel.width > innerWidth * .8 && shot.panel.height > innerHeight * .5 && shot.panel.height > cardH * 3;
+function headOf(shot: FormShot): number {
+  return Math.min(shot.panel.height, Math.max(64, shot.title.bottom - shot.panel.top + 20));
+}
+
+/** The rest of the sheet, below the tear: it gives a little at the perforation, then drops off the screen. */
+function dropSheet(shot: FormShot, head: number, D: number) {
+  const p = shot.panel;
+  const body = shot.ghost.cloneNode(true) as HTMLElement;
+  Object.assign(body.style, {
+    position: "fixed", zIndex: "59", pointerEvents: "none", margin: "0", maxWidth: "none", maxHeight: "none",
+    left: `${p.left}px`, top: `${p.top}px`, width: `${p.width}px`, height: `${p.height}px`,
+    boxShadow: shot.shadow, clipPath: `inset(${head}px -24px -24px -24px)`,
+  });
+  const perf = document.createElement("i");
+  perf.className = "tl-perf";
+  perf.style.top = `${head - B}px`;
+  body.append(perf);
+  document.body.append(body);
+  const off = innerHeight - p.top + 24;
+  body.animate([
+    { transform: "none" },
+    { transform: "translateY(10px) rotate(.5deg)", offset: .2, easing: "cubic-bezier(.4,0,.9,.5)" },
+    { transform: `translateY(${off}px) rotate(1.6deg)` },
+  ], { duration: D * .8, easing: "cubic-bezier(.3,0,.5,1)", fill: "forwards" }).onfinish = () => body.remove();
+}
+
 /** The form condenses into the card: the shell, the title and the meta each travel to
  *  their place. `dy` moves the card's measured box to where it will be on arrival
  *  (the scroll still to come, and for an edit, the slot it's folding into). */
 function condenseInto(card: HTMLElement, shot: FormShot, { dy, D, kicker }: { dy: number; D: number; kicker: string }): HTMLElement {
-  const from = shot.panel, titleFrom = shot.title;
+  const titleFrom = shot.title;
   const cr = card.getBoundingClientRect();
+  const sheet = isSheet(shot, cr.height);
+  // a sheet: the flyer is only its head, the ticket torn off the top
+  const head = sheet ? headOf(shot) : shot.panel.height;
+  const from = sheet ? new DOMRect(shot.panel.left, shot.panel.top, shot.panel.width, head) : shot.panel;
+  if (sheet) dropSheet(shot, head, D);
   const titleEl = card.querySelector(".t"), metaEl = card.querySelector(".m");
   const to = box(cr, dy);
   const tTo = titleEl ? box(titleEl.getBoundingClientRect(), dy) : to;
@@ -213,7 +252,7 @@ function condenseInto(card: HTMLElement, shot: FormShot, { dy, D, kicker }: { dy
   g.setAttribute("aria-hidden", "true");
   const snap = shot.ghost;
   Object.assign(snap.style, {
-    position: "absolute", left: `-${B}px`, top: `-${B}px`, width: `${from.width}px`, height: `${from.height}px`, margin: "0",
+    position: "absolute", left: `-${B}px`, top: `-${B}px`, width: `${from.width}px`, height: `${shot.panel.height}px`, margin: "0",
     boxShadow: "none", animation: "none", borderColor: "transparent", maxWidth: "none", maxHeight: "none",
     transformOrigin: `${titleFrom.left - from.left}px ${titleFrom.top - from.top}px`,
   });
@@ -224,8 +263,17 @@ function condenseInto(card: HTMLElement, shot: FormShot, { dy, D, kicker }: { dy
   const gm = metaEl ? copyOf(metaEl) : document.createElement("div");
   // the title rides unclipped: it starts at the form's size
   Object.assign(gt.style, { overflow: "visible", width: "max-content", maxWidth: "none", textOverflow: "clip", whiteSpace: "nowrap" });
-  Object.assign(gm.style, { width: `${mTo.width}px`, flexWrap: "nowrap", whiteSpace: "nowrap" });
+  // at the card's width, so it wraps (or doesn't) exactly as the card's own meta does
+  Object.assign(gm.style, { width: `${mTo.width}px`, height: `${mTo.height}px` });
   g.append(snap, gk, gt, gm);
+  if (sheet) {
+    // the torn edge it carries away
+    const perf = document.createElement("i");
+    perf.className = "tl-perf";
+    perf.style.bottom = "0";
+    g.append(perf);
+    perf.animate([{ opacity: 1 }, { opacity: 0 }], { duration: D * .45, easing: "ease-in", fill: "forwards" });
+  }
   document.body.append(g);
 
   const sk = Math.max(to.width / from.width, .3);
@@ -240,7 +288,7 @@ function condenseInto(card: HTMLElement, shot: FormShot, { dy, D, kicker }: { dy
     { duration: D, easing: FALL.css, fill: "forwards" });
   g.animate([
     { borderRadius: shot.radius, boxShadow: shot.shadow, borderColor: shot.border, backgroundColor: shot.bg, transform: "rotate(0)" },
-    { offset: .5, borderRadius: "18px", transform: "rotate(-1.4deg)" },
+    { offset: .5, borderRadius: "18px", transform: `rotate(${sheet ? -2.4 : -1.4}deg)` },
     { borderRadius: cardCs.borderTopLeftRadius, boxShadow: "0 0 0 transparent", borderColor: cardCs.borderTopColor, backgroundColor: cardCs.backgroundColor, transform: "rotate(0)" },
   ], { duration: D, easing: EASE, fill: "forwards" });
 
@@ -290,6 +338,7 @@ function stamp(card: HTMLElement, date: string, done: () => void): HTMLElement {
   s.setAttribute("aria-hidden", "true");
   s.innerHTML = `ON THE TIMELINE<small>${stampDate(date)}</small>`;
   card.append(s);
+  setTimeout(() => buzz(14), 200);
   s.animate([
     { opacity: 0, transform: "translateY(-50%) rotate(-16deg) scale(2.3)", filter: "blur(1.5px)" },
     { opacity: 1, transform: "translateY(-50%) rotate(-7deg) scale(.94)", filter: "blur(0)", offset: .6 },
@@ -328,6 +377,7 @@ function smallStamp(card: HTMLElement) {
   s.setAttribute("aria-hidden", "true");
   s.textContent = "SAVED";
   card.append(s);
+  setTimeout(() => buzz(8), 300);
   s.animate([
     { opacity: 0, transform: "translateY(-50%) rotate(-14deg) scale(1.9)", filter: "blur(1px)" },
     { opacity: 1, transform: "translateY(-50%) rotate(-5deg) scale(.95)", filter: "blur(0)", offset: .6 },
