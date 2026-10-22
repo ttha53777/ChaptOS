@@ -847,3 +847,23 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-root .tl-dot, .chat-root .bk-rib b, .chat-root .bk-r .fill, .chat-root .bk-r .over, .chat-root .wk-ev { animation: none; }
 }
+
+/* not found: the search as its receipt */
+.chat-root .shp-miss { border-style: dashed; border-color: var(--line-med); background: var(--card-2); overflow: hidden; }
+.chat-root .shp-miss .shp-h { padding-bottom: 4px; }
+.chat-root .looked { padding: 2px 14px 12px; }
+.chat-root .lk { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px dashed var(--line-med);
+  font-size: 13.5px; animation: cs-look-in .35s var(--spring) both; animation-delay: calc(var(--i) * 140ms + .15s); }
+.chat-root .lk:first-child { border-top: 0; }
+@keyframes cs-look-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+.chat-root .lk .g { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line-med); color: var(--muted); }
+.chat-root .lk .w { color: var(--ink); min-width: 0; }
+.chat-root .lk .w small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+.chat-root .lk .z { font-family: var(--mono); font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.chat-root .nomatch { position: absolute; right: 16px; top: 6px; padding: 4px 10px; border: 2px solid var(--faint); border-radius: 7px; color: var(--faint);
+  font-family: var(--mono); font-weight: 600; font-size: 11px; letter-spacing: .16em; text-transform: uppercase; transform: rotate(8deg); opacity: .75;
+  animation: cs-stamp .45s var(--spring) .8s both; pointer-events: none; }
+@keyframes cs-stamp { from { transform: rotate(8deg) scale(1.7); opacity: 0; } to { transform: rotate(8deg) scale(1); opacity: .75; } }
+.chat-root .closest { margin-top: 14px; }
+.chat-root .closest .reslist { margin-top: 6px; }
+@media (prefers-reduced-motion: reduce) { .chat-root .lk, .chat-root .nomatch { animation: none; } }

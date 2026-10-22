@@ -542,3 +542,13 @@ html[data-aesthetic="paper"] .chat-root .askback .ab-qt small { font-family: var
   html[data-aesthetic="paper"] .chat-root .wd-h { border-bottom: 0; border-right: 1px solid var(--card-3); }
   html[data-aesthetic="paper"] .chat-root .wd-b { background-image: none; }
 }
+
+/* not found (§09 of the mock) */
+html[data-aesthetic="paper"] .chat-root .shp-miss { border: 1.5px dashed var(--line-med); background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .lk { border-top: 1px dashed var(--line-med); font-family: var(--font-geist-sans); font-size: 13.4px; animation-timing-function: var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .chat-root .lk:first-child { border-top: 0; }
+html[data-aesthetic="paper"] .chat-root .lk .g { background: var(--card); border: 1.5px solid var(--line-med); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .lk .w small { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .lk .z { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .nomatch { top: 4px; border: 2.5px solid var(--muted); color: var(--muted); font-family: var(--font-geist-mono); font-size: 11.2px; animation-timing-function: var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .chat-root .closest .shp-kicker { display: block; }

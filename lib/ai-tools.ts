@@ -990,11 +990,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               "tally — the question picks a subset of the roster (who owes dues, who's at risk, who has no service hours); needs list_brothers this turn. " +
               "breakdown — a total split by category (where the money went / came from); needs sum_transactions with group_by_category, plus get_budget when it's this semester's spending. " +
               "week — what's on during a window of 7 days or fewer ('this week', 'next week', 'this weekend'); needs list_calendar_events and list_deadlines for that window. " +
+              "missing — you searched for a specific thing the user named and NOTHING matched; set term to its name ('beach cleanup'). The server shows where you looked and the closest real titles. Not for a genuine zero (nobody owes dues is a tally). " +
               "Omit for anything else. Still send your rows: they're shown if the picture can't be drawn.",
             properties: {
               type:   { type: "string", enum: [...SHAPE_TYPES] },
               metric: { type: "string", enum: [...TALLY_METRICS], description: "tally only: which subset." },
               start:  { type: "string", description: "week only: the first day, YYYY-MM-DD." },
+              term:   { type: "string", description: "missing only: the name of the thing that wasn't found, ≤60 chars." },
             },
             required: ["type"],
           },
@@ -2005,13 +2007,16 @@ async function getEventAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolR
 
   // Ghosts are excluded everywhere else in the roster; keep them out here too.
   const visible = records.filter(r => !r.brother.isGhost);
-  const excusedByName = new Map(excuses.map(e => [e.brother.name, e.status] as const));
-  const attended = visible.filter(r => r.attended).map(r => r.brother.name);
-  const absent = visible.filter(r => !r.attended).map(r => r.brother.name);
+  // Only an APPROVED excuse excuses anyone, and it wins over the record — the
+  // same rule as the roster % (lib/attendance.ts). Pending/rejected excuses stay
+  // in the list below with their status, but count as nothing.
+  const approvedIds = new Set(excuses.filter(e => e.status === ExcuseStatus.Approved).map(e => e.brotherId));
+  const attended = visible.filter(r => r.attended && !approvedIds.has(r.brotherId)).map(r => r.brother.name);
+  const absent = visible.filter(r => !r.attended && !approvedIds.has(r.brotherId)).map(r => r.brother.name);
 
   return {
     event: { id: event.id, title: event.title, date: event.date },
-    counts: { attended: attended.length, absent: absent.length, excused: excuses.length },
+    counts: { attended: attended.length, absent: absent.length, excused: approvedIds.size },
     attended,
     absent,
     excused: excuses.map(e => ({ name: e.brother.name, status: e.status, reason: e.reason })),
@@ -2049,17 +2054,25 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped, access?: Too
   if (!brother) return { error: "Brother not found." };
 
   // Relation-scoped wrappers keep these bare-FK reads org-safe (attendanceRecord
-  // via CalendarEvent, attendanceExcuse via CalendarEvent).
-  const [records, excuses] = await Promise.all([
+  // via CalendarEvent, attendanceExcuse via CalendarEvent). Active semester
+  // only — the tool promises "this semester", and this is the semester the
+  // roster % describes.
+  const [allRecords, excuses] = await Promise.all([
     scoped.attendanceRecord.findMany({
-      where: { brotherId: brother.id },
-      include: { calendarEvent: { select: { title: true, date: true } } },
+      where: { brotherId: brother.id, semester: { is: { isActive: true } } },
+      include: { calendarEvent: { select: { title: true, date: true, mandatory: true } } },
     }),
     scoped.attendanceExcuse.findMany({
-      where: { brotherId: brother.id },
+      where: { brotherId: brother.id, semester: { is: { isActive: true } } },
       include: { calendarEvent: { select: { title: true, date: true } } },
     }),
   ]);
+  // Count exactly what the roster % counts (lib/attendance.ts): mandatory
+  // events only, and an APPROVED excuse takes the event out of both sides.
+  // Pending/rejected excuses are still reported below, with their status.
+  const approvedEventIds = new Set(excuses.filter(e => e.status === ExcuseStatus.Approved).map(e => e.calendarEventId));
+  const excuseStatusByEvent = new Map(excuses.map(e => [e.calendarEventId, e.status] as const));
+  const records = allRecords.filter(r => r.calendarEvent.mandatory && !approvedEventIds.has(r.calendarEventId));
   const missed = records.filter(r => !r.attended);
 
   // This semester's exemption (abroad, co-op, inactive) is what explains a
@@ -2075,19 +2088,20 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped, access?: Too
         select: { reason: true, note: true },
       })
     : null;
-  const excusedEventIds = new Set(excuses.map(e => e.calendarEventId));
   return {
     brother: { id: brother.id, name: brother.name },
     counts: {
       total: records.length,
       attended: records.filter(r => r.attended).length,
       missed: missed.length,
-      excused: excuses.length,
+      excused: approvedEventIds.size,
     },
+    // A missed event's excuse, if any, is pending or rejected — approved ones
+    // aren't misses.
     missedEvents: missed.map(r => ({
       title: r.calendarEvent.title,
       date: r.calendarEvent.date,
-      excused: excusedEventIds.has(r.calendarEventId),
+      excuseStatus: excuseStatusByEvent.get(r.calendarEventId) ?? null,
     })),
     excuses: excuses.map(e => ({ title: e.calendarEvent.title, date: e.calendarEvent.date, status: e.status, reason: e.reason })),
     ...(exemption ? { exemptThisSemester: { reason: exemption.reason, ...(exemption.note ? { note: exemption.note } : {}) } } : {}),

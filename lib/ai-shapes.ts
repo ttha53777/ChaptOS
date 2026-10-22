@@ -26,7 +26,7 @@ import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd, money } from "@/lib/money";
 import type {
   AnswerShape, AskBack, AskBackPerson, BreakdownPart, BreakdownShape,
-  TallyMark, TallyMetric, TallyShape, WeekItem, WeekShape,
+  EntityRef, LookedSource, MissingShape, TallyMark, TallyMetric, TallyShape, WeekItem, WeekShape,
 } from "@/lib/api-types";
 
 type Scoped = ReturnType<typeof db>;
@@ -69,6 +69,7 @@ export async function buildShape(req: ShapeRequest, evidence: ShapeEvidence, sco
     if (req.type === "tally") return await buildTally(req, evidence, scoped, orgId);
     if (req.type === "breakdown") return await buildBreakdown(evidence, scoped);
     if (req.type === "week") return await buildWeek(req, evidence, scoped);
+    if (req.type === "missing") return await buildMissing(req, evidence, scoped);
   } catch (e) {
     console.error(`buildShape(${req.type}) failed:`, e);
   }
@@ -416,6 +417,173 @@ async function buildWeek(req: ShapeRequest, evidence: ShapeEvidence, scoped: Sco
     scoped.calendarEventType.findMany({ select: { slug: true, label: true, color: true, colorDark: true } }),
   ]);
   return weekFromRows({ start, events, deadlines, types });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Missing — a search that found nothing, shown as its receipt
+// ────────────────────────────────────────────────────────────────────────────
+
+/** One searchable item, as the receipt and the closest-match rows need it. */
+export interface LookItem {
+  title: string;
+  date: string | null;
+  ref?: EntityRef;
+}
+
+interface LookSourceDef {
+  source: LookedSource;
+  label: string;
+  /** Re-read the same scope the model's call covered — every title in it, not just its filtered hits. */
+  fetch: (scoped: Scoped, args: Record<string, unknown>) => Promise<LookItem[]>;
+  scope: (args: Record<string, unknown>) => string;
+}
+
+/** Enough to cover any chapter's history; titles only. */
+const LOOK_FETCH_MAX = 2000;
+
+function windowArgs(args: Record<string, unknown>): { start?: string; end?: string } {
+  const pick = (v: unknown) => (typeof v === "string" && DATE_RE.test(v) && isValidCalendarDate(v) ? v : undefined);
+  return { start: pick(args.start), end: pick(args.end) };
+}
+function dateWhere(args: Record<string, unknown>) {
+  const { start, end } = windowArgs(args);
+  return start || end ? { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } : undefined;
+}
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtDay(iso: string): string {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
+}
+function windowLabel(args: Record<string, unknown>): string {
+  const { start, end } = windowArgs(args);
+  if (start && end) return `${fmtDay(start)} – ${fmtDay(end)}`;
+  if (start) return `from ${fmtDay(start)}`;
+  if (end) return `through ${fmtDay(end)}`;
+  return "all dates";
+}
+
+/**
+ * The places a "not found" can honestly claim it looked: the search tools whose
+ * scope can be re-read by title. A tool that isn't here never appears in the
+ * receipt, so the receipt can't claim a search it can't stand behind.
+ */
+const LOOK_SOURCES: Record<string, LookSourceDef> = {
+  list_calendar_events: {
+    source: "events", label: "Timeline",
+    fetch: async (scoped, args) => {
+      const date = dateWhere(args);
+      const rows = await scoped.calendarEvent.findMany({
+        where: { ...(date ? { date } : {}), ...(typeof args.category === "string" ? { category: args.category } : {}) },
+        select: { id: true, title: true, date: true }, take: LOOK_FETCH_MAX,
+      });
+      return rows.map(r => ({ title: r.title, date: r.date, ref: { type: "event", id: r.id } }));
+    },
+    scope: args => `${windowLabel(args)} · ${typeof args.category === "string" ? args.category : "all types"}`,
+  },
+  list_service_events: {
+    source: "service", label: "Service events",
+    fetch: async (scoped, args) => {
+      const date = dateWhere(args);
+      const rows = await scoped.serviceEvent.findMany({ where: date ? { date } : {}, select: { title: true, date: true }, take: LOOK_FETCH_MAX });
+      return rows.map(r => ({ title: r.title, date: r.date }));
+    },
+    scope: windowLabel,
+  },
+  list_programming_events: {
+    source: "programming", label: "Programming board",
+    fetch: async (scoped, args) => {
+      // Ideas are undated, so only a start bound narrows the board.
+      const { start, end } = windowArgs(args);
+      const rows = await scoped.programmingEvent.findMany({
+        where: start ? { date: { gte: start, ...(end ? { lte: end } : {}) } } : {},
+        select: { title: true, date: true }, take: LOOK_FETCH_MAX,
+      });
+      return rows.map(r => ({ title: r.title, date: r.date }));
+    },
+    scope: args => (windowArgs(args).start ? windowLabel(args) : "ideas, drafts, confirmed"),
+  },
+  list_deadlines: {
+    source: "deadlines", label: "Deadlines",
+    fetch: async (scoped, args) => {
+      const date = dateWhere(args);
+      const rows = await scoped.task.findMany({ where: { dueDate: date ?? { not: null } }, select: { id: true, title: true, dueDate: true }, take: LOOK_FETCH_MAX });
+      return rows.map(r => ({ title: r.title, date: r.dueDate, ref: { type: "task", id: r.id } }));
+    },
+    scope: windowLabel,
+  },
+  search_docs: {
+    source: "docs", label: "Docs",
+    fetch: async scoped => {
+      const rows = await scoped.doc.findMany({ select: { title: true }, take: LOOK_FETCH_MAX });
+      return rows.map(r => ({ title: r.title, date: null }));
+    },
+    scope: () => "every doc and link",
+  },
+};
+
+const TERM_STOPWORDS = new Set(["the", "and", "for", "our", "with", "event", "events", "this", "that", "next", "last"]);
+
+/** "the Beach Clean-up" → ["beach", "cleanup"]. Exported for tests. */
+export function termTokens(term: string): string[] {
+  const words = term.toLowerCase().split(/\s+/).map(w => w.replace(/[^\p{L}\p{N}]/gu, "")).filter(w => w.length >= 3 && !TERM_STOPWORDS.has(w));
+  return [...new Set(words)];
+}
+
+/** Share of the term's words a title contains, 0–1. Hyphens and spacing don't count against it. */
+export function termScore(tokens: string[], title: string): number {
+  if (tokens.length === 0) return 0;
+  const hay = title.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+  return tokens.filter(t => hay.includes(t)).length / tokens.length;
+}
+
+/**
+ * Pure: what each source holds → the receipt, or null when the claim "nothing
+ * matched" isn't true. If any title fully matches, the model missed it, and a
+ * NO MATCH stamp over a real match would be a lie — so nothing is drawn and the
+ * model's own rows stand. Exported for tests.
+ */
+export function missingFromLooks(term: string, looks: Array<{ def: Pick<LookSourceDef, "source" | "label">; scope: string; items: LookItem[] }>, today: string): BuiltShape | null {
+  const tokens = termTokens(term);
+  if (tokens.length === 0 || looks.length === 0) return null;
+  if (looks.some(l => l.items.some(it => termScore(tokens, it.title) === 1))) return null;
+
+  const shape: MissingShape = {
+    type: "missing",
+    term,
+    looked: looks.map(l => ({ source: l.def.source, label: l.def.label, scope: l.scope, of: l.items.length })),
+  };
+  // Closest = most of the term's words, then nearest to today.
+  const dist = (d: string | null) => (d ? Math.abs(Date.parse(d) - Date.parse(today)) : Number.MAX_SAFE_INTEGER);
+  const seen = new Set<string>();
+  const closest = looks
+    .flatMap(l => l.items.map(it => ({ it, def: l.def, score: termScore(tokens, it.title) })))
+    .filter(c => c.score > 0)
+    .sort((a, b) => b.score - a.score || dist(a.it.date) - dist(b.it.date))
+    .filter(c => { const k = c.it.title.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 3);
+  const rows: AnswerRow[] = closest.map(({ it, def }) => {
+    const when = it.date ? `${fmtDay(it.date)}${it.date < today ? " · past" : ""}` : null;
+    return {
+      kind: def.source === "deadlines" ? "task" : def.source === "docs" ? "generic" : "event",
+      title: it.title,
+      subtitle: [def.label, when].filter(Boolean).join(" · "),
+      ...(it.ref ? { ref: it.ref } : def.source === "docs" ? { screen: "docs" as const } : { ask: `Tell me about "${it.title}"` }),
+    };
+  });
+  return { shape, rows };
+}
+
+async function buildMissing(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped): Promise<BuiltShape | null> {
+  if (!req.term) return null;
+  const used = Object.entries(LOOK_SOURCES).flatMap(([tool, def]) => {
+    const read = evidence.get(tool);
+    return read ? [{ def, args: read.args }] : [];
+  });
+  if (used.length === 0) return null;
+  // Sequential: the scoped pool is two connections, and these are cheap.
+  const looks: Array<{ def: LookSourceDef; scope: string; items: LookItem[] }> = [];
+  for (const u of used) looks.push({ def: u.def, scope: u.def.scope(u.args), items: await u.def.fetch(scoped, u.args) });
+  return missingFromLooks(req.term, looks, todayISO());
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -14,11 +14,11 @@
 import { describe, it, expect } from "vitest";
 import { parseComposeAnswer } from "@/lib/ai-tools";
 import {
-  attachPeople, breakdownFromAmounts, buildShape, createShapeEvidence, minutesOf,
+  attachPeople, breakdownFromAmounts, buildShape, createShapeEvidence, minutesOf, missingFromLooks, termScore, termTokens,
   parseShapeRequest, peopleCards, tallyFromRoster, weekFromRows, TALLY_MAX_MARKS,
 } from "@/lib/ai-shapes";
 import { createRefIndex } from "@/lib/ai-refs";
-import type { BreakdownShape, TallyShape, WeekShape } from "@/lib/api-types";
+import type { BreakdownShape, MissingShape, TallyShape, WeekShape } from "@/lib/api-types";
 
 const member = (id: number, name: string, over: Partial<{ duesOwed: number; attendance: number; serviceHours: number; status: string; role: string }> = {}) => ({
   id, name, role: over.role ?? "Member", attendance: over.attendance ?? 90, duesOwed: over.duesOwed ?? 0,
@@ -232,5 +232,53 @@ describe("people cards", () => {
     }, refs, scoped, 987654);
     expect(out.questions[0].people?.map(p => p.name)).toEqual(["Chris Lee", "Chris Okafor"]);
     expect(out.questions[1].people).toBeUndefined();
+  });
+});
+
+describe("missing", () => {
+  const events = { source: "events" as const, label: "Timeline" };
+  const service = { source: "service" as const, label: "Service events" };
+  const today = "2026-10-19";
+
+  it("reads the term the way titles are written — case, hyphens and filler don't matter", () => {
+    expect(termTokens("the Beach Clean-up")).toEqual(["beach", "cleanup"]);
+    expect(termScore(["beach", "cleanup"], "Beach clean up (Sat)")).toBe(1);
+    expect(termScore(["beach", "cleanup"], "Lakeshore path cleanup")).toBe(0.5);
+  });
+
+  it("shows every place searched with how much it held, and the closest real titles", () => {
+    const built = missingFromLooks("beach cleanup", [
+      { def: events, scope: "Aug 24 – Dec 12 · all types", items: [
+        { title: "Beach volleyball social", date: "2026-09-13", ref: { type: "event", id: 4 } },
+        { title: "Chapter meeting", date: "2026-10-19", ref: { type: "event", id: 5 } },
+      ] },
+      { def: service, scope: "all dates", items: [{ title: "Lakeshore path cleanup", date: "2026-11-08" }] },
+    ], today)!;
+    const shape = built.shape as MissingShape;
+    expect(shape.looked).toEqual([
+      { source: "events", label: "Timeline", scope: "Aug 24 – Dec 12 · all types", of: 2 },
+      { source: "service", label: "Service events", scope: "all dates", of: 1 },
+    ]);
+    expect(built.rows.map(r => r.title)).toEqual(["Lakeshore path cleanup", "Beach volleyball social"]);
+    expect(built.rows[0]).toMatchObject({ subtitle: "Service events · Nov 8", ask: 'Tell me about "Lakeshore path cleanup"' });
+    expect(built.rows[1]).toMatchObject({ subtitle: "Timeline · Sep 13 · past", ref: { type: "event", id: 4 } });
+  });
+
+  it("refuses to stamp NO MATCH over something that does match", () => {
+    expect(missingFromLooks("beach cleanup", [
+      { def: service, scope: "all dates", items: [{ title: "Beach Clean-Up", date: "2026-11-08" }] },
+    ], today)).toBeNull();
+  });
+
+  it("needs a real term and at least one place it looked", () => {
+    expect(missingFromLooks("the event", [{ def: events, scope: "x", items: [] }], today)).toBeNull();
+    expect(missingFromLooks("beach cleanup", [], today)).toBeNull();
+  });
+
+  it("isn't drawn when no searchable source ran this turn", async () => {
+    const ev = createShapeEvidence();
+    ev.add("list_brothers", {}, { brothers: [] });
+    const noDb = new Proxy({}, { get() { throw new Error("DB touched"); } }) as never;
+    expect(await buildShape({ type: "missing", term: "beach cleanup" }, ev, noDb, 1)).toBeNull();
   });
 });

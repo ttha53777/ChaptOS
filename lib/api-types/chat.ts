@@ -93,7 +93,7 @@ export interface AnswerData {
 }
 
 /** Discriminated by `type`. New types may be added; ignore ones you don't know. */
-export type AnswerShape = TallyShape | BreakdownShape | WeekShape;
+export type AnswerShape = TallyShape | BreakdownShape | WeekShape | MissingShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -217,3 +217,17 @@ export interface ChatStreamEvents {
 }
 
 export type ChatStreamEventName = keyof ChatStreamEvents;
+
+export type LookedSource = "events" | "service" | "programming" | "deadlines" | "docs";
+
+/**
+ * A search that found nothing, shown as its receipt: every place searched this
+ * turn, the window it covered and how many items were in it — each with zero
+ * matches, or the server would not have sent this shape. `rows` are the closest
+ * real titles.
+ */
+export interface MissingShape {
+  type: "missing";
+  term: string;
+  looked: Array<{ source: LookedSource; label: string; scope: string; of: number }>;
+}

@@ -14,8 +14,8 @@ import { useState, type CSSProperties } from "react";
 
 import { fmtUsd } from "@/lib/money";
 import { todayISO } from "@/lib/dates";
-import { IcArrow, IcChev } from "./icons";
-import { rowAction, type AnswerRow, type AnswerShape, type BreakdownShape, type TallyMark, type TallyShape, type WeekItem, type WeekShape } from "./types";
+import { IcArrow, IcChev, KindGlyph } from "./icons";
+import { rowAction, type AnswerRow, type AnswerShape, type BreakdownShape, type MissingShape, type TallyMark, type TallyShape, type WeekItem, type WeekShape } from "./types";
 
 export interface RowHandlers {
   /** Index of the keyboard-selected row, or -1. */
@@ -26,7 +26,7 @@ export interface RowHandlers {
 
 /** True when this client knows how to draw the shape; unknown types fall back to rows. */
 export function isKnownShape(shape: AnswerShape | undefined): shape is AnswerShape {
-  return !!shape && (shape.type === "tally" || shape.type === "breakdown" || shape.type === "week");
+  return !!shape && (shape.type === "tally" || shape.type === "breakdown" || shape.type === "week" || shape.type === "missing");
 }
 
 /**
@@ -270,6 +270,43 @@ function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRow[]; h:
   );
 }
 
+// ─── Not found ──────────────────────────────────────────────────────────────
+
+/** The glyph each searched place gets — the screen it lives on. */
+const LOOK_GLYPH: Record<MissingShape["looked"][number]["source"], string> = {
+  events: "timeline", service: "service", programming: "programming", deadlines: "tasks", docs: "docs",
+};
+
+function MissingSheet({ shape, rows, renderRow }: {
+  shape: MissingShape;
+  rows: AnswerRow[];
+  renderRow: (row: AnswerRow, i: number) => React.ReactNode;
+}) {
+  return (
+    <>
+      <div className="shp shp-miss in in-3">
+        <div className="shp-h"><span className="shp-kicker">Where I looked</span></div>
+        <span className="nomatch" aria-hidden>No match</span>
+        <div className="looked">
+          {shape.looked.map((l, i) => (
+            <div key={l.source} className="lk" style={{ ["--i" as string]: i } as CSSProperties}>
+              <span className="g"><KindGlyph kind={LOOK_GLYPH[l.source]} size={12} /></span>
+              <span className="w">{l.label}<small>{l.scope}</small></span>
+              <span className="z">0 of {l.of}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {rows.length > 0 && (
+        <div className="closest in in-3">
+          <span className="shp-kicker">Closest I found</span>
+          <div className="reslist">{rows.map(renderRow)}</div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function ShapeBlock({ shape, rows, h, renderRow }: {
   shape: AnswerShape;
   rows: AnswerRow[];
@@ -278,5 +315,6 @@ export function ShapeBlock({ shape, rows, h, renderRow }: {
 }) {
   if (shape.type === "tally") return <TallySheet shape={shape} rows={rows} h={h} renderRow={renderRow} />;
   if (shape.type === "breakdown") return <BreakdownSheet shape={shape} rows={rows} h={h} />;
+  if (shape.type === "missing") return <MissingSheet shape={shape} rows={rows} renderRow={renderRow} />;
   return <WeekSheet shape={shape} rows={rows} h={h} />;
 }
