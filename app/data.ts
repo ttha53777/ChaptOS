@@ -405,24 +405,6 @@ export function getBrotherStatus(
   return "Good";
 }
 
-// ─── Needs-attention queue ──────────────────────────────────────────────────
-// Pure derivation behind the dashboard's "Needs attention" block. Co-located
-// with calcHealthScore / getBrotherStatus because it shares their Brother inputs. `today` is injectable so the unit test is
-// deterministic.
-
-export type AttentionItem =
-  | { kind: "deadline-overdue"; id: number; title: string; assignees: string; dueDate: string; daysLate: number }
-  | { kind: "wrap-up"; id: number; title: string; dueDate: string | null; daysAgo: number | null }
-  | { kind: "reimbursement"; count: number; total: number; requests: { id: number; name: string; amount: number }[] }
-  | { kind: "dues"; total: number; brothers: { id: number; name: string; amount: number; lateDays?: number }[]; overdue?: number };
-
-/** Whole days from ISO `from` to ISO `to` (both yyyy-mm-dd), via UTC to dodge DST. */
-function isoDaysBetween(from: string, to: string): number {
-  const [fy, fm, fd] = from.split("-").map(Number);
-  const [ty, tm, td] = to.split("-").map(Number);
-  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
-}
-
 /** Short, comma-joined assignee labels for a task ("Alex, Recruitment, +2"). */
 export function taskAssigneeLabel(task: Task, max = 2): string {
   if (task.everyone === "each") return "Everyone";
@@ -433,79 +415,6 @@ export function taskAssigneeLabel(task: Task, max = 2): string {
   if (names.length === 0) return "Unassigned";
   if (names.length <= max) return names.join(", ");
   return `${names.slice(0, max).join(", ")}, +${names.length - max}`;
-}
-
-export function deriveNeedsAttention(
-  brothers: Brother[],
-  tasks: Task[],
-  today: string = new Date().toISOString().slice(0, 10),
-  pendingReimbursements: Reimbursement[] = [],
-  tracked: TrackedMetrics = ALL_TRACKED,
-  /** Confirmed events that already happened, from useWrapUpsDue() — already
-   *  filtered to the viewer's local date and to MANAGE_EVENTS holders. */
-  wrapUps: { id: number; title: string; dueDate: string | null }[] = [],
-  /** brotherId → days past due, from Treasury → Dues (useDuesStandings). Overdue members lead the dues row. */
-  duesLate: ReadonlyMap<number, number> = new Map(),
-): AttentionItem[] {
-  const items: AttentionItem[] = [];
-
-  // Overdue tasks (rose): dated, still open, strictly past due, oldest first.
-  // Undated to-dos never surface here — only deadlines (dated tasks) can be late.
-  const overdue = tasks
-    .filter(t => t.status !== "done" && t.dueDate != null && t.dueDate < today)
-    .sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string));
-  for (const t of overdue) {
-    items.push({
-      kind: "deadline-overdue",
-      id: t.id, title: t.title, assignees: taskAssigneeLabel(t), dueDate: t.dueDate as string,
-      daysLate: isoDaysBetween(t.dueDate as string, today),
-    });
-  }
-
-  // Events to wrap up (rose): one row each, like overdue deadlines, because each
-  // is its own decision — how did THIS one go. After deadlines: those are work
-  // still owed to someone, while a wrap-up only gets less accurate with time.
-  for (const e of wrapUps) {
-    items.push({
-      kind: "wrap-up",
-      id: e.id, title: e.title, dueDate: e.dueDate,
-      daysAgo: e.dueDate ? isoDaysBetween(e.dueDate, today) : null,
-    });
-  }
-
-  // Pending reimbursements (rose): aggregated into one row, newest filed first.
-  // Only "pending" tickets surface here — approved/rejected have been addressed.
-  const pending = pendingReimbursements
-    .filter(r => r.status === "pending")
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  if (pending.length > 0) {
-    items.push({
-      kind: "reimbursement",
-      count: pending.length,
-      total: pending.reduce((s, r) => s + r.amount, 0),
-      requests: pending.map(r => ({ id: r.id, name: r.brother.name, amount: r.amount })),
-    });
-  }
-
-  // Outstanding dues (gold): aggregated into a single row, largest balance first.
-  // Skipped entirely when the org doesn't track dues — the column is then a
-  // stored 0 for everyone and there is nothing to chase.
-  // Members past a due date come first (latest first), then the rest by balance.
-  const late = (b: Brother) => duesLate.get(b.id) ?? 0;
-  const owing = tracked.duesOwed
-    ? [...brothers].filter(b => b.duesOwed > 0).sort((a, b) => late(b) - late(a) || b.duesOwed - a.duesOwed)
-    : [];
-  if (owing.length > 0) {
-    const overdue = owing.filter(b => late(b) > 0).length;
-    items.push({
-      kind: "dues",
-      total: owing.reduce((s, b) => s + b.duesOwed, 0),
-      brothers: owing.map(b => ({ id: b.id, name: b.name, amount: b.duesOwed, ...(late(b) ? { lateDays: late(b) } : {}) })),
-      ...(overdue ? { overdue } : {}),
-    });
-  }
-
-  return items;
 }
 
 export function avg(values: number[]): number {

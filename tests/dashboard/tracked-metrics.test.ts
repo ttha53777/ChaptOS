@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { calcHealthScore, deriveNeedsAttention, getBrotherStatus, type Brother, type Task } from "@/app/data";
+import { calcHealthScore, getBrotherStatus, type Brother, type Task } from "@/app/data";
 import { DEFAULT_THRESHOLDS, ATTENDANCE_EXEMPT } from "@/lib/thresholds";
 import { ALL_TRACKED, resolveTrackedMetrics, trackedCount } from "@/lib/tracked-metrics";
 
@@ -142,29 +142,5 @@ describe("getBrotherStatus — untracked metrics", () => {
     const atRisk = brother({ id: 1, name: "Jo", attendance: 50, gpa: 2.1 });
     expect(getBrotherStatus(atRisk, DEFAULT_THRESHOLDS)).toBe(getBrotherStatus(atRisk, DEFAULT_THRESHOLDS, ALL_TRACKED));
     expect(getBrotherStatus(atRisk, DEFAULT_THRESHOLDS, ALL_TRACKED)).toBe("At Risk");
-  });
-});
-
-describe("deriveNeedsAttention — untracked metrics", () => {
-  it("excludes risk rows regardless of tracked metrics", () => {
-    // Previously this returned one row per member, each reading "0.0 GPA".
-    expect(deriveNeedsAttention(teamRoster, [], TODAY, [], TEAM_TRACKED)).toEqual([]);
-    expect(deriveNeedsAttention(teamRoster, [], TODAY)).toEqual([]);
-  });
-
-  it("skips the outstanding-dues row when the org doesn't track dues", () => {
-    const roster = [brother({ id: 1, name: "Sam", attendance: 100, gpa: 0, duesOwed: 90, serviceHours: 0 })];
-    const items = deriveNeedsAttention(roster, [], TODAY, [], TEAM_TRACKED);
-    expect(items.some(i => i.kind === "dues")).toBe(false);
-
-    const clubItems = deriveNeedsAttention(roster, [], TODAY, [], CLUB_TRACKED);
-    expect(clubItems.some(i => i.kind === "dues")).toBe(true);
-  });
-
-  it("still reports overdue deadlines, which are not per-member metrics", () => {
-    const tasks = [task({ id: 1, title: "Roster due", dueDate: "2026-05-14", status: "open" })];
-    const items = deriveNeedsAttention(teamRoster, tasks, TODAY, [], TEAM_TRACKED);
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ kind: "deadline-overdue", id: 1 });
   });
 });

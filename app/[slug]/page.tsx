@@ -9,9 +9,9 @@ const DrawerTrendChart = dynamic(() => import("../components/dashboard/DrawerTre
   loading: () => <div className="h-[110px] w-full rounded-lg bg-[rgba(var(--ink-rgb),0.04)] animate-pulse" />,
 });
 import {
-  Brother, CalendarEvent, CalEventType, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction, Poll,
+  Brother, CalendarEvent, CalEventType, InstagramType, ActivityEntry, PartyEvent, Task, InstagramTask, Transaction, Poll, Reimbursement,
   taskAssigneeLabel,
-  getBrotherStatus, roleTitle, calcHealthScore, deriveNeedsAttention, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
+  getBrotherStatus, roleTitle, calcHealthScore, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../data";
 import { useRouter } from "next/navigation";
 import { useOrgPath } from "../hooks/useOrgPath";
@@ -54,11 +54,12 @@ import { BriefingActions } from "../components/dashboard/ledger/BriefingActions"
 import { HealthDial } from "../components/dashboard/ledger/HealthDial";
 import { PinnedAnnouncement } from "../components/dashboard/ledger/PinnedAnnouncement";
 import { LedgerStrip, Measure } from "../components/dashboard/ledger/LedgerStrip";
-import { NeedsAttention } from "../components/dashboard/ledger/NeedsAttention";
+import { PERMISSIONS } from "@/lib/permissions";
+import { PlateCard } from "../components/dashboard/plate/PlateCard";
+import { derivePlate, type PlatePerm } from "../components/dashboard/plate/derive-plate";
 import { MembersCard } from "../components/dashboard/MembersCard";
 import { ThisWeek } from "../components/dashboard/ledger/ThisWeek";
 import { WeekItemPeek, type WeekPeekTarget } from "../components/dashboard/ledger/WeekItemPeek";
-import { BallotCard } from "../components/dashboard/ledger/BallotCard";
 import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
 import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
@@ -928,7 +929,7 @@ export default function Home() {
   const toast = useToast();
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, loadError, loadedSections, sectionErrors, mutationError, setMutationError, refreshChapterData, setSelfNameLocal, avatarRevision, can } = useChapter();
+  const { currentUser, brotherList, setBrotherList, taskList, setTaskList, igTaskList, setIgTaskList, partyList, setPartyList, activityFeed, setActivityFeed, treasuryData, setTransactionList, reimbursementList, setReimbursementList, loadError, loadedSections, sectionErrors, mutationError, setMutationError, refreshChapterData, setSelfNameLocal, avatarRevision, can } = useChapter();
   const isAdmin = currentUser?.isAdmin ?? false;
   // Granular permission gates for new UI checks. Existing `isAdmin` is kept
   // unchanged for prop-chains into QuickActionsMenu / KPIDrawer / Modal title
@@ -1094,7 +1095,7 @@ export default function Home() {
 
   // ── Ballot (open polls awaiting my vote) ──────────────────────────────────
   // Scoped server-side to polls this member may actually vote on, so the answer
-  // is usually an empty array and the card stays absent. Polls they've already
+  // is usually an empty array and nothing lands on the plate. Polls they've already
   // answered are dropped on arrival: the ballot is an errand, and a finished
   // errand belongs on /tasks, not on the dashboard. Deliberately NOT bootstrapped
   // through ChapterContext — that would fetch every poll in the org (closed ones,
@@ -1105,12 +1106,12 @@ export default function Home() {
     let cancelled = false;
     requestJson<Poll[]>("/api/polls?assignee=me&status=open")
       .then(rows => { if (!cancelled) setBallotPolls(rows.filter(p => p.myVoteOptionId == null)); })
-      .catch(() => { /* non-fatal — the card simply stays hidden */ });
+      .catch(() => { /* non-fatal — the plate just shows no votes */ });
     return () => { cancelled = true; };
   }, [ballotEnabled]);
 
-  // Cast from the rail. Returns the unsealed poll so the card can phase straight
-  // into the tally; errors propagate so it can hold the ballot and say so.
+  // Cast from the plate. Swapping in the saved poll (myVoteOptionId set) is what
+  // drops it off the plate; errors propagate so the row can stay open and say so.
   const castBallotVote = useCallback(async (pollId: number, optionId: number): Promise<Poll> => {
     const saved = await requestJson<Poll>(`/api/polls/${pollId}/vote`, {
       method: "POST",
@@ -1119,13 +1120,6 @@ export default function Home() {
     });
     setBallotPolls(list => list.map(p => (p.id === saved.id ? saved : p)));
     return saved;
-  }, []);
-
-  // The card is done with this poll (voted and read). Dropping it here is what
-  // makes the widget disappear; a reload agrees, since a voted poll is filtered
-  // out on arrival.
-  const dismissBallot = useCallback((pollId: number) => {
-    setBallotPolls(list => list.filter(p => p.id !== pollId));
   }, []);
 
   // ── Scroll spy ────────────────────────────────────────────────────────────
@@ -1380,10 +1374,29 @@ export default function Home() {
   // switched on — the row's button leads there.
   const wrapUpsDue = useWrapUpsDue();
   const wrapUps = eventsEnabled ? wrapUpsDue : NO_WRAP_UPS;
-  const needsAttention = useMemo(
-    () => deriveNeedsAttention(brotherList, taskList, todayISO, reimbursementList, measured, wrapUps, duesLate),
-    [brotherList, taskList, todayISO, reimbursementList, measured, wrapUps, duesLate],
-  );
+  // ── On your plate ───────────────────────────────────────────────────────────
+  // Replaced Needs attention: the same officer queue (overdue deadlines,
+  // wrap-ups, reimbursements, dues), each row gated on the permission that can
+  // act on it, plus the viewer's own tasks, votes and dues.
+  const myRoleIds = useMemo(() => new Set((currentUser?.roles ?? []).map(r => r.id)), [currentUser]);
+  const plateItems = useMemo(() => derivePlate({
+    today: todayISO, selfId, myRoleIds,
+    tasks: taskList, polls: ballotPolls, wrapUps, reimbursements: reimbursementList,
+    brothers: brotherList, duesLate, tracked: measured,
+    can: { tasks: canTasks, treasury: canTreasury, events: canEvents && eventsEnabled },
+    assigneeLabel: t => taskAssigneeLabel(t),
+  }), [todayISO, selfId, myRoleIds, taskList, ballotPolls, wrapUps, reimbursementList, brotherList, duesLate, measured, canTasks, canTreasury, canEvents, eventsEnabled]);
+  // "as Treasurer": the viewer's highest-ranked role carrying that permission.
+  const plateRoleNames = useMemo(() => {
+    const bits: Record<PlatePerm, number> = { tasks: PERMISSIONS.MANAGE_TASKS, treasury: PERMISSIONS.MANAGE_TREASURY, events: PERMISSIONS.MANAGE_EVENTS };
+    const roles = [...(currentUser?.roles ?? [])].sort((a, b) => b.rank - a.rank);
+    const out: Partial<Record<PlatePerm, string>> = {};
+    for (const k of Object.keys(bits) as PlatePerm[]) {
+      const r = roles.find(x => (x.permissions & bits[k]) !== 0);
+      out[k] = r?.name ?? (isActiveOrgAdmin ? "admin" : undefined);
+    }
+    return out;
+  }, [currentUser, isActiveOrgAdmin]);
 
   // ── Weekly Digest ──────────────────────────────────────────────────────────
   // Forward-looking "this week's agenda" for the current calendar week (Mon–Sun).
@@ -1394,7 +1407,7 @@ export default function Home() {
     return {
       // Open deadlines only — a task you already finished is not still "due",
       // and leaving it in also fed the AI digest as outstanding work. Matches
-      // the same filter deriveNeedsAttention applies.
+      // the same filter the plate applies to late tasks.
       deadlinesDue:    taskList.filter(d => d.status !== "done" && d.dueDate != null && inWeek(d.dueDate)),
       igDue:           igTaskList.filter(t => t.status !== "posted" && inWeek(t.dueDate)),
       // Every event on the calendar this week, not just mandatory ones. A week
@@ -1645,6 +1658,42 @@ export default function Home() {
       () => setTaskList(prev => prev.map(x => x.id === id ? d : x)),
       saved => setTaskList(prev => prev.map(x => x.id === id ? saved : x)),
     );
+  }
+
+  function reopenDeadline(id: number) {
+    const d = taskList.find(x => x.id === id);
+    if (!d || d.status !== "done") return;
+    setTaskList(prev => prev.map(x => x.id === id ? { ...x, status: "open" } : x));
+    persistMutation(
+      requestJson<Task>(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "open" }),
+      }),
+      "Task update failed. Local changes were reverted.",
+      () => setTaskList(prev => prev.map(x => x.id === id ? d : x)),
+      saved => setTaskList(prev => prev.map(x => x.id === id ? saved : x)),
+    );
+  }
+
+  // Approve/reject from the dashboard. Same call as Treasury's queue; approving
+  // mints an expense server-side, so the ledger is pulled back in after.
+  async function reviewReimbursement(id: number, status: "approved" | "rejected"): Promise<boolean> {
+    const prev = reimbursementList.find(r => r.id === id);
+    try {
+      const saved = await requestJson<Reimbursement>(`/api/reimbursements/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      setReimbursementList(list => list.map(r => r.id === id ? saved : r));
+      if (saved.transactionId != null || prev?.transactionId != null) {
+        requestJson<Transaction[]>("/api/transactions").then(setTransactionList).catch(() => undefined);
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function deleteDeadline(id: number) {
@@ -2257,13 +2306,18 @@ export default function Home() {
   ).filter(k => dashStats[k]);
 
   const dashCards: Partial<Record<DashCardId, GridCard>> = {};
-  if (feature("operations", "needs-attention")) dashCards.needs = { label: "Needs attention", wide: true, node: (
-    <NeedsAttention
-      items={needsAttention}
-      onMarkDone={completeDeadline}
-      onSendReminder={() => setActiveDrawer("dues")}
-      onOpenReimbursements={() => router.push(orgPath("/treasury?tab=Reimbursements"))}
+  if (feature("operations", "needs-attention")) dashCards.needs = { label: "On your plate", wide: true, node: (
+    <PlateCard
+      items={plateItems}
+      today={todayISO}
+      roleNames={plateRoleNames}
+      onCompleteTask={completeDeadline}
+      onReopenTask={reopenDeadline}
+      onVote={castBallotVote}
+      onReimbursement={reviewReimbursement}
       onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
+      onOpenDues={() => setActiveDrawer("dues")}
+      onOpenMyDues={financeEnabled ? () => router.push(orgPath("/treasury?tab=Dues")) : undefined}
       hasData={hasAnyData}
       loading={!attentionLoaded}
       error={attentionFailed}
@@ -2289,16 +2343,6 @@ export default function Home() {
       inviteLink={inviteLink}
       canInvite={canSettings}
       onCopyInvite={handleInvite}
-    />
-  ) };
-  // The ballot is the only card that expires and asks for an action, so its
-  // default slot is the top of the rail; it renders nothing while no vote waits.
-  if (ballotEnabled) dashCards.ballot = { label: "Votes", ghost: "Only shows up while a vote is waiting on someone.", node: (
-    <BallotCard
-      polls={ballotPolls}
-      today={todayISO}
-      onVote={castBallotVote}
-      onDismiss={dismissBallot}
     />
   ) };
   dashCards.week = { label: "This week", wide: true, node: (
@@ -2341,9 +2385,8 @@ export default function Home() {
     { id: "numbers" as const, label: "Headline numbers", blurb: "The strip of numbers up top. You pick which.", tone: "lilac" as const, on: true },
     { id: "health" as const, label: "Health dial", blurb: "One score from everything you track.", tone: "mint" as const, on: feature("operations", "health") },
     { id: "announcement" as const, label: "Pinned note", blurb: "One message everyone should see.", tone: "butter" as const, on: feature("operations", "announcement") },
-    { id: "needs" as const, label: "Needs attention", blurb: "Overdue deadlines, dues and reimbursements.", tone: "peach" as const, on: !!dashCards.needs },
+    { id: "needs" as const, label: "On your plate", blurb: "Everything waiting on you: tasks, votes, and your officer to-dos.", tone: "peach" as const, on: !!dashCards.needs },
     { id: "members" as const, label: v("Member", true), blurb: "Who's on the roster, who's drifting.", tone: "sky" as const, on: !!dashCards.members },
-    { id: "ballot" as const, label: "Votes", blurb: "Appears only while a vote is waiting on someone.", tone: "lilac" as const, on: !!dashCards.ballot },
     { id: "week" as const, label: "This week", blurb: "Seven days of events and deadlines.", tone: "butter" as const, on: true },
     { id: "treasury" as const, label: "Treasury", blurb: "The balance and where it's heading.", tone: "mint" as const, on: !!dashCards.treasury },
     { id: "activity" as const, label: "Activity", blurb: "What changed while you were away.", tone: "rose" as const, on: true },
