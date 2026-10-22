@@ -16,6 +16,7 @@ import { NotFoundError, ValidationError } from "@/lib/errors";
 import { resolveThresholds, isAttendanceExempt, type Thresholds } from "@/lib/thresholds";
 import { getBrotherStatus, type Brother as BrotherType, type BrotherStatus } from "@/app/data";
 import { formatEventTime } from "@/lib/event-time";
+import { ExcuseStatus } from "@/lib/state";
 
 export const PEEK_TYPES = ["member", "event", "task"] as const;
 export type PeekType = (typeof PEEK_TYPES)[number];
@@ -153,20 +154,24 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
 // ────────────────────────────────────────────────────────────────────────────
 
 async function eventPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
-  const [event, records, excusedCount] = await Promise.all([
+  const [event, records, excuses] = await Promise.all([
     ctx.db.calendarEvent.findFirst({ where: { id } }),
     ctx.db.attendanceRecord.findMany({
       where: { calendarEventId: id },
       include: { brother: { select: { name: true, isGhost: true } } },
     }),
-    ctx.db.attendanceExcuse.count({ where: { calendarEventId: id } }),
+    // Approved only — a pending or rejected excuse doesn't excuse anyone.
+    ctx.db.attendanceExcuse.findMany({ where: { calendarEventId: id, status: ExcuseStatus.Approved }, select: { brotherId: true } }),
   ]);
   if (!event) throw new NotFoundError("Event");
 
   // Ghosts are hidden from every other roster count; keep them out of this one.
   const visible = records.filter(r => !r.brother.isGhost);
-  const attended = visible.filter(r => r.attended);
-  const absent = visible.filter(r => !r.attended);
+  // An approved excuse wins over the record, as in the roster % (lib/attendance.ts):
+  // an excused member is neither present nor absent.
+  const excusedIds = new Set(excuses.map(e => e.brotherId));
+  const attended = visible.filter(r => r.attended && !excusedIds.has(r.brotherId));
+  const absent = visible.filter(r => !r.attended && !excusedIds.has(r.brotherId));
 
   // The date is the subtitle — repeating it here would spend a grid cell saying
   // what the header already said.
@@ -183,7 +188,7 @@ async function eventPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
       rows: visible.length === 0 ? [] : [
         { title: "Present", value: String(attended.length), tone: "good" },
         { title: "Absent", value: String(absent.length), tone: absent.length > 0 ? "risk" : "muted" },
-        { title: "Excused", value: String(excusedCount), tone: "muted" },
+        { title: "Excused", value: String(excusedIds.size), tone: "muted" },
       ],
       empty: "No attendance logged for this event yet.",
     },

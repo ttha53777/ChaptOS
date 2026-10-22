@@ -828,6 +828,7 @@ function EventDetail({
   const [excuseBrother, setExcuseBrother] = useState("");
   const [excuseReason,  setExcuseReason]  = useState("");
   const [excuseSubmitting, setExcuseSubmitting] = useState(false);
+  const [excuseError,   setExcuseError]   = useState<string | null>(null);
   const [logAttOpen,    setLogAttOpen]    = useState(false);
   const [logAttended,   setLogAttended]   = useState<Set<number>>(new Set());
   const [logSubmitting, setLogSubmitting] = useState(false);
@@ -850,6 +851,7 @@ function EventDetail({
     setExcuseOpen(false);
     setExcuseBrother("");
     setExcuseReason("");
+    setExcuseError(null);
     setLogAttOpen(false);
     setLogAttended(new Set());
     setLogError(null);
@@ -860,6 +862,7 @@ function EventDetail({
     if (!excuseReason.trim()) return;
     if (canLogAttendance && !excuseBrother) return;
     setExcuseSubmitting(true);
+    setExcuseError(null);
     try {
       const res = await fetch("/api/excuses", {
         method: "POST",
@@ -871,8 +874,9 @@ function EventDetail({
         }),
       });
       if (!res.ok) {
+        // e.g. 409 "Excuse already pending review" — say so, don't just sit there.
         const err = await res.json().catch(() => ({}));
-        console.error("Excuse submission failed", err);
+        setExcuseError(typeof err?.error === "string" ? err.error : "Couldn’t submit the excuse.");
         return;
       }
       const updated = await requestJson<AttendanceDetail>(`/api/attendance/${event.id}`);
@@ -881,8 +885,8 @@ function EventDetail({
       setExcuseOpen(false);
       setExcuseBrother("");
       setExcuseReason("");
-    } catch (err) {
-      console.error("Excuse submission error", err);
+    } catch {
+      setExcuseError("Couldn’t submit the excuse. Please try again.");
     } finally {
       setExcuseSubmitting(false);
     }
@@ -1175,9 +1179,10 @@ function EventDetail({
                 </p>
               )}
               <input className={inputCls} value={excuseReason} onChange={e => setExcuseReason(e.target.value)} placeholder="Reason" required />
+              {excuseError && <p className="ev-err">{excuseError}</p>}
               <div className="ev-form-actions">
                 <button type="submit" className="ev-btn-primary" disabled={excuseSubmitting}>{excuseSubmitting ? "Saving…" : "Submit"}</button>
-                <button type="button" className="ev-btn-ghost" onClick={() => setExcuseOpen(false)}>Cancel</button>
+                <button type="button" className="ev-btn-ghost" onClick={() => { setExcuseOpen(false); setExcuseError(null); }}>Cancel</button>
               </div>
             </form>
           )}
@@ -1258,13 +1263,13 @@ function GlanceDetail({
  * dues / reimbursements / member-risk. Every action routes to an existing handler.
  */
 function TimelineTodo({
-  overdue, dueThisWeek, pendingExcuseCount, isAdmin, rejected,
+  overdue, dueThisWeek, pendingExcuseCount, canReviewExcuses, rejected,
   onMarkDone, onOpenEvent, onReviewExcuses, onOpenRejected, onDismissRejected,
 }: {
   overdue: CalendarEvent[];
   dueThisWeek: CalendarEvent[];
   pendingExcuseCount: number;
-  isAdmin: boolean;
+  canReviewExcuses: boolean;
   /** The viewer's own rejected excuses they haven't dismissed yet. */
   rejected: MyExcuse[];
   onMarkDone: (deadlineId: number) => void;
@@ -1273,7 +1278,7 @@ function TimelineTodo({
   onOpenRejected: (excuse: MyExcuse) => void;
   onDismissRejected: (excuse: MyExcuse) => void;
 }) {
-  const showExcuses = isAdmin && pendingExcuseCount > 0;
+  const showExcuses = canReviewExcuses && pendingExcuseCount > 0;
   const count = overdue.length + dueThisWeek.length + (showExcuses ? 1 : 0) + rejected.length;
 
   return (
@@ -1343,7 +1348,11 @@ export default function TimelinePage() {
   const activeSemester = useActiveSemester();
   const handleSemesterError = useSemesterErrorHandler();
   const selfId = currentUser?.id ?? null;
-  const isAdmin = currentUser?.isAdmin ?? false;
+  // Excuse review and roll-taking follow the attendance permission, like the
+  // Chapter page and the Sidebar badge. This used to read currentUser.isAdmin —
+  // the deprecated account-wide flag nothing sets — so real officers were sent
+  // here to review excuses and found no review panel.
+  const canAttendance = can("MANAGE_ATTENDANCE");
   const canManageEvents = can("MANAGE_EVENTS");
   // The Instagram page is visible only when the org has the communications
   // workflow enabled — that gates the "log as post" option in Add Deadline.
@@ -1535,11 +1544,11 @@ export default function TimelinePage() {
 
   // Admin-only: load pending excuses for the review banner.
   useEffect(() => {
-    if (!isAdmin) { setPendingExcuses([]); return; }
+    if (!canAttendance) { setPendingExcuses([]); return; }
     requestJson<PendingExcuse[]>("/api/excuses?status=pending")
       .then(setPendingExcuses)
       .catch(() => {});
-  }, [isAdmin]);
+  }, [canAttendance]);
 
   async function decideExcuse(excuseId: number, action: "approve" | "reject", note?: string) {
     setExcuseActionBusy(excuseId);
@@ -2445,7 +2454,7 @@ export default function TimelinePage() {
             </div>
 
             {/* ── Admin: pending-excuse review ─────────────────────────────── */}
-            {isAdmin && pendingExcuses.length > 0 && (
+            {canAttendance && pendingExcuses.length > 0 && (
               <div className="tl-review" style={{ marginTop: 18 }} ref={reviewRef}>
                 <button className="tl-review-h" onClick={() => setReviewPanelOpen(o => !o)}>
                   <span className="lead">
@@ -2647,7 +2656,7 @@ export default function TimelinePage() {
                     onClose={() => setSelectedEvent(null)}
                     canEdit={selectedEventCanEdit}
                     canDelete={selectedEventCanEdit && (!selectedEvent.partyEventId || can("MANAGE_PARTIES"))}
-                    canLogAttendance={isAdmin}
+                    canLogAttendance={canAttendance}
                     onEdit={() => openEventModal("edit")}
                     onDelete={handleDeleteEvent}
                     onOpenParty={selectedEvent.partyEventId != null
@@ -2707,7 +2716,7 @@ export default function TimelinePage() {
                       overdue={overdueEvents}
                       dueThisWeek={deadlinesDueThisWeek}
                       pendingExcuseCount={pendingExcuses.length}
-                      isAdmin={isAdmin}
+                      canReviewExcuses={canAttendance}
                       rejected={unseenRejections}
                       onMarkDone={(id) => setDeadlineComplete(id, true)}
                       onOpenEvent={setSelectedEvent}
