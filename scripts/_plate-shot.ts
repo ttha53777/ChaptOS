@@ -25,7 +25,7 @@ const REIMB = (selfId: number) => [
   { id: 99202, brotherId: selfId, brother: { id: selfId, name: "Theo Grant", avatarUrl: null }, amount: 70, date: iso(-6), description: "Gas, retreat drive", status: "pending", createdAt: iso(-6), updatedAt: iso(-6) },
 ];
 
-type Scene = { name: string; width: number; member?: boolean; rail?: boolean; act?: (p: Page) => Promise<void> };
+type Scene = { name: string; width: number; member?: boolean; rail?: boolean; noPoll?: boolean; act?: (p: Page) => Promise<void> };
 
 async function guard(p: Page, s: Scene, selfId: number) {
   let tasks: Record<string, unknown>[] = [];
@@ -42,8 +42,8 @@ async function guard(p: Page, s: Scene, selfId: number) {
     }
     if (req.method() !== "GET") return r.abort();
     // Retry a flaked GET here, so the page never sees the 500.
-    const fetchOk = async () => { for (let i = 0; ; i++) { const res = await r.fetch(); if (res.status() < 500 || i === 5) return res; await new Promise(z => setTimeout(z, 800)); } };
-    if (path === "/api/polls" && url.searchParams.get("assignee") === "me") return r.fulfill({ json: [POLL] });
+    const fetchOk = async () => { for (let i = 0; ; i++) { const res = await r.fetch({ timeout: 60000 }).catch(() => null); if (res && (res.status() < 500 || i === 5)) return res; if (!res && i === 5) throw new Error("fetch kept failing"); await new Promise(z => setTimeout(z, 800)); } };
+    if (path === "/api/polls" && url.searchParams.get("assignee") === "me") return r.fulfill({ json: s.noPoll ? [] : [POLL] });
     if (path === "/api/reimbursements" && !s.member) return r.fulfill({ json: REIMB(selfId) });
     if (path === "/api/tasks") { const res = await fetchOk(); tasks = await res.json(); return r.fulfill({ response: res, json: tasks }); }
     if (s.rail && path === "/api/auth/me") {
@@ -75,7 +75,12 @@ async function guard(p: Page, s: Scene, selfId: number) {
   const scenes: Scene[] = [
     { name: "main", width: 1440 },
     { name: "main-vote", width: 1440, act: async p => { await open("chat")(p); await p.waitForTimeout(150); await p.evaluate(() => (document.querySelector(".pl-opt") as HTMLButtonElement).click()); } },
-    { name: "main-reimb", width: 1440, act: open("receipt") },
+    { name: "main-reimb", width: 1440, act: async p => { await p.evaluate(() => (document.querySelectorAll(".pl-scope button")[1] as HTMLButtonElement).click()); await open("receipt")(p); } },
+    { name: "mine-clear", width: 1440, noPoll: true, act: async p => { await open("box")(p); await p.waitForTimeout(900); } },
+    { name: "mine-clear-all", width: 1440, noPoll: true, act: async p => {
+      await open("box")(p); await p.waitForTimeout(900);
+      await p.evaluate(() => (document.querySelector(".pl-clear .btn") as HTMLButtonElement).click());
+    } },
     { name: "main-done", width: 1440, act: async p => {
       await open("box")(p); await p.waitForTimeout(900);
       await p.evaluate(() => (document.querySelector(".pl-done > button") as HTMLButtonElement)?.click());

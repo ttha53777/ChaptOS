@@ -17,8 +17,8 @@ import "./plate-card.css";
  * inside the card; dues and wrap-ups lead to the page that owns them. Rows the
  * viewer sees because of a permission carry an "as <role>" tag.
  *
- * Wide (main column): every lane shows, rows two-up. Narrow (rail, phone): one
- * column, empty lanes dropped, capped at RAIL_LIMIT behind "Show more".
+ * Only lanes with something in them show. Wide (main column): rows two-up.
+ * Narrow (rail, phone): one column, capped at RAIL_LIMIT behind "Show more".
  */
 
 const RAIL_LIMIT = 4;
@@ -71,7 +71,8 @@ export function PlateCard({
   const toast = useToast();
   const bodyRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(false);
-  const [scope, setScope] = useState<"all" | "mine">("all");
+  // Starts on your own items; "All" adds the ones you see because of a role.
+  const [scope, setScope] = useState<"all" | "mine">("mine");
   const [open, setOpen] = useState<string | null>(null);
   const [more, setMore] = useState(false);
   const [finished, setFinished] = useState<Finished[]>([]);
@@ -117,7 +118,8 @@ export function PlateCard({
   }
 
   function tag(it: PlateItem) {
-    if (it.mine) return hasOthers ? <span className="pl-why">for you</span> : null;
+    // On You every row is yours, so the tag only earns its place under All.
+    if (it.mine) return hasOthers && scope === "all" ? <span className="pl-why">for you</span> : null;
     return <span className="pl-why role">as {it.as ? roleNames[it.as] ?? "officer" : "officer"}</span>;
   }
 
@@ -275,7 +277,7 @@ export function PlateCard({
       {[0, 1, 2].map(i => <i key={i} className="skel" />)}
     </div>
   );
-  else if (!list.length) body = hasData ? (
+  else if (!items.length && !leaving.length) body = hasData ? (
     <div className="pl-clear"><span className="pl-stamp">ALL CLEAR</span><p>Nothing&rsquo;s waiting on you right now.</p></div>
   ) : (
     <div className="pl-hello">
@@ -287,32 +289,38 @@ export function PlateCard({
     <>
       {hasOthers && (
         <div className="pl-scope" role="tablist" aria-label="Show">
-          <button type="button" role="tab" aria-selected={scope === "all"} className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>
-            Everything <em>{items.length}</em>
-          </button>
           <button type="button" role="tab" aria-selected={scope === "mine"} className={scope === "mine" ? "on" : ""} onClick={() => setScope("mine")}>
-            Just mine <em>{mineCount}</em>
+            You <em>{mineCount}</em>
+          </button>
+          <button type="button" role="tab" aria-selected={scope === "all"} className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>
+            All <em>{items.length}</em>
           </button>
         </div>
       )}
+      {!list.length ? (
+        // Your part is done but the role queue isn't: say so, and keep the way to it.
+        <div className="pl-clear">
+          <span className="pl-stamp">ALL CLEAR</span>
+          <p>Nothing of yours is waiting. {items.length} {items.length === 1 ? "item for your role is" : "items for your role are"} under All.</p>
+          <button type="button" className="btn sm" onClick={() => setScope("all")}>Show all {items.length} <PaperIcon name="arrow-r" /></button>
+        </div>
+      ) : (
       <div className="pl-lanes">
         {LANES.map(([lane, label]) => {
           const rows = visible.filter(i => i.lane === lane);
           const n = list.filter(i => i.lane === lane && !leavingKeys.has(i.key)).length;
-          if (!rows.length && !wide) return null;
+          if (!rows.length) return null;
           return (
             <div className="pl-lane" data-lane={lane} key={lane}>
               <div className="pl-lane-h">{label} <span>{n}</span></div>
               <div className="pl-list">
-                {rows.length ? rows.map(row) : (
-                  <div className="pl-none">{lane === "late" ? "Nothing late." : lane === "today" ? "Nothing due today." : "Nothing coming up."}</div>
-                )}
+                {rows.map(row)}
               </div>
             </div>
           );
         })}
-        {!scoped.length && scope === "mine" && <div className="pl-none">Nothing of yours. The rest is under Everything.</div>}
       </div>
+      )}
       {!wide && list.length > RAIL_LIMIT + 1 && (
         <button type="button" className="pl-more" onClick={() => setMore(m => !m)}>
           {more ? "Show less" : `Show ${list.length - RAIL_LIMIT} more`}
@@ -321,7 +329,7 @@ export function PlateCard({
     </>
   );
 
-  const left = items.length;
+  const left = scoped.length;
   return (
     <section className="card pl dash-group" aria-label="On your plate">
       <div className="card-h">
