@@ -12,7 +12,7 @@ import type { Brother, Poll, Reimbursement, Task } from "@/app/data";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 
 export type PlateLane = "late" | "today" | "soon";
-export type PlatePerm = "tasks" | "treasury" | "events";
+export type PlatePerm = "treasury" | "events";
 
 /** How far ahead "Coming up" reaches for dated tasks. Undated to-dos always count. */
 export const PLATE_SOON_DAYS = 7;
@@ -20,7 +20,7 @@ export const PLATE_SOON_DAYS = 7;
 type Base = { key: string; lane: PlateLane; mine: boolean; as?: PlatePerm };
 
 export type PlateItem = Base & (
-  | { kind: "task"; id: number; title: string; dueDate: string | null; daysLate: number; assignees: string }
+  | { kind: "task"; id: number; title: string; dueDate: string | null; daysLate: number }
   | { kind: "poll"; id: number; question: string; closeDate: string | null; options: { id: number; label: string }[] }
   | { kind: "wrap-up"; id: number; title: string; dueDate: string | null; daysAgo: number | null }
   | { kind: "reimbursement"; total: number; requests: { id: number; name: string; amount: number; description: string; date: string }[] }
@@ -41,7 +41,6 @@ export interface PlateInput {
   duesLate: ReadonlyMap<number, number>;
   tracked: Pick<TrackedMetrics, "duesOwed">;
   can: Record<PlatePerm, boolean>;
-  assigneeLabel: (t: Task) => string;
 }
 
 /** Whole days from ISO `from` to ISO `to` (yyyy-mm-dd), via UTC to dodge DST. */
@@ -63,22 +62,17 @@ const LANE_ORDER: Record<PlateLane, number> = { late: 0, today: 1, soon: 2 };
 export function derivePlate(i: PlateInput): PlateItem[] {
   const out: (PlateItem & { sort: string })[] = [];
 
-  // Tasks. Yours: late, today, the next week, and undated to-dos. Someone else's
-  // only once it's late, and only for MANAGE_TASKS — they can mark it done.
+  // Tasks: only yours (to you, a role you hold, or Everyone) — late, today, the
+  // next week, and undated to-dos. Someone else's late task is not on your plate
+  // just because you're allowed to manage tasks; it stays on Tasks and Timeline.
   for (const t of i.tasks) {
-    if (t.status === "done") continue;
-    const mine = isMyTask(t, i.selfId, i.myRoleIds);
+    if (t.status === "done" || !isMyTask(t, i.selfId, i.myRoleIds)) continue;
     const d = t.dueDate == null ? null : days(i.today, t.dueDate);
-    let lane: PlateLane | null = null;
-    if (d != null && d < 0) lane = mine || i.can.tasks ? "late" : null;
-    else if (!mine) lane = null;
-    else if (d === 0) lane = "today";
-    else if (d == null || d <= PLATE_SOON_DAYS) lane = "soon";
+    const lane: PlateLane | null = d != null && d < 0 ? "late" : d === 0 ? "today" : d == null || d <= PLATE_SOON_DAYS ? "soon" : null;
     if (!lane) continue;
     out.push({
-      key: `task-${t.id}`, lane, mine, ...(mine ? {} : { as: "tasks" as const }),
+      key: `task-${t.id}`, lane, mine: true,
       kind: "task", id: t.id, title: t.title, dueDate: t.dueDate, daysLate: d != null && d < 0 ? -d : 0,
-      assignees: i.assigneeLabel(t),
       sort: t.dueDate ?? "9999",
     });
   }

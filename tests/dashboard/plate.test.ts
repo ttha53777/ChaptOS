@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { taskAssigneeLabel, type Brother, type Poll, type Reimbursement, type Task } from "@/app/data";
+import { type Brother, type Poll, type Reimbursement, type Task } from "@/app/data";
 import { derivePlate, type PlateInput } from "@/app/components/dashboard/plate/derive-plate";
 
 const TODAY = "2026-06-13";
@@ -42,7 +42,7 @@ function input(over: Partial<PlateInput> = {}): PlateInput {
   return {
     today: TODAY, selfId: ME, myRoleIds: new Set(), tasks: [], polls: [], wrapUps: [], reimbursements: [],
     brothers: [], duesLate: new Map(), tracked: { duesOwed: true },
-    can: { tasks: false, treasury: false, events: false }, assigneeLabel: t => taskAssigneeLabel(t), ...over,
+    can: { treasury: false, events: false }, ...over,
   };
 }
 
@@ -73,15 +73,13 @@ describe("derivePlate", () => {
     expect(items.map(i => i.mine)).toEqual([true, true]);
   });
 
-  it("shows someone else's task only once it's late, and only to MANAGE_TASKS", () => {
+  it("never shows someone else's task, even late, even to officers", () => {
     const tasks = [
       task({ id: 1, dueDate: "2026-06-01", assignments: toSomeone(1) }),
       task({ id: 2, dueDate: TODAY, assignments: toSomeone(2) }),
     ];
     expect(derivePlate(input({ tasks }))).toEqual([]);
-    const items = derivePlate(input({ tasks, can: { tasks: true, treasury: false, events: false } }));
-    expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ key: "task-1", lane: "late", mine: false, as: "tasks", assignees: "Ava" });
+    expect(derivePlate(input({ tasks, can: { treasury: true, events: true } }))).toEqual([]);
   });
 
   it("lists unvoted open polls, options in order, closing today in Today", () => {
@@ -102,7 +100,7 @@ describe("derivePlate", () => {
       brothers: [brother({ id: 9, name: "Ava Brooks", duesOwed: 120 })],
     };
     expect(derivePlate(input(base))).toEqual([]);
-    const items = derivePlate(input({ ...base, can: { tasks: false, treasury: true, events: true } }));
+    const items = derivePlate(input({ ...base, can: { treasury: true, events: true } }));
     expect(items.map(i => [i.kind, i.lane, i.as])).toEqual([
       ["wrap-up", "late", "events"], ["reimbursement", "soon", "treasury"], ["dues", "soon", "treasury"],
     ]);
@@ -112,7 +110,7 @@ describe("derivePlate", () => {
 
   it("puts the dues total in Late when anyone is overdue, overdue members first", () => {
     const items = derivePlate(input({
-      can: { tasks: false, treasury: true, events: false },
+      can: { treasury: true, events: false },
       brothers: [brother({ id: 1, name: "Big Owe", duesOwed: 300 }), brother({ id: 2, name: "Late Lou", duesOwed: 50 })],
       duesLate: new Map([[2, 12]]),
     }));
@@ -123,7 +121,7 @@ describe("derivePlate", () => {
     const brothers = [brother({ id: ME, name: "Rob Chen", duesOwed: 120 })];
     expect(derivePlate(input({ brothers, duesLate: new Map([[ME, 7]]) }))[0])
       .toMatchObject({ kind: "my-dues", lane: "late", amount: 120, lateDays: 7, mine: true });
-    expect(derivePlate(input({ brothers, tracked: { duesOwed: false }, can: { tasks: false, treasury: true, events: false } }))).toEqual([]);
+    expect(derivePlate(input({ brothers, tracked: { duesOwed: false }, can: { treasury: true, events: false } }))).toEqual([]);
   });
 
   it("orders late, then today, then coming up", () => {

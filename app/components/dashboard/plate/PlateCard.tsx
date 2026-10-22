@@ -143,7 +143,6 @@ export function PlateCard({
           {it.dueDate == null ? "No due date" : it.lane === "late"
             ? <>Due {when(it.dueDate, today)} · {late(`${plural(it.daysLate, "day")} late`)}</>
             : `Due ${when(it.dueDate, today)}`}
-          {!it.mine && ` · ${it.assignees}`}
         </>;
         action = (
           <button type="button" className="btn sm" onClick={() => {
