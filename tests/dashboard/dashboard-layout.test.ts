@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DASHBOARD_LAYOUT,
-  DASH_PRESETS,
+  DEFAULT_DASH_NUMBERS,
   MAX_DASH_NUMBERS,
-  dropCard,
   normalizeDashboardLayout,
   nudgeCard,
-  presetLayout,
+  placeCard,
   resolveDashboardLayout,
   setNumberSlot,
   setWidgetHidden,
@@ -33,10 +32,21 @@ describe("normalizeDashboardLayout", () => {
     });
   });
 
-  it("caps the headline numbers and keeps null as 'auto'", () => {
-    const many = ["attendance", "dues", "gpa", "service", "members", "week", "tasks", "requests"];
-    expect(normalizeDashboardLayout({ ...DEFAULT_DASHBOARD_LAYOUT, numbers: many })!.numbers).toHaveLength(MAX_DASH_NUMBERS);
-    expect(normalizeDashboardLayout({ main: [], rail: [] })!.numbers).toBeNull();
+  it("caps the headline numbers at three, keeping the first ones", () => {
+    const many = ["attendance", "dues", "gpa", "service", "members", "week"];
+    expect(MAX_DASH_NUMBERS).toBe(3);
+    expect(normalizeDashboardLayout({ ...DEFAULT_DASHBOARD_LAYOUT, numbers: many })!.numbers).toEqual(["attendance", "dues", "gpa"]);
+  });
+
+  it("turns the old 'auto' numbers into the default three", () => {
+    expect(normalizeDashboardLayout({ main: [], rail: [], numbers: null })!.numbers).toEqual(DEFAULT_DASH_NUMBERS);
+    expect(normalizeDashboardLayout({ main: [], rail: [] })!.numbers).toEqual(DEFAULT_DASH_NUMBERS);
+  });
+
+  it("a stored layout that hid the old numbers band keeps an empty row, and the band id is dropped", () => {
+    const out = normalizeDashboardLayout({ main: [], rail: [], hidden: ["numbers", "health"], numbers: ["members"] })!;
+    expect(out.numbers).toEqual([]);
+    expect(out.hidden).toEqual(["health"]);
   });
 
   it("resolves a never-customized org to the default", () => {
@@ -61,11 +71,24 @@ describe("moves", () => {
     expect(out.rail).toEqual(["ballot", "treasury", "members", "activity"]);
   });
 
-  it("drops before/after a card or at the end of a column", () => {
-    expect(dropCard(DEFAULT_DASHBOARD_LAYOUT, "activity", { card: "needs", after: false }).main).toEqual(["activity", "needs", "week", "members"]);
-    const end = dropCard(DEFAULT_DASHBOARD_LAYOUT, "needs", { column: "rail" });
-    expect(end.main).toEqual(["week", "members"]);
-    expect(end.rail.at(-1)).toBe("needs");
+  it("places a card at a visible slot, skipping cards that aren't shown", () => {
+    const visible = (k: DashCardId) => k !== "ballot";
+    // rail = ballot (not shown), treasury, activity → slot 0 is before treasury
+    const out = placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "rail", 0, visible);
+    expect(out.main).toEqual(["needs", "members"]);
+    expect(out.rail).toEqual(["ballot", "week", "treasury", "activity"]);
+    expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "needs", "rail", 99, visible).rail.at(-1)).toBe("needs");
+  });
+
+  it("placing a hidden card brings it back", () => {
+    const h = setWidgetHidden(DEFAULT_DASHBOARD_LAYOUT, "activity", true);
+    const out = placeCard(h, "activity", "main", 1, all);
+    expect(out.hidden).toEqual([]);
+    expect(out.main).toEqual(["needs", "activity", "week", "members"]);
+  });
+
+  it("returns the same object when a card is dropped back where it was", () => {
+    expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "main", 1, all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
   });
 
   it("hides and shows without duplicating", () => {
@@ -81,21 +104,9 @@ describe("setNumberSlot", () => {
     expect(setNumberSlot(nums, 0, "tasks")).toEqual(["tasks", "week", "members"]);
   });
   it("appends into a new slot, never twice, never past the cap", () => {
-    expect(setNumberSlot(nums, 3, "dues")).toEqual([...nums, "dues"]);
-    expect(setNumberSlot(nums, 3, "week")).toEqual(nums);
-    const full = ["attendance", "dues", "gpa", "service", "members", "week"] as DashStatId[];
-    expect(setNumberSlot(full, 6, "tasks")).toEqual(full);
-  });
-});
-
-describe("presets", () => {
-  it("every preset resolves to a complete, valid layout", () => {
-    for (const p of DASH_PRESETS) {
-      const l = presetLayout(p);
-      expect([...l.main, ...l.rail].sort()).toEqual(["activity", "ballot", "members", "needs", "treasury", "week"]);
-    }
-  });
-  it("the Standard preset is the default", () => {
-    expect(presetLayout(DASH_PRESETS[0])).toEqual(DEFAULT_DASHBOARD_LAYOUT);
+    expect(setNumberSlot(["members", "week"], 2, "dues")).toEqual(["members", "week", "dues"]);
+    expect(setNumberSlot(["members", "week"], 2, "week")).toEqual(["members", "week"]);
+    const full = ["attendance", "dues", "gpa"] as DashStatId[];
+    expect(setNumberSlot(full, 3, "tasks")).toEqual(full);
   });
 });

@@ -36,7 +36,8 @@ export interface DashboardLayout {
   rail: string[];
   /** Cards and bands the admin switched off. */
   hidden: string[];
-  /** Headline-number ids in strip order, or null for "whatever the org tracks". */
+  /** Headline-number ids in strip order (at most 3; [] = no number row). Null
+   *  only ever came from older servers, where it meant "whatever the org tracks". */
   numbers: string[] | null;
 }
 

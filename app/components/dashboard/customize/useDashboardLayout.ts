@@ -11,28 +11,34 @@ import {
 } from "@/lib/dashboard-layout";
 
 /**
- * The org's dashboard layout plus Customize mode's draft of it.
+ * The org's dashboard layout plus Arrange mode's draft of it.
  *
  * While arranging, every change edits a local draft so the page behind it moves
- * live; Done writes the draft to the org (optimistically, rolled back on a
- * failed PATCH). A draft that matches the default is stored as null, so an org
- * that resets is genuinely "never customized" and picks up future defaults.
+ * live, and each one is a step Undo can take back. Done writes the draft to the
+ * org (optimistically, rolled back on a failed PATCH). A draft that matches the
+ * default is stored as null, so an org that resets is genuinely "never
+ * customized" and picks up future defaults.
  */
 export function useDashboardLayout() {
   const { currentUser, setDashboardLayoutLocal, setMutationError } = useChapter();
   const stored = currentUser?.org?.dashboardLayout ?? null;
   const saved = useMemo(() => resolveDashboardLayout(stored), [stored]);
-  const [draft, setDraft] = useState<DashboardLayout | null>(null);
+  const [edit, setEdit] = useState<{ draft: DashboardLayout; past: DashboardLayout[] } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const start = useCallback(() => setDraft(saved), [saved]);
-  const update = useCallback((next: DashboardLayout) => setDraft(d => (d ? next : d)), []);
-  const reset = useCallback(() => setDraft(d => (d ? DEFAULT_DASHBOARD_LAYOUT : d)), []);
+  const start = useCallback(() => setEdit({ draft: saved, past: [] }), [saved]);
+  const update = useCallback((next: DashboardLayout) => setEdit(e => (
+    e && next !== e.draft && !sameDashboardLayout(next, e.draft) ? { draft: next, past: [...e.past, e.draft] } : e
+  )), []);
+  const undo = useCallback(() => setEdit(e => (
+    e && e.past.length ? { draft: e.past[e.past.length - 1], past: e.past.slice(0, -1) } : e
+  )), []);
 
-  /** Leave Customize mode, saving the draft. Resolves to what happened. */
+  /** Leave Arrange mode, saving the draft. Resolves to what happened. */
   const done = useCallback(async (): Promise<"unchanged" | "saved" | "failed"> => {
+    const draft = edit?.draft;
     if (!draft) return "unchanged";
-    setDraft(null);
+    setEdit(null);
     if (sameDashboardLayout(draft, saved)) return "unchanged";
     const next = sameDashboardLayout(draft, DEFAULT_DASHBOARD_LAYOUT) ? null : draft;
     setDashboardLayoutLocal(next);
@@ -51,7 +57,16 @@ export function useDashboardLayout() {
     } finally {
       setSaving(false);
     }
-  }, [draft, saved, stored, setDashboardLayoutLocal, setMutationError]);
+  }, [edit, saved, stored, setDashboardLayoutLocal, setMutationError]);
 
-  return { layout: draft ?? saved, editing: draft !== null, saving, start, update, reset, done };
+  return {
+    layout: edit?.draft ?? saved,
+    editing: edit !== null,
+    canUndo: !!edit?.past.length,
+    saving,
+    start,
+    update,
+    undo,
+    done,
+  };
 }

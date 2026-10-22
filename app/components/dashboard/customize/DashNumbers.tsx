@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { MAX_DASH_NUMBERS, setNumberSlot, type DashStatId } from "@/lib/dashboard-layout";
 import { LedgerStrip } from "../ledger/LedgerStrip";
 import { PaperIcon, type PaperIconName } from "../../paper/PaperIcon";
-import { EditChrome } from "./EditChrome";
 import { DashPortal } from "./DashPortal";
 
 export interface DashStat {
@@ -12,15 +11,15 @@ export interface DashStat {
   icon: PaperIconName;
   /** A CSS colour for the picker's tile, e.g. "var(--pp-mint-ink)". */
   tone: string;
-  /** The rendered <Measure>. Customize mode clones it with an `editSlot`. */
+  /** The rendered <Measure>. Arrange mode clones it with an `editSlot`. */
   el: React.ReactElement<{ editSlot?: React.ReactNode }>;
 }
 
 /**
- * The headline numbers. Outside Customize mode this is the ledger strip as it
- * always was. Inside it, every tile becomes a "Swap" target with a remove
- * button, an "Add a number" tile appears while there's room, and the whole
- * band can be hidden.
+ * The headline numbers. Outside Arrange mode this is the ledger strip as it
+ * always was (and nothing at all when the org removed every number). Inside
+ * it, every tile becomes a "Change" target with a × to remove it, and a dashed
+ * "Add a number" slot sits in the row while there's room.
  *
  * The picker is `position: fixed` and anchored to the tapped tile, because the
  * paper tiles clip their overflow and the strip wraps at narrow widths.
@@ -30,14 +29,12 @@ export function DashNumbers({
   stats,
   editing,
   onChange,
-  onHide,
 }: {
   /** The numbers to show, already filtered to what this org can show. */
   ids: DashStatId[];
   stats: Partial<Record<DashStatId, DashStat>>;
   editing: boolean;
-  onChange: (next: DashStatId[]) => void;
-  onHide: () => void;
+  onChange: (next: DashStatId[], message: string) => void;
 }) {
   const [pick, setPick] = useState<{ slot: number; x: number; y: number; top: number; flip: boolean } | null>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -82,10 +79,10 @@ export function DashNumbers({
           key: k,
           editSlot: (
             <>
-              <button type="button" className={`dn-cover${pick?.slot === i ? " on" : ""}`} aria-label={`Swap ${s.label}`} aria-haspopup="menu" onClick={e => open(i, e.currentTarget)}>
-                <span className="dn-swap"><PaperIcon name="refresh" /> Swap</span>
+              <button type="button" className={`dn-cover${pick?.slot === i ? " on" : ""}`} aria-label={`Change ${s.label}`} aria-haspopup="menu" onClick={e => open(i, e.currentTarget)}>
+                <span className="dn-swap"><PaperIcon name="swap" /> Change</span>
               </button>
-              <button type="button" className="dn-x" title="Remove" aria-label={`Remove ${s.label}`} onClick={() => onChange(ids.filter(x => x !== k))}>
+              <button type="button" className="dn-x" title="Remove" aria-label={`Remove ${s.label}`} onClick={() => { setPick(null); onChange(ids.filter(x => x !== k), `Removed ${s.label}`); }}>
                 <PaperIcon name="x" />
               </button>
             </>
@@ -93,18 +90,17 @@ export function DashNumbers({
         });
       })}
       {editing && ids.length < MAX_DASH_NUMBERS && ids.length < all.length && (
-        <button type="button" className="measure dn-add" onClick={e => open(ids.length, e.currentTarget)} aria-haspopup="menu">
+        <button type="button" className={`measure dn-add${pick?.slot === ids.length ? " on" : ""}`} onClick={e => open(ids.length, e.currentTarget)} aria-haspopup="menu">
           <PaperIcon name="plus" />
-          <span>Add a number</span>
+          <span>{ids.length ? "Add a number" : "Add numbers up top"}</span>
         </button>
       )}
     </LedgerStrip>
   );
 
   return (
-    <div className="dw-band dn" data-w="numbers">
+    <div className={`dw-band dn${editing && !ids.length ? " solo" : ""}`} data-w="numbers">
       {strip}
-      {editing && <EditChrome label="Headline numbers" onHide={onHide} />}
       {pick && (
         <DashPortal>
         <div
@@ -124,12 +120,17 @@ export function DashNumbers({
                 type="button"
                 role="menuitem"
                 className={here ? "on" : ""}
-                onClick={() => { onChange(setNumberSlot(ids, pick.slot, k)); setPick(null); }}
+                onClick={() => {
+                  setPick(null);
+                  if (here) return;
+                  const adding = pick.slot >= ids.length;
+                  onChange(setNumberSlot(ids, pick.slot, k), adding ? `Added ${s.label}` : at > -1 ? "Swapped two numbers" : `Now showing ${s.label}`);
+                }}
                 disabled={pick.slot >= ids.length && at > -1}
               >
                 <span className="dn-tile" style={{ "--c": s.tone } as React.CSSProperties}><PaperIcon name={s.icon} /></span>
                 {s.label}
-                {here ? <PaperIcon name="check" className="pp-ic dn-on" /> : at > -1 ? <small>in spot {at + 1}</small> : null}
+                {here ? <PaperIcon name="check" className="pp-ic dn-on" /> : at > -1 ? <small>{pick.slot >= ids.length ? "shown" : `box ${at + 1}`}</small> : null}
               </button>
             );
           })}

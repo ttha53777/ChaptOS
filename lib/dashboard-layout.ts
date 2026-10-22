@@ -19,8 +19,12 @@ import type { DashboardLayout as DashboardLayoutWire } from "@/lib/api-types/me"
 export const DASH_CARDS = ["needs", "members", "ballot", "week", "treasury", "activity"] as const;
 export type DashCardId = (typeof DASH_CARDS)[number];
 
-/** Full-width bands with a fixed place on the page: hideable, not movable. */
-export const DASH_BANDS = ["health", "announcement", "numbers"] as const;
+/**
+ * Widgets with a fixed place on the page. They can be put away and brought
+ * back, but not moved. (The headline numbers used to be one of these; an
+ * empty number row now simply isn't drawn, so "hidden" = no numbers.)
+ */
+export const DASH_BANDS = ["health", "announcement"] as const;
 export type DashBandId = (typeof DASH_BANDS)[number];
 
 export type DashWidgetId = DashCardId | DashBandId;
@@ -29,21 +33,24 @@ export type DashWidgetId = DashCardId | DashBandId;
 export const DASH_STATS = ["attendance", "dues", "gpa", "service", "members", "week", "tasks", "requests", "balance"] as const;
 export type DashStatId = (typeof DASH_STATS)[number] | `metric:${number}`;
 
-export const MAX_DASH_NUMBERS = 6;
+export const MAX_DASH_NUMBERS = 3;
+
+/** What a never-customized org shows up top: true for every kind of org. */
+export const DEFAULT_DASH_NUMBERS: DashStatId[] = ["members", "week", "tasks"];
 
 /** The wire shape (lib/api-types/me.ts), narrowed to the ids this module knows. */
 export interface DashboardLayout extends DashboardLayoutWire {
   main: DashCardId[];
   rail: DashCardId[];
   hidden: DashWidgetId[];
-  numbers: DashStatId[] | null;
+  numbers: DashStatId[];
 }
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
   main: ["needs", "week", "members"],
   rail: ["ballot", "treasury", "activity"],
   hidden: [],
-  numbers: null,
+  numbers: DEFAULT_DASH_NUMBERS,
 };
 
 const CARD_SET = new Set<string>(DASH_CARDS);
@@ -65,6 +72,9 @@ function strings(v: unknown): string[] {
  * the stored layout doesn't mention is appended to its default column. That last
  * rule is what lets a card added to the product later show up for orgs that
  * customized before it existed, instead of vanishing.
+ *
+ * Numbers: null/absent (the old "whatever the org tracks") becomes the default
+ * three; a stored layout that hid the old "numbers" band keeps an empty row.
  */
 export function normalizeDashboardLayout(raw: unknown): DashboardLayout | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -76,10 +86,13 @@ export function normalizeDashboardLayout(raw: unknown): DashboardLayout | null {
   for (const k of DEFAULT_DASHBOARD_LAYOUT.main) if (!seen.has(k)) main.push(k);
   for (const k of DEFAULT_DASHBOARD_LAYOUT.rail) if (!seen.has(k)) rail.push(k);
 
-  const hidden = [...new Set(strings(r.hidden).filter(k => WIDGET_SET.has(k)))] as DashWidgetId[];
-  const numbers = r.numbers === null || r.numbers === undefined
-    ? null
-    : [...new Set(strings(r.numbers).filter(isDashStat))].slice(0, MAX_DASH_NUMBERS) as DashStatId[];
+  const rawHidden = strings(r.hidden);
+  const hidden = [...new Set(rawHidden.filter(k => WIDGET_SET.has(k)))] as DashWidgetId[];
+  const numbers = rawHidden.includes("numbers")
+    ? []
+    : r.numbers === null || r.numbers === undefined
+      ? [...DEFAULT_DASH_NUMBERS]
+      : [...new Set(strings(r.numbers).filter(isDashStat))].slice(0, MAX_DASH_NUMBERS) as DashStatId[];
 
   return { main, rail, hidden, numbers };
 }
@@ -127,21 +140,21 @@ export function nudgeCard(l: DashboardLayout, w: DashCardId, dir: "up" | "down" 
   return { ...l, [c]: a };
 }
 
-/** Drop a dragged card before/after another card, or at the end of a column. */
-export function dropCard(l: DashboardLayout, w: DashCardId, target: { card: DashCardId; after: boolean } | { column: "main" | "rail" }): DashboardLayout {
+/**
+ * Put a card at a spot the viewer can see: the `at`-th visible slot of a column
+ * (past the last visible card = the end). Unhides it too, so the same call
+ * both moves a card and brings one back from the tray. Hidden and unavailable
+ * cards keep their place in the arrays; only visible ones count as slots.
+ */
+export function placeCard(l: DashboardLayout, w: DashCardId, column: "main" | "rail", at: number, visible: (k: DashCardId) => boolean): DashboardLayout {
   const main = l.main.filter(x => x !== w);
   const rail = l.rail.filter(x => x !== w);
-  const next = { ...l, main, rail };
-  if ("column" in target) {
-    next[target.column] = [...next[target.column], w];
-    return next;
-  }
-  if (target.card === w) return l;
-  const c = main.includes(target.card) ? "main" : "rail";
-  const a = [...next[c]];
-  a.splice(a.indexOf(target.card) + (target.after ? 1 : 0), 0, w);
-  next[c] = a;
-  return next;
+  const next = { ...l, main, rail, hidden: l.hidden.filter(x => x !== w) };
+  const a = [...next[column]];
+  const before = a.filter(k => k !== w && visible(k))[at];
+  a.splice(before === undefined ? a.length : a.indexOf(before), 0, w);
+  next[column] = a;
+  return sameDashboardLayout(next, l) ? l : next;
 }
 
 export function setWidgetHidden(l: DashboardLayout, w: DashWidgetId, hidden: boolean): DashboardLayout {
@@ -165,44 +178,4 @@ export function setNumberSlot(numbers: DashStatId[], i: number, stat: DashStatId
   if (j > -1) next[j] = next[i];
   next[i] = stat;
   return next;
-}
-
-// ── Presets ────────────────────────────────────────────────────────────────
-
-export interface DashPreset {
-  id: string;
-  name: string;
-  blurb: string;
-  /** Applied over DEFAULT_DASHBOARD_LAYOUT; ids the org lacks are skipped at render. */
-  layout: Partial<DashboardLayout>;
-  /** Only offered when this stat is available to the org. */
-  needs?: DashStatId;
-}
-
-export const DASH_PRESETS: DashPreset[] = [
-  { id: "standard", name: "Standard", blurb: "The layout every org starts with.", layout: {} },
-  {
-    id: "basics", name: "Just the basics", blurb: "This week, people, what needs doing.",
-    layout: { hidden: ["activity", "health"], numbers: ["members", "week", "tasks"] },
-  },
-  {
-    id: "events", name: "Events first", blurb: "The week leads the page.",
-    layout: { main: ["week", "needs", "activity"], rail: ["ballot", "members", "treasury"], numbers: ["week", "members", "attendance"] },
-  },
-  {
-    id: "people", name: "People first", blurb: "Who's here, who's drifting, who's asking in.",
-    layout: { main: ["members", "needs"], rail: ["ballot", "week", "activity", "treasury"], numbers: ["members", "requests", "attendance"] },
-  },
-  {
-    id: "money", name: "Money-minded", blurb: "The account and what's owed, up top.", needs: "balance",
-    layout: { main: ["needs", "members"], rail: ["treasury", "ballot", "week", "activity"], numbers: ["balance", "dues", "members"] },
-  },
-  {
-    id: "greek", name: "Greek chapter", blurb: "Attendance, dues, grades and service.", needs: "gpa",
-    layout: { numbers: ["attendance", "dues", "gpa", "service"] },
-  },
-];
-
-export function presetLayout(p: DashPreset): DashboardLayout {
-  return resolveDashboardLayout({ ...DEFAULT_DASHBOARD_LAYOUT, ...p.layout });
 }

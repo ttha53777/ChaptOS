@@ -119,9 +119,9 @@ export function BriefingActions({
       )}
 
       {onCustomize && (
-        <button type="button" className={`ba-chip customize${customizing ? " on" : ""}`} onClick={onCustomize} aria-pressed={!!customizing} aria-label={customizing ? "Done arranging the dashboard" : "Customize the dashboard"} title={customizing ? "Done arranging" : "Customize the dashboard"}>
-          <PaperIcon name={customizing ? "check" : "grip"} />
-          <span className="ba-label">{customizing ? "Done" : "Customize"}</span>
+        <button type="button" className={`ba-chip customize${customizing ? " on" : ""}`} onClick={onCustomize} aria-pressed={!!customizing} aria-label="Arrange the dashboard" title="Arrange the dashboard">
+          <PaperIcon name="grip" />
+          <span className="ba-label">Arrange</span>
         </button>
       )}
 

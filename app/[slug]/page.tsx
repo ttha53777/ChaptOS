@@ -64,13 +64,12 @@ import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
 import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
-import { DashGrid, type GridCard } from "../components/dashboard/customize/DashGrid";
+import { ArrangeBands, DashGrid, type GridBand, type GridCard } from "../components/dashboard/customize/DashGrid";
 import { DashNumbers, type DashStat } from "../components/dashboard/customize/DashNumbers";
-import { DashCustomizeTray, DashEditBar, type TrayWidget } from "../components/dashboard/customize/DashCustomizeTray";
-import { EditChrome } from "../components/dashboard/customize/EditChrome";
+import { ArrangeBar, ArrangeToast, type ArrangeNote } from "../components/dashboard/customize/DashArrange";
 import { useDashboardLayout } from "../components/dashboard/customize/useDashboardLayout";
 import "../components/dashboard/customize/dash-customize.css";
-import { DASH_PRESETS, setWidgetHidden, type DashCardId, type DashStatId } from "@/lib/dashboard-layout";
+import { DEFAULT_DASHBOARD_LAYOUT, type DashCardId, type DashStatId, type DashboardLayout } from "@/lib/dashboard-layout";
 import { BillingAlert } from "../components/dashboard/BillingAlert";
 import { apiErrorMessage, orgFetch, requestJson } from "../lib/api";
 import { todayStr, toDateStr } from "../lib/dates";
@@ -967,7 +966,12 @@ export default function Home() {
   // the org's workflows + Settings switches (feature()); the layout only orders
   // and hides what those leave.
   const dash = useDashboardLayout();
-  const [trayOpen, setTrayOpen] = useState(false);
+  // Arrange mode's one toast: what just changed, with Undo on it.
+  const [arrangeNote, setArrangeNote] = useState<ArrangeNote | null>(null);
+  const arrange = (next: DashboardLayout, message: string) => {
+    dash.update(next);
+    setArrangeNote(n => ({ id: (n?.id ?? 0) + 1, message }));
+  };
 
   // Welcome toast after sign-in. /auth/callback redirects linked users to
   // /?toast=welcome; once the org name resolves we show a one-time toast and
@@ -2299,14 +2303,12 @@ export default function Home() {
       />
     ) };
   }
-  // A never-customized org shows what it tracks, exactly as before: the four
-  // built-in measures it hasn't switched off, then its custom metrics.
-  const dashNumbers = (dash.layout.numbers as DashStatId[] | null
-    ?? (["attendance", "dues", "gpa", "service", ...customMetricSnapshots.map(s => `metric:${s.definitionId}` as const)] as DashStatId[])
-  ).filter(k => dashStats[k]);
+  // The org's chosen numbers (members / this week / open tasks until an admin
+  // picks), minus any this org can't show right now.
+  const dashNumbers = dash.layout.numbers.filter(k => dashStats[k]);
 
   const dashCards: Partial<Record<DashCardId, GridCard>> = {};
-  if (feature("operations", "needs-attention")) dashCards.needs = { label: "On your plate", wide: true, node: (
+  if (feature("operations", "needs-attention")) dashCards.needs = { label: "On your plate", icon: "check", tone: "peach", blurb: "Tasks and votes waiting on you", wide: true, node: (
     <PlateCard
       items={plateItems}
       today={todayISO}
@@ -2324,7 +2326,7 @@ export default function Home() {
       onRetry={retrySections}
     />
   ) };
-  if (feature("operations", "brother-tracking")) dashCards.members = { label: v("Member", true), wide: true, node: (
+  if (feature("operations", "brother-tracking")) dashCards.members = { label: v("Member", true), icon: "people", tone: "mint", blurb: "Who's here, who's drifting", wide: true, node: (
     <MembersCard
       brothers={brotherList}
       loading={!rosterLoaded}
@@ -2345,7 +2347,7 @@ export default function Home() {
       onCopyInvite={handleInvite}
     />
   ) };
-  dashCards.week = { label: "This week", wide: true, node: (
+  dashCards.week = { label: "This week", icon: "cal", tone: "butter", blurb: "Seven days at a glance", wide: true, node: (
     <ThisWeek
       events={agendaEvents}
       deadlines={weeklyDigest.deadlinesDue}
@@ -2364,7 +2366,7 @@ export default function Home() {
       onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
     />
   ) };
-  if (financeEnabled) dashCards.treasury = { label: "Treasury", node: (
+  if (financeEnabled) dashCards.treasury = { label: "Treasury", icon: "wallet", tone: "mint", blurb: "The balance and where it's heading", node: (
     <TreasuryRail
       balance={liveBalance}
       projected={liveProjected}
@@ -2376,26 +2378,19 @@ export default function Home() {
       onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
     />
   ) };
-  dashCards.activity = { label: "Activity", node: (
+  dashCards.activity = { label: "Activity", icon: "spark", tone: "rose", blurb: "What changed lately", node: (
     <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={() => setWidgetDrawer("activity")} />
   ) };
 
-  // Everything the Customize tray can switch, in page order.
-  const trayWidgets: TrayWidget[] = [
-    { id: "numbers" as const, label: "Headline numbers", blurb: "The strip of numbers up top. You pick which.", tone: "lilac" as const, on: true },
-    { id: "health" as const, label: "Health dial", blurb: "One score from everything you track.", tone: "mint" as const, on: feature("operations", "health") },
-    { id: "announcement" as const, label: "Pinned note", blurb: "One message everyone should see.", tone: "butter" as const, on: feature("operations", "announcement") },
-    { id: "needs" as const, label: "On your plate", blurb: "Everything waiting on you: tasks, votes, and your officer to-dos.", tone: "peach" as const, on: !!dashCards.needs },
-    { id: "members" as const, label: v("Member", true), blurb: "Who's on the roster, who's drifting.", tone: "sky" as const, on: !!dashCards.members },
-    { id: "week" as const, label: "This week", blurb: "Seven days of events and deadlines.", tone: "butter" as const, on: true },
-    { id: "treasury" as const, label: "Treasury", blurb: "The balance and where it's heading.", tone: "mint" as const, on: !!dashCards.treasury },
-    { id: "activity" as const, label: "Activity", blurb: "What changed while you were away.", tone: "rose" as const, on: true },
-  ].filter(w => w.on).map(({ on: _on, ...w }) => w);
-  const dashPresets = DASH_PRESETS.filter(p => !p.needs || dashStats[p.needs]);
+  // The fixed-place widgets this org has: put away and brought back, never moved.
+  const dashBands: GridBand[] = [
+    ...(feature("operations", "health") ? [{ id: "health" as const, label: "Health dial", icon: "heart" as const, tone: "mint" as const, blurb: "One score from everything you track" }] : []),
+    ...(feature("operations", "announcement") ? [{ id: "announcement" as const, label: "Pinned note", icon: "pin" as const, tone: "butter" as const, blurb: "One message for everyone" }] : []),
+  ];
   const isShown = (id: "health" | "announcement") => !dash.layout.hidden.includes(id);
 
   async function finishCustomizing() {
-    setTrayOpen(false);
+    setArrangeNote(null);
     const r = await dash.done();
     if (r === "saved") toast.success("Dashboard saved · everyone in the org sees this layout");
   }
@@ -2464,6 +2459,10 @@ export default function Home() {
           <div className={`dash${dash.editing ? " editing" : ""}`} data-dashboard-theme="dusk">
 
             {/* ── Briefing + health dial ──────────────────────────────────── */}
+            {/* Arranging swaps the briefing for the arrange bar, in place. */}
+            {dash.editing ? (
+              <ArrangeBar onUndo={dash.undo} canUndo={dash.canUndo} onDone={() => void finishCustomizing()} saving={dash.saving} />
+            ) : (
             <BriefingHeader
               firstName={currentUser?.name?.split(" ")[0] ?? null}
               weekStart={weekRange.start}
@@ -2505,25 +2504,18 @@ export default function Home() {
                     breakdown={health.breakdown}
                     onExpand={() => setWidgetDrawer("health")}
                   />
-                  {dash.editing && <EditChrome label="Health dial" onHide={() => dash.update(setWidgetHidden(dash.layout, "health", true))} />}
                 </div>
               ) : null}
             />
-
-            {/* ── Customize mode ──────────────────────────────────────────── */}
-            {dash.editing && (
-              <DashEditBar
-                onWidgets={() => setTrayOpen(true)}
-                onReset={() => dash.reset()}
-                onDone={() => void finishCustomizing()}
-                saving={dash.saving}
-              />
             )}
+
+            {/* ── Arrange mode: the fixed-place widgets, folded ───────────── */}
+            {dash.editing && <ArrangeBands layout={dash.layout} bands={dashBands} onChange={arrange} />}
 
             {/* ── Billing needs attention ─────────────────────────────────── */}
             {/* Self-gating and admin-only: org.billingAlert is null for anyone
                 who can't act on it (computed server-side in /api/auth/me). */}
-            <BillingAlert />
+            {!dash.editing && <BillingAlert />}
 
             {/* ── Live event check-in ─────────────────────────────────────── */}
             {/* Full width, directly below the briefing: unmissable by position
@@ -2531,7 +2523,7 @@ export default function Home() {
                 window is open, which is nearly always. Officer actions are
                 passed as undefined without MANAGE_ATTENDANCE, so the affordance
                 is absent rather than present-and-403ing. */}
-            <LiveCheckIn
+            {!dash.editing && <LiveCheckIn
               data={liveCheckIn}
               onCheckIn={handleSelfCheckIn}
               onUndo={handleUndoCheckIn}
@@ -2540,22 +2532,21 @@ export default function Home() {
               onTakeAttendance={canAttendance && liveCheckIn
                 ? () => openAttendanceLog(calendarList.find(e => e.id === liveCheckIn.event.id))
                 : undefined}
-            />
+            />}
 
             {/* ── Calendar invite ─────────────────────────────────────────── */}
             {/* Self-gating: only while the feed is live and this browser hasn't
                 added it or said "Not now". Also a new member's first-visit nudge. */}
-            <CalendarInviteCard />
+            {!dash.editing && <CalendarInviteCard />}
 
             {/* ── Pinned announcement ─────────────────────────────────────── */}
-            {feature("operations", "announcement") && isShown("announcement") && (
+            {feature("operations", "announcement") && isShown("announcement") && !dash.editing && (
               <div className="dw-band" data-w="announcement">
                 <PinnedAnnouncement
                   announcement={announcement}
                   onEdit={() => setAnnouncementEditorOpen(true)}
                   canEdit={canAnnounce}
                 />
-                {dash.editing && <EditChrome label="Pinned note" onHide={() => dash.update(setWidgetHidden(dash.layout, "announcement", true))} />}
               </div>
             )}
 
@@ -2563,15 +2554,12 @@ export default function Home() {
             {/* No sparklines: the app stores no metric history, so the only
                 series available would be invented. A real trend needs a
                 periodic snapshot table — until then the headline stands alone. */}
-            {!dash.layout.hidden.includes("numbers") && (
-              <DashNumbers
-                ids={dashNumbers}
-                stats={dashStats}
-                editing={dash.editing}
-                onChange={numbers => dash.update({ ...dash.layout, numbers })}
-                onHide={() => dash.update(setWidgetHidden(dash.layout, "numbers", true))}
-              />
-            )}
+            <DashNumbers
+              ids={dashNumbers}
+              stats={dashStats}
+              editing={dash.editing}
+              onChange={(numbers, message) => arrange({ ...dash.layout, numbers }, message)}
+            />
 
             {/* ── Content grid ────────────────────────────────────────────────
                 Two real columns on desktop, in the org's arranged order (see
@@ -2580,24 +2568,14 @@ export default function Home() {
             <DashGrid
               layout={dash.layout}
               cards={dashCards}
+              bands={dashBands}
               editing={dash.editing}
-              onChange={next => dash.update(next)}
+              onChange={arrange}
+              onUndo={dash.undo}
+              onDone={() => void finishCustomizing()}
+              onReset={() => arrange(DEFAULT_DASHBOARD_LAYOUT, "Back to the default layout")}
             />
-
-            {isActiveOrgAdmin && (
-              <DashCustomizeTray
-                open={dash.editing && trayOpen}
-                onClose={() => setTrayOpen(false)}
-                layout={dash.layout}
-                onChange={next => dash.update(next)}
-                widgets={trayWidgets}
-                stats={dashStats}
-                numbers={dashNumbers}
-                onNumbers={numbers => dash.update({ ...dash.layout, numbers })}
-                presets={dashPresets}
-                onReset={() => dash.reset()}
-              />
-            )}
+            {dash.editing && <ArrangeToast note={arrangeNote} onUndo={dash.canUndo ? dash.undo : undefined} />}
 
             {/* ── Footer ──────────────────────────────────────────────────── */}
             <footer>{currentUser?.org?.name ?? "ChaptOS"}</footer>
