@@ -15,8 +15,8 @@ const DOT: Record<ActivityEntry["type"], string> = {
 type Vocab = ReturnType<typeof useVocab>;
 
 /** Category pill label + Paper tone. Labels run through vocab where the org
- *  can rename the concept. */
-const CATEGORY: Record<ActivityCategory, { label: (v: Vocab) => string; tone: PaperTone }> = {
+ *  can rename the concept. Shared with the Activity spotlight. */
+export const ACTIVITY_CATEGORY: Record<ActivityCategory, { label: (v: Vocab) => string; tone: PaperTone }> = {
   attendance:   { label: () => "Attendance",           tone: "mint" },
   dues:         { label: v => v("Dues"),               tone: "butter" },
   treasury:     { label: v => v("Treasury"),           tone: "butter" },
@@ -36,7 +36,8 @@ const CATEGORY: Record<ActivityCategory, { label: (v: Vocab) => string; tone: Pa
 
 /**
  * Activity rail — recent feed entries with a status dot. Replaces the cold
- * ActivityFeed card on the desktop pane; All opens the existing activity drawer.
+ * ActivityFeed card on the desktop pane; clicking it opens the Activity
+ * spotlight, which grows out of the card's rect (passed to `onAll`).
  */
 export function ActivityRail({
   entries,
@@ -46,7 +47,7 @@ export function ActivityRail({
   onRetry,
 }: {
   entries: ActivityEntry[];
-  onAll?: () => void;
+  onAll?: (origin: DOMRect) => void;
   /** The activity section hasn't landed. "Nothing yet" is a claim about the
    *  chapter's whole history — never make it from an unfetched empty array. */
   loading?: boolean;
@@ -57,11 +58,16 @@ export function ActivityRail({
 }) {
   const v = useVocab();
   const inert = loading || error;
+  const open = onAll && !inert ? (el: HTMLElement) => onAll(el.getBoundingClientRect()) : undefined;
   return (
     <section
-      className={`card${onAll && !inert ? " cursor-pointer" : ""}`}
+      className={`card${open ? " cursor-pointer" : ""}`}
       aria-label="Activity"
-      onClick={inert ? undefined : onAll}
+      onClick={open ? e => open(e.currentTarget) : undefined}
+      role={open ? "button" : undefined}
+      tabIndex={open ? 0 : undefined}
+      aria-haspopup={open ? "dialog" : undefined}
+      onKeyDown={open ? e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(e.currentTarget); } } : undefined}
     >
       <div className="card-h">
         <PaperTile icon="clock" tone="rose" />
@@ -93,8 +99,8 @@ export function ActivityRail({
             <p>
               {e.message}
               {/* Paper only: what the row is about, as on the mock's feed. */}
-              {e.category && CATEGORY[e.category] && (
-                <span className={`act-tag pp-only pp-t-${CATEGORY[e.category].tone}`}>{CATEGORY[e.category].label(v)}</span>
+              {e.category && ACTIVITY_CATEGORY[e.category] && (
+                <span className={`act-tag pp-only pp-t-${ACTIVITY_CATEGORY[e.category].tone}`}>{ACTIVITY_CATEGORY[e.category].label(v)}</span>
               )}
             </p>
             <time>{e.timestamp.replace(/\s*ago$/, "")}</time>

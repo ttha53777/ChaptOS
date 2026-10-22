@@ -1,0 +1,298 @@
+/*
+  Activity Spotlight (ported from _design/Activity Spotlight Mock.html).
+
+  Every class is `asp-` prefixed and scoped under `.asp-overlay`, which is
+  portaled to <body> (the page root's will-change makes it the containing block
+  for anything fixed). Colours run through local --a-* tokens: the base set maps
+  onto the app palette (Ledger, dusk + ivory); the paper block at the bottom
+  re-points them at the paper pastels. Category tones set --tf/--tb/--td/--th
+  on the element that carries the tone class, never inherited derivations.
+
+  z-index 49, like the member card: the dashboard's Modal is z-50.
+*/
+.asp-overlay {
+  --a-display: var(--font-fraunces), Georgia, serif;
+  --a-sans:    var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --a-mono:    var(--font-geist-mono), ui-monospace, Menlo, monospace;
+  --a-ease:    cubic-bezier(.16,.9,.3,1.02);
+  --a-card: var(--card); --a-head: var(--card-2); --a-sub: var(--paper-2); --a-hover: var(--card-2);
+  --a-ink: var(--ink); --a-ink2: var(--ink-soft); --a-mut: var(--muted); --a-faint: var(--faint);
+  --a-line: var(--line); --a-line2: var(--line-med); --a-rule: var(--line-med);
+  --a-border: 1px solid var(--line-med); --a-radius: 22px;
+  --a-shadow: 0 1px 0 rgba(var(--shade-rgb),calc(.5 * var(--shade-k))), 0 40px 80px -34px rgba(var(--shade-rgb),calc(.9 * var(--shade-k)));
+  --a-margin: color-mix(in srgb, var(--rose) 35%, transparent);
+  --a-mark: color-mix(in srgb, var(--gold) 34%, transparent);
+  --a-bar: color-mix(in srgb, var(--rose) 55%, transparent);
+  --a-bar-hi: var(--rose);
+  --a-focus: var(--vio);
+  --a-btn-ink-bg: var(--ink); --a-btn-ink-fg: var(--paper);
+  --a-btn-hover: none;
+
+  position: fixed; inset: 0; z-index: 49; display: grid; place-items: center; padding: 32px;
+  background: var(--scrim); backdrop-filter: blur(4px);
+  color: var(--a-ink); font-family: var(--a-sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  animation: asp-fade .24s ease both;
+}
+.asp-overlay.out { animation: asp-fade-out .28s ease both; }
+@keyframes asp-fade { from { opacity: 0; } }
+@keyframes asp-fade-out { to { opacity: 0; } }
+.asp-overlay *, .asp-overlay *::before, .asp-overlay *::after { box-sizing: border-box; }
+.asp-overlay :is(h2, h4, h5, p, dl, dd) { margin: 0; }
+.asp-overlay button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; text-align: inherit; }
+.asp-overlay :focus-visible { outline: 2px solid var(--a-focus); outline-offset: 2px; border-radius: 6px; }
+.asp-overlay svg { display: block; flex: none; }
+.asp-overlay kbd {
+  font-family: var(--a-mono); font-size: 10px; color: var(--a-mut); border: 1px solid var(--a-line2); border-bottom-width: 2px;
+  border-radius: 5px; padding: 0 5px; line-height: 1.5; background: var(--a-sub);
+}
+
+/* tones (Ledger) */
+.asp-overlay .asp-t-mint   { --tf: var(--ok);     --tb: color-mix(in srgb, var(--ok) 12%, transparent);     --td: color-mix(in srgb, var(--ok) 30%, transparent);     --th: var(--ok); }
+.asp-overlay .asp-t-butter { --tf: var(--gold);   --tb: color-mix(in srgb, var(--gold) 12%, transparent);   --td: color-mix(in srgb, var(--gold) 30%, transparent);   --th: var(--gold); }
+.asp-overlay .asp-t-rose   { --tf: var(--rose);   --tb: color-mix(in srgb, var(--rose) 12%, transparent);   --td: color-mix(in srgb, var(--rose) 30%, transparent);   --th: var(--rose); }
+.asp-overlay .asp-t-lilac  { --tf: var(--vio);    --tb: color-mix(in srgb, var(--vio) 12%, transparent);    --td: color-mix(in srgb, var(--vio) 30%, transparent);    --th: var(--vio); }
+.asp-overlay .asp-t-sky    { --tf: var(--vio-hi); --tb: color-mix(in srgb, var(--vio-hi) 10%, transparent); --td: color-mix(in srgb, var(--vio-hi) 26%, transparent); --th: var(--vio-hi); }
+.asp-overlay .asp-t-peach  { --tf: var(--risk);   --tb: color-mix(in srgb, var(--risk) 12%, transparent);   --td: color-mix(in srgb, var(--risk) 30%, transparent);   --th: var(--risk); }
+
+/* ── panel ───────────────────────────────────────────────────────────────── */
+.asp-overlay .asp {
+  position: relative; width: min(1120px, 100%); height: min(820px, calc(100vh - 64px));
+  display: grid; grid-template-rows: auto minmax(0,1fr) auto; overflow: hidden;
+  background: var(--a-card); border: var(--a-border); border-radius: var(--a-radius); box-shadow: var(--a-shadow);
+  transform-origin: center; transition: transform .42s var(--a-ease), border-radius .42s var(--a-ease);
+}
+.asp-overlay.from .asp { transition: none; }
+.asp-overlay.out .asp { transition: transform .3s cubic-bezier(.5,0,.75,0); }
+.asp-overlay .asp > * { transition: opacity .22s ease .1s; }
+.asp-overlay.from .asp > *, .asp-overlay.out .asp > * { opacity: 0; transition-delay: 0s; transition-duration: .12s; }
+
+/* header */
+.asp-overlay .asp-h {
+  display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; gap: 16px;
+  padding: 22px 26px 18px; border-bottom: 1px solid var(--a-line2); background: var(--a-head);
+}
+.asp-overlay .asp-tile { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; background: var(--tb); border: 1.5px solid var(--td); color: var(--tf); }
+.asp-overlay .asp-tile svg { width: 21px; height: 21px; }
+.asp-overlay .asp-title { min-width: 0; }
+.asp-overlay .asp-h h2 { font-family: var(--a-display); font-weight: 500; font-size: 26px; letter-spacing: -.03em; line-height: 1.1; color: var(--a-ink); }
+.asp-overlay .asp-h .lede { font-size: 13px; color: var(--a-mut); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.asp-overlay .asp-h .lede b { color: var(--a-ink2); font-weight: 600; }
+.asp-overlay .asp-search {
+  display: flex; align-items: center; gap: 9px; width: 300px; height: 42px; padding: 0 12px 0 13px;
+  background: var(--a-card); border: 1px solid var(--a-line2); border-radius: 12px; transition: border-color .15s, box-shadow .15s;
+}
+.asp-overlay .asp-search:focus-within { border-color: var(--a-ink); }
+.asp-overlay .asp-search svg { width: 16px; height: 16px; color: var(--a-mut); }
+.asp-overlay .asp-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 14px; color: var(--a-ink); }
+.asp-overlay .asp-search input::placeholder { color: var(--a-faint); }
+.asp-overlay .asp-search input::-webkit-search-cancel-button { display: none; }
+.asp-overlay .asp-x { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; border: 1px solid var(--a-line2); color: var(--a-ink2); transition: border-color .15s, color .15s, box-shadow .15s; }
+.asp-overlay .asp-x:hover { border-color: var(--a-ink); color: var(--a-ink); }
+.asp-overlay .asp-x svg { width: 18px; height: 18px; }
+
+/* body */
+.asp-overlay .asp-b { display: grid; grid-template-columns: 248px minmax(0,1fr); min-height: 0; }
+.asp-overlay .asp-rail {
+  border-right: 1px solid var(--a-line2); background: var(--a-sub);
+  padding: 18px 14px 18px 18px; overflow: auto; display: flex; flex-direction: column; gap: 22px; overscroll-behavior: contain;
+}
+/* A new window is loading: the counts below are the old window's. */
+.asp-overlay .asp-rail.stale .asp-cats { opacity: .5; transition: opacity .15s; }
+.asp-overlay .asp-rail h4 { font-family: var(--a-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--a-mut); font-weight: 500; margin: 0 0 8px 8px; }
+.asp-overlay .asp-seg { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; padding: 3px; background: var(--a-hover); border: 1px solid var(--a-line); border-radius: 11px; }
+.asp-overlay .asp-seg button { padding: 6px 0; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--a-mut); text-align: center; transition: background .15s, color .15s; }
+.asp-overlay .asp-seg button[aria-pressed="true"] { background: var(--a-card); color: var(--a-ink); box-shadow: 0 0 0 1px var(--a-line2), 0 1px 3px rgba(var(--shade-rgb),calc(.25 * var(--shade-k))); }
+.asp-overlay .asp-cats { display: grid; gap: 2px; }
+.asp-overlay .asp-cat {
+  display: grid; grid-template-columns: 10px minmax(0,1fr) auto; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 10px; font-size: 13.5px; font-weight: 500; color: var(--a-ink2);
+  border: 1px solid transparent; transition: background .12s, border-color .12s;
+}
+.asp-overlay .asp-cat:hover { background: var(--a-card); }
+.asp-overlay .asp-cat .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--th, var(--a-line2)); opacity: .85; }
+.asp-overlay .asp-cat .sw.all { background: var(--a-ink); }
+.asp-overlay .asp-cat .n { font-family: var(--a-mono); font-size: 11px; color: var(--a-mut); }
+.asp-overlay .asp-cat .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asp-overlay .asp-cat[aria-pressed="true"] { background: var(--a-card); border-color: var(--a-ink); color: var(--a-ink); font-weight: 600; }
+.asp-overlay .asp-cat[aria-pressed="true"] .n { color: var(--a-ink); }
+.asp-overlay .asp-cat.who { grid-template-columns: 26px minmax(0,1fr) auto; }
+
+.asp-overlay .asp-av, .asp-overlay .asp-av-img { width: 26px !important; height: 26px !important; font-size: 10px !important; }
+.asp-overlay .asp-av { flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--a-hover); color: var(--a-mut); border: 1px solid var(--a-line2); font-weight: 700; }
+.asp-overlay .asp-av svg { width: 13px; height: 13px; }
+.asp-overlay .asp-av.any { background: repeating-linear-gradient(135deg, var(--a-hover) 0 3px, var(--a-card) 3px 6px); }
+
+.asp-overlay .asp-book { display: grid; grid-template-rows: auto minmax(0,1fr); min-height: 0; }
+
+/* the strip */
+.asp-overlay .asp-strip { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: end; gap: 22px; padding: 16px 26px 14px; border-bottom: 1px dashed var(--a-line2); }
+.asp-overlay .asp-strip .sum { font-size: 13px; color: var(--a-ink2); line-height: 1.35; max-width: 210px; padding-bottom: 12px; }
+.asp-overlay .asp-strip .sum b { display: block; font-family: var(--a-display); font-weight: 500; font-size: 26px; letter-spacing: -.03em; line-height: 1; color: var(--a-ink); margin-bottom: 3px; }
+.asp-overlay .asp-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); gap: 5px; align-items: end; height: 52px; margin-bottom: 14px; }
+.asp-overlay .asp-bar { position: relative; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; cursor: pointer; }
+.asp-overlay .asp-bar:disabled { cursor: default; }
+.asp-overlay .asp-bar i { display: block; border-radius: 4px 4px 2px 2px; background: var(--a-bar); min-height: 3px; transition: height .4s var(--a-ease), background .15s; }
+.asp-overlay .asp-bar.zero i { background: var(--a-line2); }
+.asp-overlay .asp-bar.unknown i { background: none; border: 1px dashed var(--a-line2); height: 40% !important; }
+.asp-overlay .asp-bar:not(:disabled):hover i { background: var(--a-bar-hi); }
+.asp-overlay .asp-bar .d { position: absolute; left: 50%; bottom: -16px; transform: translateX(-50%); white-space: nowrap; font-family: var(--a-mono); font-size: 9.5px; color: var(--a-mut); }
+.asp-overlay .asp-bar .tip {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; z-index: 3;
+  font-size: 11px; font-weight: 600; background: var(--a-ink); color: var(--a-card); padding: 2px 7px; border-radius: 6px;
+  opacity: 0; pointer-events: none; transition: opacity .12s;
+}
+.asp-overlay .asp-bar:hover .tip { opacity: 1; }
+.asp-overlay .asp-strip .legend { font-family: var(--a-mono); font-size: 10px; color: var(--a-mut); text-align: right; line-height: 1.6; padding-bottom: 12px; }
+
+/* the log */
+.asp-overlay .asp-feed { overflow: auto; padding: 0 26px 30px; position: relative; overscroll-behavior: contain; outline: none; }
+.asp-overlay .asp-day-h { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 10px; padding: 16px 0 8px; background: var(--a-card); border-bottom: 1.5px solid var(--a-rule); }
+.asp-overlay .asp-day-h h5 { font-family: var(--a-display); font-weight: 500; font-size: 17px; letter-spacing: -.02em; color: var(--a-ink); }
+.asp-overlay .asp-day-h .date, .asp-overlay .asp-day-h .ct { font-family: var(--a-mono); font-size: 11px; color: var(--a-mut); }
+.asp-overlay .asp-day-h .ct { margin-left: auto; }
+.asp-overlay .asp-rows { position: relative; }
+.asp-overlay .asp-rows::before { content: ""; position: absolute; top: 0; bottom: 0; left: 74px; width: 1.5px; background: var(--a-margin); pointer-events: none; }
+.asp-overlay .asp-row { position: relative; border-bottom: 1px solid var(--a-line); }
+.asp-overlay .asp-row:last-child { border-bottom: 0; }
+.asp-overlay .asp-row-btn {
+  width: 100%; display: grid; grid-template-columns: 62px 26px minmax(0,1fr) auto 16px; align-items: center; gap: 0 14px;
+  padding: 11px 10px 11px 0; border-radius: 10px; transition: background .12s;
+}
+.asp-overlay .asp-row-btn:hover, .asp-overlay .asp-row.kb .asp-row-btn, .asp-overlay .asp-row.open .asp-row-btn { background: var(--a-hover); }
+.asp-overlay .asp-row.open .asp-row-btn { border-radius: 10px 10px 0 0; }
+.asp-overlay .asp-row.kb .asp-row-btn { box-shadow: inset 2px 0 0 var(--a-focus); }
+.asp-overlay .asp-row .ts { font-family: var(--a-mono); font-size: 11.5px; color: var(--a-mut); text-align: right; padding-right: 4px; white-space: nowrap; }
+.asp-overlay .asp-row .msg { font-size: 14px; line-height: 1.42; color: var(--a-ink); min-width: 0; overflow-wrap: anywhere; }
+.asp-overlay .asp-row .msg mark { background: var(--a-mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+.asp-overlay .asp-row .stat { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 9px; vertical-align: 2px; }
+.asp-overlay .stat.success { background: var(--ok); }
+.asp-overlay .stat.warning { background: var(--gold); }
+.asp-overlay .stat.info    { background: var(--vio); }
+.asp-overlay .asp-row .chev { width: 15px; height: 15px; color: var(--a-faint); transition: transform .2s ease, color .12s; }
+.asp-overlay .asp-row-btn:hover .chev, .asp-overlay .asp-row.open .chev { color: var(--a-ink); }
+.asp-overlay .asp-row.open .chev { transform: rotate(90deg); }
+.asp-overlay .asp-pill {
+  display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  background: var(--tb); color: var(--tf); border: 1px solid var(--td);
+}
+
+/* the opened row: a dashed slip under it */
+.asp-overlay .asp-slip { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .26s ease; }
+.asp-overlay .asp-row.open .asp-slip { grid-template-rows: 1fr; }
+.asp-overlay .asp-slip > div { overflow: hidden; }
+.asp-overlay .asp-slip-in {
+  margin: 0 10px 12px 102px; padding: 14px 16px; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 14px 22px; align-items: center;
+  background: var(--a-sub); border: 1.5px dashed var(--a-line2); border-radius: 12px;
+}
+.asp-overlay .asp-slip dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 5px 16px; font-size: 13px; }
+.asp-overlay .asp-slip dt { font-family: var(--a-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--a-mut); padding-top: 2px; }
+.asp-overlay .asp-slip dd { color: var(--a-ink2); }
+.asp-overlay .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.asp-overlay .asp-btn { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 10px; font-size: 13px; font-weight: 600; white-space: nowrap; transition: border-color .15s, color .15s, box-shadow .15s, transform .15s; }
+.asp-overlay .asp-btn svg { width: 15px; height: 15px; }
+.asp-overlay .asp-btn.ink { background: var(--a-btn-ink-bg); color: var(--a-btn-ink-fg); border: 1.5px solid var(--a-btn-ink-bg); }
+.asp-overlay .asp-btn.ink:hover { box-shadow: var(--a-btn-hover); }
+.asp-overlay .asp-btn.ghost { border: 1.5px solid var(--a-line2); color: var(--a-ink2); background: var(--a-card); }
+.asp-overlay .asp-btn.ghost:hover:not(:disabled) { border-color: var(--a-ink); color: var(--a-ink); }
+.asp-overlay .asp-btn:disabled { opacity: .6; cursor: default; }
+
+.asp-overlay .asp-more { display: flex; justify-content: center; padding: 22px 0 4px; }
+.asp-overlay .asp-end { text-align: center; font-family: var(--a-mono); font-size: 11px; color: var(--a-mut); padding: 26px 0 0; letter-spacing: .04em; }
+
+/* states */
+.asp-overlay .asp-calm { display: grid; justify-items: center; text-align: center; padding: 76px 30px; gap: 12px; color: var(--a-mut); }
+.asp-overlay .asp-calm .art { width: 60px; height: 60px; border-radius: 18px; display: grid; place-items: center; background: var(--tb); border: 1.5px solid var(--td); color: var(--tf); transform: rotate(-4deg); }
+.asp-overlay .asp-calm .art svg { width: 26px; height: 26px; }
+.asp-overlay .asp-calm h4 { font-family: var(--a-display); font-weight: 500; font-size: 19px; color: var(--a-ink); letter-spacing: -.02em; }
+.asp-overlay .asp-calm p { max-width: 380px; font-size: 13.5px; }
+.asp-overlay .asp-calm .acts { justify-content: center; margin-top: 4px; }
+.asp-overlay .asp-skel { display: block; background: var(--skel); border-radius: 6px; animation: asp-pulse 1.3s ease-in-out infinite; }
+@keyframes asp-pulse { 50% { opacity: .45; } }
+.asp-overlay .asp-sk-row { display: grid; grid-template-columns: 62px 28px minmax(0,1fr) 80px; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--a-line); }
+
+/* footer */
+.asp-overlay .asp-f { display: flex; align-items: center; gap: 18px; padding: 12px 26px; border-top: 1px solid var(--a-line2); background: var(--a-head); font-size: 12px; color: var(--a-mut); }
+.asp-overlay .asp-f .keys { display: flex; gap: 14px; margin-left: auto; }
+.asp-overlay .asp-f .keys > span { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ── narrow ─────────────────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .asp-overlay .asp-search { width: 220px; }
+  .asp-overlay .asp-b { grid-template-columns: 210px minmax(0,1fr); }
+}
+@media (max-width: 780px) {
+  .asp-overlay { padding: 0; place-items: end stretch; }
+  .asp-overlay .asp { width: 100%; height: calc(100dvh - 28px); border-radius: 24px 24px 0 0; border-bottom: 0; }
+  .asp-overlay .asp-h { grid-template-columns: auto minmax(0,1fr) auto; padding: 18px 16px 14px; gap: 12px; }
+  .asp-overlay .asp-tile { width: 38px; height: 38px; }
+  .asp-overlay .asp-h h2 { font-size: 22px; }
+  .asp-overlay .asp-search { grid-column: 1 / -1; grid-row: 2; width: 100%; }
+  .asp-overlay .asp-search kbd { display: none; }
+  .asp-overlay .asp-b { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
+  .asp-overlay .asp-rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--a-line2); padding: 10px 16px; gap: 8px; scrollbar-width: none; }
+  .asp-overlay .asp-rail h4 { display: none; }
+  .asp-overlay .asp-rng { flex: none; }
+  .asp-overlay .asp-seg { width: 168px; }
+  .asp-overlay .asp-who { display: none; }
+  .asp-overlay .asp-rail > div:nth-child(2) .asp-cats { display: flex; gap: 6px; }
+  .asp-overlay .asp-cat { grid-template-columns: 8px auto auto; white-space: nowrap; padding: 6px 10px; background: var(--a-card); border-color: var(--a-line2); }
+  .asp-overlay .asp-strip { display: none; }
+  .asp-overlay .asp-feed { padding: 0 16px 30px; }
+  .asp-overlay .asp-rows::before { left: 54px; }
+  .asp-overlay .asp-row-btn { grid-template-columns: 46px minmax(0,1fr) 16px; gap: 0 12px; }
+  .asp-overlay .asp-row-btn > :is(.asp-av, .asp-av-img, .tag) { display: none; }
+  .asp-overlay .asp-slip-in { margin: 0 0 12px; grid-template-columns: minmax(0,1fr); }
+  .asp-overlay .acts { justify-content: flex-start; }
+  .asp-overlay .asp-f .keys { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asp-overlay .asp, .asp-overlay .asp-bar i, .asp-overlay .asp-slip { transition: none; }
+}
+
+/* ── Paper ──────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .asp-overlay {
+  --a-head: var(--paper); --a-sub: var(--paper-2); --a-hover: var(--paper-2);
+  --a-line: var(--card-3); --a-rule: var(--ink);
+  --a-border: 1.5px solid var(--ink); --a-radius: 30px;
+  --a-shadow: 8px 8px 0 var(--pp-rose), 0 26px 60px -18px rgba(38,33,27,.22);
+  --a-margin: var(--pp-rose-bd);
+  --a-mark: color-mix(in srgb, var(--pp-butter) calc(var(--pp-mark-op, .85) * 100%), transparent);
+  --a-bar: var(--pp-rose); --a-bar-hi: var(--pp-rose-ink);
+  --a-focus: var(--pp-lilac-ink);
+  --a-btn-hover: 3px 3px 0 var(--pp-rose);
+  font-variant-numeric: normal;
+}
+html[data-aesthetic="paper"] .asp-overlay .asp-h h2,
+html[data-aesthetic="paper"] .asp-overlay .asp-day-h h5,
+html[data-aesthetic="paper"] .asp-overlay .asp-calm h4,
+html[data-aesthetic="paper"] .asp-overlay .asp-strip .sum b { font-weight: 600; }
+html[data-aesthetic="paper"] .asp-overlay .asp-h,
+html[data-aesthetic="paper"] .asp-overlay .asp-rail,
+html[data-aesthetic="paper"] .asp-overlay .asp-f { border-color: var(--line); border-width: 1.5px; }
+html[data-aesthetic="paper"] .asp-overlay .asp-search { border: 1.5px solid var(--line-med); }
+html[data-aesthetic="paper"] .asp-overlay .asp-search:focus-within { box-shadow: 3px 3px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .asp-overlay .asp-x { border-width: 1.5px; }
+html[data-aesthetic="paper"] .asp-overlay .asp-x:hover { box-shadow: 2px 2px 0 var(--pp-rose); }
+html[data-aesthetic="paper"] .asp-overlay .asp-seg { border: 0; background: var(--paper-3, var(--card-3)); }
+html[data-aesthetic="paper"] .asp-overlay .asp-cat { border-width: 1.5px; }
+html[data-aesthetic="paper"] .asp-overlay .asp-cat[aria-pressed="true"] { box-shadow: 2px 2px 0 var(--th, var(--line-med)); }
+html[data-aesthetic="paper"] .asp-overlay .asp-cat .sw { opacity: 1; border: 1px solid var(--td, var(--line-med)); }
+html[data-aesthetic="paper"] .asp-overlay .asp-strip { border-bottom-width: 1.5px; }
+html[data-aesthetic="paper"] .asp-overlay .asp-bar i { border: 1px solid var(--pp-rose-bd); }
+html[data-aesthetic="paper"] .asp-overlay .asp-bar.zero i { background: var(--paper-3, var(--card-3)); border-color: var(--line); }
+html[data-aesthetic="paper"] .asp-overlay .asp-row .stat.success { background: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .asp-overlay .asp-row .stat.warning { background: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .asp-overlay .asp-row .stat.info    { background: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .asp-overlay .asp-btn.ink:hover { transform: translate(-1px,-1px); }
+
+html[data-aesthetic="paper"] .asp-overlay .asp-t-peach  { --tf: var(--pp-peach-ink);  --tb: var(--pp-peach-soft);  --td: var(--pp-peach-bd);  --th: var(--pp-peach); }
+html[data-aesthetic="paper"] .asp-overlay .asp-t-sky    { --tf: var(--pp-sky-ink);    --tb: var(--pp-sky-soft);    --td: var(--pp-sky-bd);    --th: var(--pp-sky); }
+html[data-aesthetic="paper"] .asp-overlay .asp-t-mint   { --tf: var(--pp-mint-ink);   --tb: var(--pp-mint-soft);   --td: var(--pp-mint-bd);   --th: var(--pp-mint); }
+html[data-aesthetic="paper"] .asp-overlay .asp-t-butter { --tf: var(--pp-butter-ink); --tb: var(--pp-butter-soft); --td: var(--pp-butter-bd); --th: var(--pp-butter); }
+html[data-aesthetic="paper"] .asp-overlay .asp-t-lilac  { --tf: var(--pp-lilac-ink);  --tb: var(--pp-lilac-soft);  --td: var(--pp-lilac-bd);  --th: var(--pp-lilac); }
+html[data-aesthetic="paper"] .asp-overlay .asp-t-rose   { --tf: var(--pp-rose-ink);   --tb: var(--pp-rose-soft);   --td: var(--pp-rose-bd);   --th: var(--pp-rose); }
+
+@media (max-width: 780px) {
+  html[data-aesthetic="paper"] .asp-overlay { --a-shadow: 0 -10px 40px rgba(0,0,0,.18); }
+}

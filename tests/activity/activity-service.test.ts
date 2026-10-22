@@ -61,4 +61,40 @@ describe("listRecentActivity", () => {
     expect(feed).toHaveLength(1);
     expect(feed[0].category).toBeNull();
   });
+
+  it("pages older rows by (timestamp, id) and honours since", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const b = await createBrother({ orgId: org.id });
+    const tie = new Date("2026-10-05T12:00:00Z");
+    for (const [message, at] of [
+      ["oldest", new Date("2026-09-01T12:00:00Z")],
+      ["tie-a", tie], ["tie-b", tie],
+      ["newest", new Date("2026-10-10T12:00:00Z")],
+    ] as const) {
+      await testPrisma.activityLog.create({ data: { organizationId: org.id, actorId: b.id, type: "info", message, timestamp: at } });
+    }
+    const ctx = ctxFor(org.id, b.id);
+
+    const first = await listRecentActivity(ctx, { limit: 2 });
+    expect(first.map(f => f.message)).toEqual(["newest", "tie-b"]);
+    expect(first[0].at).toBe("2026-10-10T12:00:00.000Z");
+
+    // The cursor row shares its timestamp with the next one; the id breaks the tie.
+    const second = await listRecentActivity(ctx, { limit: 2, before: first[1].id });
+    expect(second.map(f => f.message)).toEqual(["tie-a", "oldest"]);
+
+    const windowed = await listRecentActivity(ctx, { limit: 10, since: new Date("2026-10-01T00:00:00Z") });
+    expect(windowed.map(f => f.message)).toEqual(["newest", "tie-b", "tie-a"]);
+  });
+
+  it("an id from another org as the cursor returns nothing", async () => {
+    const a = await createOrg("Alpha", "alpha");
+    const z = await createOrg("Zeta", "zeta");
+    const ba = await createBrother({ orgId: a.id });
+    const bz = await createBrother({ orgId: z.id });
+    await testPrisma.activityLog.create({ data: { organizationId: a.id, actorId: ba.id, type: "info", message: "alpha row", timestamp: new Date("2026-09-01T12:00:00Z") } });
+    const foreign = await testPrisma.activityLog.create({ data: { organizationId: z.id, actorId: bz.id, type: "info", message: "zeta row", timestamp: new Date("2026-10-01T12:00:00Z") } });
+
+    expect(await listRecentActivity(ctxFor(a.id, ba.id), { before: foreign.id })).toEqual([]);
+  });
 });

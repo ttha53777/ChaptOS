@@ -9,6 +9,8 @@ export interface ActivityFeedEntry {
   type: string;
   /** Relative, e.g. "3h ago". */
   timestamp: string;
+  /** The exact instant, ISO 8601 — what the Activity spotlight groups by day. */
+  at: string;
   actorId: number | null;
   /** What the row is about, recovered from the event that wrote it; null when
    *  there's no such event (see lib/activity-category.ts). */
@@ -31,8 +33,32 @@ function relativeTime(date: Date): string {
  * the (organizationId, occurredAt) index), not one wide range: twenty rows can
  * span weeks, and a busy org emits far more events than it shows.
  */
-export async function listRecentActivity(ctx: RequestContext, limit = 20): Promise<ActivityFeedEntry[]> {
-  const logs = await ctx.db.activityLog.findMany({ orderBy: { timestamp: "desc" }, take: limit });
+export async function listRecentActivity(
+  ctx: RequestContext,
+  opts: { limit?: number; before?: number; since?: Date } = {},
+): Promise<ActivityFeedEntry[]> {
+  const { limit = 20, before, since } = opts;
+  // Keyset cursor on (timestamp, id): ids aren't guaranteed to follow
+  // timestamps, so "older than row N" means older than N's instant, with the id
+  // breaking ties. The cursor row is read through the scoped client, so another
+  // org's id resolves to nothing and the page is simply empty.
+  let olderThan: { timestamp: Date; id: number } | null = null;
+  if (before != null) {
+    const cursor = await ctx.db.activityLog.findFirst({ where: { id: before }, select: { id: true, timestamp: true } });
+    if (!cursor) return [];
+    olderThan = cursor;
+  }
+  const logs = await ctx.db.activityLog.findMany({
+    where: {
+      ...(since ? { timestamp: { gte: since } } : {}),
+      ...(olderThan ? { OR: [
+        { timestamp: { lt: olderThan.timestamp } },
+        { timestamp: olderThan.timestamp, id: { lt: olderThan.id } },
+      ] } : {}),
+    },
+    orderBy: [{ timestamp: "desc" }, { id: "desc" }],
+    take: limit,
+  });
   if (logs.length === 0) return [];
 
   const events = await ctx.db.operationalEvent.findMany({
@@ -53,6 +79,7 @@ export async function listRecentActivity(ctx: RequestContext, limit = 20): Promi
     message: l.message,
     type: l.type,
     timestamp: relativeTime(l.timestamp),
+    at: l.timestamp.toISOString(),
     actorId: l.actorId,
     category: categories.get(l.id) ?? null,
   }));

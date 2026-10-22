@@ -307,11 +307,11 @@ export const seedTransactions: Omit<Transaction, "id" | "createdAt" | "updatedAt
 // ─── Activity Feed ────────────────────────────────────────────────────────────
 
 export const seedActivity: ActivityEntry[] = [
-  { id: 1, message: "Nathaniel Baccarey flagged At Risk automatically", timestamp: "3h ago", type: "warning" },
-  { id: 2, message: "Treasury updated after Spring Formal Pre-Party",   timestamp: "2d ago", type: "success" },
-  { id: 3, message: "Spring Formal Flyer Drop added to Instagram queue",timestamp: "3d ago", type: "info"    },
-  { id: 4, message: "Academic Standing Report marked Urgent",           timestamp: "4d ago", type: "warning" },
-  { id: 5, message: "Noah Kim owes $75 — dues reminder sent",           timestamp: "5d ago", type: "info"    },
+  { id: 1, message: "Nathaniel Baccarey flagged At Risk automatically", timestamp: "3h ago", at: "2026-05-14T15:00:00Z", actorId: null, type: "warning" },
+  { id: 2, message: "Treasury updated after Spring Formal Pre-Party",   timestamp: "2d ago", at: "2026-05-12T18:00:00Z", actorId: null, type: "success" },
+  { id: 3, message: "Spring Formal Flyer Drop added to Instagram queue",timestamp: "3d ago", at: "2026-05-11T18:00:00Z", actorId: null, type: "info"    },
+  { id: 4, message: "Academic Standing Report marked Urgent",           timestamp: "4d ago", at: "2026-05-10T18:00:00Z", actorId: null, type: "warning" },
+  { id: 5, message: "Noah Kim owes $75 — dues reminder sent",           timestamp: "5d ago", at: "2026-05-09T18:00:00Z", actorId: null, type: "info"    },
 ];
 
 // ─── Health Score ─────────────────────────────────────────────────────────────

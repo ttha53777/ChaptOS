@@ -3,6 +3,7 @@ import { buildContext } from "@/lib/context";
 import { toResponse, ValidationError } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 import { listRecentActivity } from "@/lib/services/activity-service";
+import { activityQuery } from "@/lib/validation/activity";
 
 const TYPES = ["success", "warning", "info"] as const;
 
@@ -14,11 +15,19 @@ function relativeTime(date: Date): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { ctx, error } = await buildContext({ rateLimit: false });
   if (error) return error;
   try {
-    return Response.json(await listRecentActivity(ctx));
+    const sp = new URL(req.url).searchParams;
+    const q = activityQuery.parse({
+      limit:  sp.get("limit")  ?? undefined,
+      before: sp.get("before") ?? undefined,
+      since:  sp.get("since")  ?? undefined,
+    });
+    return Response.json(await listRecentActivity(ctx, {
+      limit: q.limit, before: q.before, since: q.since ? new Date(q.since) : undefined,
+    }));
   } catch (e) {
     logError(e, { route: "/api/activity", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);
@@ -43,7 +52,10 @@ export async function POST(req: NextRequest) {
       data: { message, type, actorId: ctx.actorId },
     });
     return Response.json(
-      { id: log.id, message: log.message, type: log.type, timestamp: relativeTime(log.timestamp) },
+      {
+        id: log.id, message: log.message, type: log.type, timestamp: relativeTime(log.timestamp),
+        at: log.timestamp.toISOString(), actorId: log.actorId, category: null,
+      },
       { status: 201 },
     );
   } catch (e) {

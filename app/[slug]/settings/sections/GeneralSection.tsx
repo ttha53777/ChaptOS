@@ -106,7 +106,7 @@ export function GeneralSection({
 
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
     const optimisticId = _nextId++;
-    setActivityFeed(prev => [{ id: optimisticId, message, timestamp: "just now", type }, ...prev]);
+    setActivityFeed(prev => [{ id: optimisticId, message, timestamp: "just now", at: new Date().toISOString(), actorId: currentUser?.id ?? null, type }, ...prev]);
     requestJson<ActivityEntry>("/api/activity", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

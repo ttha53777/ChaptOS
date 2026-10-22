@@ -64,6 +64,7 @@ import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
 import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
+import { ActivitySpotlight } from "../components/dashboard/activity/ActivitySpotlight";
 import { ArrangeBands, DashGrid, type GridBand, type GridCard } from "../components/dashboard/customize/DashGrid";
 import { DashNumbers, type DashStat } from "../components/dashboard/customize/DashNumbers";
 import { ArrangeBar, ArrangeToast, type ArrangeNote } from "../components/dashboard/customize/DashArrange";
@@ -487,12 +488,12 @@ function KPIDetailDrawer({
 
 // ─── Widget Drawer ────────────────────────────────────────────────────────────
 
-type WidgetDrawerKey = "health" | "digest" | "deadlines" | "activity";
+type WidgetDrawerKey = "health" | "digest" | "deadlines";
 
 function WidgetDetailDrawer({
   activeKey, onClose,
   weeklyDigest, weekRange, digestNarration,
-  deadlineList, activityFeed,
+  deadlineList,
   health,
   onOpenModal, onAddTask,
   onCompleteDeadline, onDeleteDeadline, onEditDeadline,
@@ -510,7 +511,6 @@ function WidgetDetailDrawer({
   weekRange: { start: string; end: string };
   digestNarration: string | null;
   deadlineList: Task[];
-  activityFeed: ActivityEntry[];
   health: { score: number; label: "Healthy" | "Needs Attention" | "Critical"; breakdown: Record<string, number> };
   onOpenModal: (key: "deadline" | "attendance") => void;
   onAddTask:          () => void;
@@ -533,16 +533,9 @@ function WidgetDetailDrawer({
     health:     { title: `${v("Meetings")} Health Score`, tone: ""     },
     digest:     { title: "Weekly Digest",          tone: ""     },
     deadlines:  { title: "Deadlines",             tone: ""     },
-    activity:   { title: "Activity Feed",         tone: "ok"   },
   };
 
   const cfg = activeKey ? WIDGET_CONFIGS[activeKey] : null;
-
-  const dot: Record<ActivityEntry["type"], string> = {
-    success: "ok",
-    warning: "gold",
-    info:    "info",
-  };
 
   function renderContent() {
     if (!activeKey) return null;
@@ -721,38 +714,6 @@ function WidgetDetailDrawer({
         );
       }
 
-      case "activity": {
-        return (
-          <>
-            <div className="dd-stats c3">
-              {([
-                ["Success", activityFeed.filter(e => e.type === "success").length, "ok"],
-                ["Warning", activityFeed.filter(e => e.type === "warning").length, "gold"],
-                ["Info",    activityFeed.filter(e => e.type === "info").length,    "info"],
-              ] as const).map(([label, count, tone]) => (
-                <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
-              ))}
-            </div>
-            <div>
-              <p className="dd-label">Full History <span className="ct">({activityFeed.length} entries)</span></p>
-              {activityFeed.length === 0 ? (
-                <p className="dd-empty">No activity yet</p>
-              ) : (
-                <div className="dd-history">
-                  {activityFeed.map(e => (
-                    <div key={e.id} className="a">
-                      <span className={`dot ${dot[e.type]}`} />
-                      <p>{e.message}</p>
-                      <time>{e.timestamp}</time>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        );
-      }
-
       default:
         return null;
     }
@@ -902,6 +863,7 @@ export default function Home() {
   const [rolesLoaded,    setRolesLoaded]    = useState(false);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
+  const [activitySpot,   setActivitySpot]   = useState<{ origin: DOMRect | null } | null>(null);
   const [editingAttId,      setEditingAttId]      = useState<number | null>(null);
   const [editAttVal,        setEditAttVal]        = useState("");
   const [selectedBrotherId, setSelectedBrotherId] = useState<number | null>(null);
@@ -1027,7 +989,7 @@ export default function Home() {
   // ── Activity logger ────────────────────────────────────────────────────────
   const addActivity = useCallback((message: string, type: ActivityEntry["type"]) => {
     const optimisticId = _nextId++;
-    setActivityFeed(prev => [{ id: optimisticId, message, timestamp: "just now", type }, ...prev]);
+    setActivityFeed(prev => [{ id: optimisticId, message, timestamp: "just now", at: new Date().toISOString(), actorId: currentUser?.id ?? null, type }, ...prev]);
     requestJson<ActivityEntry>("/api/activity", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2379,7 +2341,7 @@ export default function Home() {
     />
   ) };
   dashCards.activity = { label: "Activity", icon: "spark", tone: "rose", blurb: "What changed lately", node: (
-    <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={() => setWidgetDrawer("activity")} />
+    <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={origin => setActivitySpot({ origin })} />
   ) };
 
   // The fixed-place widgets this org has: put away and brought back, never moved.
@@ -2896,7 +2858,6 @@ export default function Home() {
         weekRange={weekRange}
         digestNarration={digestNarration}
         deadlineList={taskList}
-        activityFeed={activityFeed}
         health={health}
         onOpenModal={setActiveModal}
         onAddTask={canTasks ? () => setActiveModal("deadline") : () => router.push(orgPath("/tasks?new=1"))}
@@ -2904,6 +2865,8 @@ export default function Home() {
         onDeleteDeadline={deleteDeadline}
         onEditDeadline={openEditDeadline}
       />
+
+      {activitySpot && <ActivitySpotlight origin={activitySpot.origin} onClose={() => setActivitySpot(null)} />}
 
       {/* ── Member card ─────────────────────────────────────────────────────── */}
       <MemberSpotlight
