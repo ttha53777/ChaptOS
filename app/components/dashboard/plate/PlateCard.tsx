@@ -120,6 +120,9 @@ export function PlateCard({
   function tag(it: PlateItem) {
     // On You every row is yours, so the tag only earns its place under All.
     if (it.mine) return hasOthers && scope === "all" ? <span className="pl-why">for you</span> : null;
+    // Someone else's late task: it's here because you can manage tasks, not because
+    // it's your role's job, so name whose it is rather than "as Secretary".
+    if (it.kind === "task") return <span className="pl-why">{it.assignees === "Unassigned" ? "unassigned" : `${it.assignees}'s`}</span>;
     return <span className="pl-why role">as {it.as ? roleNames[it.as] ?? "officer" : "officer"}</span>;
   }
 
@@ -300,7 +303,7 @@ export function PlateCard({
         // Your part is done but the role queue isn't: say so, and keep the way to it.
         <div className="pl-clear">
           <span className="pl-stamp">ALL CLEAR</span>
-          <p>Nothing of yours is waiting. {items.length} {items.length === 1 ? "item for your role is" : "items for your role are"} under All.</p>
+          <p>Nothing&rsquo;s waiting on you. {items.length} more across the chapter {items.length === 1 ? "is" : "are"} under All.</p>
           <button type="button" className="btn sm" onClick={() => setScope("all")}>Show all {items.length} <PaperIcon name="arrow-r" /></button>
         </div>
       ) : (

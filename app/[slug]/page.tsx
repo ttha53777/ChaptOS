@@ -1383,11 +1383,12 @@ export default function Home() {
     today: todayISO, selfId, myRoleIds,
     tasks: taskList, polls: ballotPolls, wrapUps, reimbursements: reimbursementList,
     brothers: brotherList, duesLate, tracked: measured,
-    can: { treasury: canTreasury, events: canEvents && eventsEnabled },
-  }), [todayISO, selfId, myRoleIds, taskList, ballotPolls, wrapUps, reimbursementList, brotherList, duesLate, measured, canTreasury, canEvents, eventsEnabled]);
+    can: { tasks: canTasks, treasury: canTreasury, events: canEvents && eventsEnabled },
+    assigneeLabel: t => taskAssigneeLabel(t),
+  }), [todayISO, selfId, myRoleIds, taskList, ballotPolls, wrapUps, reimbursementList, brotherList, duesLate, measured, canTasks, canTreasury, canEvents, eventsEnabled]);
   // "as Treasurer": the viewer's highest-ranked role carrying that permission.
   const plateRoleNames = useMemo(() => {
-    const bits: Record<PlatePerm, number> = { treasury: PERMISSIONS.MANAGE_TREASURY, events: PERMISSIONS.MANAGE_EVENTS };
+    const bits: Record<PlatePerm, number> = { tasks: PERMISSIONS.MANAGE_TASKS, treasury: PERMISSIONS.MANAGE_TREASURY, events: PERMISSIONS.MANAGE_EVENTS };
     const roles = [...(currentUser?.roles ?? [])].sort((a, b) => b.rank - a.rank);
     const out: Partial<Record<PlatePerm, string>> = {};
     for (const k of Object.keys(bits) as PlatePerm[]) {
