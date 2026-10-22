@@ -40,8 +40,8 @@ export interface DashboardLayout extends DashboardLayoutWire {
 }
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
-  main: ["needs", "members"],
-  rail: ["ballot", "week", "treasury", "activity"],
+  main: ["needs", "week", "members"],
+  rail: ["ballot", "treasury", "activity"],
   hidden: [],
   numbers: null,
 };

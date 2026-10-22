@@ -57,14 +57,14 @@ describe("moves", () => {
 
   it("swaps a card into the other column at the same visual height", () => {
     const out = nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "members", "swap", all);
-    expect(out.main).toEqual(["needs"]);
-    expect(out.rail).toEqual(["ballot", "members", "week", "treasury", "activity"]);
+    expect(out.main).toEqual(["needs", "week"]);
+    expect(out.rail).toEqual(["ballot", "treasury", "members", "activity"]);
   });
 
   it("drops before/after a card or at the end of a column", () => {
-    expect(dropCard(DEFAULT_DASHBOARD_LAYOUT, "activity", { card: "needs", after: false }).main).toEqual(["activity", "needs", "members"]);
+    expect(dropCard(DEFAULT_DASHBOARD_LAYOUT, "activity", { card: "needs", after: false }).main).toEqual(["activity", "needs", "week", "members"]);
     const end = dropCard(DEFAULT_DASHBOARD_LAYOUT, "needs", { column: "rail" });
-    expect(end.main).toEqual(["members"]);
+    expect(end.main).toEqual(["week", "members"]);
     expect(end.rail.at(-1)).toBe("needs");
   });
 

@@ -2301,7 +2301,7 @@ export default function Home() {
       onDismiss={dismissBallot}
     />
   ) };
-  dashCards.week = { label: "This week", node: (
+  dashCards.week = { label: "This week", wide: true, node: (
     <ThisWeek
       events={agendaEvents}
       deadlines={weeklyDigest.deadlinesDue}

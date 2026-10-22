@@ -1,0 +1,92 @@
+/* Dashboard This week card — _design/Dashboard Universal Paper Mock.html, "week".
+   Class namespace wk-*. The card shell, header and pills come from the paper
+   dashboard rules in paper-aesthetic.css. */
+
+.dash .wk { display: flex; flex-direction: column; padding-bottom: 0; }
+.dash .wk .card-h .right { display: flex; align-items: center; gap: 14px; }
+.dash .wk-lnk {
+  display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: .82rem; font-weight: 600; color: var(--ink-soft);
+}
+.dash .wk-lnk:hover { color: var(--ink); }
+.dash .wk svg.pp-ic { width: 14px; height: 14px; flex: none; }
+
+/* the seven days */
+.dash .wk-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; padding: 0 18px; }
+.dash .wk-day {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 10px 2px 9px;
+  border-radius: 14px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+  font: inherit; transition: border-color .15s, transform .2s var(--pp-ease-spring), box-shadow .15s;
+}
+.dash .wk-day:hover:not(:disabled) { border-color: var(--line-med); transform: translateY(-1px); }
+.dash .wk-day:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.dash .wk-day:disabled { cursor: default; }
+.dash .wk-day .dw { font-family: var(--mono); font-size: .62rem; font-weight: 600; letter-spacing: .1em; color: var(--muted); }
+.dash .wk-day .dn { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; letter-spacing: -.03em; line-height: 1; }
+.dash .wk-day .dots { display: flex; gap: 3px; height: 7px; }
+.dash .wk-day .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--pp-sky-ink); }
+.dash .wk-day .dots i.ddl { background: var(--pp-butter-ink); }
+.dash .wk-day.today { background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); }
+.dash .wk-day.today .dw { color: var(--pp-butter-ink); }
+.dash .wk-day.past .dn { color: var(--muted); }
+.dash .wk-day.sel { border-color: var(--ink); box-shadow: 2.5px 2.5px 0 var(--pp-butter); }
+
+/* the picked day */
+.dash .wk-list { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
+.dash .wk-h { font-size: .78rem; font-weight: 600; color: var(--muted); padding-left: 2px; }
+.dash .wk-ev {
+  display: grid; grid-template-columns: 72px 4px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  width: 100%; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--card);
+  font: inherit; color: var(--ink); text-align: left; transition: border-color .15s, background .15s;
+}
+.dash button.wk-ev { cursor: pointer; }
+.dash button.wk-ev:hover { border-color: var(--line-med); background: var(--card-2); }
+.dash button.wk-ev:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.dash .wk-ev .tm { font-family: var(--mono); font-size: .74rem; color: var(--ink-soft); white-space: nowrap; }
+.dash .wk-ev .bar { height: 28px; border-radius: 3px; background: var(--pp-sky-ink); }
+/* Category colors ride in as --cat / --cat-d on the element itself (a var()
+   resolved on an ancestor would see neither): --cat-d on night paper, --cat on day. */
+.dash .wk .dots i.cat, .dash .wk .bar.cat { background: var(--cat-d); }
+html[data-theme="ivory"] .dash .wk .dots i.cat, html[data-theme="ivory"] .dash .wk .bar.cat { background: var(--cat); }
+.dash .wk-ev .bar.ddl { background: var(--pp-butter-ink); }
+.dash .wk-ev .what { min-width: 0; display: flex; flex-direction: column; }
+.dash .wk-ev .what b { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; font-size: .92rem; }
+.dash .wk-ev .ttl { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .wk-ev .what b > span:not(.ttl) { flex: none; }
+.dash .wk-ev small { font-size: .78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash .wk-ev .go {
+  padding: 5px 11px; border: 1.5px solid var(--line-med); border-radius: 999px;
+  font-size: .78rem; font-weight: 600; color: var(--ink-soft);
+}
+.dash button.wk-ev:hover .go { border-color: var(--muted); color: var(--ink); }
+.dash .wk-ev.over .ttl, .dash .wk-ev.over .tm { color: var(--muted); }
+.dash .wk-ev.over .bar { opacity: .4; }
+
+.dash .wk-empty {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 14px;
+  border: 1.5px dashed var(--line-med); border-radius: 14px; color: var(--muted); font-size: .86rem;
+}
+.dash .wk-empty b { color: var(--ink); font-weight: 600; }
+.dash .wk-empty.hello { border-style: solid; border-color: var(--pp-butter-bd); background: var(--pp-butter-soft); color: var(--ink-soft); }
+.dash .wk-empty.hello svg.pp-ic { color: var(--pp-butter-ink); }
+.dash .wk-empty.calm { border-style: solid; border-color: var(--line); background: var(--card-2); }
+.dash .wk-add {
+  padding: 0; border: 0; background: none; cursor: pointer; font: inherit; font-weight: 600; color: var(--ink);
+  text-decoration: underline; text-decoration-color: var(--line-med); text-underline-offset: 3px;
+}
+.dash .wk-add:hover { text-decoration-color: var(--ink); }
+
+.dash .wk-skel { display: flex; flex-direction: column; gap: 8px; }
+.dash .wk-skel .skel { display: block; height: 50px; border-radius: 14px; }
+
+/* the rail is ~320px: tighten the strip and drop the Details chip */
+@container (max-width: 420px) {
+  .dash .wk-strip { gap: 4px; padding: 0 12px; }
+  .dash .wk-day { padding: 8px 0 7px; border-radius: 11px; }
+  .dash .wk-day .dw { font-size: .54rem; letter-spacing: .04em; }
+  .dash .wk-day .dn { font-size: 1.1rem; }
+  .dash .wk-list { padding: 12px 12px 14px; }
+  .dash .wk-ev { grid-template-columns: 52px 4px minmax(0, 1fr); gap: 10px; }
+  .dash .wk-ev .go { display: none; }
+}
+.dash .wk-b { container-type: inline-size; }
