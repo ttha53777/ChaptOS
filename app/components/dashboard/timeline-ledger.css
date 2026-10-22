@@ -208,6 +208,10 @@
   .dash .tl-layout { grid-template-columns: 1fr 316px; }
   .dash .tl-rail { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 16px; }
 }
+/* As a drawer/sheet the rail is a height-capped flex column that scrolls. A child
+   with overflow:hidden (paper's .ev card) would otherwise shrink to fit and clip
+   its own bottom — the attendance form's Save button — instead of scrolling. */
+.dash .tl-rail > * { flex-shrink: 0; }
 .dash .tl-rail .lbl { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
 
 /* ── Admin pending-excuse review banner ──────────────────────────────────────── */
