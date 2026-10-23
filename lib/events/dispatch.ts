@@ -291,6 +291,8 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} created semester ${m.label} and made it active`;
     case "semester.activated":
       return `${who} set the active semester to ${m.label}`;
+    case "semester.updated":
+      return `${who} updated semester ${m.label}`;
     case "org.created":
       return `${m.founderName} created the ${m.name} organization`;
     case "org.config.updated":

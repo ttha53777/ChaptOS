@@ -170,6 +170,7 @@ export interface EventMetadata {
   "announcement.updated": { title: string };
   "semester.created":     { label: string };
   "semester.activated":   { label: string };
+  "semester.updated":     { label: string };
 
   // Onboarding
   "org.created": { name: string; slug: string; orgType: string; founderName: string };
@@ -303,7 +304,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",
   "doc.created", "doc.updated", "doc.deleted", "doc.moved", "doc.pinned", "doc.reordered",
   "docFolder.created", "docFolder.renamed", "docFolder.deleted", "docFolder.pinned", "docFolder.reordered",
-  "announcement.updated", "semester.created", "semester.activated",
+  "announcement.updated", "semester.created", "semester.activated", "semester.updated",
   "org.created", "org.config.updated", "org.onboarding.completed", "org.logo.updated",
   "membership.left", "membership.account_deleted",
   "invite.created", "invite.revoked",

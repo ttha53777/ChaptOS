@@ -30,6 +30,7 @@ export async function createSemester(ctx: RequestContext, input: CreateSemesterI
  * Resolves the resulting date pair (existing row overlaid with the patch) and
  * rejects endDate < startDate (lexicographic on YYYY-MM-DD). Reactivates exactly
  * like createSemester/activateSemester: deactivate all, then flag this one active.
+ * `activate: false` (Settings' Edit) only changes the label/dates.
  */
 export async function updateSemester(ctx: RequestContext, id: number, input: UpdateSemesterInput) {
   // findUnique is org-scoped (ctx.db) — a foreign id resolves to null here.
@@ -42,17 +43,18 @@ export async function updateSemester(ctx: RequestContext, id: number, input: Upd
     throw new ValidationError("End date must be on or after the start date.", { code: "INVALID_DATE_RANGE" });
   }
 
-  await ctx.db.semester.updateMany({ data: { isActive: false } });
+  const activate = input.activate ?? true;
+  if (activate) await ctx.db.semester.updateMany({ data: { isActive: false } });
   const s = await ctx.db.semester.update({
     where: { id },
     data: {
       ...(input.label !== undefined ? { label: input.label } : {}),
       startDate,
       endDate,
-      isActive: true,
+      ...(activate ? { isActive: true } : {}),
     },
   });
-  await emit(ctx, "semester.activated", { type: "Semester", id: s.id }, { label: s.label });
+  await emit(ctx, activate ? "semester.activated" : "semester.updated", { type: "Semester", id: s.id }, { label: s.label });
   return s;
 }
 

@@ -19,6 +19,8 @@ export const updateSemesterInput = z
     label:     z.string().trim().min(1).optional(),
     startDate: z.string().regex(DATE_RE).optional(),
     endDate:   z.string().regex(DATE_RE).optional(),
+    /** Settings' Edit sends false: fix the dates without switching the active term. */
+    activate:  z.boolean().optional(),
   })
   .refine(v => v.label !== undefined || v.startDate !== undefined || v.endDate !== undefined, {
     message: "At least one field is required.",

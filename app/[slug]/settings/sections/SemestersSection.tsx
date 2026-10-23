@@ -13,34 +13,36 @@ interface Semester {
   isActive: boolean;
 }
 
-function NewSemesterModal({
-  onClose, onCreated, onError,
+/** New semester, or — given `editing` — fix an existing one's label/dates without changing which is active. */
+function SemesterModal({
+  editing, onClose, onSaved,
 }: {
+  editing?: Semester;
   onClose: () => void;
-  onCreated: (s: Semester) => void;
-  onError: (msg: string) => void;
+  onSaved: (s: Semester) => void;
 }) {
-  const [label, setLabel] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [label, setLabel] = useState(editing?.label ?? "");
+  const [startDate, setStartDate] = useState(editing?.startDate ?? "");
+  const [endDate, setEndDate] = useState(editing?.endDate ?? "");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!label.trim() || !startDate || !endDate) { setFormError("All fields are required."); return; }
+    if (endDate < startDate) { setFormError("End date must be on or after the start date."); return; }
     setSaving(true);
     setFormError(null);
     try {
-      const s = await requestJson<Semester>("/api/semesters", {
-        method: "POST",
+      const s = await requestJson<Semester>(editing ? `/api/semesters/${editing.id}` : "/api/semesters", {
+        method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: label.trim(), startDate, endDate }),
+        body: JSON.stringify({ label: label.trim(), startDate, endDate, ...(editing ? { activate: false } : {}) }),
       });
-      onCreated(s);
+      onSaved(s);
       onClose();
     } catch (err: unknown) {
-      setFormError(err instanceof Error ? err.message : "Failed to create semester.");
+      setFormError(err instanceof Error ? err.message : editing ? "Failed to save semester." : "Failed to create semester.");
     } finally {
       setSaving(false);
     }
@@ -48,7 +50,7 @@ function NewSemesterModal({
 
   const inputStyle = { border: "1px solid var(--line)", background: "var(--paper-2)", color: "var(--ink)" };
   return (
-    <Modal title="New semester" onClose={onClose} tone="dusk">
+    <Modal title={editing ? "Edit semester" : "New semester"} onClose={onClose} tone="dusk">
       <form onSubmit={submit} className="space-y-4">
         {formError && (
           <div className="rounded-lg px-3 py-2 text-[12px]" style={{ border: "1px solid rgba(217,139,163,.25)", background: "var(--rose-bg)", color: "var(--rose)" }}>{formError}</div>
@@ -86,7 +88,7 @@ function NewSemesterModal({
           <button type="submit" disabled={saving}
             className="ui-btn-primary rounded-lg px-4 py-2 text-[12px] font-semibold transition-colors disabled:opacity-50"
             style={{ background: "var(--vio)", color: "#1a1206" }}>
-            {saving ? "Creating…" : "Create & activate"}
+            {editing ? (saving ? "Saving…" : "Save") : (saving ? "Creating…" : "Create & activate")}
           </button>
         </div>
       </form>
@@ -106,6 +108,7 @@ export function SemestersSection({
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<number | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<Semester | null>(null);
 
   useEffect(() => {
     requestJson<Semester[]>("/api/semesters")
@@ -132,11 +135,16 @@ export function SemestersSection({
     onStatus(`Semester "${s.label}" created and set active.`);
   }
 
+  function onEdited(s: Semester) {
+    setSemesters(prev => prev.map(x => (x.id === s.id ? s : x)));
+    onStatus(`Semester "${s.label}" saved.`);
+  }
+
   return (
     <>
       <div className="sc-stack-tight">
         <div className="flex items-center justify-between gap-3">
-          <p className="sc-lede" style={{ margin: 0 }}>Switch the active semester or create a new one.</p>
+          <p className="sc-lede" style={{ margin: 0 }}>Switch the active semester, fix one&rsquo;s dates, or create a new one.</p>
           {canManage && (
             <button onClick={() => setNewOpen(true)} className="sc-btn sc-btn-accent sc-btn-sm">
               <svg viewBox="0 0 16 16" fill="currentColor">
@@ -169,14 +177,19 @@ export function SemestersSection({
                   </div>
                   <p className="sc-row-sub">{s.startDate} – {s.endDate}</p>
                 </div>
-                {!s.isActive && canManage && (
-                  <button
-                    onClick={() => setActive(s.id)}
-                    disabled={activating === s.id}
-                    className="sc-btn sc-btn-ghost sc-btn-sm shrink-0"
-                  >
-                    {activating === s.id ? "Setting…" : "Set active"}
-                  </button>
+                {canManage && (
+                  <div className="flex shrink-0 gap-2">
+                    <button onClick={() => setEditing(s)} className="sc-btn sc-btn-ghost sc-btn-sm">Edit</button>
+                    {!s.isActive && (
+                      <button
+                        onClick={() => setActive(s.id)}
+                        disabled={activating === s.id}
+                        className="sc-btn sc-btn-ghost sc-btn-sm"
+                      >
+                        {activating === s.id ? "Setting…" : "Set active"}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -185,7 +198,10 @@ export function SemestersSection({
       </div>
 
       {newOpen && (
-        <NewSemesterModal onClose={() => setNewOpen(false)} onCreated={onCreated} onError={onError} />
+        <SemesterModal onClose={() => setNewOpen(false)} onSaved={onCreated} />
+      )}
+      {editing && (
+        <SemesterModal editing={editing} onClose={() => setEditing(null)} onSaved={onEdited} />
       )}
     </>
   );

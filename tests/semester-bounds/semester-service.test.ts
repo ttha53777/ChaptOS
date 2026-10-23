@@ -75,6 +75,19 @@ describe("updateSemester", () => {
     expect(old?.isActive).toBe(false);
   });
 
+  it("activate: false (Settings' Edit) fixes the dates and leaves the active term alone", async () => {
+    const { ctx, org } = await seed();
+    const active = await createSemester({ orgId: org.id, label: "Fall 2026", startDate: "2026-08-22", endDate: "2028-12-30", isActive: true });
+    const other = await createSemester({ orgId: org.id, label: "Spring 2026", startDate: "2026-01-10", endDate: "2026-05-10", isActive: false });
+
+    const fixed = await updateSemester(ctx, active.id, { endDate: "2026-12-30", activate: false });
+    expect(fixed).toMatchObject({ endDate: "2026-12-30", isActive: true });
+
+    await updateSemester(ctx, other.id, { label: "Spring '26", activate: false });
+    const rows = await testPrisma.semester.findMany({ where: { organizationId: org.id }, orderBy: { id: "asc" } });
+    expect(rows.map(r => [r.label, r.isActive])).toEqual([["Fall 2026", true], ["Spring '26", false]]);
+  });
+
   it("rejects an end date before the start date", async () => {
     const { ctx, org } = await seed();
     const sem = await createSemester({

@@ -117,7 +117,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "semesters", label: "Semesters", group: "Operations", tint: "t-sage",
-    blurb: "Create semesters and set the active one.",
+    blurb: "Create semesters, fix their dates, set the active one.",
     lede: "Manage your reporting periods. The active semester drives the dashboard and every period-scoped metric.",
     icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
   },
