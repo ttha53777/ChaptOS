@@ -23,7 +23,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { testPrisma, resetDb } from "../setup/prisma";
 import {
   createOrg, createBrother, createSemester, createCalendarEvent, createTransaction,
-  createServiceEvent, createServiceParticipation, createPartyEvent, createTask, createInstagramTask,
+  createServiceEvent, createFundraiser, createServiceParticipation, createPartyEvent, createTask, createInstagramTask,
   createDoc, createBudget, createActivityLog, createAnnouncement,
 } from "../setup/factories";
 import { db } from "@/lib/db";
@@ -226,6 +226,45 @@ describe("tenancy: ServiceEvent", () => {
     await createServiceEvent({ orgId: orgB.id });
     expect(await db(orgA.id).serviceEvent.count()).toBe(1);
     expect(await db(orgB.id).serviceEvent.count()).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fundraiser + FundraiserSupply
+// ---------------------------------------------------------------------------
+describe("tenancy: Fundraiser", () => {
+  it("findMany is org-scoped", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    await createFundraiser({ orgId: orgA.id, name: "A sale" });
+    await createFundraiser({ orgId: orgB.id, name: "B sale" });
+    const fromA = await db(orgA.id).fundraiser.findMany({ include: { calendarEvent: true } });
+    expect(fromA.map(f => f.calendarEvent.title)).toEqual(["A sale"]);
+  });
+
+  it("findFirst with a cross-org id returns null", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const fB = await createFundraiser({ orgId: orgB.id });
+    expect(await db(orgA.id).fundraiser.findFirst({ where: { id: fB.id } })).toBeNull();
+  });
+
+  it("supply create injects organizationId; reads stay in the org", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const fA = await createFundraiser({ orgId: orgA.id });
+    await createFundraiser({ orgId: orgB.id, supplies: [{ name: "B flour", costCents: 500 }] });
+    const s = await db(orgA.id).fundraiserSupply.create({ data: { fundraiserId: fA.id, name: "Flour", costCents: 1800 } });
+    expect(s.organizationId).toBe(orgA.id);
+    expect((await db(orgA.id).fundraiserSupply.findMany()).map(x => x.name)).toEqual(["Flour"]);
+  });
+
+  it("update of another org's supply is refused", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const fB = await createFundraiser({ orgId: orgB.id, supplies: [{ name: "B flour", costCents: 500 }] });
+    const [supply] = await testPrisma.fundraiserSupply.findMany({ where: { fundraiserId: fB.id } });
+    await expect(db(orgA.id).fundraiserSupply.update({ where: { id: supply.id }, data: { costCents: 1 } })).rejects.toThrow();
   });
 });
 

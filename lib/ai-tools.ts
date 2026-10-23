@@ -494,6 +494,25 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_fundraisers",
+      description:
+        "Simple fundraisers (bake sales, car washes, raffles): name, date, place, goal, supplies spent, " +
+        "and once wrapped up the total that came in and what it made (came_in − supplies; negative = short). " +
+        "These are NOT Treasury transactions. stage: planning | ready (day passed, not counted) | wrapped.",
+      parameters: {
+        type: "object",
+        properties: {
+          start: { type: "string", description: "Inclusive YYYY-MM-DD start." },
+          end:   { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          order: { type: "string", enum: ["asc", "desc"], description: "Sort by date (default asc)." },
+          limit: { type: "integer", minimum: 1, maximum: 100, description: "Default 100." },
+        },
+      },
+    },
+  },
   // ── Blind-spot reads: org data the tools above don't reach ──
   // Descriptions are deliberately short — every schema rides in the tools array
   // on every loop iteration. Member rows come back as {id, name} so answer rows
@@ -2159,6 +2178,36 @@ async function listServiceEvents(args: ToolArgs, scoped: Scoped): Promise<ToolRe
   return listResult(rows, !!(start || end));
 }
 
+async function listFundraisersTool(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
+  const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
+  const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  const orderDir = args.order === "desc" ? "desc" : "asc";
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rows = await scoped.fundraiser.findMany({
+    where: start || end ? { calendarEvent: { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } } : {},
+    orderBy: { calendarEvent: { date: orderDir } },
+    take: clampLimit(args.limit),
+    select: {
+      id: true, goalCents: true, cameInCents: true, wrappedAt: true,
+      calendarEvent: { select: { title: true, date: true, location: true } },
+      supplies: { select: { costCents: true } },
+    },
+  });
+  return listResult(rows.map(r => {
+    const spent = r.supplies.reduce((a, s) => a + s.costCents, 0);
+    const wrapped = r.wrappedAt != null && r.cameInCents != null;
+    return {
+      id: r.id, name: r.calendarEvent.title, date: r.calendarEvent.date, place: r.calendarEvent.location,
+      stage: wrapped ? "wrapped" : r.calendarEvent.date <= today ? "ready" : "planning",
+      goal: r.goalCents == null ? null : r.goalCents / 100,
+      supplies_spent: spent / 100,
+      came_in: wrapped ? r.cameInCents! / 100 : null,
+      made: wrapped ? (r.cameInCents! - spent) / 100 : null,
+    };
+  }), !!(start || end));
+}
+
 async function listProgrammingEvents(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const title = typeof args.title === "string" && args.title.trim() ? args.title.trim() : undefined;
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
@@ -3506,6 +3555,7 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
   get_brother_attendance:  (args, scoped, _orgId, _now, access) => getBrotherAttendance(args, scoped, access),
   list_roles:              (args, scoped) => listRoles(args, scoped),
   list_service_events:     (args, scoped) => listServiceEvents(args, scoped),
+  list_fundraisers:        (args, scoped) => listFundraisersTool(args, scoped),
   list_programming_events: (args, scoped) => listProgrammingEvents(args, scoped),
   get_custom_metrics:      (args, scoped, orgId) => getCustomMetrics(args, scoped, orgId),
   list_member_fields:      (args, scoped, orgId) => listMemberFields(args, scoped, orgId),
@@ -3681,6 +3731,7 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   },
   list_roles: { verb: "Checking officer roles", source: "Roles", finding: countFinding("role") },
   list_service_events: { verb: "Scanning service events", source: "Service", finding: countFinding("event") },
+  list_fundraisers: { verb: "Checking fundraisers", source: "Fundraisers", finding: countFinding("fundraiser") },
   list_programming_events: { verb: "Scanning the programming board", source: "Programming", finding: countFinding("event") },
   get_custom_metrics: {
     verb: "Checking custom metrics",

@@ -15,6 +15,7 @@ export const CalendarCategory = {
   Party:    "party",
   Deadline: "deadline",
   Service:  "service",
+  Fundraising: "fundraising",
 } as const;
 
 export type CalendarCategory = (typeof CalendarCategory)[keyof typeof CalendarCategory];

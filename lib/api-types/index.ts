@@ -67,3 +67,4 @@ export type * from "./dues";
 export type * from "./activity";
 export type * from "./chat";
 export type * from "./mobile";
+export type * from "./fundraisers";

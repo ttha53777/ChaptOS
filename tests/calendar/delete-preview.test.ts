@@ -8,7 +8,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { testPrisma, resetDb } from "../setup/prisma";
 import {
   createOrg, createBrother, createSemester, createCalendarEvent, createPartyEvent,
-  createServiceEvent, createServiceParticipation,
+  createServiceEvent, createServiceParticipation, createFundraiser,
 } from "../setup/factories";
 
 beforeEach(resetDb);
@@ -51,7 +51,7 @@ describe("previewDeleteCalendar", () => {
     expect(await previewDeleteCalendar(ctx, event.id)).toEqual({
       attendance: 2, excuses: 1,
       party: { name: "Halloween", doorRevenue: 412, expenses: 90, completed: false },
-      serviceMembers: 1, programming: false, blocked: null,
+      serviceMembers: 1, programming: false, fundraiser: null, blocked: null,
     });
     // and it only looks: nothing was removed
     expect(await testPrisma.attendanceRecord.count({ where: { calendarEventId: event.id } })).toBe(2);
@@ -61,8 +61,14 @@ describe("previewDeleteCalendar", () => {
     const { org, ctx } = await fixture();
     const bare = await createCalendarEvent({ orgId: org.id });
     expect(await previewDeleteCalendar(ctx, bare.id)).toEqual({
-      attendance: 0, excuses: 0, party: null, serviceMembers: 0, programming: false, blocked: null,
+      attendance: 0, excuses: 0, party: null, serviceMembers: 0, programming: false, fundraiser: null, blocked: null,
     });
+  });
+
+  it("names the fundraiser and its shopping list that go with the event", async () => {
+    const { org, ctx } = await fixture();
+    const f = await createFundraiser({ orgId: org.id, supplies: [{ name: "Flour", costCents: 1800 }, { name: "Boxes", costCents: 1100 }], cameInCents: 20000 });
+    expect((await previewDeleteCalendar(ctx, f.calendarEventId)).fundraiser).toEqual({ supplies: 2, wrapped: true });
   });
 
   it("says up front when the party ledger needs MANAGE_PARTIES, as deleteCalendar would refuse", async () => {

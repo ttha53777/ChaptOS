@@ -46,7 +46,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 export function PlateCard({
   items, today, roleNames, hasData = true, loading = false, error = false, onRetry,
-  onCompleteTask, onReopenTask, onVote, onReimbursement, onWrapUp, onOpenDues, onOpenMyDues,
+  onCompleteTask, onReopenTask, onVote, onReimbursement, onWrapUp, onOpenFundraiser, onOpenDues, onOpenMyDues,
 }: {
   items: PlateItem[];
   today: string;
@@ -64,6 +64,7 @@ export function PlateCard({
   onVote: (pollId: number, optionId: number) => Promise<unknown>;
   onReimbursement: (id: number, status: "approved" | "rejected") => Promise<boolean>;
   onWrapUp: (eventId: number) => void;
+  onOpenFundraiser?: (fundraiserId: number) => void;
   onOpenDues?: () => void;
   onOpenMyDues?: () => void;
 }) {
@@ -193,6 +194,13 @@ export function PlateCard({
         title = `Wrap up ${it.title}`;
         meta = <>{it.dueDate ? `Happened ${when(it.dueDate, today)}` : "Happened"} · {late("not wrapped up yet")}</>;
         action = <button type="button" className="btn sm" onClick={() => onWrapUp(it.id)}>Wrap up <PaperIcon name="arrow-r" /></button>;
+        break;
+      }
+      case "fundraiser": {
+        icon = "jar"; tone = "butter";
+        title = `Count up ${it.name}`;
+        meta = <>{it.daysAgo === 0 ? "Today" : `Happened ${when(it.date, today)}`} · {it.daysAgo === 0 ? "type in what came in once it’s over" : late("not counted yet")}</>;
+        action = <button type="button" className="btn sm" onClick={() => onOpenFundraiser?.(it.id)}>Wrap up <PaperIcon name="arrow-r" /></button>;
         break;
       }
       case "reimbursement": {

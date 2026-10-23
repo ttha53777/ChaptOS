@@ -44,6 +44,8 @@ export async function GET() {
     // Same again for the wrap-up queue: MANAGE_EVENTS is what moving an event to
     // Done requires, so nobody else is told an event is waiting on them.
     const canManageEvents = elevated || hasPermission(computePermissions(roles), "MANAGE_EVENTS");
+    // And for fundraisers waiting to be counted: wrapping one up needs MANAGE_FUNDRAISING.
+    const canManageFundraising = elevated || hasPermission(computePermissions(roles), "MANAGE_FUNDRAISING");
 
     // Wrap-up candidates are cut on the SERVER's date plus a day of slack, and
     // the client's needsWrapUp() makes the final call against the viewer's own
@@ -71,10 +73,10 @@ export async function GET() {
     //
     // resolvePermissions is deliberately NOT in here: it does no I/O (it filters
     // roleRows that requireUser already loaded), so it needs no transaction.
-    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers } =
+    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows } =
       await db(user.orgId).$transaction(async tx => {
         const scoped = db(user.orgId);
-        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers] = await Promise.all([
+        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows] = await Promise.all([
           scoped.identity.onTx(tx).findByBrotherId(user.id),
           scoped.organization.onTx(tx).findUnique({
             where: { id: user.orgId },
@@ -143,8 +145,17 @@ export async function GET() {
           elevated
             ? countBillableMembers({ member: scoped.member.onTx(tx) })
             : null,
+          // Fundraisers whose day has come and that nobody has counted yet — the
+          // sidebar's Fundraisers dot and an "On your plate" row. Same horizon slack.
+          canManageFundraising
+            ? scoped.fundraiser.onTx(tx).findMany({
+                where: { wrappedAt: null, calendarEvent: { date: { lte: wrapUpHorizon } } },
+                select: { id: true, calendarEvent: { select: { title: true, date: true } } },
+                take: 50,
+              })
+            : [],
         ]);
-        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers };
+        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows };
       });
 
     const perms = await resolvePermissions(user);
@@ -265,6 +276,10 @@ export async function GET() {
               schedule: (r.schedule ?? null) as Schedule | null,
               stage: "confirmed" as const,
             })),
+            // Unwrapped fundraisers that may be over. Always [] without MANAGE_FUNDRAISING.
+            fundraisersToWrap: fundraiserRows
+              .map(r => ({ id: r.id, name: r.calendarEvent.title, date: r.calendarEvent.date }))
+              .sort((a, b) => a.date.localeCompare(b.date)),
             // Whether the founder has finished the setup wizard. Drives the
             // dashboard "finish setting up" checklist (shown only once setup is
             // complete) and is the same signal the server onboarding guard gates

@@ -25,6 +25,7 @@ import { refreshDuesStandings, useDuesStandings } from "../hooks/useDuesStanding
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { useRollingToday } from "../hooks/useRollingToday";
 import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
+import { useFundraisersToWrap } from "../hooks/useFundraisersToWrap";
 import { useSharedLiveCheckIn } from "../context/LiveCheckInContext";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import { trackedCount } from "@/lib/tracked-metrics";
@@ -1341,6 +1342,8 @@ export default function Home() {
   // outstanding dues (aggregated). Wrap-ups only while the Events page is
   // switched on — the row's button leads there.
   const wrapUpsDue = useWrapUpsDue();
+  const fundraisersToWrap = useFundraisersToWrap();
+  const fundraisersEnabled = isNavVisible("Fundraisers", currentUser?.org?.enabledWorkflows ?? []);
   const wrapUps = eventsEnabled ? wrapUpsDue : NO_WRAP_UPS;
   // ── On your plate ───────────────────────────────────────────────────────────
   // Replaced Needs attention: the same officer queue (overdue deadlines,
@@ -1349,14 +1352,14 @@ export default function Home() {
   const myRoleIds = useMemo(() => new Set((currentUser?.roles ?? []).map(r => r.id)), [currentUser]);
   const plateItems = useMemo(() => derivePlate({
     today: todayISO, selfId, myRoleIds,
-    tasks: taskList, polls: ballotPolls, wrapUps, reimbursements: reimbursementList,
+    tasks: taskList, polls: ballotPolls, wrapUps, fundraisers: fundraisersToWrap, reimbursements: reimbursementList,
     brothers: brotherList, duesLate, tracked: measured,
-    can: { tasks: canTasks, treasury: canTreasury, events: canEvents && eventsEnabled },
+    can: { tasks: canTasks, treasury: canTreasury, events: canEvents && eventsEnabled, fundraising: fundraisersEnabled },
     assigneeLabel: t => taskAssigneeLabel(t),
-  }), [todayISO, selfId, myRoleIds, taskList, ballotPolls, wrapUps, reimbursementList, brotherList, duesLate, measured, canTasks, canTreasury, canEvents, eventsEnabled]);
+  }), [todayISO, selfId, myRoleIds, taskList, ballotPolls, wrapUps, fundraisersToWrap, fundraisersEnabled, reimbursementList, brotherList, duesLate, measured, canTasks, canTreasury, canEvents, eventsEnabled]);
   // "as Treasurer": the viewer's highest-ranked role carrying that permission.
   const plateRoleNames = useMemo(() => {
-    const bits: Record<PlatePerm, number> = { tasks: PERMISSIONS.MANAGE_TASKS, treasury: PERMISSIONS.MANAGE_TREASURY, events: PERMISSIONS.MANAGE_EVENTS };
+    const bits: Record<PlatePerm, number> = { tasks: PERMISSIONS.MANAGE_TASKS, treasury: PERMISSIONS.MANAGE_TREASURY, events: PERMISSIONS.MANAGE_EVENTS, fundraising: PERMISSIONS.MANAGE_FUNDRAISING };
     const roles = [...(currentUser?.roles ?? [])].sort((a, b) => b.rank - a.rank);
     const out: Partial<Record<PlatePerm, string>> = {};
     for (const k of Object.keys(bits) as PlatePerm[]) {
@@ -2282,6 +2285,7 @@ export default function Home() {
       onVote={castBallotVote}
       onReimbursement={reviewReimbursement}
       onWrapUp={id => router.push(orgPath(`/events?open=${id}&wrap=1`))}
+      onOpenFundraiser={id => router.push(orgPath(`/fundraisers/${id}?wrap=1`))}
       onOpenDues={() => setActiveDrawer("dues")}
       onOpenMyDues={financeEnabled ? () => router.push(orgPath("/treasury?tab=Dues")) : undefined}
       hasData={hasAnyData}

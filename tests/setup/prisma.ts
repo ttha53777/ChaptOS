@@ -60,6 +60,8 @@ export async function resetDb(): Promise<void> {
       "Task",
       "ServiceParticipation",
       "ServiceEvent",
+      "FundraiserSupply",
+      "Fundraiser",
       "CalendarEvent",
       "AgendaTemplate",
       "PartyEvent",

@@ -238,6 +238,8 @@ export interface DeletePreview {
   serviceMembers: number;
   /** A programming card scheduled onto this entry, which goes back to Ideas. */
   programming: boolean;
+  /** The fundraiser this event backs; deleting the event deletes it and its shopping list. */
+  fundraiser: { supplies: number; wrapped: boolean } | null;
   blocked: "MANAGE_PARTIES" | null;
 }
 
@@ -253,9 +255,14 @@ export async function previewDeleteCalendar(ctx: RequestContext, id: number): Pr
     ctx.db.partyEvent.findFirst({ where: { attendanceEventId: id }, select: { name: true, doorRevenue: true, expenses: true, completed: true } }),
     ctx.db.serviceParticipation.count({ where: { serviceEvent: { calendarEventId: id } } }),
   ]);
-  const programming = (await ctx.db.programmingEvent.count({ where: { calendarEventId: id } })) > 0;
+  const [programmingCount, fund] = await Promise.all([
+    ctx.db.programmingEvent.count({ where: { calendarEventId: id } }),
+    ctx.db.fundraiser.findFirst({ where: { calendarEventId: id }, select: { wrappedAt: true, _count: { select: { supplies: true } } } }),
+  ]);
+  const programming = programmingCount > 0;
+  const fundraiser = fund ? { supplies: fund._count.supplies, wrapped: fund.wrappedAt != null } : null;
   return {
-    attendance, excuses, party, serviceMembers, programming,
+    attendance, excuses, party, serviceMembers, programming, fundraiser,
     blocked: party && !can(ctx, "MANAGE_PARTIES") ? "MANAGE_PARTIES" : null,
   };
 }
@@ -275,6 +282,11 @@ export async function deleteCalendar(ctx: RequestContext, id: number) {
     const party = await tx.partyEvent.findFirst({ where: { attendanceEventId: id, organizationId: ctx.orgId } });
     if (party && !can(ctx, "MANAGE_PARTIES")) {
       throw new ForbiddenError("Managing parties is required to delete an event with a party ledger");
+    }
+    // The Fundraiser row (and its list) goes with the event by FK cascade.
+    const fundraiser = await tx.fundraiser.findFirst({ where: { calendarEventId: id, organizationId: ctx.orgId }, select: { id: true } });
+    if (fundraiser && !can(ctx, "MANAGE_FUNDRAISING")) {
+      throw new ForbiddenError("Managing fundraisers is required to delete a fundraiser's event");
     }
     await tx.partyEvent.deleteMany({ where: { attendanceEventId: id, organizationId: ctx.orgId } });
     const attendanceWhere = { calendarEventId: id, calendarEvent: { organizationId: ctx.orgId } };

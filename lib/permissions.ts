@@ -33,6 +33,10 @@ export const PERMISSIONS = {
   // delete. Attached members without this bit can still cast/change their own
   // vote (enforced in poll-service, not at the route guard).
   MANAGE_POLLS:         1 << 13,
+  // Fundraisers: plan one, keep its shopping list, wrap it up, reopen, delete.
+  // Viewing needs nothing. Separate from MANAGE_TREASURY on purpose — a
+  // philanthropy chair runs bake sales without touching the books.
+  MANAGE_FUNDRAISING:   1 << 14,
 } as const;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -106,7 +110,7 @@ export const ALL_PERMISSIONS = Object.values(PERMISSIONS).reduce((a, b) => a | b
  * then bump this constant to ALL_PERMISSIONS. tests/permissions pins the two
  * equal so the migration can't be forgotten.
  */
-export const GRANTED_ALL_PERMISSIONS = 0x3fff;
+export const GRANTED_ALL_PERMISSIONS = 0x7fff;
 
 /** Human-readable name → bit, in declared order. Used by the Roles UI. */
 export const PERMISSION_LIST: ReadonlyArray<{ name: Permission; bit: number }> =

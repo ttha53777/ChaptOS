@@ -19,6 +19,7 @@
 const HANDLER_TIMEOUT_MS = 3_000;
 
 import { logError } from "@/lib/observability";
+import { formatDollars } from "@/lib/fundraisers";
 import type { RequestContext } from "@/lib/context";
 import type { Action, EventMetadata, SubjectType } from "./actions";
 
@@ -236,6 +237,18 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} marked ${m.name} complete`;
     case "party.deleted":
       return `${who} deleted party ${m.name}`;
+    case "fundraiser.created":
+      return `${who} planned the fundraiser ${m.name} on ${m.date}`;
+    case "fundraiser.updated":
+      return `${who} updated the fundraiser ${m.name}`;
+    case "fundraiser.deleted":
+      return `${who} deleted the fundraiser ${m.name}`;
+    case "fundraiser.wrapped":
+      return m.madeCents < 0
+        ? `${who} wrapped up ${m.name}: came up ${formatDollars(-m.madeCents / 100)} short`
+        : `${who} wrapped up ${m.name}: ${formatDollars(m.madeCents / 100)} made`;
+    case "fundraiser.reopened":
+      return `${who} reopened ${m.name}`;
     case "task.created":
       return m.dueDate ? `${who} added task ${m.title} (due ${m.dueDate})` : `${who} added task ${m.title}`;
     case "task.updated":
@@ -304,3 +317,4 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} performed ${action}`;
   }
 }
+

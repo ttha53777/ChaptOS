@@ -61,6 +61,7 @@ export const WORKFLOW_FEATURES: Record<WorkflowId, readonly WorkflowFeature[]> =
   attendance: [],
   parties: [],
   service: [],
+  fundraisers: [],
   communications: [],
   docs: [],
   tasks: [],

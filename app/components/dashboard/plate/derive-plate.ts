@@ -12,7 +12,7 @@ import type { Brother, Poll, Reimbursement, Task } from "@/app/data";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 
 export type PlateLane = "late" | "today" | "soon";
-export type PlatePerm = "tasks" | "treasury" | "events";
+export type PlatePerm = "tasks" | "treasury" | "events" | "fundraising";
 
 /** How far ahead "Coming up" reaches for dated tasks. Undated to-dos always count. */
 export const PLATE_SOON_DAYS = 7;
@@ -23,6 +23,7 @@ export type PlateItem = Base & (
   | { kind: "task"; id: number; title: string; dueDate: string | null; daysLate: number; assignees: string }
   | { kind: "poll"; id: number; question: string; closeDate: string | null; options: { id: number; label: string }[] }
   | { kind: "wrap-up"; id: number; title: string; dueDate: string | null; daysAgo: number | null }
+  | { kind: "fundraiser"; id: number; name: string; date: string; daysAgo: number }
   | { kind: "reimbursement"; total: number; requests: { id: number; name: string; amount: number; description: string; date: string }[] }
   | { kind: "dues"; total: number; count: number; overdue: number; top: { name: string; amount: number }[] }
   | { kind: "my-dues"; amount: number; lateDays: number }
@@ -36,11 +37,13 @@ export interface PlateInput {
   /** Open polls assigned to the viewer that they haven't voted on yet. */
   polls: Poll[];
   wrapUps: { id: number; title: string; dueDate: string | null }[];
+  /** Fundraisers whose day has come and nobody has counted (useFundraisersToWrap). */
+  fundraisers?: { id: number; name: string; date: string }[];
   reimbursements: Reimbursement[];
   brothers: Brother[];
   duesLate: ReadonlyMap<number, number>;
   tracked: Pick<TrackedMetrics, "duesOwed">;
-  can: Record<PlatePerm, boolean>;
+  can: Record<Exclude<PlatePerm, "fundraising">, boolean> & { fundraising?: boolean };
   assigneeLabel: (t: Task) => string;
 }
 
@@ -103,6 +106,18 @@ export function derivePlate(i: PlateInput): PlateItem[] {
       kind: "wrap-up", id: e.id, title: e.title, dueDate: e.dueDate,
       daysAgo: e.dueDate ? days(e.dueDate, i.today) : null,
       sort: e.dueDate ?? "0000",
+    });
+  }
+
+  // Fundraisers waiting to be counted. Today's sale lands under Today; anything
+  // older is late — the money is sitting in a cash box somewhere.
+  if (i.can.fundraising) for (const f of i.fundraisers ?? []) {
+    const ago = days(f.date, i.today);
+    if (ago < 0) continue;
+    out.push({
+      key: `fund-${f.id}`, lane: ago === 0 ? "today" : "late", mine: false, as: "fundraising",
+      kind: "fundraiser", id: f.id, name: f.name, date: f.date, daysAgo: ago,
+      sort: f.date,
     });
   }
 

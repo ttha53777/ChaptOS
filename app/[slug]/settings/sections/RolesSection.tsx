@@ -43,6 +43,7 @@ const PERMISSION_COPY: Record<Permission, { label: string; desc: string }> = {
   MANAGE_ROLES:         { label: "Roles",         desc: "Create roles and hand out any role ranked below their own." },
   MANAGE_SETTINGS:      { label: "Org settings",  desc: "Change org settings and manage invite links." },
   MANAGE_TREASURY:      { label: "Treasury",      desc: "Record transactions, set budgets, export the books." },
+  MANAGE_FUNDRAISING:   { label: "Fundraisers",   desc: "Plan fundraisers, keep their shopping lists, and wrap them up." },
   MANAGE_EVENTS:        { label: "Events",        desc: "Create and edit calendar events." },
   MANAGE_PARTIES:       { label: "Parties",       desc: "Create and manage parties." },
   MANAGE_SERVICE:       { label: "Service",       desc: "Create and manage service events." },
@@ -56,7 +57,7 @@ const PERMISSION_COPY: Record<Permission, { label: string; desc: string }> = {
 
 const PERMISSION_GROUPS: { label: string; perms: Permission[] }[] = [
   { label: "People & access", perms: ["MANAGE_BROTHERS", "MANAGE_ATTENDANCE", "MANAGE_ROLES", "MANAGE_SETTINGS"] },
-  { label: "Money",           perms: ["MANAGE_TREASURY"] },
+  { label: "Money",           perms: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
   { label: "Calendar",        perms: ["MANAGE_EVENTS", "MANAGE_PARTIES", "MANAGE_SERVICE", "MANAGE_SEMESTERS"] },
   { label: "Communication",   perms: ["MANAGE_ANNOUNCEMENTS", "MANAGE_DOCS", "MANAGE_TASKS", "MANAGE_POLLS", "MANAGE_INSTAGRAM"] },
 ];

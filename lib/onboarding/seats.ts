@@ -83,7 +83,7 @@ export function seatsFromTemplate(orgTypeId: string): Seat[] {
 /** Extra offices "+ Add a seat" can pull from, per org-type id. */
 export const SEAT_POOL: Record<string, readonly SeatPoolEntry[]> = {
   fraternity: [
-    { title: "Service Chair", color: "#10B981", able: "tracks service hours", permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS"] },
+    { title: "Service Chair", color: "#10B981", able: "tracks service hours", permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS", "MANAGE_FUNDRAISING"] },
     { title: "Scribe",        color: "#F59E0B", able: "minutes & docs", permissions: ["MANAGE_DOCS", "MANAGE_ANNOUNCEMENTS"] },
     { title: "Rush Chair",    color: "#8B5CF6", able: "recruitment events", permissions: ["MANAGE_EVENTS", "MANAGE_TASKS"] },
   ],
@@ -108,7 +108,7 @@ export const SEAT_POOL: Record<string, readonly SeatPoolEntry[]> = {
     { title: "House Manager", color: "#F59E0B", able: "events & attendance", permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE"] },
   ],
   "generic-org": [
-    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", permissions: ["MANAGE_TREASURY"] },
+    { title: "Treasurer", color: "#10B981", able: "logs dues & payments", permissions: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
     { title: "Secretary", color: "#3B82F6", able: "docs & announcements", permissions: ["MANAGE_DOCS", "MANAGE_ANNOUNCEMENTS"] },
   ],
 };

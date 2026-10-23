@@ -65,6 +65,8 @@ model Organization {
   duesPayments              DuesPayment[]
   duesCharges               DuesCharge[]
   duesChargeLines           DuesChargeLine[]
+  fundraisers               Fundraiser[]
+  fundraiserSupplies        FundraiserSupply[]
   duesWaivers               DuesWaiver[]
   chatApprovals             ChatApproval[]
   budgets                   Budget[]
@@ -870,6 +872,7 @@ model CalendarEvent {
   partyEvent        PartyEvent?                @relation("PartyAttendance")
   transactionLinks  TransactionCalendarEvent[]
   instagramTasks    InstagramTask[]
+  fundraiser        Fundraiser?
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -1122,6 +1125,53 @@ model ServiceEvent {
   participations ServiceParticipation[]
 
   @@index([organizationId])
+}
+
+// A simple fundraiser: a dated sale with a shopping list and one wrap-up total.
+// Three numbers and nothing else — supplies (sum of the list), came in, and
+// made = came in − supplies (lib/fundraisers.ts). Deliberately NOT in Treasury.
+//
+// Scheduling (title, date, time, place) lives on the CalendarEvent it mirrors,
+// never duplicated here, so the Timeline and this page can't drift. Deleting
+// the event on the Timeline deletes the fundraiser (cascade).
+//
+// `kind` (lib/state/fundraiser-kind.ts, CHECK in the migration) only picks the
+// suggested shopping list. Stage is derived: wrapped (wrappedAt set) / ready
+// (date passed) / planning. Money is integer cents.
+model Fundraiser {
+  id              Int       @id @default(autoincrement())
+  organizationId  Int
+  calendarEventId Int       @unique
+  kind            String    @default("other")
+  goalCents       Int?
+  cameInCents     Int?
+  wrappedAt       DateTime?
+  createdById     Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization  Organization       @relation(fields: [organizationId], references: [id])
+  calendarEvent CalendarEvent      @relation(fields: [calendarEventId], references: [id], onDelete: Cascade)
+  supplies      FundraiserSupply[]
+
+  @@index([organizationId])
+}
+
+// One line on a fundraiser's shopping list. Locked (service-enforced) once the
+// fundraiser is wrapped up; Reopen unlocks it.
+model FundraiserSupply {
+  id             Int      @id @default(autoincrement())
+  organizationId Int
+  fundraiserId   Int
+  name           String
+  costCents      Int      @default(0)
+  position       Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  fundraiser   Fundraiser   @relation(fields: [fundraiserId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, fundraiserId])
 }
 
 // One row per (member, service event): the hours that member earned at that

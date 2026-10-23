@@ -27,6 +27,7 @@ export const ACTIVITY_CATEGORY: Record<ActivityCategory, { label: (v: Vocab) => 
   members:      { label: v => v("Member", true),       tone: "lilac" },
   service:      { label: v => v("Service"),            tone: "rose" },
   parties:      { label: () => "Parties",              tone: "rose" },
+  fundraisers:  { label: () => "Fundraisers",          tone: "butter" },
   tasks:        { label: () => "Tasks",                tone: "peach" },
   docs:         { label: v => v("Doc", true),          tone: "sky" },
   instagram:    { label: () => "Instagram",            tone: "rose" },

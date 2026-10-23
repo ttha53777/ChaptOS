@@ -234,6 +234,7 @@ const WORKFLOW_DESCRIPTIONS: Record<WorkflowId, string> = {
   finance:        "Budget, dues, transactions, and running balance (Treasury page).",
   parties:        "Social events with door revenue and wrap-up tracking.",
   service:        "Service events and per-member volunteer-hour totals.",
+  fundraisers:    "Simple fundraisers (bake sales, car washes, raffles): a shopping list, one wrap-up total, and what each one made.",
   communications: "Announcements and social post planning.",
   docs:           "Pinned links and shared documents.",
   tasks:          "Task assignments and to-dos for officers/committees.",
@@ -343,7 +344,7 @@ ACTIVITY → PAGE MAPPING — when the founder describes what the org does (the 
   - chapter / regular meetings → "meetings" AND "attendance"
   - social events or parties → "parties"
   - service events or volunteering → "service"
-  - fundraisers or programs → "events" AND "finance"
+  - fundraisers or programs → "events" AND "finance" AND "fundraisers"
   - handing out tasks / deadlines → "tasks"
   - posting content online (social media, announcements) → "communications"
   - shared documents or links (beat 5) → "docs"

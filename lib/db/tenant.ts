@@ -673,6 +673,71 @@ function scopedServiceEvent(orgId: number, run: Run) {
   };
 }
 
+// Simple fundraisers (prisma/schema.prisma Fundraiser). Reads are generic so a
+// caller's include (calendarEvent, supplies) comes back typed. Create/update of
+// the mirrored CalendarEvent runs in ctx.db.$transaction with organizationId
+// spelled out, like service events.
+function scopedFundraiser(orgId: number, run: Run) {
+  type W = Prisma.FundraiserWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.FundraiserWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.fundraiser.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   <T extends Prisma.FundraiserFindManyArgs>(args?: Prisma.SelectSubset<T, Prisma.FundraiserFindManyArgs>) =>
+      run(p => p.fundraiser.findMany<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.FundraiserFindManyArgs>)),
+    findFirst:  <T extends Prisma.FundraiserFindFirstArgs>(args?: Prisma.SelectSubset<T, Prisma.FundraiserFindFirstArgs>) =>
+      run(p => p.fundraiser.findFirst<T>({ ...(args as object), where: org((args as T | undefined)?.where) } as Prisma.SelectSubset<T, Prisma.FundraiserFindFirstArgs>)),
+    create:     (args: Omit<Prisma.FundraiserCreateArgs, "data"> & { data: Omit<Prisma.FundraiserUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.fundraiser.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.FundraiserUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.fundraiser.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.FundraiserDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.fundraiser.delete({ where: { id } }));
+    },
+    count:      (args?: Prisma.FundraiserCountArgs) => run(p => p.fundraiser.count({ ...args, where: org(args?.where) })),
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedFundraiser(orgId, f => f(tx as P)),
+  };
+}
+
+function scopedFundraiserSupply(orgId: number, run: Run) {
+  type W = Prisma.FundraiserSupplyWhereInput;
+  const org = (w?: W): W => ({ ...w, organizationId: orgId });
+
+  async function verify(where: Prisma.FundraiserSupplyWhereUniqueInput): Promise<number> {
+    const row = await run(p => p.fundraiserSupply.findFirst({ where: org(where as W), select: { id: true } }));
+    if (!row) notInOrg();
+    return row.id;
+  }
+
+  return {
+    findMany:   (args?: Prisma.FundraiserSupplyFindManyArgs)  => run(p => p.fundraiserSupply.findMany({ ...args, where: org(args?.where) })),
+    findFirst:  (args?: Prisma.FundraiserSupplyFindFirstArgs) => run(p => p.fundraiserSupply.findFirst({ ...args, where: org(args?.where) })),
+    create:     (args: Omit<Prisma.FundraiserSupplyCreateArgs, "data"> & { data: Omit<Prisma.FundraiserSupplyUncheckedCreateInput, "organizationId"> }) =>
+      run(p => p.fundraiserSupply.create({ ...args, data: { ...args.data, organizationId: orgId } })),
+    update:     async (args: Prisma.FundraiserSupplyUpdateArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.fundraiserSupply.update({ ...args, where: { id } }));
+    },
+    delete:     async (args: Prisma.FundraiserSupplyDeleteArgs) => {
+      const id = await verify(args.where);
+      return run(p => p.fundraiserSupply.delete({ where: { id } }));
+    },
+    aggregate:  (args: Omit<Prisma.FundraiserSupplyAggregateArgs, "where"> & { where?: W }) =>
+      run(p => p.fundraiserSupply.aggregate({ ...args, where: org(args.where) })),
+    count:      (args?: Prisma.FundraiserSupplyCountArgs) => run(p => p.fundraiserSupply.count({ ...args, where: org(args?.where) })),
+  };
+}
+
 function scopedServiceParticipation(orgId: number, run: Run) {
   type W = Prisma.ServiceParticipationWhereInput;
   const org = (w?: W): W => ({ ...w, organizationId: orgId });
@@ -2050,6 +2115,8 @@ export function db(orgId: number) {
     calendarEvent:       scopedCalendarEvent(orgId, run),
     serviceEvent:        scopedServiceEvent(orgId, run),
     serviceParticipation: scopedServiceParticipation(orgId, run),
+    fundraiser:          scopedFundraiser(orgId, run),
+    fundraiserSupply:    scopedFundraiserSupply(orgId, run),
     partyEvent:          scopedPartyEvent(orgId, run),
     task:                scopedTask(orgId, run),
     taskAssignment:      scopedTaskAssignment(orgId, run),
@@ -2172,6 +2239,8 @@ export function _dbWithClient(orgId: number, client: P) {
     calendarEvent:       scopedCalendarEvent(orgId, run),
     serviceEvent:        scopedServiceEvent(orgId, run),
     serviceParticipation: scopedServiceParticipation(orgId, run),
+    fundraiser:          scopedFundraiser(orgId, run),
+    fundraiserSupply:    scopedFundraiserSupply(orgId, run),
     partyEvent:          scopedPartyEvent(orgId, run),
     task:                scopedTask(orgId, run),
     taskAssignment:      scopedTaskAssignment(orgId, run),

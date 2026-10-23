@@ -38,7 +38,7 @@
 export const NAV_GROUPS: ReadonlyArray<{ label: string; items: readonly string[] }> = [
   { label: "Overview", items: ["Dashboard", "Timeline"] },
   { label: "Members", items: ["Brotherhood", "Chapter", "Tasks"] },
-  { label: "Operations", items: ["Docs", "Instagram", "Programming", "Service", "Parties", "Treasury"] },
+  { label: "Operations", items: ["Docs", "Instagram", "Programming", "Service", "Parties", "Fundraisers", "Treasury"] },
 ] as const;
 
 /** Every nav label across all groups, in default order. Used to validate a

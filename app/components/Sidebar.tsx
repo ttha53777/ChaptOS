@@ -16,6 +16,7 @@ import { SvgIcon } from "./SvgIcon";
 import { PaperIcon, type PaperIconName } from "./paper/PaperIcon";
 import { useSemesters } from "../hooks/useActiveSemester";
 import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
+import { useFundraisersToWrap } from "../hooks/useFundraisersToWrap";
 import "./sidebar.css";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ export const NAV_WORKFLOW_MAP: Record<string, WorkflowId | null> = {
   Service:     "service",
   Programming: "events",
   Parties:     "parties",
+  Fundraisers: "fundraisers",
 };
 
 // One-line description of each hideable surface, keyed by nav label. Shown next
@@ -81,6 +83,7 @@ export const NAV_DESCRIPTIONS: Record<string, string> = {
   Programming: "Plan programs, socials, fundraisers, and community service.",
   Instagram:   "Plan and track social posts and announcements.",
   Docs:        "Pinned links and shared documents.",
+  Fundraisers: "Bake sales and car washes: a shopping list, one wrap-up total, and what each one made.",
 };
 
 /** Returns true when a nav label should render for an org with these workflows.
@@ -105,7 +108,7 @@ const ICON_COLLAPSE = "M11 19l-7-7 7-7m8 14l-7-7 7-7";
 const PAPER_NAV_ICONS: Record<string, PaperIconName> = {
   Dashboard: "home", Timeline: "timeline", Brotherhood: "people", Brothers: "people",
   Chapter: "gavel", Tasks: "box", Docs: "folder", Instagram: "camera",
-  Programming: "board", Service: "heart", Parties: "note", Treasury: "wallet", Settings: "gear",
+  Programming: "board", Service: "heart", Parties: "note", Fundraisers: "jar", Treasury: "wallet", Settings: "gear",
 };
 
 // Where each standalone nav label routes, within the org. Dashboard is absent:
@@ -121,6 +124,7 @@ const NAV_ROUTES: Record<string, string> = {
   Docs:        "/docs",
   Instagram:   "/instagram",
   Service:     "/service",
+  Fundraisers: "/fundraisers",
 };
 
 type Tone = "vio" | "warn" | "rose";
@@ -195,6 +199,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
   // Confirmed events that have already happened and still need a wrap-up.
   // Empty for anyone without MANAGE_EVENTS (gated in the hook and on /me).
   const wrapUps = useWrapUpsDue();
+  const fundsToWrap = useFundraisersToWrap();
 
   const { active: activeSemester, loaded: semestersLoaded } = useSemesters(!!currentUser?.org?.slug);
   const term = activeSemester ? termLabel(activeSemester) : semestersLoaded ? "" : " ";
@@ -244,6 +249,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
     // One event: straight into its wrap-up. Several: the board, where each
     // carries its own dot.
     { key: "wrap",  n: wrapUps.length,        text: wrapUps.length === 1 ? "event to wrap up" : "events to wrap up", page: "Programming", href: wrapUps.length === 1 ? `/events?open=${wrapUps[0].id}&wrap=1` : "/events", tone: "rose" },
+    { key: "fund",  n: fundsToWrap.length,    text: fundsToWrap.length === 1 ? "fundraiser to count up" : "fundraisers to count up", page: "Fundraisers", href: fundsToWrap.length === 1 ? `/fundraisers/${fundsToWrap[0].id}?wrap=1` : "/fundraisers", tone: "rose" },
     { key: "reimb", n: pendingReimbursements, text: pendingReimbursements === 1 ? "reimbursement" : "reimbursements", page: "Treasury", href: "/treasury?tab=Reimbursements", tone: "rose" },
   ] satisfies Queue[]).filter(q => q.n > 0 && visibleNavSet.has(q.page));
   const queueTotal = queues.reduce((a, q) => a + q.n, 0);

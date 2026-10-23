@@ -33,7 +33,7 @@ export const ACTIVITY_OPTIONS: readonly {
   { id: "meetings",  label: "Chapter meetings",             workflows: ["meetings", "attendance"] },
   { id: "socials",   label: "Social events or parties",     workflows: ["parties"] },
   { id: "service",   label: "Service or volunteering",      workflows: ["service"] },
-  { id: "fundraise", label: "Fundraisers or programs",      workflows: ["events", "finance"] },
+  { id: "fundraise", label: "Fundraisers or programs",      workflows: ["events", "finance", "fundraisers"] },
   { id: "tasks",     label: "Handing out tasks/deadlines",  workflows: ["tasks"] },
   { id: "online",    label: "Posting content online",       workflows: ["communications"] },
 ];

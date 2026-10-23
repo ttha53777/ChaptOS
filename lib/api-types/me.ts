@@ -70,6 +70,8 @@ export interface MeOrg {
   pendingJoinRequestCount: number;
   /** Server-emptied without MANAGE_EVENTS. Candidates — filter against the viewer's local date. */
   wrapUpsDue: { id: number; title: string; dueDate: string | null; schedule: Schedule | null; stage: "confirmed" }[];
+  /** Server-emptied without MANAGE_FUNDRAISING. Unwrapped fundraisers that may be over — filter against the viewer's local date. */
+  fundraisersToWrap: { id: number; name: string; date: string }[];
   onboardingComplete: boolean;
   /** Null for anyone who isn't an org/platform admin. */
   billingAlert: "past_due" | "unpaid" | "canceled" | null;

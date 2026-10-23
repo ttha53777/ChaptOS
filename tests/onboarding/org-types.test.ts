@@ -26,9 +26,10 @@ describe("org-types: registry", () => {
     const t = getOrgType("fraternity");
     expect(t).not.toBeNull();
     // communications + tasks start OFF (the group chat covers both at first);
-    // everything else a chapter runs on is on from day one.
+    // fundraisers is OFF until the interview names fundraising; everything else
+    // a chapter runs on is on from day one.
     expect(new Set(t!.enabledWorkflows)).toEqual(
-      new Set(ALL_WORKFLOWS.filter(w => w !== "communications" && w !== "tasks")),
+      new Set(ALL_WORKFLOWS.filter(w => w !== "communications" && w !== "tasks" && w !== "fundraisers")),
     );
   });
 

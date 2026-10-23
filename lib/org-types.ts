@@ -30,6 +30,7 @@ export type WorkflowId =
   | "finance"
   | "parties"
   | "service"
+  | "fundraisers"
   | "communications"
   | "docs"
   | "tasks"
@@ -43,6 +44,7 @@ export const ALL_WORKFLOWS: readonly WorkflowId[] = [
   "finance",
   "parties",
   "service",
+  "fundraisers",
   "communications",
   "docs",
   "tasks",
@@ -99,6 +101,7 @@ export const BEAT_WORKFLOWS: readonly WorkflowId[] = [
   "attendance",
   "parties",
   "service",
+  "fundraisers",
   "events",
   "finance",
   "tasks",
@@ -255,7 +258,7 @@ const FRATERNITY: OrgTypeTemplate = {
   // President is rank 100 and ALL_PERMISSIONS — that's what the founder gets.
   roleSeeds: [
     { name: "President", color: "#F59E0B", rank: 100, permissions: [], all: true },
-    { name: "Treasurer", color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Treasurer", color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
     { name: "Social",    color: "#EC4899", rank: 50, permissions: ["MANAGE_EVENTS", "MANAGE_PARTIES", "MANAGE_TASKS"] },
     { name: "PR",        color: "#3B82F6", rank: 50, permissions: ["MANAGE_INSTAGRAM"] },
   ],
@@ -293,7 +296,7 @@ const GENERIC_CLUB: OrgTypeTemplate = {
   ],
   roleSeeds: [
     { name: "President", color: "#F59E0B", rank: 100, permissions: [], all: true },
-    { name: "Treasurer", color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Treasurer", color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
     { name: "Secretary", color: "#3B82F6", rank: 50, permissions: ["MANAGE_EVENTS", "MANAGE_ANNOUNCEMENTS", "MANAGE_TASKS"] },
   ],
   vocabularyOverrides: {
@@ -371,8 +374,8 @@ const SERVICE_ORG: OrgTypeTemplate = {
   ],
   roleSeeds: [
     { name: "President",        color: "#F59E0B", rank: 100, permissions: [], all: true },
-    { name: "Service Chair",    color: "#10B981", rank: 50, permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS"] },
-    { name: "Treasurer",        color: "#3B82F6", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Service Chair",    color: "#10B981", rank: 50, permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS", "MANAGE_FUNDRAISING"] },
+    { name: "Treasurer",        color: "#3B82F6", rank: 50, permissions: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
     { name: "Comms Chair",      color: "#EC4899", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_INSTAGRAM"] },
   ],
   vocabularyOverrides: {
@@ -412,7 +415,7 @@ const HONOR_SOCIETY: OrgTypeTemplate = {
   roleSeeds: [
     { name: "President",     color: "#F59E0B", rank: 100, permissions: [], all: true },
     { name: "Vice President", color: "#8B5CF6", rank: 60, permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE", "MANAGE_TASKS"] },
-    { name: "Treasurer",     color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Treasurer",     color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
     { name: "Secretary",     color: "#3B82F6", rank: 50, permissions: ["MANAGE_ANNOUNCEMENTS", "MANAGE_DOCS"] },
   ],
   vocabularyOverrides: {},
@@ -447,7 +450,7 @@ const PERFORMING_ARTS: OrgTypeTemplate = {
   roleSeeds: [
     { name: "Director",        color: "#F59E0B", rank: 100, permissions: [], all: true },
     { name: "Stage Manager",   color: "#3B82F6", rank: 60, permissions: ["MANAGE_EVENTS", "MANAGE_ATTENDANCE", "MANAGE_TASKS"] },
-    { name: "Treasurer",       color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY"] },
+    { name: "Treasurer",       color: "#10B981", rank: 50, permissions: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"] },
     { name: "Publicity",       color: "#EC4899", rank: 50, permissions: ["MANAGE_INSTAGRAM", "MANAGE_ANNOUNCEMENTS"] },
   ],
   // Singular forms only — plurals are derived at render time (lib/vocab.ts).

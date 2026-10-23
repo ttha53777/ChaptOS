@@ -15,6 +15,7 @@ export interface DeletePreview {
   party: { name: string; doorRevenue: number; expenses: number; completed: boolean } | null;
   serviceMembers: number;
   programming: boolean;
+  fundraiser?: { supplies: number; wrapped: boolean } | null;
   blocked: "MANAGE_PARTIES" | null;
 }
 
@@ -55,6 +56,7 @@ function chipsFor(p: DeletePreview): { cls?: string; icon: React.ReactNode; body
     out.push({ cls: "ledger", icon: I.till(), body: <>Party ledger{money_ ? ` · ${money_}` : ""}</> });
   }
   if (p.serviceMembers) out.push({ icon: I.hand(), body: <>Service hours for <b>{p.serviceMembers}</b> member{p.serviceMembers === 1 ? "" : "s"}</> });
+  if (p.fundraiser) out.push({ cls: "ledger", icon: I.till(), body: <>The fundraiser{p.fundraiser.supplies ? <> and its <b>{p.fundraiser.supplies}</b>-item shopping list</> : ""}{p.fundraiser.wrapped ? ", wrap-up included" : ""}</> });
   if (p.programming) out.push({ cls: "keeps", icon: I.board(), body: <>Its Programming card goes back to Ideas</> });
   return out;
 }

@@ -38,7 +38,7 @@ export interface BuiltinEventType {
 }
 
 /**
- * The 4 built-ins, in canonical display order. `displayOrder` is derived from
+ * The 5 built-ins, in canonical display order. `displayOrder` is derived from
  * this array's index at seed time.
  *
  * Social/Fundraiser/Program were demoted from this list (they were `events`-
@@ -55,6 +55,10 @@ export const BUILTIN_EVENT_TYPES: readonly BuiltinEventType[] = [
   { slug: "party",    label: "Party",             color: "#b34f72", colorDark: "#d98ba3", workflowId: "parties",  mandatoryDefault: false, creatable: true },
   { slug: "deadline", label: "Deadline",          color: "#c14a37", colorDark: "#e0796b", workflowId: "tasks",    mandatoryDefault: false, creatable: false },
   { slug: "service",  label: "Community Service", color: "#2f8579", colorDark: "#5fbdb0", workflowId: "service",  mandatoryDefault: false, creatable: true  },
+  // Made on the Fundraisers page only, where its Fundraiser row is written too.
+  // NOT "fundraiser": that slug is the org-type starter Programming category
+  // (lib/org-types.ts evt("fundraiser")) most orgs already own as a custom type.
+  { slug: "fundraising", label: "Fundraising",    color: "#9c6b08", colorDark: "#f0cc72", workflowId: "fundraisers", mandatoryDefault: false, creatable: false },
 ] as const;
 
 /** The built-in slugs, as a tuple Zod can turn into an enum. */

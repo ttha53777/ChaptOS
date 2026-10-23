@@ -160,7 +160,7 @@ export const KIND_VARIANTS: Partial<Record<KindId, readonly VariantModifier[]>> 
       label: "Service",
       // Service-hours-first — the service-org shape wearing Brother/Chapter vocab.
       seatRemove: ["Social"],
-      seatAdd: [{ title: "Service Chair", color: "#10B981", permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS"] }],
+      seatAdd: [{ title: "Service Chair", color: "#10B981", permissions: ["MANAGE_SERVICE", "MANAGE_EVENTS", "MANAGE_FUNDRAISING"] }],
       metricDefaults: { gpa: false },
     },
     {

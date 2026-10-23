@@ -33,8 +33,8 @@ export interface PermArea {
 export const PERM_AREAS: readonly PermArea[] = [
   {
     id: "money", label: "Money",
-    perms: ["MANAGE_TREASURY"],
-    gate: w => w.has("finance"),
+    perms: ["MANAGE_TREASURY", "MANAGE_FUNDRAISING"],
+    gate: w => w.has("finance") || w.has("fundraisers"),
   },
   {
     id: "people", label: "People",
@@ -85,6 +85,7 @@ export const PERM_LABELS: Record<Permission, string> = {
   MANAGE_TASKS:         "Assign tasks",
   MANAGE_POLLS:         "Run polls",
   MANAGE_SERVICE:       "Track service hours",
+  MANAGE_FUNDRAISING:   "Run fundraisers",
 };
 
 /** One short verb-phrase per area, for the auto-generated "Can …" summary. */

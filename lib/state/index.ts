@@ -35,3 +35,4 @@ export * from "./calendar-feed";
 export * from "./instagram-status";
 export * from "./agenda-template-category";
 export * from "./dues-audience";
+export * from "./fundraiser-kind";

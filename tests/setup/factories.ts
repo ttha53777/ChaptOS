@@ -264,6 +264,27 @@ export async function createServiceEvent(opts: {
   });
 }
 
+/** A fundraiser and the "fundraising" calendar event it reads its name/date from. */
+export async function createFundraiser(opts: {
+  orgId: number;
+  name?: string;
+  date?: string;
+  supplies?: { name: string; costCents: number }[];
+  cameInCents?: number;
+}) {
+  const event = await createCalendarEvent({ orgId: opts.orgId, title: opts.name ?? "Bake sale", date: opts.date ?? "2026-05-01", category: "fundraising", mandatory: false });
+  return testPrisma.fundraiser.create({
+    data: {
+      organizationId:  opts.orgId,
+      calendarEventId: event.id,
+      kind:            "bake",
+      cameInCents:     opts.cameInCents ?? null,
+      wrappedAt:       opts.cameInCents != null ? new Date() : null,
+      supplies: { create: (opts.supplies ?? []).map((s, i) => ({ organizationId: opts.orgId, name: s.name, costCents: s.costCents, position: i })) },
+    },
+  });
+}
+
 export async function createServiceParticipation(opts: {
   orgId: number;
   serviceEventId: number;

@@ -69,12 +69,13 @@ describe("draftEventTypes", () => {
   });
 
   it("ghosts a type whose gating page is off, and keeps the row", () => {
-    // A fraternity starts with tasks OFF, so Deadline is present but inactive —
-    // the row still exists because provisionOrg seeds it either way.
+    // A fraternity starts with tasks and fundraisers OFF, so Deadline and
+    // Fundraising are present but inactive — the rows still exist because
+    // provisionOrg seeds them either way.
     const rows = draftEventTypes(fratDraft());
     const deadline = rows.find(r => r.slug === "deadline")!;
     expect(deadline.active).toBe(false);
-    expect(rows.filter(r => !r.active).map(r => r.slug)).toEqual(["deadline"]);
+    expect(rows.filter(r => !r.active).map(r => r.slug)).toEqual(["deadline", "fundraising"]);
 
     const withTasks = draftEventTypes({
       ...fratDraft(),

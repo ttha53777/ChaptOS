@@ -762,6 +762,7 @@ function EventDetail({
   onDelete,
   onOpenProgramming,
   onOpenParty,
+  onOpenFundraiser,
   linkedPosts,
   onOpenInstagram,
   brotherList,
@@ -787,6 +788,7 @@ function EventDetail({
   /** Present only for programming-backed events — jumps to the Programming page. */
   onOpenProgramming?: () => void;
   onOpenParty?: () => void;
+  onOpenFundraiser?: () => void;
   /** Instagram posts that promote this event (reverse of InstagramTask.calendarEventId). */
   linkedPosts?: { id: number; title: string; type: string; dueDate: string }[];
   /** Jump to the Instagram page. */
@@ -1005,6 +1007,11 @@ function EventDetail({
       {onOpenParty && (
         <button className="ev-prog-link" onClick={onOpenParty}>
           Open in Parties →
+        </button>
+      )}
+      {onOpenFundraiser && (
+        <button className="ev-prog-link" onClick={onOpenFundraiser}>
+          Open in Fundraisers →
         </button>
       )}
       {onOpenProgramming && (
@@ -2653,12 +2660,15 @@ export default function TimelinePage() {
                     event={selectedEvent}
                     onClose={() => setSelectedEvent(null)}
                     canEdit={selectedEventCanEdit}
-                    canDelete={selectedEventCanEdit && (!selectedEvent.partyEventId || can("MANAGE_PARTIES"))}
+                    canDelete={selectedEventCanEdit && (!selectedEvent.partyEventId || can("MANAGE_PARTIES")) && (selectedEvent.category !== "fundraising" || can("MANAGE_FUNDRAISING"))}
                     canLogAttendance={canAttendance}
                     onEdit={() => openEventModal("edit")}
                     onDelete={handleDeleteEvent}
                     onOpenParty={selectedEvent.partyEventId != null
                       ? () => router.push(orgPath(`/parties?open=${selectedEvent.partyEventId}`))
+                      : undefined}
+                    onOpenFundraiser={selectedEvent.category === "fundraising"
+                      ? () => router.push(orgPath(`/fundraisers?event=${selectedEvent.id}`))
                       : undefined}
                     onOpenProgramming={
                       selectedEvent.programmingEventId != null

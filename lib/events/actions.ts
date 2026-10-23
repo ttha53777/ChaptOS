@@ -29,6 +29,7 @@ export type SubjectType =
   | "ServiceEvent"
   | "ServiceParticipation"
   | "PartyEvent"
+  | "Fundraiser"
   | "Task"
   | "Poll"
   | "InstagramTask"
@@ -132,6 +133,12 @@ export interface EventMetadata {
   "party.updated":     { name: string; changedFields: string[] };
   "party.completed":   { name: string; date: string };
   "party.deleted":     { name: string };
+  // Fundraisers (simple): money is whole cents, never Treasury rows.
+  "fundraiser.created":  { name: string; date: string; calendarEventId: number };
+  "fundraiser.updated":  { name: string; changedFields: string[] };
+  "fundraiser.deleted":  { name: string };
+  "fundraiser.wrapped":  { name: string; cameInCents: number; spentCents: number; madeCents: number };
+  "fundraiser.reopened": { name: string };
 
   // Items
   "task.created":   { title: string; dueDate: string | null; assigneeCount: number };
@@ -290,6 +297,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "service_event.created", "service_event.updated", "service_event.deleted",
   "service_participation.logged", "service_participation.removed",
   "party.created", "party.updated", "party.completed", "party.deleted",
+  "fundraiser.created", "fundraiser.updated", "fundraiser.deleted", "fundraiser.wrapped", "fundraiser.reopened",
   "task.created", "task.updated", "task.completed", "task.reopened", "task.deleted",
   "poll.created", "poll.updated", "poll.closed", "poll.reopened", "poll.deleted",
   "instagram_task.created", "instagram_task.updated", "instagram_task.deleted",

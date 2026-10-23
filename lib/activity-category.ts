@@ -17,7 +17,7 @@
 export type ActivityCategory =
   | "attendance" | "dues" | "treasury" | "request" | "announcement" | "programming"
   | "calendar" | "members" | "service" | "parties" | "tasks" | "docs" | "instagram"
-  | "metrics" | "settings";
+  | "metrics" | "settings" | "fundraisers";
 
 /** Action prefix (the `subject` of `subject.verb`) → category. Anything absent
  *  (billing.*, assistant.*) is never shown in the feed and gets no pill. */
@@ -32,6 +32,7 @@ const BY_SUBJECT: Record<string, ActivityCategory> = {
   brother: "members", role: "members", membership: "members", invite: "members", join_request: "members",
   service_event: "service", service_participation: "service",
   party: "parties",
+  fundraiser: "fundraisers",
   task: "tasks", poll: "tasks",
   doc: "docs", docFolder: "docs",
   instagram_task: "instagram",

@@ -90,6 +90,7 @@ export function pageRows(draft: Draft): PageRow[] {
     { id: "events",         label: "Programming",                         icon: "board",    lock: false, group: 2 },
     { id: "service",        label: draftVocab(draft, "Service"),          icon: "heart",    lock: false, group: 2 },
     { id: "parties",        label: "Parties",                             icon: "note",     lock: false, group: 2 },
+    { id: "fundraisers",    label: "Fundraisers",                         icon: "jar",      lock: false, group: 2 },
     { id: "finance",        label: draftVocab(draft, "Treasury"),         icon: "wallet",   lock: false, group: 2 },
   ];
 }
