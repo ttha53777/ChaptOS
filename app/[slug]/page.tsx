@@ -2470,7 +2470,6 @@ export default function Home() {
                       ? () => setSelectedBrotherId(selfId)
                       : undefined
                   }
-                  onLogAttendance={canAttendance ? () => openAttendanceLog() : undefined}
                   onOpenCheckIn={canAttendance ? () => void openCheckInPicker() : undefined}
                   openCheckInBusy={openCheckInBusy}
                   liveHere={liveCheckIn && liveCheckIn.state !== "closed" ? liveCheckIn.presentCount : null}
