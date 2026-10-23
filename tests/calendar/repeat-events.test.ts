@@ -56,6 +56,14 @@ describe("createCalendar with repeat", () => {
     expect(res.date).toBe("2026-03-02");
   });
 
+  it("writes one activity line for the whole repeat, not one per meeting", async () => {
+    const { org, ctx } = await chapter();
+    await createCalendar(ctx, meeting({ repeat: { every: 1, until: "2026-03-23" } }));
+    const lines = await testPrisma.activityLog.findMany({ where: { organizationId: org.id } });
+    expect(lines.map(l => l.message)).toEqual(["Officer scheduled 4 × Chapter meeting, weekly from 2026-03-02 to 2026-03-23"]);
+    expect(await testPrisma.operationalEvent.count({ where: { organizationId: org.id, action: "calendar.created" } })).toBe(4);
+  });
+
   it("every other week", async () => {
     const { org, ctx } = await chapter();
     await createCalendar(ctx, meeting({ repeat: { every: 2, until: "2026-04-01" } }));

@@ -161,6 +161,7 @@ function MeetingForm({
   minDate,
   maxDate,
   termLabel,
+  takenDates,
   templates,
   initialTemplateId,
   onManageTemplates,
@@ -174,6 +175,8 @@ function MeetingForm({
   maxDate?: string;
   /** The active term's name, for the Repeat switch's "End of term". */
   termLabel?: string;
+  /** Dates that already have a chapter meeting (Repeat warns before doubling one). */
+  takenDates?: ReadonlySet<string>;
   /** Agenda templates for a new meeting; null while loading. Omit when editing. */
   templates?: AgendaTemplateDTO[] | null;
   /** Preselect this template (from "Use for a new meeting"); else the default. */
@@ -268,6 +271,7 @@ function MeetingForm({
               date={form.when.date}
               termEnd={maxDate}
               termLabel={termLabel}
+              takenDates={takenDates}
               icon={formIcon(<><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>)}
             />
           )}
@@ -1560,6 +1564,7 @@ export default function ChapterPage() {
             minDate={semester?.startDate}
             maxDate={semester?.endDate}
             termLabel={semester?.label}
+            takenDates={new Set(events.map(e => e.date))}
             templates={agendaTemplates}
             initialTemplateId={addTemplateId}
             onManageTemplates={() => router.push(orgPath("/chapter/templates"))}

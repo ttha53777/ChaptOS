@@ -2,7 +2,6 @@
 
 import React from "react";
 import { repeatDates, type Repeat } from "@/lib/event-repeat";
-import { toDateStr } from "../../lib/dates";
 import "./calendar-event-form.css";
 
 /**
@@ -16,24 +15,28 @@ export const REPEAT_OFF: RepeatValue = { on: false, every: 1, toTerm: true, unti
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const weekdayOf = (date: string) => WEEKDAYS[new Date(`${date}T12:00`).getDay()];
 const shortDate = (date: string) => new Date(`${date}T12:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-const addWeeks = (date: string, weeks: number) => { const d = new Date(`${date}T12:00`); d.setDate(d.getDate() + weeks * 7); return toDateStr(d.getFullYear(), d.getMonth(), d.getDate()); };
 const meetings = (n: number) => `${n} meeting${n === 1 ? "" : "s"}`;
 
-/** What the switch adds up to for a first meeting on `date`: the API's `repeat` and the dates it makes. */
+/** What the switch adds up to for a first meeting on `date`: the API's `repeat` and the dates it makes.
+ *  The end date is used exactly as entered — never swapped for a guess — so a
+ *  half-typed or too-early date reads as "not ready", and the field keeps it. */
 export function resolveRepeat(value: RepeatValue, date: string, termEnd?: string) {
   const end = termEnd && date <= termEnd ? termEnd : undefined;
   const toTerm = value.toTerm && !!end;
-  const until = toTerm ? end! : (value.until && value.until >= date ? value.until : addWeeks(date, 6));
-  const repeat: Repeat | undefined = value.on ? { every: value.every, until } : undefined;
-  const dates = repeat ? repeatDates(date, repeat) : [];
-  return { repeat, dates, toTerm, until, termEnd: end, ok: !repeat || dates.length >= 2 };
+  const until = toTerm ? end! : value.until;
+  const valid = /^\d{4}-\d{2}-\d{2}$/.test(until);
+  const dates = value.on && valid ? repeatDates(date, { every: value.every, until }) : [];
+  const ok = !value.on || dates.length >= 2;
+  const repeat: Repeat | undefined = value.on && ok ? { every: value.every, until } : undefined;
+  // Before the first meeting reads as unfinished (mid-typing a year), not as a mistake.
+  return { repeat, dates, toTerm, until, termEnd: end, ok, missing: value.on && (!valid || until < date) };
 }
 
 /** "Add meeting", or "Add 7 meetings" once it repeats. */
 export const repeatSubmitLabel = (label: string, r: ReturnType<typeof resolveRepeat>) =>
   r.repeat && r.ok ? `Add ${meetings(r.dates.length)}` : label;
 
-export function RepeatFields({ value, onChange, date, termEnd, termLabel, icon }: {
+export function RepeatFields({ value, onChange, date, termEnd, termLabel, takenDates, icon }: {
   value: RepeatValue;
   onChange: (v: RepeatValue) => void;
   /** The first meeting's date (YYYY-MM-DD); it sets the weekday. */
@@ -41,9 +44,12 @@ export function RepeatFields({ value, onChange, date, termEnd, termLabel, icon }
   /** The active term's last day, for "End of term". */
   termEnd?: string;
   termLabel?: string;
+  /** Dates that already have a meeting, so a repeat landing on one is called out. */
+  takenDates?: ReadonlySet<string>;
   icon: React.ReactNode;
 }) {
   const r = resolveRepeat(value, date, termEnd);
+  const clashes = r.ok && takenDates ? r.dates.filter(d => takenDates.has(d)) : [];
   const set = (patch: Partial<RepeatValue>) => onChange({ ...value, ...patch });
   const pattern = `${value.every === 1 ? "Every" : "Every other"} ${weekdayOf(date)}`;
   return (
@@ -73,13 +79,13 @@ export function RepeatFields({ value, onChange, date, termEnd, termLabel, icon }
                 <small>{!termEnd ? "No term set" : !r.termEnd ? "Term ends first" : `${termLabel ? `${termLabel} · ` : ""}${shortDate(r.termEnd)}`}</small>
               </button>
               {r.toTerm ? (
-                <button type="button" role="radio" className="cef-pick" aria-checked={false} onClick={() => set({ toTerm: false, until: value.until || r.until })}>
+                <button type="button" role="radio" className="cef-pick" aria-checked={false} onClick={() => set({ toTerm: false })}>
                   <span className="rad" aria-hidden />A date
                 </button>
               ) : (
                 <label className="cef-pick" role="radio" aria-checked>
                   <span className="rad" aria-hidden />
-                  <input type="date" aria-label="Last meeting on or before" value={r.until} min={date} max={termEnd} onChange={e => set({ until: e.target.value })} />
+                  <input type="date" aria-label="Last meeting on or before" value={value.until} min={date} max={termEnd} onChange={e => set({ until: e.target.value })} />
                 </label>
               )}
             </div>
@@ -88,8 +94,16 @@ export function RepeatFields({ value, onChange, date, termEnd, termLabel, icon }
                 <span><b>{pattern}</b> · <span className="nw">{shortDate(r.dates[0])} → {shortDate(r.dates[r.dates.length - 1])}</span></span>
                 <span className="n">{meetings(r.dates.length)}</span>
               </p>
+            ) : r.missing ? (
+              <p className="cef-rp-sum">Pick the date of the last meeting, after {shortDate(date)}.</p>
             ) : (
               <p className="cef-rp-sum warn" role="alert">Pick an end date at least {value.every === 1 ? "a week" : "two weeks"} after {shortDate(date)}.</p>
+            )}
+            {clashes.length > 0 && (
+              <p className="cef-rp-sum warn" role="alert">
+                {clashes.length === 1 ? `${shortDate(clashes[0])} already has a meeting` : `${clashes.length} of these dates already have a meeting (${clashes.slice(0, 3).map(shortDate).join(", ")}${clashes.length > 3 ? "…" : ""})`}
+                {" "}— you&rsquo;ll have two that day.
+              </p>
             )}
           </div>
         )}

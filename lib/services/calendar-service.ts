@@ -143,10 +143,15 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
     }
     return events.map(event => ({ event, partyEventId: parties.find(p => p.attendanceEventId === event.id)?.id ?? null }));
   });
-  for (const { event } of created) {
+  // Every meeting is its own fact, but a repeat is one line in the activity feed.
+  const last = created[created.length - 1].event;
+  const seriesLine = created.length > 1
+    ? `${ctx.actorName || "Someone"} scheduled ${created.length} × ${last.title}, ${input.repeat!.every === 1 ? "weekly" : "every other week"} from ${created[0].event.date} to ${last.date}`
+    : undefined;
+  for (const [i, { event }] of created.entries()) {
     await emit(ctx, "calendar.created", { type: "CalendarEvent", id: event.id }, {
       title: event.title, date: event.date, category: event.category,
-    });
+    }, seriesLine ? (i === 0 ? { activityMessage: seriesLine } : { activity: false }) : {});
   }
   const [first, ...rest] = created.map(({ event, partyEventId }) => ({ ...withoutNotesDoc(event), partyEventId }));
   // A repeat answers with the first meeting, as a single create does, plus the rest.
