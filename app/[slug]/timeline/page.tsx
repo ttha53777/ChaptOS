@@ -1987,18 +1987,16 @@ export default function TimelinePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(draft),
         }).then(res => res.calendarEvent)
-      : requestJson<CalendarEvent & { series?: CalendarEvent[] }>("/api/calendar", {
+      : requestJson<CalendarEvent>("/api/calendar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(draft),
         });
 
     promise
-      .then(res => {
-        // A repeat lands its first meeting like any add; the rest join the list here.
-        const { series = [], ...saved } = res as CalendarEvent & { series?: CalendarEvent[] };
+      .then(saved => {
         rowKeys.current.set(saved.id, rowKey(tempId));
-        setApiEvents(prev => [...prev.map(e => e.id === tempId ? saved : e), ...series]);
+        setApiEvents(prev => prev.map(e => e.id === tempId ? saved : e));
         setSelectedEvent(prev => prev?.id === tempId ? saved : prev);
         void refreshChapterData();
         if (draft.rememberDetails !== undefined) loadEventTypes();
@@ -2799,7 +2797,7 @@ export default function TimelinePage() {
 
       {activeModal === "create" && (
         <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={formPage === 2 ? "max-w-[940px]" : "max-w-[740px]"} onClose={() => setActiveModal(null)}>
-          <CalendarEventForm key={restore ? "restore" : "new"} submitLabel={restore ? "Try again" : "Add event"} draft={restore?.draft} failure={restore?.failure} initialDate={createDate} onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} allowRepeat termLabel={activeSemester?.label} />
+          <CalendarEventForm key={restore ? "restore" : "new"} submitLabel={restore ? "Try again" : "Add event"} draft={restore?.draft} failure={restore?.failure} initialDate={createDate} onCancel={() => setActiveModal(null)} onSubmit={handleCreateEvent} categoryOptions={categoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setFormPage} />
         </Modal>
       )}
       {failToast && (

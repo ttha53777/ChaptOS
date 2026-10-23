@@ -1513,13 +1513,13 @@ export default function Home() {
     setCalendarList(prev => [...prev, optimistic]);
     addActivity(`New event added: "${draft.title}"`, "info");
     setActiveModal(null);
-    requestJson<CalendarEvent & { series?: CalendarEvent[] }>("/api/calendar", {
+    requestJson<CalendarEvent>("/api/calendar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     })
-      .then(({ series = [], ...saved }) => {
-        setCalendarList(prev => [...prev.map(e => e.id === tempId ? saved : e), ...series]);
+      .then(saved => {
+        setCalendarList(prev => prev.map(e => e.id === tempId ? saved : e));
         setMutationError(null);
       })
       .catch(error => {
@@ -2625,7 +2625,7 @@ export default function Home() {
       )}
       {activeModal === "event" && (
         <Modal ariaLabel="New calendar event" hideHeader tone="dusk" maxWidthClass={eventFormPage === 2 ? "max-w-[940px]" : "max-w-[740px]"} onClose={() => { setEventFormPage(1); closeModal(); }}>
-          <CalendarEventForm submitLabel="Add event" onCancel={() => { setEventFormPage(1); closeModal(); }} onSubmit={draft => { setEventFormPage(1); handleAddCalendarEvent(draft); }} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setEventFormPage} allowRepeat termLabel={activeSemester?.label} />
+          <CalendarEventForm submitLabel="Add event" onCancel={() => { setEventFormPage(1); closeModal(); }} onSubmit={draft => { setEventFormPage(1); handleAddCalendarEvent(draft); }} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setEventFormPage} />
         </Modal>
       )}
       {activeModal === "deadline" && canTasks && (

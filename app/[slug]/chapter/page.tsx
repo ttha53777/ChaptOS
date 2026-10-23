@@ -31,6 +31,8 @@ import { AgendaBody } from "../../components/agenda-templates/AgendaBody";
 import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
 import { useNow } from "../../hooks/useNow";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
+import { REPEAT_OFF, RepeatFields, repeatSubmitLabel, resolveRepeat } from "../../components/timeline/RepeatFields";
+import type { Repeat } from "@/lib/event-repeat";
 import { nextMeetingDraft, type MeetingDraft } from "../../components/meeting-notes/meeting-defaults";
 import { agendaFieldsIn, agendaSections, hasMinutes, headingOf, minutesBeyondAgenda } from "@/lib/agenda-template";
 import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
@@ -146,7 +148,7 @@ const taken = (row: AttendanceSummaryRow | undefined) => !!row && row.eligible >
 
 /** What the calendar API takes. A structured schedule decides date/time server-side;
  *  only a legacy "as written" time travels as free text. */
-type MeetingInput = { title: string; location: string; mandatory: boolean; schedule: Schedule | null; date: string; time: string | null; agendaTemplateId?: number | null };
+type MeetingInput = { title: string; location: string; mandatory: boolean; schedule: Schedule | null; date: string; time: string | null; agendaTemplateId?: number | null; repeat?: Repeat };
 
 const formIcon = (children: React.ReactNode) => (
   <svg className="cef-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{children}</svg>
@@ -158,6 +160,7 @@ function MeetingForm({
   submitLabel,
   minDate,
   maxDate,
+  termLabel,
   templates,
   initialTemplateId,
   onManageTemplates,
@@ -169,6 +172,8 @@ function MeetingForm({
   submitLabel: string;
   minDate?: string;
   maxDate?: string;
+  /** The active term's name, for the Repeat switch's "End of term". */
+  termLabel?: string;
   /** Agenda templates for a new meeting; null while loading. Omit when editing. */
   templates?: AgendaTemplateDTO[] | null;
   /** Preselect this template (from "Use for a new meeting"); else the default. */
@@ -178,6 +183,10 @@ function MeetingForm({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<MeetingDraft>(initial);
+  // New meetings only: repeat weekly / every other week through the term.
+  const [repeatValue, setRepeatValue] = useState(REPEAT_OFF);
+  const repeat = resolveRepeat(repeatValue, form.when.date, maxDate);
+  const canRepeat = !editing && form.when.mode !== "legacy";
   // The agenda: a template id, "" for blank, or null until the list has loaded.
   const [agendaId, setAgendaId] = useState<number | "" | null>(null);
   // The title follows the chosen template until the officer types their own.
@@ -206,7 +215,7 @@ function MeetingForm({
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (submitting.current || !form.title.trim()) return;
+    if (submitting.current || !form.title.trim() || (canRepeat && !repeat.ok)) return;
     const result = scheduleFromValue(form.when);
     if ("error" in result) { setScheduleError(result.error); return; }
     setScheduleError("");
@@ -222,6 +231,7 @@ function MeetingForm({
         date: schedule ? scheduleDate(schedule) : form.when.date,
         time: schedule ? scheduleTime(schedule) : form.when.legacyTime.trim() || null,
         ...(editing ? {} : { agendaTemplateId: agenda?.id ?? null }),
+        ...(canRepeat && repeat.repeat ? { repeat: repeat.repeat } : {}),
       });
     } finally {
       // On success the parent unmounts this form; on failure it stays open so
@@ -251,6 +261,16 @@ function MeetingForm({
                 : <p className="cef-hint cef-r-note">Shows on the Timeline and in everyone&rsquo;s subscribed calendar.</p>}
             </div>
           </div>
+          {canRepeat && (
+            <RepeatFields
+              value={repeatValue}
+              onChange={setRepeatValue}
+              date={form.when.date}
+              termEnd={maxDate}
+              termLabel={termLabel}
+              icon={formIcon(<><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>)}
+            />
+          )}
           <div className="cef-r">
             {formIcon(<><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></>)}
             <div>
@@ -304,7 +324,7 @@ function MeetingForm({
           <span className="cef-kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to {editing ? "save" : "add"}</span>
           <div className="cef-btns">
             <button type="button" className="cef-btn ghost" onClick={onClose} disabled={isSubmitting}>Cancel</button>
-            <button type="submit" className="cef-btn primary" disabled={isSubmitting || !form.title.trim()}>{isSubmitting ? "Saving…" : submitLabel}</button>
+            <button type="submit" className="cef-btn primary" disabled={isSubmitting || !form.title.trim() || (canRepeat && !repeat.ok)}>{isSubmitting ? "Saving…" : canRepeat ? repeatSubmitLabel(submitLabel, repeat) : submitLabel}</button>
           </div>
         </div>
       </form>
@@ -1076,7 +1096,7 @@ export default function ChapterPage() {
   async function handleAdd(draft: MeetingInput) {
     setPageError(null);
     try {
-      const created = await requestJson<CalendarEvent>("/api/calendar", {
+      const { series = [], ...created } = await requestJson<CalendarEvent & { series?: CalendarEvent[] }>("/api/calendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1089,16 +1109,19 @@ export default function ChapterPage() {
           mandatory: draft.mandatory,
           description: "",
           agendaTemplateId: draft.agendaTemplateId ?? null,
+          ...(draft.repeat ? { repeat: draft.repeat } : {}),
         }),
       });
-      // A templated meeting starts with its agenda as the notes.
-      savedValues.current[created.id] = created.description ?? "";
-      setEvents(prev => [created, ...prev]);
+      // A templated meeting starts with its agenda as the notes (each repeat has its own copy).
+      for (const e of [created, ...series]) savedValues.current[e.id] = e.description ?? "";
+      setEvents(prev => [created, ...series, ...prev]);
       setShowAddModal(false);
       setAddTemplateId(null);
       setFreshId(created.id);
       loadSummary();
-      toast.success(`Meeting added for ${fmtDate(created.date)} — it’s on the Timeline too.`);
+      toast.success(series.length
+        ? `${series.length + 1} meetings added, ${fmtDate(created.date)} to ${fmtDate(series[series.length - 1].date)} — they’re on the Timeline too.`
+        : `Meeting added for ${fmtDate(created.date)} — it’s on the Timeline too.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create meeting.";
       setPageError(message);
@@ -1536,6 +1559,7 @@ export default function ChapterPage() {
             submitLabel="Add meeting"
             minDate={semester?.startDate}
             maxDate={semester?.endDate}
+            termLabel={semester?.label}
             templates={agendaTemplates}
             initialTemplateId={addTemplateId}
             onManageTemplates={() => router.push(orgPath("/chapter/templates"))}
