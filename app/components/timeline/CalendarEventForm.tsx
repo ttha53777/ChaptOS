@@ -8,6 +8,7 @@ import { toDateStr } from "../../lib/dates";
 import { DETAIL_KINDS, detailSummary, fromTemplate, type EventDetail } from "@/lib/event-details";
 import { EventDetailsEditor, type DetailMember } from "./EventDetailsEditor";
 import { DETAIL_ICON, UI_ICON } from "./detail-icons";
+import { repeatDates, type Repeat } from "@/lib/event-repeat";
 import "./calendar-event-form.css";
 import "./event-details.css";
 import "./event-landing.css";
@@ -16,7 +17,9 @@ import "./event-landing.css";
 // optional on the draft and populated solely when the form is rendered with `showCollab`.
 // `rememberDetails` is sent only when the More-details page is on: true saves a blank
 // copy of the details as the category's template, false clears the one it had.
-export type CalendarDraft = Omit<CalendarEvent, "id"> & { collab?: string; rememberDetails?: boolean };
+// `repeat` is set only on a new event with the Repeat switch on: the server
+// creates one event per week (or every other week) through `repeat.until`.
+export type CalendarDraft = Omit<CalendarEvent, "id"> & { collab?: string; rememberDetails?: boolean; repeat?: Repeat };
 
 /** A selectable category chip. `color` is optional — when absent the chip falls
  *  back to the CSS var `--c-<slug>` (used by the Programming page's built-in set). */
@@ -59,7 +62,13 @@ const ICONS = {
   location: icon(<><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></>),
   description: icon(<path d="M4 6h16M4 12h16M4 18h10" />),
   more: icon(<><rect x="7" y="3" width="13" height="15" rx="2" /><path d="M4 7v12a2 2 0 0 0 2 2h10" /><path d="M13.5 8v5M11 10.5h5" /></>),
+  repeat: icon(<><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>),
 };
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekdayOf = (date: string) => WEEKDAYS[new Date(`${date}T12:00`).getDay()];
+const shortDate = (date: string) => new Date(`${date}T12:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const addWeeks = (date: string, weeks: number) => { const d = new Date(`${date}T12:00`); d.setDate(d.getDate() + weeks * 7); return toDateStr(d.getFullYear(), d.getMonth(), d.getDate()); };
 
 export function CalendarEventForm({
   heading,
@@ -79,6 +88,8 @@ export function CalendarEventForm({
   draft,
   failure,
   initialDate,
+  allowRepeat = false,
+  termLabel,
 }: {
   /** Small kicker above the title field; defaults to New/Edit calendar event. */
   heading?: string;
@@ -112,6 +123,10 @@ export function CalendarEventForm({
   failure?: { message: string; field?: "date" };
   /** Prefill a new event on this day (YYYY-MM-DD) instead of today. */
   initialDate?: string;
+  /** Offer the Repeat switch on a new event; "End of term" repeats through `maxDate`. */
+  allowRepeat?: boolean;
+  /** The active term's name, for the "End of term" choice. */
+  termLabel?: string;
 }) {
   // Default a new event to today, but clamp into the semester so the prefilled
   // date isn't already out of range (string dates compare lexicographically).
@@ -141,6 +156,11 @@ export function CalendarEventForm({
   // Which way the last page turn went, so the new page slides in from that side.
   // Null until the first turn: the opening page just arrives with the sheet.
   const [turn, setTurn] = useState<"in-r" | "in-l" | null>(null);
+  // Repeat (new events only). Until defaults to the end of the term when there is one.
+  const [repeatOn, setRepeatOn] = useState(!!draft?.repeat);
+  const [repeatEvery, setRepeatEvery] = useState<1 | 2>(draft?.repeat?.every ?? 1);
+  const [repeatToTerm, setRepeatToTerm] = useState(!draft?.repeat || draft.repeat.until === maxDate);
+  const [repeatUntil, setRepeatUntil] = useState(draft?.repeat?.until ?? "");
   const formRef = useRef<HTMLFormElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
 
@@ -169,9 +189,20 @@ export function CalendarEventForm({
   }
   function changeDetails(next: EventDetail[]) { setDetails(next); setDetailsTouched(true); }
 
+  // Service events are created through their own route, which doesn't repeat.
+  const canRepeat = allowRepeat && !initialEvent && category !== "service" && when.mode !== "legacy";
+  const termEnd = maxDate && when.date <= maxDate ? maxDate : undefined;
+  const toTerm = repeatToTerm && !!termEnd;
+  const untilDate = toTerm ? termEnd! : (repeatUntil && repeatUntil >= when.date ? repeatUntil : addWeeks(when.date, 6));
+  const repeat: Repeat | undefined = canRepeat && repeatOn ? { every: repeatEvery, until: untilDate } : undefined;
+  const repeatCount = repeat ? repeatDates(when.date, repeat).length : 0;
+  const repeatLast = repeat && repeatCount ? repeatDates(when.date, repeat)[repeatCount - 1] : "";
+  const noun = (n: number) => (category === "chapter" ? "meeting" : "event") + (n === 1 ? "" : "s");
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
+    if (repeat && repeatCount < 2) return;
     const result = scheduleFromValue(when);
     if ("error" in result) { setScheduleError(result.error); return; }
     setScheduleError("");
@@ -186,6 +217,7 @@ export function CalendarEventForm({
       location: optionalValue(location),
       description: optionalValue(description),
       ...(showCollab ? { collab: collab.trim() } : {}),
+      ...(repeat ? { repeat } : {}),
       ...(detailsOn ? {
         details,
         // Only say something about the template when there's one to save or clear.
@@ -201,14 +233,16 @@ export function CalendarEventForm({
   const catColor = selected?.color ?? `var(--c-${category})`;
   const catLabel = selected?.label ?? category;
   const nameOf = (id: number) => detailMembers?.find(m => m.id === id)?.name;
-  const submitDisabled = !title.trim();
+  const submitDisabled = !title.trim() || (!!repeat && repeatCount < 2);
+  // "Add event" becomes "Add 7 meetings" so the button says what will happen.
+  const submitText = repeat && repeatCount >= 2 && !initialEvent ? `Add ${repeatCount} ${noun(repeatCount)}` : submitLabel;
 
   const foot = (
     <div className="cef-foot">
       <span className="cef-kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to {initialEvent ? "save" : "add"}</span>
       <div className="cef-btns">
         {onCancel && <button type="button" className="cef-btn ghost" onClick={onCancel}>Cancel</button>}
-        <button type="submit" className="cef-btn primary" disabled={submitDisabled}>{submitLabel}</button>
+        <button type="submit" className="cef-btn primary" disabled={submitDisabled}>{submitText}</button>
       </div>
     </div>
   );
@@ -277,7 +311,7 @@ export function CalendarEventForm({
               </label>
               <div className="cef-btns">
                 <button type="button" className="cef-btn ghost" onClick={() => goTo(1)}>Back to event</button>
-                <button type="submit" className="cef-btn primary" disabled={submitDisabled}>{submitLabel}</button>
+                <button type="submit" className="cef-btn primary" disabled={submitDisabled}>{submitText}</button>
               </div>
             </div>
           </div>
@@ -310,6 +344,58 @@ export function CalendarEventForm({
               {scheduleError && <p role="alert" className="cef-hint sched-warn cef-r-note">{scheduleError}</p>}
             </div>
           </div>
+
+          {/* Repeat — a switch first; how often and until when only once it's on */}
+          {canRepeat && (
+            <div className="cef-r">
+              {ICONS.repeat}
+              <div>
+                <label className="cef-req">
+                  <span>
+                    <span className="t">Repeat</span>
+                    <span className="s">{repeatOn ? `${repeatEvery === 1 ? "Every" : "Every other"} ${weekdayOf(when.date)}` : "Make this a weekly or every-other-week series."}</span>
+                  </span>
+                  <span className="cef-sw">
+                    <input type="checkbox" checked={repeatOn} onChange={e => setRepeatOn(e.target.checked)} />
+                    <span className="track" aria-hidden />
+                  </span>
+                </label>
+                {repeatOn && (
+                  <div className="cef-rp">
+                    <div className="cef-seg" role="group" aria-label="How often">
+                      <button type="button" aria-pressed={repeatEvery === 1} onClick={() => setRepeatEvery(1)}>Weekly</button>
+                      <button type="button" aria-pressed={repeatEvery === 2} onClick={() => setRepeatEvery(2)}>Every 2 weeks</button>
+                    </div>
+                    <div className="cef-until" role="radiogroup" aria-label="Until">
+                      <span className="k">Until</span>
+                      <button type="button" role="radio" className="cef-pick" aria-checked={toTerm} aria-disabled={!termEnd} disabled={!termEnd} onClick={() => setRepeatToTerm(true)}>
+                        <span className="rad" aria-hidden />End of term
+                        <small>{!maxDate ? "No term set" : !termEnd ? "Term ends first" : `${termLabel ? `${termLabel} · ` : ""}${shortDate(termEnd)}`}</small>
+                      </button>
+                      {toTerm ? (
+                        <button type="button" role="radio" className="cef-pick" aria-checked={false} onClick={() => { setRepeatToTerm(false); if (!repeatUntil) setRepeatUntil(untilDate); }}>
+                          <span className="rad" aria-hidden />A date
+                        </button>
+                      ) : (
+                        <label className="cef-pick" role="radio" aria-checked>
+                          <span className="rad" aria-hidden />
+                          <input type="date" aria-label="Last day" value={untilDate} min={when.date} max={maxDate} onChange={e => setRepeatUntil(e.target.value)} />
+                        </label>
+                      )}
+                    </div>
+                    {repeatCount >= 2 ? (
+                      <p className="cef-rp-sum">
+                        <span><b>{repeatEvery === 1 ? "Every" : "Every other"} {weekdayOf(when.date)}</b> · <span className="nw">{shortDate(when.date)} → {shortDate(repeatLast)}</span></span>
+                        <span className="n">{repeatCount} {noun(repeatCount)}</span>
+                      </p>
+                    ) : (
+                      <p className="cef-rp-sum warn" role="alert">Pick an end date at least {repeatEvery === 1 ? "a week" : "two weeks"} after {shortDate(when.date)}.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Category — color-coded chips matching the timeline node dots */}
           <div className="cef-r">

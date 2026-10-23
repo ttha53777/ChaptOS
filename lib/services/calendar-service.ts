@@ -1,4 +1,5 @@
-import { UNCLEAR_TIME, scheduleDate, scheduleEndTime, scheduleTime, timeIsClear, type Schedule } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, moveSchedule, scheduleDate, scheduleEndTime, scheduleTime, timeIsClear, type Schedule } from "@/lib/calendar-feed/schedule";
+import { repeatDates } from "@/lib/event-repeat";
 import { agendaValues, fillAgenda } from "@/lib/agenda-template";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
@@ -101,7 +102,9 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
   }
   await assertCategoryUsable(ctx, input.category, "create");
   await assertWithinActiveSemester(ctx, input.date);
-  const { event, partyEventId } = await ctx.db.$transaction(async tx => {
+  const occurrences = repeatOccurrences(input);
+  if (occurrences.length > 1) await assertWithinActiveSemester(ctx, occurrences[occurrences.length - 1].date);
+  const created = await ctx.db.$transaction(async tx => {
     // Read inside the transaction so an archive racing this create can't leave
     // the meeting pointing at a template that was already gone.
     const template = templateId == null ? null : await tx.agendaTemplate.findFirst({
@@ -109,37 +112,58 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
       select: { body: true },
     });
     if (templateId != null && !template) throw new ValidationError("That agenda template was deleted. Pick another one, or start the notes blank.");
-    const agenda = template ? fillAgendaFor(input, template.body) : null;
-    const event = await tx.calendarEvent.create({
-      data: {
+    const rows = occurrences.map(one => {
+      const agenda = template ? fillAgendaFor(one, template.body) : null;
+      return {
         organizationId: ctx.orgId,
-        schedule: input.schedule ?? Prisma.DbNull,
-        title:       input.title,
-        date:        input.date,
-        time:        input.time ?? null,
-        category:    input.category,
-        mandatory:   input.mandatory,
-        description: agenda ?? input.description ?? null,
-        location:    input.location ?? null,
-        details:     input.details?.length ? input.details : Prisma.DbNull,
+        schedule: one.schedule ?? Prisma.DbNull,
+        title:       one.title,
+        date:        one.date,
+        time:        one.time ?? null,
+        category:    one.category,
+        mandatory:   one.mandatory,
+        description: agenda ?? one.description ?? null,
+        location:    one.location ?? null,
+        details:     one.details?.length ? one.details : Prisma.DbNull,
         // notesSeed is how "has minutes" tells this untouched agenda from real minutes.
         ...(agenda != null ? { notesSeed: agenda, agendaTemplateId: templateId } : {}),
-      },
+      };
     });
+    // A repeat is one statement, not one round trip per meeting.
+    const events = rows.length === 1
+      ? [await tx.calendarEvent.create({ data: rows[0] })]
+      : (await tx.calendarEvent.createManyAndReturn({ data: rows })).sort((a, b) => a.date.localeCompare(b.date));
     // The calendar entry and its ledger are one creation, so commit both or neither.
     // A theme / collab typed in More details is the ledger's theme / collab too.
-    const party = input.category === "party" ? await tx.partyEvent.create({
-      data: { organizationId: ctx.orgId, name: event.title, date: event.date, attendanceEventId: event.id, ...partyFieldsOf(input.details ?? []) },
-    }) : null;
+    const parties = input.category === "party" ? await tx.partyEvent.createManyAndReturn({
+      data: events.map(event => ({ organizationId: ctx.orgId, name: event.title, date: event.date, attendanceEventId: event.id, ...partyFieldsOf(input.details ?? []) })),
+    }) : [];
     if (input.rememberDetails !== undefined) {
-      await rememberDetailTemplate(tx, ctx.orgId, event.category, input.details ?? [], input.rememberDetails);
+      await rememberDetailTemplate(tx, ctx.orgId, input.category, input.details ?? [], input.rememberDetails);
     }
-    return { event, partyEventId: party?.id ?? null };
+    return events.map(event => ({ event, partyEventId: parties.find(p => p.attendanceEventId === event.id)?.id ?? null }));
   });
-  await emit(ctx, "calendar.created", { type: "CalendarEvent", id: event.id }, {
-    title: event.title, date: event.date, category: event.category,
+  for (const { event } of created) {
+    await emit(ctx, "calendar.created", { type: "CalendarEvent", id: event.id }, {
+      title: event.title, date: event.date, category: event.category,
+    });
+  }
+  const [first, ...rest] = created.map(({ event, partyEventId }) => ({ ...withoutNotesDoc(event), partyEventId }));
+  // A repeat answers with the first meeting, as a single create does, plus the rest.
+  return rest.length ? { ...first, series: rest } : first;
+}
+
+/** The event itself, or one copy per repeat date at the same local wall time. */
+function repeatOccurrences(input: CreateCalendarInput): CreateCalendarInput[] {
+  if (!input.repeat) return [input];
+  const dates = repeatDates(input.date, input.repeat);
+  if (dates.length < 2) throw new ValidationError(`Pick an end date at least ${input.repeat.every === 1 ? "a week" : "two weeks"} after the first one.`);
+  return dates.map(date => {
+    if (!input.schedule) return { ...input, date };
+    const schedule = moveSchedule(input.schedule, date);
+    if (!schedule) throw new ValidationError(`${input.title} can't repeat on ${date}: that start time doesn't exist that day (daylight saving). Pick another time.`);
+    return { ...input, date, schedule, time: scheduleTime(schedule) };
   });
-  return { ...withoutNotesDoc(event), partyEventId };
 }
 
 export async function updateCalendar(ctx: RequestContext, id: number, input: UpdateCalendarInput) {

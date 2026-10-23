@@ -184,6 +184,20 @@ html[data-aesthetic="paper"] .cef-ic { color: var(--muted); }
 html[data-aesthetic="paper"] .cef-r:focus-within .cef-ic { color: var(--ink); }
 html[data-aesthetic="paper"] .cef-req .t { font-size: .9rem; font-weight: 600; }
 html[data-aesthetic="paper"] .cef-req .s { font-size: .78rem; color: var(--muted); }
+html[data-aesthetic="paper"] .cef-seg { border: 1.5px solid var(--line-med); border-radius: 11px; background: var(--card-3); }
+html[data-aesthetic="paper"] .cef-seg button { font: 550 .82rem var(--font-geist-sans); border-radius: 8px; padding: 6px 13px; }
+html[data-aesthetic="paper"] .cef-seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-butter); }
+html[data-aesthetic="paper"] .cef-until .k { font: 600 .64rem var(--font-geist-sans); letter-spacing: .1em; }
+html[data-aesthetic="paper"] .cef-pick { border: 1.5px solid var(--line-med); background: var(--card); font: 550 .84rem var(--font-geist-sans); }
+html[data-aesthetic="paper"] .cef-pick .rad { border: 1.5px solid var(--line-med); width: 16px; height: 16px; }
+html[data-aesthetic="paper"] .cef-pick[aria-checked="true"] { border-color: var(--ink); background: var(--pp-butter-soft); box-shadow: 2px 2px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .cef-pick[aria-checked="true"] .rad { border-color: var(--ink); }
+html[data-aesthetic="paper"] .cef-pick[aria-checked="true"] .rad::after { width: 8px; height: 8px; background: var(--ink); }
+html[data-aesthetic="paper"] .cef-pick small { font-size: .74rem; color: var(--muted); }
+html[data-aesthetic="paper"] .cef-pick input { font: 500 .84rem var(--font-geist-sans); }
+html[data-aesthetic="paper"] .cef-rp-sum { border: 1.5px dashed var(--line-med); border-radius: 12px; background: var(--paper-2); font: .84rem var(--font-geist-sans); padding: 9px 12px; }
+html[data-aesthetic="paper"] .cef-rp-sum .n { border: 1.5px solid var(--ink); background: var(--pp-butter); color: #26211B; font-weight: 650; font-size: .78rem; }
+html[data-aesthetic="paper"] .cef-rp-sum.warn { background: var(--pp-rose-soft); border-color: var(--pp-rose-ink); color: var(--pp-rose-ink); }
 html[data-aesthetic="paper"] .cef-agenda-head .t { font-size: .9rem; font-weight: 600; }
 html[data-aesthetic="paper"] .cef-link { font-family: var(--font-geist-sans); font-size: .76rem; }
 html[data-aesthetic="paper"] .cef-tpl-select { font-family: var(--font-geist-sans); font-weight: 550; border: 1.5px solid var(--line-med); border-radius: 10px; background-color: var(--paper); }

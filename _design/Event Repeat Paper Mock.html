@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Repeat · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ISOLATED MOCK: repeating events, kept as small as it can be.
+
+  The real form (CalendarEventForm, paper look) gains ONE row under When:
+  a "Repeat" switch, off by default, styled like Required attendance.
+
+  Turning it on reveals:
+    [ Weekly | Every 2 weeks ]   — Weekly preselected
+  and one more line, "Until":
+    (•) End of term   — the default; names the term and its last day
+    ( ) A date        — a single date picker
+  and one summary line: "Every Tuesday · 7 meetings · Oct 27 → Dec 8".
+  The button says "Add 7 meetings".
+
+  The weekday is always the event date's weekday. No monthly, no custom
+  intervals, no multi-day, no "after N times", no skipping dates: an officer
+  who needs to skip one deletes that meeting afterwards.
+
+  If the org has no term, "End of term" is shown disabled ("No term set") and
+  "A date" is picked.
+
+  Backend this implies (not built): each meeting is a real CalendarEvent row
+  (so roll, minutes and details work per meeting) sharing a seriesId.
+-->
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-med:#DCD0B9; --scrim:rgba(38,33,27,.28);
+
+  --c-chapter:#2A66C7; --c-social:#9C6B08; --c-fundy:#1B815B; --c-program:#6244CC;
+  --c-party:#C23C77; --c-service:#1F8A80;
+
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A;
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF;
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-med:#43382B; --scrim:rgba(5,4,2,.6);
+  --c-chapter:#AACBFF; --c-social:#F0CC72; --c-fundy:#8FDDB6; --c-program:#C4B6FF;
+  --c-party:#FFAACB; --c-service:#7FD6CB;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--paper); color: var(--ink);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button { font: inherit; color: inherit; }
+input, textarea, select { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* ── Faux timeline behind the modal ───────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 232px minmax(0,1fr); min-height: 100vh; filter: saturate(.9); }
+.app-sb { border-right: 1.5px solid var(--line); background: var(--paper-2); padding: 22px 16px; }
+.app-sb .org { display: flex; gap: 10px; align-items: center; font: 700 1.05rem var(--display); margin-bottom: 26px; }
+.app-sb .org i { width: 30px; height: 30px; border-radius: 9px; background: var(--pp-lilac); border: 1.5px solid var(--ink); transform: rotate(-4deg); }
+.app-sb .it { height: 30px; border-radius: 9px; margin: 6px 0; background: var(--card-3); opacity: .7; }
+.app-sb .it.on { background: var(--card); border: 1.5px solid var(--line-med); opacity: 1; }
+.app-main { padding: 34px 44px; }
+.app-main h1 { font: 700 2.2rem/1 var(--display); letter-spacing: -.035em; margin: 0 0 22px; }
+.app-main .tl { border-left: 2px dashed var(--line-med); margin-left: 8px; padding-left: 26px; }
+.app-main .ev { position: relative; height: 62px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line); margin: 0 0 14px; max-width: 560px; }
+.app-main .ev::before { content: ""; position: absolute; left: -34px; top: 24px; width: 12px; height: 12px; border-radius: 50%; background: var(--d, var(--c-chapter)); border: 2px solid var(--paper); }
+@media (max-width: 760px) { .app { grid-template-columns: 1fr; } .app-sb { display: none; } .app-main { padding: 24px 16px; } }
+.scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); z-index: 10; }
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+.stage { position: fixed; inset: 0; z-index: 20; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; padding: 56px 16px 120px; }
+.deck { position: relative; width: 100%; max-width: 680px; }
+.panel {
+  position: relative; background: var(--card); border: 1.5px solid var(--ink); border-radius: 22px;
+  box-shadow: 6px 6px 0 var(--acc, var(--pp-lilac)); overflow: hidden;
+  animation: sheet-in .38s var(--spring) both;
+}
+.panel.series { --acc: var(--pp-butter); }
+@keyframes sheet-in { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+.x {
+  position: absolute; top: 14px; right: 14px; z-index: 3; width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 10px; border: 1.5px solid transparent; background: none; color: var(--muted); cursor: pointer;
+}
+.x:hover { color: var(--ink); border-color: var(--line); }
+.x svg { width: 17px; height: 17px; }
+
+.cef { padding: 22px 26px 0; }
+.cef-head { display: flex; align-items: center; gap: 10px; height: 32px; margin-right: 40px; }
+.kicker { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.series-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--pp-butter); color: #26211B;
+  font: 600 .66rem var(--sans); letter-spacing: .04em; text-transform: uppercase;
+  transform: rotate(-2deg); animation: tag-in .4s var(--spring) both;
+}
+.series-tag svg { width: 12px; height: 12px; }
+@keyframes tag-in { from { opacity: 0; transform: rotate(-12deg) scale(.6); } }
+.cef-title {
+  width: 100%; background: none; border: 0; outline: none;
+  font: 600 1.9rem/1.2 var(--display); letter-spacing: -.035em; color: var(--ink);
+  border-bottom: 1.5px dashed var(--line-med); padding: 4px 0 10px; transition: border-color .15s;
+}
+.cef-title::placeholder { color: var(--line-med); }
+.cef-title:focus { border-bottom-color: var(--ink); }
+.rows { display: flex; flex-direction: column; }
+.r { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 14px; align-items: start; padding: 13px 0; border-bottom: 1.5px solid var(--card-3); }
+.r:last-child { border-bottom: 0; }
+.r > div { min-width: 0; }
+.ic { width: 18px; height: 18px; margin-top: 9px; color: var(--muted); transition: color .15s; }
+.r:focus-within .ic, .r.lit .ic { color: var(--ink); }
+
+.inp {
+  background: var(--paper); border: 1.5px solid var(--line-med); border-radius: 10px; padding: 7px 10px;
+  font: 500 .88rem var(--sans); color: var(--ink); outline: none; transition: border-color .15s, box-shadow .15s;
+}
+.inp:focus { border-color: var(--ink); box-shadow: 2px 2px 0 var(--acc, var(--pp-lilac)); }
+html[data-theme="night"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="night"] input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(.75); }
+.when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.when .arr { color: var(--muted); }
+.when-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.dur { font: .78rem var(--mono); color: var(--muted); }
+.dur b { color: var(--ink-soft); font-weight: 600; }
+
+.sw { position: relative; display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; font: 550 .82rem var(--sans); color: var(--ink-soft); flex-shrink: 0; }
+.sw input { position: absolute; opacity: 0; pointer-events: none; }
+.sw .track { position: relative; width: 36px; height: 21px; border-radius: 999px; background: var(--card-3); border: 1.5px solid var(--line-med); transition: background .2s, border-color .2s; flex-shrink: 0; }
+.sw .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .25s var(--spring); }
+.sw input:checked + .track { background: var(--ink); border-color: var(--ink); }
+.sw input:checked + .track::after { transform: translateX(15px); background: var(--paper); }
+.sw input:focus-visible + .track { box-shadow: 0 0 0 3px var(--pp-lilac); }
+
+.cats { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 3px; }
+.cat, .chip {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; border-radius: 999px; background: transparent;
+  border: 1.5px solid var(--line-med); padding: 6px 12px 6px 10px; font: 550 .82rem var(--sans); color: var(--ink-soft);
+  transition: background .15s, border-color .15s, box-shadow .15s, transform .2s var(--spring);
+}
+.cat:hover, .chip:hover { border-color: var(--muted); }
+.cat .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cdot); }
+.cat[aria-checked="true"] { color: var(--ink); border-color: var(--ink); background: color-mix(in srgb, var(--cdot) 14%, var(--card)); box-shadow: 2px 2px 0 color-mix(in srgb, var(--cdot) 55%, transparent); }
+
+.req { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 6px; cursor: pointer; }
+.req .t { display: block; font: 600 .9rem var(--sans); }
+.req .s { display: block; font: .78rem var(--sans); color: var(--muted); margin-top: 2px; }
+.quiet { width: 100%; background: none; border: 0; border-radius: 8px; padding: 9px 12px; font: .92rem/1.5 var(--sans); color: var(--ink); outline: none; resize: none; }
+.quiet::placeholder { color: var(--faint); }
+.quiet:hover { background: rgba(127,110,90,.06); }
+.quiet:focus { background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+/* ── The new row: Repeat ──────────────────────────────────────────────────── */
+.freq { margin-top: 12px; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 11px; background: var(--card-3); border: 1.5px solid var(--line-med); }
+.seg button { border: 0; background: none; cursor: pointer; border-radius: 8px; padding: 6px 13px; font: 550 .82rem var(--sans); color: var(--muted); transition: background .15s, color .15s, box-shadow .15s; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-butter); }
+
+.fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--spring); }
+.fold.open { grid-template-rows: 1fr; }
+.fold > div { overflow: hidden; min-height: 0; }
+
+.until { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.until .k { font: 600 .64rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.pick {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 999px;
+  border: 1.5px solid var(--line-med); background: var(--card); padding: 5px 12px 5px 8px;
+  font: 550 .84rem var(--sans); color: var(--ink-soft); transition: border-color .15s, box-shadow .2s, background .15s;
+}
+.pick:hover:not([aria-disabled="true"]) { border-color: var(--muted); }
+.pick .rad { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-med); display: grid; place-items: center; flex-shrink: 0; }
+.pick[aria-checked="true"] { border-color: var(--ink); color: var(--ink); background: var(--pp-butter-soft); box-shadow: 2px 2px 0 var(--pp-butter); }
+.pick[aria-checked="true"] .rad { border-color: var(--ink); }
+.pick[aria-checked="true"] .rad::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+.pick small { font: .74rem var(--mono); color: var(--muted); }
+.pick[aria-disabled="true"] { cursor: not-allowed; opacity: .55; border-style: dashed; }
+.pick input { border: 0; background: none; padding: 0; font: 500 .84rem var(--sans); color: var(--ink); outline: none; }
+html[data-theme="night"] .pick input::-webkit-calendar-picker-indicator { filter: invert(.75); }
+
+.sum {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 9px 12px; border-radius: 12px;
+  background: var(--paper-2); border: 1.5px dashed var(--line-med); font: .84rem var(--sans); color: var(--ink-soft);
+}
+.sum svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--pp-butter-ink); }
+.sum b { color: var(--ink); font-weight: 600; }
+.sum .n { padding: 1px 9px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--pp-butter); color: #26211B; font: 650 .78rem var(--sans); white-space: nowrap; }
+.sum .n.bump { animation: bump .35s var(--spring); }
+@keyframes bump { 50% { transform: scale(1.14) rotate(-3deg); } }
+.sum.warn { background: var(--pp-rose-soft); border-color: var(--pp-rose-ink); color: var(--pp-rose-ink); }
+.sum.warn svg { color: var(--pp-rose-ink); }
+
+/* Foot */
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding: 14px 22px; border-top: 1.5px solid var(--line); background: var(--paper-2); }
+.kbd { font: .74rem var(--sans); color: var(--muted); }
+.kbd kbd { font: .68rem var(--mono); border: 1px solid var(--line-med); border-radius: 6px; padding: 1px 6px; background: var(--paper-2); }
+.btns { display: flex; gap: 8px; }
+.btn {
+  --bg: var(--ink); --fg: var(--paper); --hs: var(--acc, var(--pp-lilac));
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+  padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--bg); color: var(--fg);
+  font: 600 .88rem var(--sans); letter-spacing: -.01em; white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--spring), box-shadow .18s var(--spring);
+}
+.btn:hover:not(:disabled) { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.btn.ghost { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+.btn:disabled { --bg: var(--paper-2); --fg: var(--muted); border-color: var(--line-med); box-shadow: none; cursor: not-allowed; }
+
+/* ── Mock strip ───────────────────────────────────────────────────────────── */
+.mock {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50; max-width: calc(100vw - 24px);
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 7px 8px;
+  border-radius: 14px; border: 1.5px solid var(--ink); background: var(--card); box-shadow: var(--sh-1);
+  font: 550 .74rem var(--sans);
+}
+.mock .lb { font: 600 .6rem var(--mono); letter-spacing: .1em; color: var(--muted); padding: 0 4px; }
+.mock button { border: 1.5px solid var(--line-med); background: var(--paper); border-radius: 8px; padding: 4px 9px; cursor: pointer; font: inherit; }
+.mock button[aria-pressed="true"] { border-color: var(--ink); background: var(--pp-lilac-soft); }
+.mock .sep { width: 1px; height: 18px; background: var(--line); }
+
+@media (max-width: 640px) {
+  .stage { padding: 18px 10px 110px; }
+  .cef { padding: 18px 16px 0; }
+  .cef-title { font-size: 1.55rem; }
+  .until .k { width: 100%; }
+  .foot { padding: 12px 14px; }
+  .kbd { display: none; }
+  .foot .btns { width: 100%; }
+  .foot .btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-repeat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.5v.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+</svg>
+
+<div class="app" aria-hidden="true">
+  <aside class="app-sb"><div class="org"><i></i>Lambda Phi</div><div class="it"></div><div class="it on"></div><div class="it"></div><div class="it"></div><div class="it"></div></aside>
+  <main class="app-main"><h1>Timeline</h1><div class="tl">
+    <div class="ev"></div><div class="ev" style="--d:var(--c-social)"></div><div class="ev"></div><div class="ev" style="--d:var(--c-service)"></div><div class="ev" style="--d:var(--c-party)"></div>
+  </div></main>
+</div>
+<div class="scrim"></div>
+
+<div class="stage"><div class="deck"><div class="panel" id="panel"></div></div></div>
+
+<div class="mock" aria-label="Mock controls">
+  <span class="lb">TERM</span>
+  <button data-term="1" aria-pressed="true">Fall 2026</button>
+  <button data-term="0" aria-pressed="false">None set</button>
+  <span class="sep"></span>
+  <button id="themeBtn">Night</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ic = (n, cls = '') => `<svg class="${cls}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+
+const D = s => new Date(s + 'T00:00:00Z');
+const iso = d => d.toISOString().slice(0, 10);
+const add = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
+const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const short = s => `${MO[D(s).getUTCMonth()]} ${D(s).getUTCDate()}`;
+const wshort = s => `${WD[D(s).getUTCDay()].slice(0, 3)}, ${short(s)}`;
+
+const TERM = { label: 'Fall 2026', end: '2026-12-11' };
+const CAP = 52;
+const S = { hasTerm: true, date: '2026-10-27', start: '19:00', end: '20:30', cat: 'chapter', on: false, every: 1, until: 'term', untilDate: '2026-12-08' };
+const CATS = [['chapter', 'Chapter'], ['social', 'Social'], ['service', 'Service'], ['program', 'Programming']];
+const noun = n => (S.cat === 'chapter' ? 'meeting' : 'event') + (n === 1 ? '' : 's');
+const term = () => S.hasTerm ? TERM : null;
+const stop = () => S.until === 'term' && term() ? term().end : S.untilDate;
+
+function dates() {
+  const out = [];
+  for (let d = S.date; d <= stop() && out.length < CAP; d = add(d, 7 * S.every)) out.push(d);
+  return out;
+}
+
+function render() {
+  const t = term(), on = S.on;
+  const afterTerm = t && S.date > t.end;
+  if ((!t || afterTerm) && S.until === 'term') S.until = 'date';
+  if (S.untilDate < S.date) S.untilDate = add(S.date, 42);
+  document.querySelectorAll('[data-term]').forEach(b => b.setAttribute('aria-pressed', (b.dataset.term === '1') === S.hasTerm));
+
+  $('rpOn').checked = on;
+  $('rpSub').textContent = on ? `${S.every === 1 ? 'Every' : 'Every other'} ${WD[D(S.date).getUTCDay()]}` : 'Make this a weekly or every-other-week series.';
+  $('seg').innerHTML = [[1, 'Weekly'], [2, 'Every 2 weeks']]
+    .map(([v, l]) => `<button type="button" data-every="${v}" aria-pressed="${S.every === v}">${l}</button>`).join('');
+  $('fold').classList.toggle('open', on);
+  $('panel').classList.toggle('series', on);
+  $('rpRow').classList.toggle('lit', on);
+  $('cats').innerHTML = CATS.map(([s, l]) => `<button type="button" class="cat" role="radio" aria-checked="${s === S.cat}" data-cat="${s}" style="--cdot:var(--c-${s})"><span class="dot"></span>${l}</button>`).join('');
+
+  const termPick = `<button type="button" class="pick" role="radio" data-until="term" aria-checked="${S.until === 'term'}" ${!t || afterTerm ? 'aria-disabled="true"' : ''}>
+      <span class="rad"></span>End of term <small>${!t ? 'No term set' : afterTerm ? `${t.label} ends first` : `${t.label} · ${short(t.end)}`}</small></button>`;
+  const datePick = `<label class="pick" role="radio" data-until="date" aria-checked="${S.until === 'date'}">
+      <span class="rad"></span>${S.until === 'date' ? `<input type="date" id="untilDate" value="${S.untilDate}" min="${S.date}" aria-label="Last day">` : 'A date'}</label>`;
+  $('until').innerHTML = `<span class="k">Until</span>${termPick}${datePick}`;
+
+  const ds = on ? dates() : [], n = ds.length;
+  const sum = $('sum');
+  sum.className = 'sum' + (on && n < 2 ? ' warn' : '');
+  sum.innerHTML = !on ? '' : n < 2
+    ? `${ic('warn')}<span>Pick an end date at least ${S.every === 1 ? 'a week' : 'two weeks'} after ${short(S.date)}.</span>`
+    : `${ic('repeat')}<span><b>${S.every === 1 ? 'Every' : 'Every other'} ${WD[D(S.date).getUTCDay()]}</b> · <span style="white-space:nowrap">${short(ds[0])} → ${short(ds[n - 1])}</span></span><span class="n" id="n">${n} ${noun(n)}</span>`;
+  const nEl = $('n');
+  if (nEl && render.last && render.last !== n) nEl.classList.add('bump');
+  render.last = n;
+
+  const btn = $('addBtn');
+  btn.textContent = !on ? 'Add event' : n < 2 ? 'Add' : `Add ${n} ${noun(n)}`;
+  btn.disabled = on && n < 2;
+}
+
+$('panel').innerHTML = `
+  <button class="x" aria-label="Close">${ic('x')}</button>
+  <form class="cef" id="form" onsubmit="event.preventDefault()">
+    <div class="cef-head"><span class="kicker">New calendar event</span></div>
+    <input class="cef-title" placeholder="Event name" value="Chapter meeting" aria-label="Title">
+    <div class="rows">
+      <div class="r">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <div>
+          <div class="when">
+            <input type="date" class="inp" id="date" value="${S.date}" aria-label="Date">
+            <input type="time" class="inp" value="${S.start}" aria-label="Starts">
+            <span class="arr">→</span>
+            <input type="time" class="inp" value="${S.end}" aria-label="Ends">
+          </div>
+          <div class="when-meta"><span class="dur">1h 30m</span><label class="sw"><input type="checkbox"><span class="track"></span>All day</label></div>
+        </div>
+      </div>
+      <div class="r" id="rpRow">
+        ${ic('repeat', 'ic')}
+        <div>
+          <label class="req"><span><span class="t">Repeat</span><span class="s" id="rpSub"></span></span>
+            <span class="sw"><input type="checkbox" id="rpOn"><span class="track"></span></span></label>
+          <div class="fold" id="fold"><div>
+            <div class="freq"><span class="seg" id="seg" role="group" aria-label="How often"></span></div>
+            <div class="until" id="until" role="radiogroup" aria-label="Until"></div><div id="sum"></div>
+          </div></div>
+        </div>
+      </div>
+      <div class="r">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3"/></svg>
+        <div><div class="cats" id="cats" role="radiogroup" aria-label="Category"></div></div>
+      </div>
+      <div class="r">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2.5 2.5L16 9"/><rect x="3.5" y="3.5" width="17" height="17" rx="4"/></svg>
+        <label class="req"><span><span class="t">Required attendance</span><span class="s">Take attendance and track excuses.</span></span>
+          <span class="sw"><input type="checkbox" checked><span class="track"></span></span></label>
+      </div>
+      <div class="r">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+        <div><input class="quiet" placeholder="Add location" value="Student Union 214"></div>
+      </div>
+    </div>
+  </form>
+  <div class="foot">
+    <span class="kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to add</span>
+    <div class="btns"><button type="button" class="btn ghost">Cancel</button><button type="submit" form="form" class="btn" id="addBtn"></button></div>
+  </div>`;
+
+$('panel').addEventListener('click', e => {
+  const b = e.target.closest('[data-every],[data-cat],[data-until]'); if (!b) return;
+  if (b.dataset.every) S.every = +b.dataset.every;
+  if (b.dataset.cat) S.cat = b.dataset.cat;
+  if (b.dataset.until && b.getAttribute('aria-disabled') !== 'true') {
+    if (S.until === b.dataset.until) return;
+    S.until = b.dataset.until;
+    render();
+    if (S.until === 'date') $('untilDate').focus();
+    return;
+  }
+  render();
+});
+$('panel').addEventListener('change', e => {
+  if (e.target.id === 'rpOn') S.on = e.target.checked;
+  if (e.target.id === 'date' && e.target.value) S.date = e.target.value;
+  if (e.target.id === 'untilDate' && e.target.value) S.untilDate = e.target.value;
+  render();
+});
+document.querySelectorAll('[data-term]').forEach(b => b.onclick = () => {
+  S.hasTerm = b.dataset.term === '1';
+  if (S.hasTerm) S.until = 'term';
+  render();
+});
+$('themeBtn').onclick = () => {
+  const n = document.documentElement.dataset.theme === 'night' ? 'day' : 'night';
+  document.documentElement.dataset.theme = n; $('themeBtn').textContent = n === 'night' ? 'Day' : 'Night';
+};
+
+render();
+</script>
+</body>
+</html>

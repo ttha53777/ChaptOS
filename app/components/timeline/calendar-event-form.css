@@ -104,6 +104,31 @@
 .cef-req { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 6px; cursor: pointer; }
 .cef-req .t { display: block; font-size: 14px; color: var(--ink); }
 .cef-req .s { display: block; font-size: 12.5px; color: var(--faint); margin-top: 2px; }
+/* Repeat (new events): a switch, then how often + until when + what it adds up to. */
+.cef-rp { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 12px; }
+.cef-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--line); }
+.cef-seg button { border: 0; background: none; cursor: pointer; border-radius: 7px; padding: 5px 12px; font: 13px var(--sans); color: var(--muted); transition: background .12s, color .12s; }
+.cef-seg button:hover { color: var(--ink); }
+.cef-seg button[aria-pressed="true"] { background: var(--vio-bg); color: var(--ink); box-shadow: inset 0 0 0 1px var(--vio); }
+.cef-until { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cef-until .k { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.cef-pick { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 999px; border: 1px solid var(--line); background: var(--card-2);
+  padding: 5px 12px 5px 8px; font: 13px var(--sans); color: var(--ink-soft); transition: border-color .12s, background .12s; }
+.cef-pick:hover:not(:disabled) { border-color: var(--muted); }
+.cef-pick .rad { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--muted); display: grid; place-items: center; flex-shrink: 0; }
+.cef-pick[aria-checked="true"] { color: var(--ink); border-color: var(--vio); background: var(--vio-bg); }
+.cef-pick[aria-checked="true"] .rad { border-color: var(--vio); }
+.cef-pick[aria-checked="true"] .rad::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--vio); }
+.cef-pick small { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.cef-pick:disabled { cursor: not-allowed; opacity: .55; border-style: dashed; }
+.cef-pick input { border: 0; background: none; padding: 0; font: 13px var(--sans); color: var(--ink); outline: none; }
+.cef-pick input::-webkit-calendar-picker-indicator { filter: invert(.7); cursor: pointer; }
+.cef-rp-sum { align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 8px 12px;
+  border-radius: 10px; border: 1px dashed var(--line); font-size: 13px; color: var(--ink-soft); }
+.cef-rp-sum b { color: var(--ink); font-weight: 600; }
+.cef-rp-sum .nw { white-space: nowrap; }
+.cef-rp-sum .n { flex-shrink: 0; padding: 1px 9px; border-radius: 999px; background: var(--vio-bg); color: var(--ink); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cef-rp-sum.warn { color: var(--rose, #d9667a); border-color: currentColor; }
 /* Agenda (new chapter meeting): a plain template select, Manage templates beside the label. */
 .cef-agenda-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 6px; margin-bottom: 8px; }
 .cef-agenda-head .t { font-size: 14px; color: var(--ink); }

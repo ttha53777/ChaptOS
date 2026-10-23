@@ -1,6 +1,7 @@
 import { scheduleSchema, dateSchema } from "@/lib/calendar-feed/schedule";
 import { z } from "zod";
 import { eventDetailsSchema } from "@/lib/event-details";
+import { repeatSchema } from "@/lib/event-repeat";
 
 // Category is now a per-org CalendarEventType slug, not a fixed enum. Zod only
 // checks the shape (kebab-case, bounded); the calendar service validates the slug
@@ -25,6 +26,9 @@ export const createCalendarInput = z.object({
   // them as the event type's template — or clears it when false.
   details:         eventDetailsSchema.nullable().optional(),
   rememberDetails: z.boolean().optional(),
+  // Also create the same event every week / every other week through `until`
+  // (lib/event-repeat.ts). Each one is its own event; there is no series row.
+  repeat: repeatSchema.optional(),
 });
 export type CreateCalendarInput = z.infer<typeof createCalendarInput>;
 
