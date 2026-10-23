@@ -17,6 +17,8 @@ const G: Record<DashWidgetId, string> = {
   ballot: [70, 48, 26].map((w, i) => `<rect x="5" y="${6 + i * 14}" width="110" height="11" rx="5.5" fill="var(--card)" stroke="var(--line-med)"/><rect x="5" y="${6 + i * 14}" width="${w}" height="11" rx="5.5" fill="var(--p-fg)" fill-opacity=".45"/>`).join(""),
   week: Array.from({ length: 7 }, (_, i) => `<rect x="${3 + i * 16.5}" y="10" width="13.5" height="32" rx="4" fill="${i === 2 ? "var(--p-fg)" : "var(--card)"}" fill-opacity="${i === 2 ? ".35" : "1"}" stroke="var(--line-med)"/>${[0, 2, 3, 5].includes(i) ? `<circle cx="${9.75 + i * 16.5}" cy="34" r="2" fill="var(--p-fg)"/>` : ""}`).join(""),
   treasury: `<path d="M4 42 L20 35 L36 37 L52 27 L68 29 L84 19 L100 21 L116 9 L116 48 L4 48Z" fill="var(--p-fg)" fill-opacity=".22"/><path d="M4 42 L20 35 L36 37 L52 27 L68 29 L84 19 L100 21 L116 9" fill="none" stroke="var(--p-fg)" stroke-width="2" stroke-linejoin="round"/>`,
+  next: `<rect x="3" y="6" width="114" height="40" rx="8" fill="var(--card)" stroke="var(--ink)" stroke-width="1.5"/><rect x="6" y="9" width="26" height="34" rx="5" fill="var(--pp-sky)"/><path d="M35 9v34" stroke="var(--line-med)" stroke-dasharray="3 3"/>${L(42, 14, 48, "var(--ink)", 6)}${L(42, 26, 64)}${L(42, 34, 38)}`,
+  docs: [0, 1, 2].map(i => `<path d="M7 ${6 + i * 14}h6l3 3v8H7z" fill="${SOL[[1, 2, 4][i]]}"/>${L(23, 10 + i * 14, 58 - i * 8, "var(--ink-soft)")}${L(102, 10 + i * 14, 12)}`).join(""),
   activity: [0, 1, 2].map(i => `<rect x="5" y="${7 + i * 14}" width="10" height="10" rx="3" fill="${SOL[i + 1]}"/>${L(21, 10 + i * 14, 62 - i * 12, "var(--ink-soft)")}${L(100, 10 + i * 14, 15)}`).join(""),
 };
 

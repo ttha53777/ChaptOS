@@ -85,6 +85,23 @@ html[data-aesthetic="paper"] .dash .ba-chip.customize svg { width: 14px; height:
   border: 2px dashed var(--line-med); border-radius: 18px; font-size: .86rem; color: var(--muted);
 }
 .dash > .grid.arranging > .col.hot { box-shadow: inset 0 0 0 2px var(--pp-lilac-ink, var(--ink)); }
+/* The full-width spot under the health dial, where the pinned note can live. */
+.dash > .ar-top {
+  position: relative; display: flex; flex-direction: column; gap: 12px; margin-top: 22px; padding: 34px 12px 12px; border-radius: 22px;
+  background-color: var(--paper-2, var(--card-2)); box-shadow: inset 0 0 0 1.5px var(--line);
+  background-image: radial-gradient(var(--line-med) 1px, transparent 1.2px); background-size: 16px 16px;
+  container-type: inline-size; transition: box-shadow .2s;
+}
+.dash > .ar-top::before {
+  content: attr(data-label); position: absolute; top: 11px; left: 18px;
+  font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+.dash > .ar-top:not(:has(> [data-w]))::after {
+  content: "The pinned note can sit here, full width under the health dial"; display: grid; place-items: center; min-height: 54px; padding: 0 12px;
+  border: 2px dashed var(--line-med); border-radius: 16px; font-size: .84rem; color: var(--muted); text-align: center;
+}
+.dash > .ar-top.hot { box-shadow: inset 0 0 0 2px var(--pp-lilac-ink, var(--ink)); }
+
 /* A narrow column (the side one on a laptop) keeps the name and drops the picture. */
 .dash > .grid.arranging > .col { container-type: inline-size; }
 @container (max-width: 330px) { .dash .ar-mini { display: none; } }

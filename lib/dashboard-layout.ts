@@ -16,15 +16,27 @@
 import type { DashboardLayout as DashboardLayoutWire } from "@/lib/api-types/me";
 
 /** Cards in the two-column grid. Order and column are the admin's to change. */
-export const DASH_CARDS = ["needs", "members", "ballot", "week", "treasury", "activity"] as const;
+export const DASH_CARDS = ["needs", "members", "ballot", "week", "treasury", "activity", "announcement", "next", "docs"] as const;
 export type DashCardId = (typeof DASH_CARDS)[number];
 
 /**
- * Widgets with a fixed place on the page. They can be put away and brought
- * back, but not moved. (The headline numbers used to be one of these; an
- * empty number row now simply isn't drawn, so "hidden" = no numbers.)
+ * Cards that may also sit in the full-width spot at the top of the page, under
+ * the health dial. Only the pinned note: it is a message for everyone, and that
+ * spot is where it always lived before it could move.
  */
-export const DASH_BANDS = ["health", "announcement"] as const;
+export const TOP_CARDS: readonly DashCardId[] = ["announcement"];
+export const canSitOnTop = (k: DashCardId) => TOP_CARDS.includes(k);
+
+/** Where a card can be: the top spot or one of the two columns. */
+export type DashZone = "top" | "main" | "rail";
+
+/**
+ * Widgets with a fixed place on the page. They can be put away and brought
+ * back, but not moved. (The headline numbers and the pinned note used to be
+ * bands too: an empty number row now simply isn't drawn, and the pinned note is
+ * a card that may also sit in the top spot.)
+ */
+export const DASH_BANDS = ["health"] as const;
 export type DashBandId = (typeof DASH_BANDS)[number];
 
 export type DashWidgetId = DashCardId | DashBandId;
@@ -40,6 +52,7 @@ export const DEFAULT_DASH_NUMBERS: DashStatId[] = ["members", "week", "tasks"];
 
 /** The wire shape (lib/api-types/me.ts), narrowed to the ids this module knows. */
 export interface DashboardLayout extends DashboardLayoutWire {
+  top: DashCardId[];
   main: DashCardId[];
   rail: DashCardId[];
   hidden: DashWidgetId[];
@@ -47,8 +60,9 @@ export interface DashboardLayout extends DashboardLayoutWire {
 }
 
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
+  top: ["announcement"],
   main: ["needs", "week", "members"],
-  rail: ["ballot", "treasury", "activity"],
+  rail: ["next", "ballot", "treasury", "activity", "docs"],
   hidden: [],
   numbers: DEFAULT_DASH_NUMBERS,
 };
@@ -81,8 +95,12 @@ export function normalizeDashboardLayout(raw: unknown): DashboardLayout | null {
   const r = raw as Record<string, unknown>;
   const seen = new Set<string>();
   const col = (v: unknown) => strings(v).filter(k => CARD_SET.has(k) && !seen.has(k) && (seen.add(k), true)) as DashCardId[];
+  const top = col(strings(r.top).filter(k => canSitOnTop(k as DashCardId)));
   const main = col(r.main);
   const rail = col(r.rail);
+  // Stored before the pinned note was a card: it was a band, so it goes back
+  // to the top spot (keeping a "hidden" if it had one).
+  for (const k of DEFAULT_DASHBOARD_LAYOUT.top) if (!seen.has(k)) { top.push(k); seen.add(k); }
   for (const k of DEFAULT_DASHBOARD_LAYOUT.main) if (!seen.has(k)) main.push(k);
   for (const k of DEFAULT_DASHBOARD_LAYOUT.rail) if (!seen.has(k)) rail.push(k);
 
@@ -94,7 +112,7 @@ export function normalizeDashboardLayout(raw: unknown): DashboardLayout | null {
       ? [...DEFAULT_DASH_NUMBERS]
       : [...new Set(strings(r.numbers).filter(isDashStat))].slice(0, MAX_DASH_NUMBERS) as DashStatId[];
 
-  return { main, rail, hidden, numbers };
+  return { top, main, rail, hidden, numbers };
 }
 
 /** The layout an org renders: its stored one, else the default. */
@@ -110,7 +128,7 @@ export function sameDashboardLayout(a: DashboardLayout, b: DashboardLayout): boo
 // Each returns a new layout (never mutates) or the same object when the move is
 // a no-op, so callers can skip a re-render by identity.
 
-const colOf = (l: DashboardLayout, w: DashCardId): "main" | "rail" => (l.main.includes(w) ? "main" : "rail");
+export const zoneOf = (l: DashboardLayout, w: DashCardId): DashZone => (l.top.includes(w) ? "top" : l.main.includes(w) ? "main" : "rail");
 
 /**
  * Nudge a card one visible step up/down its column, or across to the other one.
@@ -118,7 +136,9 @@ const colOf = (l: DashboardLayout, w: DashCardId): "main" | "rail" => (l.main.in
  * press visibly moves the card.
  */
 export function nudgeCard(l: DashboardLayout, w: DashCardId, dir: "up" | "down" | "swap", visible: (k: DashCardId) => boolean): DashboardLayout {
-  const c = colOf(l, w);
+  const z = zoneOf(l, w);
+  if (z === "top") return dir === "down" ? placeCard(l, w, "main", 0, visible) : l;
+  const c = z;
   const a = [...l[c]];
   const i = a.indexOf(w);
   if (dir === "swap") {
@@ -134,6 +154,8 @@ export function nudgeCard(l: DashboardLayout, w: DashCardId, dir: "up" | "down" 
   }
   let j = i;
   do { j += dir === "up" ? -1 : 1; } while (j >= 0 && j < a.length && !visible(a[j]));
+  // Up past the first card of a column: back to the top spot, if it may go there.
+  if (j < 0 && dir === "up" && canSitOnTop(w)) return placeCard(l, w, "top", 0, visible);
   if (j < 0 || j >= a.length) return l;
   a.splice(i, 1);
   a.splice(j, 0, w);
@@ -146,10 +168,12 @@ export function nudgeCard(l: DashboardLayout, w: DashCardId, dir: "up" | "down" 
  * both moves a card and brings one back from the tray. Hidden and unavailable
  * cards keep their place in the arrays; only visible ones count as slots.
  */
-export function placeCard(l: DashboardLayout, w: DashCardId, column: "main" | "rail", at: number, visible: (k: DashCardId) => boolean): DashboardLayout {
+export function placeCard(l: DashboardLayout, w: DashCardId, column: DashZone, at: number, visible: (k: DashCardId) => boolean): DashboardLayout {
+  if (column === "top" && !canSitOnTop(w)) return l;
+  const top = l.top.filter(x => x !== w);
   const main = l.main.filter(x => x !== w);
   const rail = l.rail.filter(x => x !== w);
-  const next = { ...l, main, rail, hidden: l.hidden.filter(x => x !== w) };
+  const next = { ...l, top, main, rail, hidden: l.hidden.filter(x => x !== w) };
   const a = [...next[column]];
   const before = a.filter(k => k !== w && visible(k))[at];
   a.splice(before === undefined ? a.length : a.indexOf(before), 0, w);

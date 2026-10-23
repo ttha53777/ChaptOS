@@ -2,10 +2,13 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  canSitOnTop,
   nudgeCard,
   placeCard,
   setWidgetHidden,
+  zoneOf,
   type DashBandId,
+  type DashZone,
   type DashCardId,
   type DashWidgetId,
   type DashboardLayout,
@@ -29,12 +32,12 @@ export interface GridCard extends WidgetMeta {
   wide?: boolean;
 }
 
-/** A fixed-place widget (health dial, pinned note) this org can have. */
+/** A fixed-place widget (the health dial) this org can have. */
 export interface GridBand extends WidgetMeta {
   id: DashBandId;
 }
 
-type Col = "main" | "rail";
+type Col = DashZone;
 type Change = (next: DashboardLayout, message: string) => void;
 
 const EASE = "cubic-bezier(.16,.9,.3,1.02)";
@@ -125,6 +128,7 @@ export function DashGrid({
   layout,
   cards,
   bands,
+  numbers,
   editing,
   onChange,
   onUndo,
@@ -134,6 +138,8 @@ export function DashGrid({
   layout: DashboardLayout;
   cards: Partial<Record<DashCardId, GridCard>>;
   bands: GridBand[];
+  /** The headline numbers, drawn between the top spot and the columns. */
+  numbers?: React.ReactNode;
   editing: boolean;
   onChange: Change;
   onUndo: () => void;
@@ -149,7 +155,7 @@ export function DashGrid({
   const [focusId, setFocusId] = useState<DashCardId | null>(null);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const colRef = useRef<Record<Col, HTMLDivElement | null>>({ main: null, rail: null });
+  const colRef = useRef<Record<Col, HTMLDivElement | null>>({ top: null, main: null, rail: null });
   const trayRef = useRef<HTMLElement | null>(null);
   const placeTray = useRef<() => void>(() => {});
   const liftRef = useRef<HTMLDivElement>(null);
@@ -160,13 +166,18 @@ export function DashGrid({
   const lastLayout = useRef(layout);
   lastLayout.current = layout;
 
+  // The top spot and the numbers render as siblings of the grid (the page's
+  // `.dash > .grid` rules need the grid to stay a direct child), so anything
+  // that looks for strips searches the whole dashboard.
+  const scope = useCallback((): HTMLElement | null => rootRef.current?.closest<HTMLElement>(".dash") ?? rootRef.current, []);
+
   // ── FLIP ──────────────────────────────────────────────────────────────────
   const rects = useRef<Map<string, DOMRect> | null>(null);
   const capture = useCallback(() => {
-    const root = rootRef.current;
+    const root = scope();
     if (!root || reduceMotion()) return;
     rects.current = new Map([...root.querySelectorAll<HTMLElement>("[data-w]")].map(el => [el.dataset.w!, el.getBoundingClientRect()]));
-  }, []);
+  }, [scope]);
   // Entering/leaving Arrange swaps cards for strips in one render: measure the
   // old DOM during that render, before React commits the new one.
   const wasEditing = useRef(editing);
@@ -177,7 +188,7 @@ export function DashGrid({
   useLayoutEffect(() => {
     const before = rects.current;
     rects.current = null;
-    const root = rootRef.current;
+    const root = scope();
     if (!before || !root) return;
     for (const el of root.querySelectorAll<HTMLElement>("[data-w]")) {
       const a = before.get(el.dataset.w!);
@@ -200,27 +211,28 @@ export function DashGrid({
   useEffect(() => {
     if (!landed) return;
     const t = setTimeout(() => setLanded(null), 650);
-    rootRef.current?.querySelector(`[data-w="${landed}"]`)?.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" });
+    scope()?.querySelector(`[data-w="${landed}"]`)?.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" });
     return () => clearTimeout(t);
   }, [landed]);
 
   useLayoutEffect(() => {
     if (!focusId) return;
-    rootRef.current?.querySelector<HTMLElement>(`.ar-strip[data-w="${focusId}"]`)?.focus();
+    scope()?.querySelector<HTMLElement>(`.ar-strip[data-w="${focusId}"]`)?.focus();
     setFocusId(null);
   }, [focusId, layout]);
 
   // ── Drag ──────────────────────────────────────────────────────────────────
   const label = (k: DashCardId) => cards[k]?.label ?? k;
+  const addBack = (l: DashboardLayout, k: DashCardId) => placeCard(l, k, canSitOnTop(k) ? "top" : "main", canSitOnTop(k) ? 0 : Infinity, visible);
 
   const hitTest = useCallback((x: number, y: number, d: Gesture): Target => {
     const tr = trayRef.current?.getBoundingClientRect();
     const overTray = !!tr && x >= tr.left && x <= tr.right && y >= tr.top - 10 && y <= tr.bottom;
     if (overTray) return { col: null, at: 0, trash: !d.fromTray };
     let best: Col | null = null, bd = Infinity;
-    for (const c of ["main", "rail"] as Col[]) {
+    for (const c of ["top", "main", "rail"] as Col[]) {
       const el = colRef.current[c];
-      if (!el) continue;
+      if (!el || (c === "top" && !canSitOnTop(d.id))) continue;
       const r = el.getBoundingClientRect();
       const dist = Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
       if (dist < bd) { bd = dist; best = c; }
@@ -234,8 +246,14 @@ export function DashGrid({
     // slot doesn't jitter while its neighbours are still gliding.
     const col = colRef.current[best]!;
     const ry = y - col.getBoundingClientRect().top;
-    const sibs = [...col.querySelectorAll<HTMLElement>(":scope > [data-w]")].filter(el => el.dataset.w !== d.id);
-    const i = sibs.findIndex(el => el.offsetTop + el.offsetHeight / 2 > ry);
+    const all = [...col.querySelectorAll<HTMLElement>(":scope > [data-w]")];
+    // Measure as if the placeholder weren't there: it pushes every card below
+    // it down a slot, and judging by those pushed positions pins the slot
+    // wherever the pointer first entered the column.
+    const ph = all.find(el => el.dataset.w === d.id);
+    const lift = ph ? ph.offsetHeight + (parseFloat(getComputedStyle(col).rowGap) || 0) : 0;
+    const sibs = all.filter(el => el !== ph);
+    const i = sibs.findIndex(el => el.offsetTop - (ph && el.offsetTop > ph.offsetTop ? lift : 0) + el.offsetHeight / 2 > ry);
     return { col: best, at: i < 0 ? sibs.length : i, trash: false };
   }, []);
 
@@ -285,7 +303,7 @@ export function DashGrid({
     d.live = true;
     d.dx = d.x - r.left;
     d.dy = d.y - r.top;
-    const fromCol: Col | null = d.fromTray ? null : layout.main.includes(d.id) ? "main" : "rail";
+    const fromCol: Col | null = d.fromTray ? null : zoneOf(layout, d.id);
     d.w = r.width;
     const t: Target = fromCol ? { col: fromCol, at: shown(fromCol).indexOf(d.id), trash: false } : { col: null, at: 0, trash: false };
     tRef.current = t;
@@ -313,7 +331,7 @@ export function DashGrid({
       const next = placeCard(l, d.id, t.col, t.at, visible);
       if (next !== l) { onChange(next, d.fromTray ? `${label(d.id)} added` : `Moved ${label(d.id)}`); setLanded(d.id); }
     };
-    const ph = rootRef.current?.querySelector<HTMLElement>(`.ar-strip.ph[data-w="${d.id}"]`);
+    const ph = scope()?.querySelector<HTMLElement>(`.ar-strip.ph[data-w="${d.id}"]`);
     const lift = liftRef.current;
     if (!t.col || !ph || !lift || reduceMotion()) { finish(); return; }
     // Glide the lifted strip into its slot, then let the real one take over.
@@ -352,8 +370,9 @@ export function DashGrid({
       clearTimeout(d.hold);
       if (d.live) { endDrag(); return; }
       g.current = null;
-      // A tap on a tray tile adds it to the end of the wide column.
-      if (ev.type === "pointerup" && d.fromTray) commit(placeCard(lastLayout.current, id, "main", Infinity, visible), `${label(id)} added`, id);
+      // A tap on a tray tile brings it back: the pinned note to its spot at the
+      // top, anything else to the end of the wide column.
+      if (ev.type === "pointerup" && d.fromTray) commit(addBack(lastLayout.current, id), `${label(id)} added`, id);
     };
     function cleanup() {
       window.removeEventListener("pointermove", move);
@@ -428,10 +447,11 @@ export function DashGrid({
       }
       const k = el.dataset.w as DashCardId;
       const inMain = l.main.includes(k);
+      const onTop = l.top.includes(k);
       let next = l;
       if (e.key === "ArrowUp") next = nudgeCard(l, k, "up", visible);
       else if (e.key === "ArrowDown") next = nudgeCard(l, k, "down", visible);
-      else if ((e.key === "ArrowRight" && inMain) || (e.key === "ArrowLeft" && !inMain)) next = nudgeCard(l, k, "swap", visible);
+      else if (!onTop && ((e.key === "ArrowRight" && inMain) || (e.key === "ArrowLeft" && !inMain))) next = nudgeCard(l, k, "swap", visible);
       else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         commit(setWidgetHidden(l, k, true), `${label(k)} put away`, k);
@@ -452,8 +472,10 @@ export function DashGrid({
     if (target.col === c) out.splice(Math.min(target.at, out.length), 0, target.id);
     return out;
   };
+  const top = columnIds("top");
   const main = columnIds("main");
   const rail = columnIds("rail");
+  const topAvailable = (Object.keys(cards) as DashCardId[]).some(canSitOnTop);
 
   const order: DashCardId[] = [];
   for (let i = 0; i < Math.max(main.length, rail.length); i++) {
@@ -496,8 +518,35 @@ export function DashGrid({
   const offBands = bands.filter(b => hidden.has(b.id));
   const lifted = target ? cards[target.id] : null;
 
+  // The spot under the health dial. Arranging shows it as a drop zone for as
+  // long as there's a card that may sit there; otherwise only what's in it.
+  const topZone = editing ? (topAvailable && (
+    <div
+      ref={el => { colRef.current.top = el; }}
+      className={`col ar-top${target && target.col === "top" ? " hot" : ""}`}
+      data-col="top"
+      data-label="Top of the page"
+      onPointerDown={onPointerDown}
+    >
+      {top.map(k => (
+        <ArrangeStrip
+          key={k}
+          id={k}
+          meta={cards[k]!}
+          placeholder={target?.id === k}
+          landed={landed === k}
+          onPutAway={() => commit(setWidgetHidden(layout, k, true), `${cards[k]!.label} put away`, k)}
+        />
+      ))}
+    </div>
+  )) : top.map(k => (
+    <div key={k} data-w={k} className="dw-band dw-top">{cards[k]!.node}</div>
+  ));
+
   return (
     <>
+      {topZone}
+      {numbers}
       <div ref={rootRef} className={`grid dg${editing ? " arranging" : ""}`} onPointerDown={editing ? onPointerDown : undefined}>
         {column("main", main)}
         {column("rail", rail)}
@@ -539,7 +588,7 @@ export function DashGrid({
                   onKeyDown={e => {
                     if (e.key !== "Enter" && e.key !== " ") return;
                     e.preventDefault();
-                    commit(placeCard(layout, k, "main", Infinity, visible), `${cards[k]!.label} added`, k);
+                    commit(addBack(layout, k), `${cards[k]!.label} added`, k);
                   }}
                 >
                   <TrayFace id={k} meta={cards[k]!} />

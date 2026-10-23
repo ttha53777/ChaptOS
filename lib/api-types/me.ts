@@ -30,6 +30,9 @@ export interface MeRole {
  * the normalizer). One per org — every member sees the same page.
  */
 export interface DashboardLayout {
+  /** Card ids in the full-width spot under the health dial (only the pinned
+   *  note may sit there). Added 2026-10. */
+  top: string[];
   /** Card ids, top to bottom, in the wide left column. */
   main: string[];
   /** Card ids, top to bottom, in the right rail. */

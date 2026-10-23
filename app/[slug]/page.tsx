@@ -64,6 +64,8 @@ import { LiveCheckIn } from "../components/dashboard/ledger/LiveCheckIn";
 import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
+import { UpNext } from "../components/dashboard/ledger/UpNext";
+import { RecentDocs } from "../components/dashboard/ledger/RecentDocs";
 import { ActivitySpotlight } from "../components/dashboard/activity/ActivitySpotlight";
 import { ArrangeBands, DashGrid, type GridBand, type GridCard } from "../components/dashboard/customize/DashGrid";
 import { DashNumbers, type DashStat } from "../components/dashboard/customize/DashNumbers";
@@ -2344,12 +2346,40 @@ export default function Home() {
     <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={origin => setActivitySpot({ origin })} />
   ) };
 
+  // The pinned note: full width in the spot under the health dial, or a card in
+  // a column, wherever the org's layout put it.
+  if (feature("operations", "announcement")) dashCards.announcement = { label: "Pinned note", icon: "pin", tone: "butter", blurb: "One message for everyone", node: (
+    <PinnedAnnouncement
+      announcement={announcement}
+      onEdit={() => setAnnouncementEditorOpen(true)}
+      canEdit={canAnnounce}
+      inColumn={!dash.layout.top.includes("announcement")}
+    />
+  ) };
+  dashCards.next = { label: "Up next", icon: "clock", tone: "sky", blurb: "The next event, and check-in on the day", node: (
+    <UpNext
+      events={calendarList}
+      eventTypes={eventTypeMap}
+      today={todayISO}
+      live={liveCheckIn && liveCheckIn.state !== "closed" ? { eventId: liveCheckIn.event.id, here: liveCheckIn.presentCount } : null}
+      onSelect={event => setWeekPeek({ kind: "event", event })}
+      onOpenCheckIn={canAttendance ? ev => void handleOpenCheckIn(ev) : undefined}
+      onGoToLive={() => document.querySelector("section.live")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+      onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
+      loading={!calendarLoaded}
+      error={calendarFailed}
+      onRetry={retryWeek}
+    />
+  ) };
+  if (isNavVisible("Docs", currentUser?.org?.enabledWorkflows ?? [])) dashCards.docs = { label: "Recent docs", icon: "doc", tone: "sky", blurb: "The newest docs in the library", node: (
+    <RecentDocs onAll={() => router.push(orgPath("/docs"))} onAdd={can("MANAGE_DOCS") ? () => router.push(orgPath("/docs")) : undefined} />
+  ) };
+
   // The fixed-place widgets this org has: put away and brought back, never moved.
-  const dashBands: GridBand[] = [
-    ...(feature("operations", "health") ? [{ id: "health" as const, label: "Health dial", icon: "heart" as const, tone: "mint" as const, blurb: "One score from everything you track" }] : []),
-    ...(feature("operations", "announcement") ? [{ id: "announcement" as const, label: "Pinned note", icon: "pin" as const, tone: "butter" as const, blurb: "One message for everyone" }] : []),
-  ];
-  const isShown = (id: "health" | "announcement") => !dash.layout.hidden.includes(id);
+  const dashBands: GridBand[] = feature("operations", "health")
+    ? [{ id: "health", label: "Health dial", icon: "heart", tone: "mint", blurb: "One score from everything you track" }]
+    : [];
+  const isShown = (id: "health") => !dash.layout.hidden.includes(id);
 
   async function finishCustomizing() {
     setArrangeNote(null);
@@ -2501,36 +2531,26 @@ export default function Home() {
                 added it or said "Not now". Also a new member's first-visit nudge. */}
             {!dash.editing && <CalendarInviteCard />}
 
-            {/* ── Pinned announcement ─────────────────────────────────────── */}
-            {feature("operations", "announcement") && isShown("announcement") && !dash.editing && (
-              <div className="dw-band" data-w="announcement">
-                <PinnedAnnouncement
-                  announcement={announcement}
-                  onEdit={() => setAnnouncementEditorOpen(true)}
-                  canEdit={canAnnounce}
-                />
-              </div>
-            )}
-
-            {/* ── Ledger strip ────────────────────────────────────────────── */}
-            {/* No sparklines: the app stores no metric history, so the only
-                series available would be invented. A real trend needs a
-                periodic snapshot table — until then the headline stands alone. */}
-            <DashNumbers
-              ids={dashNumbers}
-              stats={dashStats}
-              editing={dash.editing}
-              onChange={(numbers, message) => arrange({ ...dash.layout, numbers }, message)}
-            />
-
-            {/* ── Content grid ────────────────────────────────────────────────
-                Two real columns on desktop, in the org's arranged order (see
+            {/* ── Top spot, headline numbers, content grid ───────────────────
+                The pinned note sits full width under the health dial unless
+                the org moved it into a column. Then the numbers, then two real
+                columns on desktop, in the org's arranged order (see
                 lib/dashboard-layout.ts). Below desktop both columns dissolve and
-                the cards interleave into one stack (dashboard-ledger.css). */}
+                the cards interleave into one stack (dashboard-ledger.css).
+                No sparklines on the numbers: the app stores no metric history,
+                so the only series available would be invented. */}
             <DashGrid
               layout={dash.layout}
               cards={dashCards}
               bands={dashBands}
+              numbers={
+                <DashNumbers
+                  ids={dashNumbers}
+                  stats={dashStats}
+                  editing={dash.editing}
+                  onChange={(numbers, message) => arrange({ ...dash.layout, numbers }, message)}
+                />
+              }
               editing={dash.editing}
               onChange={arrange}
               onUndo={dash.undo}

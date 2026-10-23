@@ -25,8 +25,9 @@ describe("normalizeDashboardLayout", () => {
   it("drops unknown ids, keeps the first of a duplicate, and re-appends missing cards to their default column", () => {
     const out = normalizeDashboardLayout({ main: ["week", "nope", "week"], rail: ["members", 3], hidden: ["health", "zzz", "health"], numbers: ["members", "metric:12", "metric:0", "bogus"] });
     expect(out).toEqual({
+      top: ["announcement"],
       main: ["week", "needs"],
-      rail: ["members", "ballot", "treasury", "activity"],
+      rail: ["members", "next", "ballot", "treasury", "activity", "docs"],
       hidden: ["health"],
       numbers: ["members", "metric:12"],
     });
@@ -49,6 +50,24 @@ describe("normalizeDashboardLayout", () => {
     expect(out.hidden).toEqual(["health"]);
   });
 
+  it("puts the pinned note back in the top spot for a layout stored when it was a band, keeping it hidden", () => {
+    const out = normalizeDashboardLayout({ main: ["needs"], rail: ["activity"], hidden: ["announcement"] })!;
+    expect(out.top).toEqual(["announcement"]);
+    expect(out.hidden).toEqual(["announcement"]);
+  });
+
+  it("lets only the pinned note sit in the top spot", () => {
+    const out = normalizeDashboardLayout({ top: ["week", "announcement"], main: [], rail: [] })!;
+    expect(out.top).toEqual(["announcement"]);
+    expect(out.main).toContain("week");
+  });
+
+  it("keeps the pinned note in a column when the org moved it there", () => {
+    const out = normalizeDashboardLayout({ top: [], main: ["announcement", "needs"], rail: [] })!;
+    expect(out.top).toEqual([]);
+    expect(out.main.slice(0, 2)).toEqual(["announcement", "needs"]);
+  });
+
   it("resolves a never-customized org to the default", () => {
     expect(resolveDashboardLayout(null)).toEqual(DEFAULT_DASHBOARD_LAYOUT);
   });
@@ -68,16 +87,17 @@ describe("moves", () => {
   it("swaps a card into the other column at the same visual height", () => {
     const out = nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "members", "swap", all);
     expect(out.main).toEqual(["needs", "week"]);
-    expect(out.rail).toEqual(["ballot", "treasury", "members", "activity"]);
+    expect(out.rail).toEqual(["next", "ballot", "members", "treasury", "activity", "docs"]);
   });
 
   it("places a card at a visible slot, skipping cards that aren't shown", () => {
     const visible = (k: DashCardId) => k !== "ballot";
+    const l = { ...DEFAULT_DASHBOARD_LAYOUT, rail: ["ballot", "treasury", "activity"] as DashCardId[] };
     // rail = ballot (not shown), treasury, activity → slot 0 is before treasury
-    const out = placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "rail", 0, visible);
+    const out = placeCard(l, "week", "rail", 0, visible);
     expect(out.main).toEqual(["needs", "members"]);
     expect(out.rail).toEqual(["ballot", "week", "treasury", "activity"]);
-    expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "needs", "rail", 99, visible).rail.at(-1)).toBe("needs");
+    expect(placeCard(l, "needs", "rail", 99, visible).rail.at(-1)).toBe("needs");
   });
 
   it("placing a hidden card brings it back", () => {
@@ -89,6 +109,22 @@ describe("moves", () => {
 
   it("returns the same object when a card is dropped back where it was", () => {
     expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "main", 1, all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
+  });
+
+  it("moves the pinned note between the top spot and a column, and nothing else onto the top", () => {
+    const down = placeCard(DEFAULT_DASHBOARD_LAYOUT, "announcement", "rail", 1, all);
+    expect(down.top).toEqual([]);
+    expect(down.rail.slice(0, 2)).toEqual(["next", "announcement"]);
+    expect(placeCard(down, "announcement", "top", 0, all).top).toEqual(["announcement"]);
+    expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "top", 0, all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
+  });
+
+  it("keyboard: down from the top spot lands first in the wide column, up from there goes back", () => {
+    const down = nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "announcement", "down", all);
+    expect(down.top).toEqual([]);
+    expect(down.main[0]).toBe("announcement");
+    expect(nudgeCard(down, "announcement", "up", all).top).toEqual(["announcement"]);
+    expect(nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "announcement", "up", all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
   });
 
   it("hides and shows without duplicating", () => {

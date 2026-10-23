@@ -21,11 +21,15 @@ export function PinnedAnnouncement({
   onEdit,
   canEdit = true,
   hideButton,
+  inColumn = false,
 }: {
   announcement: Announcement | null;
   onEdit: () => void;
   canEdit?: boolean;
   hideButton?: React.ReactNode;
+  /** Sitting in a dashboard column rather than the full-width spot up top:
+   *  the same note, stacked, with its byline and buttons on one row. */
+  inColumn?: boolean;
 }) {
   const v = useVocab();
   const body = announcement?.body.trim() ?? "";
@@ -33,8 +37,27 @@ export function PinnedAnnouncement({
 
   if (!announcement && !canEdit) return null;
 
+  const tail = (
+    <>
+      {/* Paper's byline, as on the mock's taped note. */}
+      {announcement?.authorName && (
+        <span className="pin-by pp-only">— {announcement.authorName.split(" ")[0]} · {relativeTime(announcement.updatedAt)}</span>
+      )}
+      {hasCta && (
+        <a className="pin-edit" href={announcement!.ctaUrl!} target="_blank" rel="noopener noreferrer">
+          {announcement!.ctaLabel}
+        </a>
+      )}
+      {canEdit && (
+        <button type="button" className="pin-edit" onClick={onEdit}>
+          {announcement ? "Edit" : "Write one"}
+        </button>
+      )}
+    </>
+  );
+
   return (
-    <div className={announcement ? "pinned dash-group" : "pinned pin-empty dash-group"}>
+    <div className={`pinned dash-group${announcement ? "" : " pin-empty"}${inColumn ? " in-col" : ""}`}>
       {hideButton}
       <span className={announcement ? "pin-tag" : "pin-tag quiet"}>
         {announcement ? "PINNED" : v("Announcement").toUpperCase()}
@@ -51,20 +74,7 @@ export function PinnedAnnouncement({
           </span>
         )}
       </p>
-      {/* Paper's byline, as on the mock's taped note. */}
-      {announcement?.authorName && (
-        <span className="pin-by pp-only">— {announcement.authorName.split(" ")[0]} · {relativeTime(announcement.updatedAt)}</span>
-      )}
-      {hasCta && (
-        <a className="pin-edit" href={announcement!.ctaUrl!} target="_blank" rel="noopener noreferrer">
-          {announcement!.ctaLabel}
-        </a>
-      )}
-      {canEdit && (
-        <button type="button" className="pin-edit" onClick={onEdit}>
-          {announcement ? "Edit" : "Write one"}
-        </button>
-      )}
+      {inColumn ? <div className="pin-acts">{tail}</div> : tail}
     </div>
   );
 }
