@@ -6,6 +6,7 @@ import { ExcuseStatus } from "@/lib/state";
 import { getActiveSemester } from "@/lib/attendance";
 import type { CreatePartyInput, UpdatePartyInput, WrapUpPartyInput } from "@/lib/validation/party";
 import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
+import { parseEventDetails, withPartyFields } from "@/lib/event-details";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { assertWithinActiveSemester } from "./semester-bounds";
 
@@ -86,12 +87,15 @@ export async function summarizePartyAttendance(ctx: RequestContext): Promise<Par
 export async function createParty(ctx: RequestContext, input: CreatePartyInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule) };
   await assertWithinActiveSemester(ctx, input.date);
+  const details = withPartyFields([], { theme: input.theme, collabOrg: input.collabOrg });
   const p = await ctx.db.$transaction(async tx => {
     const event = await tx.calendarEvent.create({ data: {
       organizationId: ctx.orgId, title: input.name, date: input.date,
       time: input.schedule ? scheduleTime(input.schedule) : null,
       schedule: input.schedule ?? Prisma.DbNull,
       category: "party", mandatory: false,
+      // The theme / collab show up in the event's More details on the Timeline.
+      details: details.length ? details : Prisma.DbNull,
     } });
     return tx.partyEvent.create({
       data: {
@@ -154,6 +158,14 @@ export async function updateParty(ctx: RequestContext, id: number, input: Update
         ...(input.date !== undefined ? { date: input.date } : {}),
         ...timing,
       } });
+    }
+    if (target.attendanceEventId && (input.theme !== undefined || input.collabOrg !== undefined)) {
+      // Mirror into More details under the row lock the rail's claim/tick writes take.
+      const [row] = await tx.$queryRaw<{ details: unknown }[]>(Prisma.sql`SELECT details FROM "CalendarEvent" WHERE id = ${target.attendanceEventId} AND "organizationId" = ${ctx.orgId} FOR UPDATE`);
+      if (row) {
+        const details = withPartyFields(parseEventDetails(row.details), { theme: input.theme, collabOrg: input.collabOrg });
+        await tx.calendarEvent.update({ where: { id: target.attendanceEventId, organizationId: ctx.orgId }, data: { details: details.length ? details : Prisma.DbNull } });
+      }
     }
     return tx.partyEvent.update({ where: { id, organizationId: ctx.orgId }, data });
   });

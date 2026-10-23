@@ -5,7 +5,7 @@
  * Each detail is a small form of its own: a checklist, a budget, a sign-up sheet
  * of who's bringing what, a point of contact, who's invited, a head-count cap,
  * a dress code, getting-there notes with a door code, links, or a field the
- * officer names. The event form (app/components/timeline/EventDetailsEditor.tsx)
+ * officer names, a party theme, or the orgs it's co-hosted with. The event form (app/components/timeline/EventDetailsEditor.tsx)
  * edits the list; the timeline rail (EventDetailsRail.tsx) reads it.
  *
  * This file owns the shape, the parse that guards every read (the column is
@@ -63,6 +63,14 @@ const links = z.object({
   id: detailId, type: z.literal("links"),
   items: z.array(z.object({ id: detailId, label: text(80), url: text(2000) })).max(20),
 });
+const theme = z.object({
+  id: detailId, type: z.literal("theme"),
+  text: text(120),
+});
+const collabs = z.object({
+  id: detailId, type: z.literal("collabs"),
+  items: z.array(z.object({ id: detailId, name: text(80) })).max(20),
+});
 const custom = z.object({
   id: detailId, type: z.literal("custom"),
   label: text(80), kind: z.enum(CUSTOM_KINDS),
@@ -70,7 +78,7 @@ const custom = z.object({
   options: z.array(text(60)).max(20),
 });
 
-export const eventDetail = z.discriminatedUnion("type", [checklist, budget, supplies, contact, guests, capacity, dress, directions, links, custom]);
+export const eventDetail = z.discriminatedUnion("type", [checklist, budget, supplies, contact, guests, capacity, dress, directions, links, theme, collabs, custom]);
 export type EventDetail = z.infer<typeof eventDetail>;
 export type DetailType = EventDetail["type"];
 export type DetailOf<T extends DetailType> = Extract<EventDetail, { type: T }>;
@@ -111,17 +119,19 @@ export const DETAIL_KINDS: Record<DetailType, { name: string; hint: string; grou
   contact:    { name: "Point of contact",    hint: "Who to ask on the day",         group: "People",        hue: "sky" },
   guests:     { name: "Who's invited",       hint: "Members, +1s, or the public",   group: "People",        hue: "lilac" },
   capacity:   { name: "Capacity",            hint: "A head-count cap",              group: "People",        hue: "rose" },
+  collabs:    { name: "Collabs",             hint: "Orgs co-hosting with you",      group: "People",        hue: "mint" },
+  theme:      { name: "Theme",               hint: "The night's theme",             group: "On the day",    hue: "peach" },
   dress:      { name: "Dress code",          hint: "What to wear",                  group: "On the day",    hue: "lilac" },
   directions: { name: "Getting there",       hint: "Parking, entrance, door code",  group: "On the day",    hue: "sky" },
   links:      { name: "Links",               hint: "Tickets, forms, playlists",     group: "On the day",    hue: "mint" },
   custom:     { name: "Your own field",      hint: "Name it, pick what it holds",   group: "Make your own", hue: "butter" },
 };
-export const DETAIL_ORDER: DetailType[] = ["checklist", "budget", "supplies", "contact", "guests", "capacity", "dress", "directions", "links", "custom"];
+export const DETAIL_ORDER: DetailType[] = ["checklist", "budget", "supplies", "contact", "guests", "capacity", "collabs", "theme", "dress", "directions", "links", "custom"];
 
 /** Kinds offered first for a built-in category; custom types get the generic three. */
 const SUGGEST: Record<string, DetailType[]> = {
   chapter: ["checklist", "links", "contact"], social: ["guests", "dress", "supplies"], fundy: ["budget", "capacity", "links"],
-  program: ["contact", "checklist", "capacity"], party: ["guests", "capacity", "dress"], service: ["directions", "supplies", "contact"],
+  program: ["contact", "checklist", "capacity"], party: ["theme", "collabs", "guests"], service: ["directions", "supplies", "contact"],
 };
 export function suggestedKinds(category: string): DetailType[] {
   return SUGGEST[category] ?? ["checklist", "contact", "links"];
@@ -153,6 +163,8 @@ export function makeDetail(type: DetailType): EventDetail {
     case "dress":      return { id, type, pick: null, note: "" };
     case "directions": return { id, type, text: "", code: "" };
     case "links":      return { id, type, items: [] };
+    case "theme":      return { id, type, text: "" };
+    case "collabs":    return { id, type, items: [] };
     case "custom":     return { id, type, label: "", kind: "text", value: null, options: [] };
   }
 }
@@ -189,6 +201,8 @@ export function isFilled(d: EventDetail): boolean {
     case "capacity":   return true;
     case "dress":      return d.pick != null;
     case "directions": return !!(d.text.trim() || d.code.trim());
+    case "theme":      return !!d.text.trim();
+    case "collabs":    return d.items.some(i => i.name.trim());
     case "custom":     return !!d.label.trim() && d.value !== null && d.value !== "";
   }
 }
@@ -216,8 +230,67 @@ export function detailSummary(d: EventDetail, nameOf: (id: number) => string | u
     case "dress":     return d.pick ? (d.pick === "Theme" && d.note.trim() ? `Theme: ${d.note.trim()}` : d.pick) : null;
     case "directions":return d.code.trim() ? "Door code set" : d.text.trim() ? "Directions" : null;
     case "links":     { const n = d.items.filter(i => i.url.trim() || i.label.trim()).length; return n ? `${n} link${n > 1 ? "s" : ""}` : null; }
+    case "theme":     return d.text.trim() || null;
+    case "collabs":   { const t = collabText(d); return t ? `With ${t}` : null; }
     case "custom":    { const v = customValueText(d); return d.label.trim() ? (v ? `${d.label.trim()}: ${v}` : d.label.trim()) : null; }
   }
+}
+
+// ─── The party ledger's theme + collab, mirrored as details ───────────────────
+//
+// A party's theme and co-hosts are typed on the Parties page (PartyEvent.theme /
+// collabOrg) and in the event form's More details. Both write the same pair:
+// the party service mirrors its fields into these details, the calendar service
+// mirrors the details back, and the read path fills them in for parties saved
+// before details existed.
+
+export function collabNames(collabOrg: string): string[] {
+  return collabOrg.split(/\s*(?:,|&|\/|\+)\s*/).map(s => s.trim().slice(0, 80)).filter(Boolean).slice(0, 20);
+}
+export function collabText(d: DetailOf<"collabs">): string {
+  return d.items.map(i => i.name.trim()).filter(Boolean).join(", ");
+}
+
+/** The ledger's two strings as the details hold them ("" when absent). */
+export function partyFieldsOf(details: EventDetail[]): { theme: string; collabOrg: string } {
+  const t = details.find((d): d is DetailOf<"theme"> => d.type === "theme");
+  const c = details.find((d): d is DetailOf<"collabs"> => d.type === "collabs");
+  return { theme: t?.text.trim() ?? "", collabOrg: c ? collabText(c) : "" };
+}
+
+/**
+ * Write the ledger's theme / collab into a detail list. An undefined field is
+ * left alone; a value fills (or adds) its detail; an empty one drops it, since
+ * an emptied field on the Parties page means "no theme", not "blank theme".
+ * The list cap wins over the mirror — a full list gains nothing new.
+ */
+export function withPartyFields(details: EventDetail[], fields: { theme?: string | null; collabOrg?: string | null }): EventDetail[] {
+  let out = details;
+  const put = (type: "theme" | "collabs", fill: EventDetail | null) => {
+    const at = out.findIndex(d => d.type === type);
+    if (!fill) { if (at >= 0) out = out.filter((_, i) => i !== at); return; }
+    if (at >= 0) out = out.map((d, i) => i === at ? { ...fill, id: d.id } : d);
+    else if (out.length < MAX_EVENT_DETAILS) out = [...out, fill];
+  };
+  if (fields.theme != null) {
+    const t = fields.theme.trim().slice(0, 120);
+    put("theme", t ? { id: newDetailId(), type: "theme", text: t } : null);
+  }
+  if (fields.collabOrg != null) {
+    const names = collabNames(fields.collabOrg);
+    put("collabs", names.length ? { id: newDetailId(), type: "collabs", items: names.map(name => ({ id: newDetailId(), name })) } : null);
+  }
+  return out;
+}
+
+/** The read path: a party saved before details existed shows its ledger fields as details. */
+export function withLedgerFallback(details: EventDetail[], party: { theme: string; collabOrg: string } | null | undefined): EventDetail[] {
+  if (!party) return details;
+  const has = (type: DetailType) => details.some(d => d.type === type);
+  return withPartyFields(details, {
+    theme:     has("theme")   || !party.theme.trim()     ? undefined : party.theme,
+    collabOrg: has("collabs") || !party.collabOrg.trim() ? undefined : party.collabOrg,
+  });
 }
 
 /** Only http(s) links leave the app; a bare "example.com" gets https:// in front. */

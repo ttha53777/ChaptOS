@@ -9,7 +9,7 @@ import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
 import { assertWithinActiveSemester } from "./semester-bounds";
-import { applyDetailAction, forMembers, parseEventDetails, type DetailAction, type EventDetail } from "@/lib/event-details";
+import { applyDetailAction, forMembers, parseEventDetails, partyFieldsOf, withLedgerFallback, type DetailAction, type EventDetail } from "@/lib/event-details";
 import { rememberDetailTemplate } from "@/lib/event-details-db";
 import type { CreateCalendarInput, UpdateCalendarInput } from "@/lib/validation/calendar";
 
@@ -53,19 +53,24 @@ export async function listCalendar(ctx: RequestContext, opts: { category?: strin
   // Planning details (checklist, budget) are officers' working notes; a member's
   // read never carries them, rather than the rail merely hiding them.
   const officer = can(ctx, "MANAGE_EVENTS");
-  return rows.map(({ programmingEvent, partyEvent, details, ...row }) => ({
-    ...row,
-    // A Json column to Prisma; every write goes through scheduleSchema, so it is one.
-    schedule: (row.schedule ?? null) as Schedule | null,
-    details: officer ? parseEventDetails(details) : forMembers(parseEventDetails(details)),
-    notesInitialized: initialized.has(row.id),
-    notesCollaborationEnabled: collaborativeNotesEnabled(ctx.orgId) && can(ctx, "MANAGE_EVENTS") && row.category === "chapter",
-    programmingEventId: programmingEvent?.id ?? null,
-    partyEventId: partyEvent?.id ?? null,
-    // Theme and collab live on the party ledger; the rail shows them as facts.
-    partyTheme: partyEvent?.theme || null,
-    partyCollabOrg: partyEvent?.collabOrg || null,
-  }));
+  return rows.map(({ programmingEvent, partyEvent, details, ...row }) => {
+    // A party's theme / collab are mirrored into its details on every write;
+    // this fills them in for parties last saved before that mirror existed.
+    const all = withLedgerFallback(parseEventDetails(details), partyEvent);
+    return {
+      ...row,
+      // A Json column to Prisma; every write goes through scheduleSchema, so it is one.
+      schedule: (row.schedule ?? null) as Schedule | null,
+      details: officer ? all : forMembers(all),
+      notesInitialized: initialized.has(row.id),
+      notesCollaborationEnabled: collaborativeNotesEnabled(ctx.orgId) && can(ctx, "MANAGE_EVENTS") && row.category === "chapter",
+      programmingEventId: programmingEvent?.id ?? null,
+      partyEventId: partyEvent?.id ?? null,
+      // Theme and collab live on the party ledger; the rail shows them as facts.
+      partyTheme: partyEvent?.theme || null,
+      partyCollabOrg: partyEvent?.collabOrg || null,
+    };
+  });
 }
 
 /**
@@ -122,8 +127,9 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
       },
     });
     // The calendar entry and its ledger are one creation, so commit both or neither.
+    // A theme / collab typed in More details is the ledger's theme / collab too.
     const party = input.category === "party" ? await tx.partyEvent.create({
-      data: { organizationId: ctx.orgId, name: event.title, date: event.date, attendanceEventId: event.id },
+      data: { organizationId: ctx.orgId, name: event.title, date: event.date, attendanceEventId: event.id, ...partyFieldsOf(input.details ?? []) },
     }) : null;
     if (input.rememberDetails !== undefined) {
       await rememberDetailTemplate(tx, ctx.orgId, event.category, input.details ?? [], input.rememberDetails);
@@ -188,9 +194,14 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
     if (input.rememberDetails !== undefined) {
       await rememberDetailTemplate(tx, ctx.orgId, updated.category, parseEventDetails(updated.details), input.rememberDetails);
     }
-    const attachedParty = !party && updated.category === "party"
-      ? await tx.partyEvent.create({ data: { organizationId: ctx.orgId, name: updated.title, date: updated.date, attendanceEventId: id } })
+    const ledgerFields = partyFieldsOf(parseEventDetails(updated.details));
+    let attachedParty = !party && updated.category === "party"
+      ? await tx.partyEvent.create({ data: { organizationId: ctx.orgId, name: updated.title, date: updated.date, attendanceEventId: id, ...ledgerFields } })
       : party;
+    // Edited details carry the party's theme / collab back to its ledger.
+    if (party && input.details !== undefined && (party.theme !== ledgerFields.theme || party.collabOrg !== ledgerFields.collabOrg)) {
+      attachedParty = await tx.partyEvent.update({ where: { id: party.id, organizationId: ctx.orgId }, data: ledgerFields });
+    }
 
     // Sync linked ServiceEvent. description→notes, others map 1:1.
     const svcData: Record<string, string> = {};

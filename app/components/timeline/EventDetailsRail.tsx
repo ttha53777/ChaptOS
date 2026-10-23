@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import {
-  DETAIL_KINDS, GUEST_LABEL, applyDetailAction, budgetTotal, customValueText, isFilled, money, safeHref,
+  DETAIL_KINDS, GUEST_LABEL, applyDetailAction, budgetTotal, collabText, customValueText, isFilled, money, safeHref,
   type DetailAction, type DetailOf, type DetailType, type EventDetail,
 } from "@/lib/event-details";
 import { roleTitle, type Brother } from "../../data";
@@ -14,7 +14,7 @@ import "./event-details.css";
 // The timeline rail's half of "More details" (_design/Timeline Rail Details Mock.html).
 // The rail keeps its order — hero, Time / Where, links, attendance — and details
 // slot in by what the reader is trying to do:
-//   • one-line facts (dress code, who's invited + cap, your own fields) are more
+//   • one-line facts (theme, collabs, dress code, who's invited + cap, your own fields) are more
 //     rows of the Time / Where list; getting-there folds under Where and the door
 //     code stays hidden until tapped;
 //   • "Questions on the day" — the contact, one button in the way they prefer;
@@ -61,7 +61,8 @@ export function DetailStack({ details }: { details: EventDetail[] }) {
 /** The two or three facts you'd want before even opening the event. */
 export function detailChips(details: EventDetail[]): { type: DetailType; text: string }[] {
   const out: { type: DetailType; text: string }[] = [];
-  const dress = first(details, "dress"), guests = first(details, "guests"), supplies = first(details, "supplies");
+  const theme = first(details, "theme"), dress = first(details, "dress"), guests = first(details, "guests"), supplies = first(details, "supplies");
+  if (theme) out.push({ type: "theme", text: theme.text.trim() });
   if (dress) out.push({ type: "dress", text: dress.pick === "Theme" && dress.note.trim() ? dress.note.trim() : dress.pick ?? dress.note.trim() });
   if (guests) out.push({ type: "guests", text: guests.mode === "plus" ? `+${guests.plus} guest${guests.plus > 1 ? "s" : ""}` : guests.mode === "invite" ? "Invite-only" : guests.mode === "public" ? "Public" : "Members" });
   if (supplies) {
@@ -84,17 +85,20 @@ export function DetailChips({ details }: { details: EventDetail[] }) {
 
 /** True when the meta list has detail rows to show even with no time or place. */
 export function hasDetailFacts(details: EventDetail[]): boolean {
-  return details.some(d => isFilled(d) && (d.type === "dress" || d.type === "guests" || d.type === "capacity" || d.type === "custom" || d.type === "directions"));
+  return details.some(d => isFilled(d) && (d.type === "theme" || d.type === "collabs" || d.type === "dress" || d.type === "guests" || d.type === "capacity" || d.type === "custom" || d.type === "directions"));
 }
 
 /** Extra rows for the rail's Time / Where list. */
 export function DetailFacts({ details }: { details: EventDetail[] }) {
+  const theme = first(details, "theme"), collabs = first(details, "collabs");
   const dress = first(details, "dress"), guests = first(details, "guests"), cap = first(details, "capacity");
   const own = details.filter((d): d is DetailOf<"custom"> => d.type === "custom" && isFilled(d));
   const who = !guests ? "" : guests.mode === "plus" ? `Members + ${guests.plus} guest${guests.plus > 1 ? "s" : ""} each`
     : guests.mode === "invite" ? "Invite-only" : guests.mode === "public" ? "Open to the public" : `${GUEST_LABEL.members.b} only`;
   return (
     <>
+      {theme && <div className="ev-meta-row"><span className="lab">Theme</span><b className="evd-b">{theme.text.trim()}</b></div>}
+      {collabs && <div className="ev-meta-row"><span className="lab">With</span><span>{collabText(collabs)}</span></div>}
       {dress && (
         <div className="ev-meta-row"><span className="lab">Wear</span>
           <span><b className="evd-b">{dress.pick}</b>{dress.note.trim() && <span className="evd-q"> — {dress.note.trim()}</span>}</span>

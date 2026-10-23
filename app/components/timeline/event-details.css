@@ -345,6 +345,9 @@ textarea.edt-inp { min-height: 64px; resize: vertical; line-height: 1.5; }
 .edt-choices .xx { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
 .edt-choices .xx:hover { background: var(--card-3); color: var(--ink); }
 .edt-choices .xx svg { width: 10px; height: 10px; }
+/* collabs = name chips; the remove is a real button, not the choice's span */
+.edt-collabs .choice { cursor: default; }
+.edt-collabs .xx { border: 0; padding: 0; background: none; cursor: pointer; }
 
 @media (max-width: 760px) {
   .cef-tabs { margin-right: 36px; }

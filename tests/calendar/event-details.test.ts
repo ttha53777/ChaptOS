@@ -1,12 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import type { RequestContext } from "@/lib/context";
-import { changeEventDetail, listCalendar, updateCalendar } from "@/lib/services/calendar-service";
+import { changeEventDetail, createCalendar, listCalendar, updateCalendar } from "@/lib/services/calendar-service";
+import { createParty, updateParty } from "@/lib/services/party-service";
 import { listEventTypes } from "@/lib/services/calendar-event-type-service";
 import { eventDetailsSchema, parseEventDetails, type EventDetail } from "@/lib/event-details";
-import { updateCalendarInput } from "@/lib/validation/calendar";
+import { createCalendarInput, updateCalendarInput } from "@/lib/validation/calendar";
 import { testPrisma, resetDb } from "../setup/prisma";
-import { createOrg, createBrother, createCalendarEvent } from "../setup/factories";
+import { createOrg, createBrother, createCalendarEvent, createSemester } from "../setup/factories";
 
 beforeEach(async () => { await resetDb(); });
 afterAll(() => testPrisma.$disconnect());
@@ -87,5 +88,39 @@ describe("event details", () => {
     expect(eventDetailsSchema.safeParse([DETAILS[3], { ...DETAILS[3], id: "dr2" }]).success).toBe(false);
     expect(eventDetailsSchema.safeParse([{ id: "c1", type: "custom", label: "A", kind: "text", value: "", options: [] }, { id: "c2", type: "custom", label: "B", kind: "yesno", value: true, options: [] }]).success).toBe(true);
     expect(parseEventDetails([DETAILS[3], { id: "x", type: "cover", src: "" }, null]).map(d => d.id)).toEqual(["dr"]);
+  });
+
+  it("mirrors a party's theme and collabs between the Parties page and More details", async () => {
+    const { org, officerCtx } = await setup();
+    await createSemester({ orgId: org.id });
+    const party = await createParty(officerCtx, { name: "Glow Night", date: "2026-05-02", theme: "Neon", collabOrg: "KDF & DSP", doorRevenue: 0, attendance: 0, expenses: 0 });
+    const eventId = party.attendanceEventId!;
+    expect(await stored(eventId)).toMatchObject([{ type: "theme", text: "Neon" }, { type: "collabs", items: [{ name: "KDF" }, { name: "DSP" }] }]);
+
+    // Renaming the theme keeps its detail in place; clearing the collab drops it.
+    await stored(eventId).then(d => testPrisma.calendarEvent.update({ where: { id: eventId }, data: { details: [DETAILS[0], ...d] } }));
+    await updateParty(officerCtx, party.id, { theme: "Y2K", collabOrg: "" });
+    expect((await stored(eventId)).map(d => d.type)).toEqual(["supplies", "theme"]);
+    expect((await stored(eventId))[1]).toMatchObject({ text: "Y2K" });
+
+    // And the other way: editing the details on the Timeline updates the ledger.
+    await updateCalendar(officerCtx, eventId, updateCalendarInput.parse({ details: [{ id: "c", type: "collabs", items: [{ id: "a", name: "AKA" }, { id: "b", name: "Sigma" }] }] }));
+    expect(await testPrisma.partyEvent.findUniqueOrThrow({ where: { id: party.id } })).toMatchObject({ theme: "", collabOrg: "AKA, Sigma" });
+  });
+
+  it("starts a party's ledger from the theme typed while adding the event", async () => {
+    const { org, officerCtx } = await setup();
+    await createSemester({ orgId: org.id });
+    const event = await createCalendar(officerCtx, createCalendarInput.parse({ title: "Mixer", date: "2026-05-03", category: "party", mandatory: false, details: [{ id: "t", type: "theme", text: "Masquerade" }] }));
+    expect(await testPrisma.partyEvent.findUniqueOrThrow({ where: { id: event.partyEventId! } })).toMatchObject({ theme: "Masquerade", collabOrg: "" });
+  });
+
+  it("shows an older party's ledger theme as a detail on read", async () => {
+    const { org, officerCtx } = await setup();
+    const event = await createCalendarEvent({ orgId: org.id, category: "party", mandatory: false });
+    await testPrisma.partyEvent.create({ data: { organizationId: org.id, name: "Old", date: event.date, theme: "Toga", collabOrg: "KDF", attendanceEventId: event.id } });
+    const read = (await listCalendar(officerCtx)).find(e => e.id === event.id)!;
+    expect(read.details).toMatchObject([{ type: "theme", text: "Toga" }, { type: "collabs", items: [{ name: "KDF" }] }]);
+    expect(await stored(event.id)).toEqual([]);
   });
 });

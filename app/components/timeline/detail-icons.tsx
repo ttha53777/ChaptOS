@@ -17,6 +17,8 @@ export const DETAIL_ICON: Record<DetailType, React.ReactNode> = {
   dress:      ic(<path d="M8 4 3 7l2 4 3-1v10h8V10l3 1 2-4-5-3a4 4 0 0 1-8 0z" />),
   directions: ic(<path d="M12 3v18M5 5h11l3 2.5-3 2.5H5zM19 12H8l-3 2.5L8 17h11z" />),
   links:      ic(<><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></>),
+  theme:      ic(<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z" />),
+  collabs:    ic(<><circle cx="9" cy="12" r="5" /><circle cx="15" cy="12" r="5" /></>),
   custom:     ic(<><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1.3" fill="currentColor" /></>),
 };
 

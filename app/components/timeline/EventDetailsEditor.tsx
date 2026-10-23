@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   CUSTOM_KINDS, DETAIL_KINDS, DETAIL_ORDER, DRESS_CODES, GUEST_LABEL, GUEST_MODES, MAX_EVENT_DETAILS,
-  budgetTotal, detailSummary, makeDetail, money, newDetailId, suggestedKinds,
+  budgetTotal, collabNames, detailSummary, makeDetail, money, newDetailId, suggestedKinds,
   type DetailOf, type DetailType, type EventDetail,
 } from "@/lib/event-details";
 import { DETAIL_ICON, UI_ICON } from "./detail-icons";
@@ -485,6 +485,33 @@ function Body({ d, set, members }: { d: EventDetail; set: (d: EventDetail) => vo
           ))}
           {d.items.length < 20 && <AddRow placeholder={d.items.length ? "Add another link…" : "Name a link — e.g. RSVP form"} onAdd={t => set({ ...d, items: [...d.items, { id: newDetailId(), label: t.slice(0, 80), url: "" }] })} />}
         </div>
+      );
+    case "theme":
+      return (
+        <>
+          <input className="edt-inp" value={d.text} maxLength={120} aria-label="Theme" placeholder="All White, Black & Gold, Y2K…" onChange={e => set({ ...d, text: e.target.value })} />
+          <p className="edt-note">On a party, this is the same theme as on the Parties page.</p>
+        </>
+      );
+    case "collabs":
+      return (
+        <>
+          {d.items.length > 0 && (
+            <div className="edt-choices edt-collabs">
+              {d.items.map(it => (
+                <span key={it.id} className="choice">
+                  {it.name}
+                  <button type="button" className="xx" aria-label={`Remove ${it.name}`} onClick={() => set({ ...d, items: d.items.filter(x => x.id !== it.id) })}>{UI_ICON.x}</button>
+                </span>
+              ))}
+            </div>
+          )}
+          {d.items.length < 20 && <AddRow placeholder={d.items.length ? "Add another org…" : "KDF, DSP… — press Enter after each"} onAdd={t => {
+            const have = new Set(d.items.map(i => i.name.toLowerCase()));
+            const add = collabNames(t).filter(n => !have.has(n.toLowerCase()));
+            if (add.length) set({ ...d, items: [...d.items, ...add.map(name => ({ id: newDetailId(), name }))].slice(0, 20) });
+          }} />}
+        </>
       );
     case "custom": {
       const val = typeof d.value === "string" ? d.value : "";
