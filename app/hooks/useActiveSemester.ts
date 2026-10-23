@@ -28,6 +28,16 @@ export interface SemesterRow {
  */
 const listCache = new Map<string, SemesterRow[]>();
 const versions = new Map<string, number>();
+const listeners = new Set<() => void>();
+
+/** Drop the cached list and make every mounted hook refetch — call after any
+ *  semester write (Settings' create / edit / set active, the gate). */
+export function invalidateSemesters() {
+  const key = slugKey();
+  listCache.delete(key);
+  versions.set(key, (versions.get(key) ?? 0) + 1);
+  listeners.forEach(fn => fn());
+}
 
 function slugKey(): string {
   if (typeof window === "undefined") return "";
@@ -91,12 +101,13 @@ export function useSemesters(enabled = true): SemestersState {
     return () => { cancelled = true; };
   }, [key, version, enabled]);
 
-  const refresh = useCallback(() => {
-    listCache.delete(key);
-    const next = (versions.get(key) ?? 0) + 1;
-    versions.set(key, next);
-    setVersion(next);
+  useEffect(() => {
+    const onInvalidate = () => setVersion(versions.get(key) ?? 0);
+    listeners.add(onInvalidate);
+    return () => { listeners.delete(onInvalidate); };
   }, [key]);
+
+  const refresh = useCallback(() => invalidateSemesters(), []);
 
   const loaded = rows !== undefined;
   const semesters = rows ?? [];

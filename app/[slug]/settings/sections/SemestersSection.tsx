@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Modal } from "../../../components/dashboard/primitives";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
+import { invalidateSemesters } from "../../../hooks/useActiveSemester";
 
 interface Semester {
   id: number;
@@ -122,6 +123,7 @@ export function SemestersSection({
     try {
       await requestJson(`/api/semesters/${id}`, { method: "PATCH" });
       setSemesters(prev => prev.map(s => ({ ...s, isActive: s.id === id })));
+      invalidateSemesters();
       onStatus("Active semester updated.");
     } catch {
       onError("Failed to switch active semester.");
@@ -132,11 +134,13 @@ export function SemestersSection({
 
   function onCreated(s: Semester) {
     setSemesters(prev => [s, ...prev.map(x => ({ ...x, isActive: false }))]);
+    invalidateSemesters();
     onStatus(`Semester "${s.label}" created and set active.`);
   }
 
   function onEdited(s: Semester) {
     setSemesters(prev => prev.map(x => (x.id === s.id ? s : x)));
+    invalidateSemesters();
     onStatus(`Semester "${s.label}" saved.`);
   }
 
