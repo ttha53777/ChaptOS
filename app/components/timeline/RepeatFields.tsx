@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { repeatDates, type Repeat } from "@/lib/event-repeat";
+import { REPEAT_MAX, repeatDates, type Repeat } from "@/lib/event-repeat";
 import "./calendar-event-form.css";
 
 /**
@@ -14,7 +14,9 @@ export const REPEAT_OFF: RepeatValue = { on: false, every: 1, toTerm: true, unti
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const weekdayOf = (date: string) => WEEKDAYS[new Date(`${date}T12:00`).getDay()];
-const shortDate = (date: string) => new Date(`${date}T12:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+/** "Oct 18", plus the year when it isn't the first meeting's year ("Dec 30, 2028"). */
+const shortDate = (date: string, from?: string) => new Date(`${date}T12:00`).toLocaleDateString(undefined,
+  { month: "short", day: "numeric", ...(from && from.slice(0, 4) !== date.slice(0, 4) ? { year: "numeric" } : {}) });
 const meetings = (n: number) => `${n} meeting${n === 1 ? "" : "s"}`;
 
 /** What the switch adds up to for a first meeting on `date`: the API's `repeat` and the dates it makes.
@@ -29,7 +31,9 @@ export function resolveRepeat(value: RepeatValue, date: string, termEnd?: string
   const ok = !value.on || dates.length >= 2;
   const repeat: Repeat | undefined = value.on && ok ? { every: value.every, until } : undefined;
   // Before the first meeting reads as unfinished (mid-typing a year), not as a mistake.
-  return { repeat, dates, toTerm, until, termEnd: end, ok, missing: value.on && (!valid || until < date) };
+  // The cap cut it short: the last meeting lands well before the end that was asked for.
+  const capped = dates.length === REPEAT_MAX && dates[dates.length - 1] < until && repeatDates(dates[dates.length - 1], { every: value.every, until }).length > 1;
+  return { repeat, dates, toTerm, until, termEnd: end, ok, capped, missing: value.on && (!valid || until < date) };
 }
 
 /** "Add meeting", or "Add 7 meetings" once it repeats. */
@@ -76,7 +80,7 @@ export function RepeatFields({ value, onChange, date, termEnd, termLabel, takenD
               <span className="k">Until</span>
               <button type="button" role="radio" className="cef-pick" aria-checked={r.toTerm} disabled={!r.termEnd} onClick={() => set({ toTerm: true })}>
                 <span className="rad" aria-hidden />End of term
-                <small>{!termEnd ? "No term set" : !r.termEnd ? "Term ends first" : `${termLabel ? `${termLabel} · ` : ""}${shortDate(r.termEnd)}`}</small>
+                <small>{!termEnd ? "No term set" : !r.termEnd ? "Term ends first" : `${termLabel ? `${termLabel} · ` : ""}${shortDate(r.termEnd, date)}`}</small>
               </button>
               {r.toTerm ? (
                 <button type="button" role="radio" className="cef-pick" aria-checked={false} onClick={() => set({ toTerm: false })}>
@@ -91,7 +95,7 @@ export function RepeatFields({ value, onChange, date, termEnd, termLabel, takenD
             </div>
             {r.ok ? (
               <p className="cef-rp-sum">
-                <span><b>{pattern}</b> · <span className="nw">{shortDate(r.dates[0])} → {shortDate(r.dates[r.dates.length - 1])}</span></span>
+                <span><b>{pattern}</b> · <span className="nw">{shortDate(r.dates[0], date)} → {shortDate(r.dates[r.dates.length - 1], date)}</span></span>
                 <span className="n">{meetings(r.dates.length)}</span>
               </p>
             ) : r.missing ? (
@@ -99,9 +103,14 @@ export function RepeatFields({ value, onChange, date, termEnd, termLabel, takenD
             ) : (
               <p className="cef-rp-sum warn" role="alert">Pick an end date at least {value.every === 1 ? "a week" : "two weeks"} after {shortDate(date)}.</p>
             )}
+            {r.capped && (
+              <p className="cef-rp-sum warn" role="alert">
+                Stops at {REPEAT_MAX} meetings ({shortDate(r.dates[r.dates.length - 1], date)}), the most one repeat adds — {r.toTerm ? `the term runs to ${shortDate(r.until, date)}. Check its end date in Settings.` : `pick an earlier end date.`}
+              </p>
+            )}
             {clashes.length > 0 && (
               <p className="cef-rp-sum warn" role="alert">
-                {clashes.length === 1 ? `${shortDate(clashes[0])} already has a meeting` : `${clashes.length} of these dates already have a meeting (${clashes.slice(0, 3).map(shortDate).join(", ")}${clashes.length > 3 ? "…" : ""})`}
+                {clashes.length === 1 ? `${shortDate(clashes[0], date)} already has a meeting` : `${clashes.length} of these dates already have a meeting (${clashes.slice(0, 3).map(d => shortDate(d, date)).join(", ")}${clashes.length > 3 ? "…" : ""})`}
                 {" "}— you&rsquo;ll have two that day.
               </p>
             )}
