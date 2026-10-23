@@ -148,6 +148,17 @@ export async function getMetricSnapshot(ctx: RequestContext): Promise<MetricSnap
     ctx.db.brotherMetricValue.aggregateByDefinition(defIds),
     ctx.db.brotherMetricValue.countOnTrack(defs.map(d => ({ id: d.id, goal: d.goal }))),
   ]);
+  // Every recorded value, for the dashboard's per-metric card (one dot per
+  // member). Sequential, not a third parallel query: the pool is two wide.
+  const rows = await ctx.db.brotherMetricValue.findMany({
+    where:  { metricDefinitionId: { in: defIds } },
+    select: { metricDefinitionId: true, value: true },
+  });
+  const valuesBy = new Map<number, number[]>();
+  for (const r of rows) {
+    const a = valuesBy.get(r.metricDefinitionId);
+    if (a) a.push(r.value); else valuesBy.set(r.metricDefinitionId, [r.value]);
+  }
 
   return defDTOs.map(def => {
     const agg        = aggMap.get(def.id);
@@ -182,6 +193,7 @@ export async function getMetricSnapshot(ctx: RequestContext): Promise<MetricSnap
       goal:         def.goal,
       atRiskBelow:  def.atRiskBelow,
       watchBelow:   def.watchBelow,
+      values:       (valuesBy.get(def.id) ?? []).sort((a, b) => b - a),
     };
   });
 }

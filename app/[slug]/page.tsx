@@ -67,6 +67,7 @@ import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { UpNext } from "../components/dashboard/ledger/UpNext";
 import { RecentDocs } from "../components/dashboard/ledger/RecentDocs";
+import { DuesCard, GradesCard, InstagramCard, MetricCard, MoneyCard, ServiceCard } from "../components/dashboard/ledger/TrackCards";
 import { ActivitySpotlight } from "../components/dashboard/activity/ActivitySpotlight";
 import { ArrangeBands, DashGrid, type GridBand, type GridCard } from "../components/dashboard/customize/DashGrid";
 import { DashNumbers, type DashStat } from "../components/dashboard/customize/DashNumbers";
@@ -2377,6 +2378,35 @@ export default function Home() {
   ) };
   if (isNavVisible("Docs", currentUser?.org?.enabledWorkflows ?? [])) dashCards.docs = { label: "Recent docs", icon: "doc", tone: "sky", blurb: "The newest docs in the library", node: (
     <RecentDocs onAll={() => router.push(orgPath("/docs"))} onAdd={can("MANAGE_DOCS") ? () => router.push(orgPath("/docs")) : undefined} />
+  ) };
+
+  // Opt-in cards: each exists only when the org tracks that thing, and none is
+  // on anyone's dashboard until an admin brings it in from the Arrange tray.
+  if (financeEnabled) dashCards.money = { label: "Money", icon: "wallet", tone: "mint", blurb: "Balance, this month in and out, latest entries", node: (
+    <MoneyCard balance={liveBalance} today={todayISO} loading={!treasuryLoaded} error={treasuryFailed} onRetry={retrySections} onOpen={() => router.push(orgPath("/treasury"))} />
+  ) };
+  if (financeEnabled && tracked.duesOwed) dashCards.dues = { label: v("Dues"), icon: "jar", tone: "butter", blurb: "Who's paid, and what's still out", node: (
+    <DuesCard
+      label={v("Dues")}
+      brothers={brotherList}
+      standings={duesStandings}
+      selfId={selfId}
+      selfAvatarUrl={currentUser?.avatarUrl}
+      avatarRevision={avatarRevision}
+      onOpen={() => router.push(orgPath("/treasury?tab=Dues"))}
+    />
+  ) };
+  if (tracked.serviceHours) dashCards.service = { label: `${v("Service")} hours`, icon: "heart", tone: "rose", blurb: `Who's hit their ${THRESHOLDS.serviceHoursGoal} hours`, node: (
+    <ServiceCard label={v("Service")} brothers={brotherList} goal={THRESHOLDS.serviceHoursGoal} loading={!rosterLoaded} error={rosterFailed} onRetry={retrySections} onOpen={() => router.push(orgPath("/service"))} />
+  ) };
+  if (tracked.gpa) dashCards.gpa = { label: "Grades", icon: "star", tone: "lilac", blurb: "The GPA spread against your at-risk line", node: (
+    <GradesCard brothers={brotherList} atRisk={THRESHOLDS.gpaAtRisk} loading={!rosterLoaded} error={rosterFailed} onRetry={retrySections} onOpen={() => setActiveDrawer("gpa")} />
+  ) };
+  if (igEnabled) dashCards.social = { label: "Instagram", icon: "camera", tone: "peach", blurb: "What went up, and what's next", node: (
+    <InstagramCard tasks={igTaskList} today={todayISO} loading={!loadedSections.has("instagram")} error={sectionErrors.has("instagram")} onRetry={retrySections} onOpen={() => router.push(orgPath("/instagram"))} />
+  ) };
+  for (const snap of customMetricSnapshots) dashCards[`metric:${snap.definitionId}`] = { label: snap.name, icon: "bars", tone: "sky", blurb: "Every member against your goal", node: (
+    <MetricCard snap={snap} onOpen={() => setActiveCustomMetricId(snap.definitionId)} />
   ) };
 
   // The fixed-place widgets this org has: put away and brought back, never moved.

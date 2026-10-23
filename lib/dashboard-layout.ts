@@ -17,7 +17,18 @@ import type { DashboardLayout as DashboardLayoutWire } from "@/lib/api-types/me"
 
 /** Cards in the two-column grid. Order and column are the admin's to change. */
 export const DASH_CARDS = ["needs", "members", "ballot", "week", "treasury", "activity", "announcement", "next", "docs"] as const;
-export type DashCardId = (typeof DASH_CARDS)[number];
+
+/**
+ * Cards an org opts into: what it tracks beyond the basics (money, dues,
+ * grades, service, Instagram) and one card per custom metric, `metric:<id>`.
+ * None is ever put on a dashboard for anyone; they wait in the Arrange tray
+ * until an admin drags or taps one in. (Core cards a stored layout doesn't
+ * mention are appended; these never are.)
+ */
+export const OPTIONAL_CARDS = ["money", "dues", "service", "gpa", "social"] as const;
+export type OptionalCardId = (typeof OPTIONAL_CARDS)[number] | `metric:${number}`;
+
+export type DashCardId = (typeof DASH_CARDS)[number] | OptionalCardId;
 
 /**
  * Cards that may also sit in the full-width spot at the top of the page, under
@@ -67,8 +78,9 @@ export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
   numbers: DEFAULT_DASH_NUMBERS,
 };
 
-const CARD_SET = new Set<string>(DASH_CARDS);
-const WIDGET_SET = new Set<string>([...DASH_CARDS, ...DASH_BANDS]);
+const CARD_SET = new Set<string>([...DASH_CARDS, ...OPTIONAL_CARDS]);
+const METRIC_ID = /^metric:[1-9]\d{0,9}$/;
+export const isDashCard = (k: string): k is DashCardId => CARD_SET.has(k) || METRIC_ID.test(k);
 
 export function isDashStat(k: string): k is DashStatId {
   return (DASH_STATS as readonly string[]).includes(k) || /^metric:[1-9]\d{0,9}$/.test(k);
@@ -94,7 +106,7 @@ export function normalizeDashboardLayout(raw: unknown): DashboardLayout | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const r = raw as Record<string, unknown>;
   const seen = new Set<string>();
-  const col = (v: unknown) => strings(v).filter(k => CARD_SET.has(k) && !seen.has(k) && (seen.add(k), true)) as DashCardId[];
+  const col = (v: unknown) => strings(v).filter(k => isDashCard(k) && !seen.has(k) && (seen.add(k), true)) as DashCardId[];
   const top = col(strings(r.top).filter(k => canSitOnTop(k as DashCardId)));
   const main = col(r.main);
   const rail = col(r.rail);
@@ -105,7 +117,7 @@ export function normalizeDashboardLayout(raw: unknown): DashboardLayout | null {
   for (const k of DEFAULT_DASHBOARD_LAYOUT.rail) if (!seen.has(k)) rail.push(k);
 
   const rawHidden = strings(r.hidden);
-  const hidden = [...new Set(rawHidden.filter(k => WIDGET_SET.has(k)))] as DashWidgetId[];
+  const hidden = [...new Set(rawHidden.filter(k => isDashCard(k) || (DASH_BANDS as readonly string[]).includes(k)))] as DashWidgetId[];
   const numbers = rawHidden.includes("numbers")
     ? []
     : r.numbers === null || r.numbers === undefined

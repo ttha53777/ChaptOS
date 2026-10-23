@@ -68,6 +68,18 @@ describe("normalizeDashboardLayout", () => {
     expect(out.main.slice(0, 2)).toEqual(["announcement", "needs"]);
   });
 
+  it("never puts an optional card on a dashboard by itself, but keeps one an admin placed", () => {
+    const fresh = normalizeDashboardLayout({ main: [], rail: [] })!;
+    for (const k of ["money", "dues", "service", "gpa", "social", "metric:4"]) {
+      expect([...fresh.top, ...fresh.main, ...fresh.rail]).not.toContain(k);
+    }
+    const placed = normalizeDashboardLayout({ main: ["gpa", "metric:4", "metric:0", "metric:x"], rail: ["money"], hidden: ["metric:9", "metric:"] })!;
+    expect(placed.main.slice(0, 2)).toEqual(["gpa", "metric:4"]);
+    expect(placed.main).not.toContain("metric:0");
+    expect(placed.rail[0]).toBe("money");
+    expect(placed.hidden).toEqual(["metric:9"]);
+  });
+
   it("resolves a never-customized org to the default", () => {
     expect(resolveDashboardLayout(null)).toEqual(DEFAULT_DASHBOARD_LAYOUT);
   });

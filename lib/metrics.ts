@@ -85,4 +85,7 @@ export interface MetricSnapshot {
   goal:           number;
   atRiskBelow:    number;
   watchBelow:     number | null;
+  /** Every member's recorded value, highest first. Added 2026-10 for the
+   *  dashboard's metric card; anonymous, like the aggregates beside it. */
+  values:         number[];
 }

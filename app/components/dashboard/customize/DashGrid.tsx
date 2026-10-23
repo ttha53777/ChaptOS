@@ -514,7 +514,10 @@ export function DashGrid({
   );
 
   // Everything this org could show that isn't on the page: the tray.
-  const offCards = (Object.keys(cards) as DashCardId[]).filter(k => hidden.has(k) && !(target?.id === k && target.col));
+  // That's a card the admin put away, or one the org can have that was never
+  // placed: every optional card (money, grades, a custom metric) starts here.
+  const placed = new Set([...layout.top, ...layout.main, ...layout.rail]);
+  const offCards = (Object.keys(cards) as DashCardId[]).filter(k => (hidden.has(k) || !placed.has(k)) && !(target?.id === k && target.col));
   const offBands = bands.filter(b => hidden.has(b.id));
   const lifted = target ? cards[target.id] : null;
 
