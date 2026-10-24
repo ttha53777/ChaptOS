@@ -12,7 +12,7 @@ export type QuickActionKey =
   | "event"
   | "ig";
 
-interface QuickAction {
+export interface QuickAction {
   key: QuickActionKey;
   label: string;
   icon: ReactNode;
@@ -92,6 +92,23 @@ const QUICK_ACTIONS: QuickAction[] = [
   { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false, workflow: "communications" },
 ];
 
+/** The actions this viewer may take, in menu order. Shared with the phone's
+ *  Create sheet (MobileTabBar), so the two never disagree about who sees what. */
+export function visibleQuickActions({ isAdmin, canManageTasks, enabledWorkflows }: {
+  isAdmin: boolean;
+  canManageTasks: boolean;
+  enabledWorkflows?: readonly string[];
+}): QuickAction[] {
+  return QUICK_ACTIONS.filter(a => {
+    if (a.adminOnly && !isAdmin) return false;
+    if (a.requiresManageTasks && !canManageTasks) return false;
+    // Hide a workflow-gated action when the org has that workflow disabled.
+    // When enabledWorkflows is undefined (still loading) keep the action.
+    if (a.workflow && enabledWorkflows && !enabledWorkflows.includes(a.workflow)) return false;
+    return true;
+  });
+}
+
 export function QuickActionsMenu({
   isAdmin,
   canManageTasks = false,
@@ -132,14 +149,7 @@ export function QuickActionsMenu({
     };
   }, [open]);
 
-  const items = QUICK_ACTIONS.filter(a => {
-    if (a.adminOnly && !isAdmin) return false;
-    if (a.requiresManageTasks && !canManageTasks) return false;
-    // Hide a workflow-gated action when the org has that workflow disabled.
-    // When enabledWorkflows is undefined (still loading) keep the action.
-    if (a.workflow && enabledWorkflows && !enabledWorkflows.includes(a.workflow)) return false;
-    return true;
-  });
+  const items = visibleQuickActions({ isAdmin, canManageTasks, enabledWorkflows });
   const showDivider = isAdmin && items.some(a => a.adminOnly) && items.some(a => !a.adminOnly);
 
   function handlePick(key: QuickActionKey) {

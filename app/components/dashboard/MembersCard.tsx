@@ -48,6 +48,15 @@ const DAY_ONE_SEATS = 7;
 
 const ALL_TRACKED_KEYS = Object.keys(ALL_TRACKED) as BuiltinMetricId[];
 
+/** How many members sit in each standing band, or null while no tracked metric
+ *  can decide a standing yet (the card then shows no bands either). */
+export function standingCounts(brothers: Brother[], thresholds: Thresholds, standing: TrackedMetrics): Record<Band, number> | null {
+  if (!ALL_TRACKED_KEYS.some(k => standing[k])) return null;
+  const c: Record<Band, number> = { good: 0, watch: 0, risk: 0 };
+  for (const b of brothers) c[BAND_OF[getBrotherStatus(b, thresholds, standing)]]++;
+  return c;
+}
+
 const TONES = ["sky", "lilac", "mint", "butter", "peach", "rose"] as const;
 /** A stable pastel per name, as the mock's toneOf. */
 function toneOf(name: string): (typeof TONES)[number] {

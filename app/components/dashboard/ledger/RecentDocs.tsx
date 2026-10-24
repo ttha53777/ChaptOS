@@ -19,17 +19,36 @@ const SHOW = 4;
  * Fetches its own list (GET /api/docs) because only this card needs it on the
  * dashboard, and it only mounts while the card is on the page.
  */
-export function RecentDocs({ onAll, onAdd }: { onAll: () => void; onAdd?: () => void }) {
+// The phone dashboard shows this card twice over: a glance tile and, on a tap,
+// the card itself in a sheet. Both mount together, so they share one request.
+let pending: { at: number; req: Promise<Doc[]> } | null = null;
+function fetchRecent(fresh: boolean): Promise<Doc[]> {
+  if (fresh || !pending || Date.now() - pending.at > 5000) {
+    pending = {
+      at: Date.now(),
+      req: requestJson<Doc[]>("/api/docs").then(d => [...d].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, SHOW)),
+    };
+    pending.req.catch(() => { pending = null; });
+  }
+  return pending.req;
+}
+
+/** The newest docs (null while loading), whether the fetch failed, and a retry. */
+export function useRecentDocs() {
   const [docs, setDocs] = useState<Doc[] | null>(null);
   const [failed, setFailed] = useState(false);
-
-  const load = useCallback(() => {
+  const run = useCallback((fresh: boolean) => {
     setFailed(false);
-    requestJson<Doc[]>("/api/docs")
-      .then(d => setDocs([...d].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, SHOW)))
-      .catch(() => setFailed(true));
+    let live = true;
+    fetchRecent(fresh).then(d => { if (live) setDocs(d); }, () => { if (live) setFailed(true); });
+    return () => { live = false; };
   }, []);
-  useEffect(load, [load]);
+  useEffect(() => run(false), [run]);
+  return { docs, failed, retry: () => { run(true); } };
+}
+
+export function RecentDocs({ onAll, onAdd }: { onAll: () => void; onAdd?: () => void }) {
+  const { docs, failed, retry: load } = useRecentDocs();
 
   return (
     <section className="card rd" aria-label="Recently added docs">
