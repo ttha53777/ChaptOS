@@ -283,6 +283,14 @@ table {
   will-change: opacity, transform, filter;
 }
 
+/* Every page root is `h-screen` (100vh). In iOS Safari 100vh is the height
+   with the toolbars collapsed, and since the page scrolls inside <main> rather
+   than the document, they never collapse: the bottom of the page, and anything
+   pinned to it, sat under Safari's toolbar. dvh is what's actually visible. */
+@supports (height: 100dvh) {
+  .main-route-transition.h-screen { height: 100dvh; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .settings-route-transition,
   .main-route-transition {
