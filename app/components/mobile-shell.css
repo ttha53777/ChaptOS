@@ -1,0 +1,136 @@
+/* ── Phone shell: tab bar, bottom sheets, Create ─────────────────────────────
+   MobileTabBar.tsx + BottomSheet.tsx, in the Paper idiom (ink borders, hard
+   offset shadows, pastel tiles). The tab bar exists below 768px only; above
+   that the sidebar is the navigation.
+
+   Safari notes: env(safe-area-inset-bottom) needs viewportFit: "cover" (set in
+   app/layout.tsx). Write backdrop-filter unprefixed only — the CSS build adds
+   the -webkit- spelling, and declaring both keeps only the prefixed one. Hover
+   rules sit behind (hover: hover) so a tap doesn't leave them stuck on iOS. */
+
+:root {
+  --mtb-h: 60px;
+  /* The bar plus the home-indicator strip under it. */
+  --mtb-space: calc(var(--mtb-h) + env(safe-area-inset-bottom));
+}
+
+.mtb, .mtb-create, .mtb-tab, .bsheet button { -webkit-tap-highlight-color: transparent; }
+
+.mtb { display: none; }
+
+@media (max-width: 767px) {
+  .mtb {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: start;
+    height: var(--mtb-space); padding: 6px 8px env(safe-area-inset-bottom);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(14px) saturate(1.3);
+    border-top: 1.5px solid var(--line);
+  }
+
+  /* Room at the end of every page so its last row clears the bar. */
+  .main-route-transition main.overflow-y-auto::after { content: ""; display: block; height: var(--mtb-space); }
+
+  /* Ask Chapt and the live check-in bar float above the tab bar, not on it.
+     Ask Chapt folds to its spark (the label and the ⌘K hint mean nothing to a
+     thumb, and the full pill sat over the cards' right half). */
+  .chat-launcher {
+    bottom: calc(var(--mtb-space) + 12px) !important; right: 14px !important;
+    width: 50px; height: 50px; padding: 0 !important; justify-content: center;
+  }
+  .chat-launcher > span, .chat-launcher > .hint { display: none; }
+  .chat-launcher > .spark { width: 21px; height: 21px; }
+  .dash .lcb { bottom: calc(var(--mtb-space) + 10px); }
+  html[data-sheet] .chat-launcher,
+  html[data-sheet] .dash .lcb { visibility: hidden; }
+}
+
+.mtb-tab {
+  display: grid; justify-items: center; gap: 2px; padding: 4px 0 0; min-width: 0;
+  color: var(--muted); text-decoration: none; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-geist-sans); font-size: .66rem; font-weight: 600; letter-spacing: -.005em;
+}
+.mtb-ic {
+  position: relative; display: grid; place-items: center; width: 44px; height: 30px; border-radius: 10px;
+  border: 1.5px solid transparent; transition: background .18s, border-color .18s, box-shadow .18s, color .18s;
+}
+.mtb-ic svg { width: 21px; height: 21px; }
+.mtb-lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The page you're on is inked, like the sidebar's active row. */
+.mtb-tab[aria-current="page"] { color: var(--ink); }
+.mtb-tab[aria-current="page"] .mtb-ic {
+  background: var(--card); border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-butter, var(--gold));
+}
+.mtb-tab:active .mtb-ic { transform: translate(1px, 1px); box-shadow: none; }
+.mtb-badge {
+  position: absolute; top: -5px; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px;
+  display: grid; place-items: center; font-size: .6rem; font-weight: 700; font-style: normal;
+  background: var(--pp-peach, var(--rose)); color: var(--pp-note-ink, #26211B); border: 1.5px solid var(--paper);
+}
+.mtb-create {
+  justify-self: center; display: grid; place-items: center; width: 50px; height: 42px; margin-top: 1px;
+  border-radius: 14px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer;
+  box-shadow: 2.5px 2.5px 0 var(--pp-lilac, var(--vio));
+  transition: transform .18s var(--pp-ease-spring, ease), box-shadow .18s var(--pp-ease-spring, ease);
+}
+.mtb-create svg { width: 22px; height: 22px; }
+.mtb-create:active { transform: translate(1.5px, 1.5px); box-shadow: 1px 1px 0 var(--pp-lilac, var(--vio)); }
+
+/* ── Bottom sheet ──────────────────────────────────────────────────────────── */
+.bsheet-layer { position: fixed; inset: 0; z-index: 45; }
+.bsheet-scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; transition: opacity .28s; }
+.bsheet-layer.open .bsheet-scrim { opacity: 1; }
+.bsheet {
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: 88%; display: flex; flex-direction: column;
+  background: var(--card); color: var(--ink);
+  border: 1.5px solid var(--ink); border-bottom: 0; border-radius: 24px 24px 0 0;
+  box-shadow: 0 -3px 0 var(--pp-butter, var(--gold)), var(--pp-sh-3, 0 -20px 50px -20px rgba(0,0,0,.5));
+  transform: translateY(104%); transition: transform .34s var(--pp-ease-out, cubic-bezier(.2,.8,.2,1));
+  outline: none;
+}
+.bsheet.tall { height: 88%; }
+.bsheet-layer.open .bsheet { transform: translateY(0); }
+.bsheet.dragging { transition: none; }
+.bsheet-drag { flex: none; touch-action: none; cursor: grab; }
+.bsheet-grab { display: block; width: 40px; height: 5px; margin: 9px auto 2px; border-radius: 3px; background: var(--line-med); }
+.bsheet-h { display: flex; align-items: center; gap: 11px; padding: 8px 16px 12px; }
+.bsheet-h h2 {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 1.18rem; letter-spacing: -.024em; color: var(--ink);
+}
+.bsheet-x {
+  margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid var(--line-med); background: var(--paper); color: var(--muted); cursor: pointer;
+}
+.bsheet-x svg { width: 15px; height: 15px; }
+.bsheet-b {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bsheet, .bsheet-scrim { transition: none; }
+}
+
+/* ── Create ────────────────────────────────────────────────────────────────── */
+.mcr-hero {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 12px; padding: 14px 16px; text-align: left;
+  border-radius: 18px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer;
+  box-shadow: 3px 3px 0 var(--pp-lilac, var(--vio));
+}
+.mcr-hero > svg { width: 20px; height: 20px; flex: none; }
+.mcr-hero > svg:last-child { margin-left: auto; width: 16px; height: 16px; opacity: .7; }
+.mcr-hero b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.02rem; letter-spacing: -.02em; }
+.mcr-hero small { display: block; margin-top: 1px; font-size: .76rem; opacity: .72; }
+.mcr-hero:active { transform: translate(1.5px, 1.5px); box-shadow: 1px 1px 0 var(--pp-lilac, var(--vio)); }
+.mcr-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.mcr-it {
+  display: grid; justify-items: center; gap: 9px; padding: 16px 6px 13px; border-radius: 16px; cursor: pointer;
+  border: 1.5px solid var(--line); background: var(--paper);
+  font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 600; color: var(--ink); text-align: center;
+}
+.mcr-it .pp-tile { width: 40px; height: 40px; border-radius: 12px; }
+.mcr-it .pp-tile svg { width: 19px; height: 19px; }
+.mcr-it:active { border-color: var(--ink); background: var(--card); }
+@media (hover: hover) {
+  .mcr-it:hover { border-color: var(--line-med); background: var(--card); }
+}

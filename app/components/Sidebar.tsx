@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
 import { NAV_GROUPS, NAV_LABELS, applyNavOrder } from "@/lib/nav-order";
@@ -11,6 +11,7 @@ import { useChapter } from "../context/ChapterContext";
 import { useVocab } from "../hooks/useVocab";
 import { useNeedsOpen, useSidebarRail } from "../hooks/useSidebarPrefs";
 import { OrgSwitcher } from "./OrgSwitcher";
+import { MobileTabBar } from "./MobileTabBar";
 import { SidebarProfile } from "./SidebarProfile";
 import { SvgIcon } from "./SvgIcon";
 import { PaperIcon, type PaperIconName } from "./paper/PaperIcon";
@@ -146,12 +147,17 @@ function termLabel(sem: { label: string; startDate: string; endDate: string } | 
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-export function Sidebar({ open, onClose, activeSection, onNavClick }: {
+export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onNavClick }: {
   open: boolean;
   onClose: () => void;
   activeSection: string;
   onNavClick: (label: string) => void;
 }) {
+  // The page owns the hamburger's open state; the phone tab bar's More button
+  // opens the same drawer from here, without every page wiring it through.
+  const [moreOpen, setMoreOpen] = useState(false);
+  const open = pageOpen || moreOpen;
+  const onClose = useCallback(() => { setMoreOpen(false); pageClose(); }, [pageClose]);
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
@@ -453,6 +459,7 @@ export function Sidebar({ open, onClose, activeSection, onNavClick }: {
 
   return (
     <>
+      <MobileTabBar onMore={() => setMoreOpen(true)} />
       {open && <div className="sb-scrim" onClick={onClose} />}
       <aside
         ref={asideRef}

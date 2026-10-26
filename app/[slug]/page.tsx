@@ -67,6 +67,7 @@ import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { UpNext } from "../components/dashboard/ledger/UpNext";
 import { RecentDocs } from "../components/dashboard/ledger/RecentDocs";
+import { CREATE_EVENT, CREATE_PARAM, isCreateKey, type CreateKey } from "../components/MobileTabBar";
 import { DuesCard, GradesCard, InstagramCard, MetricCard, MoneyCard, ServiceCard } from "../components/dashboard/ledger/TrackCards";
 import { ActivitySpotlight } from "../components/dashboard/activity/ActivitySpotlight";
 import { ArrangeBands, DashGrid, type GridBand, type GridCard } from "../components/dashboard/customize/DashGrid";
@@ -1988,6 +1989,38 @@ export default function Home() {
     }
     setActiveModal(key);
   }
+
+  // The phone tab bar's Create sheet (MobileTabBar). Picked on this page it
+  // arrives as a window event; picked on another page it arrives as
+  // ?create=<key>, which waits for /me so the permission checks below are real.
+  const runCreate = useRef<(key: CreateKey) => void>(() => {});
+  runCreate.current = (key: CreateKey) => {
+    if (key === "checkin") { if (canAttendance) void openCheckInPicker(); return; }
+    if (key === "announcement") { if (canAnnounce) setAnnouncementEditorOpen(true); return; }
+    handleQuickAction(key);
+  };
+  useEffect(() => {
+    const on = (e: Event) => {
+      const key = (e as CustomEvent<{ key?: unknown }>).detail?.key;
+      if (isCreateKey(key)) runCreate.current(key);
+    };
+    window.addEventListener(CREATE_EVENT, on);
+    return () => window.removeEventListener(CREATE_EVENT, on);
+  }, []);
+  const [carriedCreate, setCarriedCreate] = useState<CreateKey | null>(null);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const key = url.searchParams.get(CREATE_PARAM);
+    if (key == null) return;
+    url.searchParams.delete(CREATE_PARAM);
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    if (isCreateKey(key)) setCarriedCreate(key);
+  }, []);
+  useEffect(() => {
+    if (!carriedCreate || !currentUser) return;
+    setCarriedCreate(null);
+    runCreate.current(carriedCreate);
+  }, [carriedCreate, currentUser]);
 
   function openPayDues(b: Brother) {
     setPayTarget(b);
