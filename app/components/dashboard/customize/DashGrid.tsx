@@ -13,9 +13,11 @@ import {
   type DashWidgetId,
   type DashboardLayout,
 } from "@/lib/dashboard-layout";
-import { PaperIcon, type PaperIconName, type PaperTone } from "../../paper/PaperIcon";
+import { PaperIcon, PaperTile, type PaperIconName, type PaperTone } from "../../paper/PaperIcon";
+import { BottomSheet } from "../../BottomSheet";
 import { thumbSvg } from "./thumbs";
 import { DashPortal } from "./DashPortal";
+import "../phone-dash.css";
 
 /** What every arrangeable widget needs to draw its folded strip and tray tile. */
 export interface WidgetMeta {
@@ -30,7 +32,18 @@ export interface GridCard extends WidgetMeta {
   node: React.ReactNode;
   /** Spans the full row once the grid collapses below desktop. */
   wide?: boolean;
+  /** On a phone the card folds to a half-width tile showing this summary, and
+   *  a tap opens the whole card in a bottom sheet. Omit to always show it whole. */
+  glance?: React.ReactNode;
+  /** The sheet fills most of the screen (cards that run long). */
+  tallSheet?: boolean;
 }
+
+// On a phone the grid is one stack, and the org's two-column order would put
+// whatever leads the rail second. What's happening now leads instead: up next,
+// what's on your plate, the week. Everything else keeps the org's order, and
+// the folded tiles close the page, two to a row.
+const PHONE_LEAD: DashCardId[] = ["announcement", "next", "needs", "week"];
 
 /** A fixed-place widget (the health dial) this org can have. */
 export interface GridBand extends WidgetMeta {
@@ -151,6 +164,7 @@ export function DashGrid({
   const shown = (c: Col) => layout[c].filter(k => !!cards[k] && !hidden.has(k));
 
   const [target, setTarget] = useState<(Target & { id: DashCardId; fromTray: boolean }) | null>(null);
+  const [sheet, setSheet] = useState<DashCardId | null>(null);
   const [landed, setLanded] = useState<DashWidgetId | null>(null);
   const [focusId, setFocusId] = useState<DashCardId | null>(null);
 
@@ -482,6 +496,17 @@ export function DashGrid({
     if (main[i]) order.push(main[i]);
     if (rail[i]) order.push(rail[i]);
   }
+  const phoneOrder = (k: DashCardId) => {
+    const lead = PHONE_LEAD.indexOf(k);
+    return lead > -1 ? lead : (cards[k]?.glance ? 200 : 100) + order.indexOf(k);
+  };
+  // An odd tile out takes the whole last row rather than leaving a hole.
+  const tiles = order.filter(k => cards[k]?.glance).sort((a, z) => phoneOrder(a) - phoneOrder(z));
+  const loneTile = tiles.length % 2 === 1 ? tiles[tiles.length - 1] : null;
+  // Keep the card in the sheet while it slides away.
+  const lastSheet = useRef<DashCardId | null>(null);
+  if (sheet) lastSheet.current = sheet;
+  const sheetCard = lastSheet.current ? cards[lastSheet.current] : undefined;
 
   const column = (c: Col, ids: DashCardId[]) => (
     <div
@@ -505,7 +530,22 @@ export function DashGrid({
           );
         }
         return (
-          <div key={k} data-w={k} className={`dw${card.wide ? " wide" : ""}`} style={{ order: order.indexOf(k) }}>
+          <div
+            key={k}
+            data-w={k}
+            className={`dw${card.wide ? " wide" : ""}${card.glance ? " has-glance" : ""}${loneTile === k ? " glance-wide" : ""}`}
+            style={{ order: order.indexOf(k), "--po": phoneOrder(k) } as React.CSSProperties}
+          >
+            {card.glance && (
+              <button type="button" className={`dw-glance pp-t-${card.tone}`} aria-haspopup="dialog" onClick={() => setSheet(k)}>
+                <span className="gl-h">
+                  <PaperTile icon={card.icon} tone={card.tone} />
+                  <span className="gl-lbl">{card.label}</span>
+                  <PaperIcon name="chev-r" className="pp-ic gl-chev" />
+                </span>
+                <span className="gl-b">{card.glance}</span>
+              </button>
+            )}
             <div className="dw-body">{card.node}</div>
           </div>
         );
@@ -554,6 +594,12 @@ export function DashGrid({
         {column("main", main)}
         {column("rail", rail)}
       </div>
+
+      {!editing && (
+        <BottomSheet open={!!sheet} onClose={() => setSheet(null)} title={sheetCard?.label ?? ""} icon={sheetCard?.icon} tone={sheetCard?.tone} tall={sheetCard?.tallSheet} className="dash-sheet">
+          {sheetCard?.node}
+        </BottomSheet>
+      )}
 
       {editing && (
         <DashPortal>

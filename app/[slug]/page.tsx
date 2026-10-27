@@ -67,6 +67,7 @@ import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { UpNext } from "../components/dashboard/ledger/UpNext";
 import { RecentDocs } from "../components/dashboard/ledger/RecentDocs";
+import { ActivityGlance, DocsGlance, MembersGlance, TreasuryGlance } from "../components/dashboard/PhoneGlances";
 import { CREATE_EVENT, CREATE_PARAM, isCreateKey, type CreateKey } from "../components/MobileTabBar";
 import { DuesCard, GradesCard, InstagramCard, MetricCard, MoneyCard, ServiceCard } from "../components/dashboard/ledger/TrackCards";
 import { ActivitySpotlight } from "../components/dashboard/activity/ActivitySpotlight";
@@ -2348,6 +2349,8 @@ export default function Home() {
       canInvite={canSettings}
       onCopyInvite={handleInvite}
     />
+  ), glance: (
+    <MembersGlance brothers={brotherList} thresholds={THRESHOLDS} standing={measured ?? tracked} loading={!rosterLoaded} error={rosterFailed} pending={canBrothers ? pendingJoins : 0} />
   ) };
   dashCards.week = { label: "This week", icon: "cal", tone: "butter", blurb: "Seven days at a glance", wide: true, node: (
     <ThisWeek
@@ -2379,10 +2382,12 @@ export default function Home() {
       onRetry={retrySections}
       onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
     />
+  ), glance: (
+    <TreasuryGlance balance={liveBalance} projected={liveProjected} trend={liveTrend} loading={!treasuryLoaded} error={treasuryFailed} />
   ) };
   dashCards.activity = { label: "Activity", icon: "spark", tone: "rose", blurb: "What changed lately", node: (
     <ActivityRail entries={activityFeed} loading={!activityLoaded} error={activityFailed} onRetry={retrySections} onAll={origin => setActivitySpot({ origin })} />
-  ) };
+  ), glance: <ActivityGlance entries={activityFeed} loading={!activityLoaded} error={activityFailed} /> };
 
   // The pinned note: full width in the spot under the health dial, or a card in
   // a column, wherever the org's layout put it.
@@ -2411,7 +2416,7 @@ export default function Home() {
   ) };
   if (isNavVisible("Docs", currentUser?.org?.enabledWorkflows ?? [])) dashCards.docs = { label: "Recent docs", icon: "doc", tone: "sky", blurb: "The newest docs in the library", node: (
     <RecentDocs onAll={() => router.push(orgPath("/docs"))} onAdd={can("MANAGE_DOCS") ? () => router.push(orgPath("/docs")) : undefined} />
-  ) };
+  ), glance: <DocsGlance /> };
 
   // Opt-in cards: each exists only when the org tracks that thing, and none is
   // on anyone's dashboard until an admin brings it in from the Arrange tray.
@@ -2478,7 +2483,21 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="truncate text-[13px] font-semibold text-[color:var(--ink)]">Dashboard</span>
+          {/* Phones get the org's name here under a small "Dashboard", and
+              your own face on the right, which opens your standing (the
+              briefing's My standing chip folds away below 768px). */}
+          <span className="tb-stack min-w-0 flex-1">
+            <span className="tb-org md:hidden">Dashboard</span>
+            <span className="tb-title block truncate text-[13px] font-semibold text-[color:var(--ink)]">
+              <span className="md:hidden">{currentUser?.org?.name ?? "Dashboard"}</span>
+              <span className="hidden md:inline">Dashboard</span>
+            </span>
+          </span>
+          {selfId !== null && currentUser && brotherList.some(b => b.id === selfId) && (
+            <button type="button" className="tb-me md:hidden" onClick={() => setSelectedBrotherId(selfId)} aria-label="My standing">
+              <BrotherAvatar brother={{ id: selfId, name: currentUser.name ?? "", avatarUrl: currentUser.avatarUrl ?? null }} selfId={selfId} selfAvatarUrl={currentUser.avatarUrl} avatarRevision={avatarRevision} size="sm" />
+            </button>
+          )}
         </header>
 
         {/* ── Scrollable body ──────────────────────────────────────────────── */}

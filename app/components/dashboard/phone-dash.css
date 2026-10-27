@@ -1,0 +1,99 @@
+/* ── The dashboard on a phone (below 768px) ───────────────────────────────────
+   The desktop page, reshaped for one thumb:
+   - the briefing keeps its greeting and digest; its action chips fold away
+     (Create in the tab bar, My standing on your face in the toolbar, Arrange
+     stays a desktop tool);
+   - the headline numbers sit on one row;
+   - cards stack in phone order (DashGrid's --po): up next, your plate, the
+     week, then the rest; cards with a `glance` fold into half-width tiles that
+     open the card in a bottom sheet.
+   Overrides of paper rules carry the same html[data-aesthetic] prefix. */
+
+.dash .dw-glance { display: none; }
+
+/* toolbar: org + day, and your avatar */
+header.dash-toolbar .tb-stack { display: grid; line-height: 1.15; }
+header.dash-toolbar .tb-me {
+  flex: none; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+  border: 1.5px solid var(--ink); background: var(--card); box-shadow: 2px 2px 0 var(--pp-mint, var(--ok));
+  -webkit-tap-highlight-color: transparent;
+}
+header.dash-toolbar .tb-me:active { transform: translate(1px, 1px); box-shadow: none; }
+
+@media (max-width: 767px) {
+  html[data-aesthetic="paper"] .dash { padding: 16px 16px 64px; }
+
+  /* briefing */
+  html[data-aesthetic="paper"] .dash h1.greeting { font-size: clamp(1.75rem, 7.8vw, 2.1rem); margin-top: 10px; }
+  html[data-aesthetic="paper"] .dash .digest { margin-top: 10px; }
+  html[data-aesthetic="paper"] .dash .digest p,
+  html[data-aesthetic="paper"] .dash .digest .digest-loading { font-size: .95rem; line-height: 1.5; }
+  .dash .brief-actions { display: none; }
+
+  /* numbers: one row, however many the org picked (three at most) */
+  html[data-aesthetic="paper"] .dash .dn .ledger {
+    margin-top: 16px; gap: 8px;
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  }
+  html[data-aesthetic="paper"] .dash .dn .measure { padding: 11px 11px 10px; border-radius: 17px; min-width: 0; }
+  html[data-aesthetic="paper"] .dash .dn .measure .k { gap: 5px; font-size: .56rem; letter-spacing: .07em; white-space: nowrap; overflow: hidden; }
+  html[data-aesthetic="paper"] .dash .dn .measure .k svg { width: 12px; height: 12px; }
+  html[data-aesthetic="paper"] .dash .dn .measure .v { margin-top: 7px; font-size: 1.42rem; white-space: nowrap; }
+  html[data-aesthetic="paper"] .dash .dn .measure .v small { font-size: .7rem; margin-left: 2px; }
+  html[data-aesthetic="paper"] .dash .dn .measure .note { margin-top: 4px; font-size: .62rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html[data-aesthetic="paper"] .dash .dn .pp-meter { height: 6px; margin-top: 9px; }
+
+  /* the stack */
+  html[data-aesthetic="paper"] .dash > .grid { margin-top: 14px; }
+  .dash > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 10px; }
+  /* !important: DashGrid sets the desktop order inline. */
+  .dash > .grid > .col > .dw { grid-column: 1 / -1; order: var(--po) !important; }
+  .dash > .grid > .col > .dw.has-glance:not(.glance-wide) { grid-column: auto; }
+  .dash > .grid > .col > .dw.has-glance > .dw-body { display: none; }
+
+  /* a folded card */
+  .dash .dw-glance {
+    display: flex; flex-direction: column; gap: 9px; width: 100%; height: 100%; min-height: 124px; padding: 12px 13px 13px;
+    text-align: left; cursor: pointer; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 20px; box-shadow: var(--pp-sh-1, var(--shadow));
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color .15s, transform .15s;
+  }
+  .dash .dw-glance:active { border-color: var(--ink); transform: scale(.985); }
+}
+
+.dash .gl-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dash .gl-h .pp-tile { width: 26px; height: 26px; border-radius: 8px; }
+.dash .gl-h .pp-tile svg { width: 14px; height: 14px; }
+.dash .gl-lbl {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 650; letter-spacing: -.01em; color: var(--ink-soft);
+}
+.dash .gl-chev { margin-left: auto; flex: none; width: 14px; height: 14px; color: var(--muted); }
+.dash .gl-b { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.dash .gl-v {
+  font-family: var(--font-fraunces); font-weight: 600; font-size: 1.6rem; letter-spacing: -.04em; line-height: 1.05; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash .gl-v.unset { color: var(--muted); }
+.dash .gl-n {
+  margin-top: auto; font-family: var(--mono); font-size: .66rem; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dash .gl-n.warn { color: var(--pp-peach-ink, var(--risk)); }
+.dash .gl-line {
+  font-size: .84rem; font-weight: 500; line-height: 1.32; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.dash .gl-bands { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; margin: 2px 0; }
+.dash .gl-bands i { display: block; height: 100%; }
+.dash .gl-spark svg { display: block; width: 100%; height: auto; }
+.dash .gl-skv { display: block; width: 58%; height: 22px; border-radius: 6px; }
+.dash .gl-skn { display: block; width: 82%; height: 9px; margin-top: auto; border-radius: 4px; }
+
+/* A card opened in the sheet: the sheet is its frame and carries its name. */
+.dash .dash-sheet .bsheet-b { padding-left: 0; padding-right: 0; }
+html[data-aesthetic="paper"] .dash .dash-sheet .card { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.dash .dash-sheet .card > .card-h > :is(.pp-tile, h2) { display: none; }
+html[data-aesthetic="paper"] .dash .dash-sheet .card > .card-h { padding-top: 0; }
+html[data-aesthetic="paper"] .dash .dash-sheet .card-f { background: transparent; }
