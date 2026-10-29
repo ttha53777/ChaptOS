@@ -1,0 +1,1087 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS Pricing</title>
+<!--
+  Pricing page, paper aesthetic. Every figure and rule on this page is taken
+  from the code, not from the old pricing page:
+
+    bands, prices, ceiling ........ lib/billing/tiers.ts  (BILLING_BANDS, SELF_SERVE_MAX)
+    what counts as a seat ......... lib/billing/seats.ts  (active roster rows; archived + ghosts excluded)
+    the gate (only growth stops) .. lib/billing/guard.ts
+    good standing ................. lib/state/subscription-status.ts
+    monthly, USD .................. scripts/stripe-setup.ts (interval: month, currency: usd)
+    promo codes ................... checkout.sessions.create({ allow_promotion_codes: true })
+    admin-only billing ............ assertCanManageBilling
+    group plan offer .............. GROUP_PLAN_ORG_THRESHOLD = 2
+    pending requests don't count .. AGENTS.md: a JoinRequest creates no Membership
+
+  The roster names and the crowd are illustrative.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (copied from Dashboard Paper Mock / paper-aesthetic.css) ---------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85; --wash-op:.55;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px; --r-pill:999px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  --btn-fg-on-ink:#FFFCF6;
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --note-filter:brightness(.93) saturate(.85); --mark-op:.42; --wash-op:.9;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  --btn-fg-on-ink:#15110D;
+  color-scheme:dark;
+}
+
+/* ---------- base ---------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.6; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+h1,h2,h3,h4,p,ul,ol,figure{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input{font:inherit; color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px; border-radius:6px}
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.wrap{width:min(1180px, 100% - 32px); margin-inline:auto}
+
+/* paper washes */
+.washes{position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; opacity:var(--wash-op)}
+.washes i{position:absolute; border-radius:50%; filter:blur(60px)}
+.washes i:nth-child(1){width:560px; height:560px; left:-180px; top:-140px; background:radial-gradient(circle, var(--butter-soft), transparent 70%)}
+.washes i:nth-child(2){width:620px; height:620px; right:-220px; top:18vh; background:radial-gradient(circle, var(--lilac-soft), transparent 70%)}
+.washes i:nth-child(3){width:520px; height:520px; left:20vw; bottom:-200px; background:radial-gradient(circle, var(--sky-soft), transparent 70%)}
+.washes i:nth-child(4){width:420px; height:420px; right:10vw; bottom:10vh; background:radial-gradient(circle, var(--rose-soft), transparent 70%)}
+
+/* highlighter */
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.1em; right:-.1em; bottom:.06em; height:.46em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op);
+  transition:transform .9s var(--ease-spring) .35s;
+}
+.rv:not(.in) .hi::before, .boot .hi::before{--mx:0}
+
+.eyebrow{display:inline-flex; align-items:center; gap:10px; font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:22px; height:2px; border-radius:2px; background:var(--eb, var(--peach-ink))}
+
+h1,h2,h3{font-family:var(--display); font-weight:600; letter-spacing:-.03em; line-height:1.05; font-variation-settings:'opsz' 96}
+h2{font-size:clamp(2rem, 4.2vw, 3.2rem)}
+.lede{font-size:1.1rem; color:var(--ink-2); max-width:56ch}
+
+/* buttons (landing.css .btn) */
+.btn{
+  --btn-bg:var(--ink); --btn-fg:var(--btn-fg-on-ink); --btn-shadow:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:14px 24px; border-radius:var(--r-pill); border:1.5px solid var(--ink);
+  background:var(--btn-bg); color:var(--btn-fg);
+  font-weight:600; font-size:.97rem; letter-spacing:-.01em; text-decoration:none;
+  box-shadow:3px 3px 0 var(--btn-shadow);
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .18s;
+  white-space:nowrap;
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:5.5px 5.5px 0 var(--btn-shadow)}
+.btn:active{transform:translate(1px,1px); box-shadow:1.5px 1.5px 0 var(--btn-shadow)}
+.btn--ghost{--btn-bg:transparent; --btn-fg:var(--ink); --btn-shadow:var(--peach)}
+.btn--sm{padding:9.5px 17px; font-size:.88rem; box-shadow:2.5px 2.5px 0 var(--btn-shadow)}
+.btn--lg{padding:17px 30px; font-size:1.04rem}
+.btn svg{width:18px; height:18px}
+
+/* ---------- nav ---------- */
+.nav{position:sticky; top:0; z-index:40; transition:background .3s, box-shadow .3s, backdrop-filter .3s}
+.nav.stuck{background:color-mix(in srgb, var(--paper) 82%, transparent); backdrop-filter:blur(12px); box-shadow:0 1px 0 var(--line)}
+.nav__in{display:flex; align-items:center; gap:28px; height:72px}
+.brand{display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:700; font-size:1.22rem; letter-spacing:-.03em; text-decoration:none}
+.brand svg{width:32px; height:32px}
+.nav__links{display:flex; gap:24px; margin-left:12px}
+.nav__links a{font-size:.92rem; font-weight:500; color:var(--ink-2); text-decoration:none; position:relative}
+.nav__links a:hover{color:var(--ink)}
+.nav__links a.here{color:var(--ink); font-weight:600}
+.nav__links a.here::after{content:''; position:absolute; left:-2px; right:-2px; bottom:-5px; height:3px; border-radius:3px; background:var(--peach-ink); transform:rotate(-1deg)}
+.nav__cta{display:flex; gap:10px; align-items:center; margin-left:auto}
+.theme{width:38px; height:38px; border-radius:50%; border:1.5px solid var(--line-2); background:var(--card); display:grid; place-items:center}
+.theme svg{width:17px; height:17px}
+@media (max-width: 860px){ .nav__links{display:none} .nav .btn--ghost{display:none} }
+
+/* ---------- reveal ---------- */
+.rv{opacity:0; transform:translateY(22px); transition:opacity .8s var(--ease-out), transform .9s var(--ease-spring)}
+.rv.in{opacity:1; transform:none}
+.rv[data-d="1"]{transition-delay:.08s} .rv[data-d="2"]{transition-delay:.16s} .rv[data-d="3"]{transition-delay:.24s} .rv[data-d="4"]{transition-delay:.32s}
+
+section{position:relative}
+.sec{padding:120px 0 40px}
+.sec-h{display:grid; gap:16px; max-width:760px; margin-bottom:52px}
+
+/* ---------- HERO ---------- */
+.hero{padding:44px 0 40px}
+.hero__grid{display:grid; grid-template-columns:minmax(0, .92fr) minmax(0, 1.08fr); gap:56px; align-items:center}
+.hero h1{font-size:clamp(2.6rem, 6vw, 4.6rem); margin-top:18px}
+.hero .lede{margin-top:22px}
+.hero__cta{display:flex; flex-wrap:wrap; gap:14px; margin-top:32px; align-items:center}
+.hero__fine{margin-top:18px; display:flex; flex-wrap:wrap; gap:8px 18px; font-size:.86rem; color:var(--ink-3)}
+.hero__fine span{display:inline-flex; gap:7px; align-items:center}
+.hero__fine svg{width:15px; height:15px; color:var(--mint-ink)}
+.scribble{position:absolute; color:var(--peach-ink); pointer-events:none}
+
+/* the meter */
+.meter{
+  --tone:var(--sky); --tone-soft:var(--sky-soft); --tone-ink:var(--sky-ink); --tone-bd:var(--sky-bd);
+  position:relative; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-xl);
+  box-shadow:6px 6px 0 var(--tone); padding:26px 26px 22px;
+  transition:box-shadow .5s var(--ease-spring);
+}
+.meter[data-band="free"]{--tone:var(--butter); --tone-soft:var(--butter-soft); --tone-ink:var(--butter-ink); --tone-bd:var(--butter-bd)}
+.meter[data-band="pro"]{--tone:var(--lilac); --tone-soft:var(--lilac-soft); --tone-ink:var(--lilac-ink); --tone-bd:var(--lilac-bd)}
+.meter[data-band="custom"]{--tone:var(--rose); --tone-soft:var(--rose-soft); --tone-ink:var(--rose-ink); --tone-bd:var(--rose-bd)}
+.meter__top{display:flex; justify-content:space-between; gap:16px; align-items:flex-start; min-height:150px}
+.meter__q{font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.meter__count{display:flex; align-items:baseline; gap:10px; margin-top:6px}
+.meter__count b{font-family:var(--display); font-weight:700; font-size:clamp(3.4rem, 7vw, 5rem); line-height:.95; letter-spacing:-.05em; font-variant-numeric:tabular-nums}
+.meter__count span{font-size:1rem; color:var(--ink-2); font-weight:500}
+.meter__band{display:inline-flex; align-items:center; gap:8px; margin-top:12px; padding:5px 12px 5px 8px; border-radius:var(--r-pill); background:var(--tone-soft); border:1px solid var(--tone-bd); color:var(--tone-ink); font-size:.8rem; font-weight:600; transition:background .4s, color .4s}
+.meter__band i{width:9px; height:9px; border-radius:50%; background:var(--tone-ink)}
+
+/* hanging price tag */
+.tag{position:relative; width:184px; flex:none; margin-top:-48px; transform-origin:50% 0; animation:idle 6s ease-in-out infinite}
+.tag.swing{animation:swing 1.3s var(--ease-out)}
+@keyframes idle{0%,100%{transform:rotate(-1.4deg)} 50%{transform:rotate(1.4deg)}}
+@keyframes swing{0%{transform:rotate(0)} 18%{transform:rotate(9deg)} 40%{transform:rotate(-6deg)} 62%{transform:rotate(3.5deg)} 82%{transform:rotate(-1.4deg)} 100%{transform:rotate(-1.4deg)}}
+.tag__string{display:block; margin:0 auto; width:2px; height:34px; background:var(--ink-3); border-radius:2px}
+.tag__body{
+  position:relative; background:var(--tone); color:var(--note-ink); filter:var(--note-filter);
+  border:1.5px solid var(--ink); border-radius:14px 14px 18px 18px; padding:28px 16px 16px; text-align:center;
+  clip-path:polygon(22% 0, 78% 0, 100% 16%, 100% 100%, 0 100%, 0 16%);
+  transition:background .45s var(--ease-out);
+}
+.tag__hole{position:absolute; top:8px; left:50%; width:12px; height:12px; margin-left:-6px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink)}
+.tag__price{font-family:var(--display); font-weight:800; font-size:3.1rem; line-height:1; letter-spacing:-.05em; font-variant-numeric:tabular-nums; display:flex; justify-content:center; overflow:hidden; height:3.15rem}
+.tag__price .roll.word{font-size:2.2rem; line-height:1.45}
+.tag__price .roll{display:inline-block; animation:roll .55s var(--ease-spring)}
+@keyframes roll{from{transform:translateY(60%); opacity:0} to{transform:none; opacity:1}}
+.tag__per{font-size:.76rem; font-weight:600; margin-top:6px; line-height:1.3}
+.tag__per small{display:block; font-family:var(--mono); font-weight:500; font-size:.68rem; opacity:.72; margin-top:3px}
+
+/* rubber stamp */
+.stamp{
+  position:absolute; right:44px; top:var(--stamp-top, 236px); z-index:3; pointer-events:none;
+  padding:5px 13px; border:3px solid var(--st, var(--tone-ink)); border-radius:9px; color:var(--st, var(--tone-ink));
+  font-family:var(--mono); font-weight:700; font-size:1.02rem; letter-spacing:.16em; text-transform:uppercase;
+  transform:rotate(-11deg); opacity:0; mix-blend-mode:multiply;
+  box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--st, var(--tone-ink)) 25%, transparent);
+}
+html[data-theme="dark"] .stamp{mix-blend-mode:normal}
+.meter .stamp{background:color-mix(in srgb, var(--card) 86%, transparent)}
+.stamp.thud{animation:thud .6s var(--ease-spring) forwards}
+@keyframes thud{0%{transform:rotate(-11deg) scale(2.3); opacity:0} 55%{transform:rotate(-11deg) scale(.92); opacity:.95} 100%{transform:rotate(-11deg) scale(1); opacity:.82}}
+
+/* crowd */
+.crowd{display:grid; grid-template-columns:repeat(24, minmax(0,1fr)); gap:4px; margin:20px 0 18px; padding:14px; border-radius:var(--r-md); background:var(--paper-2); border:1.5px dashed var(--line-2)}
+.p{position:relative; aspect-ratio:1/1.15; border-radius:5px}
+.p::before,.p::after{content:''; position:absolute; left:50%; background:var(--line); transition:background .3s, transform .45s var(--ease-spring)}
+.p::before{top:4%; width:46%; aspect-ratio:1; margin-left:-23%; border-radius:50%}
+.p::after{bottom:4%; width:84%; height:42%; margin-left:-42%; border-radius:50% 50% 22% 22%}
+.p.on::before,.p.on::after{background:var(--c, var(--sky-ink))}
+.p.on{animation:pop .4s var(--ease-spring) both; animation-delay:var(--dl, 0s)}
+@keyframes pop{0%{transform:scale(.2) translateY(6px)} 100%{transform:none}}
+.p[data-b="free"]{--c:var(--butter-ink)} .p[data-b="standard"]{--c:var(--sky-ink)} .p[data-b="pro"]{--c:var(--lilac-ink)} .p[data-b="custom"]{--c:var(--rose-ink)}
+.crowd .edge{outline:1.5px dashed var(--ink-3); outline-offset:1px}
+
+/* slider + band ruler */
+.dial{position:relative; padding-top:6px}
+.dial input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:44px; background:transparent; margin:0; position:relative; z-index:2; cursor:grab}
+.dial input:active{cursor:grabbing}
+.dial input::-webkit-slider-runnable-track{height:12px; background:transparent}
+.dial input::-moz-range-track{height:12px; background:transparent}
+.dial input::-webkit-slider-thumb{-webkit-appearance:none; width:30px; height:30px; margin-top:-9px; border-radius:50%; background:var(--card); border:2px solid var(--ink); box-shadow:2.5px 2.5px 0 var(--tone); transition:transform .15s var(--ease-spring)}
+.dial input::-moz-range-thumb{width:28px; height:28px; border-radius:50%; background:var(--card); border:2px solid var(--ink); box-shadow:2.5px 2.5px 0 var(--tone)}
+.dial input:active::-webkit-slider-thumb{transform:scale(1.12)}
+.ruler{position:absolute; left:15px; right:15px; top:22px; height:12px; display:flex; border-radius:6px; overflow:hidden; border:1.5px solid var(--ink); z-index:1}
+.ruler i{display:block; height:100%; transition:filter .3s}
+.ruler i+i{border-left:1.5px solid var(--ink)}
+.ruler .r-free{background:var(--butter)} .ruler .r-standard{background:var(--sky)} .ruler .r-pro{background:var(--lilac)}
+.ruler .r-custom{background:repeating-linear-gradient(135deg, var(--rose) 0 6px, var(--rose-soft) 6px 12px)}
+.ruler i.dim{filter:saturate(.25) opacity(.55)}
+.ticks{position:relative; height:34px; margin:0 15px; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.ticks span{position:absolute; top:4px; transform:translateX(-50%); white-space:nowrap; text-align:center; line-height:1.25}
+.ticks span b{display:block; color:var(--ink); font-weight:600}
+.meter__note{display:flex; gap:12px; align-items:flex-start; margin-top:10px; padding:12px 14px; border-radius:12px; background:var(--tone-soft); border:1px solid var(--tone-bd); font-size:.9rem; color:var(--ink); min-height:68px; transition:background .4s}
+.meter__note svg{width:20px; height:20px; flex:none; color:var(--tone-ink); margin-top:2px}
+.meter__note p{transition:opacity .25s}
+.presets{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+.chip{padding:6px 12px; border-radius:var(--r-pill); border:1.5px solid var(--line-2); background:var(--card); font-size:.8rem; font-weight:500; color:var(--ink-2); transition:border-color .2s, background .2s, transform .2s var(--ease-spring)}
+.chip:hover{border-color:var(--ink); color:var(--ink); transform:translateY(-1px)}
+.chip .mono{font-weight:600; color:var(--ink)}
+.chip.on{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+.chip.on .mono{color:var(--paper)}
+.perhead{font-family:var(--mono); font-size:.74rem; color:var(--ink-3); margin-top:6px}
+
+@media (max-width: 980px){
+  .hero__grid{grid-template-columns:minmax(0,1fr); gap:72px}
+}
+@media (max-width: 560px){
+  .meter{padding:20px 16px 18px; box-shadow:4px 4px 0 var(--tone)}
+  .tag{width:136px; margin-top:-40px}
+  .tag__price{font-size:2.3rem; height:2.4rem}
+  .crowd{grid-template-columns:repeat(20, minmax(0,1fr)); gap:3px; padding:10px}
+  .meter .stamp{--stamp-top:250px; right:16px; font-size:.86rem}
+  .scribble{display:none}
+}
+
+/* ---------- clothesline of bands ---------- */
+.line-wrap{position:relative; padding-top:40px}
+.clothes{position:absolute; left:-4%; right:-4%; top:0; height:90px; pointer-events:none; color:var(--ink-3)}
+.bands{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:22px; position:relative}
+.band{
+  --tone:var(--sky); --tone-soft:var(--sky-soft); --tone-ink:var(--sky-ink);
+  position:relative; transform-origin:50% -30px;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg); padding:34px 22px 22px;
+  box-shadow:4px 4px 0 var(--tone);
+  transition:transform .5s var(--ease-spring), box-shadow .4s var(--ease-spring);
+}
+.band:nth-child(1){--tone:var(--butter); --tone-soft:var(--butter-soft); --tone-ink:var(--butter-ink); --rot:-2deg; margin-top:22px}
+.band:nth-child(2){--rot:1.2deg; margin-top:6px}
+.band:nth-child(3){--tone:var(--lilac); --tone-soft:var(--lilac-soft); --tone-ink:var(--lilac-ink); --rot:-1deg; margin-top:6px}
+.band:nth-child(4){--tone:var(--rose); --tone-soft:var(--rose-soft); --tone-ink:var(--rose-ink); --rot:2deg; margin-top:22px}
+.band{transform:rotate(var(--rot))}
+.rv.band:not(.in){transform:rotate(calc(var(--rot) * 5)) translateY(-40px)}
+.band:hover{transform:rotate(0) translateY(-4px); box-shadow:7px 7px 0 var(--tone)}
+.band.lit{box-shadow:7px 7px 0 var(--tone), 0 0 0 5px var(--tone-soft)}
+.band .peg{position:absolute; top:-26px; left:50%; width:16px; height:44px; margin-left:-8px; border-radius:4px; background:var(--paper-3); border:1.5px solid var(--ink); z-index:2}
+.band .peg::after{content:''; position:absolute; left:50%; top:10px; width:4px; height:14px; margin-left:-2px; border-radius:2px; background:var(--ink-3)}
+.band__k{font-family:var(--mono); font-size:.7rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--tone-ink)}
+.band__name{font-family:var(--display); font-size:1.6rem; font-weight:700; letter-spacing:-.03em; margin-top:4px}
+.band__price{display:flex; align-items:baseline; gap:6px; margin-top:16px}
+.band__price b{font-family:var(--display); font-weight:800; font-size:3rem; letter-spacing:-.05em; line-height:1}
+.band__price span{font-size:.85rem; color:var(--ink-2)}
+.band__range{display:inline-block; margin-top:14px; padding:4px 10px; border-radius:8px; background:var(--tone-soft); font-family:var(--mono); font-size:.8rem; font-weight:600; color:var(--tone-ink)}
+.band p{margin-top:14px; font-size:.9rem; color:var(--ink-2)}
+.band .mini{margin-top:16px; padding-top:14px; border-top:1.5px dashed var(--line-2); font-size:.82rem; color:var(--ink-3); display:flex; gap:8px; align-items:center}
+.band .mini svg{width:16px; height:16px; color:var(--tone-ink); flex:none}
+.band.q .band__price b{font-size:2.3rem}
+@media (max-width: 980px){ .bands{grid-template-columns:repeat(2, minmax(0,1fr)); row-gap:56px} .clothes{display:none} }
+@media (max-width: 560px){ .bands{grid-template-columns:minmax(0,1fr)} .band{margin-top:0 !important; --rot:0deg !important} .rv.band:not(.in){transform:translateY(-30px)} }
+
+/* ---------- every feature, every plan ---------- */
+.sheet{position:relative; background:var(--card); border:1.5px solid var(--line-2); border-radius:var(--r-xl); box-shadow:var(--sh-2); overflow:hidden}
+.sheet::before{content:''; position:absolute; inset:0; background:repeating-linear-gradient(0deg, transparent 0 51px, var(--sky-bd) 51px 52px); opacity:.5; pointer-events:none}
+.sheet::after{content:''; position:absolute; top:0; bottom:0; left:64px; width:1.5px; background:var(--rose-bd); pointer-events:none}
+.grid-t{position:relative; width:100%; border-collapse:collapse}
+.grid-t th, .grid-t td{height:52px; padding:0 14px; text-align:center}
+.grid-t thead th{height:84px; vertical-align:bottom; padding-bottom:12px}
+.grid-t th:first-child, .grid-t td:first-child{text-align:left; padding-left:88px}
+.grid-t thead .col{display:inline-grid; gap:2px; justify-items:center}
+.grid-t thead .col b{font-family:var(--display); font-size:1.2rem; font-weight:700; letter-spacing:-.03em}
+.grid-t thead .col span{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); font-weight:500}
+.grid-t thead .col i{width:30px; height:6px; border-radius:3px; margin-bottom:6px}
+.grid-t td:first-child{font-weight:600; font-size:.95rem}
+.grid-t td:first-child small{display:block; font-weight:400; font-size:.78rem; color:var(--ink-3); line-height:1.2}
+.grid-t td:first-child .fx{display:flex; align-items:center; gap:12px}
+.grid-t td:first-child .fx svg{width:20px; height:20px; color:var(--ink-3); flex:none}
+.tick{display:inline-grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--mint-soft); color:var(--mint-ink)}
+.tick svg{width:18px; height:18px}
+.tick path{stroke-dasharray:24; stroke-dashoffset:24; transition:stroke-dashoffset .5s var(--ease-out); transition-delay:var(--td, 0s)}
+.sheet.in .tick path{stroke-dashoffset:0}
+.grid-t tr.cap td{font-family:var(--mono); font-weight:600; font-size:.88rem}
+.grid-t tr.cap td:first-child{font-family:var(--sans)}
+.sheet-foot{position:relative; display:flex; flex-wrap:wrap; gap:14px 24px; align-items:center; justify-content:space-between; padding:20px 28px 20px 88px; border-top:1.5px dashed var(--line-2); background:var(--paper-2)}
+.sheet-foot p{font-size:.92rem; color:var(--ink-2); max-width:62ch}
+.sheet .bigstamp{position:absolute; left:110px; right:auto; top:28px; bottom:auto; --st:var(--mint-ink); z-index:2}
+.sheet.in .bigstamp{animation:thud .6s var(--ease-spring) 1.3s forwards}
+.scroll-x{overflow-x:auto}
+@media (max-width: 760px){
+  .sheet::after{left:22px}
+  .grid-t th:first-child, .grid-t td:first-child{padding-left:38px}
+  .grid-t th, .grid-t td{padding:0 6px}
+  .grid-t thead .col b{font-size:.95rem}
+  .grid-t thead .col span{font-size:.62rem}
+  .tick{width:24px; height:24px} .tick svg{width:14px; height:14px}
+  .grid-t td:first-child .fx svg{display:none}
+  .grid-t td:first-child small{display:none}
+  .grid-t td:first-child{font-size:.84rem}
+  .sheet-foot{padding:18px 18px 18px 38px}
+  .sheet .bigstamp{display:none}
+}
+
+/* ---------- who counts (clipboard) ---------- */
+.counts{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); gap:56px; align-items:center}
+.rules{display:grid; gap:14px; margin-top:28px}
+.rule{display:grid; grid-template-columns:36px minmax(0,1fr); gap:14px; align-items:start; padding:14px 16px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line)}
+.rule .ri{width:36px; height:36px; border-radius:11px; display:grid; place-items:center; background:var(--ri-bg); color:var(--ri-ink)}
+.rule .ri svg{width:19px; height:19px}
+.rule b{display:block; font-size:.98rem}
+.rule span{font-size:.88rem; color:var(--ink-2)}
+.rule.yes{--ri-bg:var(--mint-soft); --ri-ink:var(--mint-ink)}
+.rule.no{--ri-bg:var(--paper-3); --ri-ink:var(--ink-3)}
+
+.clip{position:relative; padding:44px 26px 24px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg); box-shadow:6px 6px 0 var(--sky); transform:rotate(.8deg)}
+.clip__clamp{position:absolute; top:-18px; left:50%; width:130px; height:40px; margin-left:-65px; border-radius:10px 10px 6px 6px; background:var(--paper-3); border:1.5px solid var(--ink); box-shadow:0 3px 0 var(--line-2)}
+.clip__clamp::after{content:''; position:absolute; top:8px; left:50%; width:34px; height:10px; margin-left:-17px; border-radius:6px; background:var(--card); border:1.5px solid var(--ink)}
+.clip__h{display:flex; justify-content:space-between; align-items:flex-end; gap:12px; padding-bottom:12px; border-bottom:2px solid var(--ink)}
+.clip__h h3{font-size:1.25rem}
+.clip__h .tally{text-align:right}
+.clip__h .tally b{display:block; font-family:var(--display); font-weight:800; font-size:2.4rem; line-height:1; letter-spacing:-.05em; font-variant-numeric:tabular-nums}
+.clip__h .tally span{font-family:var(--mono); font-size:.68rem; color:var(--ink-3); text-transform:uppercase; letter-spacing:.1em}
+.roster{display:grid}
+.row{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:12px; align-items:center; padding:9px 2px; border-bottom:1px solid var(--paper-3); font-size:.9rem; transition:opacity .5s, transform .6s var(--ease-spring), max-height .5s var(--ease-out), padding .5s; max-height:56px; overflow:hidden}
+.av{width:30px; height:30px; border-radius:50%; display:grid; place-items:center; font-size:.68rem; font-weight:700; color:rgba(38,33,27,.72); background:var(--av)}
+.row .nm{font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.row .nm small{font-weight:400; color:var(--ink-3); margin-left:6px}
+.pill{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--r-pill); font-size:.72rem; font-weight:600; background:var(--p-bg); color:var(--p-fg); border:1px solid var(--p-bd); white-space:nowrap}
+.pill--y{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd)}
+.pill--n{--p-bg:var(--paper-2); --p-fg:var(--ink-3); --p-bd:var(--line)}
+.pill--s{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd)}
+.row.senior .nm{position:relative}
+.row.senior .nm::after{content:''; position:absolute; left:0; top:52%; height:2px; width:var(--strike, 0%); background:var(--peach-ink); transition:width .45s var(--ease-out); border-radius:2px}
+.archived .row.senior{--strike:100%}
+.archived .row.senior .pill--y{display:none}
+.roster .pill--a{display:none; --p-bg:var(--paper-2); --p-fg:var(--ink-3); --p-bd:var(--line)}
+.archived .row.senior .pill--a{display:inline-flex}
+.archived .row.senior .nm{color:var(--ink-3)}
+.row.more{color:var(--ink-3); font-size:.84rem; grid-template-columns:30px minmax(0,1fr)}
+.row.more .av{background:var(--paper-2); border:1.5px dashed var(--line-2); color:var(--ink-3)}
+.reqs{margin-top:16px; padding:12px 14px; border-radius:12px; background:var(--paper-2); border:1.5px dashed var(--line-2)}
+.reqs h4{font-family:var(--mono); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:600; display:flex; justify-content:space-between}
+.reqs .row{border-bottom:0; padding:6px 0}
+.clip__foot{display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-top:18px}
+.bandchip{display:inline-flex; align-items:center; gap:10px; padding:8px 14px; border-radius:12px; border:1.5px solid var(--ink); background:var(--bc, var(--lilac)); color:var(--note-ink); font-weight:600; font-size:.9rem; transition:background .5s var(--ease-out)}
+.bandchip .mono{font-weight:700}
+.bandchip.flip{animation:flip .6s var(--ease-spring)}
+@keyframes flip{0%{transform:rotateX(0)} 50%{transform:rotateX(90deg)} 100%{transform:rotateX(0)}}
+.toggle-btn{display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:var(--r-pill); border:1.5px solid var(--ink); background:var(--card); font-weight:600; font-size:.86rem; box-shadow:2.5px 2.5px 0 var(--peach); transition:transform .18s var(--ease-spring), box-shadow .18s}
+.toggle-btn:hover{transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--peach)}
+.toggle-btn svg{width:16px; height:16px}
+.archive-box{position:absolute; right:-34px; bottom:-38px; width:110px; padding:10px 12px 12px; border-radius:10px; background:var(--peach); color:var(--note-ink); filter:var(--note-filter); border:1.5px solid var(--ink); transform:rotate(6deg) scale(.6); opacity:0; transition:opacity .4s, transform .6s var(--ease-spring); text-align:center; font-size:.74rem; font-weight:600; line-height:1.25}
+.archive-box b{display:block; font-family:var(--display); font-size:1.6rem; line-height:1}
+.archived .archive-box{opacity:1; transform:rotate(6deg) scale(1)}
+.clip .caveat{margin-top:12px; font-size:.78rem; color:var(--ink-3)}
+@media (max-width: 980px){ .counts{grid-template-columns:minmax(0,1fr)} .archive-box{right:6px; bottom:-44px} }
+
+/* ---------- only growth stops ---------- */
+.limit{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:48px; align-items:center}
+.house{position:relative; padding:24px; border-radius:var(--r-xl); background:var(--paper-2); border:1.5px solid var(--line-2); overflow:hidden}
+.room{position:relative; background:var(--card); border:1.5px solid var(--ink); border-radius:18px; padding:18px 18px 16px; box-shadow:5px 5px 0 var(--butter)}
+.room__h{display:flex; justify-content:space-between; align-items:center; gap:10px}
+.room__h b{font-family:var(--display); font-size:1.08rem}
+.lamp{display:inline-flex; align-items:center; gap:7px; font-size:.76rem; font-weight:600; color:var(--mint-ink)}
+.lamp i{width:9px; height:9px; border-radius:50%; background:var(--mint-ink); box-shadow:0 0 0 0 var(--mint); animation:glow 2.4s ease-in-out infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb, var(--mint-ink) 40%, transparent)} 50%{box-shadow:0 0 0 7px transparent}}
+.seats{display:grid; grid-template-columns:repeat(25, minmax(0,1fr)); gap:4px; margin-top:14px}
+.seats .p{background:transparent}
+.room__f{display:flex; justify-content:space-between; margin-top:12px; font-family:var(--mono); font-size:.74rem; color:var(--ink-3)}
+.room__f b{color:var(--ink)}
+.doorway{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; margin-top:18px}
+.queue{position:relative; height:84px}
+.ticket{
+  position:absolute; left:0; right:0; display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:10px; align-items:center;
+  padding:10px 14px; border-radius:12px; background:var(--card); border:1.5px solid var(--line-2); box-shadow:var(--sh-1); font-size:.84rem;
+  -webkit-mask:radial-gradient(circle 7px at 0 50%, transparent 98%, #000) , radial-gradient(circle 7px at 100% 50%, transparent 98%, #000);
+  -webkit-mask-composite:source-in; mask-composite:intersect;
+  transition:transform .7s var(--ease-spring), opacity .5s;
+}
+.ticket .nm{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ticket .nm small{display:block; font-weight:400; font-size:.72rem; color:var(--ink-3)}
+.ticket .wait{font-family:var(--mono); font-size:.62rem; font-weight:700; letter-spacing:.1em; color:var(--butter-ink); border:2px solid var(--butter-ink); border-radius:6px; padding:2px 7px; transform:rotate(-6deg); white-space:nowrap}
+.gate{width:92px; text-align:center; font-size:.72rem; font-weight:600; color:var(--peach-ink); line-height:1.25}
+.gate .bar{height:10px; border-radius:5px; border:1.5px solid var(--ink); background:repeating-linear-gradient(135deg, var(--peach) 0 8px, var(--card) 8px 16px); margin-bottom:8px; transform-origin:left center; animation:gatebob 3.4s var(--ease-out) infinite}
+@keyframes gatebob{0%,70%,100%{transform:rotate(0)} 80%{transform:rotate(-14deg)} 90%{transform:rotate(0)}}
+.lists{display:grid; gap:20px; margin-top:26px}
+.lst h4{font-family:var(--mono); font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; font-weight:600; color:var(--ink-3); margin-bottom:10px}
+.lst li{display:grid; grid-template-columns:24px minmax(0,1fr); gap:10px; padding:8px 0; border-bottom:1px dashed var(--line-2); font-size:.95rem}
+.lst li svg{width:20px; height:20px; margin-top:2px}
+.lst.stop li svg{color:var(--peach-ink)}
+.lst.keep li svg{color:var(--mint-ink)}
+@media (max-width: 980px){ .limit{grid-template-columns:minmax(0,1fr)} }
+
+/* ---------- receipts: card fails / cancel ---------- */
+.stubs{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:36px}
+.stub{
+  position:relative; background:var(--card); padding:28px 28px 34px; border:1.5px solid var(--line-2); border-bottom:0;
+  box-shadow:var(--sh-2); transform:rotate(var(--rot, -.8deg));
+}
+.stub:nth-child(2){--rot:.9deg}
+.stub::after{content:''; position:absolute; left:-1.5px; right:-1.5px; bottom:-14px; height:14px; background:
+  linear-gradient(135deg, var(--card) 50%, transparent 50%) 0 0/14px 14px repeat-x,
+  linear-gradient(-135deg, var(--card) 50%, transparent 50%) 0 0/14px 14px repeat-x}
+.stub__k{display:flex; justify-content:space-between; font-family:var(--mono); font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding-bottom:12px; border-bottom:1.5px dashed var(--line-2)}
+.stub h3{font-size:1.5rem; margin-top:16px}
+.stub > p{margin-top:8px; color:var(--ink-2); font-size:.95rem}
+.stub ol{margin-top:16px; display:grid; gap:2px; counter-reset:s}
+.stub ol li{counter-increment:s; display:grid; grid-template-columns:28px minmax(0,1fr); gap:10px; padding:9px 0; border-bottom:1px solid var(--paper-3); font-size:.92rem}
+.stub ol li::before{content:counter(s, decimal-leading-zero); font-family:var(--mono); font-size:.74rem; color:var(--ink-3); padding-top:2px}
+.stub .total{display:flex; justify-content:space-between; align-items:baseline; margin-top:16px; padding-top:12px; border-top:2px solid var(--ink); font-family:var(--mono); font-size:.84rem}
+.stub .total b{font-family:var(--display); font-size:1.2rem; letter-spacing:-.02em}
+.stub .stamp{position:absolute; right:110px; top:auto; bottom:22px; --st:var(--mint-ink)}
+.stub.in .stamp{animation:thud .6s var(--ease-spring) .7s forwards}
+.stub:nth-child(2).in .stamp{animation-delay:.95s}
+@media (max-width: 860px){ .stubs{grid-template-columns:minmax(0,1fr); gap:56px} }
+
+/* ---------- fine print + faq ---------- */
+.fine{display:grid; grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:48px; align-items:start}
+.receipt{position:relative; background:var(--card); padding:26px 24px 30px; border:1.5px solid var(--line-2); box-shadow:var(--sh-2); font-family:var(--mono); font-size:.84rem; transform:rotate(-1deg)}
+.receipt::after{content:''; position:absolute; left:-1.5px; right:-1.5px; bottom:-12px; height:12px; background:linear-gradient(135deg, var(--card) 50%, transparent 50%) 0 0/12px 12px repeat-x, linear-gradient(-135deg, var(--card) 50%, transparent 50%) 0 0/12px 12px repeat-x}
+.receipt h3{font-family:var(--mono); font-size:.86rem; letter-spacing:.14em; text-transform:uppercase; text-align:center; font-weight:700}
+.receipt .cut{text-align:center; color:var(--ink-3); margin:10px 0; letter-spacing:.2em; overflow:hidden; white-space:nowrap}
+.receipt dl{display:grid; gap:10px; margin:0}
+.receipt dl div{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:baseline}
+.receipt dt{color:var(--ink-2)}
+.receipt dd{margin:0; font-weight:600; text-align:right}
+.receipt .bc{margin-top:18px; height:38px; background:repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px, var(--ink) 8px 11px, transparent 11px 12px); opacity:.8}
+.receipt .bcn{text-align:center; font-size:.68rem; color:var(--ink-3); margin-top:6px; letter-spacing:.3em}
+.faq{display:grid; gap:10px}
+.qa{border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); transition:border-color .2s, box-shadow .3s var(--ease-spring)}
+.qa[open]{border-color:var(--ink); box-shadow:4px 4px 0 var(--lilac)}
+.qa summary{list-style:none; display:flex; justify-content:space-between; gap:16px; align-items:center; padding:16px 20px; font-weight:600; cursor:pointer}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary .pm{width:26px; height:26px; border-radius:50%; border:1.5px solid var(--line-2); display:grid; place-items:center; flex:none; transition:transform .35s var(--ease-spring), background .2s}
+.qa summary .pm svg{width:13px; height:13px}
+.qa[open] summary .pm{transform:rotate(45deg); background:var(--lilac-soft); border-color:var(--lilac-bd)}
+.qa .ans{padding:0 20px 18px; color:var(--ink-2); font-size:.94rem; max-width:64ch}
+@media (max-width: 980px){ .fine{grid-template-columns:minmax(0,1fr)} .receipt{max-width:420px} }
+
+/* ---------- closing ---------- */
+.close{padding:120px 0 80px; text-align:center}
+.close h2{font-size:clamp(2.4rem, 5.6vw, 4.2rem); max-width:14ch; margin:16px auto 0}
+.close p{margin:18px auto 0; color:var(--ink-2); max-width:48ch}
+.close .hero__cta{justify-content:center}
+.confetti{position:absolute; inset:0; pointer-events:none; overflow:hidden}
+.confetti i{position:absolute; width:10px; height:16px; border-radius:2px; opacity:.8; animation:fall linear infinite}
+@keyframes fall{from{transform:translateY(-40px) rotate(0)} to{transform:translateY(520px) rotate(540deg)}}
+footer{border-top:1.5px solid var(--line); padding:28px 0 40px; font-size:.84rem; color:var(--ink-3)}
+footer .wrap{display:flex; flex-wrap:wrap; gap:14px 28px; justify-content:space-between; align-items:center}
+footer nav{display:flex; flex-wrap:wrap; gap:18px}
+footer a{text-decoration:none} footer a:hover{color:var(--ink)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001s !important; animation-iteration-count:1 !important; transition-duration:.001s !important}
+  .rv{opacity:1; transform:none}
+  .confetti{display:none}
+}
+</style>
+<script>
+  // Theme: follow the OS, overridable from the nav (mock aid).
+  (function(){ try{ var t = localStorage.getItem('pricing-mock-theme'); }catch(e){}
+    if(!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t; document.documentElement.classList.add('boot'); })();
+</script>
+</head>
+<body>
+<div class="washes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<!-- doodle sprite (app/components/landing/DoodleSprite.tsx) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+  <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-shield" viewBox="0 0 24 24"><path d="M12 2.8 4.6 5.7c-.3 6.6 1.6 12 7.4 15.5 5.8-3.5 7.7-8.9 7.4-15.5L12 2.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 12.1 11 14.6l4.6-4.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-export" viewBox="0 0 24 24"><path d="M12 15.4V3.6m0 0L8.2 7.4M12 3.6l3.8 3.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 14v5.2c0 .8.6 1.4 1.4 1.4h12.4c.8 0 1.4-.6 1.4-1.4V14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-swirl" viewBox="0 0 120 46"><path d="M2 34c14-16 34-28 52-28 12 0 18 7 15 14-3 6-13 7-16 1-4-7 4-16 17-18 12-2 26 3 34 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="m97 8 8 7-9 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-loop" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M20.4 3.2v4.4h-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 4.5v15M4.5 12h15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.8 14.6A8.2 8.2 0 0 1 9.4 4.2a8.2 8.2 0 1 0 10.4 10.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-archive" viewBox="0 0 24 24"><rect x="3.2" y="4" width="17.6" height="4.6" rx="1.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M5 8.6v9.6c0 1 .8 1.8 1.8 1.8h10.4c1 0 1.8-.8 1.8-1.8V8.6M10 12.4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-inbox" viewBox="0 0 24 24"><path d="M3.4 13.4 6 5.6c.2-.6.8-1 1.4-1h9.2c.6 0 1.2.4 1.4 1l2.6 7.8v5c0 .9-.7 1.6-1.6 1.6H5c-.9 0-1.6-.7-1.6-1.6v-5Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M3.6 13.4h4.6l1.4 2.4h4.8l1.4-2.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<!-- ============================== NAV ============================== -->
+<header class="nav" id="nav">
+  <div class="wrap nav__in">
+    <a class="brand" href="#">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/><circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/></svg>
+      ChaptOS
+    </a>
+    <nav class="nav__links">
+      <a href="#">Just ask</a>
+      <a href="#">A Tuesday</a>
+      <a href="#">Blog</a>
+      <a href="#" class="here" aria-current="page">Pricing</a>
+    </nav>
+    <div class="nav__cta">
+      <button class="theme" id="theme" aria-label="Toggle dark mode"><svg><use href="#d-moon"/></svg></button>
+      <a class="btn btn--ghost btn--sm" href="#">Sign in</a>
+      <a class="btn btn--sm" href="#">Set up your org</a>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ============================== HERO ============================== -->
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div>
+      <span class="eyebrow">Pricing</span>
+      <h1>One price for the <span class="hi">whole org.</span><br>Set by how many of you there are.</h1>
+      <p class="lede">Not per person, not per term. Drag the dial — that's the whole pricing model.</p>
+      <div class="hero__cta">
+        <a class="btn btn--lg" href="#">Set up your org <svg><use href="#d-arrow-r"/></svg></a>
+        <a class="btn btn--ghost" href="#counts">What counts as a member</a>
+      </div>
+      <div class="hero__fine">
+        <span><svg><use href="#d-check"/></svg>Free up to four, forever</span>
+        <span><svg><use href="#d-check"/></svg>No card to start</span>
+        <span><svg><use href="#d-check"/></svg>Every feature on every plan</span>
+      </div>
+    </div>
+
+    <div class="meter" id="meter" data-band="standard" style="position:relative">
+      <svg class="scribble" viewBox="0 0 120 46" style="width:118px; left:-92px; top:-38px; transform:rotate(14deg)" aria-hidden="true"><use href="#d-swirl"/></svg>
+      <div class="meter__top">
+        <div>
+          <div class="meter__q">How many of you are there?</div>
+          <div class="meter__count"><b id="mCount">38</b><span id="mWord">people</span></div>
+          <div class="meter__band"><i></i><span id="mBand">Standard · 5–50 members</span></div>
+          <div class="perhead" id="mHead">≈ 66¢ a head, if you split it</div>
+        </div>
+        <div class="tag" id="tag" aria-live="polite">
+          <span class="tag__string"></span>
+          <div class="tag__body">
+            <span class="tag__hole"></span>
+            <div class="tag__price" id="tPrice"><span class="roll">$25</span></div>
+            <div class="tag__per" id="tPer">a month for the whole org<small>billed monthly · USD</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="crowd" id="crowd" aria-hidden="true"></div>
+
+      <div class="dial">
+        <div class="ruler" id="ruler" aria-hidden="true"><i class="r-free"></i><i class="r-standard"></i><i class="r-pro"></i><i class="r-custom"></i></div>
+        <label class="sr-only" for="dial">Number of active members</label>
+        <input type="range" id="dial" min="1" max="160" value="38">
+      </div>
+      <div class="ticks" id="ticks" aria-hidden="true"></div>
+
+      <div class="meter__note"><svg><use href="#d-spark"/></svg><p id="mNote"></p></div>
+
+      <div class="presets" id="presets">
+        <button class="chip" data-n="4">Exec board <span class="mono">4</span></button>
+        <button class="chip" data-n="38">Typical chapter <span class="mono">38</span></button>
+        <button class="chip" data-n="51">Just past fifty <span class="mono">51</span></button>
+        <button class="chip" data-n="96">Big house <span class="mono">96</span></button>
+        <button class="chip" data-n="140">Past 120 <span class="mono">140</span></button>
+      </div>
+      <span class="stamp" id="stamp">Standard</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== BANDS ============================== -->
+<section class="sec" id="bands">
+  <div class="wrap">
+    <div class="sec-h rv">
+      <span class="eyebrow" style="--eb:var(--sky-ink)">The four bands</span>
+      <h2>A flat fee per band. <span class="hi" style="--mark:var(--sky)">Not a fee per person.</span></h2>
+      <p class="lede">Your bill is whichever band your active member count lands in.</p>
+    </div>
+
+    <div class="line-wrap">
+      <svg class="clothes" viewBox="0 0 1000 90" preserveAspectRatio="none" aria-hidden="true"><path d="M0 14 C 250 64, 750 64, 1000 14" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="1 0"/></svg>
+      <div class="bands" id="bandCards">
+        <article class="band rv" data-id="free">
+          <span class="peg"></span>
+          <div class="band__k">Free</div>
+          <div class="band__name">Free</div>
+          <div class="band__price"><b>$0</b><span>/ month</span></div>
+          <span class="band__range">1–4 members</span>
+          <p>Four seats for every org, for good. Enough for a board to set things up.</p>
+          <div class="mini"><svg><use href="#d-check"/></svg>No card, no checkout</div>
+        </article>
+        <article class="band rv" data-d="1" data-id="standard">
+          <span class="peg"></span>
+          <div class="band__k">Standard</div>
+          <div class="band__name">Standard</div>
+          <div class="band__price"><b>$25</b><span>/ month</span></div>
+          <span class="band__range">5–50 members</span>
+          <p>Same price at five people or fifty.</p>
+          <div class="mini"><svg><use href="#d-check"/></svg>Same product as Free</div>
+        </article>
+        <article class="band rv" data-d="2" data-id="pro">
+          <span class="peg"></span>
+          <div class="band__k">Pro</div>
+          <div class="band__name">Pro</div>
+          <div class="band__price"><b>$65</b><span>/ month</span></div>
+          <span class="band__range">51–120 members</span>
+          <p>For the big houses, up to 120.</p>
+          <div class="mini"><svg><use href="#d-check"/></svg>Same product as Free</div>
+        </article>
+        <article class="band q rv" data-d="3" data-id="custom">
+          <span class="peg"></span>
+          <div class="band__k">Custom</div>
+          <div class="band__name">121+</div>
+          <div class="band__price"><b>Quoted</b></div>
+          <span class="band__range">121+ members</span>
+          <p>Past 120, a person quotes you — not a checkout.</p>
+          <div class="mini"><svg><use href="#d-chat"/></svg>Talk to us</div>
+        </article>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================== FEATURES ============================== -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-h rv">
+      <span class="eyebrow" style="--eb:var(--mint-ink)">What you get</span>
+      <h2>Every feature is on <span class="hi" style="--mark:var(--mint)">every plan.</span></h2>
+      <p class="lede">Nothing is locked behind a higher price. Only the member count changes.</p>
+    </div>
+
+    <div class="sheet rv" id="sheet">
+      <span class="stamp bigstamp">All included</span>
+      <div class="scroll-x">
+      <table class="grid-t">
+        <thead><tr>
+          <th><span class="sr-only">Feature</span></th>
+          <th><span class="col"><i style="background:var(--butter)"></i><b>Free</b><span>$0</span></span></th>
+          <th><span class="col"><i style="background:var(--sky)"></i><b>Standard</b><span>$25/mo</span></span></th>
+          <th><span class="col"><i style="background:var(--lilac)"></i><b>Pro</b><span>$65/mo</span></span></th>
+          <th><span class="col"><i style="background:var(--rose)"></i><b>121+</b><span>quoted</span></span></th>
+        </tr></thead>
+        <tbody id="featRows"></tbody>
+      </table>
+      </div>
+      <div class="sheet-foot">
+        <p><b>The one row that changes</b> is the member count.</p>
+        <a class="btn btn--sm" href="#">Set up your org <svg><use href="#d-arrow-r"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== WHO COUNTS ============================== -->
+<section class="sec" id="counts">
+  <div class="wrap counts">
+    <div class="rv">
+      <span class="eyebrow" style="--eb:var(--lilac-ink)">Who counts</span>
+      <h2 style="margin-top:16px">You pay for who's <span class="hi" style="--mark:var(--lilac)">on the roster.</span></h2>
+      <p class="lede" style="margin-top:16px">One seat is one active member.</p>
+      <div class="rules">
+        <div class="rule yes"><span class="ri"><svg><use href="#d-people"/></svg></span><div><b>Active members count</b><span>Officers and admins included.</span></div></div>
+        <div class="rule no"><span class="ri"><svg><use href="#d-archive"/></svg></span><div><b>Archived members don't</b><span>Graduates stop counting. Their history stays.</span></div></div>
+        <div class="rule no"><span class="ri"><svg><use href="#d-inbox"/></svg></span><div><b>Join requests don't</b><span>Nobody counts until an officer approves them.</span></div></div>
+      </div>
+    </div>
+
+    <div class="clip rv" data-d="1" id="clip">
+      <span class="clip__clamp"></span>
+      <div class="clip__h">
+        <div><span class="eyebrow" style="--eb:var(--sky-ink)">Roster · spring</span><h3>Members</h3></div>
+        <div class="tally"><b id="tally">52</b><span>billable</span></div>
+      </div>
+      <div class="roster" id="roster"></div>
+      <div class="reqs">
+        <h4><span>Join requests</span><span>2 pending · not counted</span></h4>
+        <div class="row"><span class="av" style="--av:var(--sky)">JT</span><span class="nm">Jordan Tate <small>via invite link</small></span><span class="pill pill--n">Waiting</span></div>
+        <div class="row"><span class="av" style="--av:var(--mint)">AR</span><span class="nm">Ash Ramos <small>via invite link</small></span><span class="pill pill--n">Waiting</span></div>
+      </div>
+      <div class="clip__foot">
+        <span class="bandchip" id="bandchip"><span id="bcName">Pro</span><span class="mono" id="bcPrice">$65/mo</span></span>
+        <button class="toggle-btn" id="archiveBtn"><svg><use href="#d-archive"/></svg><span>Archive the 4 seniors</span></button>
+      </div>
+      <p class="caveat">Illustrative roster.</p>
+      <div class="archive-box"><b>4</b>archived · history kept</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== LIMIT ============================== -->
+<section class="sec" id="limit">
+  <div class="wrap limit">
+    <div class="house rv" id="house">
+      <div class="room">
+        <div class="room__h"><b>Your org</b><span class="lamp"><i></i>Everything working</span></div>
+        <div class="seats" id="seats" aria-hidden="true"></div>
+        <div class="room__f"><span>Standard plan</span><span><b>50</b> of 50 seats</span></div>
+      </div>
+      <div class="doorway">
+        <div class="queue" id="queue" aria-hidden="true"></div>
+        <div class="gate"><div class="bar"></div>Next approval needs a bigger plan</div>
+      </div>
+    </div>
+
+    <div class="rv" data-d="1">
+      <span class="eyebrow" style="--eb:var(--peach-ink)">Hitting the limit</span>
+      <h2 style="margin-top:16px">Only <span class="hi" style="--mark:var(--peach)">growth</span> stops.</h2>
+      <p class="lede" style="margin-top:16px">Go past your plan and you can't add the next person. Nothing else changes.</p>
+      <div class="lists">
+        <div class="lst stop">
+          <h4>What stops</h4>
+          <ul>
+            <li><svg><use href="#d-x"/></svg><span>Approving requests past capacity (people can still send them).</span></li>
+            <li><svg><use href="#d-x"/></svg><span>Un-archiving someone.</span></li>
+          </ul>
+        </div>
+        <div class="lst keep">
+          <h4>What doesn't</h4>
+          <ul>
+            <li><svg><use href="#d-check"/></svg><span>Every member keeps access.</span></li>
+            <li><svg><use href="#d-check"/></svg><span>Every page keeps working.</span></li>
+            <li><svg><use href="#d-check"/></svg><span>Exports keep working.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== STUBS ============================== -->
+<section class="sec" id="stubs">
+  <div class="wrap">
+    <div class="sec-h rv">
+      <span class="eyebrow" style="--eb:var(--rose-ink)">When things change</span>
+      <h2>A failed card or a cancellation <span class="hi" style="--mark:var(--rose)">deletes nothing.</span></h2>
+    </div>
+    <div class="stubs">
+      <article class="stub rv">
+        <div class="stub__k"><span>Payment failed</span><span>Past due</span></div>
+        <h3>The card didn't go through</h3>
+                <ol>
+          <li>Stripe retries and emails the billing address.</li>
+          <li>New members wait until it's sorted.</li>
+          <li>Updating the card settles it at once.</li>
+        </ol>
+        <div class="total"><span>Records removed</span><b>0</b></div>
+        <span class="stamp">Nothing deleted</span>
+      </article>
+      <article class="stub rv" data-d="1">
+        <div class="stub__k"><span>Cancelling</span><span>No email needed</span></div>
+        <h3>You want to stop paying</h3>
+                <ol>
+          <li>A few clicks in the billing portal; you keep the month you paid for, then drop to Free.</li>
+          <li>40 people stay 40 — you just can't add the 41st.</li>
+          <li>Changed your mind? Resume before it ends.</li>
+        </ol>
+        <div class="total"><span>Records removed</span><b>0</b></div>
+        <span class="stamp">Still yours</span>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== FINE PRINT + FAQ ============================== -->
+<section class="sec" id="faq">
+  <div class="wrap fine">
+    <div class="receipt rv">
+      <h3>The fine print</h3>
+      <div class="cut">- - - - - - - - - - - - - - - - - - - -</div>
+      <dl>
+        <div><dt>Billed</dt><dd>Monthly, USD</dd></div>
+        <div><dt>Priced</dt><dd>Per org, by band</dd></div>
+        <div><dt>Card handled by</dt><dd>Stripe</dd></div>
+        <div><dt>Invoices & receipts</dt><dd>Billing portal</dd></div>
+        <div><dt>Promo codes</dt><dd>At checkout</dd></div>
+        <div><dt>Who can pay</dt><dd>Org admins</dd></div>
+        <div><dt>Free seats</dt><dd>4, forever</dd></div>
+        <div><dt>Self-serve up to</dt><dd>120 members</dd></div>
+      </dl>
+      <div class="cut">- - - - - - - - - - - - - - - - - - - -</div>
+      <div class="bc"></div>
+      <div class="bcn">CHAPTOS.COM</div>
+    </div>
+
+    <div class="rv" data-d="1">
+      <span class="eyebrow" style="--eb:var(--lilac-ink)">Questions</span>
+      <h2 style="margin:16px 0 28px">Asked before paying.</h2>
+      <div class="faq">
+        <details class="qa" open><summary>Is this the same as the dues we track?<span class="pm"><svg><use href="#d-plus"/></svg></span></summary><p class="ans">No. This is what your org pays us. The dues and ledger you keep in the app never touch it.</p></details>
+        <details class="qa"><summary>Who handles billing?<span class="pm"><svg><use href="#d-plus"/></svg></span></summary><p class="ans">Your org admins. They add the card, change the plan and see the invoices.</p></details>
+        <details class="qa"><summary>We're bigger than 120.<span class="pm"><svg><use href="#d-plus"/></svg></span></summary><p class="ans">Billing asks for a quote instead of a card, and nothing stops working meanwhile.</p></details>
+        <details class="qa"><summary>We run more than one org.<span class="pm"><svg><use href="#d-plus"/></svg></span></summary><p class="ans">Admins of two or more orgs can ask about a group plan from Billing.</p></details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== CLOSE ============================== -->
+<section class="close">
+  <div class="confetti" id="confetti" aria-hidden="true"></div>
+  <div class="wrap rv" style="position:relative">
+    <span class="eyebrow">Start free</span>
+    <h2>Set it up with your board <span class="hi" style="--mark:var(--mint)">for nothing.</span></h2>
+    <p>Four seats free, no card.</p>
+    <div class="hero__cta">
+      <a class="btn btn--lg" href="#">Set up your org <svg><use href="#d-arrow-r"/></svg></a>
+      <a class="btn btn--ghost btn--lg" href="#">Read the billing help</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© ChaptOS · chaptos.com</span>
+    <nav><a href="#">Help</a><a href="#">Trust</a><a href="#">Blog</a><a href="#">Contact</a></nav>
+  </div>
+</footer>
+
+<script>
+(() => {
+  // ── lib/billing/tiers.ts, verbatim numbers ─────────────────────────────────
+  const BANDS = [
+    { id: 'free',     label: 'Free',     from: 1,   upTo: 4,    cents: 0 },
+    { id: 'standard', label: 'Standard', from: 5,   upTo: 50,   cents: 2500 },
+    { id: 'pro',      label: 'Pro',      from: 51,  upTo: 120,  cents: 6500 },
+    { id: 'custom',   label: 'Custom',   from: 121, upTo: null, cents: null },
+  ];
+  const SELF_SERVE_MAX = 120;
+  const tierFor = n => BANDS.find(b => b.upTo === null || Math.max(1, n) <= b.upTo);
+  const fmt = c => c === null ? 'Quoted' : c === 0 ? '$0' : '$' + (c / 100);
+  const range = b => b.upTo === null ? `${b.from}+ members` : `${b.from}–${b.upTo} members`;
+  const MAX = 160;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── theme toggle (mock aid) ────────────────────────────────────────────────
+  const root = document.documentElement, themeBtn = document.getElementById('theme');
+  const paintTheme = () => themeBtn.querySelector('use').setAttribute('href', root.dataset.theme === 'dark' ? '#d-sun' : '#d-moon');
+  paintTheme();
+  themeBtn.onclick = () => { root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'; try{ localStorage.setItem('pricing-mock-theme', root.dataset.theme); }catch(e){} paintTheme(); };
+
+  // ── nav frost ──────────────────────────────────────────────────────────────
+  const nav = document.getElementById('nav');
+  addEventListener('scroll', () => nav.classList.toggle('stuck', scrollY > 8), { passive: true });
+
+  // ── the meter ──────────────────────────────────────────────────────────────
+  const meter = document.getElementById('meter'), crowd = document.getElementById('crowd'), dial = document.getElementById('dial');
+  const mCount = document.getElementById('mCount'), mWord = document.getElementById('mWord'), mBand = document.getElementById('mBand');
+  const mHead = document.getElementById('mHead'), mNote = document.getElementById('mNote');
+  const tag = document.getElementById('tag'), tPrice = document.getElementById('tPrice'), tPer = document.getElementById('tPer');
+  const stamp = document.getElementById('stamp'), ruler = document.getElementById('ruler');
+
+  // ruler segments sized to the dial's scale
+  const segs = ruler.querySelectorAll('i');
+  BANDS.forEach((b, i) => { const hi = b.upTo ?? MAX; segs[i].style.flex = String(hi - b.from + 1); });
+  const ticks = document.getElementById('ticks');
+  [[4, 'Free to'], [50, '$25 to'], [120, '$65 to']].forEach(([n, l]) => {
+    const s = document.createElement('span'); s.style.left = ((n - .5) / MAX * 100) + '%'; s.innerHTML = `${l}<b>${n}</b>`; ticks.appendChild(s);
+  });
+  { const s = document.createElement('span'); s.style.left = '90%'; s.innerHTML = `quoted<b>121+</b>`; ticks.appendChild(s); }
+
+  const people = [];
+  for (let i = 0; i < MAX; i++) { const p = document.createElement('span'); p.className = 'p'; crowd.appendChild(p); people.push(p); }
+  // mark the band boundaries in the crowd so the jumps read
+  [3, 49, 119].forEach(i => people[i].classList.add('edge'));
+
+  const notes = {
+    free:     n => n < 4 ? `Four seats free for good. ${4 - n} to go.` : 'Four free. The fifth person starts $25.',
+    standard: n => n === 50 ? 'Top of Standard. The 51st moves the org to $65.' : `Same $25 from 5 to 50. ${50 - n} more wouldn't change it.`,
+    pro:      n => n === 120 ? 'Top of self-serve. The 121st is a quote.' : `Same $65 from 51 to 120.`,
+    custom:   () => `Past ${SELF_SERVE_MAX}, Billing asks for a quote instead of a card.`,
+  };
+
+  let shown = 0, lastBand = null;
+  function render(n, opts = {}) {
+    const b = tierFor(n);
+    meter.dataset.band = b.id;
+    mCount.textContent = n; mWord.textContent = n === 1 ? 'person' : 'people';
+    mBand.textContent = `${b.label} · ${range(b)}`;
+    mHead.textContent = b.cents === null ? 'priced per organization' : b.cents === 0 ? '$0 a head — because it’s $0' : `≈ ${b.cents / n >= 100 ? '$' + (b.cents / n / 100).toFixed(2) : Math.round(b.cents / n) + '¢'} a head, if you split it`;
+    mNote.textContent = notes[b.id](n);
+    segs.forEach((s, i) => s.classList.toggle('dim', BANDS[i].id !== b.id));
+    dial.value = n;
+    dial.setAttribute('aria-valuetext', `${n} members, ${b.label}, ${fmt(b.cents)}${b.cents ? ' a month' : ''}`);
+
+    // crowd: pop in the new ones with a small stagger, fade the removed
+    const prev = shown;
+    people.forEach((p, i) => {
+      const on = i < n;
+      p.dataset.b = on ? b.id : '';
+      if (on && i >= prev) { p.style.setProperty('--dl', Math.min((i - prev) * 8, 400) + 'ms'); p.classList.remove('on'); void p.offsetWidth; }
+      p.classList.toggle('on', on);
+    });
+    shown = n;
+
+    if (b.id !== lastBand) {
+      tPrice.innerHTML = `<span class="roll${b.cents === null ? ' word' : ''}">${fmt(b.cents)}</span>`;
+      tPer.innerHTML = b.cents === null ? 'priced per organization<small>request a quote</small>' : b.cents === 0 ? 'free, for good<small>no card needed</small>' : 'a month for the whole org<small>billed monthly · USD</small>';
+      if (lastBand !== null && !opts.quiet) {
+        tag.classList.remove('swing'); void tag.offsetWidth; tag.classList.add('swing');
+        stamp.textContent = b.id === 'custom' ? 'Let’s talk' : b.label;
+        stamp.classList.remove('thud'); void stamp.offsetWidth; stamp.classList.add('thud');
+      }
+      lastBand = b.id;
+      document.querySelectorAll('#bandCards .band').forEach(c => c.classList.toggle('lit', c.dataset.id === b.id));
+    }
+    document.querySelectorAll('#presets .chip').forEach(c => c.classList.toggle('on', +c.dataset.n === n));
+  }
+  dial.addEventListener('input', () => render(+dial.value));
+
+  let autoplay = null;
+  let touched = false;
+  const stopAuto = () => { touched = true; if (autoplay) { cancelAnimationFrame(autoplay); autoplay = null; } };
+  dial.addEventListener('pointerdown', stopAuto);
+  dial.addEventListener('keydown', stopAuto);
+
+  function tweenTo(target, ms = 900) {
+    stopAuto();
+    const from = +dial.value, t0 = performance.now();
+    if (reduce) return render(target);
+    const step = now => {
+      const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+      render(Math.round(from + (target - from) * e));
+      if (k < 1) autoplay = requestAnimationFrame(step); else autoplay = null;
+    };
+    autoplay = requestAnimationFrame(step);
+  }
+  document.querySelectorAll('#presets .chip').forEach(c => c.onclick = () => tweenTo(+c.dataset.n));
+
+  // intro: count up from one board member, walking through Free into Standard
+  render(1, { quiet: true });
+  setTimeout(() => { root.classList.remove('boot'); if (!touched) { tweenTo(38, 1800); touched = false; } }, 450);
+
+  // ── features sheet ─────────────────────────────────────────────────────────
+  const FEATS = [
+    ['d-people',  'Roster & join requests', 'Invite links, reviewed approvals, roles'],
+    ['d-wallet',  'Dues',                   'Who owes what, per member'],
+    ['d-receipt', 'Treasury ledger',        'Income, expenses, the balance'],
+    ['d-check',   'Attendance & check-in',  'Roll for every event'],
+    ['d-cal',     'Timeline',               'Every event and deadline in one place'],
+    ['d-board',   'Tasks',                  'Assigned, dated, ticked off'],
+    ['d-folder',  'Docs',                   'The chapter’s files, filed'],
+    ['d-chat',    'The assistant',          'Ask your chapter a question'],
+    ['d-export',  'CSV exports',            'Ledger and roster, any time'],
+  ];
+  const fr = document.getElementById('featRows');
+  fr.innerHTML = FEATS.map(([ic, t, s], r) => `<tr><td><span class="fx"><svg><use href="#${ic}"/></svg><span>${t}<small>${s}</small></span></span></td>${
+    [0,1,2,3].map(c => `<td><span class="tick" style="--td:${(r * 4 + c) * 0.03 + .2}s"><svg viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span></td>`).join('')
+  }</tr>`).join('') + `<tr class="cap"><td><span class="fx"><svg><use href="#d-people"/></svg><span>Active members<small>The only thing that changes</small></span></span></td><td>up to 4</td><td>up to 50</td><td>up to 120</td><td>121+</td></tr>`;
+
+  // ── who counts ─────────────────────────────────────────────────────────────
+  const ROSTER = [
+    ['MC', 'Maya Chen', 'President', 'var(--butter)'],
+    ['DO', 'Dev Okafor', 'Treasurer', 'var(--sky)'],
+    ['PS', 'Priya Shah', 'Class of ’26', 'var(--peach)', true],
+    ['LB', 'Leo Brandt', '', 'var(--mint)'],
+    ['SK', 'Sam Kim', 'Class of ’26', 'var(--lilac)', true],
+    ['NA', 'Nia Adams', 'Recruitment', 'var(--rose)'],
+    ['TW', 'Theo Walsh', 'Class of ’26', 'var(--sky)', true],
+    ['RG', 'Rosa Garcia', 'Class of ’26', 'var(--butter)', true],
+  ];
+  const rosterEl = document.getElementById('roster');
+  rosterEl.innerHTML = ROSTER.map(([i, n, r, c, s]) => `<div class="row${s ? ' senior' : ''}"><span class="av" style="--av:${c}">${i}</span><span class="nm">${n}${r ? ` <small>${r}</small>` : ''}</span><span><span class="pill pill--y">Counts</span><span class="pill pill--a">Archived</span></span></div>`).join('')
+    + `<div class="row more"><span class="av">+44</span><span>44 more active members</span></div>`;
+  const clip = document.getElementById('clip'), tally = document.getElementById('tally'), archiveBtn = document.getElementById('archiveBtn');
+  const bandchip = document.getElementById('bandchip'), bcName = document.getElementById('bcName'), bcPrice = document.getElementById('bcPrice');
+  let archived = false, autoArchived = false;
+  function setChip(n) {
+    const b = tierFor(n);
+    bcName.textContent = b.label; bcPrice.textContent = fmt(b.cents) + '/mo';
+    bandchip.style.setProperty('--bc', `var(--${({ free: 'butter', standard: 'sky', pro: 'lilac', custom: 'rose' })[b.id]})`);
+  }
+  function countTo(from, to) {
+    let n = from; const dir = to < from ? -1 : 1;
+    const tick = () => { n += dir; tally.textContent = n; if (n === 50 || n === 51) { setChip(n); bandchip.classList.remove('flip'); void bandchip.offsetWidth; bandchip.classList.add('flip'); } if (n !== to) setTimeout(tick, 170); else setChip(n); };
+    reduce ? (tally.textContent = to, setChip(to)) : setTimeout(tick, 380);
+  }
+  function toggleArchive() {
+    archived = !archived;
+    clip.classList.toggle('archived', archived);
+    archiveBtn.querySelector('span').textContent = archived ? 'Bring them back' : 'Archive the 4 seniors';
+    countTo(archived ? 52 : 48, archived ? 48 : 52);
+  }
+  setChip(52);
+  archiveBtn.onclick = toggleArchive;
+
+  // ── the limit: a full room, a queue that keeps arriving ────────────────────
+  const seats = document.getElementById('seats');
+  seats.innerHTML = Array.from({ length: 50 }, () => '<span class="p on" data-b="standard"></span>').join('');
+  const queue = document.getElementById('queue');
+  const ASK = [['Kai Morgan', 'var(--peach)'], ['Ellie Park', 'var(--mint)'], ['Omar Haddad', 'var(--lilac)'], ['Zoe Lin', 'var(--butter)'], ['Ben Foster', 'var(--rose)']];
+  let qi = 0, qTimer = null;
+  function pushTicket() {
+    const [n, c] = ASK[qi++ % ASK.length];
+    const t = document.createElement('div'); t.className = 'ticket';
+    t.innerHTML = `<span class="av" style="--av:${c}; width:28px; height:28px">${n.split(' ').map(w => w[0]).join('')}</span><span class="nm">${n}<small>Request sent · still welcome to ask</small></span><span class="wait">Waiting</span>`;
+    t.style.transform = 'translateX(-120%) rotate(-4deg)'; t.style.opacity = '0';
+    queue.prepend(t);
+    const all = [...queue.children];
+    requestAnimationFrame(() => all.forEach((el, i) => {
+      el.style.zIndex = String(10 - i);
+      el.style.opacity = i > 2 ? '0' : String(1 - i * .2);
+      el.style.transform = `translateY(${i * 11}px) scale(${1 - i * .05}) rotate(${i % 2 ? 1.2 : -.8}deg)`;
+    }));
+    all.slice(4).forEach(el => setTimeout(() => el.remove(), 800));
+  }
+
+  // ── closing confetti ───────────────────────────────────────────────────────
+  const conf = document.getElementById('confetti');
+  const cols = ['var(--butter)', 'var(--sky)', 'var(--mint)', 'var(--lilac)', 'var(--rose)', 'var(--peach)'];
+  for (let i = 0; i < 26; i++) {
+    const c = document.createElement('i');
+    c.style.left = (i * 3.6 + Math.random() * 2) + '%';
+    c.style.background = cols[i % cols.length];
+    c.style.animationDuration = (7 + Math.random() * 6) + 's';
+    c.style.animationDelay = (-Math.random() * 12) + 's';
+    conf.appendChild(c);
+  }
+
+  // ── reveals + section triggers ─────────────────────────────────────────────
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    const el = e.target; el.classList.add('in'); io.unobserve(el);
+    if (el.id === 'clip' && !autoArchived) { autoArchived = true; setTimeout(() => { if (!archived) toggleArchive(); }, 1100); }
+    if (el.id === 'house' && !qTimer) { pushTicket(); pushTicket(); pushTicket(); qTimer = setInterval(pushTicket, reduce ? 99999 : 2600); }
+  }), { threshold: .22, rootMargin: '0px 0px -6% 0px' });
+  document.querySelectorAll('.rv').forEach(el => io.observe(el));
+})();
+</script>
+</body>
+</html>

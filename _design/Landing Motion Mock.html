@@ -1,0 +1,1949 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChaptOS — Landing Motion Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Landing — motion mock, v2 (every student org, not just chapters).
+   Six sections: hero (loose ends → one page, then the page re-forms per org
+   type) · the race · how it works (Timeline → phone calendar → tasks →
+   budget, one card morphing) · the handoff · turn on what you run ·
+   privacy + FAQ + close.
+   One rAF loop reads a lerped scroll value; native scrolling is never taken over.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --teal-ink:#1F8A80;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --dots:rgba(38,33,27,.09);
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --hand:'Caveat', 'Bricolage Grotesque', cursive;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+
+/* ── base ─────────────────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:clip;
+  transition:background .4s var(--ease-out), color .4s var(--ease-out);
+}
+h1,h2,h3,h4,p,ul,ol,figure,blockquote{margin:0}
+ul,ol{padding:0; list-style:none}
+button{font:inherit; color:inherit; cursor:pointer}
+a{color:inherit; text-decoration:none}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:3px; border-radius:8px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.wrap{position:relative; z-index:2; width:min(1180px, 100% - 32px); margin-inline:auto}
+
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.1em; right:-.1em; bottom:.06em; height:.46em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op);
+  transition:transform .9s var(--ease-spring) .25s;
+}
+[data-split] .hi::before{--mx:0}
+[data-split].in .hi::before{--mx:1}
+
+.eyebrow{display:inline-flex; align-items:center; gap:10px; font-size:.72rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:20px; height:2px; border-radius:2px; background:var(--eb, var(--peach-ink))}
+
+.btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  padding:11px 19px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.92rem; letter-spacing:-.01em;
+  box-shadow:3px 3px 0 var(--hs); white-space:nowrap;
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), background .25s, color .25s;
+}
+.btn:hover{transform:translate(-2px,-2px); box-shadow:5px 5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn .ic{width:16px; height:16px}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.btn--lg{padding:14px 24px; font-size:1rem}
+.btn--sm{padding:7px 14px; font-size:.84rem; box-shadow:2px 2px 0 var(--hs)}
+
+.pill{display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; font-size:.72rem; font-weight:600; white-space:nowrap;
+  background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2)); border:1px solid var(--p-bd, var(--line))}
+.t-peach{--p-bg:var(--peach-soft); --p-fg:var(--peach-ink); --p-bd:var(--peach-bd)}
+.t-sky{--p-bg:var(--sky-soft); --p-fg:var(--sky-ink); --p-bd:var(--sky-bd)}
+.t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd)}
+.t-butter{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd)}
+.t-lilac{--p-bg:var(--lilac-soft); --p-fg:var(--lilac-ink); --p-bd:var(--lilac-bd)}
+.t-rose{--p-bg:var(--rose-soft); --p-fg:var(--rose-ink); --p-bd:var(--rose-bd)}
+
+.av{width:26px; height:26px; flex:none; border-radius:50%; display:grid; place-items:center;
+  font-size:.62rem; font-weight:700; font-style:normal; letter-spacing:-.02em;
+  background:var(--a, var(--lilac)); color:var(--av-ink); border:1.5px solid var(--paper)}
+.avs{display:flex}
+.avs .av + .av{margin-left:-8px}
+kbd{font-family:var(--mono); font-size:.66rem; border:1px solid var(--line-2); border-radius:6px; padding:1px 6px; background:var(--paper-2); color:var(--ink-3)}
+
+/* who a task is for: a person, a role, or everyone */
+.to{display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 3px; border-radius:999px; font-size:.7rem; font-weight:600; white-space:nowrap; border:1px solid var(--line); background:var(--paper)}
+.to .av{width:18px; height:18px; font-size:.5rem; border-width:1px}
+.to.role{padding-left:8px; background:var(--lilac-soft); border-color:var(--lilac-bd); color:var(--lilac-ink)}
+.to.role::before{content:''; width:7px; height:7px; border-radius:2px; background:currentColor; rotate:45deg}
+.to.all{padding-left:8px; background:var(--mint-soft); border-color:var(--mint-bd); color:var(--mint-ink)}
+
+.sec{position:relative; padding:140px 0}
+.sec-h{font-family:var(--display); font-weight:600; letter-spacing:-.035em; line-height:1.02;
+  font-size:clamp(2.3rem, 1.2rem + 4.2vw, 4.6rem); font-variation-settings:"opsz" 96}
+.sec-sub{margin-top:20px; max-width:560px; font-size:1.1rem; color:var(--ink-2)}
+.center{text-align:center}
+.center .sec-sub{margin-inline:auto}
+
+[data-split] .sw{display:inline-block}
+[data-split] .sw > span{display:inline-block; opacity:0; transform:translateY(.45em); filter:blur(8px);
+  transition:opacity .7s var(--ease-out), transform .9s var(--ease-spring), filter .7s var(--ease-out)}
+[data-split].in .sw > span{opacity:1; transform:none; filter:blur(0)}
+[data-rv]{opacity:0; transform:translateY(28px); filter:blur(6px);
+  transition:opacity .8s var(--ease-out), transform 1s var(--ease-spring), filter .8s var(--ease-out); transition-delay:var(--d,0ms)}
+[data-rv].in{opacity:1; transform:none; filter:none}
+
+/* sliding-ink tabs (org types) */
+.tabs{position:relative; display:inline-flex; flex-wrap:wrap; justify-content:center; gap:2px; padding:5px; border-radius:22px; background:var(--paper-2); border:1.5px solid var(--line)}
+.tab{position:relative; z-index:1; border:0; background:none; padding:9px 16px; border-radius:999px; font-weight:600; font-size:.88rem; color:var(--ink-3); transition:color .3s; white-space:nowrap}
+.tab.on{color:var(--paper)}
+.tab-ink{position:absolute; z-index:0; left:0; top:0; border-radius:999px; background:var(--ink); box-shadow:2px 2px 0 var(--hs, var(--lilac));
+  transition:transform .55s var(--ease-spring), width .55s var(--ease-spring), height .55s var(--ease-spring), box-shadow .4s}
+
+/* ── nav ─────────────────────────────────────────────────────────────────── */
+.nav{position:fixed; inset:0 0 auto; z-index:80; padding:12px 16px; pointer-events:none}
+.nav-in{
+  pointer-events:auto; margin-inline:auto; max-width:1320px; height:56px;
+  display:flex; align-items:center; gap:22px; padding:0 10px 0 14px;
+  border-radius:20px; border:1.5px solid transparent; background:transparent;
+  transition:max-width .6s var(--ease-spring), background .4s, border-color .4s, box-shadow .4s;
+}
+.nav.scrolled .nav-in{max-width:940px; background:color-mix(in srgb, var(--card) 82%, transparent);
+  border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
+.brand{display:flex; align-items:center; gap:10px; font-family:var(--display); font-weight:700; font-size:1.12rem; letter-spacing:-.03em}
+.mark{width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex:none;
+  background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink); font-size:.86rem;
+  transform:rotate(-4deg); box-shadow:2px 2px 0 var(--peach); filter:var(--note-filter); transition:transform .4s var(--ease-spring), background .4s}
+.brand:hover .mark{transform:rotate(6deg) scale(1.06)}
+.brand .logo{width:32px; height:32px; flex:none; filter:var(--note-filter); transform:rotate(-4deg); transition:transform .4s var(--ease-spring)}
+.brand:hover .logo{transform:rotate(6deg) scale(1.06)}
+/* four links; a paper tab slides under whichever one you're on, a hand-drawn
+   squiggle marks the section you're reading, and each link carries its tone */
+.nav-links{position:relative; display:flex; align-items:center; gap:2px; margin-inline:auto}
+.nl{--c:var(--lilac); --ci:var(--lilac-ink);
+  position:relative; z-index:1; display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 13px; border-radius:11px;
+  font-size:.88rem; font-weight:500; letter-spacing:-.01em; color:var(--ink-2); white-space:nowrap; transition:color .25s}
+.nl > i{width:7px; height:7px; border-radius:2px; background:var(--c); rotate:45deg; flex:none;
+  transition:scale .45s var(--ease-spring), rotate .45s var(--ease-spring), background .3s}
+.nl:hover, .nl.on{color:var(--ink)}
+.nl:hover > i{scale:1.35; rotate:135deg}
+.nl:hover > i, .nl.on > i{background:var(--ci)}
+.nl-u{position:absolute; left:12px; right:12px; bottom:2px; height:6px; width:calc(100% - 24px); overflow:visible; pointer-events:none}
+.nl-u path{fill:none; stroke:var(--ci); stroke-width:2; stroke-linecap:round; stroke-dasharray:1; stroke-dashoffset:1; opacity:0; transition:stroke-dashoffset .7s var(--ease-out), opacity .2s .5s}
+.nl.on .nl-u path{stroke-dashoffset:0; opacity:1; transition:stroke-dashoffset .7s var(--ease-out), opacity 0s}
+.nl-tag{font-family:var(--hand); font-weight:700; font-size:1.02rem; line-height:1; padding:1px 6px 2px; margin-right:-4px; border-radius:6px;
+  color:var(--peach-ink); background:var(--peach-soft); border:1px solid var(--peach-bd); rotate:-7deg; transition:rotate .45s var(--ease-spring)}
+.nl:hover .nl-tag{rotate:5deg}
+.nl-ink{position:absolute; z-index:0; left:0; top:50%; height:36px; width:0; border-radius:11px; pointer-events:none;
+  background:var(--paper-2); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--ink-c, var(--lilac));
+  opacity:0; transform:translate(var(--x,0), -50%);
+  transition:transform .5s var(--ease-spring), width .5s var(--ease-spring), box-shadow .3s, opacity .2s}
+.nav-links.hov .nl-ink{opacity:1}
+.nav-links:not(.hov) .nl-ink{transition:opacity .2s}
+
+/* phones: the four links fold into a sheet that drops out of the bar */
+.nav-menu{display:none; width:40px; height:36px; border-radius:11px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--butter);
+  place-items:center; padding:0; transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring)}
+.nav-menu:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--butter)}
+.nav-menu span{position:relative; display:block; width:16px; height:10px}
+.nav-menu span::before,.nav-menu span::after{content:''; position:absolute; left:0; right:0; height:2px; border-radius:2px; background:var(--ink);
+  transition:transform .45s var(--ease-spring), top .45s var(--ease-spring), width .45s var(--ease-spring)}
+.nav-menu span::before{top:0} .nav-menu span::after{top:8px; width:11px}
+.nav.open .nav-menu span::before{top:4px; transform:rotate(45deg)}
+.nav.open .nav-menu span::after{top:4px; width:16px; transform:rotate(-45deg)}
+.nav-sheet{display:none}
+@media (max-width:860px){
+  .nav-menu{display:grid}
+  .nav-sheet{display:block; pointer-events:auto; margin:8px auto 0; max-width:1320px; padding:8px; border-radius:20px;
+    background:var(--card); border:1.5px solid var(--ink); box-shadow:5px 5px 0 var(--lilac), var(--sh-3);
+    transform-origin:50% 0; opacity:0; visibility:hidden; transform:translateY(-10px) scale(.97);
+    transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring), visibility 0s .45s}
+  .nav.open .nav-sheet{opacity:1; visibility:visible; transform:none; transition:opacity .25s var(--ease-out), transform .45s var(--ease-spring)}
+  .nav.open .nav-in{background:color-mix(in srgb, var(--card) 92%, transparent); border-color:var(--line); box-shadow:var(--sh-2); backdrop-filter:blur(14px) saturate(1.3)}
+  .ns-l{display:flex; align-items:center; gap:14px; padding:14px 12px; border-radius:14px; border-bottom:1.5px dashed var(--line-2);
+    opacity:0; transform:translateY(-6px); transition:opacity .3s var(--ease-out), transform .45s var(--ease-spring), background .2s}
+  .nav.open .ns-l{opacity:1; transform:none; transition-delay:calc(var(--i) * 45ms + 60ms), calc(var(--i) * 45ms + 60ms), 0s}
+  .ns-l:last-of-type{border-bottom:0}
+  .ns-l:active{background:var(--paper-2)}
+  .ns-l .mono{font-size:.72rem; color:var(--ink-3); width:20px}
+  .ns-l b{font-family:var(--display); font-weight:600; font-size:1.5rem; letter-spacing:-.03em; line-height:1.1; font-variation-settings:"opsz" 48}
+  .ns-l > i{width:9px; height:9px; border-radius:2px; rotate:45deg; background:var(--c); margin-left:auto}
+  .ns-l .nl-tag{font-size:1.1rem}
+  .ns-f{display:flex; gap:10px; padding:10px 4px 4px}
+  .ns-f .btn{flex:1}
+}
+.nav-r{display:flex; align-items:center; gap:8px}
+.nav-login{font-size:.88rem; font-weight:500; color:var(--ink-2); padding:7px 10px}
+@media (max-width:600px){ .hero-copy .eyebrow::before{display:none} .hero-copy .eyebrow{max-width:290px; margin-inline:auto; line-height:1.5} }
+@media (max-width:860px){ .nav-links,.nav-login{display:none} .nav-in{gap:10px} .brand{margin-right:auto} }
+@media (max-width:420px){ .nav-r .btn--sm{display:none} }
+
+/* ── HERO ────────────────────────────────────────────────────────────────── */
+.hero{position:relative; height:300vh}
+.hero-stage{position:sticky; top:0; height:100vh; height:100svh; overflow:hidden}
+.hero-copy{position:absolute; left:0; right:0; z-index:5; text-align:center; transform-origin:50% 0; will-change:transform; padding:0 16px}
+.hero-copy .eyebrow{justify-content:center}
+.h1{
+  margin:26px auto 0;
+  font-family:var(--display); font-weight:700; letter-spacing:-.034em; word-spacing:.04em; line-height:.96;
+  font-size:min(clamp(2.9rem, 1rem + 6.6vw, 7rem), (100vw - 32px) / 8.2); font-variation-settings:"opsz" 96;
+}
+.oword{display:inline-grid; vertical-align:baseline; text-align:left; transition:width .55s var(--ease-spring)}
+.oword > .ow{grid-area:1/1; justify-self:start; white-space:nowrap; transition:opacity .32s var(--ease-out), filter .32s var(--ease-out), transform .5s var(--ease-spring)}
+.oword > .ow.in{opacity:0; filter:blur(8px); transform:translateY(.35em)}
+.oword > .ow.out{opacity:0; filter:blur(8px); transform:translateY(-.35em)}
+.swap{display:inline-grid; vertical-align:baseline; text-align:left}
+.swap > .hi{grid-area:1/1; justify-self:start; will-change:transform, opacity, filter}
+.swap .b{--mark:var(--lilac)}
+.lede{margin:28px auto 0; max-width:30em; font-size:1.18rem; line-height:1.5; color:var(--ink-2); text-wrap:balance}
+.cta-row{margin-top:36px; display:flex; gap:28px; align-items:center; justify-content:center; flex-wrap:wrap}
+.cta-2{font-weight:600; font-size:1rem; color:var(--ink); text-decoration:underline; text-decoration-thickness:1.5px; text-decoration-color:var(--line-2); text-underline-offset:5px; transition:text-decoration-color .2s}
+.cta-2:hover{text-decoration-color:var(--sky)}
+.cta-2 span{display:inline-block; transition:translate .3s var(--ease-spring)}
+.cta-2:hover span{translate:0 3px}
+.cta-note{margin-top:22px; display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; font-family:var(--mono, ui-monospace, monospace); font-size:.74rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3, var(--ink-2))}
+.cta-note i{width:4px; height:4px; border-radius:50%; background:currentColor; opacity:.5}
+
+.df{
+  position:absolute; left:0; top:0; z-index:3; width:min(1060px, 92vw); height:min(56vh, 520px);
+  display:grid; grid-template-columns:168px minmax(0,1fr);
+  background:var(--paper); border:1.5px solid var(--ink); border-radius:22px;
+  box-shadow:7px 7px 0 var(--lilac), var(--sh-3); overflow:hidden; will-change:transform, opacity;
+}
+.df-sb{border-right:1.5px solid var(--line); background:var(--paper-2); padding:14px 10px; display:flex; flex-direction:column; gap:3px}
+.df-org{display:flex; align-items:center; gap:9px; padding:0 4px 12px; margin-bottom:6px; border-bottom:1.5px solid var(--line)}
+.df-org .mark{width:26px; height:26px; font-size:.66rem; border-radius:8px}
+.df-org b{font-family:var(--display); font-size:.84rem; letter-spacing:-.02em; line-height:1.1; display:block}
+.df-org small{display:block; font-family:var(--mono); font-size:.56rem; color:var(--ink-3); letter-spacing:.05em}
+.df-nav{display:flex; flex-direction:column; gap:3px}
+.df-it{display:flex; align-items:center; gap:8px; height:28px; padding:0 8px; border-radius:9px; font-size:.74rem; font-weight:500; color:var(--ink-2); animation:navin .45s var(--ease-spring) both; animation-delay:var(--d,0ms)}
+.df-it i{width:12px; height:12px; border-radius:4px; background:var(--c); flex:none; opacity:.9}
+.df-it.on{background:var(--card); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--butter); color:var(--ink)}
+.df-it.mod::after{content:'on'; margin-left:auto; font-family:var(--mono); font-size:.52rem; color:var(--mint-ink); letter-spacing:.06em; text-transform:uppercase}
+@keyframes navin{from{opacity:0; transform:translateX(-8px)} to{opacity:1; transform:none}}
+.df-main{display:grid; grid-template-rows:auto minmax(0,1fr); gap:12px; padding:16px; min-width:0}
+.df-top{display:flex; align-items:center; justify-content:space-between; gap:14px}
+.df-hi{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.03em; line-height:1.1}
+.df-hi small{display:block; font-family:var(--mono); font-weight:500; font-size:.6rem; letter-spacing:.08em; color:var(--ink-3); text-transform:uppercase; margin-bottom:3px}
+.df-grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-rows:repeat(3, minmax(0,1fr)); gap:10px; min-height:0}
+.slot{border:1.5px dashed var(--line-2); border-radius:12px; min-width:0; min-height:0; transition:opacity .4s}
+.slot[data-k="ask"]{width:min(300px, 46%); height:38px; flex:none}
+.slot[data-k="next"], .slot[data-k="minutes"]{grid-column:span 2}
+/* phones: a phone's dashboard, not the desktop one squeezed. Fewer, roomier widgets:
+   next up and tasks run full width (tasks needs the room for who it's assigned to),
+   minutes sits out, and a short phone drops the last row too. A widget that sits out
+   takes its scattered note with it. */
+@media (max-width:760px){
+  .df{grid-template-columns:minmax(0,1fr); height:min(64vh, 540px)}
+  .df-sb{display:none}
+  .df-main{padding:12px; gap:10px}
+  .df-top{flex-direction:column; align-items:stretch; gap:8px}
+  .df-hi{font-size:1rem}
+  .slot[data-k="ask"]{width:100%; height:34px}
+  .df-grid{grid-template-columns:repeat(2, minmax(0,1fr)); grid-template-rows:repeat(4, minmax(0,1fr)); gap:8px}
+  .slot[data-k="tasks"]{grid-column:span 2}
+  .slot[data-k="minutes"], .pc[data-k="minutes"]{display:none}
+  .w-kx, [data-o="memS"]{display:none}
+}
+@media (max-width:760px) and (max-height:700px){
+  .df{height:min(60vh, 420px)}
+  .df-hi small{display:none}
+  .df-grid{grid-template-rows:repeat(3, minmax(0,1fr))}
+  .slot[data-k="members"], .slot[data-k="mod"], .pc[data-k="members"], .pc[data-k="mod"]{display:none}
+  [data-o="budS"], .pc[data-k="tasks"] .w-row:last-child{display:none}
+}
+@media (max-width:360px){ [data-o="budBig"] small{display:none} }
+
+/* org types under the docked page */
+.otypes{position:absolute; left:0; right:0; z-index:6; display:flex; align-items:center; justify-content:center; gap:8px; padding:0 16px; opacity:0; pointer-events:none; transition:opacity .5s}
+.otypes.on{opacity:1; pointer-events:auto}
+.otypes .lbl{font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-right:4px; white-space:nowrap}
+.ot{display:inline-flex; align-items:center; gap:7px; padding:6px 13px 6px 7px; border-radius:999px; border:1.5px solid var(--line); background:var(--card); font-size:.8rem; font-weight:600; color:var(--ink-2); white-space:nowrap; transition:border-color .3s, box-shadow .35s var(--ease-spring), transform .35s var(--ease-spring), color .3s}
+.ot i{width:20px; height:20px; border-radius:6px; display:grid; place-items:center; font-style:normal; font-size:.55rem; font-weight:700; background:var(--c); color:var(--note-ink); filter:var(--note-filter)}
+.ot.on{border-color:var(--ink); color:var(--ink); box-shadow:2px 2px 0 var(--c); transform:translateY(-1px)}
+@media (max-width:760px){ .otypes{justify-content:flex-start; overflow-x:auto; scrollbar-width:none} .otypes .lbl{display:none} }
+
+/* pieces: one box, two faces */
+.pieces{position:absolute; inset:0; z-index:4; pointer-events:none}
+.pc{position:absolute; left:0; top:0; border-radius:10px; overflow:hidden; will-change:transform, width, height}
+.pc-m, .pc-c{position:absolute; inset:0; border-radius:inherit; overflow:hidden}
+.pc-mi, .pc-ci{position:absolute; left:0; top:0; transform-origin:0 0}
+.pc-c{background:var(--card); border:1.5px solid var(--line)}
+.pc-ci{padding:10px 12px; display:flex; flex-direction:column; min-width:0}
+/* messy faces */
+.m-note{background:var(--butter); color:var(--note-ink); filter:var(--note-filter)}
+.m-note.pk{background:var(--peach)}
+.m-note .pc-mi{padding:18px 16px; font-family:var(--hand); font-size:1.6rem; line-height:1.05; font-weight:700}
+.m-note .pc-mi::before{content:''; position:absolute; left:50%; top:-2px; width:56px; height:16px; translate:-50% 0; rotate:-3deg; background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.18)}
+.m-chat .pc-mi{padding:6px; display:flex; flex-direction:column; gap:6px; font-size:.82rem}
+.bub{padding:7px 11px; border-radius:16px 16px 16px 5px; background:var(--card); border:1px solid var(--line); box-shadow:var(--sh-1); max-width:88%; line-height:1.3}
+.bub b{display:block; font-size:.62rem; color:var(--ink-3); font-weight:600}
+.bub.me{align-self:flex-end; background:var(--sky); color:var(--note-ink); border-color:transparent; border-radius:16px 16px 5px 16px; filter:var(--note-filter)}
+.m-rcpt{background:#FFFFFF; color:#26211B; filter:var(--note-filter)}
+.m-rcpt .pc-mi{padding:14px 14px 10px; font-family:var(--mono); font-size:.66rem; line-height:1.6}
+.m-rcpt .r{display:flex; justify-content:space-between}
+.m-rcpt .scrawl{font-family:var(--hand); font-size:1.25rem; color:#C23C77; rotate:-5deg; margin-top:6px; line-height:1}
+.m-clip{background:var(--paper-3); border:1px solid var(--line-2)}
+.m-clip .pc-mi{padding:24px 14px 12px; font-family:var(--hand); font-size:1.25rem; line-height:1.3}
+.m-clip .pc-mi::before{content:''; position:absolute; left:50%; top:4px; width:64px; height:16px; translate:-50% 0; border-radius:5px; background:var(--ink-3)}
+.m-clip .ln{border-bottom:1px solid rgba(38,33,27,.18); color:var(--ink-2)}
+.m-dm{background:var(--card); border:1px solid var(--line)}
+.m-dm .pc-mi{padding:10px 12px; font-size:.76rem}
+.m-dm .hd{display:flex; align-items:center; gap:7px; padding-bottom:8px; border-bottom:1px solid var(--line); font-weight:600; font-size:.72rem}
+.m-dm .hd i{width:20px; height:20px; border-radius:50%; background:var(--rose); flex:none}
+.m-dm .bub{margin-top:8px; font-size:.78rem}
+.m-dm .seen{margin-top:5px; font-size:.6rem; color:var(--ink-3)}
+.m-pad{background:#FFF3B8; filter:var(--note-filter); color:var(--note-ink)}
+.m-pad .pc-mi{padding:12px 14px 12px 30px; font-family:var(--hand); font-size:1.2rem; line-height:1.38;
+  background:repeating-linear-gradient(transparent 0 25px, rgba(42,102,199,.22) 25px 26.5px); background-position:0 9px}
+.m-pad .pc-mi::before{content:''; position:absolute; left:22px; top:0; bottom:-200px; width:1.5px; background:rgba(194,60,119,.45)}
+.m-drive{background:var(--card); border:1px solid var(--line)}
+.m-drive .pc-mi{padding:12px 14px; font-size:.74rem}
+.m-drive .fn{display:flex; align-items:center; gap:8px; font-weight:600}
+.m-drive .fn i{width:18px; height:22px; border-radius:3px; background:var(--sky-ink); flex:none; opacity:.85}
+.m-drive .lk{margin-top:9px; color:var(--ink-3); line-height:1.35}
+.m-drive .req{margin-top:8px; display:inline-block; padding:4px 10px; border-radius:6px; background:var(--sky-ink); color:#fff; font-weight:600; font-size:.68rem}
+/* clean widgets */
+.w-k{display:flex; align-items:center; gap:6px; font-size:.6rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); white-space:nowrap}
+.w-k::before{content:''; width:10px; height:2px; border-radius:2px; background:var(--eb, var(--peach-ink))}
+.w-big{font-family:var(--display); font-weight:700; letter-spacing:-.035em; font-size:1.5rem; line-height:1.05; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.w-big small{font-size:.8rem; color:var(--ink-3); font-weight:600; letter-spacing:-.01em}
+.w-t{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.025em; line-height:1.15; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.w-s{font-size:.68rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.w-bar{height:6px; border-radius:4px; background:var(--paper-3); margin-top:auto; overflow:hidden; flex:none}
+.w-bar i{display:block; height:100%; width:var(--v); background:var(--bc, var(--mint-ink)); border-radius:inherit; transition:width 1s var(--ease-spring)}
+.pc-c .w-row{display:flex; align-items:center; gap:7px; font-size:.7rem; color:var(--ink-2); white-space:nowrap; overflow:hidden; margin-top:5px}
+.w-row > span:not(.to){overflow:hidden; text-overflow:ellipsis}
+.w-row .to{margin-left:auto}
+.w-cb{width:13px; height:13px; border-radius:4px; border:1.5px solid var(--line-2); flex:none; display:grid; place-items:center}
+.w-cb.on{background:var(--mint-ink); border-color:var(--mint-ink)}
+.w-cb.on::after{content:''; width:5px; height:3px; border:solid var(--paper); border-width:0 0 1.5px 1.5px; rotate:-45deg; translate:0 -1px}
+.w-ask{flex-direction:row !important; align-items:center; gap:8px; padding:0 10px !important; font-size:.76rem; color:var(--ink-3)}
+.w-ask .sp{color:var(--lilac-ink)}
+.w-ask kbd{margin-left:auto}
+.w-ring{--p:88; width:44px; height:44px; border-radius:50%; flex:none;
+  background:conic-gradient(var(--sky-ink) calc(var(--p)*1%), var(--paper-3) 0); display:grid; place-items:center}
+.w-ring::after{content:''; width:32px; height:32px; border-radius:50%; background:var(--card)}
+.w-spine{display:flex; gap:5px; margin-top:auto; align-items:flex-end}
+.w-spine i{flex:1; height:6px; border-radius:3px; background:var(--c, var(--paper-3))}
+[data-o]{transition:opacity .25s var(--ease-out), filter .25s var(--ease-out)}
+.osw{opacity:0 !important; filter:blur(6px)}
+
+/* ── race ────────────────────────────────────────────────────────────────── */
+.race-q{font-family:var(--display); font-weight:700; letter-spacing:-.04em; font-size:clamp(2.2rem, 1rem + 4.2vw, 4.4rem); line-height:1.02; max-width:18ch; margin-inline:auto}
+.race-run{margin-top:60px}
+.race-run.pin .race{position:sticky; top:var(--pt)}
+.race{text-align:left; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:24px}
+.lane{position:relative; border-radius:24px; border:1.5px solid var(--line); background:var(--card); padding:22px; min-height:540px; display:flex; flex-direction:column; box-shadow:var(--sh-2); overflow:hidden}
+.lane.fast{border-color:var(--ink); box-shadow:6px 6px 0 var(--lilac), var(--sh-2)}
+.lane-h{display:flex; align-items:center; gap:10px; padding-bottom:14px; border-bottom:1.5px solid var(--line)}
+.lane-h b{font-family:var(--display); font-size:1.1rem; letter-spacing:-.025em}
+.lane-h .tm{margin-left:auto; font-family:var(--mono); font-size:.8rem; padding:4px 10px; border-radius:999px; background:var(--paper-2); border:1px solid var(--line); min-width:116px; text-align:center}
+.lane.fast .tm{background:var(--lilac-soft); border-color:var(--lilac-bd); color:var(--lilac-ink)}
+.lane-h .sp{width:28px; height:28px; border-radius:9px; display:grid; place-items:center; background:var(--lilac-soft); color:var(--lilac-ink); border:1px solid var(--lilac-bd)}
+.feed{flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:8px; padding-top:14px; overflow:hidden}
+.feed .msg{display:flex; gap:9px; align-items:flex-end; opacity:0; transform:translateY(14px) scale(.97); transition:opacity .45s var(--ease-out), transform .55s var(--ease-spring)}
+.feed .msg.on{opacity:1; transform:none}
+.feed .msg .bub{font-size:.88rem; max-width:80%}
+.feed .day{align-self:center; font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); opacity:0; transition:opacity .4s}
+.feed .day.on{opacity:1}
+.typing{display:inline-flex; gap:3px; padding:10px 12px}
+.typing i{width:6px; height:6px; border-radius:50%; background:var(--ink-3); animation:ty 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s} .typing i:nth-child(3){animation-delay:.3s}
+@keyframes ty{0%,60%,100%{transform:none; opacity:.4} 30%{transform:translateY(-3px); opacity:1}}
+.lane-f{margin-top:14px; padding-top:12px; border-top:1.5px dashed var(--line-2); font-size:.86rem; color:var(--ink-2); display:flex; gap:8px; align-items:center; min-height:40px; flex-wrap:wrap}
+.lane-f b{font-family:var(--display)}
+.ask-q{align-self:flex-end; background:var(--ink); color:var(--paper); padding:9px 14px; border-radius:16px 16px 5px 16px; font-size:.9rem; font-weight:500; max-width:88%}
+.ledger{display:flex; flex-direction:column; gap:7px; margin:14px 0 4px 4px; padding-left:16px; border-left:1.5px solid var(--line-2)}
+.step{position:relative; font-size:.82rem; color:var(--ink-3); opacity:0; transform:translateX(-6px); transition:opacity .35s, transform .45s var(--ease-spring), color .3s}
+.step::before{content:''; position:absolute; left:-21.5px; top:6px; width:9px; height:9px; border-radius:50%; background:var(--card); border:1.5px solid var(--line-2); transition:background .3s, border-color .3s}
+.step.on{opacity:1; transform:none}
+.step.done{color:var(--ink-2)}
+.step.done::before{background:var(--mint-ink); border-color:var(--mint-ink)}
+.step .mono{font-size:.74rem; color:var(--ink-3)}
+.verdict{margin-top:10px; opacity:0; transform:translateY(10px); transition:opacity .5s var(--ease-out), transform .6s var(--ease-spring)}
+.verdict.on{opacity:1; transform:none}
+.verdict h4{font-family:var(--display); font-size:1.32rem; letter-spacing:-.03em; line-height:1.15; font-weight:600}
+.dt{display:inline-block; white-space:nowrap; font-style:normal; background:var(--sky-soft); border:1px solid var(--sky-bd); color:var(--sky-ink); padding:0 6px; border-radius:7px}
+.acts{margin-top:12px; display:flex; flex-direction:column; gap:6px}
+.ai{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:11px; background:var(--paper-2); border:1px solid var(--line); font-size:.84rem; opacity:0; transform:translateY(6px); transition:opacity .35s, transform .45s var(--ease-spring)}
+.verdict.on .ai{opacity:1; transform:none}
+.ai .t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ai .mono{font-size:.72rem; color:var(--ink-3); width:40px; text-align:right}
+.turn2{display:flex; flex-direction:column; margin-top:18px}
+.turn2 > .ask-q{opacity:0; transform:translateY(10px) scale(.97); transform-origin:100% 100%; transition:opacity .4s var(--ease-out), transform .5s var(--ease-spring)}
+.turn2.on > .ask-q{opacity:1; transform:none}
+.writ{position:relative; margin-top:10px; border-radius:14px; border:1.5px solid var(--ink); background:var(--card); box-shadow:4px 4px 0 var(--butter); padding:10px 12px 10px; opacity:0; transform:translateY(12px) rotate(-1deg); transition:opacity .45s var(--ease-out), transform .6s var(--ease-spring)}
+.writ.on{opacity:1; transform:none}
+.wr-h{display:flex; justify-content:space-between; font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding-bottom:7px; border-bottom:1.5px dashed var(--line-2)}
+.wr{display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--line); font-size:.84rem}
+.wr .t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.wr .mono{font-size:.76rem; color:var(--ink-2)}
+.wr .pill{width:72px; justify-content:center}
+.wr-f{display:flex; align-items:center; gap:10px; padding-top:9px; font-size:.76rem; color:var(--ink-3)}
+.wr-ok{margin-left:auto; padding:5px 14px; border-radius:999px; background:var(--ink); color:var(--paper); font-weight:600; font-size:.78rem; transition:transform .15s, opacity .3s}
+.wr-ok.press{transform:scale(.92)}
+.writ.ok .wr-ok{opacity:.35}
+.wr-f > span:first-child{transition:opacity .25s} .writ.ok .wr-f > span:first-child{opacity:0}
+/* the stamp is an impact, not a scrub: it plays in real time once the writ flips to .ok, and rewinds by losing the class */
+.stamp{position:absolute; left:66%; top:44%; padding:4px 12px; border:2.5px solid var(--mint-ink); border-radius:8px; color:var(--mint-ink); font-family:var(--display); font-weight:800; font-size:1.25rem; letter-spacing:.06em; text-transform:uppercase; opacity:0; transform:translate(-50%,-50%) rotate(-9deg); pointer-events:none}
+.stamp::after{content:''; position:absolute; inset:-3px; border:2px solid var(--mint-ink); border-radius:10px; opacity:0}
+.writ.ok .stamp{animation:stampIn .46s cubic-bezier(.3,.6,.35,1) both}
+.writ.ok .stamp::after{animation:stampRing .5s .22s ease-out both}
+.writ.ok{animation:stampThud .3s .2s ease-out both}
+@keyframes stampIn{
+  0%{opacity:0; transform:translate(-50%,-50%) rotate(-17deg) scale(2.3)}
+  48%{opacity:.95; transform:translate(-50%,-50%) rotate(-8deg) scale(.9)}
+  70%{transform:translate(-50%,-50%) rotate(-9.5deg) scale(1.04)}
+  100%{opacity:.88; transform:translate(-50%,-50%) rotate(-9deg) scale(1)}}
+@keyframes stampRing{0%{opacity:.45; transform:scale(1)} 100%{opacity:0; transform:scale(1.18)}}
+@keyframes stampThud{0%,100%{transform:none} 35%{transform:translateY(2px) scale(.994)}}
+@media (max-width:860px){ .race{grid-template-columns:minmax(0,1fr)} .lane{min-height:460px} }
+
+/* ── how it works: one card, four shapes ─────────────────────────────────── */
+.walk{position:relative}
+/* the page colour itself shifts while the card changes shape; fixed so it fades in and out, no hard edge */
+.wash{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:0}
+.walk-in{position:relative; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:40px}
+.walk-head{padding:130px 0 0}
+.steps{padding-bottom:16vh}
+.st{min-height:76vh; display:flex; flex-direction:column; justify-content:center; max-width:450px; opacity:.25; transition:opacity .5s var(--ease-out)}
+.st.on{opacity:1}
+.st .n{font-family:var(--mono); font-size:.76rem; color:var(--ink-3); display:flex; align-items:center; gap:10px}
+.st .n::after{content:''; height:1.5px; width:40px; background:var(--line-2)}
+.st h3{font-family:var(--display); font-weight:600; font-size:clamp(1.8rem, 1rem + 2.4vw, 2.8rem); letter-spacing:-.035em; line-height:1.04; margin-top:14px}
+.st p{margin-top:14px; color:var(--ink-2); font-size:1.06rem}
+.st > .pill{margin-top:18px; align-self:flex-start}
+.dv-col{position:relative}
+.dv-pin{position:sticky; top:0; height:100vh; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(0,1fr); place-items:center}
+.dv-scale{transform-origin:50% 50%}
+.dv{position:relative; border:1.5px solid var(--ink); will-change:width, height, border-radius, transform; box-shadow:7px 7px 0 var(--hs, var(--lilac)), var(--sh-3); transition:box-shadow .5s}
+.dv-bg{position:absolute; inset:0; border-radius:inherit; opacity:0}
+.dv-clip{position:absolute; inset:0; border-radius:inherit; overflow:hidden}
+.dv-l{position:absolute; left:50%; top:50%; will-change:opacity, transform, filter}
+.st-card{display:none; position:relative; margin-bottom:26px; border:1.5px solid var(--ink); overflow:hidden; box-shadow:6px 6px 0 var(--hs, var(--lilac)), var(--sh-2)}
+.st-card > .dv-bg{opacity:1}
+.st-card .dv-l{left:0; top:0; transform-origin:0 0; will-change:auto}
+.rail{position:absolute; right:-6px; top:50%; translate:0 -50%; display:flex; flex-direction:column; gap:8px}
+.rail i{width:6px; height:22px; border-radius:4px; background:var(--line-2); transition:background .4s, height .5s var(--ease-spring)}
+.rail i.on{background:var(--ink); height:40px}
+/* L1 timeline */
+.tl{width:420px; height:520px; padding:22px; display:flex; flex-direction:column}
+.tl-h{display:flex; align-items:center; justify-content:space-between}
+.tl-h b{font-family:var(--display); font-size:1.2rem; letter-spacing:-.03em}
+.tl-list{position:relative; margin-top:18px; padding-left:26px}
+.tl-list::before{content:''; position:absolute; left:7px; top:6px; bottom:6px; width:2px; border-radius:2px; background:var(--line-2)}
+.ev{position:relative; display:flex; align-items:center; gap:12px; padding:9px 12px; margin-bottom:8px; border-radius:12px; background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1)}
+.ev::before{content:''; position:absolute; left:-24px; top:50%; translate:0 -50%; width:12px; height:12px; border-radius:50%; background:var(--c); border:2px solid var(--paper)}
+.ev .d{font-family:var(--mono); font-size:.68rem; color:var(--ink-3); width:38px; line-height:1.15; text-transform:uppercase}
+.ev .d b{display:block; font-size:1.02rem; color:var(--ink); font-family:var(--display); letter-spacing:-.03em}
+.ev .t{font-weight:600; font-size:.86rem; line-height:1.2}
+.ev .t small{display:block; font-weight:500; font-size:.71rem; color:var(--ink-3)}
+.ev .pill{margin-left:auto}
+.ev.now{border-color:var(--ink); box-shadow:3px 3px 0 var(--sky)}
+.today{position:relative; margin:4px 0 12px -26px; display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--peach-ink)}
+.today::after{content:''; flex:1; height:1.5px; background:var(--peach-ink); opacity:.5}
+.tl-sub{margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--sky-soft); border:1.5px dashed var(--sky-bd); font-size:.78rem; color:var(--ink-2)}
+.tl-sub b{color:var(--ink)}
+.tl-sub .pill{margin-left:auto}
+/* L2 check-in ticket */
+.tk{width:520px; height:290px; display:grid; grid-template-columns:170px minmax(0,1fr); color:var(--note-ink)}
+.tk-stub{padding:22px 18px; border-right:2px dashed rgba(38,33,27,.28); display:flex; flex-direction:column}
+.tk-stub .adm{font-family:var(--display); font-weight:800; font-size:2rem; letter-spacing:-.03em; line-height:.9}
+.tk-stub .mono{font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; opacity:.75; margin-top:10px; line-height:1.5}
+.tk-stub .qr{margin-top:auto; width:62px; height:62px; border-radius:6px; background:conic-gradient(from 90deg at 33% 33%, var(--note-ink) 25%, transparent 0) 0 0/12px 12px, #FFE5A0; border:2px solid var(--note-ink); opacity:.85}
+.tk-main{padding:22px; display:flex; flex-direction:column}
+.tk-main .k{font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; opacity:.7}
+.tk-n{display:flex; align-items:baseline; gap:8px; margin-top:6px}
+.tk-n b{font-family:var(--display); font-size:4.4rem; line-height:.9; letter-spacing:-.05em; font-weight:700}
+.tk-n span{font-family:var(--display); font-size:1.5rem; opacity:.55; font-weight:600}
+.tk-open{display:inline-flex; align-items:center; gap:7px; font-size:.78rem; font-weight:600; margin-top:10px}
+.tk-open i{width:8px; height:8px; border-radius:50%; background:#1B815B; animation:blink 1.6s infinite}
+@keyframes blink{0%,100%{opacity:1} 50%{opacity:.3}}
+.tk-arr{display:flex; flex-wrap:wrap; gap:5px; margin-top:auto}
+.tk-arr .av{width:24px; height:24px; border-color:#FFF6DC}
+.tk-arr .av.new{animation:pop .6s var(--ease-spring) both}
+@keyframes pop{0%{transform:scale(0)} 100%{transform:scale(1)}}
+.notch{position:absolute; top:50%; width:26px; height:26px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink); translate:0 -50%; opacity:0; z-index:2}
+.notch.l{left:-14px; clip-path:inset(0 0 0 50%)} .notch.r{right:-14px; clip-path:inset(0 50% 0 0)}
+/* L3 tasks note */
+.nt{width:390px; height:440px; padding:28px 24px; color:var(--note-ink)}
+.nt h4{font-family:var(--display); font-size:1.5rem; letter-spacing:-.03em; font-weight:700}
+.nt .k{font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; opacity:.65}
+.nt-seg{margin-top:12px; display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:rgba(255,255,255,.45); border:1px solid rgba(38,33,27,.14)}
+.nt-seg span{padding:3px 10px; border-radius:999px; font-size:.7rem; font-weight:600; opacity:.6; transition:background .35s, opacity .35s, color .35s}
+.nt-seg span.on{background:var(--note-ink); color:#FFD5C4; opacity:1}
+.nt ul{margin-top:12px; display:flex; flex-direction:column; gap:4px}
+.nt li{display:flex; align-items:center; gap:10px; font-weight:600; font-size:.92rem; padding:7px 8px; margin:0 -8px; border-radius:12px; transition:background .4s}
+.nt li.hl{background:rgba(255,255,255,.55)}
+.nt li .cb{width:20px; height:20px; border-radius:6px; border:2px solid var(--note-ink); flex:none; display:grid; place-items:center}
+.nt li.done .cb{background:var(--note-ink)}
+.nt li.done .cb::after{content:''; width:8px; height:4px; border:solid #FFD5C4; border-width:0 0 2px 2px; rotate:-45deg; translate:0 -1px}
+.nt li.done .tt{text-decoration:line-through; text-decoration-thickness:2px; opacity:.55}
+.nt li .tt{flex:1; min-width:0}
+.nt li small{display:block; font-weight:500; font-size:.7rem; opacity:.65}
+.nt .to{background:rgba(255,255,255,.7); border-color:rgba(38,33,27,.14); color:var(--note-ink)}
+.nt .to.role{background:#E1D8FF; color:#4F33B3; border-color:transparent}
+.nt .to.all{background:#C7EFDA; color:#15664A; border-color:transparent}
+.nt .ech{display:flex; align-items:center; gap:6px; font-size:.68rem; opacity:.75; margin-top:2px; font-weight:500}
+.nt .ech i{flex:none; width:60px; height:4px; border-radius:3px; background:rgba(38,33,27,.15); overflow:hidden; position:relative}
+.nt .ech i::after{content:''; position:absolute; inset:0; width:var(--v); background:var(--note-ink); border-radius:inherit; transition:width .5s var(--ease-spring)}
+.nt .from{margin-top:12px; font-size:.74rem; opacity:.7}
+/* L4 budget */
+.bd{width:460px; height:400px; padding:24px}
+.bd-h{display:flex; align-items:center; justify-content:space-between}
+.bd .k{font-family:var(--mono); font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.bd-bal{font-family:var(--display); font-weight:700; font-size:2.8rem; letter-spacing:-.05em; line-height:1; margin-top:6px}
+.bd-bal small{font-size:.95rem; color:var(--ink-3); letter-spacing:-.01em; font-weight:600; margin-left:6px}
+.bd-stack{margin-top:16px; display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--paper-3)}
+.bd-stack i{height:100%; width:0; background:var(--c); transition:width 1s var(--ease-spring)}
+.bd-leg{display:flex; gap:14px; margin-top:8px; font-size:.7rem; color:var(--ink-3); flex-wrap:wrap}
+.bd-leg span{display:flex; align-items:center; gap:5px}
+.bd-leg span::before{content:''; width:8px; height:8px; border-radius:3px; background:var(--c)}
+.bd-rows{margin-top:14px; border-top:1.5px solid var(--line)}
+.bd-r{display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px dashed var(--line-2); font-size:.84rem}
+.bd-r .lab{flex:1; min-width:0}
+.bd-r .mono{font-weight:600; min-width:62px; text-align:right}
+.bd-r .in{color:var(--mint-ink)} .bd-r .out{color:var(--ink-2)}
+.bd-r .pill{font-size:.62rem}
+.bd-foot{margin-top:12px; font-size:.74rem; color:var(--ink-3)}
+@media (max-width:900px) and (min-height:501px){
+  .walk-in{grid-template-columns:minmax(0,1fr); gap:0}
+  .walk-head{padding-top:100px}
+  /* phones: no motion here. Each step carries its own card, still, above its text
+     (the walk scene moves the four card faces into them) */
+  .dv-col{display:none}
+  .st{min-height:0; opacity:1; justify-content:flex-start; padding-top:64px; transition:none}
+  .st-card{display:block}
+  .rail{display:none}
+}
+
+/* ── the handoff ─────────────────────────────────────────────────────────── */
+.ho{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:56px; align-items:center}
+.years{margin-top:30px; display:flex; align-items:center}
+.yr{position:relative; border:0; background:none; padding:6px 0; font-family:var(--mono); font-size:.86rem; font-weight:600; color:var(--ink-3); transition:color .3s}
+.yr.on{color:var(--ink)}
+.yr::after{content:''; position:absolute; left:50%; bottom:-6px; width:7px; height:7px; translate:-50% 0; border-radius:50%; background:var(--line-2); transition:background .3s, transform .4s var(--ease-spring)}
+.yr.on::after{background:var(--peach-ink); transform:scale(1.5)}
+.yr-line{flex:1; height:2px; margin:0 12px; border-radius:2px; background:var(--line); position:relative; overflow:hidden; max-width:90px}
+.yr-line i{position:absolute; inset:0; background:var(--peach-ink); transform-origin:left; transform:scaleX(0); transition:transform .6s var(--ease-spring)}
+/* the board is a sticky note: fixed butter paper + note ink in both themes, like the check-in ticket */
+.board{margin-top:28px; border-radius:22px; border:1.5px solid var(--note-ink); background:#FFE5A0; color:var(--note-ink); filter:var(--note-filter); box-shadow:6px 6px 0 var(--peach-ink), var(--sh-2); padding:20px 22px}
+.board-h{display:flex; align-items:center; justify-content:space-between; padding-bottom:12px; border-bottom:1.5px solid rgba(38,33,27,.22)}
+.board .pill{background:rgba(255,255,255,.55); color:#9A3F1E; border-color:rgba(38,33,27,.14)}
+.board .seat{border-bottom-color:rgba(38,33,27,.2)}
+.board .seat .role{color:rgba(38,33,27,.62)}
+.board .seat .new{color:#B4471F}
+.board .av{border-color:#FFE5A0}
+.board .to.role{background:#E1D8FF; color:#4F33B3; border-color:transparent}
+.board .board-f{color:rgba(38,33,27,.75)}
+.board-h b{font-family:var(--display); font-size:1.05rem; letter-spacing:-.02em}
+.seat{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px dashed; perspective:500px}
+.seat .role{width:110px; font-size:.78rem; color:var(--ink-3); font-weight:600; flex:none}
+.seat .who{display:flex; align-items:center; gap:9px; font-weight:600; font-size:.92rem; transition:transform .26s var(--ease-out), opacity .26s; transform-origin:50% 50%}
+.seat .who.flip{transform:rotateX(90deg); opacity:0}
+.seat .new{margin-left:auto; font-family:var(--mono); font-size:.62rem; color:var(--peach-ink); letter-spacing:.06em; text-transform:uppercase; opacity:0; transition:opacity .4s}
+.seat .new.on{opacity:1}
+.board-f{margin-top:12px; font-size:.8rem; color:var(--ink-2); display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.stays{display:flex; flex-direction:column; gap:12px}
+.stays-h{font-family:var(--mono); font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin-bottom:4px}
+.stay{display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:18px; background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1); transition:transform .5s var(--ease-spring)}
+.stay .tile{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--c); color:var(--note-ink); border:1.5px solid var(--note-ink); filter:var(--note-filter); flex:none; rotate:var(--r, -3deg)}
+.stay .tile svg{width:18px; height:18px}
+.stay b{display:block; font-family:var(--display); font-size:1.05rem; letter-spacing:-.02em; line-height:1.2}
+.stay small{font-size:.82rem; color:var(--ink-3)}
+.stay .n{margin-left:auto; font-family:var(--display); font-weight:700; font-size:1.7rem; letter-spacing:-.04em; text-align:right; line-height:1}
+.stay .n small{display:block; font-family:var(--mono); font-size:.6rem; letter-spacing:.06em; font-weight:500; text-transform:uppercase}
+.stay.bump{transform:translateX(-6px)}
+.ho .sec-h{font-size:clamp(2.2rem, 1rem + 3vw, 3.7rem)}
+#fit .sec-h{font-size:clamp(2.2rem, 1rem + 3.4vw, 4rem)}
+@media (max-width:900px){ .ho{grid-template-columns:minmax(0,1fr); gap:40px} }
+
+/* ── fits your org: tick what you do, watch the sidebar build ───────────── */
+.fx{margin:64px auto 0; max-width:940px; display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:72px; align-items:center; text-align:left}
+.fx-q{font-family:var(--hand); font-weight:700; font-size:1.9rem; line-height:1; color:var(--ink-2); margin-bottom:18px; rotate:-1.5deg}
+.fx-acts{display:flex; flex-direction:column}
+.act{--c:var(--paper-3); display:flex; align-items:center; gap:14px; padding:13px 4px; border:0; border-bottom:1.5px dashed var(--line-2); background:none; text-align:left;
+  font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.02em; color:var(--ink-3); transition:color .25s, padding .4s var(--ease-spring)}
+.act:first-child{border-top:1.5px dashed var(--line-2)}
+.act:hover{color:var(--ink-2); padding-left:10px}
+.act .bx{width:24px; height:24px; border-radius:7px; border:1.5px solid var(--line-2); display:grid; place-items:center; flex:none; transition:background .25s, border-color .25s, transform .45s var(--ease-spring)}
+.act .bx svg{width:15px; height:15px; color:var(--note-ink); opacity:0; transform:scale(.3); transition:opacity .2s, transform .4s var(--ease-spring)}
+.act.on{color:var(--ink)}
+.act.on .bx{background:var(--c); border-color:var(--note-ink); transform:rotate(-8deg); filter:var(--note-filter)}
+.act.on .bx svg{opacity:1; transform:none}
+.act .pg{margin-left:auto; font-family:var(--mono); font-size:.66rem; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); opacity:0; transform:translateX(-6px); transition:opacity .3s, transform .4s var(--ease-spring)}
+.act.on .pg{opacity:1; transform:none}
+.act .al{position:relative; z-index:0}
+.act .al::before{content:''; position:absolute; z-index:-1; left:-.15em; right:-.15em; bottom:.1em; height:.5em; border-radius:.4em .55em .38em .6em;
+  background:var(--c); opacity:var(--mark-op); transform:rotate(-.8deg) scaleX(0); transform-origin:left center; transition:transform .55s var(--ease-spring)}
+.act.on .al::before{transform:rotate(-.8deg) scaleX(1)}
+
+.fx-pv{position:relative; padding:16px 12px 18px; border-radius:22px; border:1.5px solid var(--ink); background:var(--paper-2); box-shadow:8px 8px 0 var(--hs, var(--lilac)); rotate:1.5deg; transition:box-shadow .5s var(--ease-spring)}
+.pv-org{display:flex; align-items:center; gap:10px; padding:0 6px 14px; margin-bottom:10px; border-bottom:1.5px solid var(--line)}
+.pv-org .mark{width:30px; height:30px; font-size:.7rem; border-radius:9px}
+.pv-org b{font-family:var(--display); font-size:.98rem; letter-spacing:-.02em; display:block; line-height:1.1}
+.pv-org small{font-family:var(--mono); font-size:.58rem; color:var(--ink-3); letter-spacing:.05em}
+.pv-it{display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows .55s var(--ease-spring), opacity .35s var(--ease-out)}
+.pv-it > div{min-height:0; overflow:hidden}
+.pv-it.on{grid-template-rows:1fr; opacity:1}
+.pv-row{display:flex; align-items:center; gap:11px; height:38px; margin:2px 0; padding:0 11px; border-radius:11px; font-size:.92rem; font-weight:500; color:var(--ink-2); border:1.5px solid transparent; white-space:nowrap}
+.pv-row i{width:14px; height:14px; border-radius:5px; background:var(--c); flex:none; filter:var(--note-filter)}
+.pv-it.cur .pv-row{background:var(--card); border-color:var(--ink); box-shadow:2px 2px 0 var(--c); color:var(--ink)}
+.pv-row .lb{display:inline-block; transition:opacity .25s, filter .25s, transform .35s var(--ease-spring)}
+.pv-row .lb.out{opacity:0; filter:blur(4px); transform:translateY(-4px)}
+.pv-note{position:absolute; left:calc(100% + 18px); top:var(--ny, 50%); width:130px; font-family:var(--hand); font-weight:700; font-size:1.3rem; line-height:1; color:var(--lilac-ink); rotate:-4deg; transition:top .5s var(--ease-spring)}
+.pv-note::before{content:''; position:absolute; right:calc(100% + 4px); top:.45em; width:16px; height:1.5px; background:currentColor}
+.fx-foot{margin-top:56px; font-size:.92rem; color:var(--ink-3)}
+.fx-foot b{color:var(--ink); font-weight:600}
+@media (max-width:1180px){ .pv-note{position:static; width:auto; margin:14px 0 -4px; text-align:center; rotate:-2deg} .pv-note::before{display:none} }
+@media (max-width:860px){ .fx{grid-template-columns:minmax(0,1fr); gap:44px} .fx-pv{max-width:340px; width:100%; margin-inline:auto} }
+
+/* ── privacy strip ───────────────────────────────────────────────────────── */
+.priv{position:relative; z-index:2; margin:0 16px; border-radius:32px; will-change:scale; background:var(--ink); color:var(--paper); padding:72px 0}
+.priv-in{display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.6fr); gap:40px; align-items:center}
+.priv .eyebrow{color:color-mix(in srgb, var(--paper) 60%, transparent)}
+.priv h2{font-family:var(--display); font-weight:600; letter-spacing:-.035em; line-height:1.04; font-size:clamp(2rem, 1.2rem + 2.6vw, 3.2rem); margin-top:14px}
+.priv-pts{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px}
+.pp{padding:20px; border-radius:18px; border:1.5px solid color-mix(in srgb, var(--paper) 18%, transparent)}
+.pp .lk{width:34px; height:34px; border-radius:11px; display:grid; place-items:center; background:var(--c); color:var(--note-ink); filter:var(--note-filter); margin-bottom:14px}
+.pp .lk svg{width:17px; height:17px}
+.pp b{font-family:var(--display); font-size:1.05rem; letter-spacing:-.02em}
+.pp p{margin-top:6px; font-size:.88rem; color:color-mix(in srgb, var(--paper) 70%, transparent)}
+.priv-more{display:inline-flex; gap:6px; margin-top:16px; font-size:.88rem; color:color-mix(in srgb, var(--paper) 70%, transparent); text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--paper) 30%, transparent); text-underline-offset:4px; transition:color .2s, text-decoration-color .2s}
+.priv-more:hover{color:var(--paper); text-decoration-color:var(--butter)}
+.priv-more span{transition:translate .3s var(--ease-spring)}
+.priv-more:hover span{translate:3px 0}
+@media (max-width:900px){ .priv-in{grid-template-columns:minmax(0,1fr)} .priv-pts{grid-template-columns:minmax(0,1fr)} .priv{margin:0 8px; border-radius:26px; padding:56px 0} }
+
+/* ── FAQ ─────────────────────────────────────────────────────────────────── */
+.faq{max-width:780px; margin:48px auto 0; text-align:left}
+.qa{border-bottom:1.5px solid var(--line)}
+.qa button{width:100%; display:flex; align-items:center; gap:16px; padding:22px 4px; background:none; border:0; text-align:left; font-family:var(--display); font-weight:600; font-size:1.18rem; letter-spacing:-.02em}
+.qa .pm{margin-left:auto; width:30px; height:30px; flex:none; border-radius:10px; border:1.5px solid var(--line-2); position:relative; transition:background .3s, border-color .3s, transform .5s var(--ease-spring)}
+.qa .pm::before, .qa .pm::after{content:''; position:absolute; left:50%; top:50%; width:12px; height:2px; border-radius:2px; background:var(--ink); translate:-50% -50%; transition:rotate .45s var(--ease-spring)}
+.qa .pm::after{rotate:90deg}
+.qa.open .pm{background:var(--butter); border-color:var(--ink); transform:rotate(180deg)}
+.qa.open .pm::after{rotate:0deg}
+.qa .ans{display:grid; grid-template-rows:0fr; transition:grid-template-rows .5s var(--ease-spring)}
+.qa.open .ans{grid-template-rows:1fr}
+.qa .ans > div{overflow:hidden; min-height:0}
+.qa .ans p{padding:0 50px 24px 4px; color:var(--ink-2); opacity:0; transform:translateY(-6px); transition:opacity .4s, transform .5s var(--ease-spring)}
+.qa.open .ans p{opacity:1; transform:none}
+
+/* ── close ───────────────────────────────────────────────────────────────── */
+.close{padding:150px 0 120px; text-align:center; position:relative; overflow:hidden}
+.close-h{font-family:var(--display); font-weight:700; letter-spacing:-.05em; line-height:.98; font-size:clamp(2.8rem, 1rem + 6.4vw, 6.6rem); max-width:13ch; margin:0 auto}
+.close-h .cw{opacity:.12; transition:opacity .25s linear}
+.close .cta-row{margin-top:44px}
+.close .url{margin-top:22px; font-family:var(--mono); font-size:.82rem; color:var(--ink-3)}
+
+/* ── the thread: the one loose end left after the hero, sewn through every section and tied off at the close ── */
+.seam{position:absolute; left:0; top:0; width:100%; height:0; z-index:1; pointer-events:none; overflow:visible}
+.seam .th{fill:none; stroke:var(--peach-ink); stroke-width:2.5; stroke-linecap:round; opacity:.75}
+.ndl{opacity:0; transition:opacity .3s}
+.ndl.on{opacity:1}
+.ndl path{fill:var(--ink-2)}
+.ndl ellipse{fill:var(--paper); stroke:var(--ink-2); stroke-width:1.2}
+@media (max-width:760px){ .seam .th{stroke-width:2; opacity:.55} }
+
+/* ── travellers: one object carried out of a section and set down in the next ── */
+.fly{position:fixed; inset:0; z-index:60; pointer-events:none; overflow:hidden}
+/* things swing in from the sides; keep them from widening the page on the way */
+main > section{overflow-x:clip}
+.tv{position:absolute; left:0; top:0; display:none; transform-origin:50% 50%; will-change:transform, width, height}
+.tv.on{display:block}
+.tv-f{position:absolute; left:0; top:0; transform-origin:0 0; will-change:transform, opacity}
+.tv-ask.on{display:flex; align-items:center; overflow:hidden; border:1.5px solid; font-weight:500; line-height:1.45}
+.tv-ask .sp{flex:none; color:var(--lilac-ink); overflow:hidden}
+.tv-ask .ty{flex:1; min-width:0}
+.tv-ask .ty::after{content:''; display:inline-block; width:1.5px; height:1em; margin-left:2px; vertical-align:-2px; background:currentColor; animation:blink 1s steps(1) infinite}
+.tv-ask .ph{color:var(--ink-3)}
+.tv-ask kbd{position:absolute; right:10px; top:50%; translate:0 -50%}
+
+footer{border-top:1.5px solid var(--line); padding:56px 0 110px; background:var(--paper-2)}
+.ft{display:grid; grid-template-columns:1.4fr repeat(3, minmax(0,1fr)); gap:30px}
+.ft h5{font-size:.7rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin:0 0 12px; font-weight:600}
+.ft a{display:block; padding:4px 0; font-size:.9rem; color:var(--ink-2)}
+.ft a:hover{color:var(--ink)}
+.ft a.brand{display:flex; font-size:1.12rem; color:var(--ink)}
+.ft p{margin-top:12px; font-size:.88rem; color:var(--ink-3); max-width:280px}
+.ft-b{margin-top:44px; display:flex; justify-content:space-between; font-size:.8rem; color:var(--ink-3); flex-wrap:wrap; gap:10px}
+@media (max-width:760px){ .ft{grid-template-columns:repeat(2, minmax(0,1fr))} .ft > div:first-child{grid-column:1/-1} }
+
+.mbar{position:fixed; left:12px; right:12px; bottom:12px; z-index:70; display:none; align-items:center; gap:12px; padding:10px 10px 10px 16px; border-radius:18px; background:var(--card); border:1.5px solid var(--ink); box-shadow:4px 4px 0 var(--lilac), var(--sh-3);
+  transform:translateY(140%); transition:transform .55s var(--ease-spring)}
+.mbar.on{transform:none}
+.mbar b{font-family:var(--display); letter-spacing:-.02em; font-size:.95rem; line-height:1.15}
+.mbar small{display:block; font-size:.72rem; color:var(--ink-3); font-weight:500}
+.mbar .btn{margin-left:auto}
+@media (max-width:760px){ .mbar{display:flex} .sec{padding:100px 0} }
+/* touch: the text links get a thumb-sized hit area, and the hero's small print keeps
+   a paper halo so it still reads where a scattered note drifts behind it */
+@media (max-width:760px), (pointer:coarse){
+  .cta-2{display:inline-block; padding:10px 6px}
+  .priv-more{padding:10px 0}
+  .ft a{padding:8px 0}
+}
+@media (max-width:760px){
+  .hero-copy .eyebrow, .cta-2, .cta-note{text-shadow:0 0 6px var(--paper), 0 0 2px var(--paper), 0 0 12px var(--paper)}
+}
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{animation-duration:.01ms !important; animation-iteration-count:1 !important}
+  [data-rv], [data-split] .sw > span{transition:none !important; opacity:1 !important; transform:none !important; filter:none !important}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 40 40"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="var(--butter)" stroke="var(--note-ink)" stroke-width="2.4"/><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="var(--note-ink)" stroke-width="2.4" stroke-linecap="round"/><circle cx="14.6" cy="16" r="1.9" fill="var(--note-ink)"/><circle cx="25.4" cy="16" r="1.9" fill="var(--note-ink)"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z" fill="currentColor"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></g></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></g></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h5v18h-5M10 17l5-5-5-5M15 12H3"/></g></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></g></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></g></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/></g></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></g></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top"><svg class="logo"><use href="#i-logo"/></svg>ChaptOS</a>
+    <nav class="nav-links" id="navLinks" aria-label="Primary">
+      <span class="nl-ink" id="navInk" aria-hidden="true"></span>
+      <a class="nl" href="#how" style="--c:var(--sky); --ci:var(--sky-ink)"><i></i>How it works<svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
+      <a class="nl" href="#fit" style="--c:var(--lilac); --ci:var(--lilac-ink)"><i></i>Features<svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
+      <a class="nl" href="#pricing" style="--c:var(--mint); --ci:var(--mint-ink)"><i></i>Pricing<svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
+      <a class="nl" href="#blog" style="--c:var(--peach); --ci:var(--peach-ink)"><i></i>Blog<b class="nl-tag">new</b><svg class="nl-u" viewBox="0 0 60 6" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M1 4.2C9 1.6 15 5.4 23 3.4S38 1.2 45 3.6 55 4.6 59 2.4"/></svg></a>
+    </nav>
+    <div class="nav-r">
+      <a class="nav-login" href="#">Log in</a>
+      <a class="btn btn--sm" href="#start">Start your org</a>
+      <button class="nav-menu" id="menuBtn" aria-label="Menu" aria-expanded="false" aria-controls="navSheet"><span></span></button>
+    </div>
+  </div>
+  <nav class="nav-sheet" id="navSheet" aria-label="Primary (mobile)">
+    <a class="ns-l" href="#how" style="--c:var(--sky); --i:0"><span class="mono">01</span><b>How it works</b><i></i></a>
+    <a class="ns-l" href="#fit" style="--c:var(--lilac); --i:1"><span class="mono">02</span><b>Features</b><i></i></a>
+    <a class="ns-l" href="#pricing" style="--c:var(--mint); --i:2"><span class="mono">03</span><b>Pricing</b><i></i></a>
+    <a class="ns-l" href="#blog" style="--c:var(--peach); --i:3"><span class="mono">04</span><b>Blog</b><b class="nl-tag">new</b><i></i></a>
+    <div class="ns-f"><a class="btn btn--ghost" href="#">Log in</a><a class="btn" href="#start">Start your org</a></div>
+  </nav>
+</header>
+
+<svg class="seam" id="seam" aria-hidden="true">
+  <path class="th" id="seamPage"/><path class="th" id="seamKnot"/>
+  <g class="ndl" id="needle"><path d="M-3 -1.7 L26 0 L-3 1.7 Z"/><ellipse cx="1" cy="0" rx="3.2" ry="1.3"/></g>
+</svg>
+<div class="fly" id="fly" aria-hidden="true"></div>
+<div class="wash" id="wash"></div>
+
+<main>
+<!-- ═════════ 1 · HERO ═════════ -->
+<section class="hero" id="top">
+  <div class="hero-stage" id="heroStage">
+
+    <div class="hero-copy" id="heroCopy">
+      <span class="eyebrow fade-a">For every student org</span>
+      <h1 class="h1" id="heroH1">Your <span class="oword" id="oword"><span class="ow">club</span></span> runs<br> on <span class="swap" id="swap"><span class="hi a">loose ends</span><span class="hi b">one page</span></span>.</h1>
+      <p class="lede fade-a">Meetings, money, members and minutes, on one page your whole org can see.</p>
+      <div class="cta-row fade-a">
+        <a class="btn btn--lg" href="#start">Start your org, free <svg class="ic"><use href="#i-arrow"/></svg></a>
+        <a class="cta-2" id="seeHow" href="#how">See how it works <span aria-hidden="true">↓</span></a>
+      </div>
+      <p class="cta-note fade-a"><span>No card needed</span><i></i><span>Members join free</span><i></i><span>Any kind of org</span></p>
+    </div>
+
+    <div class="df" id="df" aria-hidden="true">
+      <aside class="df-sb">
+        <div class="df-org"><span class="mark" data-o="logo">RC</span><div><b data-o="name">Robotics Club</b><small data-o="meta">FALL ’26 · 38</small></div></div>
+        <div class="df-nav" id="dfNav"></div>
+      </aside>
+      <div class="df-main">
+        <div class="df-top">
+          <div class="df-hi"><small>Mon · Oct 20</small>Good evening, Maya</div>
+          <div class="slot" data-k="ask"></div>
+        </div>
+        <div class="df-grid">
+          <div class="slot" data-k="next"></div>
+          <div class="slot" data-k="budget"></div>
+          <div class="slot" data-k="att"></div>
+          <div class="slot" data-k="tasks"></div>
+          <div class="slot" data-k="members"></div>
+          <div class="slot" data-k="minutes"></div>
+          <div class="slot" data-k="mod"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pieces" id="pieces" aria-hidden="true">
+      <div class="pc" data-k="ask">
+        <div class="pc-m m-note"><div class="pc-mi" style="width:180px;height:150px">when’s the next meeting?? 😭</div></div>
+        <div class="pc-c"><div class="pc-ci w-ask"><svg class="ic sp" style="width:14px"><use href="#i-spark"/></svg><span>Ask Chapt anything…</span><kbd>⌘K</kbd></div></div>
+      </div>
+      <div class="pc" data-k="next">
+        <div class="pc-m m-chat"><div class="pc-mi" style="width:250px;height:170px">
+          <div class="bub"><b>Jordan</b>is the meeting tues or wed??</div>
+          <div class="bub me">wed i think</div>
+          <div class="bub"><b>Alex</b>it moved. check the insta story</div>
+        </div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--sky-ink)">
+          <div class="w-k">Next up</div>
+          <div class="w-t" data-o="nextT">General meeting · Wed 6:00</div>
+          <div class="w-s" data-o="nextS">Union 210 · moved from Tue · on everyone’s calendar</div>
+          <div class="w-spine"><i style="--c:var(--sky)"></i><i style="--c:var(--lilac)"></i><i style="--c:var(--rose)"></i><i style="--c:var(--peach)"></i><i></i><i style="--c:var(--mint)"></i></div>
+        </div></div>
+      </div>
+      <div class="pc" data-k="budget">
+        <div class="pc-m m-rcpt"><div class="pc-mi" style="width:170px;height:200px">
+          <div style="text-align:center;font-weight:600">CORNER MART</div>
+          <div class="r"><span>chips ×4</span><span>12.99</span></div><div class="r"><span>soda ×12</span><span>18.40</span></div><div class="r"><span>plates</span><span>11.79</span></div>
+          <div class="r" style="border-top:1px dashed #998D7C;margin-top:3px;padding-top:3px;font-weight:600"><span>TOTAL</span><span>43.18</span></div>
+          <div class="scrawl">pay me back pls<br>— alex</div>
+        </div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--mint-ink)">
+          <div class="w-k" data-o="budK">Budget left</div>
+          <div class="w-big" data-o="budBig">$1,240 <small>/ 2,000</small></div>
+          <div class="w-s" data-o="budS">Student gov allocation · 1 reimbursement</div>
+          <div class="w-bar"><i data-bar="bud" style="--v:62%"></i></div>
+        </div></div>
+      </div>
+      <div class="pc" data-k="att">
+        <div class="pc-m m-clip"><div class="pc-mi" style="width:190px;height:230px">
+          <div style="font-weight:700">SIGN IN!!</div>
+          <div class="ln">Jordan T ✓</div><div class="ln">alex</div><div class="ln">Sam (left early)</div><div class="ln">?? illegible</div><div class="ln">Priya</div>
+        </div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--sky-ink)">
+          <div class="w-k">Attendance<span class="w-kx">&nbsp;· last meeting</span></div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:auto">
+            <div class="w-ring" style="--p:84"></div>
+            <div><div class="w-big" style="margin:0" data-o="attN">32<small>/38</small></div><div class="w-s">84% · up 6</div></div>
+          </div>
+        </div></div>
+      </div>
+      <div class="pc" data-k="tasks">
+        <div class="pc-m m-note pk"><div class="pc-mi" style="width:170px;height:150px">who’s booking the room??<br>(not me)</div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--peach-ink)">
+          <div class="w-k">Tasks · this week</div>
+          <div class="w-row"><i class="w-cb"></i><span>Book the room</span><span class="to"><i class="av" style="--a:var(--sky)">JT</i>Jordan</span></div>
+          <div class="w-row"><i class="w-cb"></i><span>Budget request</span><span class="to role">Treasurer</span></div>
+          <div class="w-row"><i class="w-cb on"></i><span>Trip waiver</span><span class="to all">Everyone</span></div>
+        </div></div>
+      </div>
+      <div class="pc" data-k="members">
+        <div class="pc-m m-dm"><div class="pc-mi" style="width:230px;height:140px">
+          <div class="hd"><i></i>Direct message</div>
+          <div class="bub">hey how do i join?? is there a groupchat</div>
+          <div class="seen">Seen 3 weeks ago</div>
+        </div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--lilac-ink)">
+          <div class="w-k" data-o="memK">Members</div>
+          <div class="w-big" data-o="memN">38 <small>members</small></div>
+          <div class="w-s" data-o="memS">2 requests to join</div>
+          <div class="avs" style="margin-top:auto">
+            <i class="av" style="--a:var(--peach)">JT</i><i class="av" style="--a:var(--sky)">AP</i><i class="av" style="--a:var(--mint)">SO</i><i class="av" style="--a:var(--butter)">PN</i><i class="av" style="--a:var(--rose)">MA</i>
+          </div>
+        </div></div>
+      </div>
+      <div class="pc" data-k="minutes">
+        <div class="pc-m m-pad"><div class="pc-mi" style="width:200px;height:190px">minutes 10/9<br>- fall trip??<br>- van $$<br>…who took notes</div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--butter-ink)">
+          <div class="w-k">Minutes · Oct 9</div>
+          <div class="w-t" data-o="minT">Fall trip approved · 3 action items</div>
+          <div class="w-row"><i class="w-cb on"></i><span>Van quote</span><span class="to"><i class="av" style="--a:var(--sky)">JT</i>Jordan</span></div>
+          <div class="w-row"><i class="w-cb"></i><span>Sign-up form</span><span class="to role">Secretary</span></div>
+        </div></div>
+      </div>
+      <div class="pc" data-k="mod">
+        <div class="pc-m m-drive"><div class="pc-mi" style="width:240px;height:130px">
+          <div class="fn"><i></i>Officer Handbook (2022)</div>
+          <div class="lk">You need access. Owner: dana.k.2024 (graduated)</div>
+          <span class="req">Request access</span>
+        </div></div>
+        <div class="pc-c"><div class="pc-ci" style="--eb:var(--teal-ink)">
+          <div class="w-k" data-o="modK">Docs</div>
+          <div class="w-big" data-o="modBig" style="font-size:1.15rem">Officer handbook</div>
+          <div class="w-s" data-o="modS">updated by this year’s board</div>
+          <div class="w-bar" style="opacity:0"><i data-bar="mod" style="--v:0%;--bc:var(--teal-ink)"></i></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="otypes" id="otypes">
+      <span class="lbl">Built for</span>
+      <button class="ot on" data-t="club"><i style="--c:var(--mint)">RC</i>Robotics club</button>
+      <button class="ot" data-t="team"><i style="--c:var(--rose)">DT</i>Dance team</button>
+      <button class="ot" data-t="chapter"><i style="--c:var(--butter)">ΔH</i>Greek chapter</button>
+      <button class="ot" data-t="council"><i style="--c:var(--sky)">EC</i>Student council</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 2 · RACE ═════════ -->
+<section class="sec" id="ask">
+  <div class="wrap center">
+    <div class="hd"><span class="eyebrow" style="--eb:var(--lilac-ink)">Ask Chapt · same question, asked twice</span>
+    <h2 class="race-q" style="margin-top:20px" data-split>“When’s the next meeting, and what did we <span class="hi" style="--mark:var(--peach)">decide?”</span></h2>
+    <p class="sec-sub" data-rv>The group chat took a day and still didn’t get there. Ask Chapt checked the Timeline and last week’s minutes, answered in seconds, then did the follow-up once you said yes.</p></div>
+    <div class="race-run" id="raceRun"><div class="race" id="raceBox">
+      <div class="lane" data-rv>
+        <div class="lane-h"><span class="avs"><i class="av" style="--a:var(--sky)">J</i><i class="av" style="--a:var(--mint)">A</i><i class="av" style="--a:var(--rose)">S</i></span><b>The group chat</b><span class="tm" id="tSlow">0h 00m</span></div>
+        <div class="feed" id="slowFeed">
+          <div class="msg"><i class="av" style="--a:var(--butter)">P</i><div class="bub"><b>Priya · 2:14 PM</b>when’s the next meeting? and did we decide on the fall trip</div></div>
+          <div class="msg"><i class="av" style="--a:var(--sky)">J</i><div class="bub"><b>Jordan · 2:40 PM</b>thursday i think?</div></div>
+          <div class="msg"><i class="av" style="--a:var(--mint)">A</i><div class="bub"><b>Alex · 3:05 PM</b>it moved, check the insta story</div></div>
+          <div class="msg"><i class="av" style="--a:var(--peach)">S</i><div class="bub"><b>Sam · 9:48 PM</b>the story expired lol</div></div>
+          <div class="day">Next day</div>
+          <div class="msg"><i class="av" style="--a:var(--rose)">M</i><div class="bub"><b>Maya · 11:20 AM</b>wed 6pm, union. trip: idk who took notes</div></div>
+          <div class="msg"><i class="av" style="--a:var(--sky)">J</i><div class="bub"><b>Jordan · 1:02 PM</b>i did but they’re on my laptop at home</div></div>
+          <div class="msg"><i class="av" style="--a:var(--mint)">A</i><div class="bub"><b>Alex · 1:03 PM</b>so are we going or not 😭</div></div>
+          <div class="msg"><i class="av" style="--a:var(--rose)">M</i><div class="bub"><b>Maya · 1:15 PM</b>also can someone tell the treasurer about the van</div></div>
+        </div>
+        <div class="lane-f" id="slowFoot"><span class="typing"><i></i><i></i><i></i></span></div>
+      </div>
+      <div class="lane fast" data-rv style="--d:120ms">
+        <div class="lane-h"><span class="sp"><svg class="ic" style="width:15px"><use href="#i-spark"/></svg></span><b>Ask Chapt</b><span class="tm" id="tFast">0.0 s</span></div>
+        <div class="feed" style="justify-content:flex-start">
+          <div class="ask-q" id="askQ">When’s the next meeting, and what did we decide about the trip?</div>
+          <div class="ledger" id="fastSteps">
+            <div class="step">Reading the Timeline <span class="mono">· next 14 days</span></div>
+            <div class="step">Opening the Oct 9 minutes <span class="mono">· 3 decisions</span></div>
+            <div class="step">Checking who owns what <span class="mono">· 3 tasks</span></div>
+          </div>
+          <div class="verdict" id="fastVerdict">
+            <h4><em class="dt" id="vDate">Wed, Oct 22 · 6:00 PM</em> in Union 210. On Oct 9 you approved the fall trip, $600 from the budget for the van.</h4>
+            <div class="acts">
+              <div class="ai" style="transition-delay:.05s"><span class="t">Book the van</span><span class="to"><i class="av" style="--a:var(--sky)">JT</i>Jordan</span><span class="mono">Fri</span></div>
+              <div class="ai" style="transition-delay:.12s"><span class="t">Trip sign-up form</span><span class="to role">Secretary</span><span class="mono">Mon</span></div>
+              <div class="ai" style="transition-delay:.19s"><span class="t">Sign the trip waiver</span><span class="to all">Everyone · each</span><span class="mono">Nov 1</span></div>
+            </div>
+          </div>
+          <!-- second turn: it does the follow-up, once someone with the permission says yes -->
+          <div class="turn2" id="turn2">
+            <div class="ask-q">Log the van deposit and put the waiver deadline on the Timeline.</div>
+            <div class="ledger"><div class="step" id="step2">Drafting 2 changes <span class="mono">· Budget, Timeline</span></div></div>
+            <div class="writ" id="writ">
+              <div class="wr-h"><span>Proposed changes</span><span class="mono">2</span></div>
+              <div class="wr"><span class="pill t-mint">Budget</span><span class="t">Van deposit · fall trip</span><span class="mono out">−$600</span></div>
+              <div class="wr" id="wrDl"><span class="pill t-sky">Timeline</span><span class="t">Trip waiver due · Everyone</span><span class="mono">Nov 1</span></div>
+              <div class="wr-f"><span>Nothing changes until you approve.</span><span class="wr-ok" id="wrOk">Approve</span></div>
+              <div class="stamp" aria-hidden="true">Approved</div>
+            </div>
+          </div>
+        </div>
+        <div class="lane-f" id="fastFoot"></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ═════════ 3 · HOW IT WORKS ═════════ -->
+<section class="walk" id="how">
+  <div class="wrap walk-in">
+    <div>
+      <div class="walk-head">
+        <span class="eyebrow" style="--eb:var(--sky-ink)">How it works</span>
+        <h2 class="sec-h" style="margin-top:18px" data-split>Plan it once. <span class="hi" style="--mark:var(--sky)">Everyone’s in the loop.</span></h2>
+      </div>
+      <div class="steps" id="steps">
+        <div class="st"><span class="n">01 · Timeline</span><h3>Every meeting and event on one line.</h3><p>Meetings, events, socials and deadlines live on a Timeline the whole org can read. Members can subscribe so it shows up in their own Apple or Google calendar.</p><span class="pill t-sky">Syncs to Apple &amp; Google Calendar</span></div>
+        <div class="st"><span class="n">02 · Attendance</span><h3>Take attendance in one tap.</h3><p>Open check-in when the meeting starts and members tap in from their phones. Attendance goes on each member’s record, so you finally know who’s actually active.</p><span class="pill t-butter">Excuses reviewed by officers</span></div>
+        <div class="st"><span class="n">03 · Tasks</span><h3>Hand it to a person, a role, or everyone.</h3><p>Give a task to Jordan, to whoever is Treasurer, or to the whole roster at once. Tasks given to a role stay with the role, so next year’s treasurer picks them up automatically.</p><span class="pill t-peach">Members who join later get it too</span></div>
+        <div class="st"><span class="n">04 · Money</span><h3>A budget the whole board can follow.</h3><p>Allocations, receipts and reimbursements go in one ledger. If your org collects dues, those payments post there too.</p><span class="pill t-mint">Reimbursements approved by officers</span></div>
+      </div>
+    </div>
+    <div class="dv-col">
+      <div class="dv-pin">
+        <div class="dv-scale" id="dvScale">
+          <div class="dv" id="dv">
+            <i class="dv-bg" style="background:var(--card)"></i>
+            <i class="dv-bg" style="background:#FFE5A0;filter:var(--note-filter)"></i>
+            <i class="dv-bg" style="background:var(--peach);filter:var(--note-filter)"></i>
+            <i class="dv-bg" style="background:var(--card)"></i>
+            <i class="notch l"></i><i class="notch r"></i>
+            <div class="dv-clip">
+              <!-- 1 · timeline -->
+              <div class="dv-l tl">
+                <div class="tl-h"><b>Timeline</b><span class="pill t-lilac">Fall ’26</span></div>
+                <div class="tl-list">
+                  <div class="ev" style="--c:var(--sky-ink)"><span class="d">Oct<b>9</b></span><span class="t">General meeting<small>Minutes posted · 3 decisions</small></span></div>
+                  <div class="today">Today · Oct 20</div>
+                  <div class="ev now" id="tlNow" style="--c:var(--sky-ink)"><span class="d">Oct<b>22</b></span><span class="t">General meeting<small>Union 210 · moved from Tue</small></span><span class="pill t-sky">Wed</span></div>
+                  <div class="ev" style="--c:var(--lilac-ink)"><span class="d">Oct<b>25</b></span><span class="t">Build night<small>Eng lab 2</small></span></div>
+                  <div class="ev" style="--c:var(--peach-ink)"><span class="d">Oct<b>31</b></span><span class="t">Funding request due<small>Deadline · Treasurer</small></span></div>
+                  <div class="ev" id="tlDl" style="--c:var(--rose-ink)"><span class="d">Nov<b>1</b></span><span class="t">Trip waiver due<small>Deadline · Everyone</small></span></div>
+                  <div class="ev" style="--c:var(--mint-ink)"><span class="d">Nov<b>8</b></span><span class="t">Fall trip<small>Event · 24 going</small></span></div>
+                </div>
+                <div class="tl-sub"><svg class="ic" style="width:16px;color:var(--sky-ink)"><use href="#i-cal"/></svg><span><b>Subscribe</b> to the org calendar</span><span class="pill t-sky">31 synced</span></div>
+              </div>
+              <!-- 2 · check-in ticket -->
+              <div class="dv-l tk">
+                <div class="tk-stub"><div class="adm">ADMIT<br>ONE</div><div class="mono">General meeting<br>Wed · Oct 22 · 6:00<br>Union 210</div><div class="qr"></div></div>
+                <div class="tk-main">
+                  <div class="k">Check-in · live</div>
+                  <div class="tk-n"><b id="tkN">32</b><span>/ 38 here</span></div>
+                  <div class="tk-open"><i></i>Open · closes 7:00</div>
+                  <div class="tk-arr" id="tkArr"></div>
+                </div>
+              </div>
+              <!-- 3 · tasks -->
+              <div class="dv-l nt">
+                <div class="k">Tasks · this week</div>
+                <h4>Who’s on it</h4>
+                <div class="nt-seg" id="ntSeg"><span class="on">A person</span><span>A role</span><span>Everyone</span></div>
+                <ul id="ntList">
+                  <li class="hl"><i class="cb"></i><span class="tt">Book the van<small>due Fri</small></span><span class="to"><i class="av" style="--a:var(--sky)">JT</i>Jordan</span></li>
+                  <li><i class="cb"></i><span class="tt">Funding request<small>whoever holds the role</small></span><span class="to role">Treasurer</span></li>
+                  <li><i class="cb"></i><span class="tt">Sign the trip waiver<span class="ech"><i style="--v:75%" id="ntBar"></i><span id="ntCnt">18 of 24</span></span></span><span class="to all">Everyone</span></li>
+                  <li class="done"><i class="cb"></i><span class="tt">Post the recap<small>done Mon</small></span><span class="to role">Social chair</span></li>
+                </ul>
+              </div>
+              <!-- 4 · budget -->
+              <div class="dv-l bd">
+                <div class="bd-h"><span class="k">Budget · Fall ’26</span><span class="to role" id="bdRole">Treasurer</span></div>
+                <div class="bd-bal">$1,240<small>left of $2,000</small></div>
+                <div class="bd-stack" id="bdStack"><i style="--c:var(--lilac-ink)" data-w="18%"></i><i style="--c:var(--peach-ink)" data-w="12%"></i><i style="--c:var(--sky-ink)" data-w="8%"></i></div>
+                <div class="bd-leg"><span style="--c:var(--lilac-ink)">Events $360</span><span style="--c:var(--peach-ink)">Food $240</span><span style="--c:var(--sky-ink)">Supplies $160</span></div>
+                <div class="bd-rows">
+                  <div class="bd-r"><i class="av" style="--a:var(--mint)">SG</i><span class="lab">Student gov allocation</span><span class="mono in">+$2,000</span></div>
+                  <div class="bd-r"><i class="av" style="--a:var(--peach)">AP</i><span class="lab">Reimburse Alex · snacks</span><span class="pill t-mint">Approved</span><span class="mono out">−$43.18</span></div>
+                  <div class="bd-r"><i class="av" style="--a:var(--sky)">JT</i><span class="lab">Fall trip · van deposit</span><span class="pill t-lilac">Via Ask Chapt</span><span class="mono out">−$600</span></div>
+                </div>
+                <div class="bd-foot">Collect dues? Turn it on and payments post here too.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="rail" id="rail"><i class="on"></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 4 · THE HANDOFF ═════════ -->
+<section class="sec" id="handoff">
+  <div class="wrap ho">
+    <div>
+      <div class="hd"><span class="eyebrow" style="--eb:var(--peach-ink)">The handoff</span>
+      <h2 class="sec-h" style="margin-top:18px" data-split>Your board graduates. <span class="hi" style="--mark:var(--peach)">Your org doesn’t start over.</span></h2>
+      <p class="sec-sub" data-rv>Everything lives with the org, not in last year’s president’s Google Drive. New officers take a role and get its access and its open tasks on day one.</p></div>
+      <div class="years" id="years">
+        <button class="yr on" data-y="0">2024</button><span class="yr-line"><i></i></span>
+        <button class="yr" data-y="1">2025</button><span class="yr-line"><i></i></span>
+        <button class="yr" data-y="2">2026</button>
+      </div>
+      <div class="board" data-rv>
+        <div class="board-h"><b>Officers</b><span class="pill t-peach" id="boardYr">2024–25 board</span></div>
+        <div class="seat"><span class="role">President</span><span class="who"></span><span class="new">new</span></div>
+        <div class="seat"><span class="role">Treasurer</span><span class="who"></span><span class="new">new</span></div>
+        <div class="seat"><span class="role">Secretary</span><span class="who"></span><span class="new">new</span></div>
+        <div class="seat"><span class="role">Events chair</span><span class="who"></span><span class="new">new</span></div>
+        <div class="board-f"><span class="to role" id="boardRole">Treasurer</span><span id="boardNote">3 open tasks follow the role to whoever holds it</span></div>
+      </div>
+    </div>
+    <div class="stays" data-rv style="--d:120ms">
+      <div class="stays-h">What stays with the org</div>
+      <div class="stay"><span class="tile" style="--c:var(--sky)"><svg><use href="#i-doc"/></svg></span><div><b>Docs &amp; the officer handbook</b><small>Folders the next board can actually open</small></div><span class="n" data-st="0">18<small>files</small></span></div>
+      <div class="stay"><span class="tile" style="--c:var(--butter); --r:2deg"><svg><use href="#i-pen"/></svg></span><div><b>Minutes from every meeting</b><small>Decisions, and who owned them</small></div><span class="n" data-st="1">22<small>meetings</small></span></div>
+      <div class="stay"><span class="tile" style="--c:var(--lilac)"><svg><use href="#i-key"/></svg></span><div><b>Roles, access &amp; their tasks</b><small>Hand over a seat, not a password</small></div><span class="n" data-st="2">7<small>roles</small></span></div>
+      <div class="stay"><span class="tile" style="--c:var(--mint); --r:3deg"><svg><use href="#i-cal"/></svg></span><div><b>Calendar, agenda templates &amp; history</b><small>Every past event, and the agendas you reuse</small></div><span class="n" data-st="3">46<small>events</small></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════ 5 · TURN ON WHAT YOU RUN ═════════ -->
+<section class="sec" id="fit" style="padding-top:60px">
+  <div class="wrap center">
+    <div class="hd"><span class="eyebrow" style="--eb:var(--rose-ink)">Fits your org</span>
+    <h2 class="sec-h" style="margin-top:18px" data-split>No box to fit into. <span class="hi" style="--mark:var(--rose)">Just what you do.</span></h2>
+    <p class="sec-sub" data-rv>Tell it what a normal month looks like. You get a page for each thing you do, named the way you’d say it.</p></div>
+
+    <div class="fx" data-rv>
+      <div>
+        <div class="fx-q">in a normal month, we…</div>
+        <div class="fx-acts" id="fxActs">
+          <button class="act" data-p="meetings" style="--c:var(--sky)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">hold meetings</span><span class="pg">Meetings</span></button>
+          <button class="act" data-p="tasks" style="--c:var(--peach)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">hand out tasks</span><span class="pg">Tasks</span></button>
+          <button class="act" data-p="treasury" style="--c:var(--mint)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">handle money</span><span class="pg">Treasury</span></button>
+          <button class="act" data-p="prog" style="--c:var(--lilac)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">run events &amp; fundraisers</span><span class="pg">Programming</span></button>
+          <button class="act" data-p="parties" style="--c:var(--rose)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">throw socials</span><span class="pg">Parties</span></button>
+          <button class="act" data-p="service" style="--c:var(--mint)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">volunteer</span><span class="pg">Service</span></button>
+          <button class="act" data-p="ig" style="--c:var(--peach)"><span class="bx"><svg><use href="#i-check"/></svg></span><span class="al">post online</span><span class="pg">Instagram</span></button>
+        </div>
+      </div>
+      <div class="fx-pv" id="fxPv">
+        <div class="pv-org"><span class="mark">YO</span><div><b>Your org</b><small>FALL ’26</small></div></div>
+        <div id="fxNav"></div>
+        <div class="pv-note" id="fxNote">call it whatever you call it</div>
+      </div>
+    </div>
+    <p class="fx-foot" data-rv><b>Change it anytime.</b> Turning a page off hides it and never deletes a thing.</p>
+  </div>
+</section>
+
+<!-- ═════════ 6 · PRIVACY · FAQ · CLOSE ═════════ -->
+<section class="priv" id="trust">
+  <div class="wrap priv-in">
+    <div><span class="eyebrow" style="--eb:var(--butter)">Privacy</span><h2>Private by default.</h2><a class="priv-more" href="/trust">Read how we handle your data <span aria-hidden="true">→</span></a></div>
+    <div class="priv-pts">
+      <div class="pp" data-rv><span class="lk" style="--c:var(--butter)"><svg><use href="#i-door"/></svg></span><b>Joining is reviewed</b><p>An invite link files a request. An officer approves it before anyone sees the roster.</p></div>
+      <div class="pp" data-rv style="--d:80ms"><span class="lk" style="--c:var(--lilac)"><svg><use href="#i-lock"/></svg></span><b>Every org walled off</b><p>One account works across all your orgs, and none of them can read another’s data.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="faq">
+  <div class="wrap center">
+    <div class="hd"><span class="eyebrow">Questions</span>
+    <h2 class="sec-h" style="margin-top:18px" data-split>Before you bring it to <span class="hi">your board.</span></h2></div>
+    <div class="faq" id="faqList">
+      <div class="qa open"><button aria-expanded="true">Is it free to start?<i class="pm"></i></button><div class="ans"><div><p>Yes. Set up your org, invite members and run a semester without a card. Paid plans are priced by roster size.</p></div></div></div>
+      <div class="qa"><button aria-expanded="false">Is this just for Greek life?<i class="pm"></i></button><div class="ans"><div><p>No. Setup starts with a few quick questions about how your org runs, and ChaptOS builds your pages from the answers. A robotics club and a fraternity each get a setup made for what they actually do.</p></div></div></div>
+      <div class="qa"><button aria-expanded="false">Does everyone get to change everything?<i class="pm"></i></button><div class="ans"><div><p>No. Access comes with the role, not the person. Give your Treasurer role control of the money, your Secretary the docs and minutes, and your Social Chair the events, and everyone else just sees what’s theirs.</p></div></div></div>
+      <div class="qa"><button aria-expanded="false">What happens when our officers graduate?<i class="pm"></i></button><div class="ans"><div><p>Move the role to the new officer. They get its access and its open tasks on day one, and the docs, minutes and calendar stay exactly where they were.</p></div></div></div>
+      <div class="qa"><button aria-expanded="false">How do our members get in?<i class="pm"></i></button><div class="ans"><div><p>An officer sends an invite link. Members sign in with Google, and the request lands in front of an officer to approve, so nobody ends up on your roster without someone saying yes.</p></div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="close" id="start">
+  <div class="wrap" style="position:relative">
+    <h2 class="close-h" id="closeH">Tie up the loose ends before your next meeting.</h2>
+    <div class="cta-row">
+      <a class="btn btn--lg" href="#">Start your org, free <svg class="ic"><use href="#i-arrow"/></svg></a>
+      <a class="btn btn--ghost btn--lg" href="#">Talk to us</a>
+    </div>
+    <div class="url">chaptos.com</div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="ft">
+      <div><a class="brand" href="#top" style="padding:0"><svg class="logo"><use href="#i-logo"/></svg>ChaptOS</a><p>One place for every student org that outgrew its group chat.</p></div>
+      <div><h5>Product</h5><a href="#ask">Ask Chapt</a><a href="#how">Treasury &amp; dues</a><a href="#how">Roster &amp; standing</a><a href="#how">Timeline &amp; meetings</a><a href="#how">Docs &amp; activity</a></div>
+      <div><h5>For</h5><a href="/for/fraternities-sororities">Fraternities &amp; sororities</a><a href="/for/club-teams">Club &amp; intramural teams</a><a href="/for/service-orgs">Service &amp; volunteer orgs</a><a href="/for/performing-arts">Bands, choirs &amp; theatre</a><a href="/for/student-government">Student government</a><a href="/for/custom">Custom &amp; anything else</a></div>
+      <div><h5>Company</h5><a href="/trust">Trust &amp; privacy</a><a href="/pricing">Pricing</a><a href="/help">Help center</a><a href="/blog">Blog</a><a href="/contact">Talk to a human</a></div>
+    </div>
+    <div class="ft-b"><span>© 2026 ChaptOS · chaptos.com</span><span>Made for meeting night, every week.</span></div>
+  </div>
+</footer>
+
+<div class="mbar" id="mbar"><div><b>Run your org here</b><small>Free to start</small></div><a class="btn btn--sm" href="#start">Start</a></div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const eo = t => 1 - Math.pow(1 - t, 3);
+  const smooth = t => t * t * (3 - 2 * t);
+  const absTop = el => el.getBoundingClientRect().top + scrollY;
+
+  let W = innerWidth, H = innerHeight, cur = scrollY, vel = 0, now = 0, MOB = W < 760;
+  // How it works stacks (card pinned on top, steps scrolling under it) on narrow portrait screens;
+  // a phone on its side is too short for that, so it keeps the side-by-side layout
+  const walkMob = () => W <= 900 && H > 500;
+  // layout position, ignoring any transform or translate the motion has applied
+  const docTop = el => { let t = 0; for (let e = el; e; e = e.offsetParent) t += e.offsetTop; return t; };
+  const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+  const scenes = [];
+
+  /* page colours the wash blends between, read off the live tokens */
+  const probe = document.createElement('i'); probe.style.display = 'none'; document.body.append(probe);
+  const rgba = v => { probe.style.color = v; const m = getComputedStyle(probe).color.match(/[\d.]+/g).map(Number); return [m[0], m[1], m[2], m[3] ?? 1]; };
+  let PAPER = [255, 252, 246], WASH = [], TINT = {}, howTint = [255, 252, 246];
+  function readWash() {
+    PAPER = rgba('var(--paper)').slice(0, 3);
+    const flat = v => { const [r, g, b, a] = rgba(`var(${v})`); return [r, g, b].map((c, j) => c * a + PAPER[j] * (1 - a)); };
+    WASH = ['--sky-soft', '--butter-soft', '--peach-soft', '--mint-soft'].map(flat);
+    TINT = { peach: flat('--peach-soft'), mint: flat('--mint-soft') };
+  }
+  readWash();
+
+  const nav = $('#nav'), mbar = $('#mbar');
+  /* topbar: the paper tab follows the pointer between links; the squiggle marks
+     the section on screen (Pricing and Blog aren't wired to pages yet) */
+  const navLinks = $('#navLinks'), navInk = $('#navInk'), nls = $$('.nl', navLinks);
+  const inkTo = a => {
+    navInk.style.setProperty('--x', a.offsetLeft + 'px');
+    navInk.style.width = a.offsetWidth + 'px';
+    navInk.style.setProperty('--ink-c', getComputedStyle(a).getPropertyValue('--c'));
+  };
+  nls.forEach(a => {
+    a.addEventListener('pointerenter', () => { if (!navLinks.classList.contains('hov')) { navInk.style.transition = 'none'; inkTo(a); navInk.offsetWidth; navInk.style.transition = ''; } inkTo(a); navLinks.classList.add('hov'); });
+    a.addEventListener('focus', () => { inkTo(a); navLinks.classList.add('hov'); });
+    a.addEventListener('blur', () => navLinks.classList.remove('hov'));
+    if (!$(a.getAttribute('href'))) a.addEventListener('click', e => e.preventDefault());
+  });
+  navLinks.addEventListener('pointerleave', () => navLinks.classList.remove('hov'));
+  const spy = nls.map(a => [a, $(a.getAttribute('href'))]).filter(([, sec]) => sec);
+
+  const menuBtn = $('#menuBtn'), setMenu = open => { nav.classList.toggle('open', open); menuBtn.setAttribute('aria-expanded', open); };
+  menuBtn.addEventListener('click', () => setMenu(!nav.classList.contains('open')));
+  $$('#navSheet a').forEach(a => a.addEventListener('click', e => { const h = a.getAttribute('href'); if (h.length < 2 || !$(h)) e.preventDefault(); setMenu(false); }));
+  addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+
+  scenes.push({ update() {
+    nav.classList.toggle('scrolled', scrollY > 30);
+    const y = scrollY + H * .4;
+    spy.forEach(([a, sec]) => { const t = docTop(sec); a.classList.toggle('on', y >= t && y < t + sec.offsetHeight); });
+    const nearEnd = scrollY + H > document.documentElement.scrollHeight - 500;
+    mbar.classList.toggle('on', scrollY > $('#top').offsetHeight - H * .5 && !nearEnd);
+  }});
+
+  /* word split + reveal */
+  $$('[data-split]').forEach(el => {
+    const nodes = [...el.childNodes]; el.textContent = ''; let i = 0;
+    const word = c => { const w = document.createElement('span'); w.className = 'sw'; const s = document.createElement('span'); s.style.transitionDelay = (i++ * 55) + 'ms';
+      typeof c === 'string' ? (s.textContent = c) : s.append(c); w.append(s); el.append(w); };
+    nodes.forEach(n => {
+      if (n.nodeType === 3) n.textContent.split(/(\s+)/).forEach(t => { if (!t) return; /^\s+$/.test(t) ? el.append(' ') : word(t); });
+      else if (n.tagName === 'BR') el.append(n);
+      else if (n.classList.contains('hi') && /\s/.test(n.textContent.trim())) {
+        // a highlighted phrase becomes one highlight per word, so it can wrap on a phone
+        n.textContent.trim().split(/\s+/).forEach((t, j) => { if (j) el.append(' '); const h = n.cloneNode(false); h.textContent = t; word(h); });
+      } else word(n);
+    });
+  });
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { rootMargin: '0px 0px -12% 0px' });
+  $$('[data-split],[data-rv]').forEach(el => io.observe(el));
+
+  /* sliding-ink tabs */
+  function inkTabs(box, onPick) {
+    const tabs = $$('.tab', box), ink = $('.tab-ink', box); let idx = 0;
+    const place = () => { const t = tabs[idx]; ink.style.width = t.offsetWidth + 'px'; ink.style.height = t.offsetHeight + 'px'; ink.style.transform = `translate(${t.offsetLeft}px, ${t.offsetTop}px)`; };
+    const pick = (i, user) => { idx = i; tabs.forEach((t, j) => { t.classList.toggle('on', j === i); t.setAttribute('aria-selected', j === i); }); place(); onPick(tabs[i], i, user); };
+    tabs.forEach((t, j) => t.addEventListener('click', () => pick(j, true)));
+    addEventListener('resize', place); document.fonts && document.fonts.ready.then(place);
+    pick(0, false); return { pick, place };
+  }
+
+  /* ── 1 · HERO ────────────────────────────────────────────────────────── */
+  const ORG = {
+    club: { logo: 'RC', c: 'var(--mint)', name: 'Robotics Club', meta: 'FALL ’26 · 38', word: 'club',
+      nav: [['Dashboard', 'butter'], ['Timeline', 'sky'], ['Members', 'lilac'], ['Meetings', 'butter'], ['Tasks', 'peach'], ['Docs', 'paper-3'], ['Budget', 'mint']],
+      nextT: 'General meeting · Wed 6:00', nextS: 'Union 210 · moved from Tue · on everyone’s calendar',
+      budK: 'Budget left', budBig: '$1,240 <small>/ 2,000</small>', budS: 'Student gov allocation · 1 reimbursement', bud: 62,
+      attN: '32<small>/38</small>', memK: 'Members', memN: '38 <small>members</small>', memS: '2 requests to join',
+      minT: 'Fall trip approved · 3 action items', modK: 'Docs', modBig: 'Officer handbook', modS: 'updated by this year’s board', mod: 0 },
+    team: { logo: 'DT', c: 'var(--rose)', name: 'Dance Team', meta: 'FALL ’26 · 24', word: 'team',
+      nav: [['Dashboard', 'butter'], ['Timeline', 'sky'], ['Members', 'lilac'], ['Tasks', 'peach'], ['Budget', 'mint'], ['Fundraising', 'butter', 1], ['Instagram', 'peach', 1]],
+      nextT: 'Rehearsal · Thu 8:00', nextS: 'Studio B · costume fitting after',
+      budK: 'Budget left', budBig: '$860 <small>/ 1,500</small>', budS: 'Showcase costs · 2 receipts', bud: 57,
+      attN: '22<small>/24</small>', memK: 'Members', memN: '24 <small>dancers</small>', memS: '1 request to join',
+      minT: 'Showcase setlist locked · 2 action items', modK: 'Fundraising', modBig: '$820 raised', modS: 'Spring showcase · goal $1,500', mod: 55 },
+    chapter: { logo: 'ΔH', c: 'var(--butter)', name: 'Delta House', meta: 'FALL ’26 · 52', word: 'chapter',
+      nav: [['Dashboard', 'butter'], ['Timeline', 'sky'], ['Brotherhood', 'lilac'], ['Chapter', 'butter'], ['Treasury', 'mint'], ['Dues', 'mint', 1], ['Service', 'sky', 1], ['Parties', 'rose', 1]],
+      nextT: 'Chapter meeting · Thu 7:00', nextS: 'Room 204 · moved from Wed',
+      budK: 'Treasury', budBig: '$12,480', budS: '+$1,320 this month', bud: 78,
+      attN: '46<small>/52</small>', memK: 'Roster', memN: '52 <small>brothers</small>', memS: '3 requests to join',
+      minT: 'Formal budget approved · 4 action items', modK: 'Dues collected', modBig: '83%', modS: '$4,180 of $5,040 · 6 still owe', mod: 83 },
+    council: { logo: 'EC', c: 'var(--sky)', name: 'Eng. Student Council', meta: 'FALL ’26 · 19', word: 'council',
+      nav: [['Dashboard', 'butter'], ['Timeline', 'sky'], ['Members', 'lilac'], ['Meetings', 'butter'], ['Tasks', 'peach'], ['Docs', 'paper-3'], ['Programming', 'lilac', 1]],
+      nextT: 'General assembly · Mon 6:30', nextS: 'Union 210 · agenda posted',
+      budK: 'Budget left', budBig: '$6,400 <small>/ 9,000</small>', budS: '4 funding requests open', bud: 71,
+      attN: '17<small>/19</small>', memK: 'Members', memN: '19 <small>reps</small>', memS: 'from 11 clubs',
+      minT: 'Bylaws amendment passed · 2 action items', modK: 'Programming', modBig: '5 events planned', modS: '2 confirmed on the Timeline', mod: 40 },
+  };
+  const ORDER = ['club', 'team', 'chapter', 'council'];
+  let orgType = 'club', autoOrg = true;
+  const dfNav = $('#dfNav'), oword = $('#oword'), brandMark = $('#df .df-org .mark');
+  const renderNav = o => { dfNav.innerHTML = o.nav.map(([l, c, m], i) => `<div class="df-it${i === 0 ? ' on' : ''}${m ? ' mod' : ''}" style="--d:${i * 40}ms"><i style="--c:var(--${c})"></i>${l}</div>`).join(''); };
+  let hero;
+  function setOrg(t, user) {
+    if (user) autoOrg = false;
+    if (t === orgType) return; orgType = t; const o = ORG[t];
+    $$('.ot').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+    const els = $$('[data-o]');
+    els.forEach(e => e.classList.add('osw'));
+    setTimeout(() => {
+      els.forEach(e => { const v = o[e.dataset.o]; if (v != null) e.innerHTML = v; e.classList.remove('osw'); });
+      brandMark.style.background = o.c;
+      $('[data-bar="bud"]').style.setProperty('--v', o.bud + '%');
+      $('[data-bar="mod"]').style.setProperty('--v', o.mod + '%'); $('[data-bar="mod"]').parentNode.style.opacity = o.mod ? 1 : 0;
+      renderNav(o);
+      rollWord(o.word);
+    }, 240);
+  }
+  // the headline's org word rolls: the old one lifts out, the new one rises in, and the gap eases to its width
+  const WORDS = ['club', 'council', 'org', 'fraternity', 'sorority', 'chapter'];
+  let curWord = 'club', rollT = 0;
+  function rollWord(w) {
+    if (w === curWord) return; curWord = w;
+    const old = $$('.ow', oword), nw = document.createElement('span');
+    nw.className = 'ow in'; nw.textContent = w;
+    oword.style.width = oword.offsetWidth + 'px';
+    oword.appendChild(nw);
+    const to = nw.offsetWidth;
+    requestAnimationFrame(() => {
+      oword.style.width = to + 'px'; nw.classList.remove('in');
+      old.forEach(e => e.classList.add('out'));
+    });
+    clearTimeout(rollT);
+    rollT = setTimeout(() => {
+      $$('.ow.out', oword).forEach(e => e.remove()); oword.style.width = '';
+      // a wider word can rewrap the headline, so the copy and the docked size are re-fit
+      hero.measure();
+    }, 560);
+  }
+  renderNav(ORG.club);
+  $$('.ot').forEach(b => b.addEventListener('click', () => setOrg(b.dataset.t, true)));
+
+  hero = (() => {
+    const sec = $('#top'), df = $('#df'), copy = $('#heroCopy'), h1 = $('#heroH1'), ots = $('#otypes');
+    const fades = $$('.fade-a', copy);
+    const swap = $('#swap'), swA = $('.a', swap), swB = $('.b', swap);
+    // the loose ends frame the headline from the margins; nothing sits over the copy
+    const POSE = {
+      ask:     { d: [-.354, -.278, -6, .8], m: [-.36, -.33, -7, .8] },
+      next:    { d: [ .354, -.283,  4, .5], m: [ .34, -.32,  5, .5] },
+      budget:  { d: [ .417,  .033, -4, .9], m: [ .42,  .35, -4, .9] },
+      att:     { d: [-.417,  .022,  3, .6], m: [-.38,  .36,  3, .6] },
+      tasks:   { d: [-.405,  .400, -8, 1 ], m: [-.15,  .46, -8, 1 ] },
+      members: { d: [ .425,  .450,  3, .7], m: [ .30,  .48,  3, .7] },
+      minutes: { d: [ .310,  .265,  3, .45],m: [ .08,  .38,  2, .45]},
+      mod:     { d: [-.306,  .262, -3, .4], m: [-.01, -.37, -3, .4] },
+    };
+    const pcs = $$('.pc', sec).map((el, i) => {
+      const k = el.dataset.k, mi = $('.pc-mi', el), ci = $('.pc-ci', el);
+      return { el, k, i, mi, ci, m: $('.pc-m', el), c: $('.pc-c', el), slot: $(`.slot[data-k="${k}"]`, df),
+        w0: parseFloat(mi.style.width), h0: parseFloat(mi.style.height), pose: POSE[k], docked: false };
+    });
+    let top = 0, len = 1, mob = false, k = 1, dfL = 0, dfT = 0, copyTop = 0, endDy = 0, endS = 1, s0 = 1, low = 0, wA = 0, wB = 0, lastCycle = 0, wordAt = 0;
+    const api = {
+      reswap() { swap.style.width = 'auto'; wA = swA.offsetWidth; wB = swB.offsetWidth; },
+      // the scroll position where the headline reads "runs on one page" and the dashboard has docked
+      pageY() { return top + .84 * len; },
+      measure() {
+        top = absTop(sec); len = sec.offsetHeight - H; mob = W < 760;
+        k = W >= 1280 ? .9 : W >= 1000 ? .74 : W >= 760 ? .64 : .5;
+        df.style.transform = 'none';
+        const fw = df.offsetWidth, fh = df.offsetHeight;
+        dfL = (W - fw) / 2; dfT = Math.min(H * (mob ? .33 : .3), H - fh - 74);
+        df.style.left = dfL + 'px'; df.style.top = dfT + 'px';
+        ots.style.top = (dfT + fh + 18) + 'px';
+        const dr = df.getBoundingClientRect();
+        pcs.forEach(pc => {
+          const r = pc.slot.getBoundingClientRect();
+          pc.ox = r.left - dr.left; pc.oy = r.top - dr.top; pc.w1 = r.width; pc.h1 = r.height;
+          pc.ci.style.width = pc.w1 + 'px'; pc.ci.style.height = pc.h1 + 'px';
+        });
+        copy.style.transform = 'none';
+        api.reswap();
+        // a short screen (a phone on its side) shrinks the opening copy so the buttons aren't pinned below the fold
+        const ch = copy.offsetHeight; s0 = Math.min(1, (H - 84) / ch);
+        copyTop = Math.max(70, (H - ch * s0) / 2 - (mob ? 0 : 10)); copy.style.top = copyTop + 'px';
+        // on a short phone the copy runs into the lower notes; drop them below it (the stage crops them)
+        low = mob ? Math.max(0, copyTop + ch * s0 - H * .84) : 0;
+        const h1H = h1.offsetHeight, h1Off = h1.offsetTop, bandT = 72, bandH = dfT - 14 - bandT;
+        endS = Math.min(mob ? .72 : .58, bandH / h1H);
+        endDy = bandT + (bandH - h1H * endS) / 2 - copyTop - h1Off * endS;
+      },
+      update(y) {
+        const p = clamp((y - top) / len);
+        const cp = ease(clamp((p - .04) / .44));
+        copy.style.transform = `translate3d(0, ${endDy * cp}px, 0) scale(${lerp(s0, endS, cp)})`;
+        fades.forEach(f => { const o = 1 - clamp(p / .16); f.style.opacity = o; f.style.pointerEvents = o < .5 ? 'none' : ''; });
+        const sp = smooth(clamp((p - .44) / .16));
+        swap.style.width = lerp(wA, wB, sp) + 'px';
+        swA.style.cssText = `opacity:${1 - sp}; transform:translateY(${-sp * .5}em); filter:blur(${sp * 8}px)`;
+        swB.style.cssText = `opacity:${sp}; transform:translateY(${(1 - sp) * .5}em); filter:blur(${(1 - sp) * 8}px); --mx:${clamp((p - .54) / .1)}`;
+        const rp = eo(clamp((p - .1) / .42));
+        const rise = (1 - rp) * (H - dfT + 60);
+        df.style.transform = `translate3d(0, ${rise}px, 0)`;
+        df.style.opacity = clamp(rp * 2.5);
+        pcs.forEach(pc => {
+          const [X, Y, R, Z] = mob ? pc.pose.m : pc.pose.d;
+          const t = ease(clamp((p - (.1 + pc.i * .032)) / .4));
+          const w0 = pc.w0 * k, h0 = pc.h0 * k, live = 1 - t;
+          const fl = RM ? 0 : Math.sin(now / 1100 + pc.i * 1.7) * 5 * live;
+          const sx = W / 2 + X * W - w0 / 2 + mouse.x * 26 * Z * live;
+          const sy = H / 2 + Y * H - h0 / 2 + (Y > .3 ? low : 0) - p * 220 * Z * live + mouse.y * 20 * Z * live + fl;
+          const tx = dfL + pc.ox, ty = dfT + rise + pc.oy;
+          const x = lerp(sx, tx, t), yy = lerp(sy, ty, t) - Math.sin(t * Math.PI) * 70;
+          const w = lerp(w0, pc.w1, t), h = lerp(h0, pc.h1, t);
+          const rot = lerp(R + (RM ? 0 : Math.sin(now / 1500 + pc.i) * live), 0, t);
+          const st = pc.el.style;
+          st.transform = `translate3d(${x}px, ${yy}px, 0) rotate(${rot}deg)`;
+          st.width = w + 'px'; st.height = h + 'px';
+          st.borderRadius = lerp(pc.k === 'ask' ? 4 : 10, 12, t) + 'px';
+          st.boxShadow = `0 ${lerp(18, 0, t)}px ${lerp(36, 0, t)}px -12px rgba(38,33,27,${lerp(.28, 0, t)})`;
+          st.zIndex = t > 0 && t < 1 ? 5 : 1;
+          pc.mi.style.transform = `scale(${w / pc.w0})`;
+          pc.m.style.opacity = 1 - clamp(t / .5);
+          pc.ci.style.transform = `scale(${w / pc.w1})`;
+          pc.c.style.opacity = clamp((t - .42) / .4);
+          const d = t >= .999;
+          if (d !== pc.docked) { pc.docked = d; pc.slot.style.opacity = d ? 0 : 1; }
+        });
+        // once it's one page: show the org types, and cycle them while the reader lingers
+        const done = p > .8;
+        ots.classList.toggle('on', done);
+        if (done && autoOrg && !RM) {
+          if (!lastCycle) lastCycle = now;
+          else if (now - lastCycle > 2600) { setOrg(ORDER[(ORDER.indexOf(orgType) + 1) % ORDER.length]); lastCycle = now; }
+        } else lastCycle = 0;
+        // before it's one page the headline cycles every kind of org; docked, it names the dashboard's
+        if (done) { wordAt = 0; rollWord(ORG[orgType].word); }
+        else if (!RM) {
+          if (!wordAt) wordAt = now;
+          else if (now - wordAt > 2000) { rollWord(WORDS[(WORDS.indexOf(curWord) + 1) % WORDS.length]); wordAt = now; }
+        }
+      }
+    };
+    return api;
+  })();
+  scenes.push(hero);
+  $('#seeHow').addEventListener('click', e => { e.preventDefault(); scrollTo({ top: hero.pageY(), behavior: RM ? 'auto' : 'smooth' }); });
+
+  /* ── 2 · RACE ────────────────────────────────────────────────────────── */
+  const race = {};
+  /* Scrubbed by scroll, not played: both lanes run on one clock (ms of the old
+     playback) read off the scroll position, so scrolling back rewinds them.
+     Where the race fits on screen it pins while the clock runs; where it
+     doesn't (phones, short windows) each lane runs as it passes through. */
+  scenes.unshift((() => {
+    const run = $('#raceRun'), box = $('#raceBox'), lanes = $$('.lane', box);
+    const msgs = $$('#slowFeed > *'), steps = $$('#fastSteps .step'), verdict = $('#fastVerdict'), turn2 = $('#turn2'), step2 = $('#step2'), writ = $('#writ'), ok = $('#wrOk');
+    const tS = $('#tSlow'), tF = $('#tFast'), fS = $('#slowFoot'), fF = $('#fastFoot');
+    const SLOW = [300, 1100, 1900, 2700, 3500, 3700, 4700, 5300, 6100], END = 6600;
+    const fmt = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
+    const CHK = '<svg class="ic" style="color:var(--mint-ink)"><use href="#i-check"/></svg>';
+    const FOOT_F = ['', `${CHK}<span><b>Answered in 3.2 s.</b> Owners and dates included.</span>`, `${CHK}<span><b>Answered and done in 5.6 s.</b> Logged in the Budget, on everyone’s calendar.</span>`];
+    const FOOT_S = [fS.innerHTML, '<span><b>A day later:</b> the time, maybe. The trip and the van, nobody knows.</span>'];
+    let win = [[0, 1], [0, 1]], pt = 0, extra = 0, runTop = 0, fStage = -1, sStage = -1;
+    const off = el => docTop(el) - docTop(box);
+    // where an element sits in the page once the pin lets go (or always, unpinned)
+    race.top = el => race.pinned ? runTop + extra + off(el) : docTop(el);
+    // where it sits on the way in, before the pin catches it
+    race.pre = el => runTop + off(el);
+    const tog = (el, c, on) => el.classList.toggle(c, on);
+    return {
+      measure() {
+        const bh = box.offsetHeight;
+        race.pinned = !RM && W > 860 && bh + 96 <= H;
+        tog(run, 'pin', race.pinned);
+        pt = Math.max(84, (H - bh) / 2); extra = race.pinned ? Math.round(H * 1.5) : 0;
+        run.style.setProperty('--pt', pt + 'px'); run.style.height = race.pinned ? bh + extra + 'px' : '';
+        runTop = docTop(run);
+        const land = race.pre($('#askQ')) - H * .5; // the question arriving from the hero starts the clock
+        if (race.pinned) { const w = [land, runTop - pt + extra]; win = [w, w]; }
+        else win = lanes.map((l, i) => { const t = docTop(l), y0 = Math.max(t - H * .7, i ? land : -1e9); return [y0, Math.max(y0 + 300, t + l.offsetHeight - H * .8)]; });
+        race.end = win[1][1];
+      },
+      update(y) {
+        const [s, f] = win.map(([a, b]) => RM ? END : clamp((y - a) / (b - a)) * END);
+        // the group chat
+        msgs.forEach((m, i) => tog(m, 'on', s >= SLOW[i]));
+        tS.textContent = fmt(clamp(s / 6100) * 1381);
+        const ss = s >= 6400 ? 1 : 0; if (ss !== sStage) { sStage = ss; fS.innerHTML = FOOT_S[ss]; }
+        // Ask Chapt: the answer, then the follow-up, approved by a person
+        tF.textContent = (f < 2700 ? clamp(f / 2600) * 3.2 : 3.2 + clamp((f - 3300) / 1500) * 2.4).toFixed(1) + ' s';
+        steps.forEach((st, i) => { tog(st, 'on', f >= 200 + i * 650); tog(st, 'done', f >= 700 + i * 650); });
+        tog(verdict, 'on', f >= 2650); tog(turn2, 'on', f >= 3300);
+        tog(step2, 'on', f >= 3700); tog(step2, 'done', f >= 4200); tog(writ, 'on', f >= 4200);
+        tog(ok, 'press', f >= 4950 && f < 5150); tog(writ, 'ok', f >= 5150); ok.textContent = f >= 5150 ? 'Done' : 'Approve';
+        const fs = f >= 5500 ? 2 : f >= 2650 ? 1 : 0; if (fs !== fStage) { fStage = fs; fF.innerHTML = FOOT_F[fs]; }
+      }
+    };
+  })());
+
+  /* ── 3 · HOW IT WORKS ────────────────────────────────────────────────── */
+  scenes.push((() => {
+    const sec = $('#how'), steps = $$('#steps .st'), dv = $('#dv'), scale = $('#dvScale');
+    const bgs = $$('.dv-bg', dv), ls = $$('.dv-l', dv), rail = $$('#rail i');
+    const S = [
+      { w: 420, h: 520, r: 24, rot: 0,    hs: 'var(--sky)' },
+      { w: 520, h: 290, r: 16, rot: 1.5,  hs: 'var(--peach)' },
+      { w: 390, h: 440, r: 6,  rot: -2.5, hs: 'var(--butter)' },
+      { w: 460, h: 400, r: 30, rot: 0,    hs: 'var(--mint)' },
+    ];
+    const notches = $$('.notch', dv), arr = $('#tkArr'), tkN = $('#tkN'), segs = $$('#ntSeg span'), rows = $$('#ntList li'), nBar = $('#ntBar'), nCnt = $('#ntCnt'), stack = $$('#bdStack i');
+    let top = 0, len = 1, hgt = 1, active = -1, mob = false, timers = [], stT = [], holds = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    function enter(i) {
+      timers.forEach(clearTimeout); timers = [];
+      stack.forEach(s => s.style.width = '0');
+      if (i === 1) {
+        const AV = ['peach', 'sky', 'mint', 'butter', 'rose', 'lilac'];
+        let n = 26; tkN.textContent = n; arr.innerHTML = '';
+        for (let j = 0; j < 14; j++) arr.insertAdjacentHTML('beforeend', `<i class="av" style="--a:var(--${AV[j % 6]})"></i>`);
+        const add = () => { if (n >= 32) return; n++; tkN.textContent = n; arr.insertAdjacentHTML('beforeend', `<i class="av new" style="--a:var(--${AV[n % 6]})"></i>`); later(add, 420); };
+        later(add, 400);
+      }
+      if (i === 2) {
+        let n = 18; nBar.style.setProperty('--v', '75%'); nCnt.textContent = '18 of 24';
+        const cyc = j => { segs.forEach((s, q) => s.classList.toggle('on', q === j)); rows.forEach((r, q) => r.classList.toggle('hl', q === j)); later(() => cyc((j + 1) % 3), 1500); };
+        cyc(0);
+        const tick = () => { if (n >= 22) return; n++; nBar.style.setProperty('--v', (n / 24 * 100) + '%'); nCnt.textContent = n + ' of 24'; later(tick, 700); };
+        later(tick, 900);
+      }
+      if (i === 3) later(() => stack.forEach(s => s.style.width = s.dataset.w), 300);
+    }
+    // on a phone each step holds its own card face, still: no pin, no morph, nothing counting up
+    const clip = $('.dv-clip', dv);
+    holds = steps.map((st, j) => {
+      const h = document.createElement('div'); h.className = 'st-card'; h.setAttribute('aria-hidden', 'true');
+      h.style.setProperty('--hs', S[j].hs); h.style.borderRadius = S[j].r + 'px';
+      h.append(bgs[j].cloneNode()); if (j === 1) notches.forEach(n => { const c = n.cloneNode(); c.style.opacity = 1; h.append(c); });
+      st.prepend(h); return h;
+    });
+    function place() {
+      timers.forEach(clearTimeout); timers = []; active = -1;
+      ls.forEach((l, j) => {
+        const h = holds[j]; if (l.parentNode !== h) h.append(l);
+        const k = Math.min(1, h.clientWidth / S[j].w);
+        h.style.height = S[j].h * k + 'px';
+        l.style.opacity = l.style.visibility = l.style.filter = '';
+        l.style.transform = `scale(${k})`;
+      });
+      // each card shows its settled state
+      tkN.textContent = 32; arr.innerHTML = '';
+      const AV = ['peach', 'sky', 'mint', 'butter', 'rose', 'lilac'];
+      for (let j = 0; j < 20; j++) arr.insertAdjacentHTML('beforeend', `<i class="av" style="--a:var(--${AV[j % 6]})"></i>`);
+      segs.forEach((g, q) => g.classList.toggle('on', !q)); rows.forEach((r, q) => r.classList.toggle('hl', !q));
+      nBar.style.setProperty('--v', '75%'); nCnt.textContent = '18 of 24';
+      stack.forEach(t => { t.style.transition = 'none'; t.style.width = t.dataset.w; });
+    }
+    function unplace() {
+      if (ls[0].parentNode === clip) return;
+      ls.forEach(l => clip.append(l)); stack.forEach(t => t.style.transition = ''); active = -1;
+    }
+    return {
+      measure() {
+        top = docTop(sec); hgt = sec.offsetHeight; len = Math.max(1, hgt - H); mob = walkMob();
+        stT = steps.map(docTop);
+        const avail = mob ? Math.min(W - 40, 560) : Math.min(sec.querySelector('.dv-col').offsetWidth - 30, 560);
+        const vs = mob ? Math.min(avail / 540, (H * .54 - 78) / 520) : Math.min(1, avail / 540, (H - 110) / 520);
+        // stacked, each card is fitted on its own (a tall list and a wide ticket want different scales)
+        if (mob) place(); else unplace();
+        scale.style.transform = `scale(${vs})`;
+      },
+      update(y) {
+        // stacked, the page tint follows the step you're reading
+        let f;
+        if (mob) {
+          const line = y + H * .5; let j = 0;
+          while (j < 3 && line >= stT[j + 1]) j++;
+          f = j < 3 ? clamp(j + (line - stT[j]) / (stT[j + 1] - stT[j]) - .25, 0, 3) : 3;
+        } else f = clamp(clamp((y - top) / len) * 4 - .5, 0, 3);
+        const i = Math.min(2, Math.floor(f)), m = smooth(clamp((f - i - .3) / .4));
+        const wt = [0, 0, 0, 0]; wt[i] = 1 - m; wt[i + 1] = m;
+        // fade the colour in as the section arrives and back to paper as it leaves
+        howTint = [0, 1, 2].map(j => WASH.reduce((a, w, q) => a + w[j] * wt[q], 0));
+        if (mob) return;
+        const a = S[i], b = S[i + 1];
+        dv.style.width = lerp(a.w, b.w, m) + 'px'; dv.style.height = lerp(a.h, b.h, m) + 'px';
+        dv.style.borderRadius = lerp(a.r, b.r, m) + 'px';
+        dv.style.transform = `rotate(${lerp(a.rot, b.rot, m)}deg) translateY(${Math.sin(m * Math.PI) * -12}px)`;
+        const ct = [0, 0, 0, 0]; ct[i] = smooth(clamp(1 - m * 1.8)); ct[i + 1] = smooth(clamp(m * 1.8 - .8));
+        bgs.forEach((g, j) => g.style.opacity = wt[j]);
+        notches.forEach(n => n.style.opacity = wt[1]);
+        ls.forEach((l, j) => {
+          const w = ct[j], dir = j <= i ? -1 : 1;
+          l.style.opacity = w; l.style.visibility = w < .01 ? 'hidden' : 'visible';
+          l.style.transform = `translate(-50%, -50%) translateY(${(1 - w) * 22 * dir}px) scale(${.94 + .06 * w})`;
+          l.style.filter = w > .98 ? 'none' : `blur(${(1 - w) * 10}px)`;
+        });
+        const act = Math.round(f);
+        if (act !== active) {
+          active = act;
+          steps.forEach((s, j) => s.classList.toggle('on', j === act));
+          rail.forEach((r, j) => r.classList.toggle('on', j === act));
+          dv.style.setProperty('--hs', S[act].hs);
+          enter(act);
+        }
+      }
+    };
+  })());
+
+  /* ── the page colour ─────────────────────────────────────────────────────
+     Paper tints in from one section to the next and back to paper between:
+     How it works (its card's own colour) → the handoff in peach → fit in mint.
+     The race and the FAQ stay plain paper, so the page has somewhere to rest. */
+  scenes.push((() => {
+    const wash = $('#wash'), col = $('#how .dv-col');
+    const Z = [['#how', () => howTint], ['#handoff', () => TINT.peach], ['#fit', () => TINT.mint]].map(([id, c]) => ({ el: $(id), c, top: 0, h: 0 }));
+    return {
+      measure() { Z.forEach(z => { z.top = docTop(z.el); z.h = z.el.offsetHeight; }); },
+      update(y) {
+        let sum = 0; const mix = [0, 0, 0];
+        Z.forEach(z => {
+          const e = smooth(clamp((y + H * .6 - z.top) / (H * .6))) * smooth(clamp((z.top + z.h - H * .4 - y) / (H * .6)));
+          if (!e) return; sum += e; const c = z.c(); for (let j = 0; j < 3; j++) mix[j] += c[j] * e;
+        });
+        const amt = Math.min(1, sum) * .9;
+        const c = [0, 1, 2].map(j => Math.round(lerp(PAPER[j], sum ? mix[j] / sum : PAPER[j], amt)));
+        wash.style.opacity = amt > 0 ? 1 : 0;
+        wash.style.background = `rgb(${c})`;
+        col.style.backgroundColor = walkMob() ? `rgb(${c})` : '';
+      }
+    };
+  })());
+
+  /* ── 4 · THE HANDOFF ─────────────────────────────────────────────────── */
+  scenes.push((() => {
+    const sec = $('#handoff'), yrs = $$('.yr', sec), lines = $$('.yr-line i', sec), seats = $$('.seat', sec), stays = $$('.stay', sec), nums = $$('[data-st]', sec), boardYr = $('#boardYr'), note = $('#boardNote');
+    const BOARD = [
+      [['DK', 'Dana K.', 'peach'], ['LM', 'Leo M.', 'mint'], ['IR', 'Ivy R.', 'sky'], ['OS', 'Omar S.', 'butter']],
+      [['PN', 'Priya N.', 'lilac'], ['JT', 'Jordan T.', 'sky'], ['IR', 'Ivy R.', 'sky'], ['BC', 'Ben C.', 'rose']],
+      [['MA', 'Maya A.', 'rose'], ['AP', 'Alex P.', 'peach'], ['SO', 'Sam O.', 'mint'], ['BC', 'Ben C.', 'rose']],
+    ];
+    const STAY = [[18, 22, 7, 46], [29, 44, 7, 97], [41, 63, 8, 151]];
+    const NOTE = ['3 open tasks follow the role to whoever holds it', 'Jordan took over Leo’s 3 open tasks on day one', 'Alex took over Jordan’s 2 open tasks on day one'];
+    let top = 0, h = 1, yr = -1, manual = -1, bucket = -1;
+    function show(y) {
+      if (y === yr) return; const prev = yr; yr = y;
+      yrs.forEach((b, j) => b.classList.toggle('on', j === y));
+      lines.forEach((l, j) => l.style.transform = `scaleX(${j < y ? 1 : 0})`);
+      boardYr.textContent = `${2024 + y}–${25 + y} board`;
+      note.textContent = NOTE[y];
+      seats.forEach((s, j) => {
+        const [ini, name, c] = BOARD[y][j], who = $('.who', s), nw = $('.new', s);
+        const changed = prev >= 0 && BOARD[prev][j][1] !== name;
+        const paint = () => { who.innerHTML = `<i class="av" style="--a:var(--${c})">${ini}</i>${name}`; };
+        nw.classList.toggle('on', changed);
+        if (!changed) { paint(); return; }
+        setTimeout(() => { who.classList.add('flip'); setTimeout(() => { paint(); who.classList.remove('flip'); }, 260); }, j * 90);
+      });
+      nums.forEach((n, j) => {
+        const from = prev < 0 ? STAY[y][j] : STAY[prev][j], to = STAY[y][j], lbl = n.querySelector('small').outerHTML, t0 = performance.now();
+        const f = () => { const t = clamp((performance.now() - t0) / 700); n.innerHTML = Math.round(lerp(from, to, eo(t))) + lbl; if (t < 1) requestAnimationFrame(f); };
+        requestAnimationFrame(f);
+        if (prev >= 0) { setTimeout(() => stays[j].classList.add('bump'), j * 60); setTimeout(() => stays[j].classList.remove('bump'), 300 + j * 60); }
+      });
+    }
+    yrs.forEach((b, j) => b.addEventListener('click', () => { manual = j; show(j); }));
+    show(0);
+    return {
+      measure() { top = absTop(sec); h = sec.offsetHeight; },
+      update(y) {
+        const p = clamp((y + H * .3 - top) / (h * .8));
+        const b = p < .4 ? 0 : p < .7 ? 1 : 2;
+        if (b !== bucket) { bucket = b; manual = -1; }
+        show(manual >= 0 ? manual : b);
+      }
+    };
+  })());
+
+  /* ── 5 · FITS YOUR ORG ───────────────────────────────────────────────── */
+  (() => {
+    // real nav order; Dashboard, Timeline and Members come with every org
+    const P = [['dash', 'Dashboard', 'butter', 1], ['timeline', 'Timeline', 'sky', 1], ['meetings', 'Meetings', 'sky'], ['tasks', 'Tasks', 'peach'],
+      ['members', 'Members', 'lilac', 1], ['ig', 'Instagram', 'peach'], ['treasury', 'Treasury', 'mint'], ['service', 'Service', 'mint'],
+      ['prog', 'Programming', 'lilac'], ['parties', 'Parties', 'rose']];
+    const on = new Set(['meetings', 'treasury']);
+    const nav = $('#fxNav'), pv = $('#fxPv'), note = $('#fxNote'), acts = $$('#fxActs .act');
+    let cur = 'dash';
+    nav.innerHTML = P.map(([id, l, c]) => `<div class="pv-it" data-id="${id}" style="--c:var(--${c})"><div><div class="pv-row"><i></i><span class="lb">${l}</span></div></div></div>`).join('');
+    const items = $$('.pv-it', nav);
+    function render() {
+      items.forEach((it, i) => { const [id, , , always] = P[i]; it.classList.toggle('on', !!(always || on.has(id))); it.classList.toggle('cur', id === cur); });
+      acts.forEach(a => a.classList.toggle('on', on.has(a.dataset.p)));
+      pv.style.setProperty('--hs', `var(--${P.find(p => p[0] === cur)[2]})`);
+      setTimeout(placeNote, 560);
+    }
+    const mem = $('[data-id="members"]', nav), memL = $('.lb', mem);
+    function placeNote() { note.style.setProperty('--ny', (mem.offsetTop + 2) + 'px'); }
+    acts.forEach(a => a.addEventListener('click', () => {
+      const id = a.dataset.p;
+      if (on.has(id)) { on.delete(id); if (cur === id) cur = 'dash'; } else { on.add(id); cur = id; }
+      render();
+    }));
+    // renaming, shown rather than explained: the roster label cycles through what orgs actually call it
+    const WORDS = ['Members', 'Brothers', 'Dancers', 'Players', 'Sisters', 'Reps'];
+    let w = 0;
+    if (!RM) setInterval(() => {
+      if (!pv.getBoundingClientRect || pv.getBoundingClientRect().bottom < 0 || pv.getBoundingClientRect().top > H) return;
+      memL.classList.add('out');
+      setTimeout(() => { w = (w + 1) % WORDS.length; memL.textContent = WORDS[w]; memL.classList.remove('out'); }, 260);
+    }, 1900);
+    render(); placeNote();
+  })();
+
+  /* ── FAQ ─────────────────────────────────────────────────────────────── */
+  $$('#faqList .qa').forEach(qa => $('button', qa).addEventListener('click', () => {
+    const open = !qa.classList.contains('open');
+    $$('#faqList .qa').forEach(o => { o.classList.remove('open'); $('button', o).setAttribute('aria-expanded', 'false'); });
+    if (open) { qa.classList.add('open'); $('button', qa).setAttribute('aria-expanded', 'true'); }
+  }));
+
+  /* ── close ───────────────────────────────────────────────────────────── */
+  scenes.push((() => {
+    const sec = $('#start'), hEl = $('#closeH');
+    hEl.innerHTML = hEl.textContent.split(' ').map(w => `<span class="cw">${w}</span>`).join(' ');
+    const ws = $$('.cw', hEl);
+    let top = 0;
+    return {
+      measure() { top = docTop(sec); },
+      update(y) {
+        const p = clamp((y + H - top) / (H * .95));
+        ws.forEach((w, i) => w.style.opacity = lerp(.12, 1, clamp(p * (ws.length + 2) - i - 1)));
+      }
+    };
+  })());
+
+
+  /* ── the thread ──────────────────────────────────────────────────────────
+     The one loose end the hero couldn't dock. It runs down the margins, crosses
+     in the gaps between sections, ducks under the privacy card and is tied off
+     into a knot behind the closing line. A needle leads it, drawn to wherever
+     the reader is looking. */
+  scenes.push((() => {
+    const svg = $('#seam'), pg = $('#seamPage'), kn = $('#seamKnot'), ndl = $('#needle');
+    // the knot, authored on a 1440 × 520 board and stretched across the close
+    const KNOT = [['M', -20, 120], ['C', 200, 40, 320, 260, 520, 180], ['S', 760, 20, 900, 160], ['S', 1060, 380, 1180, 250],
+      ['C', 1260, 160, 1340, 200, 1300, 270], ['C', 1260, 340, 1190, 290, 1230, 230], ['C', 1290, 150, 1400, 210, 1470, 300]];
+    const STEP = 8;
+    let Lp = 1, Lk = 1, ymax = [], jy = 0, last = NaN;
+    const curve = P => P.map((p, i) => {
+      if (!i) return `M${p[0]} ${p[1]}`;
+      const a = P[i - 2] || P[i - 1], b = P[i - 1], d = P[i + 1] || p;
+      return `C${b[0] + (p[0] - a[0]) / 6} ${b[1] + (p[1] - a[1]) / 6} ${p[0] - (d[0] - b[0]) / 6} ${p[1] - (d[1] - b[1]) / 6} ${p[0]} ${p[1]}`;
+    }).join('');
+    const box = id => { const el = $(id); const t = docTop(el); return [t, t + el.offsetHeight]; };
+    function lenAt(y) {
+      let lo = 0, hi = ymax.length - 1;
+      if (hi < 0 || y <= ymax[0]) return 0;
+      if (y >= ymax[hi]) return Lp;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; ymax[m] < y ? lo = m : hi = m; }
+      return (lo + (y - ymax[lo]) / Math.max(1e-3, ymax[hi] - ymax[lo])) * STEP;
+    }
+    function tip(path, l) {
+      const p = path.getPointAtLength(l), q = path.getPointAtLength(Math.max(0, l - 4));
+      ndl.setAttribute('transform', `translate(${p.x} ${p.y}) rotate(${Math.atan2(p.y - q.y, p.x - q.x) * 180 / Math.PI})`);
+    }
+    return {
+      measure() {
+        const wrapW = Math.min(1180, W - 32), gw = (W - wrapW) / 2, L = gw * .5, R = W - gw * .5, sw = gw * .3;
+        const [, hb] = box('#top'), [ra, rb] = box('#ask'), [ha, hz] = box('#how'), [oa, oz] = box('#handoff'),
+          [fa, fz] = box('#fit'), [pa, pz] = box('#trust'), [qa, qz] = box('#faq'), [ca] = box('#start');
+        const kx = W / 1440, ky = ca + 30;
+        jy = ky + 120;
+        const P = [[-30, hb - 30],
+          [L + sw, ra + 90], [L - sw, (ra + rb) / 2], [L + sw, rb - 70],
+          [R, ha + 80], [R - sw, ha + (hz - ha) * .4], [R + sw, ha + (hz - ha) * .75], [R, hz - 50],
+          [L, oa + 90], [L + sw, (oa + oz) / 2], [L, oz - 100],
+          [R, fa + 30], [R - sw, (fa + fz) / 2], [R, fz - 60],
+          [W * .62, (pa + pz) / 2],
+          [L, qa + 80], [L + sw, (qa + qz) / 2], [L, qz - 60],
+          [-20 * kx, jy]];
+        pg.setAttribute('d', curve(P));
+        kn.setAttribute('d', KNOT.map(([c, ...n]) => c + n.map((v, i) => i % 2 ? v + ky : v * kx).join(' ')).join(''));
+        svg.style.height = (ky + 560) + 'px';
+        Lp = pg.getTotalLength(); Lk = kn.getTotalLength();
+        pg.style.strokeDasharray = Lp; kn.style.strokeDasharray = Lk;
+        ymax = []; let m = -Infinity;
+        for (let l = 0; l <= Lp; l += STEP) { m = Math.max(m, pg.getPointAtLength(l).y); ymax.push(m); }
+        last = NaN;
+      },
+      update(y) {
+        if (y === last) return; last = y;
+        if (RM) { pg.style.strokeDashoffset = kn.style.strokeDashoffset = 0; return; }
+        const lead = y + H * .72, lp = lenAt(lead), kp = clamp((lead - jy) / (H * .9));
+        pg.style.strokeDashoffset = Lp - lp;
+        kn.style.strokeDashoffset = Lk * (1 - kp);
+        const live = lp > 1 && kp < 1;
+        ndl.classList.toggle('on', live);
+        if (live) lp < Lp ? tip(pg, lp) : tip(kn, kp * Lk);
+      }
+    };
+  })());
+
+  /* ── travellers ──────────────────────────────────────────────────────────
+     An object lifts out of one section and is set down in the next while the
+     page scrolls beneath it: the question you'd ask leaves the hero and becomes
+     the race, the answer's date becomes the Timeline's next event, and the
+     Treasurer role leaves the budget for next year's board. */
+  const fly = $('#fly'), T = [];
+  const rect = el => el.getBoundingClientRect();
+  function traveller(o) { o.el = document.createElement('div'); o.el.className = 'tv'; fly.append(o.el); o.state = -1; o.init(o); T.push(o); return o; }
+  // the same object on both ends: crossfade a copy of each, scaled to the box in flight
+  const carry = (src, dst, o) => traveller(Object.assign({ src, dst, arc: 50, rot: -4, fade: .25,
+    init(o) {
+      o.fs = [src, dst].map(n => { const f = document.createElement('div'); f.className = 'tv-f'; const c = n.cloneNode(true); c.removeAttribute('id'); c.style.visibility = ''; f.append(c); o.el.append(f); return f; });
+    },
+    measure(o) {
+      o.ws = [src, dst].map((n, i) => {
+        const c = o.fs[i].firstChild, cs = getComputedStyle(n);
+        c.style.font = cs.font; c.style.letterSpacing = cs.letterSpacing;
+        c.style.background = cs.backgroundColor; c.style.color = cs.color; c.style.borderColor = cs.borderColor; c.style.width = n.offsetWidth + 'px'; c.style.margin = '0';
+        return n.offsetWidth;
+      });
+    },
+    paint(o, t) {
+      const a = rect(src), b = rect(dst), s = Math.sin(Math.PI * t), lift = 1 + s * .12;
+      const w = lerp(a.width, b.width, t), h = lerp(a.height, b.height, t);
+      const x = lerp(a.left, b.left, smooth(t)), y = lerp(a.top, b.top, t) - s * o.arc;
+      o.el.style.width = w + 'px'; o.el.style.height = h + 'px';
+      o.el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${s * o.rot}deg)`;
+      const f = smooth(clamp((t - o.fade) / .3));
+      o.fs.forEach((fc, i) => { fc.style.opacity = i ? f : 1 - f; fc.style.transform = `scale(${w / o.ws[i] * lift})`; });
+    } }, o));
+
+  const askPiece = $('.pc[data-k="ask"]'), askQ = $('#askQ'), Q = askQ.textContent;
+  traveller({
+    src: askPiece, dst: askQ,
+    init(o) {
+      o.el.classList.add('tv-ask');
+      o.el.innerHTML = `<svg class="ic sp"><use href="#i-spark"/></svg><span class="ty"></span><span class="ph">Ask Chapt anything…</span><kbd>⌘K</kbd>`;
+      [o.sp, o.ty, o.ph, o.kb] = o.el.children;
+    },
+    range() { const top = docTop($('#top')); return [top + ($('#top').offsetHeight - H) * .9, race.pre(askQ) - H * .5]; },
+    // the bar you'd type into becomes the question, typed as you scroll
+    paint(o, t) {
+      const a = rect(askPiece), b = rect(askQ), s = Math.sin(Math.PI * t), st = o.el.style;
+      const w = lerp(a.width, b.width, t), h = lerp(a.height, b.height, t);
+      st.width = w + 'px'; st.height = h + 'px';
+      st.transform = `translate3d(${lerp(a.left, b.left, smooth(t))}px, ${lerp(a.top, b.top, t) - s * 40}px, 0) rotate(${s * -3}deg)`;
+      const k = smooth(clamp((t - .58) / .16)) * 100;
+      st.background = `color-mix(in srgb, var(--ink) ${k}%, var(--card))`;
+      st.color = `color-mix(in srgb, var(--paper) ${k}%, var(--ink))`;
+      st.borderColor = `color-mix(in srgb, var(--ink) ${k}%, var(--line))`;
+      const r = lerp(12, 16, t);
+      st.borderRadius = `${r}px ${r}px ${lerp(12, 5, t)}px ${r}px`;
+      st.padding = `${lerp(0, 7.5, t)}px ${lerp(10, 12.5, t)}px`;
+      st.fontSize = lerp(.76, .9, t) + 'rem';
+      st.boxShadow = `0 ${s * 18}px ${s * 34}px -12px rgba(38,33,27,${s * .3})`;
+      o.ty.textContent = Q.slice(0, Math.round(clamp((t - .08) / .55) * Q.length));
+      o.ph.style.display = t > .08 ? 'none' : '';
+      const g = 1 - clamp((t - .5) / .3);
+      o.sp.style.width = 14 * g + 'px'; o.sp.style.marginRight = 8 * g + 'px'; o.sp.style.opacity = g; o.kb.style.opacity = g;
+    }
+  });
+  const vDate = $('#vDate'), tlNow = $('#tlNow');
+  carry(vDate, tlNow, { fade: .08,
+    enabled: () => !walkMob() && $('#fastVerdict').classList.contains('on'),
+    range() { const y0 = Math.max(race.end, race.top(vDate) - H * .35); return [y0, Math.max(y0 + 300, docTop($('#how')) - (walkMob() ? H * .1 : 0))]; }
+  });
+  // the approved deadline drops onto the Timeline next to the meeting
+  const wrDl = $('#wrDl'), tlDl = $('#tlDl');
+  carry(wrDl, tlDl, { fade: .2, arc: 80, rot: 5,
+    enabled: () => !walkMob() && $('#writ').classList.contains('ok'),
+    range() { const y0 = Math.max(race.end, race.top(wrDl) - H * .5); return [y0, Math.max(y0 + 300, docTop($('#how')) - (walkMob() ? H * .1 : 0))]; }
+  });
+  const bdRole = $('#bdRole'), boardRole = $('#boardRole');
+  carry(bdRole, boardRole, { arc: 70, rot: 6,
+    // How it works is still on a phone, so nothing flies into or out of its cards there
+    enabled: () => !walkMob(),
+    range() { const s = $('#how'), y0 = docTop(s) + (s.offsetHeight - H) * .97 - (walkMob() ? H * .2 : 0); return [y0, Math.max(y0 + 300, docTop(boardRole) - H * .6)]; }
+  });
+  scenes.push({
+    measure() { T.forEach(o => { [o.y0, o.y1] = o.range(); o.measure && o.measure(o); o.state = -1; }); },
+    update(y) {
+      T.forEach(o => {
+        const t = (y - o.y0) / (o.y1 - o.y0);
+        const st = RM || (o.enabled && !o.enabled()) ? 3 : t <= 0 ? 0 : t >= 1 ? 2 : 1;
+        if (st !== o.state) {
+          const was = o.state; o.state = st;
+          o.src.style.visibility = st === 1 || st === 2 ? 'hidden' : '';
+          o.dst.style.visibility = st === 0 || st === 1 ? 'hidden' : '';
+          o.el.classList.toggle('on', st === 1);
+          if (st === 2 && was !== 2 && o.land) o.land();
+        }
+        if (st === 1) o.paint(o, t);
+      });
+    }
+  });
+
+  /* ── scroll-linked depth ─────────────────────────────────────────────────
+     e: 0 as an element's top meets the bottom of the screen, 1 a screen later.
+     c: where its middle sits against the screen's middle (0 centred, ±1 a screen away).
+     Only translate / rotate / scale are touched, so the reveal transitions keep theirs. */
+  const FX = [];
+  const fx = (sel, fn) => $$(sel).forEach((el, i) => FX.push({ el, fn, i, t: 0, h: 0 }));
+  // headings sit a little further back than the page
+  fx('.hd, .walk-head, .priv-in > div:first-child', (el, e, c) => { el.style.translate = `0 ${c * -45}px`; });
+  // the two lanes swing in from either side and settle as one
+  fx('#raceBox .lane', (el, e, c, i) => { const k = 1 - eo(clamp(e / .8)), d = i ? 1 : -1;
+    el.style.translate = `${d * k * (MOB ? 26 : 90)}px ${race.pinned ? 0 : c * (i ? -26 : 26)}px`; el.style.rotate = `${d * k * 4}deg`; });
+  fx('.board', (el, e, c) => { el.style.translate = `0 ${c * -30}px`; el.style.rotate = `${-.8 + (1 - eo(clamp(e / .8))) * -3}deg`; });
+  fx('.stays .stay', (el, e, c, i) => { const k = 1 - eo(clamp((e - i * .06) / .65)); el.style.translate = `${k * (MOB ? 30 : 70)}px ${c * 24}px`; });
+  fx('#fxPv', (el, e, c) => { const k = 1 - eo(clamp(e / .85)); el.style.translate = `${k * (MOB ? 30 : 90)}px ${c * -50}px`; el.style.rotate = `${1.5 + k * 8}deg`; });
+  fx('#fxActs .act', (el, e, c, i) => { const k = 1 - eo(clamp((e - .1 - i * .04) / .5)); el.style.translate = `${k * -50}px 0`; el.style.opacity = 1 - k; });
+  // the privacy card opens out to full size as it arrives
+  fx('#trust', (el, e) => { const k = eo(clamp(e / .75)); el.style.scale = lerp(.9, 1, k); el.style.borderRadius = lerp(72, MOB ? 26 : 32, k) + 'px'; });
+  fx('#trust .pp', (el, e, c, i) => { el.style.translate = `0 ${c * (i ? -60 : -30)}px`; });
+  fx('#faqList .qa', (el, e, c, i) => { const k = 1 - eo(clamp((e - i * .05) / .55)); el.style.translate = `0 ${k * 50}px`; el.style.opacity = 1 - k; });
+  fx('#closeH', (el, e) => { el.style.scale = lerp(.9, 1, eo(clamp(e / .9))); });
+  scenes.push({
+    measure() { FX.forEach(f => { f.t = docTop(f.el); f.h = f.el.offsetHeight; }); },
+    update(y) {
+      if (RM) return;
+      FX.forEach(f => {
+        const e = (y + H - f.t) / H, c = (f.t + f.h / 2 - y - H / 2) / H;
+        if (e < -.25 || c < -1.8) return; // well off screen: leave it where it was
+        f.fn(f.el, clamp(e), c, f.i);
+      });
+    }
+  });
+
+  /* ── loop ────────────────────────────────────────────────────────────── */
+  function measureAll() { W = innerWidth; H = innerHeight; MOB = W < 760; readWash(); scenes.forEach(s => s.measure && s.measure()); }
+  addEventListener('pointermove', e => { mouse.tx = e.clientX / W * 2 - 1; mouse.ty = e.clientY / H * 2 - 1; }, { passive: true });
+  let rt; const remeasure = () => { clearTimeout(rt); rt = setTimeout(measureAll, 120); };
+  addEventListener('resize', remeasure);
+  // FAQ answers and the fit preview change the page's height; everything below has to re-measure
+  new ResizeObserver(remeasure).observe(document.querySelector('main'));
+  function frame(t) {
+    now = t;
+    const prev = cur, tgt = scrollY;
+    cur += (tgt - cur) * (RM ? 1 : .11);
+    if (Math.abs(tgt - cur) < .1) cur = tgt;
+    vel = lerp(vel, cur - prev, .18);
+    if (!RM && W > 760) { mouse.x = lerp(mouse.x, mouse.tx, .06); mouse.y = lerp(mouse.y, mouse.ty, .06); }
+    scenes.forEach(s => s.update(cur));
+    requestAnimationFrame(frame);
+  }
+  measureAll();
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(measureAll);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

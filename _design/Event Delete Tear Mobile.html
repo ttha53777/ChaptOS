@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Delete Tear · Phone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  The delete tear on a phone. The screen is "Event Delete Tear Mock.html"
+  itself (?embed), at 390 wide, so its phone layout is the real one: tap an
+  event → its sheet → Delete → the slip as a bottom sheet → strike, stamp,
+  tear above the tab bar → Undo toast. Play buttons drive it with a finger;
+  the screen is live too, so tap it yourself. The beats on the right light up
+  as the screen reports them (postMessage).
+-->
+<style>
+:root {
+  --pp-rose:#FFD6E6; --pp-rose-ink:#C23C77; --pp-peach:#FFD5C4; --pp-mint:#C7EFDA; --pp-butter:#FFE5A0; --pp-lilac:#E1D8FF;
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --line:#EBE1CF; --line-med:#DCD0B9;
+  --bezel:#26211B; --desk:#F3EADA;
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-rose:#E598B7; --pp-rose-ink:#FFAACB; --pp-peach:#E5A28A; --pp-mint:#80CBA4; --pp-butter:#E3BF66; --pp-lilac:#A593EE;
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --line:#2F271E; --line-med:#43382B;
+  --bezel:#050403; --desk:#0E0B08;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--desk); color: var(--ink); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased;
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.2px); background-size: 22px 22px;
+}
+button { font: inherit; color: inherit; }
+
+.wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; gap: 56px; padding: 24px; }
+
+/* the phone */
+.phone-box { width: calc(414px * var(--k, 1)); height: calc(868px * var(--k, 1)); flex-shrink: 0; }
+.phone {
+  position: relative; width: 414px; height: 868px; transform: scale(var(--k, 1)); transform-origin: 0 0;
+  border-radius: 64px; background: var(--bezel); padding: 12px;
+  box-shadow: 10px 12px 0 var(--pp-rose), 0 40px 80px -30px rgba(38,33,27,.45);
+}
+.phone::before { content: ""; position: absolute; inset: 3px; border-radius: 61px; border: 1.5px solid color-mix(in srgb, #fff 14%, transparent); pointer-events: none; }
+.screen { position: relative; width: 390px; height: 844px; border-radius: 52px; overflow: hidden; background: var(--paper); }
+.status { position: absolute; left: 0; right: 0; top: 0; height: 50px; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 6px 34px 0 40px; font: 600 .95rem var(--sans); background: var(--paper); }
+.status .ic { display: flex; gap: 6px; align-items: center; }
+.status svg { height: 12px; }
+.island { position: absolute; top: 11px; left: 50%; width: 124px; height: 35px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 3; }
+.screen iframe { position: absolute; left: 0; top: 50px; width: 390px; height: 794px; border: 0; display: block; background: var(--paper); }
+.home { position: absolute; bottom: 8px; left: 50%; width: 136px; height: 5px; margin-left: -68px; border-radius: 3px; background: var(--ink); z-index: 3; pointer-events: none; }
+
+/* the notes beside it */
+.side { width: 340px; flex-shrink: 0; max-height: calc(100vh - 48px); overflow: auto; }
+html[data-theme="night"] .side h1 em { background: linear-gradient(transparent 64%, color-mix(in srgb, var(--pp-rose) 38%, transparent) 64% 92%, transparent 92%); }
+.side .kick { font: 600 .66rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.side h1 { font: 700 2.1rem/1.02 var(--display); letter-spacing: -.035em; margin: 8px 0 10px; }
+.side h1 em { font-style: normal; background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-rose) 80%, transparent) 58% 92%, transparent 92%); }
+.side p.lede { margin: 0 0 18px; color: var(--ink-soft); font-size: .9rem; }
+
+.beats { list-style: none; margin: 0 0 20px; padding: 0; counter-reset: b; }
+.beats li {
+  counter-increment: b; position: relative; display: flex; gap: 12px; padding: 8px 10px; border-radius: 12px; border: 1.5px solid transparent;
+  color: var(--muted); transition: color .25s, background .25s, border-color .25s, transform .25s;
+}
+.beats li::before {
+  content: counter(b); flex-shrink: 0; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center;
+  font: 600 .7rem var(--mono); border: 1.5px solid var(--line-med); background: var(--card); transition: background .25s, border-color .25s;
+}
+.beats li b { display: block; font-weight: 600; color: inherit; font-size: .86rem; }
+.beats li span { font-size: .78rem; display: none; }
+.beats li.on span { display: block; }
+.beats li.done { color: var(--ink-soft); }
+.beats li.done::before { background: var(--pp-mint); border-color: var(--ink); color: #26211B; }
+.beats li.on { color: var(--ink); background: var(--card); border-color: var(--ink); transform: translateX(4px); box-shadow: 3px 3px 0 var(--hue, var(--pp-rose)); }
+.beats li.on::before { background: var(--hue, var(--pp-rose)); border-color: var(--ink); color: #26211B; }
+.beats li.alt { display: none; }
+.beats.alt-on li.alt { display: flex; }
+
+.ctl { display: grid; gap: 7px; }
+.ctl .lbl { font: 600 .62rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.b {
+  border: 1.5px solid var(--line-med); background: var(--card); border-radius: 11px; padding: 7px 12px; cursor: pointer; font: 600 .8rem var(--sans);
+  transition: transform .12s, box-shadow .12s, border-color .15s, background .15s;
+}
+.b:hover { border-color: var(--ink); }
+.b.main { background: var(--pp-rose); color: #26211B; border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.b.main:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.b.main:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.b[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.b.err { font: 600 .74rem var(--mono); }
+.hint { margin-top: 14px; font-size: .76rem; color: var(--muted); }
+
+@media (max-width: 860px) {
+  .wrap { flex-direction: column; gap: 28px; padding: 28px 16px 40px; }
+  .side { width: min(414px, 100%); max-height: none; }
+}
+/* on a real phone: just the screen */
+@media (max-width: 480px) {
+  .wrap { padding: 0 0 40px; }
+  .phone-box { width: 100vw; height: auto; }
+  .phone { width: 100%; height: auto; transform: none; padding: 0; border-radius: 0; box-shadow: none; background: none; }
+  .phone::before, .island, .status, .home { display: none; }
+  .screen { width: 100%; height: 100dvh; border-radius: 0; }
+  .screen iframe { top: 0; width: 100%; height: 100%; }
+  .side { padding: 0 16px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="phone-box" id="pbox">
+    <div class="phone">
+      <div class="screen">
+        <div class="status"><span>9:41</span><span class="ic">
+          <svg viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+          <svg viewBox="0 0 16 12" fill="currentColor"><path d="M8 2.2c2.4 0 4.6.9 6.2 2.5l1.2-1.2A10.4 10.4 0 0 0 8 .5 10.4 10.4 0 0 0 .6 3.5l1.2 1.2A8.7 8.7 0 0 1 8 2.2zm0 3.4c1.5 0 2.8.6 3.8 1.5L13 5.9a7 7 0 0 0-10 0l1.2 1.2c1-.9 2.3-1.5 3.8-1.5zM8 9l2-2a3 3 0 0 0-4 0z"/></svg>
+          <svg viewBox="0 0 27 12" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="23" height="11" rx="3" opacity=".4"/><rect x="2" y="2" width="18" height="8" rx="1.6" fill="currentColor" stroke="none"/><path d="M25.5 4v4" opacity=".4" stroke-width="1.5"/></svg>
+        </span></div>
+        <div class="island"></div>
+        <iframe id="scr" title="Timeline on a phone" src="Event%20Delete%20Tear%20Mock.html?embed"></iframe>
+        <div class="home"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="kick">Timeline · delete · phone</div>
+    <h1>Tear it <em>off the timeline</em></h1>
+    <p class="lede">Rows have no bin on a phone. The event's own sheet holds Delete, and the confirm comes up under your thumb.</p>
+
+    <ol class="beats" id="beats">
+      <li data-b="sheet"><div><b>Tap the event</b><span>Its sheet slides up: attendance, excuses, ledger.</span></div></li>
+      <li data-b="slip"><div><b>Delete → the slip</b><span>A bottom sheet: what goes with it, counted.</span></div></li>
+      <li data-b="strike"><div><b>Struck through</b><span>The rose pen, twice, through the title.</span></div></li>
+      <li data-b="stamp"><div><b>Stamped</b><span>OFF THE TIMELINE, with a little buzz.</span></div></li>
+      <li data-b="tear"><div><b>Torn</b><span>The halves part and fall.</span></div></li>
+      <li data-b="close"><div><b>The gap closes</b><span>Rows below glide up and settle.</span></div></li>
+      <li data-b="undo"><div><b>Undo, over the tab bar</b><span>The fuse burns six seconds.</span></div></li>
+      <li data-b="putback" class="alt"><div><b>Put back</b><span>The halves fly up under washi tape.</span></div></li>
+      <li data-b="fail" class="alt"><div><b>Says why</b><span>And how to try again, if it can work.</span></div></li>
+    </ol>
+
+    <div class="ctl">
+      <div class="row">
+        <button class="b main" data-play="ok">▶ Play delete</button>
+        <button class="b" data-play="undo">▶ Delete, then Undo</button>
+      </div>
+      <span class="lbl">When it fails</span>
+      <div class="row">
+        <button class="b err" data-play="offline">Offline</button>
+        <button class="b err" data-play="500">500</button>
+        <button class="b err" data-play="404">404 gone</button>
+        <button class="b err" data-play="403">403 not allowed</button>
+        <button class="b err" data-play="401">401 signed out</button>
+      </div>
+      <span class="lbl">Options</span>
+      <div class="row">
+        <button class="b" id="oUndo" aria-pressed="true">Undo window</button>
+        <button class="b" id="oSlow" aria-pressed="false">Slow ×4</button>
+        <button class="b" id="oTheme">Day / night</button>
+        <button class="b" id="oReset">↺ Reset</button>
+      </div>
+    </div>
+    <p class="hint">The screen is live: tap any event yourself. 403 and 401 stop at the slip, so nothing animates for a delete that can't happen.</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const scr = $('scr');
+const send = (cmd, arg) => scr.contentWindow.postMessage({ cmd, arg }, '*');
+
+/* the phone, scaled to fit the window */
+function fit() {
+  if (innerWidth <= 480) return document.documentElement.style.removeProperty('--k');
+  const k = Math.min(1, (innerHeight - 48) / 868, innerWidth <= 860 ? (innerWidth - 32) / 414 : 1);
+  document.documentElement.style.setProperty('--k', k.toFixed(3));
+}
+addEventListener('resize', fit); fit();
+
+/* beats light up as the screen reports them */
+const ORDER = ['sheet', 'slip', 'strike', 'stamp', 'tear', 'close', 'undo'];
+const HUE = { sheet: 'var(--pp-lilac)', slip: 'var(--pp-rose)', blocked: 'var(--pp-peach)', strike: 'var(--pp-rose)', stamp: 'var(--pp-rose)', tear: 'var(--pp-butter)', close: 'var(--pp-mint)', undo: 'var(--pp-butter)', putback: 'var(--pp-butter)', fail: 'var(--pp-peach)', gone: 'var(--pp-mint)' };
+function light(name) {
+  const lis = [...$('beats').children];
+  if (name === 'sheet') { lis.forEach(li => li.classList.remove('on', 'done')); $('beats').classList.remove('alt-on'); }
+  if (name === 'putback' || name === 'fail') $('beats').classList.add('alt-on');
+  if (name === 'kept') return lis.forEach(li => li.classList.remove('on'));
+  const key = name === 'blocked' ? 'slip' : name;
+  const at = lis.findIndex(li => li.dataset.b === key);
+  if (name === 'gone') { lis.forEach(li => { if (li.classList.contains('on')) li.classList.replace('on', 'done'); }); return; }
+  if (at < 0) return;
+  lis.forEach((li, n) => {
+    li.classList.remove('on');
+    if (ORDER.includes(key) ? n < at && !li.classList.contains('alt') : li.classList.contains('on')) li.classList.add('done');
+  });
+  if (ORDER.includes(key)) lis.slice(0, at).filter(li => !li.classList.contains('alt')).forEach(li => li.classList.add('done'));
+  lis[at].style.setProperty('--hue', HUE[name]);
+  lis[at].classList.add('on');
+}
+addEventListener('message', ev => { if (ev.source === scr.contentWindow && ev.data?.beat) light(ev.data.beat); });
+
+document.querySelectorAll('[data-play]').forEach(b => b.onclick = () => send('play', b.dataset.play));
+$('oUndo').onclick = () => { const on = $('oUndo').getAttribute('aria-pressed') !== 'true'; $('oUndo').setAttribute('aria-pressed', on); send('set', { undo: on }); };
+$('oSlow').onclick = () => { const on = $('oSlow').getAttribute('aria-pressed') !== 'true'; $('oSlow').setAttribute('aria-pressed', on); send('set', { slow: on }); };
+$('oTheme').onclick = () => { const h = document.documentElement; h.dataset.theme = h.dataset.theme === 'night' ? 'day' : 'night'; send('theme', h.dataset.theme); };
+$('oReset').onclick = () => { send('reset'); [...$('beats').children].forEach(li => li.classList.remove('on', 'done')); $('beats').classList.remove('alt-on'); };
+</script>
+</body>
+</html>

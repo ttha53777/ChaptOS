@@ -1,0 +1,1482 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Dues · Paper</title>
+<!--
+  Treasury → Dues tab. EXPLORATION — a hypothetical fifth tab on /[slug]/treasury.
+
+  The page answers two questions and nothing else:
+    1. "Who owes what?"   → the term strip (one square per member) + the dues tags wall.
+    2. "Bill some people" → one sheet: WHO (everyone / by role / pick people), WHAT (name,
+                            amount, due), and a live receipt that states the exact bill.
+
+  Real-backend mapping (flag when porting):
+    • handing out dues = one adjustDues(+delta, reason) per member, already exists.
+    • a *charge* as a named, dated group (Fall dues · due Oct 1 · 52 people) does NOT exist —
+      adjustDues has no chargeId / dueDate. Overdue, per-charge progress and "already billed
+      for this" detection all need that grouping (DuesCharge + DuesChargeLine).
+    • per-role rates read the member's role; real members can hold several roles, so the
+      real form needs a precedence rule (mock: one dues tier per member).
+    • Remind / notify toggle = no backend.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --scrim:rgba(38,33,27,.28);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --mark-op:.42; --av-ink:rgba(22,18,14,.78);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  --scrim:rgba(5,4,2,.6);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:hidden; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em; background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg); opacity:var(--mark-op)}
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+.btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac); display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; letter-spacing:-.01em; box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s, opacity .2s}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn .ic{width:15px; height:15px}
+.btn[disabled]{opacity:.4; pointer-events:none}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.btn--soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.btn--soft:hover{border-color:var(--ink-3); color:var(--ink); box-shadow:none; transform:translateY(-1px)}
+.btn--sm{padding:6px 12px; font-size:.8rem; box-shadow:2px 2px 0 var(--hs)}
+.btn--sm.btn--soft{box-shadow:none}
+.btn--lg{padding:13px 22px; font-size:.95rem; box-shadow:3.5px 3.5px 0 var(--hs)}
+.link{border:0; background:none; padding:0; color:var(--ink-2); font-weight:600; font-size:.82rem; display:inline-flex; align-items:center; gap:5px; text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.link:hover{color:var(--ink); text-decoration-color:var(--ink)}
+.link .ic{width:13px; height:13px}
+
+.avatar{width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.66rem; font-weight:700; letter-spacing:-.02em; background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08)}
+.avatar--sm{width:22px; height:22px; font-size:.56rem}
+.avatar--lg{width:52px; height:52px; font-size:1rem; border:1.5px solid var(--ink)}
+.stack{display:flex}
+.stack .avatar{margin-left:-7px; border:2px solid var(--card)}
+.stack .avatar:first-child{margin-left:0}
+.stack .more{margin-left:-7px; height:22px; min-width:22px; padding:0 6px; border-radius:999px; display:grid; place-items:center; font-family:var(--mono); font-size:.6rem; font-weight:600; background:var(--paper-3); border:2px solid var(--card); color:var(--ink-2)}
+
+/* ---------- shell ---------- */
+.app{display:flex; min-height:100vh}
+.sb{position:sticky; top:0; height:100vh; width:232px; flex:none; border-right:1.5px solid var(--line); background:color-mix(in srgb, var(--paper-2) 88%, transparent); display:flex; flex-direction:column; padding:0 10px}
+.sb-org{display:flex; align-items:center; gap:10px; height:66px; padding:0 6px; border-bottom:1.5px solid var(--line); margin:0 -10px 10px; padding-left:16px}
+.sb-org .lg{width:30px; height:30px; border-radius:9px; background:var(--peach); border:1.5px solid var(--ink); display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:.8rem; color:var(--note-ink); box-shadow:2px 2px 0 var(--ink)}
+.sb-org b{font-family:var(--display); font-size:1.02rem; letter-spacing:-.02em}
+.sb-org small{display:block; font-size:.7rem; color:var(--ink-3); margin-top:-3px}
+.sb a{display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:11px; color:var(--ink-2); text-decoration:none; font-size:.9rem; font-weight:500}
+.sb a:hover{background:var(--paper-3); color:var(--ink)}
+.sb a[aria-current]{background:var(--card); color:var(--ink); font-weight:600; box-shadow:inset 0 0 0 1.5px var(--ink), 2px 2px 0 var(--butter)}
+.sb a .ic{width:17px; height:17px}
+.main{flex:1; min-width:0}
+.wrap{max-width:1240px; margin:0 auto; padding:34px 36px 140px}
+.mbar{display:none}
+
+/* ---------- page head + folder tabs (same as Treasury in the dashboard mock) ---------- */
+.ph{display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap}
+.ph h1{font-family:var(--display); font-weight:600; font-size:2.5rem; letter-spacing:-.04em; line-height:1.05; margin-top:8px}
+.ph p{color:var(--ink-3); font-size:.92rem; margin-top:6px}
+.ph .act{margin-left:auto; display:flex; gap:10px; flex-wrap:wrap}
+.tabs{margin-top:28px; display:flex; align-items:flex-end; gap:6px; padding:0 6px; box-shadow:inset 0 -1.5px 0 var(--ink); overflow-x:auto; scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{position:relative; flex:none; display:inline-flex; align-items:center; gap:8px; margin-bottom:1.5px; padding:10px 16px 9px; border:1.5px solid var(--line-2); border-bottom:0; border-radius:13px 13px 0 0; background:var(--paper-2); color:var(--ink-3); font-weight:600; font-size:.86rem}
+.tabs button::before{content:''; position:absolute; left:12px; right:12px; top:-1.5px; height:4px; border-radius:0 0 4px 4px; background:var(--tb); opacity:.9}
+.tabs button .ic{width:15px; height:15px}
+.tabs button:hover{color:var(--ink); background:var(--card)}
+.tabs button[aria-selected="true"]{margin-bottom:0; padding:12px 18px 11px; background:var(--paper); color:var(--ink); border-color:var(--ink); z-index:1}
+.tabs .n{font-family:var(--mono); font-size:.66rem; font-weight:600; min-width:19px; height:19px; padding:0 5px; border-radius:999px; display:inline-grid; place-items:center; background:var(--rose); color:var(--note-ink); border:1.5px solid var(--note-ink)}
+.tabs .new{font-size:.58rem; letter-spacing:.1em; font-family:var(--mono); color:var(--lilac-ink); border:1px dashed var(--lilac-ink); border-radius:5px; padding:0 4px}
+.elsewhere{margin-top:40px; padding:44px; text-align:center; border:1.5px dashed var(--line-2); border-radius:22px; color:var(--ink-3)}
+.elsewhere b{display:block; color:var(--ink); font-family:var(--display); font-size:1.2rem; margin-bottom:4px}
+
+/* ---------- top: the term at a glance ---------- */
+.top{margin-top:28px; display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:20px}
+.card{background:var(--card); border:1.5px solid var(--line); border-radius:22px}
+.hero{border-color:var(--ink); box-shadow:4px 4px 0 var(--butter); padding:24px 26px 22px; position:relative; display:flex; flex-direction:column}
+.k{display:flex; align-items:center; gap:7px; font-size:.72rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.k .ic{width:14px; height:14px}
+.big{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-top:8px}
+.big b{font-family:var(--display); font-weight:600; font-size:3.1rem; letter-spacing:-.05em; line-height:1}
+.big span{color:var(--ink-3); font-size:.98rem}
+.big span em{font-style:normal; color:var(--ink); font-weight:600}
+
+/* money bar: paid | not due yet | overdue, drawn on the billed total */
+.mbarr{margin-top:20px; height:22px; border:1.5px solid var(--ink); border-radius:999px; overflow:hidden; display:flex; background:var(--paper-2)}
+.mbarr i{display:block; height:100%; transition:flex-basis .9s var(--ease-spring)}
+.mbarr i + i{border-left:1.5px solid var(--ink)}
+.mbarr .p{background:var(--mint)}
+.mbarr .d{background:repeating-linear-gradient(-45deg, var(--butter) 0 6px, var(--butter-soft) 6px 11px)}
+.mbarr .o{background:repeating-linear-gradient(-45deg, var(--rose) 0 6px, var(--rose-soft) 6px 11px)}
+.legend{display:flex; gap:8px 18px; flex-wrap:wrap; margin-top:12px; font-size:.82rem; color:var(--ink-2)}
+.legend button{border:0; background:none; padding:3px 6px; margin:-3px -6px; border-radius:8px; display:inline-flex; align-items:center; gap:7px}
+.legend button:hover{background:var(--paper-2)}
+.legend button[aria-pressed="true"]{background:var(--paper-3); box-shadow:inset 0 0 0 1.5px var(--ink)}
+.legend .sw{width:12px; height:12px; border-radius:4px; border:1.5px solid var(--ink)}
+.legend b{font-family:var(--mono); font-weight:600; font-size:.8rem}
+
+/* the punch strip: one square per member */
+.strip-h{display:flex; align-items:baseline; justify-content:space-between; margin-top:22px; font-size:.78rem; color:var(--ink-3)}
+.strip{margin-top:8px; display:grid; grid-template-columns:repeat(26, minmax(0,1fr)); gap:4px}
+.strip button{aspect-ratio:1; border-radius:5px; border:1.5px solid var(--line-2); padding:0; background:var(--paper-2); position:relative; transition:transform .15s var(--ease-spring)}
+.strip button:hover{transform:scale(1.35); z-index:2; border-color:var(--ink)}
+.strip button[data-s="paid"]{background:var(--mint); border-color:var(--mint-ink)}
+.strip button[data-s="due"]{background:var(--butter); border-color:var(--butter-ink)}
+.strip button[data-s="over"]{background:var(--rose); border-color:var(--rose-ink)}
+.strip button[data-s="none"]{background:transparent; border-style:dashed}
+.strip.dim button:not(.on){opacity:.18}
+.tip{position:fixed; z-index:90; pointer-events:none; background:var(--ink); color:var(--paper); padding:6px 10px; border-radius:9px; font-size:.76rem; font-weight:600; white-space:nowrap; transform:translate(-50%, calc(-100% - 10px)); opacity:0; transition:opacity .12s}
+.tip.on{opacity:1}
+.tip span{font-family:var(--mono); font-weight:500; opacity:.75; margin-left:6px}
+.hero .cta{margin-top:auto !important; display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; padding-top:18px; border-top:1.5px dashed var(--line-2)}
+
+/* charges: one ticket stub per bill handed out */
+.charges{padding:20px 20px 16px; display:flex; flex-direction:column}
+.charges-h{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:0 4px}
+.charges-h h3{font-family:var(--display); font-weight:600; font-size:1.15rem; letter-spacing:-.03em}
+.stubs{margin-top:12px; display:flex; flex-direction:column; gap:10px; flex:1}
+.stub{--c:var(--sky); position:relative; display:grid; grid-template-columns:6px minmax(0,1fr) auto; gap:0 14px; align-items:center; text-align:left; width:100%; padding:12px 16px 12px 0; border:1.5px solid var(--line-2); border-radius:14px; background:var(--paper); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s}
+.stub > i{grid-row:1 / span 2; align-self:stretch; background:var(--c); border-radius:12px 0 0 12px; margin:-12px 0 -12px 0; border-right:1.5px dashed var(--ink-3)}
+.stub:hover{transform:translate(-1px,-1px); border-color:var(--ink); box-shadow:3px 3px 0 var(--c)}
+.stub[aria-pressed="true"]{border-color:var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--c)}
+.stub .nm{font-weight:600; font-size:.93rem; display:flex; align-items:center; gap:8px; min-width:0}
+.stub .nm span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.stub .meta{grid-column:2; font-size:.76rem; color:var(--ink-3); display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.stub .meta .od{color:var(--rose-ink); font-weight:600}
+.stub .amt{grid-row:1 / span 2; grid-column:3; text-align:right}
+.stub .amt b{display:block; font-family:var(--mono); font-weight:600; font-size:.92rem}
+.stub .amt small{font-size:.72rem; color:var(--ink-3); font-family:var(--mono)}
+.stub .prog{display:block; margin-top:5px; width:84px; height:5px; border-radius:9px; background:var(--paper-3); overflow:hidden; margin-left:auto}
+.stub .prog i{display:block; height:100%; background:var(--mint-ink); border-radius:9px}
+.stub.fresh{animation:fresh 1.4s var(--ease-out)}
+@keyframes fresh{0%{transform:translateY(-14px) rotate(-1.5deg); opacity:0; box-shadow:5px 5px 0 var(--c)} 40%{opacity:1}}
+.chip-aud{font-size:.68rem; font-weight:600; padding:1px 7px; border-radius:999px; background:var(--paper-3); color:var(--ink-2)}
+.charges .foot{margin-top:12px; padding:10px 4px 0; border-top:1.5px dashed var(--line-2); font-size:.78rem; color:var(--ink-3); display:flex; justify-content:space-between; gap:10px}
+
+/* ---------- the wall of dues tags ---------- */
+.wall-h{margin-top:40px; display:flex; align-items:flex-end; gap:14px 20px; flex-wrap:wrap}
+.wall-h h2{font-family:var(--display); font-weight:600; font-size:1.65rem; letter-spacing:-.035em; line-height:1.1}
+.wall-h p{color:var(--ink-3); font-size:.86rem; margin-top:3px}
+.wall-h .tools{margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.seg{display:inline-flex; padding:3px; border:1.5px solid var(--line-2); border-radius:999px; background:var(--paper-2)}
+.seg button{border:0; background:none; padding:6px 12px; border-radius:999px; font-size:.8rem; font-weight:600; color:var(--ink-3); display:inline-flex; align-items:center; gap:6px}
+.seg button .ic{width:14px; height:14px}
+.seg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:inset 0 0 0 1.5px var(--ink)}
+.srch{display:flex; align-items:center; gap:8px; padding:7px 13px; border:1.5px solid var(--line-2); border-radius:999px; background:var(--card); width:210px}
+.srch:focus-within{border-color:var(--ink)}
+.srch input{border:0; outline:0; background:none; width:100%; font-size:.85rem}
+.srch .ic{width:15px; height:15px; color:var(--ink-3)}
+.filt{margin-top:16px; display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.fchip{display:inline-flex; align-items:center; gap:7px; padding:6px 13px; border:1.5px solid var(--line-2); border-radius:999px; background:var(--card); font-size:.82rem; font-weight:600; color:var(--ink-2)}
+.fchip .c{font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.fchip .sw{width:9px; height:9px; border-radius:50%; border:1.5px solid var(--ink)}
+.fchip:hover{border-color:var(--ink-3)}
+.fchip[aria-pressed="true"]{border-color:var(--ink); background:var(--ink); color:var(--paper)}
+.fchip[aria-pressed="true"] .c{color:var(--paper); opacity:.7}
+.filt .note{font-size:.8rem; color:var(--ink-3); display:inline-flex; align-items:center; gap:8px; margin-left:4px}
+
+.lane{margin-top:26px}
+.lane-h{display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1.5px solid var(--line)}
+.lane-h .sw{width:14px; height:14px; border-radius:5px; border:1.5px solid var(--ink)}
+.lane-h h3{font-weight:600; font-size:.98rem}
+.lane-h .c{font-family:var(--mono); font-size:.76rem; color:var(--ink-3)}
+.lane-h .sum{margin-left:auto; font-family:var(--mono); font-size:.82rem; font-weight:600}
+.lane-h .link{margin-left:12px}
+.tags{margin-top:14px; display:grid; grid-template-columns:repeat(auto-fill, minmax(178px, 1fr)); gap:12px}
+
+/* a dues tag: punched hole, coloured edge by standing */
+.tag{--c:var(--paper-3); --ci:var(--ink-3); position:relative; text-align:left; padding:13px 14px 12px 16px; border:1.5px solid var(--line-2); border-radius:12px 16px 16px 12px; background:var(--card); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s; overflow:hidden}
+.tag::before{content:''; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--c)}
+.tag::after{content:''; position:absolute; right:12px; top:12px; width:9px; height:9px; border-radius:50%; border:1.5px solid var(--line-2); background:var(--paper)}
+.tag:hover{transform:translate(-1.5px,-1.5px) rotate(-.4deg); border-color:var(--ink); box-shadow:3px 3px 0 var(--c)}
+.tag[data-s="paid"]{--c:var(--mint); --ci:var(--mint-ink)}
+.tag[data-s="due"]{--c:var(--butter); --ci:var(--butter-ink)}
+.tag[data-s="over"]{--c:var(--rose); --ci:var(--rose-ink)}
+.tag[data-s="none"]{border-style:dashed; background:transparent}
+.tag .who{display:flex; align-items:center; gap:9px; padding-right:14px}
+.tag .who b{display:block; font-size:.86rem; font-weight:600; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tag .who small{display:block; font-size:.7rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tag .who > div{min-width:0}
+.tag .owe{margin-top:11px; display:flex; align-items:baseline; justify-content:space-between; gap:8px}
+.tag .owe b{font-family:var(--display); font-weight:600; font-size:1.45rem; letter-spacing:-.04em; line-height:1}
+.tag .owe .st{font-size:.68rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ci); white-space:nowrap}
+.tag[data-s="paid"] .owe b{color:var(--mint-ink); font-size:1.05rem; display:flex; align-items:center; gap:5px}
+.tag[data-s="paid"] .owe b .ic{width:16px; height:16px}
+.tag[data-s="none"] .owe b{color:var(--ink-3); font-size:1rem}
+.tag .bar{margin-top:9px; height:5px; background:var(--paper-3); border-radius:9px; overflow:hidden}
+.tag .bar i{display:block; height:100%; background:var(--mint-ink); border-radius:9px}
+.tag .sub{margin-top:5px; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.tag.bump{animation:bump .8s var(--ease-spring)}
+@keyframes bump{30%{transform:translateY(-4px) rotate(-1deg); box-shadow:3px 5px 0 var(--c); border-color:var(--ink)}}
+
+/* list view */
+.tbl{margin-top:18px; border:1.5px solid var(--line); border-radius:18px; background:var(--card); overflow:hidden}
+.tr{display:grid; grid-template-columns:minmax(0,2.2fr) minmax(0,1.2fr) 90px 90px 100px 116px 92px; gap:12px; align-items:center; padding:10px 18px; border-top:1px solid var(--line)}
+.tr:first-child{border-top:0}
+.tr.th{background:var(--paper-2); font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding-block:9px}
+.tr .nm{display:flex; align-items:center; gap:10px; min-width:0; font-weight:600; font-size:.88rem}
+.tr .nm span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tr .rl{font-size:.82rem; color:var(--ink-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tr .n{font-family:var(--mono); font-size:.84rem; text-align:right}
+.tr .n.owe{font-weight:600}
+.tr:not(.th){cursor:pointer}
+.tr:not(.th):hover{background:var(--paper-2)}
+.stp{display:inline-flex; align-items:center; gap:6px; font-size:.72rem; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--sp-bg); color:var(--sp-fg); border:1px solid var(--sp-bd)}
+.stp[data-s="paid"]{--sp-bg:var(--mint-soft); --sp-fg:var(--mint-ink); --sp-bd:var(--mint-bd)}
+.stp[data-s="due"]{--sp-bg:var(--butter-soft); --sp-fg:var(--butter-ink); --sp-bd:var(--butter-bd)}
+.stp[data-s="over"]{--sp-bg:var(--rose-soft); --sp-fg:var(--rose-ink); --sp-bd:var(--rose-bd)}
+.stp[data-s="none"]{--sp-bg:var(--paper-2); --sp-fg:var(--ink-3); --sp-bd:var(--line)}
+.empty-f{padding:40px; text-align:center; color:var(--ink-3); border:1.5px dashed var(--line-2); border-radius:18px; margin-top:18px}
+
+/* ---------- day one ---------- */
+.d1{margin-top:30px; border:1.5px solid var(--ink); border-radius:26px; background:var(--card); box-shadow:5px 5px 0 var(--butter); padding:40px 40px 34px; text-align:center}
+.d1 h2{font-family:var(--display); font-weight:600; font-size:2.1rem; letter-spacing:-.04em; line-height:1.1; margin-top:10px}
+.d1 > p{color:var(--ink-3); max-width:520px; margin:10px auto 0}
+.d1-ways{margin-top:28px; display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; text-align:left}
+.way{--c:var(--sky); text-align:left; padding:20px 20px 18px; border:1.5px solid var(--line-2); border-radius:18px; background:var(--paper); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s}
+.way:hover{transform:translate(-2px,-2px); border-color:var(--ink); box-shadow:4px 4px 0 var(--c)}
+.way .g{width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:var(--c); border:1.5px solid var(--note-ink); color:var(--note-ink)}
+.way h4{font-family:var(--display); font-weight:600; font-size:1.12rem; letter-spacing:-.025em; margin-top:14px}
+.way p{font-size:.84rem; color:var(--ink-3); margin-top:4px}
+.way .eg{margin-top:12px; font-family:var(--mono); font-size:.72rem; color:var(--ink-2); padding:6px 9px; border-radius:8px; background:var(--paper-2); border:1px dashed var(--line-2)}
+.d1-strip{margin:30px auto 0; max-width:640px}
+.d1-strip .strip button{background:transparent; border-style:dashed}
+.d1-strip p{font-size:.8rem; color:var(--ink-3); margin-top:10px}
+
+/* ---------- sheets: scrim + right drawer (member) + centered sheet (hand out) ---------- */
+.scrim{position:fixed; inset:0; z-index:60; background:var(--scrim); opacity:0; pointer-events:none; transition:opacity .25s var(--ease-out); backdrop-filter:blur(2px)}
+.scrim.on{opacity:1; pointer-events:auto}
+.x{width:36px; height:36px; border-radius:50%; border:1.5px solid var(--line-2); background:var(--card); display:grid; place-items:center; flex:none}
+.x:hover{border-color:var(--ink)}
+.x svg{width:14px; height:14px}
+
+.drawer{position:fixed; z-index:70; top:12px; right:12px; bottom:12px; width:min(440px, calc(100vw - 24px)); background:var(--paper); border:1.5px solid var(--ink); border-radius:24px; box-shadow:var(--sh-3); transform:translateX(calc(100% + 30px)); transition:transform .34s var(--ease-spring); display:flex; flex-direction:column; overflow:hidden}
+.drawer.on{transform:none}
+.dr-h{display:flex; align-items:flex-start; gap:14px; padding:22px 22px 18px; border-bottom:1.5px solid var(--line)}
+.dr-h h3{font-family:var(--display); font-weight:600; font-size:1.4rem; letter-spacing:-.03em; line-height:1.15}
+.dr-h p{font-size:.82rem; color:var(--ink-3)}
+.dr-h .x{margin-left:auto}
+.dr-b{flex:1; overflow:auto; padding:20px 22px 28px}
+.acct{border:1.5px solid var(--ink); border-radius:18px; background:var(--card); padding:18px 18px 16px; box-shadow:3px 3px 0 var(--c, var(--paper-3))}
+.acct .row1{display:flex; align-items:baseline; justify-content:space-between; gap:10px}
+.acct .row1 b{font-family:var(--display); font-weight:600; font-size:2.3rem; letter-spacing:-.05em; line-height:1}
+.acct .acts{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; margin-top:16px}
+.acct .acts button{display:flex; flex-direction:column; align-items:center; gap:5px; padding:11px 6px 9px; border:1.5px solid var(--line-2); border-radius:13px; background:var(--paper); font-size:.76rem; font-weight:600; color:var(--ink-2)}
+.acct .acts button:hover{border-color:var(--ink); color:var(--ink)}
+.acct .acts button .g{width:30px; height:30px; border-radius:9px; display:grid; place-items:center; background:var(--g); border:1.5px solid var(--note-ink); color:var(--note-ink)}
+.acct .acts button .g .ic{width:15px; height:15px}
+.sec-t{margin:24px 0 10px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.book{border:1.5px solid var(--line); border-radius:16px; background:var(--card); overflow:hidden;
+  background-image:linear-gradient(90deg, transparent 52px, var(--rose-bd) 52px, var(--rose-bd) 53.5px, transparent 53.5px);}
+.bk{display:grid; grid-template-columns:42px minmax(0,1fr) auto; gap:12px; align-items:center; padding:10px 14px 10px 10px; border-top:1px solid var(--line); font-size:.85rem}
+.bk:first-child{border-top:0}
+.bk .d{font-family:var(--mono); font-size:.68rem; color:var(--ink-3); text-align:right}
+.bk .t b{font-weight:600}
+.bk .t small{display:block; font-size:.72rem; color:var(--ink-3)}
+.bk .a{font-family:var(--mono); font-weight:600; font-size:.84rem}
+.bk .a.neg{color:var(--mint-ink)}
+.bk.tot{background:var(--paper-2); font-weight:600}
+.bk.tot .a{font-size:.92rem}
+.acct-bar{margin-top:14px; height:6px; background:var(--paper-3); border-radius:9px; overflow:hidden}
+.acct-bar i{display:block; height:100%; background:var(--mint-ink); border-radius:9px}
+.acct-sub{margin-top:5px; font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.inline-pay{margin-top:12px; border:1.5px dashed var(--ink-3); border-radius:14px; padding:14px; display:none}
+.inline-pay.on{display:block}
+.inline-pay .r{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px}
+
+/* ---------- the Hand out dues sheet ---------- */
+.sheet{position:fixed; z-index:70; left:50%; top:50%; width:min(1080px, calc(100vw - 32px)); max-height:calc(100vh - 40px); background:var(--paper); border:1.5px solid var(--ink); border-radius:26px; box-shadow:var(--sh-3); transform:translate(-50%, -46%) scale(.98); opacity:0; pointer-events:none; transition:transform .34s var(--ease-spring), opacity .2s; display:flex; flex-direction:column; overflow:hidden}
+.sheet.on{transform:translate(-50%,-50%); opacity:1; pointer-events:auto}
+.sh-h{display:flex; align-items:center; gap:14px; padding:18px 22px; border-bottom:1.5px solid var(--line); flex:none}
+.sh-h .g{width:40px; height:40px; border-radius:12px; background:var(--butter); border:1.5px solid var(--note-ink); color:var(--note-ink); display:grid; place-items:center; box-shadow:2px 2px 0 var(--note-ink)}
+.sh-h h3{font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.03em; line-height:1.1}
+.sh-h p{font-size:.8rem; color:var(--ink-3)}
+.sh-h .x{margin-left:auto}
+.sh-b{flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 360px}
+.form{overflow:auto; padding:22px 26px 30px}
+.side{border-left:1.5px solid var(--line); background:var(--paper-2); overflow:auto; padding:22px 22px 24px; display:flex; flex-direction:column}
+
+.step{display:grid; grid-template-columns:30px minmax(0,1fr); gap:0 14px}
+.step + .step{margin-top:26px}
+.step .num{width:30px; height:30px; border-radius:50%; border:1.5px solid var(--ink); display:grid; place-items:center; font-family:var(--mono); font-weight:600; font-size:.8rem; background:var(--card)}
+.step.done .num{background:var(--ink); color:var(--paper)}
+.step .rail{grid-column:1; justify-self:center; width:0; border-left:1.5px dashed var(--line-2); margin-top:6px}
+.step h4{font-family:var(--display); font-weight:600; font-size:1.12rem; letter-spacing:-.025em; line-height:30px}
+.step .body{grid-column:2}
+.step .hint{font-size:.8rem; color:var(--ink-3); margin-top:-2px}
+
+.modes{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin-top:12px}
+.mode{--c:var(--sky); text-align:left; padding:14px 14px 13px; border:1.5px solid var(--line-2); border-radius:16px; background:var(--card); display:flex; flex-direction:column; gap:3px; transition:transform .16s var(--ease-spring), box-shadow .16s var(--ease-spring), border-color .16s}
+.mode:hover{border-color:var(--ink-3)}
+.mode .g{width:32px; height:32px; border-radius:10px; display:grid; place-items:center; background:var(--paper-2); border:1.5px solid var(--line-2); color:var(--ink-2); margin-bottom:7px}
+.mode .g .ic{width:16px; height:16px}
+.mode > div{display:flex; flex-direction:column}
+.mode b{font-size:.92rem}
+.mode small{font-size:.74rem; color:var(--ink-3); line-height:1.35}
+.mode[aria-pressed="true"]{border-color:var(--ink); box-shadow:3px 3px 0 var(--c); transform:translate(-1px,-1px)}
+.mode[aria-pressed="true"] .g{background:var(--c); border-color:var(--note-ink); color:var(--note-ink)}
+
+.who-panel{margin-top:14px}
+.everyone{display:flex; align-items:center; gap:14px; padding:14px 16px; border:1.5px solid var(--line); border-radius:14px; background:var(--card); flex-wrap:wrap}
+.everyone b{font-size:.92rem}
+.everyone small{display:block; font-size:.76rem; color:var(--ink-3)}
+.excl{margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-size:.8rem; color:var(--ink-3)}
+.xchip{display:inline-flex; align-items:center; gap:6px; padding:3px 6px 3px 4px; border-radius:999px; background:var(--paper-3); color:var(--ink-2); font-weight:600; font-size:.76rem; border:0}
+.xchip:hover{background:var(--rose-soft); color:var(--rose-ink)}
+.xchip svg{width:10px; height:10px}
+
+.rates{border:1.5px solid var(--line); border-radius:14px; background:var(--card); overflow:hidden}
+.rate{display:grid; grid-template-columns:26px minmax(0,1fr) auto 130px; gap:12px; align-items:center; padding:11px 14px; border-top:1px solid var(--line)}
+.rate:first-child{border-top:0}
+.rate.off{background:var(--paper-2)}
+.rate.off .rn, .rate.off .stack{opacity:.45}
+.rate .rn b{font-size:.9rem; display:block}
+.rate .rn small{font-size:.74rem; color:var(--ink-3)}
+.cb{width:22px; height:22px; border-radius:7px; border:1.5px solid var(--ink-3); background:var(--card); display:grid; place-items:center; padding:0; color:var(--paper)}
+.cb[aria-checked="true"]{background:var(--ink); border-color:var(--ink)}
+.cb svg{width:13px; height:13px; opacity:0}
+.cb[aria-checked="true"] svg{opacity:1}
+.money{display:flex; align-items:center; gap:4px; padding:6px 10px; border:1.5px solid var(--line-2); border-radius:11px; background:var(--card)}
+.money:focus-within{border-color:var(--ink); box-shadow:2px 2px 0 var(--butter)}
+.money span{font-family:var(--mono); color:var(--ink-3); font-size:.9rem}
+.money input{border:0; outline:0; background:none; width:100%; font-family:var(--mono); font-weight:600; font-size:.95rem; text-align:right}
+.money.lg{padding:10px 14px; border-radius:14px; max-width:220px}
+.money.lg span{font-size:1.3rem}
+.money.lg input{font-size:1.6rem; text-align:left; font-family:var(--display); letter-spacing:-.03em}
+.rate .money.dis{opacity:.4; pointer-events:none}
+
+.pick-tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px}
+.pick-tools .srch{width:auto; flex:1; min-width:180px}
+.pick{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:7px; max-height:250px; overflow:auto; padding:2px; margin:-2px}
+.pk{display:flex; align-items:center; gap:8px; padding:6px 10px 6px 6px; border:1.5px solid var(--line); border-radius:999px; background:var(--card); text-align:left; font-size:.8rem; font-weight:600; min-width:0}
+.pk span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1}
+.pk:hover{border-color:var(--ink-3)}
+.pk[aria-pressed="true"]{border-color:var(--ink); background:var(--sky-soft); box-shadow:2px 2px 0 var(--sky)}
+.pk .tk{width:16px; height:16px; border-radius:50%; border:1.5px solid var(--line-2); display:grid; place-items:center; flex:none}
+.pk[aria-pressed="true"] .tk{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.pk .tk svg{width:10px; height:10px; opacity:0}
+.pk[aria-pressed="true"] .tk svg{opacity:1}
+.pk .ow{width:8px; height:8px; border-radius:50%; background:var(--rose); border:1.5px solid var(--rose-ink); flex:none}
+
+.fld{margin-top:14px}
+.fld > label, .fld > .lb{display:block; font-size:.78rem; font-weight:600; color:var(--ink-2); margin-bottom:6px}
+.txt{width:100%; padding:10px 14px; border:1.5px solid var(--line-2); border-radius:13px; background:var(--card); outline:0; font-size:.95rem}
+.txt:focus{border-color:var(--ink); box-shadow:2px 2px 0 var(--butter)}
+textarea.txt{resize:vertical; min-height:62px; font-size:.88rem}
+.sugg{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px}
+.sg{padding:4px 11px; border:1.5px solid var(--line-2); border-radius:999px; background:var(--paper); font-size:.76rem; font-weight:600; color:var(--ink-2)}
+.sg:hover{border-color:var(--ink); color:var(--ink)}
+.sg[aria-pressed="true"]{border-color:var(--ink); background:var(--ink); color:var(--paper)}
+.amt-row{display:flex; gap:14px; align-items:center; flex-wrap:wrap}
+.split-note{font-size:.8rem; color:var(--ink-3)}
+.split-note b{color:var(--ink); font-family:var(--mono)}
+.dates{display:flex; gap:8px; flex-wrap:wrap}
+.dt{display:flex; flex-direction:column; align-items:flex-start; padding:8px 13px; border:1.5px solid var(--line-2); border-radius:13px; background:var(--card); text-align:left; min-width:108px}
+.dt b{font-size:.84rem}
+.dt small{font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.dt:hover{border-color:var(--ink-3)}
+.dt[aria-pressed="true"]{border-color:var(--ink); box-shadow:2px 2px 0 var(--peach)}
+.dt input[type=date]{border:0; background:none; font-family:var(--mono); font-size:.72rem; color:var(--ink-2); padding:0; outline:0}
+.tog{display:flex; align-items:center; gap:12px; margin-top:12px; padding:12px 14px; border:1.5px solid var(--line); border-radius:14px; background:var(--card); text-align:left; width:100%}
+.tog b{font-size:.86rem; display:block}
+.tog small{font-size:.76rem; color:var(--ink-3)}
+.sw-t{margin-left:auto; width:38px; height:22px; border-radius:999px; border:1.5px solid var(--ink-3); background:var(--paper-3); position:relative; flex:none; transition:background .2s}
+.sw-t::after{content:''; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink-3); transition:transform .2s var(--ease-spring)}
+.tog[aria-checked="true"] .sw-t{background:var(--mint); border-color:var(--ink)}
+.tog[aria-checked="true"] .sw-t::after{transform:translateX(16px); border-color:var(--ink)}
+
+/* the live receipt */
+.rcpt{position:relative; background:var(--card); border:1.5px solid var(--ink); border-bottom:0; border-radius:14px 14px 0 0; padding:18px 18px 22px; font-family:var(--mono); font-size:.78rem; color:var(--ink-2)}
+.rcpt::after{content:''; position:absolute; left:-1.5px; right:-1.5px; bottom:-9px; height:10px; background:linear-gradient(-45deg, transparent 6px, var(--card) 6px) 0 0/12px 10px repeat-x, linear-gradient(45deg, transparent 6px, var(--card) 6px) 0 0/12px 10px repeat-x; filter:drop-shadow(0 1.5px 0 var(--ink))}
+.rcpt .hd{text-align:center; border-bottom:1.5px dashed var(--line-2); padding-bottom:12px}
+.rcpt .hd b{display:block; font-family:var(--display); font-size:1.15rem; letter-spacing:-.02em; color:var(--ink); font-weight:600; line-height:1.2; word-break:break-word}
+.rcpt .hd span{font-size:.7rem; letter-spacing:.08em; text-transform:uppercase}
+.rcpt .ln{display:flex; gap:8px; padding:5px 0; align-items:baseline}
+.rcpt .ln .l{flex:1; min-width:0; display:flex; gap:6px; align-items:baseline}
+.rcpt .ln .l span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.rcpt .ln .l::after{content:''; flex:1; border-bottom:1.5px dotted var(--line-2); min-width:10px; transform:translateY(-3px)}
+.rcpt .ln .v{color:var(--ink); font-weight:600}
+.rcpt .lines{padding:8px 0; border-bottom:1.5px dashed var(--line-2); max-height:210px; overflow:auto}
+.rcpt .tot{display:flex; justify-content:space-between; align-items:baseline; padding-top:12px}
+.rcpt .tot b{font-family:var(--display); font-size:1.7rem; letter-spacing:-.04em; color:var(--ink); font-weight:600}
+.rcpt .who-row{display:flex; align-items:center; gap:10px; margin-top:10px; font-family:var(--sans); font-size:.78rem}
+.rcpt .zero{padding:22px 0; text-align:center; color:var(--ink-3); font-family:var(--sans); font-size:.84rem}
+.stamp{position:absolute; left:50%; top:46%; transform:translate(-50%,-50%) rotate(-14deg) scale(2.4); opacity:0; padding:6px 16px; border:3px solid var(--mint-ink); color:var(--mint-ink); border-radius:10px; font-family:var(--display); font-weight:700; font-size:1.7rem; letter-spacing:.12em; pointer-events:none; background:color-mix(in srgb, var(--card) 70%, transparent)}
+.stamp.on{animation:stamp .45s var(--ease-spring) forwards}
+@keyframes stamp{to{opacity:.95; transform:translate(-50%,-50%) rotate(-14deg) scale(1)}}
+.warn{margin-top:22px; padding:12px 14px; border-radius:14px; background:var(--butter-soft); border:1.5px solid var(--butter-bd); font-size:.8rem; color:var(--ink-2)}
+.warn b{color:var(--butter-ink)}
+.warn .r{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap}
+.side .go{margin-top:auto; padding-top:18px}
+.side .go .btn{width:100%}
+.side .go p{text-align:center; font-size:.74rem; color:var(--ink-3); margin-top:9px}
+.mob-sum, .mob-only{display:none}
+
+.toast{position:fixed; z-index:95; left:50%; bottom:76px; transform:translate(-50%, 30px); opacity:0; pointer-events:none; background:var(--ink); color:var(--paper); padding:10px 10px 10px 16px; border-radius:999px; display:flex; align-items:center; gap:14px; font-size:.86rem; font-weight:600; box-shadow:3px 3px 0 var(--mint); transition:transform .3s var(--ease-spring), opacity .2s; max-width:calc(100vw - 32px)}
+.toast.on{transform:translate(-50%,0); opacity:1; pointer-events:auto}
+.toast button{border:1.5px solid color-mix(in srgb, var(--paper) 40%, transparent); background:none; color:var(--paper); border-radius:999px; padding:4px 12px; font-size:.78rem; font-weight:600}
+
+.mockbar{position:fixed; z-index:80; left:50%; bottom:16px; transform:translateX(-50%); display:flex; gap:6px; align-items:center; padding:6px 8px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--lilac); font-size:.76rem}
+.mockbar .lab{font-family:var(--mono); font-weight:600; letter-spacing:.1em; color:var(--lilac-ink); padding:0 6px}
+.mockbar button{white-space:nowrap; border:0; background:none; padding:5px 11px; border-radius:999px; font-weight:600; color:var(--ink-3)}
+.mockbar button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+body.modal .mockbar{opacity:0; pointer-events:none}
+.mockbar{transition:opacity .2s}
+.mockbar i{width:1.5px; height:16px; background:var(--line-2)}
+
+/* ---------- Overview (mirrors the dashboard mock's Treasury overview; dues card is the new short one) ---------- */
+.ov-top{margin-top:28px; display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:20px}
+.ov-mid{margin-top:20px; display:grid; grid-template-columns:minmax(0,1.08fr) minmax(0,1fr) minmax(0,.92fr); gap:20px; align-items:start}
+.card-h{display:flex; align-items:center; gap:11px; padding:18px 20px 12px}
+.card-h h3{font-family:var(--display); font-weight:600; font-size:1.1rem; letter-spacing:-.025em}
+.card-h .r{margin-left:auto}
+.tile{width:32px; height:32px; border-radius:10px; display:grid; place-items:center; background:var(--t); border:1.5px solid var(--note-ink); color:var(--note-ink); flex:none}
+.tile .ic{width:16px; height:16px}
+.card-b{padding:0 20px 18px}
+.card-f{display:flex; align-items:center; gap:8px; padding:12px 20px; border-top:1.5px dashed var(--line-2); font-size:.78rem; color:var(--ink-3)}
+.card-f .ic{width:14px; height:14px}
+.pill{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:.72rem; font-weight:700; white-space:nowrap; background:var(--p-bg); color:var(--p-fg); border:1px solid var(--p-bd)}
+.t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd)}
+.t-peach{--p-bg:var(--peach-soft); --p-fg:var(--peach-ink); --p-bd:var(--peach-bd)}
+.t-rose{--p-bg:var(--rose-soft); --p-fg:var(--rose-ink); --p-bd:var(--rose-bd)}
+
+.bal{padding:22px 24px 18px; border-color:var(--ink); box-shadow:4px 4px 0 var(--mint)}
+.bal .big b{font-size:3rem}
+.bal .dl{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; font-size:.82rem; color:var(--ink-3)}
+.chart{position:relative; margin-top:16px; height:170px; padding-left:44px}
+.chart svg{width:100%; height:150px; overflow:visible}
+.chart .grid line{stroke:var(--line); stroke-width:1; stroke-dasharray:3 4; vector-effect:non-scaling-stroke}
+.chart .ln{fill:none; stroke:var(--ink); stroke-width:2; vector-effect:non-scaling-stroke; stroke-linejoin:round}
+.chart .fl{fill:var(--mint-soft)}
+.chart .fu{fill:none; stroke:var(--ink-3); stroke-width:1.6; stroke-dasharray:5 5; vector-effect:non-scaling-stroke}
+.chart .yl{position:absolute; left:0; font-family:var(--mono); font-size:.64rem; color:var(--ink-3); transform:translateY(-50%)}
+.chart .xl{position:absolute; bottom:0; font-family:var(--mono); font-size:.64rem; color:var(--ink-3); transform:translateX(-50%)}
+.chart .dot{position:absolute; width:11px; height:11px; border-radius:50%; background:var(--mint); border:2px solid var(--ink); transform:translate(-50%,-50%)}
+.chart .flag{position:absolute; transform:translate(-100%, -150%); background:var(--ink); color:var(--paper); font-size:.7rem; font-weight:600; padding:3px 8px; border-radius:7px; white-space:nowrap}
+.io{display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:12px; padding-top:14px; border-top:1.5px dashed var(--line-2); font-size:.8rem; color:var(--ink-3)}
+.io b{display:block; font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.03em; color:var(--ink)}
+.io .r{text-align:right}
+.io .split{grid-column:1 / -1; display:flex; height:10px; border-radius:9px; overflow:hidden; border:1.5px solid var(--ink)}
+.io .split i{display:block; height:100%}
+
+.brk .seg{margin-left:auto}
+.donut{display:flex; align-items:center; gap:18px; padding:4px 20px 6px}
+.ring{width:128px; height:128px; flex:none; border-radius:50%; background:var(--g); border:1.5px solid var(--ink); display:grid; place-items:center}
+.ring > div{width:76px; height:76px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink); display:grid; place-items:center; text-align:center}
+.ring b{display:block; font-family:var(--display); font-size:1.02rem; letter-spacing:-.03em; line-height:1}
+.ring small{font-size:.64rem; color:var(--ink-3)}
+.donut p{font-size:.84rem; color:var(--ink-2)}
+.cats{padding:8px 20px 16px; display:flex; flex-direction:column; gap:7px}
+.cat{display:grid; grid-template-columns:12px minmax(0,1fr) auto; gap:4px 10px; align-items:center; font-size:.83rem}
+.cat .sw{width:12px; height:12px; border-radius:4px; background:var(--cc); border:1.5px solid var(--ink)}
+.cat .v{font-family:var(--mono); font-size:.78rem; font-weight:600}
+.cat .v small{font-weight:400; color:var(--ink-3); margin-left:6px}
+
+/* the short dues card: a doorway into the Dues tab */
+.dq{position:relative; display:block; width:100%; text-align:left; padding:0; border:1.5px solid var(--ink); border-radius:22px; background:var(--card); box-shadow:4px 4px 0 var(--butter); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring); cursor:pointer}
+.dq:hover{transform:translate(-2px,-2px); box-shadow:6px 6px 0 var(--butter)}
+.dq:hover .go-ar{background:var(--ink); color:var(--paper); transform:translateX(2px)}
+.dq .go-ar{width:32px; height:32px; border-radius:50%; border:1.5px solid var(--ink); display:grid; place-items:center; margin-left:auto; transition:background .18s, color .18s, transform .18s var(--ease-spring)}
+.dq .go-ar .ic{width:15px; height:15px}
+.dq-sum{display:flex; align-items:baseline; gap:10px; padding:0 20px; flex-wrap:wrap}
+.dq-sum b{font-family:var(--display); font-weight:600; font-size:2.3rem; letter-spacing:-.05em; line-height:1}
+.dq-sum span{font-size:.82rem; color:var(--ink-3)}
+.dq-sum span em{font-style:normal; color:var(--ink); font-weight:600}
+.dq .strip{padding:0 20px; margin-top:14px; gap:3px}
+.dq .strip button{border-radius:3px; border-width:1px; pointer-events:auto}
+.dq .strip button:hover{transform:scale(1.5)}
+.dq-rows{margin:14px 12px 0; display:flex; flex-direction:column}
+.dq-row{display:grid; grid-template-columns:12px minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:8px 8px; border:0; background:none; border-radius:10px; text-align:left; font-size:.84rem; width:100%}
+.dq-row:hover{background:var(--paper-2)}
+.dq-row .sw{width:12px; height:12px; border-radius:4px; border:1.5px solid var(--ink)}
+.dq-row .nm{min-width:0; display:flex; align-items:center; gap:8px}
+.dq-row .nm b{font-weight:600; white-space:nowrap}
+.dq-row .stack{flex:none}
+.dq-row .c{font-family:var(--mono); font-size:.74rem; color:var(--ink-3)}
+.dq-row .v{font-family:var(--mono); font-weight:600; font-size:.82rem; min-width:56px; text-align:right}
+.dq-row .ch{width:13px; height:13px; color:var(--ink-3); opacity:0; transition:opacity .15s, transform .15s}
+.dq-row:hover .ch{opacity:1; transform:translateX(2px)}
+.dq-row{grid-template-columns:12px minmax(0,1fr) auto auto 13px}
+.dq .card-f{margin-top:12px}
+.dq .card-f b{color:var(--ink)}
+.dq .card-f .open{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-weight:700; color:var(--ink); font-size:.82rem}
+.dq-d1{padding:2px 20px 4px}
+.dq-d1 p{font-size:.86rem; color:var(--ink-2)}
+.dq-d1 .strip{padding:0; margin-top:14px}
+.dq-d1 .strip button{background:transparent; border-style:dashed}
+
+.up{display:flex; flex-direction:column}
+.u{display:grid; grid-template-columns:42px minmax(0,1fr) auto; gap:12px; align-items:center; padding:9px 0; border-top:1px solid var(--line)}
+.u:first-child{border-top:0}
+.dd{display:flex; flex-direction:column; align-items:center; border:1.5px solid var(--ink); border-radius:9px; overflow:hidden; background:var(--card); line-height:1.1}
+.dd small{font-size:.56rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); padding:2px 0}
+.dd small:first-child{background:var(--paper-3); width:100%; text-align:center; color:var(--ink-2)}
+.dd b{font-family:var(--display); font-size:1.05rem}
+.u .t{font-weight:600; font-size:.86rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.u .m{font-size:.72rem; color:var(--ink-3); display:flex; gap:6px; align-items:center}
+.u .a{font-family:var(--mono); font-weight:600; font-size:.82rem}
+.u .a.in{color:var(--mint-ink)}
+.cpill{font-size:.66rem; font-weight:600; padding:1px 7px; border-radius:999px; background:color-mix(in srgb, var(--cc) 45%, transparent); color:var(--ink-2)}
+.u.dues{cursor:pointer}
+.u.dues:hover .t{text-decoration:underline; text-underline-offset:3px}
+
+.ldr{display:flex; align-items:baseline; gap:8px; font-size:.86rem; padding:6px 0}
+.ldr .dots{flex:1; border-bottom:1.5px dotted var(--line-2); transform:translateY(-3px)}
+.ldr .v{font-family:var(--mono); font-weight:600; font-size:.84rem}
+.ldr .v.in{color:var(--mint-ink)}
+.ldr.tot{border-top:1.5px solid var(--ink); margin-top:4px; padding-top:9px; font-weight:600}
+.ldr .note{font-size:.72rem; color:var(--ink-3)}
+
+.sec-h{margin-top:38px; display:flex; align-items:center; gap:14px}
+.sec-h h2{font-family:var(--display); font-weight:600; font-size:1.4rem; letter-spacing:-.03em}
+.sec-h .rule{flex:1; height:1.5px; background:var(--line)}
+.sec-h .cnt{font-size:.8rem; color:var(--ink-3)}
+.ledger{margin-top:14px; border:1.5px solid var(--line); border-radius:18px; background:var(--card); overflow:hidden;
+  background-image:linear-gradient(90deg, transparent 70px, var(--rose-bd) 70px, var(--rose-bd) 71.5px, transparent 71.5px)}
+.lr{display:grid; grid-template-columns:58px minmax(0,1fr) 110px 110px; gap:14px; align-items:center; padding:11px 18px 11px 12px; border-top:1px solid var(--line)}
+.lr:first-child{border-top:0}
+.lr.hd{font-size:.66rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); background:var(--paper-2); padding-block:8px}
+.lr .ldt{text-align:center; line-height:1.05}
+.lr .ldt b{display:block; font-family:var(--display); font-size:1.1rem}
+.lr .ldt small{font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-3)}
+.lr .t{font-weight:600; font-size:.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lr .m{font-size:.72rem; color:var(--ink-3); display:flex; gap:7px; align-items:center; margin-top:1px}
+.lr .n{font-family:var(--mono); font-size:.86rem; text-align:right; font-weight:600}
+.lr .n.in{color:var(--mint-ink)}
+.lr .n.run{color:var(--ink-3); font-weight:500}
+.lr.dues{cursor:pointer}
+.lr.dues:hover{background:var(--paper-2)}
+.lf{display:flex; align-items:center; gap:8px; padding:11px 18px; border-top:1.5px dashed var(--line-2); font-size:.78rem; color:var(--ink-3); background:var(--paper)}
+.lf .ic{width:14px; height:14px}
+.tab-flash{animation:tabflash 1s var(--ease-out)}
+@keyframes tabflash{0%{box-shadow:0 0 0 0 var(--butter)} 30%{box-shadow:0 0 0 6px var(--butter)} 100%{box-shadow:0 0 0 0 transparent}}
+@media (max-width:1100px){ .ov-top{grid-template-columns:minmax(0,1fr)} .ov-mid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .ov-mid > .dq{grid-column:1 / -1} }
+@media (max-width:700px){ .ov-mid{grid-template-columns:minmax(0,1fr)} .lr{grid-template-columns:48px minmax(0,1fr) 92px} .lr > :nth-child(4){display:none} .donut{flex-direction:column; align-items:flex-start} .ledger{background-image:linear-gradient(90deg, transparent 60px, var(--rose-bd) 60px, var(--rose-bd) 61.5px, transparent 61.5px)} }
+
+/* ---------- responsive ---------- */
+@media (max-width:1100px){
+  .top{grid-template-columns:minmax(0,1fr)}
+  .sh-b{grid-template-columns:minmax(0,1fr) 320px}
+}
+@media (max-width:900px){
+  .sb{display:none}
+  .mbar{display:flex; align-items:center; gap:10px; height:56px; padding:0 16px; border-bottom:1.5px solid var(--line); position:sticky; top:0; background:color-mix(in srgb, var(--paper) 92%, transparent); backdrop-filter:blur(8px); z-index:20}
+  .mbar b{font-family:var(--display); font-size:1rem}
+  .mbar .lg{width:26px; height:26px; border-radius:8px; background:var(--peach); border:1.5px solid var(--ink); display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:.7rem; color:var(--note-ink)}
+  .wrap{padding:22px 16px 130px}
+  .ph h1{font-size:2rem}
+  .ph .act{margin-left:0; width:100%}
+  .tr{grid-template-columns:minmax(0,1fr) 84px 96px}
+  .tr > :nth-child(2), .tr > :nth-child(3), .tr > :nth-child(4), .tr > :nth-child(7){display:none}
+  .d1-ways{grid-template-columns:minmax(0,1fr)}
+  .d1{padding:30px 20px 26px}
+  /* the sheet becomes a full-height page; the receipt folds into a sticky footer */
+  .sheet{left:0; top:0; width:100vw; max-height:none; height:100dvh; border-radius:0; border:0; transform:translateY(30px); }
+  .sheet.on{transform:none}
+  .sh-b{grid-template-columns:minmax(0,1fr)}
+  .side{display:none}
+  .mob-only{display:block}
+  .mob-only .warn{margin-top:14px}
+  .form{padding:20px 16px 30px}
+  .mob-sum{display:flex; align-items:center; gap:12px; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); border-top:1.5px solid var(--ink); background:var(--card); flex:none}
+  .mob-sum .t{flex:1; min-width:0}
+  .mob-sum .t b{font-family:var(--display); font-size:1.35rem; letter-spacing:-.03em; display:block; line-height:1.1}
+  .mob-sum .t small{font-size:.74rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block}
+  .drawer{top:auto; left:0; right:0; bottom:0; width:100%; max-height:88dvh; border-radius:24px 24px 0 0; transform:translateY(105%)}
+}
+@media (max-width:640px){
+  .strip{grid-template-columns:repeat(13, minmax(0,1fr))}
+  .big b{font-size:2.5rem}
+  .hero{padding:20px 18px 18px}
+  .modes{grid-template-columns:minmax(0,1fr)}
+  .mode{flex-direction:row; align-items:center; gap:12px}
+  .mode .g{margin:0}
+  .mode > div{display:flex; flex-direction:column}
+  .rate{grid-template-columns:26px minmax(0,1fr) 108px}
+  .rate .stack{display:none}
+  .tags{grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px}
+  .wall-h .tools{margin-left:0; width:100%}
+  .srch{flex:1; width:auto}
+  .mockbar{bottom:10px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+    <symbol id="d-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <!-- app-only glyphs, drawn in the same hand -->
+    <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-monitor" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-door" viewBox="0 0 24 24"><path d="M13.4 3.8H6.6c-.8 0-1.4.6-1.4 1.4v13.6c0 .8.6 1.4 1.4 1.4h6.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M10.4 12h10m0 0-3.4-3.4m3.4 3.4-3.4 3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.4 15.4 5 5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-updown" viewBox="0 0 24 24"><path d="m7.6 9.4 4.4-4.4 4.4 4.4M7.6 14.6 12 19l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-l" viewBox="0 0 24 24"><path d="m14.6 5.6-6.4 6.4 6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-rail" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="15.2" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.4 4.6v14.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.6 9.6-2.4 2.4 2.4 2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="d-envelope" viewBox="0 0 24 24"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.6 6.4V4.4h4.8v2M6.6 6.8l.9 12.4c.1.8.7 1.4 1.5 1.4h6c.8 0 1.4-.6 1.5-1.4l.9-12.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.2 10.6v6M13.8 10.6v6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></symbol>
+    <symbol id="d-pin" viewBox="0 0 24 24"><path d="M12 21s-6.4-5.6-6.4-11a6.4 6.4 0 0 1 12.8 0c0 5.4-6.4 11-6.4 11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-eye" viewBox="0 0 24 24"><path d="M2.6 12s3.4-6.4 9.4-6.4 9.4 6.4 9.4 6.4-3.4 6.4-9.4 6.4S2.6 12 2.6 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-thumb" viewBox="0 0 24 24"><path d="M7.4 10.6v9.6H4.2v-9.6h3.2Zm0 0 3.8-6.4c1.4 0 2.4 1.1 2.2 2.5l-.5 3.3h5.3c1.3 0 2.2 1.2 1.9 2.4l-1.6 6.1c-.3 1-1.2 1.7-2.2 1.7H7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-sheet" viewBox="0 0 24 24"><rect x="3.6" y="4.2" width="16.8" height="15.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.8 9.6h16.4M3.8 14.6h16.4M9.6 4.4v15.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="d-form" viewBox="0 0 24 24"><rect x="4.6" y="4.4" width="14.8" height="16.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.2 4.4c0-1.1 1.2-1.8 2.8-1.8s2.8.7 2.8 1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.6 13.2 2.2 2.2 4.4-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-drive" viewBox="0 0 24 24"><path d="M8.6 3.8h6.8l5.6 9.8-3.4 5.8H6.4L3 13.6l5.6-9.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 3.8 15 15M3.2 13.6h11.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="d-tack" viewBox="0 0 24 24"><path d="M9 3.2h6M10 3.4l-.6 6.2-3.4 3h12l-3.4-3-.6-6.2M12 12.8v8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="18" r="1.8"/></g></symbol>
+    <symbol id="d-out" viewBox="0 0 24 24"><path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-move" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 13.4h6.6m0 0-2.6-2.6m2.6 2.6-2.6 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-jar" viewBox="0 0 24 24"><path d="M7.4 3.4h9.2v3.2H7.4z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8 6.6c-2 1.1-3.2 2.9-3.2 5.2v6.4c0 1.3 1.1 2.4 2.4 2.4h9.6c1.3 0 2.4-1.1 2.4-2.4v-6.4c0-2.3-1.2-4.1-3.2-5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 4.9h4M8.6 14.4h6.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <aside class="sb" aria-label="Main navigation">
+    <div class="sb-org"><span class="lg">OK</span><div><b>Oozma Kappa</b><small>Fall ’26</small></div></div>
+    <a href="#"><svg class="ic"><use href="#d-home"/></svg>Dashboard</a>
+    <a href="#"><svg class="ic"><use href="#d-timeline"/></svg>Timeline</a>
+    <a href="#"><svg class="ic"><use href="#d-people"/></svg>Brotherhood</a>
+    <a href="#" aria-current="page"><svg class="ic"><use href="#d-wallet"/></svg>Treasury</a>
+    <a href="#"><svg class="ic"><use href="#d-gavel"/></svg>Chapter</a>
+    <a href="#"><svg class="ic"><use href="#d-clip"/></svg>Tasks</a>
+    <a href="#"><svg class="ic"><use href="#d-folder"/></svg>Docs</a>
+    <a href="#"><svg class="ic"><use href="#d-gear"/></svg>Settings</a>
+  </aside>
+  <main class="main">
+    <header class="mbar"><span class="lg">OK</span><b>Treasury</b></header>
+    <div class="wrap" id="page"></div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Member dues" aria-hidden="true"></aside>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Hand out dues" aria-hidden="true"></section>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<div class="mockbar" role="group" aria-label="Mock state">
+  <span class="lab">MOCK</span>
+  <button data-a="mock:live" aria-pressed="true">Mid-term</button>
+  <button data-a="mock:day1" aria-pressed="false">Day one</button>
+  <i></i>
+  <button data-a="theme" aria-label="Toggle night"><svg class="ic" style="width:15px;height:15px"><use href="#d-moon"/></svg></button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var TODAY = "2026-10-19";
+  var $ = function (id) { return document.getElementById(id); };
+  var ic = function (n, s) { return '<svg class="ic"' + (s ? ' style="width:' + s + 'px;height:' + s + 'px"' : '') + '><use href="#d-' + n + '"/></svg>'; };
+  var X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  var TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg>';
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+  var money = function (n, cents) {
+    var neg = n < 0; n = Math.abs(n);
+    var s = (cents || n % 1 ? n.toFixed(2) : String(Math.round(n))).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return (neg ? "−" : "") + "$" + s;
+  };
+  var MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var fmtD = function (iso) { var p = iso.split("-"); return MO[+p[1] - 1] + " " + (+p[2]); };
+  var addDays = function (iso, n) { var d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  var daysBetween = function (a, b) { return Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 864e5); };
+  var plural = function (n, w, p) { return n + " " + (n === 1 ? w : (p || w + "s")); };
+
+  /* ---------- roster: one dues tier per member (see header note) ---------- */
+  var TIERS = [
+    { id: "off", l: "Officers", one: "Officer", c: "var(--lilac)" },
+    { id: "act", l: "Active members", one: "Active", c: "var(--sky)" },
+    { id: "nm",  l: "New members", one: "New member", c: "var(--peach)" }
+  ];
+  var tierOf = function (id) { for (var i = 0; i < TIERS.length; i++) if (TIERS[i].id === id) return TIERS[i]; };
+  var AV = ["var(--peach)", "var(--sky)", "var(--mint)", "var(--lilac)", "var(--butter)", "var(--rose)"];
+  var OFFICERS = [["Priya Shah","President"],["Sam Whitfield","Vice president"],["Dev Okafor","Treasurer"],["Ava Lindqvist","Secretary"],["Jordan Tao","Social chair"],["Nia Brooks","Service chair"],["Marcus Bell","Rush chair"],["Elena Ruiz","Risk manager"]];
+  var ACTIVES = ["Maya Rivera","Leo Park","Theo Grant","Omar Haddad","Lucas Ferreira","Ben Adeyemi","Kai Nakamura","Isaac Moreno","Noah Feld","Ethan Cole","Ravi Menon","Caleb Stone","Diego Alvarez","Owen Price","Felix Hart","Miles Duarte","Hugo Laurent","Jonah Weiss","Adrian Cruz","Mateo Silva","Andre Pierce","Victor Huang","Simon Kerr","Luca Romano","Elias Novak","Rafael Ortiz","Tariq Aziz","Gabe Lowell","Henry Osei","Julian Brandt","Arjun Rao","Wes Thornton","Cyrus Pak","Dominic Hale"];
+  var NEWBIES = ["Ezra Quinn","Milo Bauer","Jasper Ng","Rowan Tate","Silas Grey","Finn O’Hara","Asher Kim","Levi Mendez","Remy Dubois","Zane Fowler"];
+  var MEMBERS = [];
+  function addM(n, tier, title) {
+    var k = MEMBERS.length;
+    MEMBERS.push({ id: "m" + k, n: n, i: n.split(" ").map(function (w) { return w[0]; }).join("").slice(0, 2).toUpperCase(), av: AV[k % 6], tier: tier, title: title || tierOf(tier).one });
+  }
+  OFFICERS.forEach(function (o) { addM(o[0], "off", o[1]); });
+  ACTIVES.forEach(function (n) { addM(n, "act"); });
+  NEWBIES.forEach(function (n) { addM(n, "nm"); });
+  var byId = function (id) { for (var i = 0; i < MEMBERS.length; i++) if (MEMBERS[i].id === id) return MEMBERS[i]; };
+  var idOf = function (name) { for (var i = 0; i < MEMBERS.length; i++) if (MEMBERS[i].n === name) return MEMBERS[i].id; };
+
+  /* ---------- books ---------- */
+  var D;   // { charges:[{id,name,due,aud,c,made,lines:{mid:amt},note}], pays:[{who,amt,date,how}], waives:[{who,amt,date,why}] }
+  function seed(kind) {
+    D = { charges: [], pays: [], waives: [] };
+    if (kind === "day1") return;
+    var fall = {}, photo = {}, fine = {};
+    MEMBERS.forEach(function (m) { fall[m.id] = m.tier === "nm" ? 90 : 140; photo[m.id] = 20; });
+    ["Leo Park", "Maya Rivera", "Wes Thornton"].forEach(function (n) { fine[idOf(n)] = 25; });
+    D.charges.push({ id: "c1", name: "Fall dues", due: "2026-10-01", aud: "By role", c: "var(--sky)", made: "2026-09-01", lines: fall, note: "Officers & actives $140 · new members $90" });
+    D.charges.push({ id: "c2", name: "Composite photo", due: "2026-10-30", aud: "Everyone", c: "var(--mint)", made: "2026-10-06", lines: photo, note: "" });
+    D.charges.push({ id: "c3", name: "Missed-chapter fine", due: "2026-11-01", aud: "3 people", c: "var(--rose)", made: "2026-10-08", lines: fine, note: "Two unexcused absences" });
+    var HOW = ["Venmo", "Zelle", "Cash", "Venmo", "Card"];
+    // who has paid what: most are square on Fall dues; a few are behind.
+    var behind = { "Maya Rivera": 0, "Leo Park": 0, "Dev Okafor": 75, "Tariq Aziz": 40, "Wes Thornton": 0, "Cyrus Pak": 70, "Zane Fowler": 0, "Remy Dubois": 45 };
+    MEMBERS.forEach(function (m, k) {
+      var day = "2026-09-" + String(2 + (k * 7) % 27).padStart(2, "0");
+      var amt = fall[m.id];
+      if (m.n in behind) amt = behind[m.n];
+      if (amt) D.pays.push({ who: m.id, amt: amt, date: day, how: HOW[k % 5] });
+      if (!(m.n in behind) && k % 5 !== 1) D.pays.push({ who: m.id, amt: 20, date: "2026-10-" + String(7 + k % 11).padStart(2, "0"), how: HOW[(k + 2) % 5] });
+    });
+  }
+
+  /* each member's account, FIFO-allocating credit to the oldest due charge */
+  function acct(m) {
+    var lines = D.charges.filter(function (c) { return c.lines[m.id]; }).sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+    var billed = 0, credit = 0;
+    lines.forEach(function (c) { billed += c.lines[m.id]; });
+    D.pays.forEach(function (p) { if (p.who === m.id) credit += p.amt; });
+    D.waives.forEach(function (w) { if (w.who === m.id) credit += w.amt; });
+    var left = credit, open = [];
+    lines.forEach(function (c) {
+      var need = c.lines[m.id], got = Math.min(need, left); left -= got;
+      if (got < need) open.push({ c: c, rest: need - got });
+    });
+    var owes = Math.max(0, billed - credit);
+    var over = open.filter(function (o) { return o.c.due < TODAY; });
+    var s = !billed ? "none" : owes <= 0 ? "paid" : over.length ? "over" : "due";
+    var late = over.length ? daysBetween(over[0].c.due, TODAY) : 0;
+    var next = open.length ? open[0].c : null;
+    return { billed: billed, paid: Math.min(credit, billed), owes: owes, s: s, open: open, late: late, next: next, overAmt: over.reduce(function (t, o) { return t + o.rest; }, 0) };
+  }
+  function chargeStats(c) {
+    var n = 0, paid = 0, total = 0, out = 0;
+    MEMBERS.forEach(function (m) {
+      if (!c.lines[m.id]) return;
+      n++; total += c.lines[m.id];
+      var a = acct(m), o = a.open.filter(function (x) { return x.c === c; })[0];
+      if (!o) paid++; else out += o.rest;
+    });
+    return { n: n, paid: paid, total: total, out: out };
+  }
+
+  var S = { tab: "overview", brk: "out", mock: "live", view: "wall", group: "status", f: "all", charge: null, q: "", sel: null, pay: null };
+  var ST = {
+    over: { l: "Overdue", c: "var(--rose)", t: "Past their due date" },
+    due:  { l: "Owes · Active", c: "var(--butter)", t: "Billed, still inside the window" },
+    paid: { l: "Paid up", c: "var(--mint)", t: "Nothing left on the tab" },
+    none: { l: "Nothing billed", c: "transparent", t: "Not on any charge yet" }
+  };
+  var ORDER = ["over", "due", "paid", "none"];
+
+  /* ---------- page ---------- */
+  function render() {
+    var A = MEMBERS.map(function (m) { return { m: m, a: acct(m) }; });
+    var ov = S.tab === "overview";
+    var h = '<div class="ph"><div><span class="eyebrow" style="--eb:var(--butter)">Fall ’26 · Treasury</span><h1>Treasury</h1>' +
+      (ov ? '<p>Everything the chapter has, what came in, what went out, and what’s still owed.</p></div><div class="act"><button class="btn btn--ghost btn--lg" data-a="other">' + ic("plus") + 'Log money</button></div></div>'
+          : '<p>Dues are what the chapter is <em>owed</em>. Money only lands in the books when someone pays.</p></div><div class="act"><button class="btn btn--lg" data-a="open">' + ic("plus") + 'Hand out dues</button></div></div>');
+    var cnt = A.filter(function (x) { return x.a.s === "over" || x.a.s === "due"; }).length;
+    h += '<nav class="tabs" role="tablist" id="tabs">' +
+      '<button role="tab" aria-selected="' + ov + '" style="--tb:var(--sky)" data-a="tab:overview">' + ic("bars", 15) + 'Overview</button>' + tab("receipt", "Transactions", "var(--mint)") +
+      '<button role="tab" aria-selected="' + !ov + '" style="--tb:var(--butter)" data-a="tab:dues" id="tab-dues">' + ic("jar", 15) + 'Dues' + (cnt ? '<span class="n">' + cnt + '</span>' : '<span class="new">NEW</span>') + '</button>' +
+      tab("hand", "Reimbursements", "var(--peach)") + tab("doc", "Reports", "var(--lilac)") + '</nav>';
+    h += ov ? overview(A) : D.charges.length ? live(A) : dayOne();
+    $("page").innerHTML = h;
+  }
+  // overview → Dues, carrying a filter (or a member) through the door
+  function goDues(f, mid) {
+    S.tab = "dues"; S.f = f || "all"; S.charge = null; S.q = "";
+    render();
+    var t = $("tabs"); if (t) { window.scrollTo({ top: Math.max(0, t.getBoundingClientRect().top + scrollY - 20), behavior: "smooth" }); }
+    var td = $("tab-dues"); if (td) td.classList.add("tab-flash");
+    if (mid) setTimeout(function () { openMember(mid); }, 260);
+  }
+
+  /* ---------- Overview ---------- */
+  var OPEN = 9940, T0 = "2026-08-28";
+  var TX = [
+    ["2026-09-03", "Nationals fee", "Nationals", -1850, "Zelle"],
+    ["2026-09-06", "House rent · Sept", "House", -1600, "Check"],
+    ["2026-09-12", "Neon night · door", "Parties", 1880, "Cash"],
+    ["2026-09-14", "Neon night supplies", "Events", -940, "Card"],
+    ["2026-09-20", "Car wash", "Fundraising", 620, "Cash"],
+    ["2026-09-27", "Food bank donation", "Philanthropy", -600, "Card"],
+    ["2026-10-04", "House rent · Oct", "House", -1600, "Check"],
+    ["2026-10-10", "Homecoming afterparty · door", "Parties", 1240, "Cash"],
+    ["2026-10-11", "Afterparty DJ", "Events", -1160, "Venmo"],
+    ["2026-10-13", "Chapter dinner", "Food", -900, "Card"],
+    ["2026-10-15", "Bake sale", "Fundraising", 780, "Cash"]
+  ];
+  var SCHED = [["2026-10-24", "Fall formal · venue balance", "Events", -2400], ["2026-11-01", "House rent · Nov", "House", -1600], ["2026-11-06", "Composite photo vendor", "Events", -1040]];
+  var CC = { Dues: "var(--butter)", Parties: "var(--rose)", Fundraising: "var(--mint)", House: "var(--sky)", Nationals: "var(--lilac)", Events: "var(--peach)", Philanthropy: "var(--mint)", Food: "var(--butter)" };
+  var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  // the books: static entries + every dues payment, one row per day of dues
+  function books() {
+    var rows = TX.map(function (t) { return { d: t[0], t: t[1], c: t[2], a: t[3], how: t[4] }; });
+    var by = {};
+    D.pays.forEach(function (p) { (by[p.date] = by[p.date] || []).push(p); });
+    Object.keys(by).forEach(function (d) {
+      var ps = by[d], sum = ps.reduce(function (s, p) { return s + p.amt; }, 0);
+      var names = ps.map(function (p) { return byId(p.who).n.split(" ")[0]; });
+      rows.push({ d: d, t: ps.length === 1 ? "Dues · " + byId(ps[0].who).n : "Dues · " + names.slice(0, 2).join(", ") + (names.length > 2 ? " +" + (names.length - 2) : ""), c: "Dues", a: sum, how: plural(ps.length, "payment"), dues: true, who: ps.length === 1 ? ps[0].who : null });
+    });
+    rows.sort(function (x, y) { return x.d < y.d ? -1 : x.d > y.d ? 1 : 0; });
+    var b = OPEN; rows.forEach(function (r) { b += r.a; r.run = b; });
+    return rows;
+  }
+  function overview(A) {
+    var rows = books(), bal = rows.length ? rows[rows.length - 1].run : OPEN;
+    var inn = 0, out = 0; rows.forEach(function (r) { if (r.a > 0) inn += r.a; else out -= r.a; });
+    var h = '<section class="ov-top">' + balCard(rows, bal, inn, out) + brkCard(rows) + '</section>';
+    h += '<section class="ov-mid">' + duesQuick(A) + upCard(A) + stmtCard(bal, inn, out) + '</section>';
+    var rec = rows.slice().reverse().slice(0, 6);
+    h += '<div class="sec-h"><h2>Recent entries</h2><span class="rule"></span><span class="cnt">' + rows.length + ' this term · newest first</span></div>' +
+      '<div class="ledger"><div class="lr hd"><span style="text-align:center">Date</span><span>Entry</span><span style="text-align:right">Amount</span><span style="text-align:right">Balance</span></div>' +
+      rec.map(function (r) {
+        var p = r.d.split("-");
+        return '<div class="lr' + (r.dues ? ' dues" data-a="' + (r.who ? "gom:" + r.who : "go:paid") : '') + '"><span class="ldt"><b>' + (+p[2]) + '</b><small>' + MO[+p[1] - 1] + '</small></span>' +
+          '<span style="min-width:0"><p class="t">' + esc(r.t) + '</p><p class="m"><span class="cpill" style="--cc:' + CC[r.c] + '">' + r.c + '</span>' + esc(r.how) + (r.dues ? '<span style="color:var(--butter-ink);font-weight:600">· see in Dues</span>' : '') + '</p></span>' +
+          '<span class="n' + (r.a > 0 ? " in" : "") + '">' + (r.a > 0 ? "+" : "−") + money(Math.abs(r.a)).replace("−", "") + '</span><span class="n run">' + money(r.run) + '</span></div>';
+      }).join("") +
+      '<div class="lf">' + ic("receipt") + 'Showing 6 of ' + rows.length + '<button class="link" data-a="other" style="margin-left:auto">Open the full log ' + ic("arrow-r") + '</button></div></div>';
+    return h;
+  }
+  function balCard(rows, bal, inn, out) {
+    var end = "2026-11-08", span = daysBetween(T0, end);
+    var X = function (d) { return daysBetween(T0, d) / span * 1000; };
+    var pts = [[T0, OPEN]].concat(rows.map(function (r) { return [r.d, r.run]; }));
+    var fut = [[TODAY, bal]], fb = bal; SCHED.forEach(function (t) { fb += t[3]; fut.push([t[0], fb]); });
+    var vals = pts.concat(fut).map(function (p) { return p[1]; });
+    var lo = Math.floor((Math.min.apply(0, vals) - 800) / 2000) * 2000, hi = Math.ceil((Math.max.apply(0, vals) + 800) / 2000) * 2000;
+    var Y = function (v) { return 150 - (v - lo) / (hi - lo) * 150; };
+    var step = function (arr) { return arr.map(function (p, i) { return (i ? "H" + X(p[0]).toFixed(1) + " V" : "M" + X(p[0]).toFixed(1) + " ") + Y(p[1]).toFixed(1); }).join(" "); };
+    var line = step(pts) + " H" + X(TODAY).toFixed(1);
+    var area = line + " V150 H0 Z";
+    var g = [lo, (lo + hi) / 2, hi];
+    var since = rows.filter(function (r) { return r.d < "2026-10-01"; }), b0 = since.length ? since[since.length - 1].run : OPEN, d = bal - b0;
+    return '<div class="card bal"><p class="k">' + ic("wallet", 14) + 'In the account</p><div class="big"><b>' + money(bal) + '</b></div>' +
+      '<div class="dl"><span class="pill ' + (d >= 0 ? "t-mint" : "t-peach") + '">' + (d >= 0 ? "▲ " : "▼ ") + money(Math.abs(d)) + ' since Oct 1</span><span>' + SCHED.length + ' scheduled → <b style="color:var(--ink)">' + money(fb) + '</b> by ' + fmtD(SCHED[SCHED.length - 1][0]) + '</span></div>' +
+      '<div class="chart"><svg viewBox="0 0 1000 150" preserveAspectRatio="none" aria-hidden="true"><g class="grid">' + g.map(function (v) { return '<line x1="0" x2="1000" y1="' + Y(v) + '" y2="' + Y(v) + '"/>'; }).join("") + '</g>' +
+        '<path class="fl" d="' + area + '"/><path class="fu" d="' + step(fut) + '"/><path class="ln" d="' + line + '"/></svg>' +
+        g.map(function (v) { return '<span class="yl" style="top:' + (Y(v) / 150 * 150) + 'px">$' + (v / 1000) + 'k</span>'; }).join("") +
+        ["2026-09-01", "2026-10-01", "2026-11-01"].map(function (m) { return '<span class="xl" style="left:calc(44px + (100% - 44px) * ' + (X(m) / 1000).toFixed(3) + ')">' + fmtD(m) + '</span>'; }).join("") +
+        '<span class="dot" style="left:calc(44px + (100% - 44px) * ' + (X(TODAY) / 1000).toFixed(3) + ');top:' + Y(bal) + 'px"></span>' +
+        '<span class="flag" style="left:calc(44px + (100% - 44px) * ' + (X(TODAY) / 1000).toFixed(3) + ');top:' + Y(bal) + 'px">Today · ' + money(bal) + '</span></div>' +
+      '<div class="io"><span>Money in<b style="color:var(--mint-ink)">' + money(inn) + '</b></span><span class="r">Money out<b>' + money(out) + '</b></span>' +
+        '<div class="split"><i style="flex-basis:' + (inn / (inn + out) * 100) + '%;background:var(--mint)"></i><i style="flex-basis:' + (out / (inn + out) * 100) + '%;background:var(--peach);border-left:1.5px solid var(--ink)"></i></div></div></div>';
+  }
+  function brkCard(rows) {
+    var k = S.brk, by = {}, tot = 0;
+    rows.forEach(function (r) { if ((k === "in") === (r.a > 0)) { by[r.c] = (by[r.c] || 0) + Math.abs(r.a); tot += Math.abs(r.a); } });
+    var list = Object.keys(by).map(function (c) { return [c, by[c]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    var acc = 0, stops = list.map(function (r) { var a = acc, b = acc + r[1] / tot * 100; acc = b; return CC[r[0]] + " " + a.toFixed(2) + "% " + (b - .7).toFixed(2) + "%, var(--ink) " + (b - .7).toFixed(2) + "% " + b.toFixed(2) + "%"; }).join(", ");
+    var top = list[0];
+    return '<div class="card brk"><div class="card-h"><span class="tile" style="--t:' + (k === "in" ? "var(--mint)" : "var(--peach)") + '">' + ic("bars") + '</span><h3>' + (k === "in" ? "Where it came from" : "Where it went") + '</h3>' +
+      '<div class="seg"><button data-a="brk:out" aria-pressed="' + (k === "out") + '">Out</button><button data-a="brk:in" aria-pressed="' + (k === "in") + '">In</button></div></div>' +
+      (top ? '<div class="donut"><div class="ring" style="--g:conic-gradient(' + stops + ')"><div><span><b>' + money(tot) + '</b><small>' + (k === "in" ? "came in" : "went out") + '</small></span></div></div>' +
+        '<p><b>' + top[0] + '</b> is the biggest: ' + money(top[1]) + ', ' + Math.round(top[1] / tot * 100) + '% of everything that ' + (k === "in" ? "came in" : "went out") + '.</p></div>' +
+        '<div class="cats">' + list.map(function (r) { return '<div class="cat" style="--cc:' + CC[r[0]] + '"><span class="sw"></span><span>' + r[0] + '</span><span class="v">' + money(r[1]) + '<small>' + Math.round(r[1] / tot * 100) + '%</small></span></div>'; }).join("") + '</div>'
+        : '<div class="card-b"><p style="color:var(--ink-3);font-size:.86rem">Nothing ' + (k === "in" ? "in" : "out") + ' yet.</p></div>') + '</div>';
+  }
+
+  // THE NEW SHORT DUES CARD. Replaces "Who still owes" (jar + Pay list): it only tells you
+  // how dues stand and hands you into the Dues tab for anything you'd do about it.
+  function duesQuick(A) {
+    var h = '<div class="dq" role="link" tabindex="0" data-a="go:all" aria-label="Open Dues"><div class="card-h"><span class="tile" style="--t:var(--butter)">' + ic("jar") + '</span><h3>Dues</h3>';
+    if (!D.charges.length) {
+      var sq = ""; for (var i = 0; i < MEMBERS.length; i++) sq += '<button tabindex="-1" data-s="none"></button>';
+      return h + '<span class="go-ar">' + ic("arrow-r") + '</span></div><div class="dq-d1"><p>Nobody’s been billed for Fall ’26. Hand out dues to everyone, by role, or to a few people.</p>' +
+        '<div class="strip">' + sq + '</div></div><div class="card-f"><span>' + MEMBERS.length + ' members, nothing billed</span><span class="open" data-a="open">' + ic("plus", 14) + 'Hand out dues</span></div></div>';
+    }
+    var by = { over: [], due: [], paid: [], none: [] }, billed = 0, paid = 0;
+    A.forEach(function (x) { by[x.a.s].push(x); billed += x.a.billed; paid += x.a.paid; });
+    var owe = by.over.length + by.due.length, pct = billed ? Math.floor(paid / billed * 100) : 0;
+    var sum = function (xs) { return xs.reduce(function (s, x) { return s + x.a.owes; }, 0); };
+    by.over.sort(function (a, b) { return b.a.owes - a.a.owes; });
+    var order = by.paid.concat(by.due, by.over, by.none);
+    var next = D.charges.filter(function (c) { return c.due >= TODAY && chargeStats(c).out > 0; }).sort(function (a, b) { return a.due < b.due ? -1 : 1; })[0];
+    h += '<span class="pill ' + (owe ? "t-rose" : "t-mint") + '">' + (owe ? owe + " owe" : "All paid") + '</span><span class="go-ar">' + ic("arrow-r") + '</span></div>' +
+      '<div class="dq-sum"><b>' + pct + '%</b><span>collected · <em>' + money(paid) + '</em> of ' + money(billed) + '</span></div>' +
+      '<div class="strip">' + order.map(function (x) { return '<button tabindex="-1" data-s="' + x.a.s + '" data-tip="' + x.m.id + '" data-a="gom:' + x.m.id + '"></button>'; }).join("") + '</div>' +
+      '<div class="dq-rows">' +
+        dqRow("over", "var(--rose)", "Overdue", by.over, money(sum(by.over))) +
+        dqRow("due", "var(--butter)", "Owes · Active", by.due, money(sum(by.due))) +
+        dqRow("paid", "var(--mint)", "Paid up", by.paid, "") + '</div>' +
+      '<div class="card-f">' + (next ? '<span>Next due · <b>' + esc(next.name) + '</b> ' + fmtD(next.due) + '</span>' : '<span>' + plural(D.charges.length, "charge") + ' this term</span>') +
+        '<span class="open">Open Dues ' + ic("arrow-r", 14) + '</span></div></div>';
+    return h;
+  }
+  function dqRow(s, c, l, xs, v) {
+    if (!xs.length) return "";
+    return '<button class="dq-row" data-a="go:' + s + '"><span class="sw" style="background:' + c + '"></span><span class="nm"><b>' + l + '</b>' +
+      (s !== "paid" ? stackH(xs.map(function (x) { return x.m; }), 3) : '') + '</span><span class="c">' + xs.length + '</span><span class="v">' + v + '</span>' +
+      '<svg class="ic ch"><use href="#d-chev-r"/></svg></button>';
+  }
+  function upCard(A) {
+    var items = SCHED.map(function (t) { return { d: t[0], t: t[1], c: t[2], a: t[3] }; });
+    D.charges.forEach(function (c) { var st = chargeStats(c); if (c.due >= TODAY && st.out > 0) items.push({ d: c.due, t: c.name + " due", c: "Dues", a: st.out, dues: true, n: st.n - st.paid }); });
+    items.sort(function (a, b) { return a.d < b.d ? -1 : 1; });
+    return '<div class="card"><div class="card-h"><span class="tile" style="--t:var(--sky)">' + ic("clock") + '</span><h3>Coming up</h3><span class="r k">' + items.length + ' ahead</span></div><div class="card-b"><div class="up">' +
+      items.slice(0, 5).map(function (it) {
+        var dt = new Date(it.d + "T12:00:00");
+        return '<div class="u' + (it.dues ? ' dues" data-a="go:due' : '') + '"><span class="dd"><small>' + DOW[dt.getDay()] + '</small><b>' + dt.getDate() + '</b><small>' + MO[dt.getMonth()] + '</small></span>' +
+          '<span style="min-width:0"><p class="t">' + esc(it.t) + '</p><p class="m"><span class="cpill" style="--cc:' + CC[it.c] + '">' + it.c + '</span>' + (it.dues ? plural(it.n, "person", "people") + ' still owe' : 'in ' + daysBetween(TODAY, it.d) + ' days') + '</p></span>' +
+          '<span class="a' + (it.a > 0 ? " in" : "") + '">' + (it.dues ? money(it.a) + ' out' : (it.a > 0 ? "+" : "−") + money(Math.abs(it.a))) + '</span></div>';
+      }).join("") + '</div></div></div>';
+  }
+  function stmtCard(bal, inn, out) {
+    var fb = bal; SCHED.forEach(function (t) { fb += t[3]; });
+    return '<div class="card"><div class="card-h"><span class="tile" style="--t:var(--lilac)">' + ic("clip") + '</span><h3>Fall ’26 so far</h3></div><div class="card-b">' +
+      '<p class="ldr"><span>Opening balance</span><span class="dots"></span><span class="v">' + money(OPEN) + '</span></p>' +
+      '<p class="ldr"><span>Money in</span><span class="dots"></span><span class="v in">+' + money(inn) + '</span></p>' +
+      '<p class="ldr"><span>Money out</span><span class="dots"></span><span class="v">−' + money(out) + '</span></p>' +
+      '<p class="ldr tot"><span>Balance today</span><span class="dots"></span><span class="v">' + money(bal) + '</span></p>' +
+      '<p class="ldr"><span>After scheduled</span><span class="dots"></span><span class="v">' + money(fb) + '</span></p></div>' +
+      '<div class="card-f">' + ic("receipt") + '<button class="link" data-a="other">Export CSV</button><button class="link" data-a="other" style="margin-left:auto">Full report ' + ic("arrow-r", 13) + '</button></div></div>';
+  }
+
+  function tab(i, l, c) { return '<button role="tab" aria-selected="false" style="--tb:' + c + '" data-a="other">' + ic(i, 15) + l + '</button>'; }
+
+  function dayOne() {
+    var sq = ""; for (var i = 0; i < MEMBERS.length; i++) sq += '<button tabindex="-1" data-s="none" data-tip="' + i + '"></button>';
+    return '<section class="d1"><span class="eyebrow" style="--eb:var(--butter)">Dues</span>' +
+      '<h2>Nobody’s been <span class="hi">billed</span> yet.</h2>' +
+      '<p>Hand out the term’s dues once and this page keeps the tab for all ' + MEMBERS.length + ' of you: who’s paid, who’s late, and what’s still out.</p>' +
+      '<div class="d1-ways">' +
+        way("people", "Everyone", "One amount, the whole roster.", "Fall dues · $140 × 52", "all", "var(--sky)") +
+        way("star", "By role", "A rate per role: new members pay less.", "Officers $140 · New $90", "role", "var(--lilac)") +
+        way("hand", "A few people", "Fines, a shirt, a retreat seat.", "Late fine · $25 × 3", "pick", "var(--peach)") +
+      '</div>' +
+      '<div class="d1-strip"><div class="strip">' + sq + '</div><p>One square per member. Each one fills in as they pay.</p></div></section>';
+  }
+  function way(i, t, p, eg, mode, c) {
+    return '<button class="way" style="--c:' + c + '" data-a="open:' + mode + '"><span class="g">' + ic(i) + '</span><h4>' + t + '</h4><p>' + p + '</p><div class="eg">' + eg + '</div></button>';
+  }
+
+  function live(A) {
+    var scope = S.charge ? D.charges.filter(function (c) { return c.id === S.charge; })[0] : null;
+    // in a charge's scope, a member's standing is their standing on THAT charge
+    var rows = A.map(function (x) {
+      if (!scope) return x;
+      var amt = scope.lines[x.m.id];
+      if (!amt) return { m: x.m, a: { s: "none", billed: 0, paid: 0, owes: 0, late: 0 } };
+      var o = x.a.open.filter(function (q) { return q.c === scope; })[0];
+      var rest = o ? o.rest : 0;
+      return { m: x.m, a: { billed: amt, paid: amt - rest, owes: rest, s: !rest ? "paid" : scope.due < TODAY ? "over" : "due", late: rest && scope.due < TODAY ? daysBetween(scope.due, TODAY) : 0, next: scope } };
+    });
+    if (scope) rows = rows.filter(function (x) { return x.a.s !== "none"; });
+
+    var billed = 0, paid = 0, over = 0, due = 0, by = { over: 0, due: 0, paid: 0, none: 0 };
+    rows.forEach(function (x) {
+      billed += x.a.billed; paid += x.a.paid; by[x.a.s]++;
+      if (x.a.s === "over") over += x.a.owes; else if (x.a.s === "due") due += x.a.owes;
+    });
+    var pct = billed ? Math.round(paid / billed * 100) : 0;
+    var hero = '<div class="card hero"><p class="k">' + ic("jar", 14) + (scope ? esc(scope.name) + ' · due ' + fmtD(scope.due) : 'This term, every charge') + '</p>' +
+      '<div class="big"><b>' + money(paid) + '</b><span>collected of <em>' + money(billed) + '</em> billed · ' + pct + '%</span></div>' +
+      '<div class="mbarr" aria-label="Collected ' + pct + ' percent">' +
+        (paid ? '<i class="p" style="flex-basis:' + (paid / billed * 100) + '%"></i>' : '') +
+        (due ? '<i class="d" style="flex-basis:' + (due / billed * 100) + '%"></i>' : '') +
+        (over ? '<i class="o" style="flex-basis:' + (over / billed * 100) + '%"></i>' : '') + '</div>' +
+      '<div class="legend">' +
+        leg("paid", "var(--mint)", "Paid", money(paid), by.paid) +
+        leg("due", "var(--butter)", "Not due yet", money(due), by.due) +
+        leg("over", "var(--rose)", "Overdue", money(over), by.over) + '</div>';
+    var sorted = rows.slice().sort(function (a, b) { return ORDER.indexOf(b.a.s) - ORDER.indexOf(a.a.s) || a.m.n.localeCompare(b.m.n); });
+    sorted = sorted.filter(function (x) { return x.a.s === "paid"; }).concat(sorted.filter(function (x) { return x.a.s === "due"; }), sorted.filter(function (x) { return x.a.s === "over"; }), sorted.filter(function (x) { return x.a.s === "none"; }));
+    hero += '<div class="strip-h"><span>One square per member · hover for a name, click to open</span><span class="mono">' + by.paid + ' / ' + rows.length + ' square</span></div>' +
+      '<div class="strip' + (S.f !== "all" ? " dim" : "") + '">' + sorted.map(function (x) {
+        return '<button data-s="' + x.a.s + '" data-a="m:' + x.m.id + '" data-tip="' + x.m.id + '" class="' + (S.f === x.a.s ? "on" : "") + '" aria-label="' + esc(x.m.n) + '"></button>';
+      }).join("") + '</div>';
+    hero += '<div class="cta"><button class="btn" data-a="open">' + ic("plus") + 'Hand out dues</button>' +
+      '<button class="btn btn--ghost" data-a="f:' + (by.over ? "over" : "due") + '">' + ic("wallet") + 'Record a payment</button></div></div>';
+
+    var stubs = D.charges.slice().sort(function (a, b) { return a.made < b.made ? 1 : -1; }).map(function (c) {
+      var st = chargeStats(c), od = c.due < TODAY && st.out > 0;
+      var each = uniq(Object.keys(c.lines).map(function (k) { return c.lines[k]; }));
+      return '<button class="stub' + (c.fresh ? " fresh" : "") + '" style="--c:' + c.c + '" data-a="c:' + c.id + '" aria-pressed="' + (S.charge === c.id) + '">' +
+        '<i></i><span class="nm"><span>' + esc(c.name) + '</span><span class="chip-aud">' + esc(c.aud) + '</span></span>' +
+        '<span class="amt"><b>' + (each.length === 1 ? money(each[0]) + '<small> ea</small>' : money(Math.min.apply(0, each)) + '–' + money(Math.max.apply(0, each)).slice(1)) + '</b>' +
+        '<small>' + st.paid + '/' + st.n + ' paid</small><span class="prog"><i style="width:' + (st.n ? st.paid / st.n * 100 : 0) + '%"></i></span></span>' +
+        '<span class="meta">' + (od ? '<span class="od">Overdue since ' + fmtD(c.due) + '</span>' : 'Due ' + fmtD(c.due)) + '<span>·</span><span>' + money(st.out) + ' out</span></span></button>';
+    }).join("");
+    var charges = '<div class="card charges"><div class="charges-h"><h3>Charges</h3>' +
+      (S.charge ? '<button class="link" data-a="c:">Show every charge</button>' : '<span class="k">' + plural(D.charges.length, "bill") + '</span>') + '</div>' +
+      '<div class="stubs">' + stubs + '</div>' +
+      '<div class="foot"><span>Tap a charge to see only its payers.</span><button class="link" data-a="open">' + ic("plus", 13) + 'New charge</button></div></div>';
+
+    var h = '<section class="top">' + hero + charges + '</section>';
+
+    // the wall
+    var q = S.q.trim().toLowerCase();
+    var vis = rows.filter(function (x) {
+      if (S.f !== "all" && x.a.s !== S.f) return false;
+      return !q || x.m.n.toLowerCase().indexOf(q) > -1 || x.m.title.toLowerCase().indexOf(q) > -1;
+    });
+    h += '<div class="wall-h"><div><h2>' + (scope ? 'Who owes for ' + esc(scope.name) : 'Who owes what') + '</h2><p>' + (scope ? plural(rows.length, "person", "people") + ' on this charge' : 'Everyone on the roster, sorted by where they stand') + '</p></div>' +
+      '<div class="tools"><div class="srch">' + ic("search") + '<input id="q" placeholder="Find a member or role" value="' + esc(S.q) + '"></div>' +
+      '<div class="seg" role="group" aria-label="Group by">' +
+        '<button data-a="g:status" aria-pressed="' + (S.group === "status") + '">Standing</button>' +
+        '<button data-a="g:role" aria-pressed="' + (S.group === "role") + '">Role</button></div>' +
+      '<div class="seg" role="group" aria-label="View">' +
+        '<button data-a="v:wall" aria-pressed="' + (S.view === "wall") + '" aria-label="Tags">' + ic("board", 14) + '</button>' +
+        '<button data-a="v:list" aria-pressed="' + (S.view === "list") + '" aria-label="List">' + ic("sheet", 14) + '</button></div></div></div>';
+    h += '<div class="filt">' + fchip("all", "Everyone", rows.length, "") +
+      fchip("over", "Overdue", by.over, "var(--rose)") + fchip("due", "Not due yet", by.due, "var(--butter)") +
+      fchip("paid", "Paid up", by.paid, "var(--mint)") + (by.none ? fchip("none", "Nothing billed", by.none, "transparent") : "") +
+      (S.charge ? '<span class="note">Filtered to <b>' + esc(scope.name) + '</b><button class="link" data-a="c:">clear</button></span>' : '') + '</div>';
+
+    if (!vis.length) h += '<div class="empty-f">Nobody matches that. <button class="link" data-a="reset">Show everyone</button></div>';
+    else if (S.view === "list") h += table(vis);
+    else {
+      var groups = S.group === "role"
+        ? TIERS.map(function (t) { return { k: t.id, l: t.l, c: t.c, xs: vis.filter(function (x) { return x.m.tier === t.id; }) }; })
+        : ORDER.map(function (s) { return { k: s, l: ST[s].l, c: ST[s].c, xs: vis.filter(function (x) { return x.a.s === s; }) }; });
+      groups.forEach(function (g) {
+        if (!g.xs.length) return;
+        if (S.group === "role") g.xs.sort(function (a, b) { return ORDER.indexOf(a.a.s) - ORDER.indexOf(b.a.s) || b.a.owes - a.a.owes; });
+        else g.xs.sort(function (a, b) { return b.a.owes - a.a.owes || b.a.late - a.a.late || a.m.n.localeCompare(b.m.n); });
+        var sum = g.xs.reduce(function (t, x) { return t + x.a.owes; }, 0);
+        h += '<section class="lane"><div class="lane-h"><span class="sw" style="background:' + g.c + (g.c === "transparent" ? ';border-style:dashed' : '') + '"></span><h3>' + g.l + '</h3><span class="c">' + g.xs.length + '</span>' +
+          '<span class="sum">' + (sum ? money(sum) + ' out' : g.k === "paid" ? 'all square' : '') + '</span>' +
+          (S.group === "role" ? '<button class="link" data-a="open:role:' + g.k + '">Bill ' + g.l.toLowerCase() + '</button>' : '') + '</div>' +
+          '<div class="tags">' + g.xs.map(tagH).join("") + '</div></section>';
+      });
+    }
+    return h;
+  }
+  function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
+  function leg(s, c, l, v, n) {
+    if (!n) return "";
+    return '<button data-a="f:' + s + '" aria-pressed="' + (S.f === s) + '"><span class="sw" style="background:' + c + '"></span>' + l + ' <b>' + v + '</b><span style="color:var(--ink-3)">· ' + plural(n, "person", "people") + '</span></button>';
+  }
+  function fchip(f, l, n, c) {
+    return '<button class="fchip" data-a="f:' + f + '" aria-pressed="' + (S.f === f) + '">' + (c ? '<span class="sw" style="background:' + c + (c === "transparent" ? ';border-style:dashed' : '') + '"></span>' : '') + l + '<span class="c">' + n + '</span></button>';
+  }
+  function stLine(a) {
+    if (a.s === "over") return a.late + "d late";
+    if (a.s === "due") return a.next ? "due " + fmtD(a.next.due) : "owes";
+    if (a.s === "paid") return "";
+    return "";
+  }
+  function tagH(x) {
+    var m = x.m, a = x.a;
+    var big = a.s === "paid" ? ic("check") + 'Paid up' : a.s === "none" ? 'Nothing billed' : money(a.owes);
+    return '<button class="tag" data-s="' + a.s + '" data-a="m:' + m.id + '" id="t-' + m.id + '">' +
+      '<span class="who"><span class="avatar avatar--sm" style="--av:' + m.av + '">' + m.i + '</span><div><b>' + esc(m.n) + '</b><small>' + esc(m.title) + '</small></div></span>' +
+      '<span class="owe"><b>' + big + '</b><span class="st">' + stLine(a) + '</span></span>' +
+      (a.billed ? '<div class="bar"><i style="width:' + (a.paid / a.billed * 100) + '%"></i></div><div class="sub">' + money(a.paid) + ' of ' + money(a.billed) + ' paid</div>' : '') + '</button>';
+  }
+  function table(vis) {
+    vis = vis.slice().sort(function (a, b) { return ORDER.indexOf(a.a.s) - ORDER.indexOf(b.a.s) || b.a.owes - a.a.owes; });
+    return '<div class="tbl"><div class="tr th"><span>Member</span><span>Role</span><span class="n">Billed</span><span class="n">Paid</span><span class="n">Owes</span><span>Standing</span><span></span></div>' +
+      vis.map(function (x) {
+        var a = x.a;
+        return '<div class="tr" data-a="m:' + x.m.id + '"><span class="nm"><span class="avatar avatar--sm" style="--av:' + x.m.av + '">' + x.m.i + '</span><span>' + esc(x.m.n) + '</span></span>' +
+          '<span class="rl">' + esc(x.m.title) + '</span><span class="n">' + (a.billed ? money(a.billed) : "—") + '</span><span class="n">' + (a.paid ? money(a.paid) : "—") + '</span>' +
+          '<span class="n owe">' + (a.owes ? money(a.owes) : "—") + '</span><span><span class="stp" data-s="' + a.s + '">' + (a.s === "over" ? a.late + "d late" : a.s === "due" ? "Not due yet" : ST[a.s].l) + '</span></span>' +
+          '<span>' + (a.owes ? '<button class="btn btn--sm btn--ghost" data-a="pay:' + x.m.id + '">Record</button>' : '') + '</span></div>';
+      }).join("") + '</div>';
+  }
+
+  /* ---------- member drawer ---------- */
+  function openMember(id, payMode) {
+    S.sel = id; S.pay = payMode || null;
+    drawMember(); document.body.classList.add("modal"); $("drawer").classList.add("on"); $("drawer").setAttribute("aria-hidden", "false"); $("scrim").classList.add("on");
+  }
+  function drawMember() {
+    var m = byId(S.sel), a = acct(m);
+    var c = a.s === "paid" ? "var(--mint)" : a.s === "over" ? "var(--rose)" : a.s === "due" ? "var(--butter)" : "var(--paper-3)";
+    var ent = [];
+    D.charges.forEach(function (ch) { if (ch.lines[m.id]) ent.push({ d: ch.made, t: ch.name, s: "Due " + fmtD(ch.due), a: ch.lines[m.id] }); });
+    D.pays.forEach(function (p) { if (p.who === m.id) ent.push({ d: p.date, t: "Paid", s: p.how, a: -p.amt }); });
+    D.waives.forEach(function (w) { if (w.who === m.id) ent.push({ d: w.date, t: "Waived", s: w.why || "No reason given", a: -w.amt }); });
+    ent.sort(function (x, y) { return x.d < y.d ? -1 : 1; });
+    var line = a.s === "over" ? '<span class="stp" data-s="over">' + a.late + ' days late</span>'
+      : a.s === "due" ? '<span class="stp" data-s="due">Due ' + fmtD(a.next.due) + '</span>'
+      : '<span class="stp" data-s="' + a.s + '">' + ST[a.s].l + '</span>';
+    var h = '<div class="dr-h"><span class="avatar avatar--lg" style="--av:' + m.av + '">' + m.i + '</span><div><h3>' + esc(m.n) + '</h3><p>' + esc(m.title) + ' · ' + tierOf(m.tier).l + '</p></div>' +
+      '<button class="x" data-a="close" aria-label="Close">' + X + '</button></div><div class="dr-b">' +
+      '<div class="acct" style="--c:' + c + '"><p class="k">On their tab</p><div class="row1" style="margin-top:8px"><b>' + (a.owes ? money(a.owes) : a.billed ? "Square" : "—") + '</b>' + line + '</div>' +
+      (a.billed ? '<div class="acct-bar"><i style="width:' + (a.paid / a.billed * 100) + '%"></i></div><p class="acct-sub">' + money(a.paid) + ' of ' + money(a.billed) + ' paid this term</p>' : '') +
+      '<div class="acts">' +
+        '<button data-a="pay:' + m.id + '"' + (a.owes ? '' : ' disabled style="opacity:.45"') + '><span class="g" style="--g:var(--mint)">' + ic("wallet") + '</span>Record payment</button>' +
+        '<button data-a="waive:' + m.id + '"' + (a.owes ? '' : ' disabled style="opacity:.45"') + '><span class="g" style="--g:var(--butter)">' + ic("flag") + '</span>Waive some</button>' +
+        '<button data-a="open:pick:' + m.id + '"><span class="g" style="--g:var(--peach)">' + ic("plus") + '</span>Bill ' + esc(m.n.split(" ")[0]) + '</button></div>' +
+      inlineForm(m, a) + '</div>' +
+      '<p class="sec-t">Their dues, line by line</p>' +
+      (ent.length ? '<div class="book">' + ent.map(function (e) {
+        return '<div class="bk"><span class="d">' + fmtD(e.d) + '</span><span class="t"><b>' + esc(e.t) + '</b><small>' + esc(e.s) + '</small></span><span class="a' + (e.a < 0 ? " neg" : "") + '">' + (e.a < 0 ? "−" + money(-e.a) : "+" + money(e.a)) + '</span></div>';
+      }).join("") + '<div class="bk tot"><span></span><span class="t">Still owes</span><span class="a">' + money(a.owes) + '</span></div></div>'
+        : '<div class="empty-f" style="margin-top:0">Nothing billed to ' + esc(m.n.split(" ")[0]) + ' yet.</div>') +
+      (a.open.length ? '<p class="sec-t">What’s still open</p><div class="book">' + a.open.map(function (o) {
+        return '<div class="bk"><span class="d">' + fmtD(o.c.due) + '</span><span class="t"><b>' + esc(o.c.name) + '</b><small>' + (o.c.due < TODAY ? "Overdue · " + daysBetween(o.c.due, TODAY) + " days" : "Due in " + daysBetween(TODAY, o.c.due) + " days") + '</small></span><span class="a">' + money(o.rest) + '</span></div>';
+      }).join("") + '</div>' : '') +
+      '</div>';
+    $("drawer").innerHTML = h;
+    var inp = $("ipamt"); if (inp) { inp.focus(); inp.select(); }
+  }
+  function inlineForm(m, a) {
+    if (!S.pay || !a.owes) return "";
+    var pay = S.pay === "pay";
+    return '<div class="inline-pay on"><b style="font-size:.88rem">' + (pay ? 'Record what ' + esc(m.n.split(" ")[0]) + ' paid' : 'Waive part of the tab') + '</b>' +
+      '<p style="font-size:.76rem;color:var(--ink-3)">' + (pay ? 'Posts a Dues income row to the books and takes it off the tab.' : 'Lowers what they owe. No money moves, so nothing hits the books.') + '</p>' +
+      '<div class="r"><label class="money" style="width:130px"><span>$</span><input id="ipamt" inputmode="decimal" value="' + a.owes + '"></label>' +
+      (pay ? ["Venmo", "Zelle", "Cash", "Card"].map(function (w, k) { return '<button class="sg" data-a="how:' + w + '" aria-pressed="' + (k === 0) + '">' + w + '</button>'; }).join("")
+        : '<input class="txt" id="ipwhy" placeholder="Why? e.g. hardship, scholarship" style="flex:1;min-width:160px;padding:7px 12px;font-size:.84rem">') + '</div>' +
+      '<div class="r" style="margin-top:12px"><button class="btn btn--sm" data-a="' + (pay ? "dopay" : "dowaive") + '">' + (pay ? "Record payment" : "Waive it") + '</button><button class="link" data-a="cancelpay">Cancel</button></div></div>';
+  }
+
+  /* ---------- the Hand out dues sheet ---------- */
+  var F;
+  function freshForm(mode, arg) {
+    F = { who: mode || "all", excl: [], roles: { off: { on: true, amt: 140 }, act: { on: true, amt: 140 }, nm: { on: true, amt: 90 } },
+      picked: [], q: "", name: "", amt: "", split: false, total: "", due: "2w", custom: addDays(TODAY, 21), note: "", notify: true, dup: "skip", xq: "" };
+    if (mode === "role" && arg) TIERS.forEach(function (t) { F.roles[t.id].on = t.id === arg; });
+    if (mode === "pick" && arg) F.picked = [arg];
+  }
+  function openSheet(mode, arg) {
+    freshForm(mode, arg);
+    closeDrawer(true);
+    drawSheet(); document.body.classList.add("modal"); $("sheet").classList.add("on"); $("sheet").setAttribute("aria-hidden", "false"); $("scrim").classList.add("on");
+    setTimeout(function () { var n = $("fname"); if (n && mode !== "pick") n.focus({ preventScroll: true }); }, 60);
+  }
+  function dueISO() { return F.due === "2w" ? addDays(TODAY, 14) : F.due === "eom" ? "2026-10-31" : F.due === "custom" ? F.custom : null; }
+  function num(v) { var n = parseFloat(String(v).replace(/[^0-9.]/g, "")); return isFinite(n) ? n : 0; }
+
+  // who gets billed, and how much each
+  function targets() {
+    var out = [];
+    if (F.who === "all") MEMBERS.forEach(function (m) { if (F.excl.indexOf(m.id) < 0) out.push({ m: m, amt: num(F.amt) }); });
+    else if (F.who === "role") MEMBERS.forEach(function (m) { var r = F.roles[m.tier]; if (r.on) out.push({ m: m, amt: num(r.amt) }); });
+    else F.picked.forEach(function (id) { out.push({ m: byId(id), amt: num(F.amt) }); });
+    if (F.split && F.who !== "role" && out.length) {
+      var each = Math.floor(num(F.total) / out.length * 100) / 100;
+      out.forEach(function (t) { t.amt = each; });
+    }
+    var dupC = dupCharge();
+    if (dupC && F.dup === "skip") out = out.filter(function (t) { return !dupC.lines[t.m.id]; });
+    return out;
+  }
+  function dupCharge() {
+    var n = F.name.trim().toLowerCase(); if (!n) return null;
+    return D.charges.filter(function (c) { return c.name.toLowerCase() === n; })[0] || null;
+  }
+  function rawTargets() { var d = F.dup; F.dup = "bill"; var t = targets(); F.dup = d; return t; }
+
+  function drawSheet() {
+    var h = '<div class="sh-h"><span class="g">' + ic("jar") + '</span><div><h3>Hand out dues</h3><p>Puts a charge on people’s tabs. Nothing hits the books until they pay.</p></div>' +
+      '<button class="x" data-a="close" aria-label="Close">' + X + '</button></div>' +
+      '<div class="sh-b"><div class="form" id="form">' + formH() + '</div><div class="side" id="side">' + sideH() + '</div></div>' +
+      '<div class="mob-sum" id="mobsum">' + mobH() + '</div>';
+    $("sheet").innerHTML = h;
+  }
+  function refresh(full) {
+    if (full) { var f = $("form"), st = f.scrollTop; f.innerHTML = formH(); f.scrollTop = st; }
+    $("side").innerHTML = sideH(); $("mobsum").innerHTML = mobH();
+    var dm = $("dupm"); if (dm && !full) dm.innerHTML = dupH();
+  }
+
+  function formH() {
+    var h = '<div class="step"><span class="num">1</span><h4>Who’s paying?</h4><span class="rail"></span><div class="body">' +
+      '<div class="modes">' +
+        modeB("all", "people", "Everyone", "The whole roster, one amount", "var(--sky)") +
+        modeB("role", "star", "By role", "A rate for each role", "var(--lilac)") +
+        modeB("pick", "hand", "Pick people", "Fines, shirts, one-offs", "var(--peach)") + '</div><div class="who-panel">';
+    if (F.who === "all") {
+      var inn = MEMBERS.filter(function (m) { return F.excl.indexOf(m.id) < 0; });
+      h += '<div class="everyone">' + stackH(inn.map(function (m) { return m; }), 9) + '<div><b>' + plural(inn.length, "member") + '</b><small>Everyone on the roster' + (F.excl.length ? ', minus ' + F.excl.length : '') + '</small></div></div>' +
+        '<div class="excl"><span>Leave someone out:</span>' + F.excl.map(function (id) { var m = byId(id); return '<button class="xchip" data-a="unex:' + id + '"><span class="avatar avatar--sm" style="--av:' + m.av + ';width:18px;height:18px;font-size:.5rem">' + m.i + '</span>' + esc(m.n) + X + '</button>'; }).join("") +
+        '<span class="srch" style="width:190px;padding:4px 11px">' + ic("search") + '<input id="xq" list="xl" placeholder="Type a name" value="' + esc(F.xq) + '"></span>' +
+        '<datalist id="xl">' + MEMBERS.filter(function (m) { return F.excl.indexOf(m.id) < 0; }).map(function (m) { return '<option value="' + esc(m.n) + '">'; }).join("") + '</datalist></div>';
+    } else if (F.who === "role") {
+      h += '<div class="rates">' + TIERS.map(function (t) {
+        var r = F.roles[t.id], ms = MEMBERS.filter(function (m) { return m.tier === t.id; });
+        return '<div class="rate' + (r.on ? "" : " off") + '"><button class="cb" role="checkbox" aria-checked="' + r.on + '" data-a="role:' + t.id + '" aria-label="' + t.l + '">' + TICK + '</button>' +
+          '<div class="rn"><b>' + t.l + '</b><small>' + plural(ms.length, "person", "people") + (t.id === "off" ? ' · President, Treasurer…' : '') + '</small></div>' +
+          stackH(ms, 4) + '<label class="money' + (r.on ? "" : " dis") + '"><span>$</span><input data-rate="' + t.id + '" inputmode="decimal" value="' + esc(r.amt) + '" aria-label="' + t.l + ' amount"><span style="font-size:.7rem">ea</span></label></div>';
+      }).join("") + '</div>';
+    } else {
+      var q = F.q.trim().toLowerCase();
+      var list = MEMBERS.filter(function (m) { return !q || m.n.toLowerCase().indexOf(q) > -1 || m.title.toLowerCase().indexOf(q) > -1; });
+      h += '<div class="pick-tools"><div class="srch">' + ic("search") + '<input id="pq" placeholder="Search ' + MEMBERS.length + ' members" value="' + esc(F.q) + '"></div>' +
+        '<span style="font-size:.8rem;color:var(--ink-3)"><b style="color:var(--ink)">' + F.picked.length + '</b> picked</span>' +
+        '<button class="link" data-a="pk:over">+ everyone overdue</button>' + (F.picked.length ? '<button class="link" data-a="pk:none">clear</button>' : '') + '</div>' +
+        '<div class="pick">' + list.map(function (m) {
+          var on = F.picked.indexOf(m.id) > -1, a = acct(m);
+          return '<button class="pk" data-a="pk:' + m.id + '" aria-pressed="' + on + '"><span class="tk">' + TICK + '</span><span>' + esc(m.n) + '</span>' + (a.s === "over" ? '<span class="ow" title="Overdue · ' + money(a.owes) + '"></span>' : '') + '</button>';
+        }).join("") + '</div>';
+    }
+    h += '</div></div></div>';
+
+    // 2 — what for, how much
+    var sug = ["Fall dues", "Spring dues", "Formal ticket", "Late fine", "Chapter shirt", "Retreat"];
+    h += '<div class="step"><span class="num">2</span><h4>What’s it for?</h4><span class="rail"></span><div class="body">' +
+      '<div class="fld"><input class="txt" id="fname" placeholder="Name it, so people know what they’re paying for" value="' + esc(F.name) + '" maxlength="60">' +
+      '<div class="sugg">' + sug.map(function (s) { return '<button class="sg" data-a="nm:' + s + '" aria-pressed="' + (F.name === s) + '">' + s + '</button>'; }).join("") + '</div>' +
+      '<div class="mob-only" id="dupm">' + dupH() + '</div></div>';
+    if (F.who === "role") {
+      h += '<p class="hint" style="margin-top:12px">Amounts are set per role above.</p>';
+    } else {
+      var n = rawTargets().length;
+      h += '<div class="fld"><span class="lb">How much?</span><div class="seg" style="margin-bottom:10px"><button data-a="split:0" aria-pressed="' + !F.split + '">Each person pays</button><button data-a="split:1" aria-pressed="' + F.split + '">Split a total</button></div>' +
+        '<div class="amt-row"><label class="money lg"><span>$</span><input id="famt" inputmode="decimal" placeholder="0" value="' + esc(F.split ? F.total : F.amt) + '"></label>' +
+        (F.split ? '<span class="split-note">' + (n && num(F.total) ? money(num(F.total)) + ' ÷ ' + n + ' = <b>' + money(Math.floor(num(F.total) / n * 100) / 100, true) + '</b> each' : 'Pick who’s splitting it first') + '</span>'
+          : '<div class="sugg" style="margin:0">' + [25, 50, 90, 140].map(function (v) { return '<button class="sg" data-a="amt:' + v + '" aria-pressed="' + (num(F.amt) === v) + '">$' + v + '</button>'; }).join("") + '</div>') + '</div></div>';
+    }
+    h += '</div></div>';
+
+    // 3 — when
+    h += '<div class="step"><span class="num">3</span><h4>When’s it due?</h4><div></div><div class="body"><div class="dates" style="margin-top:8px">' +
+      dateB("2w", "In two weeks", fmtD(addDays(TODAY, 14))) + dateB("eom", "End of month", "Oct 31") +
+      '<button class="dt" data-a="due:custom" aria-pressed="' + (F.due === "custom") + '"><b>Pick a date</b><input type="date" id="fdate" value="' + F.custom + '" min="' + TODAY + '"></button>' +
+      dateB("none", "No due date", "never late") + '</div>' +
+      '<div class="fld"><label for="fnote">Note for members <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><textarea class="txt" id="fnote" placeholder="Venmo @oozma-kappa · ask Dev about a payment plan">' + esc(F.note) + '</textarea></div>' +
+      '<button class="tog" role="switch" aria-checked="' + F.notify + '" data-a="notify"><span>' + ic("envelope") + '</span><span><b>Tell them</b><small>Each person gets a note with their amount and the due date</small></span><span class="sw-t"></span></button>' +
+      '</div></div>';
+    return h;
+  }
+  function modeB(k, i, t, s, c) { return '<button class="mode" style="--c:' + c + '" data-a="who:' + k + '" aria-pressed="' + (F.who === k) + '"><span class="g">' + ic(i) + '</span><div><b>' + t + '</b><small>' + s + '</small></div></button>'; }
+  function dateB(k, t, s) { return '<button class="dt" data-a="due:' + k + '" aria-pressed="' + (F.due === k) + '"><b>' + t + '</b><small>' + s + '</small></button>'; }
+  function stackH(ms, max) {
+    return '<span class="stack">' + ms.slice(0, max).map(function (m) { return '<span class="avatar avatar--sm" style="--av:' + m.av + '">' + m.i + '</span>'; }).join("") + (ms.length > max ? '<span class="more">+' + (ms.length - max) + '</span>' : '') + '</span>';
+  }
+
+  function summary() {
+    var t = targets(), tot = t.reduce(function (s, x) { return s + x.amt; }, 0);
+    var ok = t.length && tot > 0 && F.name.trim() && t.every(function (x) { return x.amt > 0; });
+    return { t: t, tot: tot, ok: ok };
+  }
+  function sideH() {
+    var s = summary(), t = s.t, d = dueISO();
+    var lines = "";
+    if (!t.length) lines = '<div class="zero">Pick who’s paying and the bill shows up here.</div>';
+    else if (F.who === "role") {
+      TIERS.forEach(function (tr) {
+        var xs = t.filter(function (x) { return x.m.tier === tr.id; }); if (!xs.length) return;
+        lines += ln(tr.l + ' · ' + xs.length + ' × ' + money(xs[0].amt), money(xs.length * xs[0].amt));
+      });
+    } else if (t.length <= 6) {
+      t.forEach(function (x) { lines += ln(x.m.n, x.amt ? money(x.amt, x.amt % 1) : "—"); });
+    } else {
+      lines = ln(plural(t.length, "person", "people") + ' × ' + (t[0].amt ? money(t[0].amt, t[0].amt % 1) : "—"), money(s.tot, s.tot % 1));
+      if (F.who === "all" && F.excl.length) lines += ln('Left out', plural(F.excl.length, "person", "people"));
+    }
+    var h = '<div class="rcpt"><div class="hd"><span>Charge · Oozma Kappa</span><b>' + (F.name.trim() ? esc(F.name) : '<span style="color:var(--ink-3)">Untitled charge</span>') + '</b><span>' + (d ? 'Due ' + fmtD(d) + ' · ' + daysBetween(TODAY, d) + ' days' : 'No due date') + '</span></div>' +
+      '<div class="lines">' + lines + '</div>' +
+      '<div class="tot"><span>To collect</span><b>' + money(s.tot, s.tot % 1) + '</b></div>' +
+      (t.length ? '<div class="who-row">' + stackH(t.map(function (x) { return x.m; }), 7) + '<span>' + plural(t.length, "tab") + ' go up</span></div>' : '') +
+      '<span class="stamp" id="stamp">ISSUED</span></div>';
+    h += dupH();
+    h += '<div class="go"><button class="btn btn--lg" data-a="submit"' + (s.ok ? '' : ' disabled') + '>' + ic("send") + goLabel(s) + '</button>' +
+      '<p>' + (s.ok ? (F.notify ? 'Each person is told what they owe.' : 'Quietly — nobody is notified.') : hint(s)) + '</p></div>';
+    return h;
+  }
+  function dupH() {
+    var dc = dupCharge(); if (!dc) return "";
+    var already = rawTargets().filter(function (x) { return dc.lines[x.m.id]; }).length;
+    if (!already) return "";
+    return '<div class="warn"><b>' + plural(already, "person", "people") + ' already ' + (already === 1 ? 'has' : 'have') + ' “' + esc(dc.name) + '”</b> on their tab from ' + fmtD(dc.made) + '.' +
+      '<div class="r"><button class="sg" data-a="dup:skip" aria-pressed="' + (F.dup === "skip") + '">Skip them</button><button class="sg" data-a="dup:bill" aria-pressed="' + (F.dup === "bill") + '">Bill them again</button></div></div>';
+  }
+  function goLabel(s) { return s.t.length && s.tot ? 'Bill ' + plural(s.t.length, "person", "people") + ' · ' + money(s.tot, s.tot % 1) : 'Hand out dues'; }
+  function hint(s) { return !s.t.length ? 'Pick at least one person.' : !F.name.trim() ? 'Give it a name.' : 'Set an amount.'; }
+  function ln(l, v) { return '<div class="ln"><span class="l"><span>' + esc(l) + '</span></span><span class="v">' + v + '</span></div>'; }
+  function mobH() {
+    var s = summary();
+    return '<div class="t"><b>' + money(s.tot, s.tot % 1) + '</b><small>' + (s.t.length ? plural(s.t.length, "person", "people") + (F.name.trim() ? ' · ' + esc(F.name) : '') : rawTargets().length ? 'They all have this already' : 'Nobody picked yet') + '</small></div>' +
+      '<button class="btn" data-a="submit"' + (s.ok ? '' : ' disabled') + '>' + ic("send") + 'Bill them</button>';
+  }
+
+  function submit() {
+    var s = summary(); if (!s.ok) return;
+    var lines = {}; s.t.forEach(function (x) { lines[x.m.id] = (lines[x.m.id] || 0) + x.amt; });
+    var aud = F.who === "all" ? (F.excl.length ? "Everyone but " + F.excl.length : "Everyone") : F.who === "role" ? (TIERS.filter(function (t) { return F.roles[t.id].on; }).length === 1 ? TIERS.filter(function (t) { return F.roles[t.id].on; })[0].l : "By role") : plural(s.t.length, "person", "people");
+    var cols = ["var(--butter)", "var(--lilac)", "var(--peach)", "var(--sky)", "var(--mint)"];
+    var c = { id: "c" + Date.now(), name: F.name.trim(), due: dueISO() || "2099-12-31", aud: aud, c: cols[D.charges.length % 5], made: TODAY, lines: lines, note: F.note, fresh: true };
+    var st = $("stamp"); if (st) st.classList.add("on");
+    setTimeout(function () {
+      D.charges.push(c); S.charge = null; S.f = "all";
+      closeSheet(); render();
+      setTimeout(function () { c.fresh = false; }, 1500);
+      s.t.slice(0, 40).forEach(function (x, k) { var el = $("t-" + x.m.id); if (el) { el.style.animationDelay = (k * 12) + "ms"; el.classList.add("bump"); } });
+      toast(esc(c.name) + ' handed out · ' + plural(s.t.length, "person", "people") + ' · ' + money(s.tot, s.tot % 1), function () {
+        D.charges = D.charges.filter(function (x) { return x !== c; }); render(); toast("Charge taken back. Nobody was billed.");
+      });
+    }, 720);
+  }
+
+  /* ---------- plumbing ---------- */
+  function closeDrawer(keepScrim) { $("drawer").classList.remove("on"); $("drawer").setAttribute("aria-hidden", "true"); S.sel = null; if (!keepScrim) { $("scrim").classList.remove("on"); document.body.classList.remove("modal"); } }
+  function closeSheet() { $("sheet").classList.remove("on"); $("sheet").setAttribute("aria-hidden", "true"); $("scrim").classList.remove("on"); document.body.classList.remove("modal"); }
+  var tt;
+  function toast(msg, undo) {
+    var t = $("toast"); t.innerHTML = '<span>' + msg + '</span>' + (undo ? '<button data-a="undo">Undo</button>' : '');
+    t._undo = undo; t.classList.add("on"); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("on"); }, 5200);
+  }
+
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-a]"); if (!b || b.disabled) return;
+    var a = b.getAttribute("data-a"), p = a.split(":"), k = p[0], v = p.slice(1).join(":");
+    if (k === "open") { var mm = v.split(":"); openSheet(mm[0] || "all", mm[1]); return; }
+    if (k === "close") { if ($("sheet").classList.contains("on")) closeSheet(); else closeDrawer(); return; }
+    if (k === "tab") { if (v === "dues") goDues(); else { S.tab = v; render(); } return; }
+    if (k === "go") { e.stopPropagation(); goDues(v); return; }
+    if (k === "gom") { e.stopPropagation(); goDues("all", v); return; }
+    if (k === "brk") { e.stopPropagation(); S.brk = v; render(); return; }
+    if (k === "other") { toast("Not part of this mock. Only Overview and Dues are wired up."); return; }
+    if (k === "theme") { var dk = document.documentElement.dataset.theme === "dark"; document.documentElement.dataset.theme = dk ? "light" : "dark"; b.innerHTML = ic(dk ? "moon" : "sun", 15); return; }
+    if (k === "mock") { $("toast").classList.remove("on"); seed(v); S.charge = null; S.f = "all"; S.q = ""; document.querySelectorAll('[data-a^="mock:"]').forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-a") === a); }); render(); return; }
+    if (k === "undo") { var t = $("toast"); if (t._undo) t._undo(); t._undo = null; return; }
+    // page
+    if (k === "f") { S.f = S.f === v && v !== "all" ? "all" : v; render(); return; }
+    if (k === "c") { S.charge = v && S.charge !== v ? v : null; S.f = "all"; render(); return; }
+    if (k === "g") { S.group = v; render(); return; }
+    if (k === "v") { S.view = v; render(); return; }
+    if (k === "reset") { S.f = "all"; S.q = ""; S.charge = null; render(); return; }
+    if (k === "m") { openMember(v); return; }
+    if (k === "pay" || k === "waive") { e.stopPropagation(); openMember(v, k); return; }
+    if (k === "cancelpay") { S.pay = null; drawMember(); return; }
+    if (k === "how") { b.parentNode.querySelectorAll('[data-a^="how:"]').forEach(function (x) { x.setAttribute("aria-pressed", x === b); }); return; }
+    if (k === "dopay" || k === "dowaive") {
+      var m = byId(S.sel), ac = acct(m), amt = Math.min(num($("ipamt").value), ac.owes); if (!amt) return;
+      if (k === "dopay") { var how = document.querySelector('#drawer [data-a^="how:"][aria-pressed="true"]'); D.pays.push({ who: m.id, amt: amt, date: TODAY, how: how ? how.textContent : "Cash" }); }
+      else D.waives.push({ who: m.id, amt: amt, date: TODAY, why: ($("ipwhy").value || "").trim() });
+      S.pay = null; render(); drawMember();
+      var el = $("t-" + m.id); if (el) el.classList.add("bump");
+      toast((k === "dopay" ? money(amt, amt % 1) + " from " + m.n.split(" ")[0] + " posted to the books" : money(amt, amt % 1) + " waived for " + m.n.split(" ")[0]) + (acct(m).owes ? "" : " · all square"));
+      return;
+    }
+    // sheet
+    if (k === "who") { F.who = v; refresh(true); return; }
+    if (k === "role") { F.roles[v].on = !F.roles[v].on; refresh(true); return; }
+    if (k === "unex") { F.excl = F.excl.filter(function (x) { return x !== v; }); refresh(true); return; }
+    if (k === "pk") {
+      if (v === "none") F.picked = [];
+      else if (v === "over") MEMBERS.forEach(function (m) { if (acct(m).s === "over" && F.picked.indexOf(m.id) < 0) F.picked.push(m.id); });
+      else { var i = F.picked.indexOf(v); if (i > -1) F.picked.splice(i, 1); else F.picked.push(v); }
+      refresh(true); return;
+    }
+    if (k === "nm") { F.name = F.name === v ? "" : v; if (v === "Late fine" && F.who === "all") F.who = "pick"; refresh(true); return; }
+    if (k === "amt") { F.amt = String(v); refresh(true); return; }
+    if (k === "split") { F.split = v === "1"; refresh(true); return; }
+    if (k === "due") { F.due = v; refresh(true); return; }
+    if (k === "notify") { F.notify = !F.notify; refresh(true); return; }
+    if (k === "dup") { F.dup = v; refresh(); return; }
+    if (k === "submit") { submit(); return; }
+  });
+  $("scrim").addEventListener("click", function () { if ($("sheet").classList.contains("on")) closeSheet(); else closeDrawer(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.matches && e.target.matches('[role="link"][data-a]')) { e.target.click(); return; } if (e.key === "Escape") { if ($("sheet").classList.contains("on")) closeSheet(); else if (S.sel) closeDrawer(); } });
+
+  document.addEventListener("input", function (e) {
+    var t = e.target;
+    if (t.id === "q") { S.q = t.value; var pos = t.selectionStart; render(); var n = $("q"); n.focus(); n.setSelectionRange(pos, pos); return; }
+    if (!F) return;
+    if (t.id === "fname") { F.name = t.value; document.querySelectorAll('#form [data-a^="nm:"]').forEach(function (x) { x.setAttribute("aria-pressed", x.textContent === F.name); }); refresh(); return; }
+    if (t.id === "famt") { if (F.split) F.total = t.value; else F.amt = t.value; document.querySelectorAll('#form [data-a^="amt:"]').forEach(function (x) { x.setAttribute("aria-pressed", "$" + num(F.amt) === x.textContent); }); refresh(); var sn = document.querySelector("#form .split-note"); if (sn && F.split) { var n2 = rawTargets().length; sn.innerHTML = n2 && num(F.total) ? money(num(F.total)) + ' ÷ ' + n2 + ' = <b>' + money(Math.floor(num(F.total) / n2 * 100) / 100, true) + '</b> each' : 'Pick who’s splitting it first'; } return; }
+    if (t.dataset.rate) { F.roles[t.dataset.rate].amt = t.value; refresh(); return; }
+    if (t.id === "fnote") { F.note = t.value; return; }
+    if (t.id === "fdate") { F.custom = t.value || F.custom; F.due = "custom"; document.querySelectorAll('#form [data-a^="due:"]').forEach(function (x) { x.setAttribute("aria-pressed", x.getAttribute("data-a") === "due:custom"); }); refresh(); return; }
+    if (t.id === "pq") { F.q = t.value; var p2 = t.selectionStart; refresh(true); var n3 = $("pq"); n3.focus(); n3.setSelectionRange(p2, p2); return; }
+    if (t.id === "xq") {
+      F.xq = t.value;
+      var hit = MEMBERS.filter(function (m) { return m.n === t.value; })[0];
+      if (hit) { F.excl.push(hit.id); F.xq = ""; refresh(true); var n4 = $("xq"); if (n4) n4.focus(); }
+      else refresh();
+    }
+  });
+
+  // strip tooltips
+  var tip = $("tip");
+  document.addEventListener("mouseover", function (e) {
+    var b = e.target.closest(".strip [data-tip]"); if (!b) { tip.classList.remove("on"); return; }
+    var m = byId(b.dataset.tip); if (!m) { tip.innerHTML = "Member " + (+b.dataset.tip + 1); }
+    else { var a = acct(m); tip.innerHTML = esc(m.n) + '<span>' + (a.s === "paid" ? "paid up" : a.s === "none" ? "nothing billed" : money(a.owes) + (a.s === "over" ? " · " + a.late + "d late" : " owed")) + '</span>'; }
+    var r = b.getBoundingClientRect(); tip.style.left = (r.left + r.width / 2) + "px"; tip.style.top = r.top + "px"; tip.classList.add("on");
+  });
+
+  seed("live"); render();
+  window.__dues = { S: S, D: D, openSheet: openSheet, openMember: openMember, seed: function (k) { seed(k); render(); } };
+})();
+</script>
+</body>
+</html>

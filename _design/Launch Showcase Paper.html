@@ -1,0 +1,1385 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Launch Showcase · Paper</title>
+<!--
+  Launch-video showcase: the seven moments every student org gets, in the Paper aesthetic
+  (tokens + glyphs lifted from Dashboard Paper Mock.html). One fictional club, Hilltop Robotics
+  (42 members), runs through all seven plates so the story carries: the event added in 02 is the
+  one checked into in 03, Maya's payment in 04 is read out in 05's minutes, the action item in 05
+  becomes a task in 06, Priya gets Treasurer in 06 and approves the reminder in 07.
+  Each plate plays when it scrolls into view; Replay restarts it. Not 1:1 with the app — the
+  essence and the capabilities. No backend. All records fictional.
+-->
+<script>
+  (function () {
+    var t = "light";
+    try { t = localStorage.getItem("launch-showcase-theme") || "light"; } catch (e) {}
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (from Dashboard Paper Mock) ---------------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85; --wash-op:.55;
+  --av-ink:rgba(38,33,27,.72);
+  --pad:#FFF4C2; --pad-line:#E9D98F; --pad-margin:#F2A3B9;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --note-filter:brightness(.93) saturate(.85); --mark-op:.42; --wash-op:.9;
+  --av-ink:rgba(22,18,14,.78);
+  --pad:#2A2416; --pad-line:#3E3520; --pad-margin:#6E3A4A;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+body::before{
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:var(--wash-op);
+  background:
+    radial-gradient(40vw 34vw at 6% 4%, var(--peach-soft), transparent 70%),
+    radial-gradient(38vw 30vw at 96% 18%, var(--lilac-soft), transparent 70%),
+    radial-gradient(42vw 36vw at 88% 92%, var(--mint-soft), transparent 70%),
+    radial-gradient(36vw 30vw at 4% 80%, var(--sky-soft), transparent 70%);
+}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.display{font-family:var(--display); font-weight:600; letter-spacing:-.028em}
+
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg) scaleX(var(--mx,0)); transform-origin:left center; opacity:var(--mark-op);
+  transition:transform .9s var(--ease-spring) .25s;
+}
+.seen .hi::before, .hero .hi::before{--mx:1}
+
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:22px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+.btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:9px 16px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.84rem; letter-spacing:-.01em;
+  box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s;
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active,.btn.press{transform:translate(1.5px,1.5px); box-shadow:0 0 0 var(--hs)}
+.btn .ic{width:14px; height:14px}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.btn--soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.btn--soft:hover{box-shadow:none; transform:translateY(-1px); border-color:var(--ink-3)}
+.btn--sm{padding:5px 11px; font-size:.76rem; box-shadow:2px 2px 0 var(--hs)}
+.btn--sm.btn--soft{box-shadow:none}
+.btn[disabled]{opacity:.45; pointer-events:none}
+
+.pill{display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; font-size:.72rem; font-weight:600; white-space:nowrap;
+  background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2)); border:1px solid var(--p-bd, var(--line))}
+.pill .dot{width:6px; height:6px; border-radius:50%; background:currentColor}
+.t-peach{--p-bg:var(--peach-soft); --p-fg:var(--peach-ink); --p-bd:var(--peach-bd); --tc:var(--peach)}
+.t-sky{--p-bg:var(--sky-soft); --p-fg:var(--sky-ink); --p-bd:var(--sky-bd); --tc:var(--sky)}
+.t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd); --tc:var(--mint)}
+.t-butter{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd); --tc:var(--butter)}
+.t-lilac{--p-bg:var(--lilac-soft); --p-fg:var(--lilac-ink); --p-bd:var(--lilac-bd); --tc:var(--lilac)}
+.t-rose{--p-bg:var(--rose-soft); --p-fg:var(--rose-ink); --p-bd:var(--rose-bd); --tc:var(--rose)}
+
+.avatar{width:28px; height:28px; flex:none; border-radius:50%; display:grid; place-items:center;
+  font-size:.62rem; font-weight:700; letter-spacing:-.02em; background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08)}
+.avatar--sm{width:22px; height:22px; font-size:.54rem}
+.k{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+
+/* reveal primitives used by every plate */
+.pre{opacity:0; transform:translateY(10px); transition:opacity .45s var(--ease-out), transform .55s var(--ease-spring)}
+.pre.in{opacity:1; transform:none}
+.typing::after{content:''; display:inline-block; width:2px; height:1.05em; margin-left:2px; vertical-align:-.15em; background:var(--ink); animation:blink .8s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@keyframes thump{0%{transform:rotate(var(--rot,-9deg)) scale(1.9); opacity:0} 55%{opacity:.95} 100%{transform:rotate(var(--rot,-9deg)) scale(1); opacity:.88}}
+@keyframes flash{0%{background:var(--butter)} 100%{background:transparent}}
+@keyframes pop{0%{transform:scale(.4); opacity:0} 70%{transform:scale(1.12)} 100%{transform:scale(1); opacity:1}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb, var(--mint-ink) 50%, transparent)} 100%{box-shadow:0 0 0 9px transparent}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.rubber{position:absolute; padding:6px 14px 5px; border:3px solid var(--st, var(--mint-ink)); border-radius:9px; color:var(--st, var(--mint-ink));
+  font-family:var(--mono); font-weight:600; font-size:.92rem; letter-spacing:.18em; text-transform:uppercase; line-height:1.15; text-align:center;
+  transform:rotate(var(--rot,-9deg)); opacity:0; pointer-events:none; z-index:6;
+  box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--st, var(--mint-ink)) 25%, transparent);
+  background:color-mix(in srgb, var(--card) 55%, transparent)}
+.rubber small{display:block; font-size:.6rem; letter-spacing:.12em; opacity:.85}
+.rubber.on{animation:thump .5s var(--ease-spring) both}
+
+/* ---------- page --------------------------------------------------------- */
+.wrap{position:relative; z-index:1; max-width:1240px; margin:0 auto; padding:0 28px}
+.top{display:flex; align-items:center; gap:12px; padding:22px 0}
+.logo{width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink);
+  font-family:var(--display); font-weight:800; font-size:.8rem; transform:rotate(-4deg); box-shadow:2px 2px 0 var(--peach); filter:var(--note-filter)}
+.top b{font-family:var(--display); font-size:1.08rem; letter-spacing:-.02em}
+.top .sp{flex:1}
+.theme{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); font-size:.78rem; font-weight:600; color:var(--ink-2)}
+.theme .ic{width:15px; height:15px}
+
+.hero{padding:44px 0 26px}
+.hero h1{font-family:var(--display); font-weight:700; letter-spacing:-.04em; font-size:clamp(2.6rem, 6.4vw, 5.2rem); line-height:.98; max-width:15ch; margin-top:16px}
+.hero p.lede{max-width:56ch; margin-top:22px; font-size:1.08rem; color:var(--ink-2)}
+.hero p.lede b{color:var(--ink)}
+.doodle{position:absolute; color:var(--ink-3); opacity:.6}
+
+.index{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:14px; margin:42px 0 20px}
+.ix{position:relative; display:flex; flex-direction:column; gap:6px; min-height:132px; padding:14px 13px 12px; border-radius:6px 14px 8px 12px; text-decoration:none; color:var(--note-ink);
+  background:var(--tc); filter:var(--note-filter); box-shadow:var(--sh-2); transform:rotate(var(--r)); transition:transform .3s var(--ease-spring), box-shadow .3s}
+.ix:hover{transform:rotate(0) translateY(-4px); box-shadow:var(--sh-3)}
+.ix::after{content:''; position:absolute; left:50%; top:-8px; width:44px; height:15px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.18)}
+.ix .n{font-family:var(--mono); font-size:.7rem; font-weight:600; opacity:.65}
+.ix .t{font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em; line-height:1.15}
+.ix .ic{margin-top:auto; width:22px; height:22px; opacity:.75}
+
+/* ---------- plates ------------------------------------------------------- */
+.sc{display:grid; grid-template-columns:minmax(0,.78fr) minmax(0,1.4fr); gap:56px; align-items:center; padding:92px 0; border-top:1.5px dashed var(--line-2); scroll-margin-top:10px}
+.sc.flip{grid-template-columns:minmax(0,1.4fr) minmax(0,.78fr)}
+.sc.flip > .copy{order:2}
+.copy{position:relative}
+.num{display:inline-grid; place-items:center; width:58px; height:58px; border-radius:6px 14px 8px 12px; background:var(--tc); color:var(--note-ink); filter:var(--note-filter);
+  font-family:var(--display); font-weight:800; font-size:1.5rem; letter-spacing:-.04em; transform:rotate(-4deg); box-shadow:var(--sh-2)}
+.copy .eyebrow{display:flex; margin-top:22px}
+.copy h2{font-family:var(--display); font-weight:700; letter-spacing:-.035em; font-size:clamp(1.9rem, 3.4vw, 2.75rem); line-height:1.04; margin-top:12px}
+.copy p{margin-top:16px; font-size:1.02rem; color:var(--ink-2); max-width:44ch}
+.caps{margin-top:20px; display:grid; gap:9px}
+.caps li{display:flex; gap:10px; align-items:flex-start; font-size:.9rem; color:var(--ink-2)}
+.caps li .ic{width:16px; height:16px; margin-top:3px; color:var(--mint-ink)}
+.replay{margin-top:26px}
+.replay .ic{transition:transform .5s var(--ease-spring)}
+.replay:hover .ic{transform:rotate(-200deg)}
+
+.stage{--hs:var(--tc); position:relative; border:1.5px solid var(--ink); border-radius:var(--r-lg); background:var(--card); box-shadow:7px 7px 0 var(--hs); overflow:hidden; min-width:0}
+.chrome{display:flex; align-items:center; gap:7px; height:40px; padding:0 14px; border-bottom:1.5px solid var(--line); background:var(--paper-2)}
+.chrome i{width:10px; height:10px; border-radius:50%; background:var(--line-2)}
+.chrome i:nth-child(1){background:var(--peach)} .chrome i:nth-child(2){background:var(--butter)} .chrome i:nth-child(3){background:var(--mint)}
+.chrome span{margin-left:10px; font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.chrome .rt{margin-left:auto; display:flex; gap:6px; align-items:center}
+.inner{position:relative; padding:22px; background:
+  radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--line-2) 70%, transparent) 1px, transparent 1.4px) 0 0/18px 18px, var(--paper)}
+
+/* shared bits inside stages */
+.card{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md); box-shadow:var(--sh-1)}
+.ink{border-color:var(--ink); box-shadow:4px 4px 0 var(--hs2, var(--butter))}
+.tape{position:absolute; top:-9px; left:50%; width:62px; height:17px; transform:translateX(-50%) rotate(-3deg); background:color-mix(in srgb, var(--butter) 78%, transparent); border-inline:1px dashed rgba(38,33,27,.18); z-index:2}
+.fld{display:grid; gap:4px; padding:9px 0; border-bottom:1.5px dashed var(--line-2)}
+.fld:last-child{border-bottom:0}
+.fld .v{min-height:1.5em; font-weight:500; font-size:.95rem}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip{padding:3px 10px; border-radius:999px; border:1.5px solid var(--line-2); font-size:.76rem; font-weight:600; color:var(--ink-2); background:var(--card); transition:all .25s var(--ease-spring)}
+.chip.on{border-color:var(--ink); background:var(--tc, var(--butter)); color:var(--note-ink); box-shadow:2px 2px 0 var(--ink); transform:translate(-1px,-1px)}
+.meter{height:8px; border-radius:6px; background:var(--paper-3); overflow:hidden; border:1px solid var(--line)}
+.meter i{display:block; height:100%; width:var(--w,0%); background:var(--mc, var(--mint-ink)); border-radius:6px; transition:width .6s var(--ease-out)}
+.toast{position:absolute; left:50%; bottom:18px; transform:translate(-50%, 16px); opacity:0; display:flex; align-items:center; gap:9px; padding:9px 15px; border-radius:999px;
+  background:var(--ink); color:var(--paper); font-size:.82rem; font-weight:600; box-shadow:3px 3px 0 var(--hs); white-space:nowrap; z-index:8;
+  transition:transform .45s var(--ease-spring), opacity .3s}
+.toast.in{transform:translate(-50%,0); opacity:1}
+.toast .ic{width:14px; height:14px; color:var(--mint)}
+
+/* ---------- 01 · charter + invite --------------------------------------- */
+.s1{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:22px; min-height:470px; align-items:start}
+.charter{position:relative; padding:22px 20px 16px; border-radius:6px 16px 10px 14px; background:var(--card); border:1.5px solid var(--ink); box-shadow:5px 5px 0 var(--butter); transform:rotate(-1.2deg); margin-top:8px}
+.charter.pre{transform:rotate(-1.2deg) translateY(14px)}
+.charter.pre.in{transform:rotate(-1.2deg)}
+.charter h3{font-family:var(--display); font-weight:700; font-size:1.25rem; letter-spacing:-.03em; margin:2px 0 6px}
+.charter .badge{position:absolute; top:16px; right:16px; width:46px; height:46px; border-radius:50%; display:grid; place-items:center; border:2px dashed var(--line-2); color:var(--ink-3); font-family:var(--display); font-weight:800; font-size:.9rem; transition:all .4s var(--ease-spring)}
+.charter .badge.on{border:2px solid var(--note-ink); background:var(--mint); color:var(--note-ink); transform:rotate(-8deg); box-shadow:2px 2px 0 var(--ink)}
+.charter .rubber{right:14px; bottom:60px; --st:var(--rose-ink)}
+.s1 .side{display:grid; gap:14px}
+.ticket{position:relative; display:flex; align-items:center; gap:10px; padding:12px 14px; background:var(--card); border:1.5px solid var(--ink); border-radius:14px; box-shadow:4px 4px 0 var(--sky)}
+.ticket::before,.ticket::after{content:''; position:absolute; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink)}
+.ticket::before{left:-8px; clip-path:inset(0 0 0 50%)} .ticket::after{right:-8px; clip-path:inset(0 50% 0 0)}
+.ticket .ic{color:var(--sky-ink)}
+.ticket .u{flex:1; min-width:0; font-family:var(--mono); font-size:.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ticket .btn.ok{--bg:var(--mint); --fg:var(--note-ink)}
+.rq-h{display:flex; align-items:center; gap:8px; font-weight:600; font-size:.9rem}
+.rq-h .n{font-family:var(--mono); font-size:.7rem; padding:1px 7px; border-radius:999px; background:var(--peach-soft); color:var(--peach-ink); border:1px solid var(--peach-bd)}
+.rq-h .left{margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--ink-3); font-weight:500}
+.reqs{display:grid; gap:10px; min-height:230px; align-content:start}
+.req{position:relative; display:flex; align-items:center; gap:11px; padding:11px 12px; background:var(--card); border:1.5px solid var(--line); border-radius:12px; box-shadow:var(--sh-1);
+  transform:translateX(30px) rotate(2deg); opacity:0; transition:transform .55s var(--ease-spring), opacity .35s, background .3s, border-color .3s}
+.req.in{transform:none; opacity:1}
+.req .who{flex:1; min-width:0; line-height:1.25}
+.req .who b{display:block; font-size:.88rem}
+.req .who span{font-size:.72rem; color:var(--ink-3)}
+.req .acts{display:flex; gap:6px}
+.req.ok{background:var(--mint-soft); border-color:var(--mint-bd)}
+.req.ok .acts{display:none}
+.req .done{display:none; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--mint-ink); align-items:center; gap:5px}
+.req.ok .done{display:inline-flex}
+.req .done .ic{width:12px; height:12px}
+.roster{display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:12px; border:1.5px dashed var(--line-2)}
+.roster .faces{display:flex}
+.roster .faces .avatar{margin-left:-7px; animation:pop .45s var(--ease-spring) both}
+.roster .faces .avatar:first-child{margin-left:0}
+.roster .n{font-family:var(--display); font-weight:700; font-size:1.4rem; letter-spacing:-.03em; margin-left:auto}
+.roster .n small{font-family:var(--sans); font-size:.72rem; color:var(--ink-3); font-weight:500; letter-spacing:0; margin-left:4px}
+
+/* ---------- 02 · event → timeline --------------------------------------- */
+.s2{display:grid; grid-template-columns:230px minmax(0,1fr); gap:20px; min-height:470px; align-items:start}
+.evf{position:relative; padding:16px 16px 14px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md); box-shadow:4px 4px 0 var(--lilac)}
+.evf .hd{display:flex; align-items:center; gap:8px; font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em; margin-bottom:4px}
+.evf .hd .ic{color:var(--lilac-ink)}
+.evf .v{font-size:.88rem}
+.evf .chip{font-size:.7rem; padding:2px 8px}
+.sw{display:flex; align-items:center; gap:9px; padding-top:10px; font-size:.82rem; color:var(--ink-2)}
+.sw i{position:relative; width:32px; height:18px; border-radius:999px; background:var(--line-2); border:1.5px solid var(--line-2); transition:all .3s}
+.sw i::after{content:''; position:absolute; top:1px; left:1px; width:13px; height:13px; border-radius:50%; background:var(--card); transition:transform .3s var(--ease-spring)}
+.sw.on i{background:var(--mint-ink); border-color:var(--mint-ink)}
+.sw.on i::after{transform:translateX(14px)}
+.evf .btn{width:100%; margin-top:12px}
+.cal{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md); box-shadow:var(--sh-1); overflow:hidden}
+.cal-h{display:flex; align-items:baseline; gap:10px; padding:12px 14px 10px; border-bottom:1.5px solid var(--line)}
+.cal-h b{font-family:var(--display); font-size:1.15rem; letter-spacing:-.025em}
+.cal-h span{font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.cal-g{display:grid; grid-template-columns:repeat(7, minmax(0,1fr))}
+.cal-g .dh{padding:6px 7px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; color:var(--ink-3); border-bottom:1px solid var(--line)}
+.cal-g .d{position:relative; min-height:62px; padding:5px 5px 4px; border-right:1px solid var(--paper-3); border-bottom:1px solid var(--paper-3); display:flex; flex-direction:column; gap:3px; min-width:0}
+.cal-g .d:nth-child(7n){border-right:0}
+.cal-g .d .n{font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.cal-g .d.x{background:var(--paper-2)}
+.cal-g .d.today .n{display:inline-grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--ink); color:var(--paper); font-weight:600}
+.cal-g .tk{display:block; padding:2px 4px; border-radius:5px; font-size:.58rem; font-weight:600; line-height:1.2; overflow:hidden;
+  background:var(--p-bg); color:var(--p-fg); border:1px solid var(--p-bd)}
+.cal-g .d.hit{animation:flash 1.4s var(--ease-out)}
+.cal-g .tk.new{background:var(--lilac); color:var(--note-ink); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--ink); animation:drop .7s var(--ease-spring) both}
+@keyframes drop{0%{transform:translate(-60px,-80px) rotate(-12deg) scale(1.5); opacity:0} 60%{opacity:1} 100%{transform:none; opacity:1}}
+.upnext{display:flex; align-items:center; gap:12px; margin-top:14px; padding:11px 14px; border-radius:12px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--lilac)}
+.upnext .dt{display:grid; place-items:center; width:44px; height:46px; border-radius:9px; background:var(--lilac); color:var(--note-ink); border:1.5px solid var(--ink); line-height:1; flex:none}
+.upnext .dt small{font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.08em}
+.upnext .dt b{font-family:var(--display); font-size:1.2rem}
+.upnext .w{flex:1; min-width:0}
+.upnext .w b{display:block; font-size:.92rem}
+.upnext .w span{font-size:.76rem; color:var(--ink-3)}
+
+/* ---------- 03 · live check-in ------------------------------------------ */
+.s3{display:grid; grid-template-columns:minmax(0,1fr) 186px; gap:20px; min-height:470px; align-items:start}
+.band{display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; background:var(--mint-soft); border:1.5px solid var(--mint-bd); transition:all .4s}
+.band .live{width:10px; height:10px; border-radius:50%; background:var(--mint-ink); animation:pulse 1.4s infinite}
+.band .t{flex:1; min-width:0; line-height:1.25}
+.band .t b{display:block; font-size:.92rem}
+.band .t span{font-size:.74rem; color:var(--ink-3)}
+.band .clock{font-family:var(--mono); font-size:.9rem; font-weight:600; color:var(--mint-ink)}
+.band.closed{background:var(--paper-2); border-color:var(--line-2)}
+.band.closed .live{background:var(--ink-3); animation:none}
+.band.closed .clock{color:var(--ink-3)}
+.count{display:flex; align-items:flex-end; gap:16px; margin:18px 2px 10px}
+.count .big{font-family:var(--display); font-weight:700; font-size:3.6rem; letter-spacing:-.05em; line-height:.85}
+.count .of{font-size:.9rem; color:var(--ink-2); padding-bottom:4px}
+.count .of b{color:var(--ink)}
+.legend{display:flex; gap:14px; margin:12px 2px 0; font-size:.72rem; color:var(--ink-3)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{width:10px; height:10px; border-radius:50%}
+.seats{display:grid; grid-template-columns:repeat(14, minmax(0,1fr)); gap:6px; margin-top:16px; padding:14px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line)}
+.seat{aspect-ratio:1; border-radius:50%; display:grid; place-items:center; font-size:.5rem; font-weight:700; color:var(--ink-3); border:1.5px dashed var(--line-2); transition:background .3s, border-color .3s, color .3s}
+.seat.here{background:var(--av); border:1.5px solid rgba(38,33,27,.1); color:var(--av-ink); animation:pop .4s var(--ease-spring)}
+.seat.ex{background:var(--butter-soft); border:1.5px solid var(--butter-bd); color:var(--butter-ink)}
+.seat.me{outline:2px solid var(--ink); outline-offset:2px}
+.seat.gone{border-color:var(--rose-ink); color:var(--rose-ink)}
+.s3 .rubber{left:36%; top:56%; --st:var(--mint-ink); --rot:-7deg; font-size:1.05rem}
+.phone{position:relative; width:186px; height:372px; border-radius:30px; border:2px solid var(--ink); background:var(--card); box-shadow:5px 5px 0 var(--mint); padding:34px 12px 14px; display:flex; flex-direction:column; gap:10px; transform:rotate(2deg)}
+.phone::before{content:''; position:absolute; top:11px; left:50%; width:54px; height:14px; transform:translateX(-50%); border-radius:999px; background:var(--ink)}
+.phone .ev{padding:10px; border-radius:12px; background:var(--lilac-soft); border:1px solid var(--lilac-bd)}
+.phone .ev b{display:block; font-size:.82rem; line-height:1.2}
+.phone .ev span{font-size:.66rem; color:var(--ink-3)}
+.phone .here-btn{margin-top:auto; height:92px; border-radius:20px; border:2px solid var(--ink); background:var(--mint); color:var(--note-ink); font-family:var(--display); font-weight:700; font-size:1.25rem; letter-spacing:-.02em; box-shadow:3px 3px 0 var(--ink); transition:all .2s var(--ease-spring)}
+.phone .here-btn.press{transform:translate(3px,3px); box-shadow:0 0 0 var(--ink)}
+.phone .rcpt{display:none; margin-top:auto; padding:14px 12px; border-radius:16px; background:var(--mint-soft); border:1.5px solid var(--mint-bd); text-align:center; animation:pop .45s var(--ease-spring)}
+.phone .rcpt .tick{width:38px; height:38px; margin:0 auto 6px; border-radius:50%; display:grid; place-items:center; background:var(--mint-ink); color:var(--card)}
+.phone .rcpt b{display:block; font-size:.9rem}
+.phone .rcpt span{font-size:.7rem; color:var(--ink-3)}
+.phone.done .here-btn{display:none}
+.phone.done .rcpt{display:block}
+.phone .who{font-size:.7rem; color:var(--ink-3); text-align:center}
+
+/* ---------- 04 · treasury ----------------------------------------------- */
+.s4{position:relative; min-height:430px}
+.tr-top{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px}
+.bal{padding:14px 16px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--ink); box-shadow:4px 4px 0 var(--mint)}
+.bal .v{font-family:var(--display); font-weight:700; font-size:2.3rem; letter-spacing:-.045em; line-height:1.05; margin-top:4px; font-variant-numeric:tabular-nums}
+.bal .v.bump{animation:flash 1.2s var(--ease-out); border-radius:8px}
+.bal .s{font-size:.74rem; color:var(--ink-3)}
+.dues{padding:14px 16px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1); display:grid; gap:8px; align-content:start}
+.dues .row{display:flex; align-items:baseline; gap:8px}
+.dues .row b{font-family:var(--display); font-size:1.3rem; letter-spacing:-.03em}
+.dues .row span{font-size:.78rem; color:var(--ink-3)}
+.dues .row .pct{margin-left:auto; font-family:var(--mono); font-size:.74rem; color:var(--mint-ink); font-weight:600}
+.tr-body{display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:14px; margin-top:14px}
+.led{border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1); overflow:hidden}
+.led-h{display:flex; align-items:center; padding:10px 14px; border-bottom:1.5px solid var(--line)}
+.led-h b{font-size:.86rem}
+.led-h .btn{margin-left:auto}
+.lrow{display:grid; grid-template-columns:44px minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:9px 14px; border-bottom:1px solid var(--paper-3); font-size:.82rem}
+.lrow:last-child{border-bottom:0}
+.lrow .d{font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.lrow .w{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.lrow .a{font-family:var(--mono); font-weight:600; font-size:.8rem; text-align:right; min-width:72px}
+.lrow .a.in{color:var(--mint-ink)}
+.lrow .pill{font-size:.64rem; padding:1px 7px}
+.lrow.new{animation:flash 1.6s var(--ease-out), rowin .5s var(--ease-spring)}
+@keyframes rowin{from{transform:translateY(-12px); opacity:0}}
+.owes{border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1); overflow:hidden}
+.owes .led-h .n{margin-left:auto; font-family:var(--mono); font-size:.7rem; padding:1px 7px; border-radius:999px; background:var(--peach-soft); color:var(--peach-ink); border:1px solid var(--peach-bd)}
+.ow{display:flex; align-items:center; gap:9px; padding:8px 12px; border-bottom:1px solid var(--paper-3); font-size:.82rem; transition:all .5s var(--ease-out); max-height:48px; overflow:hidden}
+.ow:last-child{border-bottom:0}
+.ow .a{margin-left:auto; font-family:var(--mono); font-size:.76rem; color:var(--peach-ink); font-weight:600}
+.ow.paid{text-decoration:line-through; text-decoration-thickness:2px; text-decoration-color:var(--mint-ink); color:var(--ink-3)}
+.ow.paid .a{color:var(--mint-ink)}
+.ow.gone{max-height:0; padding-top:0; padding-bottom:0; opacity:0; border-bottom-width:0}
+.ow.more{color:var(--ink-3); font-size:.74rem; justify-content:center}
+.sheet{position:absolute; left:50%; bottom:0; width:min(400px, 92%); transform:translate(-50%, 110%); padding:16px 18px 16px; border-radius:var(--r-lg) var(--r-lg) 0 0; background:var(--card); border:1.5px solid var(--ink); border-bottom:0; visibility:hidden;
+  transition:transform .55s var(--ease-spring), visibility 0s .55s; z-index:5}
+.sheet.in{transform:translate(-50%, 0); visibility:visible; box-shadow:0 -8px 30px -10px rgba(38,33,27,.3); transition:transform .55s var(--ease-spring)}
+.sheet .hd{display:flex; align-items:center; gap:8px; font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em; margin-bottom:4px}
+.sheet .hd .ic{color:var(--mint-ink)}
+.sheet .grab{width:40px; height:4px; border-radius:4px; background:var(--line-2); margin:0 auto 10px}
+.sheet .two{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.sheet .btn{width:100%; margin-top:12px; --hs:var(--mint)}
+.scrim{position:absolute; inset:0; background:rgba(38,33,27,.18); opacity:0; transition:opacity .35s; pointer-events:none; z-index:4}
+.scrim.in{opacity:1}
+
+/* ---------- 05 · meeting → minutes → tasks ------------------------------ */
+.s5{position:relative; display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:18px; min-height:500px; align-items:start}
+.tpls{grid-column:1 / -1; display:flex; align-items:flex-end; gap:4px; padding-left:8px; border-bottom:1.5px solid var(--ink); margin-bottom:-18px; position:relative; z-index:2}
+.tpl{padding:7px 14px 6px; border:1.5px solid var(--line-2); border-bottom:0; border-radius:10px 10px 0 0; background:var(--paper-2); font-size:.76rem; font-weight:600; color:var(--ink-3); transition:all .3s var(--ease-spring)}
+.tpl.on{background:var(--pad); color:var(--note-ink); border-color:var(--ink); padding-bottom:9px; margin-bottom:-1.5px; filter:var(--note-filter)}
+.tpls .k{margin-left:auto; padding-bottom:8px}
+.pad{position:relative; padding:18px 18px 18px 54px; border:1.5px solid var(--ink); border-top:0; border-radius:0 0 8px 8px; color:var(--note-ink); filter:var(--note-filter); min-height:440px;
+  background:linear-gradient(90deg, transparent 40px, var(--pad-margin) 40px, var(--pad-margin) 41.5px, transparent 41.5px),
+  repeating-linear-gradient(var(--pad) 0 25px, var(--pad-line) 25px 26px); background-color:var(--pad); box-shadow:var(--sh-2)}
+html[data-theme="dark"] .pad, html[data-theme="dark"] .tpl.on{color:var(--ink)}
+.pad .ph{display:flex; align-items:baseline; gap:10px; margin-bottom:6px; line-height:26px}
+.pad .ph b{font-family:var(--display); font-weight:700; font-size:1.1rem; letter-spacing:-.025em}
+.pad .ph span{font-family:var(--mono); font-size:.66rem; opacity:.65}
+.ag{margin:0; line-height:26px}
+.ag h4{font-family:var(--display); font-weight:600; font-size:.92rem; letter-spacing:-.015em; line-height:26px; opacity:0; transition:opacity .3s}
+.ag h4.in{opacity:1}
+.ag h4 em{font-style:normal; font-family:var(--mono); font-size:.66rem; opacity:.55; margin-right:6px}
+.ag p{font-size:.84rem; line-height:26px; min-height:0; padding-left:20px}
+.ag p.ai{display:flex; align-items:center; gap:7px; transition:background .4s; border-radius:5px; margin-left:-6px; padding-left:26px}
+.ag p.ai .box{width:13px; height:13px; border:1.5px solid currentColor; border-radius:3px; flex:none}
+.ag p.ai .at{font-weight:600; color:var(--lilac-ink)}
+.ag p.ai.lift{background:color-mix(in srgb, var(--lilac) 70%, transparent)}
+.tasks5{display:grid; gap:14px; padding-top:44px}
+.tasks5 .k{display:flex; align-items:center; gap:7px}
+.tasks5 .k .ic{width:13px; height:13px}
+.tcard{position:relative; padding:12px 13px; border-radius:12px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--lilac); opacity:0}
+.tcard.in{animation:peel .8s var(--ease-spring) both}
+@keyframes peel{0%{transform:translate(-160px, 30px) rotate(-8deg) scale(.9); opacity:0} 100%{transform:rotate(var(--r,1.5deg)); opacity:1}}
+.tcard b{display:block; font-size:.86rem; line-height:1.3}
+.tcard .m{display:flex; align-items:center; gap:7px; margin-top:8px; font-size:.72rem; color:var(--ink-3)}
+.tcard .m .pill{font-size:.62rem; padding:1px 7px}
+.tcard .src{display:block; margin-top:8px; padding-top:7px; border-top:1px dashed var(--line-2); font-family:var(--mono); font-size:.6rem; color:var(--ink-3)}
+
+/* ---------- 06 · tasks + roles ------------------------------------------ */
+.s6{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:18px; min-height:480px; align-items:start}
+.task6{padding:15px 16px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--ink); box-shadow:4px 4px 0 var(--peach)}
+.task6 .ttl{font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.02em; line-height:1.2}
+.task6 .meta{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.task6 .prog{display:flex; align-items:baseline; gap:8px; margin:14px 0 8px}
+.task6 .prog b{font-family:var(--display); font-size:1.5rem; letter-spacing:-.03em}
+.task6 .prog span{font-size:.78rem; color:var(--ink-3)}
+.mem{display:flex; align-items:center; gap:10px; padding:7px 2px; border-top:1px solid var(--paper-3); font-size:.84rem}
+.mem .cb{width:20px; height:20px; border-radius:6px; border:1.5px solid var(--line-2); display:grid; place-items:center; color:transparent; transition:all .3s var(--ease-spring); margin-left:auto}
+.mem .cb .ic{width:12px; height:12px}
+.mem.done .cb{background:var(--mint-ink); border-color:var(--mint-ink); color:var(--card); transform:scale(1.1)}
+.mem.done .nm{color:var(--ink-3)}
+.mem .when{font-family:var(--mono); font-size:.62rem; color:var(--ink-3); opacity:0; transition:opacity .3s}
+.mem.done .when{opacity:1}
+.task6 .more{padding-top:8px; border-top:1px solid var(--paper-3); font-size:.74rem; color:var(--ink-3)}
+.roles{padding:15px 16px; border-radius:var(--r-md); background:var(--card); border:1.5px solid var(--line); box-shadow:var(--sh-1)}
+.roles .hd{display:flex; align-items:center; gap:8px; font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em}
+.roles .hd .ic{color:var(--butter-ink)}
+.role{padding:10px 0; border-top:1.5px dashed var(--line-2)}
+.role:first-of-type{margin-top:8px}
+.role .rt{display:flex; align-items:center; gap:8px}
+.role .rt b{font-size:.86rem}
+.role .slot{margin-left:auto; display:flex; align-items:center; gap:6px; min-height:28px; min-width:110px; justify-content:flex-end}
+.role .slot.empty::before{content:'Unfilled'; font-size:.7rem; color:var(--ink-3); padding:3px 10px; border-radius:999px; border:1.5px dashed var(--line-2)}
+.role .slot.empty:has(.mchip)::before{display:none}
+.mchip{display:inline-flex; align-items:center; gap:6px; padding:2px 10px 2px 2px; border-radius:999px; background:var(--paper-2); border:1.5px solid var(--line); font-size:.76rem; font-weight:600; position:relative; z-index:3}
+.mchip.hot{border-color:var(--ink); box-shadow:2px 2px 0 var(--butter); background:var(--card)}
+.keys{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px}
+.key{display:inline-flex; align-items:center; gap:4px; padding:1px 8px; border-radius:6px; font-family:var(--mono); font-size:.62rem; font-weight:600; border:1px solid var(--line); color:var(--ink-3); background:var(--paper-2); transition:all .35s var(--ease-spring)}
+.key .ic{width:10px; height:10px}
+.key.on{background:var(--butter); color:var(--note-ink); border-color:var(--ink); box-shadow:1.5px 1.5px 0 var(--ink); transform:translateY(-1px)}
+.mininav{margin-top:14px; padding:10px; border-radius:12px; background:var(--paper-2); border:1.5px solid var(--line)}
+.mininav .k{display:block; margin-bottom:6px}
+.mn{display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:8px; font-size:.82rem; color:var(--ink-2)}
+.mn .ic{width:15px; height:15px}
+.mn .lk{margin-left:auto; color:var(--ink-3); width:13px; height:13px}
+.mn.locked{opacity:.5}
+.mn.unlock{opacity:1; background:var(--card); border:1.5px solid var(--ink); box-shadow:2px 2px 0 var(--butter); color:var(--ink); animation:pop .5s var(--ease-spring)}
+.mn.unlock .lk{color:var(--mint-ink)}
+
+/* ---------- 07 · ask chapt ---------------------------------------------- */
+.s7{position:relative; min-height:560px; display:grid; place-items:start center}
+.spot{width:100%; max-width:640px; border-radius:var(--r-lg); background:var(--card); border:1.5px solid var(--ink); box-shadow:6px 6px 0 var(--lilac); overflow:hidden}
+.sp-bar{display:flex; align-items:center; gap:9px; padding:11px 14px; border-bottom:1.5px solid var(--line)}
+.sp-bar .spark{width:22px; height:22px; border-radius:7px; display:grid; place-items:center; background:var(--lilac); color:var(--note-ink); border:1.5px solid var(--ink)}
+.sp-bar .spark .ic{width:12px; height:12px}
+.sp-bar b{font-size:.88rem}
+.sp-bar .tab{margin-left:auto; font-size:.74rem; color:var(--ink-3); display:flex; gap:12px}
+.sp-bar .tab span:first-child{color:var(--ink); font-weight:600}
+.sp-body{padding:16px 18px; min-height:420px}
+.q{display:flex; justify-content:flex-end}
+.q span{max-width:85%; padding:9px 14px; border-radius:16px 16px 4px 16px; background:var(--ink); color:var(--paper); font-size:.88rem}
+.ledger7{position:relative; margin-top:14px; padding-left:22px}
+.ledger7::before{content:''; position:absolute; left:6px; top:6px; bottom:6px; width:2px; background:var(--lilac-bd); border-radius:2px}
+.step{position:relative; padding:4px 0 8px; opacity:0; transform:translateY(6px); transition:all .4s var(--ease-spring)}
+.step.in{opacity:1; transform:none}
+.step::before{content:''; position:absolute; left:-21px; top:9px; width:12px; height:12px; border-radius:50%; border:2px solid var(--lilac-ink); background:var(--card)}
+.step.act::before{border-top-color:transparent; animation:spin .7s linear infinite}
+.step.ok::before{background:var(--lilac-ink); border-color:var(--lilac-ink)}
+.step .s{font-size:.84rem; color:var(--ink-2)}
+.step .f{display:inline-block; margin-top:3px; font-family:var(--mono); font-size:.72rem; padding:1px 7px; border-radius:5px; opacity:0; transition:opacity .3s}
+.step.ok .f{opacity:1; animation:flash 1.2s var(--ease-out)}
+.consulted{display:flex; gap:6px; align-items:center; margin:2px 0 4px 22px; opacity:0; transition:opacity .4s}
+.consulted.in{opacity:1}
+.consulted .k{margin-right:2px}
+.trace{display:none; margin-top:12px; align-items:center; gap:8px; font-size:.74rem; color:var(--ink-3); padding:6px 10px; border-radius:999px; border:1.5px dashed var(--line-2); width:max-content}
+.trace .ic{width:13px; height:13px; color:var(--lilac-ink)}
+.s7.folded .ledger7, .s7.folded .consulted{display:none}
+.s7.folded .trace{display:flex}
+.verdict{margin-top:14px; font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.025em; line-height:1.25; opacity:0; transition:opacity .4s}
+.verdict.in{opacity:1}
+.verdict.in .hi::before{--mx:1}
+.ans{margin-top:12px; border-radius:12px; border:1.5px solid var(--line); overflow:hidden}
+.arow{display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:9px 12px; border-bottom:1px solid var(--paper-3); font-size:.84rem; opacity:0; transform:translateX(-8px); transition:all .4s var(--ease-spring)}
+.arow:last-child{border-bottom:0}
+.arow.in{opacity:1; transform:none}
+.arow .a{font-family:var(--mono); font-size:.72rem}
+.writ{position:relative; margin-top:16px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-md); box-shadow:5px 5px 0 var(--butter); opacity:0; transform:translateY(12px); transition:all .5s var(--ease-spring)}
+.writ.in{opacity:1; transform:none}
+.wh{display:flex; align-items:center; gap:10px; padding:12px 15px 8px}
+.wtag{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; padding:3px 8px; border-radius:5px; background:var(--ink); color:var(--paper)}
+.wh .what{font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em}
+.wb{padding:0 15px 4px}
+.wrow{display:grid; grid-template-columns:76px minmax(0,1fr); gap:12px; padding:7px 0; border-top:1px solid var(--paper-3); font-size:.84rem}
+.wrow:first-child{border-top:1.5px solid var(--line)}
+.wrow .wk{font-size:.74rem; color:var(--ink-3)}
+.wrow .msg{color:var(--ink-2); font-size:.82rem}
+.permline{display:flex; align-items:center; gap:6px; padding:2px 15px 10px; font-size:.74rem; color:var(--ink-3)}
+.permline .ic{width:12px; height:12px; color:var(--mint-ink)}
+.permline b{color:var(--ink-2)}
+.wfoot{position:relative; display:flex; align-items:center; gap:8px; padding:11px 15px; border-top:1.5px dashed var(--line-2)}
+.wfoot::before,.wfoot::after{content:''; position:absolute; top:-9px; width:16px; height:16px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink)}
+.wfoot::before{left:-9px; clip-path:inset(0 0 0 50%)} .wfoot::after{right:-9px; clip-path:inset(0 50% 0 0)}
+.settled{display:none; align-items:center; gap:10px; padding:11px 15px; border-top:1.5px dashed var(--line-2); background:var(--mint-soft); border-radius:0 0 14px 14px; font-size:.82rem}
+.settled .tk{width:20px; height:20px; border-radius:50%; background:var(--mint-ink); color:var(--card); display:grid; place-items:center; flex:none}
+.settled .tk .ic{width:11px; height:11px}
+.settled .st{margin-left:auto; font-family:var(--mono); font-size:.64rem; color:var(--ink-3); white-space:nowrap}
+.writ.done .wfoot{display:none}
+.writ.done .settled{display:flex}
+.writ .rubber{right:18px; top:10px}
+.composer{display:flex; align-items:center; gap:10px; margin:0 14px 14px; padding:8px 8px 8px 14px; border-radius:14px; border:1.5px solid var(--line-2); background:var(--paper-2)}
+.composer .in{flex:1; min-width:0; font-size:.9rem; color:var(--ink-3); white-space:nowrap; overflow:hidden}
+.composer .in.has{color:var(--ink)}
+.composer .send{width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:var(--ink); color:var(--paper); border:0}
+.composer .send .ic{width:15px; height:15px}
+.composer kbd{font-family:var(--mono); font-size:.66rem; border:1px solid var(--line-2); border-radius:6px; padding:1px 6px; color:var(--ink-3); background:var(--card)}
+
+/* ---------- close ------------------------------------------------------- */
+.close{padding:110px 0 120px; border-top:1.5px dashed var(--line-2); text-align:center}
+.close h2{font-family:var(--display); font-weight:700; letter-spacing:-.04em; font-size:clamp(2.2rem, 5vw, 4rem); line-height:1}
+.close p{margin:18px auto 0; max-width:48ch; color:var(--ink-2); font-size:1.05rem}
+.close .btn{margin-top:28px; padding:13px 24px; font-size:.95rem}
+.close .row{display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:30px}
+
+/* ---------- responsive -------------------------------------------------- */
+@media (max-width:1100px){
+  .index{grid-template-columns:repeat(4, minmax(0,1fr))}
+  .sc{grid-template-columns:minmax(0,1fr); gap:34px; padding:72px 0}
+  .sc.flip{grid-template-columns:minmax(0,1fr)}
+  .sc.flip > .copy{order:0}
+  .copy p{max-width:60ch}
+}
+@media (max-width:720px){
+  .wrap{padding:0 16px}
+  .index{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .inner{padding:14px}
+  .s1,.s2,.s3,.s6,.tr-top,.tr-body{grid-template-columns:minmax(0,1fr)}
+  .s3 .phone{display:none}
+  .s5{grid-template-columns:minmax(0,1fr)}
+  .tasks5{padding-top:0}
+  .seats{grid-template-columns:repeat(7, minmax(0,1fr))}
+  .cal-g .d{min-height:50px}
+  .cal-g .tk{font-size:.54rem; padding:1px 3px}
+  .lrow{grid-template-columns:38px minmax(0,1fr) auto}
+  .lrow .pill{display:none}
+  .stage{box-shadow:4px 4px 0 var(--hs)}
+  .chrome span{max-width:44vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .tpls .k{display:none}
+  .tpl{padding:6px 9px 5px; font-size:.7rem}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001s !important; transition-duration:.001s !important}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+  <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.3-1.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-squiggle" viewBox="0 0 120 24"><path d="M2 14c10-12 18 10 28 0s18-12 28 0 18 10 28 0 18-10 32-2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <span class="logo">C</span><b>ChaptOS</b>
+    <span class="sp"></span>
+    <button class="theme" id="theme"><svg class="ic"><use href="#d-moon"/></svg><span>Night</span></button>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow" style="--eb:var(--lilac-ink)">Launch reel · seven plates</span>
+    <h1>Seven things every student org <span class="hi">runs on</span>.</h1>
+    <p class="lede">One club, start to finish. <b>Hilltop Robotics</b> charters on a Tuesday, has 42 members by October, and never opens a spreadsheet. Every plate plays when you reach it, and each one picks up where the last left off.</p>
+    <nav class="index" aria-label="Plates">
+      <a class="ix t-butter" style="--r:-2deg" href="#p1"><span class="n">01</span><span class="t">Set up + invite</span><svg class="ic"><use href="#d-link"/></svg></a>
+      <a class="ix t-lilac" style="--r:1.5deg" href="#p2"><span class="n">02</span><span class="t">Event → Timeline</span><svg class="ic"><use href="#d-cal"/></svg></a>
+      <a class="ix t-mint" style="--r:-1deg" href="#p3"><span class="n">03</span><span class="t">Live check-in</span><svg class="ic"><use href="#d-hand"/></svg></a>
+      <a class="ix t-peach" style="--r:2deg" href="#p4"><span class="n">04</span><span class="t">Treasury + dues</span><svg class="ic"><use href="#d-wallet"/></svg></a>
+      <a class="ix t-sky" style="--r:-1.6deg" href="#p5"><span class="n">05</span><span class="t">Minutes → action items</span><svg class="ic"><use href="#d-gavel"/></svg></a>
+      <a class="ix t-rose" style="--r:1deg" href="#p6"><span class="n">06</span><span class="t">Tasks + roles</span><svg class="ic"><use href="#d-key"/></svg></a>
+      <a class="ix t-lilac" style="--r:-2.2deg" href="#p7"><span class="n">07</span><span class="t">Ask Chapt</span><svg class="ic"><use href="#d-spark"/></svg></a>
+    </nav>
+  </section>
+
+  <!-- 01 ----------------------------------------------------------------- -->
+  <section class="sc t-butter" id="p1">
+    <div class="copy">
+      <span class="num">01</span>
+      <span class="eyebrow" style="--eb:var(--butter-ink)">Day one · about a minute</span>
+      <h2>Charter it in a minute. Let people <span class="hi">ask to join</span>.</h2>
+      <p>Name the org, pick what you track, and share one link in the group chat. Nobody lands on the roster until an officer says yes.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>The org type sets up roles and pages for you</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>One invite link and no typing names in by hand</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Approve or decline, and the seat count stays honest</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/create</span></div>
+      <div class="inner"><div class="s1">
+        <div class="charter pre" data-k="charter">
+          <span class="tape"></span>
+          <span class="badge" data-k="badge">HR</span>
+          <span class="k">Charter · No. 0417</span>
+          <h3>Start an org</h3>
+          <div class="fld"><span class="k">Name</span><span class="v" data-k="name"></span></div>
+          <div class="fld"><span class="k">Kind</span>
+            <div class="chips" data-k="kind"><span class="chip">Club</span><span class="chip">Team</span><span class="chip">Society</span><span class="chip">Greek</span><span class="chip">Council</span></div></div>
+          <div class="fld"><span class="k">Term</span><span class="v" data-k="term"></span></div>
+          <div class="fld"><span class="k">Keep track of</span>
+            <div class="chips" data-k="tracks"><span class="chip t-mint">Attendance</span><span class="chip t-peach">Dues</span><span class="chip t-lilac">Events</span><span class="chip t-sky">Tasks</span><span class="chip t-rose">Minutes</span></div></div>
+          <span class="rubber" data-k="stamp">Chartered<small>Oct 8 · 2026</small></span>
+        </div>
+        <div class="side">
+          <div class="ticket pre" data-k="ticket">
+            <svg class="ic"><use href="#d-link"/></svg>
+            <span class="u">chapt.os/join/hilltop-7k2q</span>
+            <button class="btn btn--sm" data-k="copy" style="--hs:var(--sky)"><svg class="ic"><use href="#d-copy"/></svg><span>Copy</span></button>
+          </div>
+          <div class="rq-h pre" data-k="rqh">Join requests <span class="n" data-k="rqn">0</span><span class="left" data-k="seats">39 seats left</span></div>
+          <ul class="reqs" data-k="reqs"></ul>
+          <div class="roster pre" data-k="roster">
+            <span class="faces" data-k="faces"></span>
+            <span class="k">On the roster</span>
+            <span class="n" data-k="rn">1<small>member</small></span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 02 ----------------------------------------------------------------- -->
+  <section class="sc flip t-lilac" id="p2">
+    <div class="copy">
+      <span class="num">02</span>
+      <span class="eyebrow" style="--eb:var(--lilac-ink)">Events · one calendar</span>
+      <h2>Add it once. It's on <span class="hi" style="--mark:var(--lilac)">everyone's Timeline</span>.</h2>
+      <p>Meetings, socials, service days and build nights all live on one shared calendar, colour-coded by kind. Switch on attendance and the check-in is ready before the night starts.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>Event kinds that fit your org, not a fixed list</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Every member sees the same calendar</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Required events track attendance automatically</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/hilltop/timeline</span></div>
+      <div class="inner"><div class="s2">
+        <div class="evf pre" data-k="form">
+          <div class="hd"><svg class="ic"><use href="#d-plus"/></svg>New event</div>
+          <div class="fld"><span class="k">Title</span><span class="v" data-k="title"></span></div>
+          <div class="fld"><span class="k">When</span><span class="v" data-k="when"></span></div>
+          <div class="fld"><span class="k">Where</span><span class="v" data-k="where"></span></div>
+          <div class="fld"><span class="k">Kind</span>
+            <div class="chips" data-k="kind"><span class="chip t-lilac">Meeting</span><span class="chip t-peach">Social</span><span class="chip t-mint">Service</span><span class="chip t-sky">Build</span></div></div>
+          <div class="sw" data-k="att"><i></i>Take attendance</div>
+          <button class="btn" data-k="add"><svg class="ic"><use href="#d-cal"/></svg>Add to Timeline</button>
+        </div>
+        <div>
+          <div class="cal pre" data-k="cal">
+            <div class="cal-h"><b>October</b><span>2026 · 7 events</span></div>
+            <div class="cal-g" data-k="grid"></div>
+          </div>
+          <div class="upnext pre" data-k="up">
+            <span class="dt"><small>THU</small><b>15</b></span>
+            <span class="w"><b>General Meeting</b><span>7:00 PM · Eng Hall 204 · attendance on</span></span>
+            <span class="pill t-lilac"><span class="dot"></span>Meeting</span>
+          </div>
+        </div>
+      </div>
+      <div class="toast" data-k="toast"><svg class="ic"><use href="#d-check"/></svg>On the Timeline for all 42 members</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 ----------------------------------------------------------------- -->
+  <section class="sc t-mint" id="p3">
+    <div class="copy">
+      <span class="num">03</span>
+      <span class="eyebrow" style="--eb:var(--mint-ink)">Attendance · live</span>
+      <h2>Roll call that <span class="hi" style="--mark:var(--mint)">takes itself</span>.</h2>
+      <p>Open check-in and members tap <b>I'm here</b> on their phones. Excused absences are counted, you can see who's missing, and the result is recorded when you close it.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>No paper sheet and no Google Form</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Approved excuses don't count against anyone</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Rates go straight to each member's record</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/hilltop · check-in</span></div>
+      <div class="inner"><div class="s3">
+        <div>
+          <div class="band" data-k="band">
+            <span class="live"></span>
+            <span class="t"><b data-k="bt">Check-in open · General Meeting</b><span>Thu Oct 15 · Eng Hall 204</span></span>
+            <span class="clock" data-k="clock">59:58</span>
+            <button class="btn btn--sm" data-k="close" style="--hs:var(--mint)">Close &amp; record</button>
+          </div>
+          <div class="count">
+            <span class="big" data-k="n">0</span>
+            <span class="of">here of <b>40</b> expected<br><span style="color:var(--ink-3)">42 members · 2 excused</span></span>
+          </div>
+          <div class="meter" style="--mc:var(--mint-ink)"><i data-k="m"></i></div>
+          <div class="seats" data-k="seats"></div>
+          <div class="legend">
+            <span><i style="background:var(--mint-ink)"></i>Here</span>
+            <span><i style="background:var(--butter)"></i>Excused</span>
+            <span><i style="border:1.5px dashed var(--line-2)"></i>Not yet</span>
+          </div>
+        </div>
+        <div class="phone" data-k="phone">
+          <div class="ev"><b>General Meeting</b><span>Eng Hall 204 · open now</span></div>
+          <div class="who">Signed in as Jordan Lee</div>
+          <button class="here-btn" data-k="here">I'm here</button>
+          <div class="rcpt"><div class="tick"><svg class="ic"><use href="#d-check"/></svg></div><b>You're checked in</b><span>7:02 PM · undo</span></div>
+        </div>
+        <span class="rubber" data-k="stamp">Recorded<small>38 of 40 · 95%</small></span>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 04 ----------------------------------------------------------------- -->
+  <section class="sc flip t-peach" id="p4">
+    <div class="copy">
+      <span class="num">04</span>
+      <span class="eyebrow" style="--eb:var(--peach-ink)">Treasury · dues</span>
+      <h2>Know who owes, <span class="hi" style="--mark:var(--peach)">no spreadsheet</span>.</h2>
+      <p>Every dollar in and out goes into one ledger. Log a payment and the balance, the dues meter and the who-owes list all update together.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>Categories that fit your org, like parts, sponsors and pizza</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Dues collected vs. billed, always current</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Open books so members can see where money went</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/hilltop/treasury</span></div>
+      <div class="inner"><div class="s4">
+        <div class="tr-top">
+          <div class="bal"><span class="k">Balance</span><div class="v" data-k="bal">$4,812.50</div><span class="s">Fall 2026 · as of today</span></div>
+          <div class="dues">
+            <span class="k">Fall dues · $75 each</span>
+            <div class="row"><b data-k="col">$2,325</b><span>of $3,000</span><span class="pct" data-k="pct">78%</span></div>
+            <div class="meter"><i data-k="dm" style="--w:77.5%"></i></div>
+          </div>
+        </div>
+        <div class="tr-body">
+          <div class="led">
+            <div class="led-h"><b>Ledger · October</b><button class="btn btn--sm" data-k="log" style="--hs:var(--mint)"><svg class="ic"><use href="#d-plus"/></svg>Log payment</button></div>
+            <div data-k="rows">
+              <div class="lrow"><span class="d">Oct 7</span><span class="w">Arcadia Labs sponsorship</span><span class="pill t-sky">Sponsor</span><span class="a in">+$500.00</span></div>
+              <div class="lrow"><span class="d">Oct 5</span><span class="w">Servo motors × 6</span><span class="pill t-lilac">Parts</span><span class="a">−$186.40</span></div>
+              <div class="lrow"><span class="d">Oct 3</span><span class="w">Dues · Kenji Mori</span><span class="pill t-mint">Dues</span><span class="a in">+$75.00</span></div>
+              <div class="lrow"><span class="d">Oct 2</span><span class="w">Pizza · build night</span><span class="pill t-peach">Food</span><span class="a">−$64.18</span></div>
+            </div>
+          </div>
+          <div class="owes">
+            <div class="led-h"><b>Who owes</b><span class="n" data-k="on">9</span></div>
+            <div class="ow" data-k="maya"><span class="avatar avatar--sm" style="--av:var(--rose)">ML</span>Maya Lin<span class="a">$75</span></div>
+            <div class="ow"><span class="avatar avatar--sm" style="--av:var(--sky)">TG</span>Theo Grant<span class="a">$75</span></div>
+            <div class="ow"><span class="avatar avatar--sm" style="--av:var(--butter)">SO</span>Sam Okafor<span class="a">$75</span></div>
+            <div class="ow"><span class="avatar avatar--sm" style="--av:var(--mint)">LF</span>Lena Fischer<span class="a">$75</span></div>
+            <div class="ow"><span class="avatar avatar--sm" style="--av:var(--peach)">OH</span>Omar Haddad<span class="a">$75</span></div>
+            <div class="ow more" data-k="more">+ 4 more</div>
+          </div>
+        </div>
+        <div class="scrim" data-k="scrim"></div>
+        <div class="sheet" data-k="sheet">
+          <div class="grab"></div>
+          <div class="hd"><svg class="ic"><use href="#d-receipt"/></svg>Log a payment</div>
+          <div class="two">
+            <div class="fld"><span class="k">From</span><span class="v" data-k="from"></span></div>
+            <div class="fld"><span class="k">Amount</span><span class="v mono" data-k="amt"></span></div>
+          </div>
+          <div class="fld"><span class="k">Category</span>
+            <div class="chips" data-k="cat"><span class="chip t-mint">Dues</span><span class="chip t-sky">Sponsor</span><span class="chip t-lilac">Parts</span><span class="chip t-peach">Food</span></div></div>
+          <button class="btn" data-k="save"><svg class="ic"><use href="#d-check"/></svg>Save to ledger</button>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 05 ----------------------------------------------------------------- -->
+  <section class="sc t-sky" id="p5">
+    <div class="copy">
+      <span class="num">05</span>
+      <span class="eyebrow" style="--eb:var(--sky-ink)">Meetings · minutes</span>
+      <h2>Minutes that <span class="hi" style="--mark:var(--sky)">turn into work</span>.</h2>
+      <p>Start from your org's agenda template and take notes as the meeting goes. Every action item you write becomes a task with an owner and a due date.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>Shared templates for weekly meetings, exec board and elections</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Attendance comes from the check-in</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>@mention someone and the task is theirs</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/hilltop/chapter · minutes</span></div>
+      <div class="inner"><div class="s5">
+        <div class="tpls">
+          <span class="tpl" data-t="0">Weekly GM</span><span class="tpl" data-t="1">Exec board</span><span class="tpl" data-t="2">Election night</span>
+          <span class="k">Agenda templates</span>
+        </div>
+        <div class="pad">
+          <div class="ph"><b>General Meeting</b><span>THU OCT 15 · 38 HERE</span></div>
+          <div class="ag" data-k="ag"></div>
+        </div>
+        <div class="tasks5">
+          <span class="k"><svg class="ic"><use href="#d-box"/></svg>Became tasks</span>
+          <div class="tcard" data-k="t1" style="--r:1.6deg">
+            <b>Book Eng Hall for the spring showcase</b>
+            <div class="m"><span class="avatar avatar--sm" style="--av:var(--lilac)">JL</span>Jordan Lee<span class="pill t-peach">Fri Oct 16</span></div>
+            <span class="src">from General Meeting · Oct 15</span>
+          </div>
+          <div class="tcard" data-k="t2" style="--r:-1.4deg">
+            <b>Post the regionals carpool sheet</b>
+            <div class="m"><span class="avatar avatar--sm" style="--av:var(--butter)">AR</span>Ana Ruiz<span class="pill t-sky">Mon Oct 19</span></div>
+            <span class="src">from General Meeting · Oct 15</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 06 ----------------------------------------------------------------- -->
+  <section class="sc flip t-rose" id="p6">
+    <div class="copy">
+      <span class="num">06</span>
+      <span class="eyebrow" style="--eb:var(--rose-ink)">Tasks · roles</span>
+      <h2>Everyone does their part. <span class="hi" style="--mark:var(--rose)">Roles</span> hand out the keys.</h2>
+      <p>Assign a task to everyone and each member checks off their own. Give someone a role and the pages that come with it unlock, with no per-person permission settings.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>"Everyone, each" tasks track every member's part</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Roles carry permissions, and people carry roles</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Hand over a role at elections and access follows it</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/hilltop/tasks</span></div>
+      <div class="inner"><div class="s6">
+        <div class="task6 pre" data-k="task">
+          <div class="ttl">Sign the regionals travel waiver</div>
+          <div class="meta"><span class="pill t-rose"><span class="dot"></span>Everyone · each</span><span class="pill t-butter">Due Fri Oct 23</span></div>
+          <div class="prog"><b data-k="tn">0</b><span>of 42 signed</span></div>
+          <div class="meter" style="--mc:var(--rose-ink)"><i data-k="tm"></i></div>
+          <div data-k="mems" style="margin-top:10px"></div>
+          <div class="more">+ 35 more members, each with their own checkbox</div>
+        </div>
+        <div>
+          <div class="roles pre" data-k="roles">
+            <div class="hd"><svg class="ic"><use href="#d-key"/></svg>Roles</div>
+            <div class="role"><div class="rt"><b>President</b><span class="slot"><span class="mchip"><span class="avatar avatar--sm" style="--av:var(--butter)">AR</span>Ana</span></span></div>
+              <div class="keys"><span class="key on">Everything</span></div></div>
+            <div class="role"><div class="rt"><b>Treasurer</b><span class="slot empty" data-k="tslot"></span></div>
+              <div class="keys" data-k="tkeys"><span class="key"><svg class="ic"><use href="#d-wallet"/></svg>Treasury</span><span class="key"><svg class="ic"><use href="#d-receipt"/></svg>Dues</span><span class="key"><svg class="ic"><use href="#d-send"/></svg>Reminders</span></div></div>
+            <div class="role"><div class="rt"><b>Secretary</b><span class="slot"><span class="mchip"><span class="avatar avatar--sm" style="--av:var(--mint)">KM</span>Kenji</span></span></div>
+              <div class="keys"><span class="key on">Minutes</span><span class="key on">Attendance</span></div></div>
+            <div class="role"><div class="rt"><b>Member</b><span class="slot" data-k="mslot"><span class="mchip" data-k="priya"><span class="avatar avatar--sm" style="--av:var(--peach)">PS</span>Priya</span><span class="k">+38</span></span></div></div>
+          </div>
+          <div class="mininav pre" data-k="nav">
+            <span class="k">Priya's sidebar</span>
+            <div class="mn"><svg class="ic"><use href="#d-home"/></svg>Dashboard</div>
+            <div class="mn"><svg class="ic"><use href="#d-timeline"/></svg>Timeline</div>
+            <div class="mn locked" data-k="tre"><svg class="ic"><use href="#d-wallet"/></svg>Treasury<svg class="ic lk" data-k="lk"><use href="#d-lock"/></svg></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 07 ----------------------------------------------------------------- -->
+  <section class="sc t-lilac" id="p7">
+    <div class="copy">
+      <span class="num">07</span>
+      <span class="eyebrow" style="--eb:var(--lilac-ink)">Ask Chapt · ⌘K</span>
+      <h2>Ask your org <span class="hi" style="--mark:var(--lilac)">anything</span>.</h2>
+      <p>Ask in plain English and get answers from your own records, with the working shown. When it suggests a change, someone with the right role approves it before anything happens.</p>
+      <ul class="caps">
+        <li><svg class="ic"><use href="#d-check"/></svg>Reads dues, attendance, events and tasks together</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Shows which records it checked</li>
+        <li><svg class="ic"><use href="#d-check"/></svg>Drafts the follow-up, and a person approves it</li>
+      </ul>
+      <button class="btn btn--ghost btn--sm replay" data-replay><svg class="ic"><use href="#d-refresh"/></svg>Replay</button>
+    </div>
+    <div class="stage">
+      <div class="chrome"><i></i><i></i><i></i><span>chapt.os/hilltop · ⌘K</span></div>
+      <div class="inner"><div class="s7" data-k="s7">
+        <div class="spot">
+          <div class="sp-bar"><span class="spark"><svg class="ic"><use href="#d-spark"/></svg></span><b>Ask Chapt</b><span class="tab"><span>Ask</span><span>Approvals</span></span></div>
+          <div class="sp-body" data-k="body"></div>
+          <div class="composer"><span class="in" data-k="cin">Ask about dues, attendance, events…</span><kbd>⌘K</kbd><button class="send" aria-label="Send"><svg class="ic"><use href="#d-send"/></svg></button></div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="close">
+    <span class="eyebrow" style="--eb:var(--peach-ink)">For every student org</span>
+    <h2 style="margin-top:14px">Set up in a minute.<br><span class="hi">Run it all year.</span></h2>
+    <p>Clubs, teams, councils, societies and chapters: one place for the roster, the calendar, the money, the meetings and the questions.</p>
+    <div class="row">
+      <span class="pill t-butter">Invite + approve</span><span class="pill t-lilac">Timeline</span><span class="pill t-mint">Live check-in</span><span class="pill t-peach">Treasury</span><span class="pill t-sky">Minutes → tasks</span><span class="pill t-rose">Roles</span><span class="pill t-lilac">Ask Chapt</span>
+    </div>
+    <button class="btn" style="--hs:var(--butter)" onclick="scrollTo({top:0,behavior:'smooth'})">Watch from the top<svg class="ic"><use href="#d-arrow-r"/></svg></button>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var STOP = {};
+  var PAL = ["lilac", "peach", "mint", "butter", "sky", "rose"];
+  var NAMES = ["Ana Ruiz","Dev Patel","Kenji Mori","Priya Shah","Jordan Lee","Maya Lin","Theo Grant","Sam Okafor","Lena Fischer","Omar Haddad","Chloe Martin","Ravi Iyer","Zoe Carter","Luis Mendoza","Hana Kim","Ethan Brooks","Aisha Bello","Noah Weiss","Isla Murphy","Mateo Rossi","Grace Wu","Leo Novak","Nadia Rahman","Owen Price","Sofia Alvarez","Ben Adler","Mira Joshi","Caleb Young","Yara Saleh","Finn O'Neil","Elena Petrova","Jamal Reed","Tara Singh","Hugo Laurent","Ivy Chen","Marcus Hill","Lila Torres","Arjun Nair","Rosa Diaz","Kai Tanaka","Freya Lund","Dante Cole"];
+  function ini(n) { return n.split(" ").map(function (p) { return p[0]; }).join("").slice(0, 2).toUpperCase(); }
+  function av(i) { return "var(--" + PAL[i % PAL.length] + ")"; }
+  function ic(id) { return '<svg class="ic"><use href="#d-' + id + '"/></svg>'; }
+
+  function wait(run, ms) {
+    return new Promise(function (res, rej) {
+      setTimeout(function () { run.dead ? rej(STOP) : res(); }, RM ? 0 : ms);
+    });
+  }
+  async function type(run, el, text, cps) {
+    if (RM) { el.textContent = text; return; }
+    el.classList.add("typing");
+    for (var i = 1; i <= text.length; i++) {
+      el.textContent = text.slice(0, i);
+      await wait(run, 1000 / (cps || 30) + Math.random() * 22);
+    }
+    el.classList.remove("typing");
+  }
+  function tween(run, ms, fn) {
+    return new Promise(function (res, rej) {
+      if (RM) { fn(1); return res(); }
+      var t0 = performance.now();
+      (function f(now) {
+        if (run.dead) return rej(STOP);
+        var p = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - p, 3);
+        fn(e);
+        p < 1 ? requestAnimationFrame(f) : res();
+      })(t0);
+    });
+  }
+  var money = function (v) { return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  async function press(run, btn) { btn.classList.add("press"); await wait(run, 170); btn.classList.remove("press"); }
+  function stamp(el) { el.classList.remove("on"); void el.offsetWidth; el.classList.add("on"); }
+  function q(root, k) { return root.querySelector('[data-k="' + k + '"]'); }
+  function chipOn(wrap, label) {
+    [].forEach.call(wrap.children, function (c) { if (c.textContent.trim() === label) c.classList.add("on"); });
+  }
+  // FLIP an element into a new parent
+  function flip(el, parent, ms) {
+    var a = el.getBoundingClientRect();
+    parent.prepend(el);
+    var b = el.getBoundingClientRect();
+    el.style.transition = "none";
+    el.style.transform = "translate(" + (a.left - b.left) + "px," + (a.top - b.top) + "px)";
+    void el.offsetWidth;
+    el.style.transition = "transform " + (RM ? 1 : ms) + "ms cubic-bezier(.16,.9,.3,1.02)";
+    el.style.transform = "";
+  }
+
+  var PLAYS = {};
+
+  // 01 · charter + invite + approve -------------------------------------------
+  PLAYS.p1 = async function (st, run) {
+    var reqs = [["Dev Patel", "dev.patel@hilltop.edu", 1], ["Kenji Mori", "kmori@hilltop.edu", 2], ["Priya Shah", "priya.s@hilltop.edu", 3]];
+    var list = q(st, "reqs"), faces = q(st, "faces"), approved = 1;
+    faces.innerHTML = '<span class="avatar avatar--sm" style="--av:var(--butter)">AR</span>';
+    list.innerHTML = reqs.map(function (r) {
+      return '<li class="req"><span class="avatar" style="--av:' + av(r[2]) + '">' + ini(r[0]) + '</span>' +
+        '<span class="who"><b>' + r[0] + '</b><span>' + r[1] + ' · via link · just now</span></span>' +
+        '<span class="acts"><button class="btn btn--soft btn--sm" data-no>Decline</button><button class="btn btn--sm" data-ok style="--hs:var(--mint)">Approve</button></span>' +
+        '<span class="done">' + ic("check") + 'On the roster</span></li>';
+    }).join("");
+    function approve(li) {
+      if (li.classList.contains("ok")) return;
+      var i = [].indexOf.call(list.children, li), r = reqs[i];
+      li.classList.add("ok"); approved++;
+      faces.insertAdjacentHTML("beforeend", '<span class="avatar avatar--sm" style="--av:' + av(r[2]) + '">' + ini(r[0]) + '</span>');
+      q(st, "rn").innerHTML = approved + "<small>members</small>";
+      q(st, "seats").textContent = (40 - approved) + " seats left";
+      q(st, "rqn").textContent = list.querySelectorAll(".req:not(.ok)").length;
+    }
+    list.addEventListener("click", function (e) {
+      var li = e.target.closest(".req"); if (!li) return;
+      if (e.target.closest("[data-ok]")) approve(li);
+      if (e.target.closest("[data-no]")) { li.style.opacity = ".35"; li.querySelector(".acts").style.display = "none"; q(st, "rqn").textContent = list.querySelectorAll(".req:not(.ok)").length - 1; li.classList.add("ok"); li.querySelector(".done").innerHTML = "Declined"; li.style.background = "var(--paper-2)"; }
+    });
+
+    await wait(run, 200);
+    q(st, "charter").classList.add("in");
+    await wait(run, 500);
+    await type(run, q(st, "name"), "Hilltop Robotics Club", 26);
+    q(st, "badge").classList.add("on");
+    await wait(run, 300);
+    chipOn(q(st, "kind"), "Club");
+    await wait(run, 400);
+    await type(run, q(st, "term"), "Fall 2026 · Aug 24 – Dec 11", 34);
+    var tr = q(st, "tracks").children;
+    for (var i = 0; i < tr.length; i++) { await wait(run, 170); tr[i].classList.add("on"); }
+    await wait(run, 450);
+    stamp(q(st, "stamp"));
+    await wait(run, 700);
+    q(st, "ticket").classList.add("in");
+    await wait(run, 600);
+    var cp = q(st, "copy");
+    await press(run, cp);
+    cp.classList.add("ok"); cp.innerHTML = ic("check") + "<span>Copied</span>";
+    await wait(run, 500);
+    q(st, "rqh").classList.add("in");
+    q(st, "roster").classList.add("in");
+    for (i = 0; i < list.children.length; i++) {
+      await wait(run, 520);
+      list.children[i].classList.add("in");
+      q(st, "rqn").textContent = i + 1;
+    }
+    for (i = 0; i < list.children.length; i++) {
+      await wait(run, 700);
+      var li = list.children[i];
+      if (li.classList.contains("ok")) continue;
+      await press(run, li.querySelector("[data-ok]"));
+      approve(li);
+    }
+  };
+
+  // 02 · event → timeline -----------------------------------------------------
+  PLAYS.p2 = async function (st, run) {
+    var ev = { 6: ["Build night", "sky"], 10: ["Car wash", "mint"], 13: ["Build night", "sky"], 16: ["Game night", "peach"], 20: ["Build night", "sky"], 24: ["Regionals", "butter"], 27: ["Build night", "sky"] };
+    var h = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"].map(function (d) { return '<span class="dh">' + d + "</span>"; }).join("");
+    for (var b = 0; b < 4; b++) h += '<div class="d x"></div>';
+    for (var d = 1; d <= 31; d++) {
+      h += '<div class="d' + (d === 8 ? " today" : "") + '" data-d="' + d + '"><span class="n">' + d + "</span>" +
+        (ev[d] ? '<span class="tk t-' + ev[d][1] + '">' + ev[d][0] + "</span>" : "") + "</div>";
+    }
+    q(st, "grid").innerHTML = h;
+
+    await wait(run, 200);
+    q(st, "cal").classList.add("in");
+    await wait(run, 250);
+    q(st, "form").classList.add("in");
+    await wait(run, 500);
+    await type(run, q(st, "title"), "General Meeting", 24);
+    await wait(run, 200);
+    await type(run, q(st, "when"), "Thu, Oct 15 · 7:00 PM", 32);
+    await wait(run, 150);
+    await type(run, q(st, "where"), "Eng Hall 204", 30);
+    await wait(run, 300);
+    chipOn(q(st, "kind"), "Meeting");
+    await wait(run, 450);
+    q(st, "att").classList.add("on");
+    await wait(run, 600);
+    await press(run, q(st, "add"));
+    var cell = st.querySelector('.d[data-d="15"]');
+    cell.classList.add("hit");
+    cell.insertAdjacentHTML("beforeend", '<span class="tk new">General Meeting</span>');
+    q(st, "cal").querySelector(".cal-h span").textContent = "2026 · 8 events";
+    await wait(run, 600);
+    q(st, "toast").classList.add("in");
+    q(st, "up").classList.add("in");
+    await wait(run, 2400);
+    q(st, "toast").classList.remove("in");
+  };
+
+  // 03 · live check-in --------------------------------------------------------
+  PLAYS.p3 = async function (st, run) {
+    var seats = q(st, "seats"), EX = [18, 29], ABS = [6, 7], ME = 4;
+    seats.innerHTML = NAMES.map(function (n, i) {
+      return '<span class="seat' + (EX.indexOf(i) > -1 ? " ex" : "") + '" style="--av:' + av(i) + '" title="' + n + '">' + ini(n) + "</span>";
+    }).join("");
+    var order = NAMES.map(function (_, i) { return i; }).filter(function (i) { return EX.indexOf(i) < 0 && ABS.indexOf(i) < 0 && i !== ME; });
+    for (var i = order.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = order[i]; order[i] = order[j]; order[j] = t; }
+    order.splice(5, 0, ME);
+    var n = 0, secs = 3598, clock = q(st, "clock");
+    var tick = setInterval(function () {
+      if (run.dead || run.closed) return clearInterval(tick);
+      secs -= 7; clock.textContent = Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0");
+    }, 120);
+    function arrive(i) {
+      seats.children[i].classList.add("here");
+      n++; q(st, "n").textContent = n;
+      q(st, "m").style.setProperty("--w", (n / 40 * 100) + "%");
+    }
+    await wait(run, 600);
+    for (var k = 0; k < order.length; k++) {
+      var idx = order[k];
+      if (idx === ME) {
+        var hb = q(st, "here");
+        await press(run, hb);
+        q(st, "phone").classList.add("done");
+        arrive(idx);
+        seats.children[idx].classList.add("me");
+        await wait(run, 300);
+        continue;
+      }
+      arrive(idx);
+      await wait(run, k < 8 ? 210 : k < 28 ? 85 : 150);
+    }
+    await wait(run, 900);
+    await press(run, q(st, "close"));
+    run.closed = true;
+    var band = q(st, "band");
+    band.classList.add("closed");
+    q(st, "bt").textContent = "Recorded · General Meeting";
+    q(st, "close").style.display = "none";
+    clock.textContent = "closed";
+    ABS.forEach(function (i) { seats.children[i].classList.add("gone"); });
+    await wait(run, 250);
+    stamp(q(st, "stamp"));
+  };
+
+  // 04 · treasury -------------------------------------------------------------
+  PLAYS.p4 = async function (st, run) {
+    await wait(run, 900);
+    await press(run, q(st, "log"));
+    q(st, "scrim").classList.add("in");
+    q(st, "sheet").classList.add("in");
+    await wait(run, 600);
+    await type(run, q(st, "from"), "Maya Lin", 22);
+    await wait(run, 200);
+    await type(run, q(st, "amt"), "$75.00", 18);
+    await wait(run, 300);
+    chipOn(q(st, "cat"), "Dues");
+    await wait(run, 600);
+    await press(run, q(st, "save"));
+    q(st, "sheet").classList.remove("in");
+    q(st, "scrim").classList.remove("in");
+    await wait(run, 350);
+    var rows = q(st, "rows");
+    rows.insertAdjacentHTML("afterbegin", '<div class="lrow new"><span class="d">Oct 8</span><span class="w">Dues · Maya Lin</span><span class="pill t-mint">Dues</span><span class="a in">+$75.00</span></div>');
+    if (rows.children.length > 4) rows.lastElementChild.remove();
+    var bal = q(st, "bal");
+    bal.classList.add("bump");
+    var p1 = tween(run, 900, function (e) { bal.textContent = money(4812.5 + 75 * e); });
+    var p2 = tween(run, 900, function (e) {
+      var v = 2325 + 75 * e;
+      q(st, "col").textContent = "$" + Math.round(v).toLocaleString("en-US");
+      q(st, "pct").textContent = Math.round(v / 30) + "%";
+    });
+    q(st, "dm").style.setProperty("--w", "80%");
+    var maya = q(st, "maya");
+    maya.classList.add("paid"); maya.querySelector(".a").textContent = "Paid";
+    await Promise.all([p1, p2]);
+    await wait(run, 700);
+    maya.classList.add("gone");
+    q(st, "on").textContent = "8";
+  };
+
+  // 05 · template → minutes → tasks -------------------------------------------
+  PLAYS.p5 = async function (st, run) {
+    var AG = [
+      ["Call to order", ["7:02 PM, quorum met (38 of 40)."]],
+      ["Treasurer's report", ["Balance $4,887.50. Dues 80% in, Maya paid tonight."]],
+      ["Old business", ["Servo order arrived. Drivetrain rebuild on track."]],
+      ["New business", ["Spring showcase moving to Eng Hall, 120 seats."]],
+      ["Action items", null]
+    ];
+    var ag = q(st, "ag");
+    ag.innerHTML = AG.map(function (a, i) {
+      return '<h4><em>' + (i + 1) + '.</em>' + a[0] + "</h4>" + (a[1] ? a[1].map(function () { return "<p></p>"; }).join("") : "");
+    }).join("") +
+      '<p class="ai" data-ai="1"><span class="box"></span><span class="tx"></span></p>' +
+      '<p class="ai" data-ai="2"><span class="box"></span><span class="tx"></span></p>';
+    var tpls = st.querySelectorAll(".tpl");
+    await wait(run, 300);
+    for (var i = 0; i < tpls.length; i++) { tpls[i].classList.add("on"); await wait(run, 180); if (i < tpls.length - 1) tpls[i].classList.remove("on"); }
+    tpls[2].classList.remove("on"); tpls[0].classList.add("on");
+    await wait(run, 300);
+    var hs = ag.querySelectorAll("h4");
+    for (i = 0; i < hs.length; i++) { hs[i].classList.add("in"); await wait(run, 130); }
+    await wait(run, 350);
+    var ps = ag.querySelectorAll("p:not(.ai)"), pi = 0;
+    for (i = 0; i < AG.length; i++) {
+      if (!AG[i][1]) continue;
+      for (var j = 0; j < AG[i][1].length; j++) await type(run, ps[pi++], AG[i][1][j], 62);
+      await wait(run, 120);
+    }
+    var a1 = ag.querySelector('[data-ai="1"] .tx'), a2 = ag.querySelector('[data-ai="2"] .tx');
+    await type(run, a1, "Book Eng Hall for showcase ", 48);
+    a1.insertAdjacentHTML("beforeend", '<span class="at">@Jordan</span> · Fri');
+    await wait(run, 200);
+    await type(run, a2, "Post regionals carpool sheet ", 48);
+    a2.insertAdjacentHTML("beforeend", '<span class="at">@Ana</span> · Mon');
+    await wait(run, 600);
+    ag.querySelector('[data-ai="1"]').classList.add("lift");
+    await wait(run, 350);
+    q(st, "t1").classList.add("in");
+    await wait(run, 700);
+    ag.querySelector('[data-ai="2"]').classList.add("lift");
+    await wait(run, 350);
+    q(st, "t2").classList.add("in");
+  };
+
+  // 06 · everyone-each task + role handover ----------------------------------
+  PLAYS.p6 = async function (st, run) {
+    var who = [[4, "2m"], [0, "1h"], [2, "3h"], [5, "5h"], [9, ""], [11, "1d"], [6, ""]];
+    q(st, "mems").innerHTML = who.map(function (w) {
+      return '<div class="mem"><span class="avatar avatar--sm" style="--av:' + av(w[0]) + '">' + ini(NAMES[w[0]]) + '</span><span class="nm">' + NAMES[w[0]] + '</span><span class="when">' + w[1] + '</span><span class="cb">' + ic("check") + "</span></div>";
+    }).join("");
+    await wait(run, 200);
+    q(st, "task").classList.add("in");
+    await wait(run, 250);
+    q(st, "roles").classList.add("in");
+    q(st, "nav").classList.add("in");
+    await wait(run, 600);
+    var mems = q(st, "mems").children, done = 0;
+    var tick = function (to) {
+      var from = done; done = to;
+      return tween(run, 500, function (e) {
+        var v = Math.round(from + (to - from) * e);
+        q(st, "tn").textContent = v; q(st, "tm").style.setProperty("--w", (v / 42 * 100) + "%");
+      });
+    };
+    var steps = [[0, 6], [1, 11], [2, 15], [3, 21], [5, 26]];
+    for (var i = 0; i < steps.length; i++) {
+      mems[steps[i][0]].classList.add("done");
+      await tick(steps[i][1]);
+      await wait(run, 240);
+    }
+    await wait(run, 500);
+    // hand Priya the Treasurer role
+    var priya = q(st, "priya"), slot = q(st, "tslot");
+    priya.classList.add("hot");
+    await wait(run, 350);
+    flip(priya, slot, 700);
+    await wait(run, 650);
+    var keys = q(st, "tkeys").children;
+    for (i = 0; i < keys.length; i++) { keys[i].classList.add("on"); await wait(run, 160); }
+    q(st, "mslot").querySelector(".k").textContent = "+37";
+    await wait(run, 300);
+    var tre = q(st, "tre");
+    tre.classList.remove("locked"); tre.classList.add("unlock");
+    q(st, "lk").innerHTML = '<use href="#d-unlock"/>';
+    await wait(run, 600);
+    mems[4].classList.add("done");
+    await tick(29);
+  };
+
+  // 07 · ask chapt ------------------------------------------------------------
+  PLAYS.p7 = async function (st, run) {
+    var root = q(st, "s7"), body = q(st, "body"), cin = q(st, "cin");
+    var Q = "Who owes dues and missed 2+ of the last 4 meetings?";
+    body.innerHTML =
+      '<div class="q" style="display:none"><span>' + Q + "</span></div>" +
+      '<div class="ledger7">' +
+        '<div class="step"><div class="s">Reading the dues ledger</div><span class="f t-peach" style="background:var(--peach-soft);color:var(--peach-ink)">8 members owe · $600</span></div>' +
+        '<div class="step"><div class="s">Checking attendance, last 4 meetings</div><span class="f" style="background:var(--mint-soft);color:var(--mint-ink)">6 missed 2 or more</span></div>' +
+        '<div class="step"><div class="s">Cross-referencing the two</div><span class="f" style="background:var(--lilac-soft);color:var(--lilac-ink)">3 on both lists</span></div>' +
+      "</div>" +
+      '<div class="consulted"><span class="k">Consulted</span><span class="pill t-peach">Treasury</span><span class="pill t-mint">Attendance</span><span class="pill t-lilac">Timeline</span></div>' +
+      '<div class="trace">' + ic("spark") + "Checked 3 sources · 2.4s</div>" +
+      '<div class="verdict"><span class="hi" style="--mark:var(--lilac)">3 members</span> owe Fall dues and missed two or more meetings.</div>' +
+      '<div class="ans">' +
+        ['Theo Grant|sky|$75|missed 3 of 4', 'Sam Okafor|butter|$75|missed 3 of 4', 'Lena Fischer|mint|$75|missed 2 of 4'].map(function (r) {
+          r = r.split("|");
+          return '<div class="arow"><span class="avatar avatar--sm" style="--av:var(--' + r[1] + ')">' + ini(r[0]) + "</span><b style=\"font-weight:600\">" + r[0] + '</b><span class="a" style="color:var(--peach-ink)">owes ' + r[2] + '</span><span class="a" style="color:var(--ink-3)">' + r[3] + "</span></div>";
+        }).join("") +
+      "</div>" +
+      '<div class="writ">' +
+        '<div class="wh"><span class="wtag">Draft</span><span class="what">Send a dues reminder</span></div>' +
+        '<div class="wb"><div class="wrow"><span class="wk">To</span><span>Theo, Sam, Lena</span></div>' +
+        '<div class="wrow"><span class="wk">Message</span><span class="msg">Hey! Your Fall dues ($75) are still open, and we\'ve missed you at GM. Pay in the app or find Priya at Thursday\'s meeting.</span></div></div>' +
+        '<div class="permline">' + ic("key") + "<span><b>Priya Shah · Treasurer</b> can send this</span></div>" +
+        '<div class="wfoot"><button class="btn btn--sm" data-k="approve" style="--hs:var(--mint)">' + ic("check") + 'Approve &amp; send</button><button class="btn btn--soft btn--sm">Edit</button><button class="btn btn--soft btn--sm">Discard</button></div>' +
+        '<div class="settled"><span class="tk">' + ic("check") + "</span><span>Sent to 3 members</span><span class=\"st\">7:41 PM · Priya Shah</span></div>" +
+        '<span class="rubber" data-k="wst">Sent</span>' +
+      "</div>";
+    root.classList.remove("folded");
+    await wait(run, 600);
+    cin.classList.add("has");
+    await type(run, cin, Q, 34);
+    await wait(run, 300);
+    await press(run, st.querySelector(".send"));
+    cin.classList.remove("has"); cin.textContent = "Ask a follow-up…";
+    body.querySelector(".q").style.display = "flex";
+    var steps = body.querySelectorAll(".step");
+    for (var i = 0; i < steps.length; i++) {
+      steps[i].classList.add("in", "act");
+      await wait(run, 900);
+      steps[i].classList.remove("act"); steps[i].classList.add("ok");
+      if (i === 0) body.querySelector(".consulted").classList.add("in");
+      await wait(run, 250);
+    }
+    await wait(run, 500);
+    root.classList.add("folded");
+    body.querySelector(".verdict").classList.add("in");
+    var rows = body.querySelectorAll(".arow");
+    for (i = 0; i < rows.length; i++) { await wait(run, 220); rows[i].classList.add("in"); }
+    await wait(run, 800);
+    var w = body.querySelector(".writ");
+    w.classList.add("in");
+    await wait(run, 1600);
+    await press(run, q(st, "approve"));
+    w.classList.add("done");
+    stamp(q(st, "wst"));
+  };
+
+  // runner ---------------------------------------------------------------------
+  var secs = [].slice.call(document.querySelectorAll(".sc"));
+  secs.forEach(function (sec) {
+    var inner = sec.querySelector(".inner");
+    sec._html = inner.innerHTML;
+    sec.querySelector("[data-replay]").addEventListener("click", function () { start(sec); });
+  });
+  function start(sec) {
+    if (sec._run) sec._run.dead = true;
+    var stage = sec.querySelector(".stage");
+    var inner = sec.querySelector(".inner");
+    var fresh = inner.cloneNode(false);
+    fresh.innerHTML = sec._html;
+    inner.replaceWith(fresh);
+    var run = { dead: false };
+    sec._run = run;
+    PLAYS[sec.id](stage, run).catch(function (e) { if (e !== STOP) console.error(e); });
+  }
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      var sec = e.target;
+      sec.classList.add("seen");
+      if (!sec._played) { sec._played = true; start(sec); }
+    });
+  }, { threshold: .38 });
+  secs.forEach(function (s) { io.observe(s); });
+
+  // theme
+  var tb = document.getElementById("theme");
+  function paintTheme() {
+    var dark = document.documentElement.dataset.theme === "dark";
+    tb.innerHTML = ic(dark ? "sun" : "moon") + "<span>" + (dark ? "Day" : "Night") + "</span>";
+  }
+  tb.addEventListener("click", function () {
+    var next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("launch-showcase-theme", next); } catch (e) {}
+    paintTheme();
+  });
+  paintTheme();
+})();
+</script>
+</body>
+</html>

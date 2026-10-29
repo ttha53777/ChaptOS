@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en" data-crf-theme="ivory">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Normal Month Picker</title>
+<!--
+  The /create interview's "a normal month" beat, as it ships today (InterviewStep
+  stage "month", lib/onboarding/activities.ts), with ONE change: every tile turns on
+  exactly one page.
+
+  Today "Fundraisers or programs" turns on Programming + Fundraisers + Treasury, so a
+  club that runs workshops but no fundraisers can't get the right pages. Here it is
+  split into two tiles, and Treasury is left to the money beat that follows:
+
+    meetings   → Meetings (+ attendance, as today)
+    socials    → Parties
+    programs   → Programming          (new tile)
+    fundraise  → Fundraisers          (no longer pulls in Programming or Treasury)
+    service    → Service
+    tasks      → Tasks
+    online     → Instagram
+
+  Everything else is the shipped markup and copy, on the shipped stylesheet
+  (../app/create/create-paper.css is linked, not copied). T flips paper.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../app/create/create-paper.css">
+<script>
+  try { if (localStorage.getItem("month-mock-theme") === "dusk") document.documentElement.dataset.crfTheme = "dusk"; } catch (e) {}
+</script>
+<style>
+html,body{margin:0}
+/* create-paper.css reads the next/font variables landingFontClass puts on <html> */
+html{--font-inter:'Inter'; --font-bricolage:'Bricolage Grotesque'; --font-plex-mono:'IBM Plex Mono'}
+/* ---- the month picker: each tile is a sticker that names the page it pins ---- */
+.ocp .acts.mp{gap:12px; margin-top:8px}
+.ocp .mp .act{grid-template-columns:42px minmax(0,1fr) 22px; gap:13px; padding:12px 14px 12px 12px; border-radius:6px 16px 12px 14px}
+.ocp .mp .act .tile{width:42px; height:42px; border-radius:12px; display:grid; place-items:center;
+  background:var(--p-bg); color:var(--p-fg); border:1.5px solid var(--p-bd);
+  transition:transform .35s var(--ease-spring), background .2s, border-color .2s, color .2s, box-shadow .2s}
+.ocp .mp .act .tile .ic{width:19px; height:19px}
+.ocp .mp .act:hover .tile{transform:rotate(-5deg) scale(1.05)}
+.ocp .mp .act[aria-pressed="true"] .tile{background:var(--p-hs); border-color:var(--ink); color:var(--note-ink); transform:rotate(-6deg); box-shadow:2px 2px 0 var(--ink); filter:var(--note-filter)}
+.ocp .mp .act .lb{display:block; color:var(--ink); font-weight:600; line-height:1.3}
+/* the page it pins: a dashed slip while off, inked in the tile's colour once ticked */
+.ocp .mp .act .to{display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:2px 9px 2px 7px; border-radius:999px; border:1.5px dashed var(--line-2);
+  font-family:var(--mono); font-size:.62rem; font-weight:500; letter-spacing:.02em; color:var(--ink-3); transition:all .2s var(--ease-out)}
+.ocp .mp .act .to .ic{width:11px; height:11px; transition:transform .3s var(--ease-spring)}
+.ocp .mp .act:hover .to{border-color:var(--p-fg); color:var(--p-fg)}
+.ocp .mp .act:hover .to .ic{transform:translateX(2px)}
+.ocp .mp .act[aria-pressed="true"] .to{border-style:solid; border-color:var(--p-fg); background:var(--card); color:var(--p-fg); font-weight:600}
+.ocp .mp .act .bx{width:22px; height:22px; border-radius:7px}
+.ocp .mp .act[aria-pressed="true"] .bx .ic{animation:tick .35s var(--ease-spring) both}
+@keyframes tick{from{transform:scale(.3) rotate(-20deg)} to{transform:none}}
+.ocp .mp .acts-go{margin-top:8px}
+.ocp .mp .acts-go .note{display:flex; align-items:center; gap:8px; font-size:.8rem}
+.ocp .mp .acts-go .note .n{font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.04em; padding:2px 8px; border-radius:999px; border:1.5px solid var(--ink); background:var(--butter); color:var(--note-ink); filter:var(--note-filter)}
+.ocp .mp .acts-go .note .n.zero{border-color:var(--line-2); background:none; color:var(--ink-3); filter:none}
+
+/* ---- the charter's pages wear the colour of the tile that pinned them ---- */
+.ocp .chip.pin{background:var(--p-bg); border-color:var(--p-bd); color:var(--ink)}
+.ocp .chip.pin .ic{color:var(--p-fg)}
+.ocp .chip.ghost{background:none; border-style:dashed; border-color:var(--p-fg); color:var(--p-fg); opacity:.85; animation:chipin .3s var(--ease-spring) both}
+.ocp .chip.ghost .ic{color:var(--p-fg)}
+.ocp .chip.lit{background:var(--p-bg); border-color:var(--p-fg); box-shadow:2px 2px 0 var(--p-hs); transform:translate(-1px,-1px); transition:all .18s var(--ease-spring)}
+
+@media (max-width:960px){
+  .ocp .split{grid-template-columns:minmax(0,1fr)}
+  .ocp .slot{position:static}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+  <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="d-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+  <symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="d-jar" viewBox="0 0 24 24"><path d="M7.4 3.6h9.2M8.2 3.8v2.6c-1.8.9-3 2.8-3 4.9v7.1c0 1.2 1 2.2 2.2 2.2h9.2c1.2 0 2.2-1 2.2-2.2v-7.1c0-2.1-1.2-4-3-4.9V3.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M12 10.4v6M10.2 12c0-.8.8-1.4 1.8-1.4s1.8.5 1.8 1.2c0 1.8-3.6.9-3.6 2.8 0 .7.8 1.2 1.8 1.2s1.8-.6 1.8-1.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+  <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<div class="ocp">
+  <div class="shell">
+    <header class="top">
+      <a class="wm" href="#" aria-label="Chapt home">
+        <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/><path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/><circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/></svg>
+        <span class="wt">Chapt</span>
+      </a>
+      <div class="top-r">
+        <span class="tag">Create your org</span>
+        <button type="button" class="iconbtn theme" id="themeBtn" aria-label="Switch paper (T)" title="Switch paper (T)"></button>
+      </div>
+    </header>
+
+    <main class="stage" data-step="interview">
+      <div class="split">
+        <div class="ask convo">
+          <p class="kick">Step 2 · A conversation <span class="chip">4 of 8</span></p>
+          <h1 class="q q--sm">Tell me how <span class="hi" style="--mark:var(--lilac)">LIGA</span> actually runs.</h1>
+          <p class="lede">Answer like you’d explain it to a new officer. Every answer writes onto the charter, and you can change any of them at the end.</p>
+          <div class="thread" id="thread"></div>
+          <div id="widget"></div>
+        </div>
+        <div class="slot"><div class="charter" id="charter"></div></div>
+      </div>
+    </main>
+
+    <nav class="rail" aria-label="Steps">
+      <button type="button" class="done"><span class="n"><svg class="ic"><use href="#d-check"/></svg></span><span class="lb">Name</span></button>
+      <button type="button" aria-current="step"><span class="n">2</span><span class="lb">Interview</span></button>
+      <button type="button" disabled><span class="n"><svg class="ic"><use href="#d-lock"/></svg></span><span class="lb">Roles</span></button>
+      <button type="button" disabled><span class="n"><svg class="ic"><use href="#d-lock"/></svg></span><span class="lb">Timeline</span></button>
+      <button type="button" disabled><span class="n"><svg class="ic"><use href="#d-lock"/></svg></span><span class="lb">Charter</span></button>
+      <button type="button" disabled><span class="n"><svg class="ic"><use href="#d-lock"/></svg></span><span class="lb">Sign in</span></button>
+    </nav>
+  </div>
+</div>
+
+<script>
+(function () {
+  var ic = function (n) { return '<svg class="ic"><use href="#d-' + n + '"/></svg>'; };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var listy = function (a) { return a.length < 2 ? a.join("") : a.slice(0, -1).join(", ") + " and " + a[a.length - 1]; };
+
+  var ORG = "LIGA";
+
+  /* ACTIVITY_OPTIONS + ACTIVITY_META, with "fundraise" split so each tile is one page. */
+  var OPTS = [
+    { id: "meetings",  icon: "gavel",  tone: "sky",    label: "Chapter meetings",              word: "chapter",      wf: ["meetings", "attendance"] },
+    { id: "socials",   icon: "note",   tone: "rose",   label: "Social events or parties",      word: "parties",      wf: ["parties"] },
+    { id: "programs",  icon: "board",  tone: "lilac",  label: "Programs or workshops",         word: "programs",     wf: ["events"] },
+    { id: "fundraise", icon: "jar",    tone: "butter", label: "Fundraisers",                   word: "fundraisers",  wf: ["fundraisers"] },
+    { id: "service",   icon: "heart",  tone: "mint",   label: "Service or volunteering",       word: "service",      wf: ["service"] },
+    { id: "tasks",     icon: "box",    tone: "peach",  label: "Handing out tasks & deadlines", word: "deadlines",    wf: ["tasks"] },
+    { id: "online",    icon: "camera", tone: "rose",   label: "Posting content online",        word: "posting",      wf: ["communications"] }
+  ];
+  /* [workflow, page, icon, tone, the tile that pins it] */
+  var PAGES = [
+    ["meetings", "Chapter", "gavel", "sky", "meetings"], ["parties", "Parties", "note", "rose", "socials"],
+    ["events", "Programming", "board", "lilac", "programs"], ["fundraisers", "Fundraisers", "jar", "butter", "fundraise"],
+    ["service", "Service", "heart", "mint", "service"], ["tasks", "Tasks", "box", "peach", "tasks"],
+    ["communications", "Instagram", "camera", "rose", "online"]
+  ];
+  var pageOf = function (id) { return PAGES.filter(function (r) { return r[4] === id; })[0]; };
+
+  var S = { picks: [], said: null, reply: null, done: false, hover: null, flash: false };
+  var picked = function () { return OPTS.filter(function (o) { return S.picks.indexOf(o.id) >= 0; }); };
+  function onWf() {
+    var w = {};
+    picked().forEach(function (o) { o.wf.forEach(function (x) { w[x] = 1; }); });
+    return w;
+  }
+
+  /* readActivities(), with the split keywords. */
+  var KW = [
+    ["meetings",  /\bmeet|chapter|assembly|weekly|general body|gbm/],
+    ["socials",   /part(y|ies)|social|mixer|formal|tailgate|date night/],
+    ["programs",  /program|workshop|speaker|panel|info session|seminar|rush|recruit/],
+    ["fundraise", /fundrais|bake sale|raffle|merch/],
+    ["service",   /service|volunteer|philanthrop|charity|community/],
+    ["tasks",     /task|deadline|assign|committee|to-?do/],
+    ["online",    /instagram|insta\b|social media|\bpost|announce|newsletter|online/]
+  ];
+  var CLAUSE = /[,.;!?]+|\b(?:but|though|although|however)\b/;
+  var FLIP = /\b(?:except|excepting|besides|other than|apart from|aside from|minus|without|no longer)\b/;
+  var NEG = /\b(?:no|not|none|never|nope|nah|neither|nor|hardly|rarely|barely|stopped|quit|dropped|skip)\b|n['’]t\b/;
+  var ALL = /\b(?:all|everything|every one)\b/;
+  var NONE = /\b(?:none|nothing|neither|nope|nah)\b|\bnot really\b/;
+  var IDS = OPTS.map(function (o) { return o.id; });
+  function read(text) {
+    var on = {}, off = {}, all = false, none = false;
+    text.toLowerCase().split(CLAUSE).forEach(function (cl) {
+      if (!cl || !cl.trim()) return;
+      cl.split(FLIP).forEach(function (part, i) {
+        if (!part.trim()) return;
+        var neg = NEG.test(part) !== (i % 2 === 1), hit = false;
+        KW.forEach(function (k) { if (k[1].test(part)) { hit = true; (neg ? off : on)[k[0]] = 1; } });
+        if (hit) return;
+        if (NONE.test(part)) none = true; else if (ALL.test(part) && !neg) all = true;
+      });
+    });
+    var nOn = Object.keys(on).length, nOff = Object.keys(off).length;
+    if (none && !all && !nOn && !nOff) return { ids: [], off: [], sure: true };
+    var base = all ? IDS : Object.keys(on);
+    if (nOn || all) return { ids: IDS.filter(function (id) { return base.indexOf(id) >= 0 && !off[id]; }), off: Object.keys(off), sure: true };
+    if (nOff) return { ids: IDS.filter(function (id) { return !off[id]; }), off: Object.keys(off), sure: false };
+    return null;
+  }
+
+  function words(ids) { return OPTS.filter(function (o) { return ids.indexOf(o.id) >= 0; }).map(function (o) { return o.word; }); }
+  /* monthReply() */
+  function reply(ids) {
+    if (!ids.length) return "A quiet one — that’s fine. We’ll keep it to a roster and a timeline, and you can switch pages on whenever you need them.";
+    var w = listy(words(ids));
+    if (ids.length >= 4) return "A full calendar: " + w + ". Each one gets its own page; the rest stay off.";
+    return w.charAt(0).toUpperCase() + w.slice(1) + " — each gets its own page. Nothing else clutters the sidebar.";
+  }
+
+  function thread() {
+    var n = "<em>" + ORG + "</em>";
+    var L = [
+      ["q", "Hi — I’ll get " + n + " set up while we talk. Takes about two minutes. First, who am I talking to?"],
+      ["me", "Priya"],
+      ["bot", "Nice to meet you, <b>Priya</b>."],
+      ["q", "So what is " + n + "? What kind of group are we setting up?"],
+      ["me", "A cultural club"],
+      ["q", "And you’re " + n + "’s…?"],
+      ["me", "President"],
+      ["q", "Picture a normal month at " + n + ". Which of these actually happen?"]
+    ];
+    if (S.said) L.push(["me", esc(S.said), 1]);
+    if (S.reply) L.push(["bot", S.reply, 1]);
+    document.getElementById("thread").innerHTML = L.map(function (m) {
+      var nw = m[2] ? " new" : "";
+      if (m[0] === "me") return '<div class="msg me' + nw + '"><p>' + m[1] + "</p></div>";
+      return '<div class="msg ' + m[0] + nw + '">' + (m[0] === "q" ? '<span class="chapt">' + ic("spark") + "</span>" : '<span class="sp"></span>') + "<p>" + m[1] + "</p></div>";
+    }).join("");
+  }
+
+  function widget() {
+    var el = document.getElementById("widget");
+    var compose = '<form class="compose' + (S.done ? " off" : "") + '" autocomplete="off" data-compose><input id="say" aria-label="Your answer" maxlength="300" placeholder="Or describe a normal month in your own words…"' + (S.done ? " disabled" : "") + '><button class="send" type="submit" aria-label="Send">' + ic("send") + "</button></form>";
+    if (S.done) {
+      el.innerHTML = '<div class="donebar" style="margin:6px 0 0 43px"><button type="button" class="btn btn--soft btn--sm" data-redo>Change this answer</button></div>' + compose;
+      return;
+    }
+    var n = S.picks.length;
+    el.innerHTML = '<div class="acts mp">' + OPTS.map(function (o) {
+      var on = S.picks.indexOf(o.id) >= 0;
+      return '<button type="button" class="act t-' + o.tone + '" data-id="' + o.id + '" aria-pressed="' + on + '" style="--p-hs:var(--' + o.tone + ')">' +
+        '<span class="tile">' + ic(o.icon) + '</span><span style="min-width:0"><span class="lb">' + esc(o.label) + '</span>' +
+        '<span class="to">' + ic("arrow-r") + esc(pageOf(o.id)[1]) + ' page</span></span><span class="bx">' + ic("check") + "</span></button>";
+    }).join("") +
+      '<div class="acts-go"><button type="button" class="btn" data-go>' + (n ? "That’s our month" : "None of these, really") + ic("arrow-r") + "</button>" +
+      '<span class="note"><span class="n' + (n ? "" : " zero") + '">' + (n ? "+" + n + (n === 1 ? " page" : " pages") : "no pages yet") + "</span>Money comes next — that’s where Treasury gets decided.</span></div></div>" + compose;
+  }
+
+  var prev = [];
+  function charter() {
+    var w = onWf();
+    var on = PAGES.filter(function (r) { return w[r[0]]; });
+    var chips = [["Dashboard", "home"], ["Timeline", "timeline"], ["Members", "people"]].map(function (b) {
+      return '<span class="chip lock">' + ic(b[1]) + esc(b[0]) + "</span>";
+    }).join("") + PAGES.map(function (r) {
+      var tone = ' t-' + r[3] + '" style="--p-hs:var(--' + r[3] + ')';
+      if (w[r[0]]) return '<span class="chip pin' + (prev.indexOf(r[0]) < 0 ? " new" : "") + (S.hover === r[4] ? " lit" : "") + tone + '">' + ic(r[2]) + esc(r[1]) + "</span>";
+      if (S.hover === r[4] && !S.done) return '<span class="chip ghost' + tone + '">' + ic(r[2]) + esc(r[1]) + "</span>";
+      return "";
+    }).join("");
+    prev = on.map(function (r) { return r[0]; });
+    document.getElementById("charter").innerHTML =
+      '<div class="ch-hd"><p class="ch-k">Charter<span class="st">Draft · no account yet</span></p>' +
+      '<div class="ch-org"><span class="mark" style="--mk:var(--lilac);--mks:var(--sky)">LI</span><div><b>' + ORG + "</b><small>chaptos.com/liga</small></div></div></div>" +
+      '<div class="ch-sec' + (S.flash ? " flash" : "") + '" data-sec="pages"><h6><span>Pages</span><i>' + (3 + on.length) + '</i></h6><div class="chips">' + chips + "</div></div>" +
+      '<div class="ch-sec"><h6><span>Tracking</span>' + (w.attendance ? "<i>1 per member</i>" : "") + "</h6>" +
+      (w.attendance ? '<div class="chips"><span class="chip">' + ic("bars") + "Attendance</span></div>" : '<p class="ch-pend">Attendance, GPA, dues — whatever you’ll actually check.</p>') + "</div>" +
+      '<div class="ch-ft"><div class="sig"><span class="ln">Priya</span><small>Founder · President</small></div><span class="date">Drafted October 27, 2026</span></div>';
+    S.flash = false;
+  }
+
+  function render() {
+    thread(); widget(); charter();
+    document.getElementById("themeBtn").innerHTML = ic(document.documentElement.dataset.crfTheme === "dusk" ? "sun" : "moon");
+  }
+
+  function answer(ids, said) {
+    S.picks = ids; S.said = said; S.reply = reply(ids); S.done = true; S.hover = null; S.flash = true; render();
+  }
+  function typed(v) {
+    var r = read(v);
+    if (!r) { S.said = v; S.reply = "I didn’t catch which of these happen — tick them, or tell me in a few words."; return render(); }
+    if (!r.sure) {
+      S.picks = r.ids; S.said = v;
+      S.reply = "So everything except " + listy(words(r.off)) + "? Untick anything that’s off, then tap <b>That’s our month</b>.";
+      return render();
+    }
+    answer(r.ids, v);
+  }
+
+  function flip() {
+    var d = document.documentElement.dataset.crfTheme === "dusk" ? "ivory" : "dusk";
+    document.documentElement.dataset.crfTheme = d;
+    try { localStorage.setItem("month-mock-theme", d); } catch (e) {}
+    document.getElementById("themeBtn").innerHTML = ic(d === "dusk" ? "sun" : "moon");
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("button"); if (!t) return;
+    if (t.id === "themeBtn") return flip();
+    if (t.dataset.id) {
+      var id = t.dataset.id, i = S.picks.indexOf(id);
+      if (i >= 0) S.picks.splice(i, 1); else S.picks.push(id);
+      widget(); charter(); return;
+    }
+    if ("go" in t.dataset) {
+      var ids = IDS.filter(function (id) { return S.picks.indexOf(id) >= 0; });
+      return answer(ids, ids.length ? picked().map(function (o) { return o.label; }).join(", ") : "None of these, really");
+    }
+    if ("redo" in t.dataset) { S.done = false; S.said = S.reply = null; return render(); }
+  });
+  /* Hovering a tile previews its page on the charter: a dashed ghost if it's off, a lift if it's on. */
+  document.addEventListener("mouseover", function (e) {
+    var t = e.target.closest && e.target.closest(".mp .act");
+    var id = t ? t.dataset.id : null;
+    if (id !== S.hover) { S.hover = id; charter(); }
+  });
+  document.addEventListener("submit", function (e) {
+    if (!e.target.matches("[data-compose]")) return;
+    e.preventDefault(); var v = document.getElementById("say").value.trim(); if (v) typed(v);
+  });
+  document.addEventListener("keydown", function (e) {
+    if ((e.key === "t" || e.key === "T") && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) flip();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

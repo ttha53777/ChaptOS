@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Up Next Widget Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens: lifted verbatim from app/paper-aesthetic.css (day + night) ───── */
+:root{
+  --pp-ease-out:cubic-bezier(.22,.72,.24,1);
+  --pp-ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  --serif:"Bricolage Grotesque",system-ui,sans-serif;
+  --sans:"Inter",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+:root,[data-theme="day"]{
+  color-scheme:light;
+  --pp-peach:#FFD5C4;--pp-peach-soft:#FFEDE5;--pp-peach-ink:#C9542D;--pp-peach-bd:#F8D2C2;
+  --pp-sky:#CFE2FF;--pp-sky-soft:#EAF2FF;--pp-sky-ink:#2A66C7;--pp-sky-bd:#CCDFFB;
+  --pp-mint:#C7EFDA;--pp-mint-soft:#E6F8EF;--pp-mint-ink:#1B815B;--pp-mint-bd:#BDE7D2;
+  --pp-butter:#FFE5A0;--pp-butter-soft:#FFF6DC;--pp-butter-ink:#9C6B08;--pp-butter-bd:#F4DFA6;
+  --pp-lilac:#E1D8FF;--pp-lilac-soft:#F1EDFF;--pp-lilac-ink:#6244CC;--pp-lilac-bd:#DCD2FB;
+  --pp-rose:#FFD6E6;--pp-rose-soft:#FFEDF4;--pp-rose-ink:#C23C77;--pp-rose-bd:#F8CEE0;
+  --pp-note-ink:#26211B;--pp-note-filter:none;
+  --pp-sh-1:0 1px 2px rgba(38,33,27,.05),0 3px 10px rgba(38,33,27,.045);
+  --pp-sh-2:0 1px 2px rgba(38,33,27,.05),0 10px 26px -8px rgba(38,33,27,.14);
+  --paper:#FFFCF6;--paper-2:#FBF5EA;--card:#FFFFFF;--card-2:#FBF5EA;--card-3:#F4ECDD;
+  --ink:#26211B;--ink-soft:#544A3F;--muted:#8A7F71;--faint:#998D7C;
+  --line:#EBE1CF;--line-soft:#F4ECDD;--line-med:#DCD0B9;
+}
+:root[data-theme="night"]{
+  color-scheme:dark;
+  --pp-peach:#E5A28A;--pp-peach-soft:rgba(255,178,148,.085);--pp-peach-ink:#FFB49A;--pp-peach-bd:rgba(255,178,148,.22);
+  --pp-sky:#8DB2EC;--pp-sky-soft:rgba(150,190,255,.085);--pp-sky-ink:#AACBFF;--pp-sky-bd:rgba(150,190,255,.22);
+  --pp-mint:#80CBA4;--pp-mint-soft:rgba(140,220,180,.08);--pp-mint-ink:#8FDDB6;--pp-mint-bd:rgba(140,220,180,.22);
+  --pp-butter:#E3BF66;--pp-butter-soft:rgba(255,214,120,.08);--pp-butter-ink:#F0CC72;--pp-butter-bd:rgba(255,214,120,.22);
+  --pp-lilac:#A593EE;--pp-lilac-soft:rgba(180,160,255,.10);--pp-lilac-ink:#C4B6FF;--pp-lilac-bd:rgba(180,160,255,.26);
+  --pp-rose:#E598B7;--pp-rose-soft:rgba(255,160,200,.08);--pp-rose-ink:#FFAACB;--pp-rose-bd:rgba(255,160,200,.22);
+  --pp-note-filter:brightness(.93) saturate(.85);
+  --pp-sh-1:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.25);
+  --pp-sh-2:0 1px 2px rgba(0,0,0,.4),0 12px 28px -10px rgba(0,0,0,.6);
+  --paper:#15110D;--paper-2:#1B1712;--card:#1F1A15;--card-2:#25201A;--card-3:#2B251E;
+  --ink:#F2EADC;--ink-soft:#CDBFAB;--muted:#948876;--faint:#7D7262;
+  --line:#2F271E;--line-soft:#262019;--line-med:#43382B;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--paper);color:var(--ink)}
+body{font-family:var(--sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:clip}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.t-peach{--p-bg:var(--pp-peach-soft);--p-fg:var(--pp-peach-ink);--p-bd:var(--pp-peach-bd);--p-solid:var(--pp-peach)}
+.t-sky{--p-bg:var(--pp-sky-soft);--p-fg:var(--pp-sky-ink);--p-bd:var(--pp-sky-bd);--p-solid:var(--pp-sky)}
+.t-mint{--p-bg:var(--pp-mint-soft);--p-fg:var(--pp-mint-ink);--p-bd:var(--pp-mint-bd);--p-solid:var(--pp-mint)}
+.t-butter{--p-bg:var(--pp-butter-soft);--p-fg:var(--pp-butter-ink);--p-bd:var(--pp-butter-bd);--p-solid:var(--pp-butter)}
+.t-lilac{--p-bg:var(--pp-lilac-soft);--p-fg:var(--pp-lilac-ink);--p-bd:var(--pp-lilac-bd);--p-solid:var(--pp-lilac)}
+.t-rose{--p-bg:var(--pp-rose-soft);--p-fg:var(--pp-rose-ink);--p-bd:var(--pp-rose-bd);--p-solid:var(--pp-rose)}
+.tile{width:32px;height:32px;flex:none;border-radius:10px;display:grid;place-items:center;background:var(--p-bg);color:var(--p-fg);border:1.5px solid var(--p-bd)}
+.tile .ic{width:17px;height:17px}
+
+.btn{--bg:var(--card);--fg:var(--ink);--hs:var(--pp-mint);display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:7px 14px;border-radius:999px;border:1.5px solid var(--ink);background:var(--bg);color:var(--fg);font-weight:600;font-size:.82rem;letter-spacing:-.01em;box-shadow:2px 2px 0 var(--hs);white-space:nowrap;transition:transform .18s var(--pp-ease-spring),box-shadow .18s var(--pp-ease-spring)}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:3.5px 3.5px 0 var(--hs)}
+.btn.solid{--bg:var(--ink);--fg:var(--paper)}
+.btn.ghost{border-color:var(--line-med);box-shadow:none;color:var(--ink-soft)}
+.btn.ghost:hover{transform:translateY(-1px);border-color:var(--muted);color:var(--ink)}
+.btn .ic{width:14px;height:14px}
+.btn.live{--hs:var(--pp-mint)}
+.btn.live i{width:8px;height:8px;border-radius:50%;background:var(--pp-mint-ink);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+/* ── Stage ─────────────────────────────────────────────────────────────── */
+.stage{min-height:100vh;padding:56px 16px 140px;display:flex;flex-direction:column;align-items:center;gap:22px}
+.intro{width:min(760px,100%)}
+.intro .k{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;font-weight:600;color:var(--muted);text-transform:uppercase}
+.intro h1{font-family:var(--serif);font-weight:600;font-size:1.7rem;letter-spacing:-.03em;margin-top:6px}
+.intro p{color:var(--ink-soft);font-size:.92rem;margin-top:6px;max-width:64ch}
+.frame{width:min(760px,100%);transition:width .35s var(--pp-ease-out)}
+[data-width="rail"] .frame{width:min(380px,100%)}
+[data-width="phone"] .frame{width:min(358px,100%)}
+.notes{width:min(760px,100%);display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+.notes div{border:1.5px dashed var(--line-med);border-radius:14px;padding:12px 14px;font-size:.82rem;color:var(--ink-soft)}
+.notes b{display:block;font-family:var(--serif);font-weight:600;color:var(--ink);font-size:.92rem;margin-bottom:3px}
+
+/* ── Card shell (= dashboard .card) ────────────────────────────────────── */
+.card{position:relative;background:var(--card);border:1.5px solid var(--line);border-radius:22px;box-shadow:var(--pp-sh-1);min-width:0}
+.card-h{display:flex;align-items:center;gap:11px;padding:16px 18px 10px}
+.card-h h2{font-family:var(--serif);font-weight:600;font-size:1.08rem;letter-spacing:-.022em}
+.card-h .lnk{margin-left:auto;font-size:.8rem;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center;gap:4px}
+.card-h .lnk:hover{color:var(--ink)}
+.card-h .lnk .ic{width:13px;height:13px}
+.un{padding:0 18px 18px;container-type:inline-size}
+
+/* ── The ticket ────────────────────────────────────────────────────────── */
+.tix{
+  --c:var(--p-solid);
+  position:relative;display:grid;grid-template-columns:128px minmax(0,1fr) 200px;
+  border:1.5px solid var(--ink);border-radius:18px;background:var(--card);
+  box-shadow:3px 3px 0 var(--p-solid);
+  transition:transform .22s var(--pp-ease-spring),box-shadow .22s var(--pp-ease-spring);
+  animation:slide .55s var(--pp-ease-spring) both;
+}
+@keyframes slide{from{opacity:0;transform:translateY(8px) rotate(-.4deg)}to{opacity:1;transform:none}}
+.tix:has(>.hit:hover){transform:translate(-1px,-1px) rotate(-.15deg);box-shadow:5px 5px 0 var(--p-solid)}
+.hit{position:absolute;inset:0;z-index:1;border-radius:inherit}
+.hit:focus-visible{outline:2px solid var(--pp-lilac-ink);outline-offset:3px}
+
+/* stub: the tear-off with punched notches top and bottom on its seam */
+.stub{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:16px 8px;
+  background:
+    repeating-linear-gradient(-45deg,transparent 0 9px,color-mix(in srgb,var(--p-fg) 7%,transparent) 9px 10px),
+    var(--p-bg);
+  border-right:1.5px dashed var(--ink);border-radius:16.5px 0 0 16.5px}
+.stub::before,.stub::after{content:"";position:absolute;right:-10px;width:18px;height:18px;border-radius:50%;background:var(--card);border:1.5px solid var(--ink);z-index:2}
+.stub::before{top:-10px;clip-path:inset(50% 0 0 0)}
+.stub::after{bottom:-10px;clip-path:inset(0 0 50% 0)}
+.stub small{font-family:var(--mono);font-size:.66rem;font-weight:600;letter-spacing:.14em;color:var(--p-fg)}
+.stub b{font-family:var(--serif);font-weight:700;font-size:3.1rem;letter-spacing:-.06em;line-height:.95;color:var(--ink)}
+.stub .yr{margin-top:8px;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;color:var(--muted)}
+.stub .adm{position:absolute;left:8px;top:50%;transform:translateY(-50%) rotate(180deg);writing-mode:vertical-rl;font-family:var(--mono);font-size:.54rem;letter-spacing:.24em;color:color-mix(in srgb,var(--p-fg) 55%,transparent)}
+
+/* body */
+.bd{min-width:0;padding:16px 20px 16px 22px;display:flex;flex-direction:column;gap:8px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid var(--line-med);color:var(--ink-soft)}
+.tag.cat{border-color:var(--p-bd);background:var(--p-bg);color:var(--p-fg)}
+.tag.cat::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--p-fg)}
+.tag.req{border-color:var(--pp-rose-bd);background:var(--pp-rose-soft);color:var(--pp-rose-ink)}
+.bd h3{font-family:var(--serif);font-weight:600;font-size:1.55rem;letter-spacing:-.035em;line-height:1.1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.86rem;color:var(--ink-soft)}
+.meta span{display:inline-flex;align-items:center;gap:6px}
+.meta .ic{width:14px;height:14px;color:var(--muted)}
+
+/* "know before you go": facts the event's More details already carry */
+.facts{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.fact{display:inline-flex;align-items:center;gap:7px;padding:5px 10px 5px 7px;border-radius:10px;background:var(--card-2);border:1px solid var(--line);font-size:.78rem;color:var(--ink-soft)}
+.fact .ic{width:14px;height:14px;color:var(--p-fg)}
+.fact b{color:var(--ink);font-weight:600}
+.fact.open{border-style:dashed;border-color:var(--pp-butter-bd);background:var(--pp-butter-soft)}
+.fact.open .ic{color:var(--pp-butter-ink)}
+
+/* agenda preview: legal-pad strip, chapter meetings with a template */
+.pad{margin-top:4px;position:relative;padding:8px 12px 8px 30px;border-radius:10px;
+  background:repeating-linear-gradient(var(--pp-butter-soft) 0 23px,var(--pp-butter-bd) 23px 24px);
+  background-position:0 6px;border:1px solid var(--pp-butter-bd)}
+.pad::before{content:"";position:absolute;left:21px;top:0;bottom:0;width:1px;background:var(--pp-rose-bd)}
+.pad .h{position:absolute;left:-1px;top:-9px;font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;font-weight:600;color:var(--pp-butter-ink);background:var(--card);padding:0 6px;border-radius:4px}
+.pad ol{list-style:none;counter-reset:a}
+.pad li{counter-increment:a;font-size:.8rem;line-height:24px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pad li::before{content:counter(a);position:absolute;left:9px;font-family:var(--mono);font-size:.62rem;color:var(--pp-rose-ink)}
+.pad li.more{color:var(--muted);font-style:italic;counter-increment:none}
+.pad li.more::before{content:none}
+
+.tix.bare .bd{justify-content:center;gap:10px}
+.tix.bare .bd h3{font-size:1.85rem}
+.tix.bare .meta{flex-direction:column;gap:6px;font-size:.92rem}
+/* right: the countdown */
+.cd{position:relative;padding:16px 18px;border-left:1.5px solid var(--line);display:flex;flex-direction:column;gap:10px;justify-content:space-between}
+.cd .lbl{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;font-weight:600;color:var(--muted)}
+.cd .big{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.cd .big b{font-family:var(--serif);font-weight:700;font-size:2.4rem;letter-spacing:-.05em;line-height:1}
+.cd .big span{font-size:.86rem;color:var(--ink-soft);font-weight:500}
+.cd .sub{font-size:.76rem;color:var(--muted);margin-top:2px}
+/* sleeps: one cell per day from today to the day */
+.days{display:flex;gap:4px;margin-top:10px}
+.day{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.day i{display:block;width:100%;height:22px;border-radius:6px;border:1.5px solid var(--line-med);background:var(--card)}
+.day.past i{background:var(--card-3);border-color:var(--card-3)}
+.day.now i{border-color:var(--ink);background:repeating-linear-gradient(-45deg,var(--card) 0 3px,var(--card-3) 3px 5px)}
+.day.go i{border-color:var(--ink);background:var(--p-solid);box-shadow:1.5px 1.5px 0 var(--ink)}
+.day small{font-family:var(--mono);font-size:.56rem;letter-spacing:.06em;color:var(--muted)}
+.day.go small{color:var(--ink);font-weight:600}
+.cd .acts{position:relative;z-index:2;display:flex;flex-direction:column;gap:7px;align-items:stretch}
+
+/* today: a clock face instead of sleeps */
+.clock{display:flex;align-items:center;gap:10px;margin-top:8px}
+.clock svg{width:46px;height:46px;flex:none}
+.clock span{font-size:.76rem;color:var(--muted);line-height:1.3}
+.clock span b{display:block;color:var(--ink);font-weight:600;font-size:.84rem}
+
+/* live: rubber stamp across the seam */
+.stamp{position:absolute;z-index:3;left:22px;bottom:22px;transform:rotate(-9deg);pointer-events:none;
+  padding:3px 9px;border:2px solid var(--pp-mint-ink);border-radius:6px;color:var(--pp-mint-ink);
+  font-family:var(--mono);font-size:.66rem;font-weight:600;letter-spacing:.14em;background:color-mix(in srgb,var(--card) 70%,transparent);
+  mix-blend-mode:multiply;animation:stampin .45s var(--pp-ease-spring) .25s both}
+[data-theme="night"] .stamp{mix-blend-mode:normal}
+@keyframes stampin{from{opacity:0;transform:rotate(-9deg) scale(1.8)}to{opacity:1;transform:rotate(-9deg) scale(1)}}
+.here{display:flex;align-items:baseline;gap:6px}
+.here .of{font-size:.86rem;color:var(--ink-soft)}
+.here b{font-family:var(--serif);font-weight:700;font-size:2.4rem;letter-spacing:-.05em;line-height:1;color:var(--pp-mint-ink)}
+.faces{display:flex;margin-top:8px}
+.faces i{width:22px;height:22px;border-radius:50%;margin-left:-6px;box-shadow:0 0 0 2px var(--card);display:grid;place-items:center;font-style:normal;font-size:.56rem;font-weight:700;color:var(--pp-note-ink);filter:var(--pp-note-filter)}
+.faces i:first-child{margin-left:0}
+.faces i.n{width:auto;padding:0 6px;border-radius:11px;background:var(--card-3);color:var(--ink-soft);filter:none}
+
+/* ── After that: the next few, as torn-off mini stubs ─────────────────── */
+.after{margin-top:16px}
+.after .h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.after .h span{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;font-weight:600;color:var(--muted)}
+.after .h::after{content:"";flex:1;border-top:1.5px dashed var(--line-med)}
+.minis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mini{display:flex;align-items:center;gap:10px;padding:8px 10px 8px 8px;border-radius:12px;border:1.5px solid var(--line);background:var(--card);text-align:left;min-width:0;
+  transition:border-color .18s,transform .18s var(--pp-ease-spring),box-shadow .18s;animation:slide .5s var(--pp-ease-spring) both;animation-delay:calc(var(--i)*70ms + 150ms)}
+.mini:hover{border-color:var(--ink);transform:translate(-1px,-1px);box-shadow:2.5px 2.5px 0 var(--p-solid)}
+.mini .d{flex:none;width:40px;padding:4px 0;border-radius:8px;background:var(--p-bg);border:1px solid var(--p-bd);text-align:center;line-height:1}
+.mini .d small{display:block;font-family:var(--mono);font-size:.52rem;letter-spacing:.1em;color:var(--p-fg);font-weight:600}
+.mini .d b{display:block;font-family:var(--serif);font-weight:700;font-size:1.1rem;letter-spacing:-.04em;margin-top:2px}
+.mini p{min-width:0;display:flex;flex-direction:column;gap:1px}
+.mini p b{font-size:.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini p span{font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── Empty: a blank ticket waiting to be filled in ─────────────────────── */
+.blank{position:relative;display:grid;grid-template-columns:128px minmax(0,1fr);border:1.5px dashed var(--line-med);border-radius:18px;min-height:150px}
+.blank .stub{background:repeating-linear-gradient(-45deg,transparent 0 9px,var(--line-soft) 9px 10px),var(--card-2);border-right-color:var(--line-med)}
+.blank .stub::before,.blank .stub::after{border-color:var(--line-med);border-style:dashed}
+.blank .stub b{color:var(--line-med)}
+.blank .stub small{color:var(--muted)}
+.blank .bd{justify-content:center;gap:6px}
+.blank .bd h3{font-size:1.25rem}
+.blank .bd p{font-size:.86rem;color:var(--ink-soft);max-width:46ch}
+.blank .ln{height:9px;border-radius:5px;background:var(--line-soft);width:62%}
+.blank .ln.s{width:38%}
+.blank .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+
+/* ── Loading ───────────────────────────────────────────────────────────── */
+.skel{display:grid;grid-template-columns:128px minmax(0,1fr) 200px;border:1.5px solid var(--line);border-radius:18px;min-height:168px;overflow:hidden}
+.skel>div{background:var(--card-2)}
+.skel>div+div{background:none;padding:22px;display:flex;flex-direction:column;gap:10px}
+.skel>div+div+div{border-left:1.5px solid var(--line)}
+.skel i{display:block;height:11px;border-radius:6px;background:linear-gradient(90deg,var(--card-3),var(--line-soft),var(--card-3));background-size:200% 100%;animation:shim 1.3s linear infinite}
+@keyframes shim{to{background-position:-200% 0}}
+
+/* ── Narrow (the rail, a phone): stack, keep the stub ─────────────────── */
+@container (max-width:560px){
+  .tix,.skel{grid-template-columns:92px minmax(0,1fr)}
+  .stub b{font-size:2.3rem}
+  .stub .adm,.stub .yr{display:none}
+  .bd{padding:13px 14px 13px 16px;gap:6px}
+  .bd h3{font-size:1.15rem}
+  .meta{font-size:.8rem;flex-direction:column;gap:2px}
+  .pad{display:none}
+  .tix.bare .bd h3{font-size:1.3rem}
+  .tix.bare .meta{font-size:.84rem;gap:3px}
+  .fact:nth-child(n+3){display:none}
+  .cd{grid-column:1/-1;border-left:0;border-top:1.5px dashed var(--ink);padding:11px 14px;flex-direction:row;align-items:center;gap:12px}
+  .cd .lbl,.cd .sub,.days,.clock,.faces{display:none}
+  .cd .big{margin:0}
+  .cd .big b,.here b{font-size:1.35rem}
+  .cd .acts{flex-direction:row;margin-left:auto}
+  .stub{border-radius:16.5px 0 0 0}
+  .stamp{left:8px;bottom:auto;top:auto;font-size:.56rem;padding:2px 6px}
+  .minis{grid-template-columns:minmax(0,1fr)}
+  .mini:nth-child(n+3){display:none}
+  .blank{grid-template-columns:minmax(0,1fr)}
+  .blank .stub{display:none}
+  .skel>div+div+div{display:none}
+}
+
+/* ── Dashboard view: Up next in the main column, the band above ─────── */
+.dashv{display:none;width:min(1180px,100%)}
+[data-view="dash"] .dashv{display:block}
+[data-view="dash"] .frame,[data-view="dash"] .notes{display:none}
+[data-view="dash"] .intro{width:min(1180px,100%)}
+.dhead{display:flex;align-items:flex-end;gap:12px;margin-bottom:6px}
+.dhead small{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;font-weight:600;color:var(--muted)}
+.dhead h2{font-family:var(--serif);font-weight:600;font-size:2rem;letter-spacing:-.04em;line-height:1.1}
+.slot{overflow:visible}
+.slot>.live{margin-top:22px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;margin-top:22px;align-items:start}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.ph .rows{padding:0 18px 18px;display:flex;flex-direction:column}
+.ph .row{display:flex;align-items:center;gap:11px;padding:9px 2px;border-top:1px dashed var(--line);font-size:.86rem}
+.ph .row:first-child{border-top:0}
+.ph .row .bx{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-med);flex:none}
+.ph .row span{flex:1;min-width:0;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph .row small{font-family:var(--mono);font-size:.66rem;color:var(--muted)}
+.ph .num{padding:2px 18px 18px;font-family:var(--serif);font-weight:600;font-size:2rem;letter-spacing:-.05em}
+.ph .num small{display:block;font-family:var(--sans);font-size:.8rem;font-weight:400;letter-spacing:0;color:var(--muted)}
+#upcard{transition:height .45s var(--pp-ease-spring)}
+
+/* the band: the paper .live card, still carrying its ticket stub */
+.live{--ci:var(--pp-mint-ink);--ci-s:var(--pp-mint);position:relative;display:grid;grid-template-columns:128px minmax(0,1fr);
+  border:1.5px solid var(--ink);border-radius:22px;background:var(--card);box-shadow:5px 5px 0 var(--ci-s)}
+.live>.stub{border-radius:20.5px 0 0 20.5px}
+.live .stamp{left:22px;bottom:14px}
+.live>.stub{justify-content:flex-start;padding-top:20px}
+.live>.stub .yr{display:none}
+.lv{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px 28px;align-items:center;padding:22px 24px 22px 36px;position:relative;min-width:0}
+.lv .rule{position:absolute;left:16px;top:18px;bottom:18px;width:5px;border-radius:3px;background:var(--card-3);overflow:hidden}
+.lv .rule i{position:absolute;inset:0;background:var(--ci);border-radius:3px;transform-origin:bottom;transition:transform 1s linear}
+.kick{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--mono);font-size:.7rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ci)}
+.kick .el{font-size:.76rem;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+.kick .el::before{content:"· "}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ci);animation:cip 1.8s ease-out infinite}
+@keyframes cip{0%{box-shadow:0 0 0 0 var(--ci-s)}70%,100%{box-shadow:0 0 0 8px transparent}}
+.lv h3{margin-top:6px;font-family:var(--serif);font-weight:600;font-size:clamp(22px,2.2vw,28px);letter-spacing:-.03em;line-height:1.1}
+.lvm{margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:.84rem;color:var(--muted)}
+.lvm b{color:var(--ink-soft);font-weight:600}
+.lvm .sep{color:var(--line-med)}
+.lvm .req{display:inline-flex;padding:1px 8px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid var(--pp-peach-bd);background:var(--pp-peach-soft);color:var(--pp-peach-ink)}
+.alt{font-size:.82rem;font-weight:600;color:var(--ink-soft);text-decoration:underline;text-decoration-color:var(--line-med);text-underline-offset:4px}
+.alt:hover{color:var(--ink)}
+.alt.close{color:var(--pp-peach-ink)}
+.cnt{text-align:right;min-width:132px}
+.cnt .n{font-family:var(--serif);font-weight:600;font-size:2.35rem;letter-spacing:-.05em;line-height:1}
+.cnt .n small{font-size:1rem;color:var(--muted);letter-spacing:-.02em}
+.cnt .k{margin-top:3px;font-family:var(--mono);font-size:.66rem;color:var(--muted)}
+.cnt .track{display:block;height:6px;border-radius:3px;margin-top:8px;background:var(--card-3);overflow:hidden}
+.cnt .track i{display:block;height:100%;width:0;background:var(--ci);border-radius:3px;transition:width .5s var(--pp-ease-spring)}
+.stack{margin-top:9px;display:flex;justify-content:flex-end;align-items:center;gap:7px;min-height:24px;font-size:.72rem;color:var(--muted)}
+.stack .s{display:flex}
+.stack .av{width:24px;height:24px;margin-left:-7px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--card);font-size:.56rem;font-weight:700;color:var(--pp-note-ink);filter:var(--pp-note-filter);animation:avp .3s var(--pp-ease-spring) both}
+.stack .av:first-child{margin-left:0}
+@keyframes avp{from{transform:scale(.4);opacity:0}}
+.lvbtn{display:inline-flex;align-items:center;gap:8px;padding:13px 20px;border-radius:999px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);font-size:.95rem;font-weight:600;box-shadow:2.5px 2.5px 0 var(--ci-s);transition:transform .18s var(--pp-ease-spring),box-shadow .18s}
+.lvbtn:hover{transform:translate(-1.5px,-1.5px);box-shadow:4.5px 4.5px 0 var(--ci-s)}
+.live.landed .stamp{animation:stampin .45s var(--pp-ease-spring) both}
+.live.landed .lv>*{animation:lvin .45s var(--pp-ease-out) both}
+.live.landed .lv>:nth-child(3){animation-delay:.06s}
+.live.landed .lv>:nth-child(4){animation-delay:.12s}
+.live.landed>.stub>*{animation:lvin .4s var(--pp-ease-out) both}
+.live.landed .lv>:nth-child(2){animation-delay:.02s}
+@keyframes lvin{from{opacity:0;transform:translateY(6px)}}
+@media (max-width:760px){
+  .live{grid-template-columns:84px minmax(0,1fr)}
+  .live .stub b{font-size:2.2rem}
+  .live .stub .adm,.live .stub .yr{display:none}
+  .live .stamp{left:4px;font-size:.52rem;padding:2px 5px}
+  .lv{grid-template-columns:minmax(0,1fr);padding:16px 16px 16px 30px}
+  .lv .rule{left:12px}
+  .cnt{text-align:left;min-width:0}
+  .stack{justify-content:flex-start}
+  .lvbtn{justify-self:start}
+}
+
+/* the flight */
+.flying{will-change:transform,width,height;position:fixed!important;margin:0!important;z-index:60;pointer-events:none;animation:none!important;overflow:hidden}
+.flying>.stub{border-radius:16.5px 0 0 16.5px}
+
+/* ── MOCK strip ────────────────────────────────────────────────────────── */
+.mock{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:50;display:flex;flex-wrap:wrap;justify-content:center;gap:6px;padding:6px;border-radius:16px;
+  background:var(--ink);color:var(--paper);box-shadow:var(--pp-sh-2);max-width:calc(100vw - 20px)}
+.mock .grp{display:flex;align-items:center;gap:2px;padding:2px;border-radius:11px;background:color-mix(in srgb,var(--paper) 10%,transparent)}
+.mock .grp>span{font-family:var(--mono);font-size:.56rem;letter-spacing:.12em;padding:0 6px;opacity:.6}
+.mock button{font-size:.74rem;font-weight:600;padding:5px 9px;border-radius:9px;color:inherit;opacity:.72}
+.mock button:hover{opacity:1}
+.mock button.on{background:var(--paper);color:var(--ink);opacity:1}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-shirt" viewBox="0 0 24 24"><path d="M8 4l4 2 4-2 4 3-2 4-2-1v10H8V10l-2 1-2-4z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14c2.4.2 4 1.6 4.5 4"/></symbol>
+  <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></symbol>
+  <symbol id="i-cap" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="i-car" viewBox="0 0 24 24"><path d="M3 12l2-5h14l2 5v5H3z"/><circle cx="7.5" cy="17" r="1.6"/><circle cx="16.5" cy="17" r="1.6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+</svg>
+
+<div class="stage" id="stage" data-width="main" data-view="card">
+  <div class="intro">
+    <div class="k">Dashboard · Up next · Mock</div>
+    <h1>Up next, at main-column width</h1>
+    <p>Same data the card has today (the event, its type, More details, the agenda it was seeded from, the live check-in) set as an admission ticket. At main width it uses the room: a big stub, what to bring and wear, a countdown in days, and the next three after it. In the rail it folds back to a compact stub.</p>
+  </div>
+  <div class="frame"><section class="card" aria-label="Up next" id="card"></section></div>
+  <div class="dashv">
+    <div class="dhead"><div><small>TUESDAY · OCTOBER 27</small><h2>Good evening, Priya</h2></div></div>
+    <div class="slot" id="slot"></div>
+    <div class="grid">
+      <div class="col">
+        <section class="card ph"><div class="card-h"><span class="tile t-butter"><svg class="ic"><use href="#i-check"/></svg></span><h2>On your plate</h2></div>
+          <div class="rows"><div class="row"><i class="bx"></i><span>Pay fall dues</span><small>Nov 1</small></div><div class="row"><i class="bx"></i><span>Sign up for Homecoming float</span><small>Fri</small></div><div class="row"><i class="bx"></i><span>Vote: formal venue</span><small>Thu</small></div></div></section>
+        <section class="card" aria-label="Up next" id="upcard"></section>
+        <section class="card ph"><div class="card-h"><span class="tile t-lilac"><svg class="ic"><use href="#i-users"/></svg></span><h2>Members</h2></div><div class="num">52<small>44 in good standing</small></div></section>
+      </div>
+      <div class="col">
+        <section class="card ph"><div class="card-h"><span class="tile t-mint"><svg class="ic"><use href="#i-bag"/></svg></span><h2>Treasury</h2></div><div class="num">$4,820<small>balance · 6 owe dues</small></div></section>
+        <section class="card ph"><div class="card-h"><span class="tile t-peach"><svg class="ic"><use href="#i-clock"/></svg></span><h2>Activity</h2></div>
+          <div class="rows"><div class="row"><span>Maya added Homecoming float</span><small>2h</small></div><div class="row"><span>Rob logged $120 dues</span><small>5h</small></div><div class="row"><span>Jin uploaded Bylaws v3</span><small>1d</small></div></div></section>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><b>Nothing invented</b>Facts come from the event's More details (dress, guests, supplies, directions). The agenda strip is <code>notesSeed</code>. There are no RSVP counts because the app doesn't keep any.</div>
+    <div><b>Countdown</b>Counts days ahead (one cell per day until the event). On the day it shows a clock with the start time. During check-in, a stamp shows who's in.</div>
+    <div><b>After that</b>The next three events after this one. Each opens the same peek the main ticket does. In the rail it drops to two.</div>
+  </div>
+</div>
+
+<div class="mock" id="mock">
+  <div class="grp" data-k="view"><span>VIEW</span><button data-v="card" class="on">Card</button><button data-v="dash">Dashboard</button></div>
+  <div class="grp" data-k="state"><span>STATE</span><button data-v="soon" class="on">Days away</button><button data-v="today">Today</button><button data-v="live">Check-in open</button><button data-v="empty">Empty</button><button data-v="loading">Loading</button></div>
+  <div class="grp" data-k="kind"><span>EVENT</span><button data-v="chapter" class="on">Chapter</button><button data-v="party">Party</button><button data-v="service">Service</button><button data-v="bare">Bare</button></div>
+  <div class="grp" data-k="width"><span>WIDTH</span><button data-v="main" class="on">Main</button><button data-v="rail">Rail</button><button data-v="phone">Phone</button></div>
+  <div class="grp" data-k="theme"><span>THEME</span><button data-v="day" class="on">Day</button><button data-v="night">Night</button></div>
+</div>
+
+<script>
+const S = { view: "card", state: "soon", kind: "chapter", width: "main", theme: "day", officer: true };
+const WD = ["SUN","MON","TUE","WED","THU","FRI","SAT"], MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+const TODAY = "2026-10-27";
+const ic = n => `<svg class="ic"><use href="#i-${n}"/></svg>`;
+const utc = iso => new Date(iso + "T00:00:00Z");
+const daysBetween = (a, b) => Math.round((utc(b) - utc(a)) / 864e5);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+const TYPES = { chapter: { label: "Chapter", tone: "lilac" }, party: { label: "Party", tone: "rose" }, service: { label: "Service", tone: "mint" }, social: { label: "Social", tone: "butter" }, rush: { label: "Recruitment", tone: "peach" } };
+
+const EVENTS = {
+  chapter: { title: "Chapter meeting", date: "2026-10-29", time: "7:00 PM", end: "8:30 PM", location: "Sigma Hall 204", category: "chapter", mandatory: true,
+    facts: [{ i: "shirt", k: "Wear", v: "Business casual" }, { i: "users", k: "Guests", v: "Members only" }],
+    agenda: ["Roll call & last week's minutes", "Treasurer: dues standing", "Homecoming float sign-ups", "Formal venue vote", "New business"] },
+  party: { title: "Haunted House Halloween Social", date: "2026-10-31", time: "9:00 PM", end: "1:00 AM", location: "The Lodge, 412 Elm St", category: "party", mandatory: false,
+    facts: [{ i: "shirt", k: "Wear", v: "Theme · Haunted" }, { i: "users", k: "Guests", v: "+1 each" }, { i: "cap", k: "Capacity", v: "120" }, { i: "bag", k: "Bring", v: "3 of 7 unclaimed", open: true }] },
+  service: { title: "Riverside Food Bank shift", date: "2026-11-01", time: "10:00 AM", end: "1:00 PM", location: "Riverside Food Bank", category: "service", mandatory: false,
+    facts: [{ i: "shirt", k: "Wear", v: "Athletic" }, { i: "car", k: "Rides", v: "Meet at the house 9:30" }, { i: "bag", k: "Bring", v: "Gloves · 2 unclaimed", open: true }] },
+  bare: { title: "Study hours", date: "2026-10-29", time: "6:00 PM", end: "8:00 PM", location: "Main Library, 3rd floor", category: "social", mandatory: false, facts: [] },
+};
+const LATER = [
+  { title: "Formal planning", date: "2026-11-02", time: "6:00 PM", end: "7:30 PM", location: "Chapter room", category: "social", mandatory: false, facts: [{ i: "users", k: "Guests", v: "Members only" }] },
+  { title: "Chapter meeting", date: "2026-11-05", time: "7:00 PM", category: "chapter" },
+  { title: "Rush info night", date: "2026-11-07", time: "8:00 PM", category: "rush" },
+];
+
+function whenLabel(date) {
+  const d = daysBetween(TODAY, date);
+  return d <= 0 ? "Today" : d === 1 ? "Tomorrow" : d < 7 ? `in ${d} days` : `${MON[utc(date).getUTCMonth()][0]}${MON[utc(date).getUTCMonth()].slice(1).toLowerCase()} ${utc(date).getUTCDate()}`;
+}
+
+function header(right) {
+  return `<div class="card-h"><span class="tile t-sky">${ic("clock")}</span><h2>Up next</h2>${right ? `<button class="lnk">${right} ${ic("arrow")}</button>` : ""}</div>`;
+}
+
+function stub(ev, date) {
+  const d = utc(date);
+  return `<div class="stub" aria-hidden="true"><span class="adm">ADMIT ONE</span><small>${WD[d.getUTCDay()]}</small><b>${d.getUTCDate()}</b><small>${MON[d.getUTCMonth()]}</small><span class="yr">${d.getUTCFullYear()}</span></div>`;
+}
+
+function clockSvg(time) {
+  const [hm, ap] = time.split(" "); let [h, m] = hm.split(":").map(Number); if (ap === "PM" && h !== 12) h += 12;
+  const ha = ((h % 12) + m / 60) * 30, ma = m * 6;
+  const hand = (a, l, w) => { const r = (a - 90) * Math.PI / 180; return `<line x1="23" y1="23" x2="${23 + l * Math.cos(r)}" y2="${23 + l * Math.sin(r)}" stroke="currentColor" stroke-width="${w}" stroke-linecap="round"/>`; };
+  const ticks = Array.from({ length: 12 }, (_, i) => { const r = i * 30 * Math.PI / 180; return `<line x1="${23 + 17 * Math.cos(r)}" y1="${23 + 17 * Math.sin(r)}" x2="${23 + 19 * Math.cos(r)}" y2="${23 + 19 * Math.sin(r)}" stroke="var(--line-med)" stroke-width="1.5"/>`; }).join("");
+  return `<svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="21" fill="var(--p-bg)" stroke="var(--ink)" stroke-width="1.5"/>${ticks}${hand(ha, 10, 2.4)}${hand(ma, 15, 1.6)}<circle cx="23" cy="23" r="2" fill="var(--ink)"/></svg>`;
+}
+
+function countdown(ev, date, st) {
+  if (st === "live") {
+    const tones = ["peach", "sky", "mint", "butter", "lilac", "rose"], ini = ["AK", "JM", "RC", "DP", "SL"];
+    return `<div class="cd"><div><div class="lbl">CHECKED IN</div><div class="here"><b>23</b><span class="of">of 52 here</span></div>
+      <div class="faces">${ini.map((x, i) => `<i style="background:var(--pp-${tones[i]})">${x}</i>`).join("")}<i class="n">+18</i></div></div>
+      <div class="acts"><button class="btn live"><i></i> Who's here</button></div></div>`;
+  }
+  if (st === "today") {
+    return `<div class="cd"><div><div class="lbl">TODAY</div><div class="big"><b>3h</b><span>40m to go</span></div>
+      <div class="clock">${clockSvg(ev.time)}<span><b>Starts ${ev.time}</b>ends ${ev.end}</span></div></div>
+      <div class="acts">${S.officer ? `<button class="btn solid" data-open>Open check-in</button>` : ""}</div></div>`;
+  }
+  const n = daysBetween(TODAY, date);
+  const cells = Array.from({ length: n + 1 }, (_, i) => {
+    const d = utc(TODAY); d.setUTCDate(d.getUTCDate() + i);
+    const cls = i === 0 ? "now" : i === n ? "go" : "";
+    return `<div class="day ${cls}"><i></i><small>${i === 0 ? "NOW" : WD[d.getUTCDay()].slice(0, 2)}</small></div>`;
+  }).join("");
+  return `<div class="cd"><div><div class="lbl">STARTS IN</div><div class="big"><b>${n}</b><span>${n === 1 ? "day" : "days"}</span></div>
+    <div class="sub">${WD[utc(date).getUTCDay()].charAt(0) + WD[utc(date).getUTCDay()].slice(1).toLowerCase()} at ${ev.time}</div>
+    ${n <= 7 ? `<div class="days">${cells}</div>` : ""}</div>
+    <div class="acts"><button class="btn ghost">Details ${ic("arrow")}</button></div></div>`;
+}
+
+function ticket(ev, st = S.state) {
+  const date = st === "today" || st === "live" ? TODAY : ev.date;
+  const t = TYPES[ev.category];
+  const facts = ev.facts.map(f => `<span class="fact${f.open ? " open" : ""}">${ic(f.i)}<span>${f.k} <b>${esc(f.v)}</b></span></span>`).join("");
+  const pad = ev.agenda ? `<div class="pad"><span class="h">AGENDA</span><ol>${ev.agenda.slice(0, 3).map(a => `<li>${esc(a)}</li>`).join("")}${ev.agenda.length > 3 ? `<li class="more">+ ${ev.agenda.length - 3} more</li>` : ""}</ol></div>` : "";
+  return `<div class="tix t-${t.tone}${!facts && !pad ? " bare" : ""}">
+    <button class="hit" aria-label="${esc(ev.title)}, details"></button>
+    ${st === "live" ? `<span class="stamp">CHECK-IN OPEN</span>` : ""}
+    ${stub(ev, date)}
+    <div class="bd">
+      <div class="tags"><span class="tag cat">${t.label}</span>${ev.mandatory ? `<span class="tag req">Required</span>` : ""}</div>
+      <h3>${esc(ev.title)}</h3>
+      <div class="meta"><span>${ic("clock")}${ev.time} – ${ev.end}</span><span>${ic("pin")}${esc(ev.location)}</span></div>
+      ${facts ? `<div class="facts">${facts}</div>` : ""}
+      ${pad}
+    </div>
+    ${countdown(ev, date, st)}
+  </div>`;
+}
+
+function after(list = LATER) {
+  return `<div class="after"><div class="h"><span>AFTER THAT</span></div><div class="minis">${list.map((e, i) => {
+    const d = utc(e.date), t = TYPES[e.category];
+    return `<button class="mini t-${t.tone}" style="--i:${i}"><span class="d"><small>${WD[d.getUTCDay()]}</small><b>${d.getUTCDate()}</b></span><p><b>${esc(e.title)}</b><span>${whenLabel(e.date)} · ${e.time}</span></p></button>`;
+  }).join("")}</div></div>`;
+}
+
+function render() {
+  const card = document.getElementById("card");
+  const ev = EVENTS[S.kind];
+  let html;
+  if (S.state === "loading") {
+    html = header() + `<div class="un"><div class="skel" aria-hidden="true"><div></div><div><i style="width:30%"></i><i style="width:70%;height:18px"></i><i style="width:50%"></i></div><div><i style="width:60%"></i><i style="width:40%;height:28px"></i></div></div></div>`;
+  } else if (S.state === "empty") {
+    html = header() + `<div class="un"><div class="blank"><div class="stub" aria-hidden="true"><small>— — —</small><b>?</b><small>— — —</small></div>
+      <div class="bd"><h3>Nothing on the calendar</h3><p>The last thing was <b>Chapter meeting</b>, 6 days ago. Add the next one and it shows up here for everyone.</p>
+      <div class="acts"><button class="btn solid">${ic("plus")} Add an event</button><button class="btn ghost">Add a meeting</button></div></div></div></div>`;
+  } else {
+    const right = S.state === "soon" ? whenLabel(ev.date) : null;
+    html = header(right ? "Timeline" : null) + `<div class="un">${ticket(ev)}${after()}</div>`;
+  }
+  card.innerHTML = html;
+}
+
+
+/* ── Dashboard view ─────────────────────────────────────────────────────── */
+const FACES = [["AK","peach","Aisha"],["JM","sky","Jordan"],["RC","butter","Rob"],["DP","lilac","Dev"],["SL","rose","Sam"],["TW","mint","Theo"]];
+let tick = null;
+
+function band(ev) {
+  const t = TYPES[ev.category];
+  return `<section class="live t-${t.tone}" aria-label="Live event check-in">
+    <span class="stamp">CHECK-IN OPEN</span>
+    ${stub(ev, TODAY)}
+    <div class="lv">
+      <div class="rule"><i></i></div>
+      <div><p class="kick"><span class="dot"></span><span>Happening now</span><span class="el">opened just now</span></p>
+        <h3>${esc(ev.title)}</h3>
+        <p class="lvm"><span>${ev.time}</span><span class="sep">·</span><span><b>${esc(ev.location)}</b></span>${ev.mandatory ? `<span class="sep">·</span><span class="req">Mandatory</span>` : ""}
+          <button class="alt">Take attendance</button><button class="alt close" data-close>Close &amp; record attendance</button></p></div>
+      <div class="cnt"><p class="n"><span data-n>0</span><small>/52</small></p><p class="k">here now</p><span class="track"><i data-tr></i></span><div class="stack" data-st><span>Waiting for the first check-in…</span></div></div>
+      <button class="lvbtn">Who's here</button>
+    </div>
+  </section>`;
+}
+
+/* people tapping in, so the landed band isn't a still */
+function arrivals(sec, start = 0) {
+  clearInterval(tick);
+  let n = start;
+  const set = () => {
+    sec.querySelector("[data-n]").textContent = n;
+    sec.querySelector("[data-tr]").style.width = `${Math.round(n / 52 * 100)}%`;
+    sec.querySelector(".rule i").style.transform = `scaleY(${1 - n / 140})`;
+    sec.querySelector(".el").textContent = n ? `opened ${Math.max(1, Math.round(n / 6))} min ago` : "opened just now";
+    if (n) sec.querySelector("[data-st]").innerHTML = `<span class="s">${FACES.slice(0, Math.min(4, n)).map(([x, c], i) => `<span class="av" style="background:var(--pp-${FACES[(n - 1 - i + 60) % 6][1]})">${FACES[(n - 1 - i + 60) % 6][0]}</span>`).join("")}</span><span>${FACES[(n - 1 + 60) % 6][2]} just now</span>`;
+  };
+  set();
+  tick = setInterval(() => { if (n >= 23) return clearInterval(tick); n += 1 + (Math.random() < .3); n = Math.min(n, 23); set(); }, 900);
+}
+
+function upnextBody(st) {
+  const ev = EVENTS[S.kind];
+  if (st === "live") return header("Timeline") + `<div class="un">${ticket(EVENTS_NEXT(), "soon")}${after(LATER.slice(1))}</div>`;
+  return header(st === "soon" ? "Timeline" : null) + `<div class="un">${ticket(ev, st)}${after()}</div>`;
+}
+const EVENTS_NEXT = () => LATER[0];
+
+function renderDash() {
+  clearInterval(tick);
+  const slot = document.getElementById("slot"), up = document.getElementById("upcard");
+  up.style.height = "";
+  const st = S.state === "live" ? "live" : S.state === "today" ? "today" : "soon";
+  slot.style.height = "";
+  slot.innerHTML = st === "live" ? band(EVENTS[S.kind]) : "";
+  up.innerHTML = upnextBody(st);
+  if (st === "live") arrivals(slot.firstElementChild, 14);
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function fly() {
+  const slot = document.getElementById("slot"), up = document.getElementById("upcard"), grid = document.querySelector(".dashv .grid");
+  const tix = up.querySelector(".tix");
+  const ev = EVENTS[S.kind];
+  const setLive = () => { S.state = "live"; document.querySelectorAll('.grp[data-k=state] button').forEach(b => b.classList.toggle("on", b.dataset.v === "live")); };
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { setLive(); renderDash(); return; }
+
+  const DUR = 860, LIFT = .2;
+  const TRAVEL = "cubic-bezier(.45,0,.12,1)";   // smooth in, long soft settle
+  const a = tix.getBoundingClientRect();
+
+  // the shell that travels: the ticket's own paper, its words fading first so
+  // nothing re-wraps while it stretches
+  const ghost = tix.cloneNode(true);
+  ghost.classList.add("flying");
+  Object.assign(ghost.style, { left: "0px", top: "0px", width: a.width + "px", height: a.height + "px", transform: `translate(${a.left}px,${a.top}px)` });
+  document.body.append(ghost);
+  tix.style.visibility = "hidden";
+  // the title rides along (one line, so it can't re-wrap); everything else goes first
+  const title = ghost.querySelector(".bd h3");
+  ghost.querySelector(".bd").replaceChildren(title);
+  Object.assign(title.style, { whiteSpace: "nowrap", WebkitLineClamp: "unset", display: "block", overflow: "visible" });
+  ghost.querySelector(".bd").style.justifyContent = "center";
+  ghost.querySelector(".cd").remove();
+  ghost.style.gridTemplateColumns = "128px minmax(0,1fr)";
+  ghost.querySelectorAll(".stub>*").forEach(w => w.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: "ease-out", fill: "forwards" }));
+  title.animate([{ opacity: 1 }, { opacity: 1, offset: .7 }, { opacity: 0 }], { duration: DUR, fill: "forwards" });
+
+  // the band takes its place at once (invisible); the grid is FLIPped back so
+  // nothing visibly moves until the flight starts
+  slot.innerHTML = band(ev);
+  const sec = slot.firstElementChild;
+  sec.style.opacity = "0";
+  const H = slot.offsetHeight;
+  const b = sec.getBoundingClientRect();
+  grid.animate([
+    { transform: `translateY(${-H}px)` },
+    { transform: `translateY(${-H}px)`, offset: LIFT, easing: TRAVEL },
+    { transform: "none" },
+  ], { duration: DUR });
+
+  // one continuous flight: lift off, travel, widen, land
+  const flight = ghost.animate([
+    { transform: `translate(${a.left}px,${a.top}px) rotate(0deg)`, width: a.width + "px", height: a.height + "px", borderRadius: "18px", boxShadow: "3px 3px 0 var(--p-solid)", easing: "cubic-bezier(.2,.7,.3,1)" },
+    { transform: `translate(${a.left - 4}px,${a.top - 12}px) rotate(-1.4deg)`, width: a.width + "px", height: a.height + "px", borderRadius: "18px", boxShadow: "10px 14px 0 var(--p-solid)", offset: LIFT, easing: TRAVEL },
+    { transform: `translate(${b.left}px,${b.top}px) rotate(0deg)`, width: b.width + "px", height: b.height + "px", borderRadius: "22px", boxShadow: "5px 5px 0 var(--pp-mint)" },
+  ], { duration: DUR, fill: "forwards" });
+
+  // meanwhile Up next moves on: old fades, card eases to its new height, new slides in
+  (async () => {
+    await sleep(DUR * LIFT);
+    // the header stays; only the body changes
+    const old = up.querySelector(".un");
+    const h0 = up.offsetHeight;
+    await old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: "ease-in", fill: "forwards" }).finished;
+    const t = document.createElement("div");
+    t.innerHTML = upnextBody("live");
+    const fresh = t.querySelector(".un");
+    old.replaceWith(fresh);
+    up.querySelector(".card-h").replaceWith(t.querySelector(".card-h"));
+    const h1 = up.offsetHeight;
+    up.animate([{ height: h0 + "px", overflow: "hidden" }, { height: h1 + "px", overflow: "hidden" }], { duration: 480, easing: TRAVEL });
+    fresh.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 420, delay: 60, easing: "cubic-bezier(.2,.7,.3,1)", fill: "backwards" });
+  })();
+
+  await flight.finished;
+  // it lands on the band's exact footprint, so the swap is invisible; the
+  // band's words settle in, the stamp thumps, people start tapping in
+  sec.style.opacity = "";
+  sec.classList.add("landed");
+  ghost.remove();
+  setLive();
+  setTimeout(() => arrivals(sec, 0), 800);
+}
+
+async function closeBand() {
+  clearInterval(tick);
+  const slot = document.getElementById("slot"), sec = slot.firstElementChild;
+  if (!sec) return;
+  sec.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-8px) rotate(-.4deg)" }], { duration: 260, fill: "forwards" });
+  await slot.animate([{ height: slot.offsetHeight + "px" }, { height: "0px" }], { duration: 420, delay: 160, easing: "cubic-bezier(.22,.72,.24,1)", fill: "forwards" }).finished;
+  slot.getAnimations().forEach(x => x.cancel());
+  slot.innerHTML = "";
+}
+
+document.addEventListener("click", e => {
+  if (S.view !== "dash") return;
+  if (e.target.closest("[data-open]")) fly();
+  else if (e.target.closest("[data-close]")) closeBand();
+});
+
+document.getElementById("mock").addEventListener("click", e => {
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  const k = b.parentElement.dataset.k; S[k] = b.dataset.v;
+  b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  if (k === "theme") document.documentElement.dataset.theme = S.theme;
+  if (k === "width") document.getElementById("stage").dataset.width = S.width;
+  if (k === "view") { document.getElementById("stage").dataset.view = S.view; if (S.view === "dash" && S.state !== "live") { S.state = "today"; document.querySelectorAll(".grp[data-k=state] button").forEach(x => x.classList.toggle("on", x.dataset.v === "today")); } }
+  S.view === "dash" ? renderDash() : render();
+});
+render();
+</script>
+</body>
+</html>

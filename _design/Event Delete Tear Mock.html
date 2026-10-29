@@ -1,0 +1,1128 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Delete Tear · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ISOLATED MOCK: what happens when you delete an event from the timeline.
+  The sibling of "Event Add Stamp Mock.html": add lands a mint ON THE TIMELINE
+  stamp, delete lands a rose OFF THE TIMELINE one, then the card goes.
+
+  1. The confirm becomes a paper slip. Same facts the app's ConfirmDialog
+     already states (attendance + excuses go with it, a party takes its
+     ledger), but as a ticket of the event and chips of what goes with it,
+     counted. "Keep it" has focus; Esc / the scrim keep it too.
+  2. Delete: the slip drops away, and on the row itself a rose pen strikes
+     the title through twice, the meta greys, and the stamp thunks down
+     (the card gives under it, a little ink kicks out).
+  3. The card goes: a rip runs down it, the halves part, pop and fall away
+     with a few scraps. The spine dot pops and the slot closes: the rows
+     below glide up and settle. An emptied month header folds away with it.
+     (Shred and Slide were tried and dropped: tear it is.)
+  4. Undo window (PROPOSAL, toggle in the mock bar): the DELETE is held for
+     6s behind a toast with a burning fuse (hover pauses it, ⌘Z undoes).
+     Undo: the slot reopens, the pieces fly back up and a strip of washi
+     tape lands over the seam; the strike and stamp lift, then the tape
+     peels. No backend needed: the client just sends the DELETE late. A new
+     delete while one is pending sends the pending one at once, and so does
+     leaving the page (in the app: fetch keepalive on pagehide).
+     With the window off, the DELETE goes at once, as today.
+
+  When it fails. deleteCalendar can answer five ways, and each gets its own
+  ending instead of today's one "delete failed, local changes reverted":
+    · Network / offline, 5xx: transient. Retried once, quietly, while the
+      card is still tearing. If that fails too, it's put back (below) and
+      the toast offers Try again. Offline says so.
+    · 404: someone else deleted it first. That's not a failure: the tear
+      finishes, a quiet mint note says who beat you to it. No Undo.
+    · 403 / 401: never animated. The app re-checks the session and the
+      viewer's permissions (/api/auth/me) when the slip opens, so the slip
+      itself says "You can't delete X" (a party ledger needs Manage
+      parties; roles changed mid-session) or "Sign in to delete X", with no
+      Delete button at all. Nothing is struck, stamped or torn for an answer
+      we could know up front. Only a race the check can't see (perms pulled
+      in the seconds between the slip and the DELETE) falls back to the
+      put-back below.
+  Putting it back: if the answer comes before the tear (the usual case with
+  the undo window off) it never tears: the stamp lifts, the card blushes rose
+  and shakes. If it comes after (undo window on), the slot reopens and the
+  pieces fly back up under washi tape, then blush. The failure toast stays
+  until it's dismissed; nothing ever reopens on its own.
+
+  On a phone (≤760px; see "Event Delete Tear Mobile.html" for it in a frame):
+  rows have no bin. Tapping an event opens its sheet (the app's .has-sel
+  bottom sheet below 1024), Delete in the sheet hands over to the slip, which
+  is a bottom sheet too, with the buttons under the thumb. The tear plays on
+  the row above; the undo toast sits over the tab bar. A short buzz on the
+  stamp and the rip (navigator.vibrate, Android only; iOS has no web haptics).
+
+  Reduced motion (or the mock toggle): no strike, stamp, or pieces; the row
+  disappears, the toast still offers Undo.
+
+  In the app the bin is the event rail's `.ev-icon.danger`; the hover bin on
+  each row here is mock-only, so every row is one click from the slip.
+-->
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --drop:rgba(38,33,27,.2);
+
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-med:#DCD0B9; --scrim:rgba(38,33,27,.28);
+  --wash:color-mix(in srgb, var(--pp-rose) 40%, var(--card));
+
+  --c-chapter:#2A66C7; --c-social:#9C6B08; --c-fundy:#1B815B; --c-program:#6244CC;
+  --c-party:#C23C77; --c-deadline:#C9542D; --c-service:#1F8A80;
+
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A;
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF;
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --drop:rgba(0,0,0,.55);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-med:#43382B; --scrim:rgba(5,4,2,.6);
+  --wash:color-mix(in srgb, var(--pp-rose) 14%, var(--card));
+  --c-chapter:#AACBFF; --c-social:#F0CC72; --c-fundy:#8FDDB6; --c-program:#C4B6FF;
+  --c-party:#FFAACB; --c-deadline:#FFB49A; --c-service:#7FD6CB;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--paper); color: var(--ink);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button { font: inherit; color: inherit; }
+svg { display: block; }
+
+/* ── Faux app ─────────────────────────────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; }
+.app-sb { position: sticky; top: 0; height: 100vh; border-right: 1.5px solid var(--line); background: var(--paper-2); padding: 22px 16px; }
+.app-sb .org { display: flex; gap: 10px; align-items: center; font: 700 1.05rem var(--display); margin-bottom: 26px; }
+.app-sb .org i { width: 30px; height: 30px; border-radius: 9px; background: var(--pp-lilac); border: 1.5px solid var(--ink); transform: rotate(-4deg); }
+.app-sb .it { height: 30px; border-radius: 9px; margin: 6px 0; background: var(--card-3); opacity: .7; }
+.app-sb .it.on { background: var(--card); border: 1.5px solid var(--line-med); opacity: 1; }
+.app-main { padding: 34px 44px 160px; min-width: 0; }
+.app-main h1 { font: 700 2.2rem/1 var(--display); letter-spacing: -.035em; margin: 0; }
+.app-main .sub { font: .78rem var(--mono); color: var(--muted); margin: 8px 0 24px; }
+
+/* the timeline: a dashed spine, a dot per row */
+.tl { position: relative; max-width: 600px; border-left: 2px dashed var(--line-med); margin-left: 8px; padding-left: 26px; }
+.tl .mo { position: relative; font: 600 .64rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; overflow: hidden; }
+.tl .mo:first-child { margin-top: 0; }
+.tl .today { position: relative; display: flex; align-items: center; gap: 10px; margin: 4px 0 18px; font: 600 .62rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pp-peach-ink); }
+.tl .today::before { content: ""; position: absolute; left: -33px; width: 12px; height: 2px; background: var(--pp-peach-ink); }
+.tl .today::after { content: ""; flex: 1; border-top: 1.5px dashed color-mix(in srgb, var(--pp-peach-ink) 45%, transparent); }
+
+.ev {
+  position: relative; display: flex; align-items: center; gap: 12px; min-height: 66px; margin: 0 0 14px; padding: 12px 16px;
+  border-radius: 14px; background: var(--card); border: 1.5px solid var(--line); transition: border-color .15s;
+}
+.ev::before { content: ""; position: absolute; left: -34px; top: 50%; margin-top: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--d, var(--c-chapter)); border: 2px solid var(--paper); }
+.ev.past { background: color-mix(in srgb, var(--card) 70%, var(--paper-2)); }
+.ev .tx { position: relative; min-width: 0; flex: 1; }
+.ev .t { font: 650 1rem/1.25 var(--display); letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev .m { font: .74rem var(--mono); color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity .3s; }
+.ev .del {
+  flex-shrink: 0; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; cursor: pointer;
+  border: 1.5px solid transparent; background: none; color: var(--muted); opacity: 0; transition: opacity .15s, color .15s, background .15s, border-color .15s;
+}
+.ev .del svg { width: 16px; height: 16px; }
+.ev:hover .del, .ev .del:focus-visible { opacity: 1; }
+.ev .del:hover, .ev .del:focus-visible { color: var(--pp-rose-ink); background: var(--pp-rose-soft); border-color: color-mix(in srgb, var(--pp-rose-ink) 40%, transparent); outline: 0; }
+.ev:has(.del:hover) { border-color: color-mix(in srgb, var(--pp-rose-ink) 55%, var(--line)); }
+.ev.going .del { display: none; }
+.ev.going .m { opacity: .5; }
+.ev.going { cursor: default; }
+.ev.clone { margin: 0; width: 100%; height: 100%; min-height: 0; }
+.ev.clone::before { display: none; }
+
+/* the pen: two strokes through the title */
+.strike { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.strike path { fill: none; stroke: var(--pp-rose-ink); stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.strike path + path { stroke-width: 1.8; opacity: .85; }
+
+/* the stamp: the add mock's, in rose */
+.stamp-ink {
+  position: absolute; right: 16px; top: 50%; z-index: 2; pointer-events: none;
+  display: grid; justify-items: center; gap: 1px; padding: 5px 11px 4px;
+  color: var(--pp-rose-ink); border: 2.5px solid currentColor; border-radius: 7px;
+  outline: 1.5px solid currentColor; outline-offset: 2.5px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  font: 700 .78rem/1 var(--mono); letter-spacing: .16em; text-indent: .16em; white-space: nowrap;
+  transform: translateY(-50%) rotate(-8deg);
+}
+.stamp-ink small { font: 600 .54rem var(--mono); letter-spacing: .14em; text-indent: .14em; opacity: .85; }
+.splat { position: absolute; z-index: 1; border-radius: 50%; background: var(--pp-rose-ink); pointer-events: none; }
+.rip { position: absolute; left: -1.5px; top: -1.5px; overflow: visible; pointer-events: none; z-index: 3; }
+.rip path, .rip line { fill: none; stroke: var(--ink-soft); stroke-width: 1.2; stroke-linecap: round; stroke-dasharray: 1; }
+
+/* pieces: clones of the card, clipped, falling */
+.piece { position: absolute; z-index: 6; pointer-events: none; filter: drop-shadow(0 7px 10px var(--drop)); will-change: transform, opacity; }
+.piece .edge { position: absolute; left: -1.5px; top: -1.5px; overflow: visible; pointer-events: none; }
+.piece .edge polyline { fill: none; stroke: var(--line-med); stroke-width: 3; stroke-linejoin: round; }
+.scrap { position: absolute; z-index: 6; pointer-events: none; background: var(--card); filter: drop-shadow(0 2px 2px var(--drop)); }
+.pin { position: absolute; z-index: 6; width: 12px; height: 12px; border-radius: 50%; background: var(--d); border: 2px solid var(--paper); pointer-events: none; }
+
+/* washi tape, for putting it back */
+.tape {
+  position: absolute; z-index: 4; pointer-events: none;
+  background: repeating-linear-gradient(-45deg,
+    color-mix(in srgb, var(--pp-butter) 82%, transparent) 0 7px,
+    color-mix(in srgb, var(--pp-butter) 58%, transparent) 7px 12px);
+  clip-path: polygon(0 4%, 12% 0, 25% 5%, 38% 0, 50% 4%, 63% 0, 76% 5%, 88% 0, 100% 4%, 100% 96%, 88% 100%, 76% 95%, 63% 100%, 50% 96%, 38% 100%, 25% 95%, 12% 100%, 0 96%);
+}
+html[data-theme="night"] .tape { mix-blend-mode: screen; opacity: .8; }
+
+/* ── The confirm slip ────────────────────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; z-index: 10; background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.stage { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 16px; pointer-events: none; }
+.stage.on { display: grid; }
+.slip {
+  pointer-events: auto; width: min(460px, 100%); position: relative;
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 22px; box-shadow: 6px 6px 0 var(--pp-rose);
+  padding: 22px 22px 18px; animation: slip-in .42s var(--spring) both;
+}
+@keyframes slip-in { from { opacity: 0; transform: translateY(16px) rotate(-1deg) scale(.97); } }
+.slip-head { display: flex; align-items: center; gap: 10px; }
+.tile { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: var(--pp-rose); border: 1.5px solid var(--ink); transform: rotate(-4deg); color: #26211B; flex-shrink: 0; }
+.tile svg { width: 15px; height: 15px; }
+.kick { font: 600 .66rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.slip h2 { margin: 14px 0 14px; font: 700 1.5rem/1.15 var(--display); letter-spacing: -.03em; }
+.slip h2 em { font-style: normal; background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-rose) 75%, transparent) 58% 92%, transparent 92%); padding: 0 2px; }
+
+/* the event as a ticket with a stub */
+.tk { display: flex; border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--paper); overflow: hidden; }
+.tk-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; padding: 12px 14px; }
+.tk-main .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--d); flex-shrink: 0; }
+.tk-main b { display: block; font: 650 1rem/1.2 var(--display); letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-main span { display: block; font: .72rem var(--mono); color: var(--muted); margin-top: 2px; }
+.tk-main > div { min-width: 0; }
+.tk-stub {
+  position: relative; width: 70px; flex-shrink: 0; display: grid; place-content: center; justify-items: center; gap: 0;
+  border-left: 1.5px dashed var(--line-med); background: var(--paper-2);
+}
+.tk-stub::before, .tk-stub::after { content: ""; position: absolute; left: -7.5px; width: 13px; height: 13px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--line-med); }
+.tk-stub::before { top: -8px; } .tk-stub::after { bottom: -8px; }
+.tk-stub small { font: 600 .56rem var(--mono); letter-spacing: .14em; color: var(--muted); }
+.tk-stub b { font: 700 1.45rem/1 var(--display); letter-spacing: -.03em; color: var(--d); }
+
+.goes { margin-top: 16px; }
+.goes .why { margin: 0; padding: 11px 13px; border-radius: 12px; font-size: .86rem; line-height: 1.45; color: var(--ink-soft); background: var(--paper-2); border: 1.5px dashed var(--line-med); }
+.slip.blocked { box-shadow: 6px 6px 0 var(--pp-peach); }
+.slip.blocked .tile { background: var(--pp-peach); }
+.slip.blocked .btn.danger { background: var(--pp-sky); }
+.slip.blocked h2 em { background: linear-gradient(transparent 58%, color-mix(in srgb, var(--pp-peach) 75%, transparent) 58% 92%, transparent 92%); }
+.goes .lbl { display: block; font: 600 .62rem var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 8px; border-radius: 999px; font-size: .8rem;
+  background: var(--pp-rose-soft); border: 1.5px solid color-mix(in srgb, var(--pp-rose-ink) 35%, transparent); color: var(--ink);
+  animation: chip-in .38s var(--spring) both;
+}
+.chip b { font: 600 .8rem var(--mono); }
+.chip svg { width: 14px; height: 14px; color: var(--pp-rose-ink); }
+.chip.ledger { background: var(--pp-butter-soft); border-color: color-mix(in srgb, var(--pp-butter-ink) 40%, transparent); }
+.chip.ledger svg { color: var(--pp-butter-ink); }
+.chip.none { background: var(--paper-2); border: 1.5px dashed var(--line-med); color: var(--muted); }
+@keyframes chip-in { from { opacity: 0; transform: translateY(5px) rotate(-2deg); } }
+
+.slip-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 14px; border-top: 1.5px dashed var(--line); }
+.slip-foot .note { font-size: .78rem; color: var(--muted); min-width: 0; flex: 1; }
+.slip-foot .btns { display: flex; gap: 8px; flex-shrink: 0; }
+.btn {
+  border: 1.5px solid var(--line-med); background: var(--card); color: var(--ink); border-radius: 12px;
+  padding: 9px 15px; font: 600 .86rem var(--sans); cursor: pointer; transition: transform .12s, box-shadow .12s, border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--ink); }
+.btn:focus-visible { outline: 2px solid var(--pp-sky-ink); outline-offset: 2px; }
+.btn.danger { background: var(--pp-rose); color: #26211B; border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.btn.danger:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.btn.danger:active, .btn.danger.pressed { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+
+/* ── Toasts ──────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 30; display: flex; align-items: center; gap: 12px; overflow: hidden;
+  width: max-content; max-width: min(540px, calc(100vw - 32px)); padding: 11px 10px 15px 12px;
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: 4px 4px 0 var(--pp-rose);
+  transform: translateX(-50%); font-size: .86rem;
+}
+.toast .tile { width: 30px; height: 30px; }
+.toast .tx { min-width: 0; }
+.toast .tx b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toast .tx span { display: block; color: var(--muted); font-size: .78rem; }
+.toast .btn { padding: 7px 12px; font-size: .8rem; display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-butter); }
+.toast .btn:hover { box-shadow: 3px 3px 0 var(--pp-butter); transform: translate(-1px, -1px); }
+.toast kbd { font: 600 .66rem var(--mono); color: var(--muted); border: 1px solid var(--line-med); border-bottom-width: 2px; border-radius: 5px; padding: 0 4px; }
+.toast .tx-x { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border: 0; background: none; border-radius: 8px; color: var(--muted); cursor: pointer; }
+.toast .tx-x:hover { color: var(--ink); background: var(--paper-2); }
+.toast .tx-x svg { width: 14px; height: 14px; }
+/* the fuse: the undo window, burning down */
+.fuse { position: absolute; left: 14px; bottom: 6px; height: 2px; width: calc(100% - 28px); border-radius: 2px; background: repeating-linear-gradient(90deg, var(--pp-rose-ink) 0 6px, transparent 6px 9px); }
+.fuse::after {
+  content: ""; position: absolute; right: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--pp-peach-ink); box-shadow: 0 0 0 2px color-mix(in srgb, var(--pp-butter) 70%, transparent), 0 0 10px 3px color-mix(in srgb, var(--pp-peach) 80%, transparent);
+  animation: ember .22s steps(2) infinite alternate;
+}
+@keyframes ember { to { transform: scale(.7); box-shadow: 0 0 0 1px color-mix(in srgb, var(--pp-butter) 70%, transparent), 0 0 6px 2px color-mix(in srgb, var(--pp-peach) 80%, transparent); } }
+.toast:hover .fuse::after { animation-play-state: paused; }
+.toast.fail, .toast.info { padding-bottom: 11px; }
+.toast.info { box-shadow: 4px 4px 0 var(--pp-mint); }
+.toast.info .tile { background: var(--pp-mint); }
+.toast.fail.hard { box-shadow: 4px 4px 0 var(--pp-peach); }
+.toast.fail.hard .tile { background: var(--pp-peach); }
+
+/* ── Mock controls ───────────────────────────────────────────────────────── */
+.mock { position: fixed; right: 12px; top: 12px; z-index: 40; display: flex; flex-direction: column; gap: 5px; width: 176px; padding: 7px 8px 8px; border-radius: 12px; background: var(--ink); color: var(--paper); font: 600 .7rem var(--mono); }
+.mock > span { opacity: .55; letter-spacing: .12em; margin: 5px 2px 0; }
+.mock button { border: 1px solid rgba(255,255,255,.25); background: none; color: inherit; border-radius: 7px; padding: 5px 8px; cursor: pointer; font: inherit; text-align: left; }
+html[data-theme="night"] .mock button { border-color: rgba(0,0,0,.25); }
+.mock button:hover { background: rgba(127,127,127,.25); }
+.mock button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
+.mock .outs { display: grid; gap: 4px; }
+.mock .wire { font: 500 .62rem/1.5 var(--mono); opacity: .8; min-height: 3em; padding: 4px 2px 0; border-top: 1px dashed rgba(127,127,127,.4); margin-top: 3px; overflow-wrap: anywhere; }
+.mock .wire div:last-child { opacity: 1; }
+.mock .tog-mock { display: none; }
+.mock .body { display: contents; }
+
+@media (max-width: 1060px) { .mock { width: 160px; } .app-main { padding-right: 190px; } }
+/* ── Phone: the event sheet, the tab bar, the finger ─────────────────────── */
+.esheet, .mtab { display: none; }
+.finger { position: fixed; z-index: 60; width: 46px; height: 46px; border-radius: 50%; pointer-events: none;
+  background: color-mix(in srgb, var(--ink) 16%, transparent); border: 2px solid color-mix(in srgb, var(--ink) 35%, transparent); }
+html.embed .mock { display: none; }
+@keyframes sheet-up { from { transform: translateY(105%); } }
+@media (max-width: 760px) {
+  :root { --tabh: 64px; }
+  html.embed { --tabh: 82px; }
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .app-sb { display: none; }
+  .app-main { padding: 22px 16px calc(var(--tabh) + 120px); }
+  .app-main h1 { font-size: 2rem; }
+  .ev .del { display: none; }
+  .ev { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: border-color .15s, box-shadow .2s, transform .2s; }
+  .ev.sel { border-color: var(--ink); box-shadow: 3px 3px 0 color-mix(in srgb, var(--d) 45%, transparent); transform: translate(-1px, -1px); }
+  .ev.going.sel { box-shadow: none; transform: none; }
+
+  .mtab {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; height: var(--tabh); padding: 8px 10px calc(var(--tabh) - 56px);
+    background: var(--paper-2); border-top: 1.5px solid var(--line); justify-content: space-around; align-items: flex-start;
+  }
+  .mtab i { display: grid; justify-items: center; gap: 3px; width: 64px; font: 600 .6rem var(--sans); font-style: normal; color: var(--muted); }
+  .mtab i svg { width: 22px; height: 22px; }
+  .mtab i.on { color: var(--ink); }
+  .mtab i.on svg { color: var(--pp-lilac-ink); }
+
+  /* sheets: the event's, then the slip, both up from the bottom */
+  .stage { place-items: end center; padding: 0; }
+  .slip, .esheet {
+    width: 100%; border-radius: 26px 26px 0 0; border-bottom: 0; box-shadow: 0 -5px 0 var(--pp-rose);
+    padding: 26px 18px calc(18px + var(--tabh) - 56px); animation: sheet-up .42s var(--spring) both;
+  }
+  .slip::before, .esheet::before { content: ""; position: absolute; top: 9px; left: 50%; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: var(--line-med); }
+  .slip.blocked { box-shadow: 0 -5px 0 var(--pp-peach); }
+  .slip h2 { font-size: 1.35rem; margin: 12px 0; }
+  .slip-foot .note { flex-basis: 100%; }
+  .slip-foot .btns .btn { padding: 13px 15px; font-size: .92rem; }
+
+  .esheet { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--card); border: 1.5px solid var(--ink); box-shadow: 0 -5px 0 color-mix(in srgb, var(--d) 45%, transparent); }
+  .esheet.on { display: block; }
+  .es-head { display: flex; align-items: flex-start; gap: 12px; }
+  .es-head .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--d); margin-top: 9px; flex-shrink: 0; }
+  .es-head b { display: block; font: 700 1.4rem/1.15 var(--display); letter-spacing: -.03em; }
+  .es-head span { display: block; font: .76rem var(--mono); color: var(--muted); margin-top: 4px; }
+  .es-rows { margin: 16px 0 18px; border-top: 1.5px dashed var(--line); }
+  .es-rows div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1.5px dashed var(--line); font-size: .86rem; }
+  .es-rows div span { color: var(--muted); }
+  .es-rows div b { font-weight: 600; text-align: right; }
+  .es-acts { display: flex; gap: 8px; }
+  .es-acts .btn { flex: 1; padding: 13px 15px; font-size: .92rem; display: inline-flex; justify-content: center; align-items: center; gap: 8px; }
+  .es-acts .btn svg { width: 16px; height: 16px; }
+  .es-acts .del { color: var(--pp-rose-ink); border-color: color-mix(in srgb, var(--pp-rose-ink) 45%, transparent); background: var(--pp-rose-soft); }
+
+  .toast { bottom: calc(var(--tabh) + 12px); width: calc(100vw - 24px); max-width: none; }
+  .toast .btn kbd { display: none; }
+  .toast .tx b { white-space: normal; }
+  .mock { width: auto; max-width: calc(100vw - 24px); }
+  .mock .tog-mock { display: block; }
+  .mock:not(.open) .body { display: none; }
+  .mock.open { width: 176px; }
+  .slip { padding: 18px 16px 16px; }
+  .slip-foot { flex-wrap: wrap; }
+  .slip-foot .btns { width: 100%; }
+  .slip-foot .btns .btn { flex: 1; }
+  .stamp-ink { right: 10px; padding: 4px 8px 3px; font-size: .64rem; border-width: 2px; outline-offset: 2px; }
+  .stamp-ink small { font-size: .48rem; }
+}
+@media (prefers-reduced-motion: reduce) { .slip, .chip { animation: none; } .fuse::after { animation: none; } }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="app-sb" aria-hidden="true"><div class="org"><i></i>Lambda Phi</div><div class="it"></div><div class="it on"></div><div class="it"></div><div class="it"></div><div class="it"></div></aside>
+  <main class="app-main">
+    <h1>Timeline</h1>
+    <div class="sub" id="sub"></div>
+    <div class="tl" id="tl"></div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="esheet" id="esheet" role="dialog" aria-modal="true" aria-labelledby="esTitle">
+  <div class="es-head"><i class="dot"></i><div><b id="esTitle"></b><span id="esMeta"></span></div></div>
+  <div class="es-rows" id="esRows"></div>
+  <div class="es-acts"><button class="btn" id="esEdit">Edit</button><button class="btn del" id="esDel"></button></div>
+</div>
+<nav class="mtab" aria-hidden="true"></nav>
+<div class="stage" id="stage">
+  <div class="slip" id="slip" role="alertdialog" aria-modal="true" aria-labelledby="slipTitle" aria-describedby="slipNote">
+    <div class="slip-head"><span class="tile" id="slipTile"></span><span class="kick" id="slipKick">Delete event</span></div>
+    <h2 id="slipTitle"></h2>
+    <div class="tk" id="tk"></div>
+    <div class="goes" id="goes"></div>
+    <div class="slip-foot">
+      <span class="note" id="slipNote"></span>
+      <div class="btns"><button class="btn" id="keep">Keep it</button><button class="btn danger" id="go">Delete event</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="mock" id="mock" aria-label="Mock controls">
+  <button class="tog-mock" onclick="this.parentElement.classList.toggle('open')">MOCK ▾</button>
+  <div class="body">
+    <span>PLAY</span>
+    <button onclick="demo('party')">▶ Halloween party</button>
+    <button onclick="demo('past')">▶ A past meeting</button>
+    <button onclick="demo('quick')">▶ Skip the slip</button>
+    <span>PLAY AN ERROR</span>
+    <div class="outs" id="outs">
+      <button data-o="offline">▶ Offline</button>
+      <button data-o="500">▶ 500 · server error</button>
+      <button data-o="404">▶ 404 · already gone</button>
+      <button data-o="403">▶ 403 · not allowed</button>
+      <button data-o="401">▶ 401 · signed out</button>
+    </div>
+    <span>OPTIONS</span>
+    <button id="tUndo" aria-pressed="true" onclick="flip('undo')">Undo window</button>
+    <button id="tSlow" aria-pressed="false" onclick="flip('slow')">Slow ×4</button>
+    <button id="tReduce" aria-pressed="false" onclick="flip('reduce')">Reduced motion</button>
+    <button onclick="toggleTheme()">Day / night</button>
+    <button onclick="resetAll()">↺ Reset timeline</button>
+    <span>WIRE</span>
+    <div class="wire" id="wire"><div>nothing sent yet</div></div>
+  </div>
+</div>
+
+<script>
+/* ── Bits ──────────────────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const svg = (d, sw = 1.9) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const I = {
+  trash:  svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/>'),
+  check:  svg('<path d="M4 12.5l4.5 4.5L20 6"/>', 2.2),
+  excuse: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h4"/>'),
+  till:   svg('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+  x:      svg('<path d="M6 6l12 12M18 6 6 18"/>', 2.2),
+  undo:   svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>', 2),
+  bang:   svg('<path d="M12 7v6M12 17v.5"/>', 2.6),
+  lock:   svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  wifi:   svg('<path d="M2 8.5a15 15 0 0 1 20 0M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M12 19v.5M3 3l18 18"/>'),
+};
+const NS = 'http://www.w3.org/2000/svg';
+const CATS = { chapter: 'Chapter', social: 'Social', fundy: 'Fundraiser', program: 'Programming', party: 'Party', deadline: 'Deadline', service: 'Service' };
+const TODAY = '2026-10-13';
+const fmtDate = d => new Date(d + 'T12:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const to12 = t => { let [h, m] = t.split(':').map(Number); const ap = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12; return m ? `${h}:${String(m).padStart(2, '0')}${ap}` : `${h}${ap}`; };
+const monthOf = d => new Date(d + 'T12:00').toLocaleDateString('en-US', { month: 'long' });
+const rand = (a, b) => a + Math.random() * (b - a);
+
+let slow = 1, undoWindow = true, nextOut = 'ok', forceReduce = false;
+const T = ms => ms * slow;
+const wait = ms => new Promise(r => setTimeout(r, T(ms)));
+const reduced = () => forceReduce || matchMedia('(prefers-reduced-motion: reduce)').matches;
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* ── Data: what goes with each event is what the app's dialog lists ───── */
+const EVENTS0 = [
+  { id: 41, title: 'Welcome back BBQ',  cat: 'social',   date: '2026-09-06', start: '17:00', att: 31, exc: 0 },
+  { id: 42, title: 'Chapter meeting',   cat: 'chapter',  date: '2026-09-13', start: '19:00', att: 38, exc: 3 },
+  { id: 43, title: 'Rush week opener',  cat: 'program',  date: '2026-09-20', start: '18:00', att: 44, exc: 1 },
+  { id: 44, title: 'Chapter meeting',   cat: 'chapter',  date: '2026-09-27', start: '19:00', att: 36, exc: 4 },
+  { id: 45, title: 'Car wash',          cat: 'fundy',    date: '2026-10-04', start: '10:00', att: 17, exc: 0 },
+  { id: 46, title: 'Chapter meeting',   cat: 'chapter',  date: '2026-10-11', start: '19:00', att: 40, exc: 2 },
+  { id: 47, title: 'Chapter meeting',   cat: 'chapter',  date: '2026-10-18', start: '19:00', att: 0,  exc: 1 },
+  { id: 48, title: 'Park cleanup',      cat: 'service',  date: '2026-10-21', start: '09:00', att: 0,  exc: 0 },
+  { id: 49, title: 'Halloween party',   cat: 'party',    date: '2026-10-30', start: '21:00', att: 0,  exc: 2, ledger: '$412 in pre-sales' },
+  { id: 50, title: 'Pancake breakfast', cat: 'fundy',    date: '2026-11-06', start: '08:00', att: 0,  exc: 0 },
+  { id: 51, title: 'Chapter meeting',   cat: 'chapter',  date: '2026-11-08', start: '19:00', att: 0,  exc: 0 },
+  { id: 52, title: 'Food bank shift',   cat: 'service',  date: '2026-11-14', start: '13:00', att: 0,  exc: 0 },
+  { id: 53, title: 'Friendsgiving',     cat: 'social',   date: '2026-11-21', start: '18:00', att: 0,  exc: 0 },
+  { id: 54, title: 'Dues deadline',     cat: 'deadline', date: '2026-12-01', allDay: true, att: 0, exc: 0 },
+  { id: 55, title: 'Chapter meeting',   cat: 'chapter',  date: '2026-12-06', start: '19:00', att: 0,  exc: 0 },
+  { id: 56, title: 'Winter formal',     cat: 'party',    date: '2026-12-12', start: '20:00', att: 0,  exc: 0, ledger: 'no sales yet' },
+];
+let EVENTS = structuredClone(EVENTS0);
+const timeOf = e => e.allDay ? 'all day' : to12(e.start);
+
+/* ── The timeline ──────────────────────────────────────────────────────── */
+function renderTL() {
+  let m = '', todayDone = false;
+  $('tl').innerHTML = EVENTS.map(e => {
+    let pre = '';
+    if (monthOf(e.date) !== m) pre += `<div class="mo" data-month="${e.date.slice(0, 7)}">${(m = monthOf(e.date))}</div>`;
+    if (!todayDone && e.date > TODAY) { todayDone = true; pre += `<div class="today">Today · ${fmtDate(TODAY)}</div>`; }
+    return pre + `<div class="ev${e.date < TODAY ? ' past' : ''}" data-id="${e.id}" data-month="${e.date.slice(0, 7)}" style="--d:var(--c-${e.cat})">
+      <div class="tx"><div class="t"><span class="tt">${esc(e.title)}</span></div><div class="m">${CATS[e.cat]} · ${fmtDate(e.date)} · ${timeOf(e)}</div></div>
+      <button class="del" aria-label="Delete ${esc(e.title)}" title="Delete event">${I.trash}</button>
+    </div>`;
+  }).join('');
+  $('tl').querySelectorAll('.ev').forEach(r => r._ev = EVENTS.find(e => e.id === +r.dataset.id));
+  count();
+}
+function count() {
+  const n = [...$('tl').querySelectorAll('.ev')].filter(r => !r._d).length;
+  $('sub').textContent = `Fall 2026 · ${n} event${n === 1 ? '' : 's'}`;
+}
+$('tl').addEventListener('click', ev => {
+  const b = ev.target.closest('.del');
+  if (b) return askDelete(b.closest('.ev'));
+  const row = ev.target.closest('.ev');
+  if (row && mob() && !row._d && !row.classList.contains('clone')) openSheet(row);
+});
+const mob = () => matchMedia('(max-width: 760px)').matches;
+const buzz = p => { try { navigator.vibrate?.(p); } catch {} };
+/* the phone page listens for these to light up its beats */
+const beat = name => { if (parent !== window) parent.postMessage({ beat: name }, '*'); };
+
+/* ── Phone: the event's sheet ──────────────────────────────────────────── */
+let sheetRow = null;
+function openSheet(row) {
+  const e = row._ev;
+  sheetRow = row;
+  row.classList.add('sel');
+  $('esheet').style.setProperty('--d', `var(--c-${e.cat})`);
+  $('esTitle').textContent = e.title;
+  $('esMeta').textContent = `${CATS[e.cat]} · ${fmtDate(e.date)} · ${timeOf(e)}`;
+  $('esRows').innerHTML = [
+    ['Attendance', e.att ? `${e.att} marked` : 'Not taken yet'],
+    ['Excuses', e.exc ? `${e.exc} request${e.exc === 1 ? '' : 's'}` : 'None'],
+    ...(e.ledger ? [['Party ledger', e.ledger]] : []),
+  ].map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('');
+  $('esDel').innerHTML = `${I.trash}Delete`;
+  $('scrim').classList.add('on');
+  $('esheet').classList.add('on');
+  $('esheet').style.animation = 'none'; $('esheet').offsetWidth; $('esheet').style.animation = '';
+  beat('sheet');
+}
+function closeSheet(handoff) {
+  const row = sheetRow;
+  sheetRow = null;
+  if (!handoff) { $('scrim').classList.remove('on'); row?.classList.remove('sel'); }
+  $('esheet').animate([{ transform: 'none' }, { transform: 'translateY(105%)' }], { duration: reduced() ? 1 : T(200), easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
+    .onfinish = a => { $('esheet').classList.remove('on'); a.target.cancel(); };
+}
+$('esEdit').onclick = () => closeSheet();
+$('esDel').onclick = () => { const row = sheetRow; closeSheet(true); setTimeout(() => askDelete(row), reduced() ? 0 : T(170)); };
+/* a finger, for the played-through demo */
+async function tap(el) {
+  const r = el.getBoundingClientRect(), f = document.createElement('i');
+  f.className = 'finger';
+  Object.assign(f.style, { left: r.left + r.width / 2 - 23 + 'px', top: r.top + r.height / 2 - 23 + 'px' });
+  document.body.append(f);
+  f.animate([{ opacity: 0, transform: 'scale(1.7)' }, { opacity: 1, transform: 'scale(1)', offset: .4 }, { opacity: 1, transform: 'scale(.82)', offset: .62 }, { opacity: 0, transform: 'scale(1.15)' }],
+    { duration: T(560), easing: 'ease-out' }).onfinish = () => f.remove();
+  await wait(300);
+}
+
+/* ── The slip ──────────────────────────────────────────────────────────── */
+let asking = null, blockedBy = null;
+function askDelete(row) {
+  if (!row || row._d) return;
+  const e = row._ev;
+  asking = row;
+  $('slipTile').innerHTML = I.trash;
+  $('slipTitle').innerHTML = `Delete <em>${esc(e.title)}</em>?`;
+  const dt = new Date(e.date + 'T12:00');
+  $('tk').style.setProperty('--d', `var(--c-${e.cat})`);
+  $('tk').innerHTML = `<div class="tk-main"><i class="dot"></i><div><b>${esc(e.title)}</b><span>${CATS[e.cat]} · ${timeOf(e)}</span></div></div>
+    <div class="tk-stub"><small>${dt.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}</small><b>${dt.getDate()}</b><small>${dt.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}</small></div>`;
+  const chips = [];
+  if (e.att) chips.push(`<span class="chip">${I.check}<b>${e.att}</b> attendance marks</span>`);
+  if (e.exc) chips.push(`<span class="chip">${I.excuse}<b>${e.exc}</b> excuse request${e.exc === 1 ? '' : 's'}</span>`);
+  if (e.ledger) chips.push(`<span class="chip ledger">${I.till}Party ledger · ${esc(e.ledger)}</span>`);
+  $('goes').innerHTML = `<span class="lbl">Goes with it</span><div class="chips">${chips.length ? chips.map((c, n) => c.replace('class="chip', `style="animation-delay:${120 + n * 70}ms" class="chip`)).join('')
+    : `<span class="chip none">Nothing yet: no attendance or excuses</span>`}</div>`;
+  $('slipNote').textContent = undoWindow ? 'You’ll have a few seconds to undo.' : 'This can’t be undone.';
+  $('slipKick').textContent = 'Delete event';
+  $('keep').textContent = 'Keep it';
+  $('go').textContent = 'Delete event'; $('go').hidden = false;
+  $('slip').classList.remove('blocked');
+  // the check when the slip opens (in the app: a fresh /api/auth/me). Signed out, or not
+  // allowed: the slip says so and there's no Delete, so nothing animates.
+  blockedBy = nextOut === '403' || nextOut === '401' ? nextOut : null;
+  if (blockedBy) {
+    nextOut = 'ok';
+    const signin = blockedBy === '401';
+    $('slip').classList.add('blocked');
+    $('slipTile').innerHTML = I.lock;
+    $('slipKick').textContent = signin ? 'Signed out' : 'Can’t delete';
+    $('slipTitle').innerHTML = signin ? `Sign in to delete <em>${esc(e.title)}</em>` : `You can’t delete <em>${esc(e.title)}</em>`;
+    $('goes').innerHTML = `<p class="why">${signin ? 'Your session ended while this page was open. Sign in again and you’ll come back to this event.'
+      : e.ledger ? 'It has a party ledger, and deleting that needs Manage parties. Ask an officer who has it.' : 'Your role no longer includes managing events. Ask an officer who can.'}</p>`;
+    $('slipNote').textContent = 'Nothing was deleted.';
+    $('keep').textContent = signin ? 'Cancel' : 'OK';
+    $('go').textContent = 'Sign in'; $('go').hidden = !signin;
+    wire(signin ? 'GET /api/auth/me → 401, no Delete offered' : 'GET /api/auth/me → no MANAGE_PARTIES, no Delete offered');
+  }
+  $('go').classList.remove('pressed');
+  $('scrim').classList.add('on');
+  $('stage').classList.add('on');
+  $('slip').style.animation = 'none'; $('slip').offsetWidth; $('slip').style.animation = '';
+  $('keep').focus({ focusVisible: !mob() });
+  beat(blockedBy ? 'blocked' : 'slip');
+}
+function closeSlip(kept) {
+  const row = asking;
+  asking = null;
+  $('scrim').classList.remove('on');
+  if (kept) { $('stage').classList.remove('on'); row?.classList.remove('sel'); row?.querySelector('.del')?.focus(); beat('kept'); return; }
+  $('slip').animate(mob() ? [{ transform: 'none' }, { transform: 'translateY(105%)' }] : [{ transform: 'none', opacity: 1 }, { transform: 'translateY(18px) rotate(1.2deg) scale(.96)', opacity: 0 }],
+    { duration: reduced() ? 1 : T(220), easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' })
+    .onfinish = a => { $('stage').classList.remove('on'); a.target.cancel(); };
+}
+$('keep').onclick = () => closeSlip(true);
+$('scrim').onclick = () => sheetRow ? closeSheet() : closeSlip(true);
+$('go').onclick = () => {
+  if (blockedBy) { wire('→ /login?next=/lpe/timeline'); return closeSlip(true); }
+  const row = asking;
+  $('go').classList.add('pressed');
+  setTimeout(() => { closeSlip(false); deleteRow(row); }, reduced() ? 0 : T(110));
+};
+addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && sheetRow) return closeSheet();
+  if (ev.key === 'Escape' && asking) return closeSlip(true);
+  if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z' && pending?.toast) { ev.preventDefault(); undo(); }
+});
+
+/* ── Delete ────────────────────────────────────────────────────────────── */
+let pending = null;   // the delete held in the undo window: { row, toast, fuse }
+function deleteRow(row) {
+  if (pending && pending.row !== row) commit(pending.row);   // a new delete sends the one still waiting
+  const d = row._d = { outcome: nextOut, pieces: [], anims: [] };
+  nextOut = 'ok'; syncBar();
+  document.querySelectorAll('.toast.fail').forEach(dropToast);
+  row.classList.add('going');
+  row.classList.remove('sel');
+  count();
+  beat('strike');
+  if (reduced()) {
+    d.reduced = true;
+    row.style.display = 'none';
+    d.mo = emptiedMonth(row); if (d.mo) d.mo.style.display = 'none';
+    d.exitDone = Promise.resolve();
+  } else {
+    d.exitDone = (async () => {
+      await strike(row, d);
+      await stampOff(row);
+      await wait(300);
+      if (d.failedEarly) return;   // the server already said no: don't tear what isn't gone
+      await exit(row, d);
+    })();
+  }
+  if (undoWindow) { pending = { row }; setTimeout(() => showUndo(row), reduced() ? 0 : T(1850)); }   // after the slot has closed
+  else send(row);
+}
+
+/* the pen goes through the title twice; the card takes on a rose wash */
+function strike(row, d) {
+  const tx = row.querySelector('.tx'), t = row.querySelector('.t'), tt = row.querySelector('.tt');
+  const w = Math.min(tt.offsetWidth, t.offsetWidth), h = t.offsetHeight, y = h * .56;
+  const s = document.createElementNS(NS, 'svg');
+  s.classList.add('strike');
+  Object.assign(s.style, { left: t.offsetLeft + 'px', top: t.offsetTop + 'px', width: w + 'px', height: h + 'px' });
+  s.innerHTML = `<path pathLength="1" d="M -4 ${y + 1.5} C ${w * .28} ${y - 2}, ${w * .62} ${y + 2.5}, ${w + 6} ${y - .8}"/>
+                 <path pathLength="1" d="M ${w + 3} ${y + 3.4} C ${w * .7} ${y + 5}, ${w * .32} ${y + 1}, -2 ${y + 4.4}"/>`;
+  tx.append(s);
+  const [p1, p2] = s.querySelectorAll('path');
+  p1.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: T(240), easing: 'cubic-bezier(.5,0,.3,1)', fill: 'backwards' });
+  p2.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: T(200), delay: T(210), easing: 'cubic-bezier(.4,0,.3,1)', fill: 'backwards' });
+  d.wash = row.animate([{ backgroundColor: css('--card') }, { backgroundColor: css('--wash') }], { duration: T(360), fill: 'forwards' });
+  row.animate([{ transform: 'none' }, { transform: 'translateY(-1px) rotate(-.25deg)', offset: .5 }, { transform: 'none' }], { duration: T(420), easing: 'ease-in-out' });
+  return wait(400);
+}
+
+/* OFF THE TIMELINE: the add stamp's rose twin */
+function stampOff(row) {
+  const e = row._ev;
+  const s = document.createElement('span');
+  s.className = 'stamp-ink';
+  setTimeout(() => { buzz(14); beat('stamp'); }, T(190));
+  s.innerHTML = `OFF THE TIMELINE<small>${fmtDate(e.date).toUpperCase()}</small>`;
+  row.append(s);
+  s.animate([
+    { opacity: 0, transform: 'translateY(-50%) rotate(-17deg) scale(2.3)', filter: 'blur(1.5px)' },
+    { opacity: 1, transform: 'translateY(-50%) rotate(-7deg) scale(.94)', filter: 'blur(0)', offset: .6 },
+    { opacity: 1, transform: 'translateY(-50%) rotate(-8deg) scale(1)' },
+  ], { duration: T(320), easing: 'cubic-bezier(.3,0,.2,1)', fill: 'backwards' });
+  row.animate([{ transform: 'none' }, { transform: 'translateY(2px) scale(.985)', offset: .3 }, { transform: 'none' }],
+    { duration: T(360), delay: T(190), easing: 'ease-out' });
+  const r = row.getBoundingClientRect(), sr = s.getBoundingClientRect();
+  const cx = sr.left - r.left + sr.width / 2, cy = sr.top - r.top + sr.height / 2;
+  for (let n = 0; n < 8; n++) {
+    const a = (n / 8) * Math.PI * 2 + Math.random() * .5, dist = sr.width * .34 + 4 + Math.random() * 10, sz = 2 + Math.random() * 3;
+    const dot = document.createElement('i');
+    dot.className = 'splat';
+    Object.assign(dot.style, { left: cx - sz / 2 + 'px', top: cy - sz / 2 + 'px', width: sz + 'px', height: sz + 'px' });
+    row.append(dot);
+    dot.animate([
+      { transform: 'translate(0,0) scale(.4)', opacity: 0 },
+      { transform: `translate(${Math.cos(a) * dist * .7}px, ${Math.sin(a) * dist * .4}px) scale(1)`, opacity: .9, offset: .35 },
+      { transform: `translate(${Math.cos(a) * dist}px, ${Math.sin(a) * dist * .55}px) scale(.6)`, opacity: 0 },
+    ], { duration: T(600), delay: T(190), easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'both' }).onfinish = () => dot.remove();
+  }
+  return wait(560);
+}
+
+/* ── The exits ─────────────────────────────────────────────────────────── */
+const box = row => ({ x: row.offsetLeft, y: row.offsetTop, w: row.offsetWidth, h: row.offsetHeight });
+/* a clone of the card, clipped to one piece */
+function piece(row, b, clip, origin) {
+  const p = document.createElement('div');
+  p.className = 'piece';
+  Object.assign(p.style, { left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', transformOrigin: origin });
+  const c = row.cloneNode(true);
+  c.classList.add('clone');
+  c.removeAttribute('data-id');
+  c.style.visibility = '';
+  c.querySelectorAll('.splat').forEach(x => x.remove());
+  c.style.backgroundColor = css('--wash');
+  if (clip) c.style.clipPath = clip;
+  p.append(c);
+  $('tl').append(p);
+  return p;
+}
+/* a thrown piece of paper: a little pop as it comes free, then gravity */
+function fallFrames({ ox = 0, ro = 0, dx, rot, v0, fallY, skew = 0, n = 28 }) {
+  const g = 2 * (fallY - v0), f = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    let x, y, r, o = 1, k = 0;
+    if (t < .14) { const q = 1 - (1 - t / .14) ** 2; x = ox * q; y = 0; r = ro * q; }
+    else {
+      const s = (t - .14) / .86;
+      x = ox + dx * s; y = v0 * s + .5 * g * s * s; r = ro + rot * s * (.55 + .45 * s); k = skew * s;
+      if (s > .52) o = Math.max(0, 1 - ((s - .52) / .48) ** 1.3);
+    }
+    f.push({ transform: `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${r.toFixed(2)}deg) skewY(${k.toFixed(2)}deg)`, opacity: +o.toFixed(3) });
+  }
+  return f;
+}
+/* a line drawn across the card before it comes apart: the rip, or the cutter */
+function scoreLines(row, b, paths, dur) {
+  const s = document.createElementNS(NS, 'svg');
+  s.classList.add('rip');
+  s.setAttribute('width', b.w); s.setAttribute('height', b.h);
+  s.innerHTML = paths.map(d => `<path pathLength="1" d="${d}"/>`).join('');
+  row.append(s);
+  s.querySelectorAll('path').forEach(p => p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: T(dur), easing: 'cubic-bezier(.6,0,.4,1)', fill: 'both' }));
+  row.animate([{ transform: 'none' }, { transform: 'translateX(-1.5px) scaleX(1.006)', offset: .35 }, { transform: 'translateX(1px)', offset: .7 }, { transform: 'none' }], { duration: T(dur + 30) });
+  return s;
+}
+
+async function exit(row, d) {
+  const b = box(row), L = $('tl');
+  {
+    const cx = b.w * rand(.5, .62), n = 10, pts = [];
+    for (let i = 0; i <= n; i++) pts.push({ x: cx + (i === 0 || i === n ? rand(-4, 4) : rand(-9, 9)) + Math.sin(i * 1.7) * 3, y: -3 + (b.h + 6) * i / n });
+    const path = 'M ' + pts.map(p => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L ');
+    const rip = scoreLines(row, b, [path], 170);
+    buzz([6, 40, 10]); beat('tear');
+    await wait(190);
+    rip.remove();
+    const P = pts.map(p => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(', ');
+    const left = piece(row, b, `polygon(-4px -3px, ${P}, -4px ${b.h + 3}px)`, `${cx * .5}px ${b.h / 2}px`);
+    const right = piece(row, b, `polygon(${b.w + 4}px -3px, ${P}, ${b.w + 4}px ${b.h + 3}px)`, `${cx + (b.w - cx) / 2}px ${b.h / 2}px`);
+    // the torn edge, a little rough and pale
+    [left, right].forEach(p => p.firstChild.insertAdjacentHTML('beforeend',
+      `<svg class="edge" width="${b.w}" height="${b.h}"><polyline points="${pts.map(q => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join(' ')}"/></svg>`));
+    d.pieces.push(left, right);
+    d.tearX = cx;
+    row.style.visibility = 'hidden';
+    d.anims.push(
+      left.animate(fallFrames({ ox: -7, ro: -2.2, dx: -rand(40, 60), rot: -rand(9, 14), v0: -rand(55, 75), fallY: rand(230, 270) }), { duration: T(1150), fill: 'forwards' }),
+      right.animate(fallFrames({ ox: 7, ro: 2.6, dx: rand(55, 80), rot: rand(14, 20), v0: -rand(40, 60), fallY: rand(280, 330) }), { duration: T(1200), delay: T(50), fill: 'forwards' }),
+    );
+    // scraps from the rip
+    for (let i = 0; i < 6; i++) {
+      const q = pts[1 + Math.floor(Math.random() * (n - 1))], sz = rand(5, 9);
+      const s = document.createElement('i');
+      s.className = 'scrap';
+      Object.assign(s.style, { left: b.x + q.x - sz / 2 + 'px', top: b.y + q.y - sz / 2 + 'px', width: sz + 'px', height: sz + 'px',
+        clipPath: `polygon(${rand(0, 40)}% 0, 100% ${rand(20, 60)}%, ${rand(20, 80)}% 100%, 0 ${rand(30, 80)}%)` });
+      L.append(s);
+      s.animate(fallFrames({ ox: rand(-6, 6), dx: rand(-50, 50), rot: rand(-240, 240), v0: -rand(40, 90), fallY: rand(140, 220), n: 16 }),
+        { duration: T(rand(800, 1050)), delay: T(rand(0, 80)), fill: 'both' }).onfinish = () => s.remove();
+    }
+  }
+
+  // the spine dot pops
+  const pin = document.createElement('i');
+  pin.className = 'pin';
+  pin.style.setProperty('--d', row.style.getPropertyValue('--d'));
+  Object.assign(pin.style, { left: b.x - 34 + 'px', top: b.y + b.h / 2 - 6 + 'px' });
+  L.append(pin);
+  d.pinEl = pin;
+  d.pin = pin.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.5)', offset: .3 }, { transform: 'scale(0)' }],
+    { duration: T(300), delay: T(80), easing: 'cubic-bezier(.3,0,.4,1)', fill: 'forwards' });
+
+  // and the slot closes behind it
+  await wait(280);
+  collapse(row, d);
+  await Promise.all([...d.anims, d.collapse].map(a => a.finished));
+}
+
+function shut(el, dur) {
+  const cs = getComputedStyle(el);
+  const from = { height: el.offsetHeight + 'px', minHeight: el.offsetHeight + 'px', marginTop: cs.marginTop, marginBottom: cs.marginBottom, paddingTop: cs.paddingTop, paddingBottom: cs.paddingBottom, borderTopWidth: cs.borderTopWidth, borderBottomWidth: cs.borderBottomWidth };
+  const to = { height: '0px', minHeight: '0px', marginTop: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px', borderTopWidth: '0px', borderBottomWidth: '0px' };
+  if (el.classList.contains('mo')) { from.opacity = 1; to.opacity = 0; }
+  return el.animate([from, to], { duration: T(dur), easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' });
+}
+/* a month header with nothing left under it goes too */
+function emptiedMonth(row) {
+  const m = row.dataset.month;
+  const left = [...$('tl').querySelectorAll(`.ev[data-month="${m}"]`)].filter(r => r !== row && !r._d && !r.classList.contains('clone'));
+  return left.length ? null : $('tl').querySelector(`.mo[data-month="${m}"]`);
+}
+function collapse(row, d) {
+  row.style.overflow = 'hidden';
+  d.collapse = shut(row, 480);
+  beat('close');
+  d.mo = emptiedMonth(row);
+  if (d.mo) d.moCollapse = shut(d.mo, 480);
+  // the rows below glide up and settle with a little give
+  d.collapse.finished.then(() => {
+    if (row._d !== d || d.restoring) return;
+    let r = row.nextElementSibling, n = 0;
+    while (r && n < 5) {
+      if (r.classList.contains('ev') && !r._d) {
+        r.animate([{ transform: 'none' }, { transform: 'translateY(-3px)', offset: .35 }, { transform: 'translateY(.5px)', offset: .7 }, { transform: 'none' }],
+          { duration: T(380), delay: T(n * 40), easing: 'ease-out' });
+        n++;
+      }
+      r = r.nextElementSibling;
+    }
+  });
+}
+
+/* ── The undo window ───────────────────────────────────────────────────── */
+function toastEl(cls, html) {
+  const t = document.createElement('div');
+  t.className = 'toast ' + cls;
+  t.setAttribute('role', 'status');
+  t.innerHTML = html;
+  document.body.append(t);
+  if (!reduced()) t.animate([{ opacity: 0, transform: 'translateX(-50%) translateY(26px) rotate(-2deg)' }, { opacity: 1, transform: 'translateX(-50%)' }],
+    { duration: T(420), easing: 'cubic-bezier(.16,.9,.3,1.1)' });
+  return t;
+}
+function dropToast(t) {
+  if (!t || t._gone) return;
+  t._gone = true;
+  t.animate([{ opacity: 1, transform: 'translateX(-50%)' }, { opacity: 0, transform: 'translateX(-50%) translateY(20px) rotate(1deg)' }],
+    { duration: reduced() ? 1 : T(240), easing: 'ease-in', fill: 'forwards' }).onfinish = () => t.remove();
+}
+function showUndo(row) {
+  if (pending?.row !== row) return;
+  const e = row._ev;
+  const t = toastEl('', `<span class="tile">${I.trash}</span>
+    <div class="tx"><b>${esc(e.title)} deleted</b><span>${e.att || e.exc || e.ledger ? 'Its records went with it.' : 'Off the timeline.'}</span></div>
+    <button class="btn">${I.undo.replace('<svg', '<svg width="14" height="14"')}Undo <kbd>⌘Z</kbd></button>
+    <button class="tx-x" aria-label="Dismiss">${I.x}</button><i class="fuse"></i>`);
+  const fuse = t.querySelector('.fuse').animate([{ width: 'calc(100% - 28px)' }, { width: '0px' }], { duration: T(6000), easing: 'linear', fill: 'forwards' });
+  fuse.onfinish = () => commit(row);
+  t.onmouseenter = () => fuse.pause();
+  t.onmouseleave = () => fuse.play();
+  t.querySelector('.btn').onclick = undo;
+  t.querySelector('.tx-x').onclick = () => commit(row);
+  pending.toast = t;
+  pending.fuse = fuse;
+  beat('undo');
+}
+function commit(row) {
+  if (pending?.row === row) { dropToast(pending.toast); pending.fuse?.cancel(); pending = null; }
+  send(row);
+}
+function undo() {
+  if (!pending) return;
+  const { row, toast, fuse } = pending;
+  pending = null;
+  fuse?.cancel(); dropToast(toast);
+  wire(`undo · nothing sent for #${row._ev.id}`);
+  beat('putback');
+  restore(row);
+}
+
+/* ── The wire ──────────────────────────────────────────────────────────── */
+function wire(line) {
+  const w = $('wire');
+  if (w.firstChild?.textContent === 'nothing sent yet') w.innerHTML = '';
+  w.insertAdjacentHTML('beforeend', `<div>${esc(line)}</div>`);
+  while (w.children.length > 4) w.firstChild.remove();
+}
+/* what the server can say, and what each one means for the card */
+const OUT = {
+  offline: { transient: true, code: 'network error', icon: 'wifi', title: e => `Couldn’t delete ${e.title}`, why: 'You’re offline. It’s back where it was.', action: 'Try again' },
+  500:     { transient: true, code: '500', icon: 'bang', title: e => `Couldn’t delete ${e.title}`, why: 'Something went wrong on our end. It’s back where it was.', action: 'Try again' },
+  403:     { code: '403', icon: 'lock', hard: true, title: e => `You can’t delete ${e.title}`,
+             why: e => e.ledger ? 'It has a party ledger, and that needs Manage parties. Ask an officer who has it.' : 'Your role no longer includes managing events.' },
+  401:     { code: '401', icon: 'lock', hard: true, title: () => 'You’ve been signed out', why: 'Sign in again, then delete it. It’s back where it was.', action: 'Sign in' },
+};
+function send(row) {
+  const d = row._d;
+  if (!d || d.sent) return;
+  d.sent = true;
+  const id = row._ev.id, out = d.outcome;
+  const attempt = n => {
+    wire(`DELETE /api/calendar/${id}${n > 1 ? ' (retry)' : ''} …`);
+    setTimeout(async () => {
+      if (out === 'ok' || out === '404') {
+        wire(out === 'ok' ? `→ 204 #${id} gone` : `→ 404 #${id}, already gone`);
+        await d.exitDone;
+        finalize(row);
+        if (out === '404') showInfo(row._ev);
+        return;
+      }
+      const o = OUT[out];
+      // a blip shouldn't cost a put-back: one quiet retry while the card is still going
+      if (o.transient && n === 1) { wire(`→ ${o.code}, retrying once`); return setTimeout(() => attempt(2), T(800)); }
+      d.failedEarly = true;
+      wire(`→ ${o.code} for #${id}, put back`);
+      await d.exitDone;
+      restore(row, o);
+    }, T(out === 'offline' ? 300 : 650));
+  };
+  attempt(1);
+}
+function finalize(row) {
+  const d = row._d;
+  d.pieces.forEach(p => p.remove());
+  d.pinEl?.remove();
+  if (d.mo) d.mo.remove();
+  EVENTS = EVENTS.filter(e => e !== row._ev);
+  row.remove();
+  beat('gone');
+  // the Today rule can't sit under an empty month head; tidy if the month went
+  count();
+}
+
+/* ── Putting it back (undo, or a failed DELETE) ────────────────────────── */
+/* played backwards, a delayed animation's `finished` can hang in Chrome (its time runs on below 0), so cap the wait */
+const settle = (anims, ms) => Promise.race([Promise.all(anims.map(a => a.finished)), wait(ms)]);
+async function restore(row, why) {   // why: an OUT entry when it failed, nothing for Undo
+  const d = row._d;
+  if (!d) return;
+  d.restoring = true;
+  await d.exitDone;
+  if (d.reduced) {
+    row.style.display = ''; if (d.mo) d.mo.style.display = '';
+    putBack(row, d, why);
+    return;
+  }
+  // the slot reopens
+  const back = [d.collapse, d.moCollapse].filter(Boolean);
+  back.forEach(a => { a.playbackRate = -1.25; a.play(); });
+  await settle(back, 450);
+  // the pieces fly back up and meet
+  d.pin?.reverse();
+  d.anims.forEach(a => { a.playbackRate = -1.6; a.play(); });
+  await settle(d.anims, 900);
+  back.forEach(a => a.cancel());
+  row.style.overflow = '';
+  row.style.visibility = '';
+  d.pieces.forEach(p => p.remove());
+  d.pinEl?.remove();
+  // washi tape over the seam
+  if (d.pieces.length) {
+    const tp = document.createElement('i');
+    const b = box(row);
+    tp.className = 'tape';
+    Object.assign(tp.style, { left: d.tearX - 17 + 'px', top: '-10px', width: '34px', height: b.h + 20 + 'px', transform: 'rotate(-5deg)' });
+    row.append(tp);
+    const rot = tp.style.transform;
+    tp.animate([{ opacity: 0, transform: `${rot} scale(1.25) translateY(-8px)` }, { opacity: 1, transform: `${rot} scale(.98)`, offset: .7 }, { opacity: 1, transform: rot }],
+      { duration: T(300), easing: 'cubic-bezier(.3,0,.2,1)' });
+    row.animate([{ transform: 'none' }, { transform: 'translateY(1.5px) scale(.992)', offset: .4 }, { transform: 'none' }], { duration: T(320), delay: T(160) });
+    setTimeout(() => {
+      tp.animate([{ opacity: 1, transform: rot }, { opacity: .9, transform: `${rot} translateY(-6px) rotate(4deg) scaleY(.96)`, offset: .4 }, { opacity: 0, transform: `${rot} translateY(-24px) rotate(12deg) scaleY(.8)` }],
+        { duration: T(460), easing: 'cubic-bezier(.5,0,.7,.4)', fill: 'forwards' }).onfinish = () => tp.remove();
+    }, T(1250));
+  }
+  await wait(260);
+  putBack(row, d, why);
+}
+/* the strike and the stamp lift off; a failure blushes and says why */
+function putBack(row, d, why) {
+  const s = row.querySelector('.stamp-ink'), st = row.querySelector('.strike');
+  const quick = d.reduced ? 1 : null;
+  s?.animate([{ opacity: 1, transform: 'translateY(-50%) rotate(-8deg)' }, { opacity: 0, transform: 'translateY(-60%) rotate(-3deg) scale(1.08)' }],
+    { duration: quick ?? T(300), easing: 'ease-in', fill: 'forwards' }).finished.then(() => s.remove());
+  st?.querySelectorAll('path').forEach((p, n) => p.animate([{ strokeDashoffset: 0 }, { strokeDashoffset: -1 }],
+    { duration: quick ?? T(260), delay: quick ? 0 : T(n ? 0 : 120), easing: 'cubic-bezier(.5,0,.5,1)', fill: 'forwards' }));
+  if (st) setTimeout(() => st.remove(), quick ?? T(420));
+  d.wash?.cancel();
+  row.classList.remove('going');
+  row._d = null;
+  count();
+  if (why) {
+    if (!d.reduced) {
+      row.animate([{ backgroundColor: css('--wash'), borderColor: css('--pp-rose-ink') }, { backgroundColor: css('--wash'), borderColor: css('--pp-rose-ink'), offset: .5 }, { backgroundColor: css('--card'), borderColor: css('--line') }],
+        { duration: T(2200) });
+      row.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(2px)' }, { transform: 'none' }],
+        { duration: T(380), delay: T(80) });
+    }
+    showFail(row, why);
+  }
+}
+function showFail(row, o) {
+  document.querySelectorAll('.toast.fail').forEach(dropToast);
+  beat('fail');
+  const e = row._ev, why = typeof o.why === 'function' ? o.why(e) : o.why;
+  const t = toastEl('fail' + (o.hard ? ' hard' : ''), `<span class="tile">${I[o.icon]}</span>
+    <div class="tx"><b>${esc(o.title(e))}</b><span>${esc(why)}</span></div>
+    ${o.action ? `<button class="btn">${o.action}</button>` : ''}<button class="tx-x" aria-label="Dismiss">${I.x}</button>`);
+  t.querySelector('.btn')?.addEventListener('click', () => {
+    dropToast(t);
+    if (o.action === 'Sign in') return wire('→ /login?next=/lpe/timeline');
+    if (row.isConnected && !row._d) deleteRow(row);
+  });
+  t.querySelector('.tx-x').onclick = () => dropToast(t);
+}
+/* 404: it's gone either way, so the tear stands; just say who got there first */
+function showInfo(e) {
+  const t = toastEl('info', `<span class="tile">${I.check}</span>
+    <div class="tx"><b>${esc(e.title)} was already deleted</b><span>Another officer removed it first.</span></div>
+    <button class="tx-x" aria-label="Dismiss">${I.x}</button>`);
+  t.querySelector('.tx-x').onclick = () => dropToast(t);
+  setTimeout(() => dropToast(t), T(4500));
+}
+
+/* ── Mock controls ─────────────────────────────────────────────────────── */
+function syncBar() {
+  $('tUndo').setAttribute('aria-pressed', undoWindow);
+  $('tSlow').setAttribute('aria-pressed', slow > 1);
+  $('tReduce').setAttribute('aria-pressed', forceReduce);
+}
+function flip(k) {
+  if (k === 'undo') undoWindow = !undoWindow;
+  if (k === 'slow') slow = slow > 1 ? 1 : 4;
+  if (k === 'reduce') forceReduce = !forceReduce;
+  syncBar();
+}
+$('outs').onclick = ev => { const b = ev.target.closest('button'); if (b) playError(b.dataset.o); };
+/* one click plays the whole story: the slip, Delete pressed for you, and (undo window on)
+   the window run out early so the answer comes back without a 6s wait */
+async function playError(kind) {
+  if (asking) closeSlip(true);
+  if (pending) commit(pending.row);
+  document.querySelectorAll('.toast').forEach(dropToast);
+  let row = pick('party');
+  if (row?._ev.id !== 49 || row._d) { resetAll(); row = pick('party'); }   // always Halloween party (a 404 really deletes it)
+  const want = kind === 'undo' ? 'ok' : kind;
+  nextOut = want;
+  if (mob()) {
+    if (sheetRow) closeSheet();
+    const r = row.getBoundingClientRect();
+    scrollTo({ top: scrollY + r.top - innerHeight * .22 });
+    await wait(450);
+    await tap(row); openSheet(row);
+    await wait(1100);
+    await tap($('esDel')); $('esDel').click();
+    await wait(700);
+  } else demo('party');
+  if (want === '403' || want === '401') return;   // the slip says no; nothing to press, nothing animates
+  await wait(mob() ? 1100 : 900);
+  if (mob()) await tap($('go'));
+  $('go').click();
+  if (kind === 'undo') {
+    const t0 = performance.now();
+    while (!(pending?.row === row && pending.toast) && performance.now() - t0 < T(4000)) await wait(50);
+    await wait(1400);
+    const u = pending?.toast?.querySelector('.btn');
+    if (u) { await tap(u); undo(); }
+    return;
+  }
+  if (!undoWindow || kind === 'ok') return;
+  const t0 = performance.now();
+  while (!(pending?.row === row && pending.fuse) && performance.now() - t0 < T(4000)) await wait(50);
+  await wait(900);
+  if (pending?.row === row) commit(row);
+}
+/* leaving with a delete still in the window sends it (the app: fetch keepalive) */
+addEventListener('pagehide', () => pending && commit(pending.row));
+function pick(which) {
+  const rows = [...$('tl').querySelectorAll('.ev')].filter(r => !r._d);
+  if (which === 'party') return rows.find(r => r._ev.cat === 'party') ?? rows[0];
+  if (which === 'past') return rows.find(r => r._ev.date < TODAY && r._ev.cat === 'chapter') ?? rows[0];
+  return rows.find(r => r._ev.date > TODAY) ?? rows[0];
+}
+function demo(which) {
+  const row = pick(which);
+  if (!row) return resetAll();
+  const r = row.getBoundingClientRect();
+  if (r.top < 80 || r.bottom > innerHeight - 120) scrollTo({ top: scrollY + r.top - innerHeight * .4 });
+  if (which === 'quick') deleteRow(row); else askDelete(row);
+}
+function resetAll() {
+  if (pending) { pending.fuse?.cancel(); dropToast(pending.toast); pending = null; }
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  EVENTS = structuredClone(EVENTS0);
+  renderTL();
+  $('wire').innerHTML = '<div>nothing sent yet</div>';
+}
+function toggleTheme() { const h = document.documentElement; h.dataset.theme = h.dataset.theme === 'night' ? 'day' : 'night'; }
+
+renderTL();
+syncBar();
+document.querySelector('.mtab').innerHTML = [
+  ['Home', '<path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/>'], ['Timeline', '<rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>', 1],
+  ['Tasks', '<path d="M4 7l2 2 3-3M4 15l2 2 3-3M13 8h7M13 16h7"/>'], ['Members', '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><path d="M15.5 5.2a3 3 0 0 1 0 5.6M17.5 14.6c1.6.6 2.7 2.2 3 4.4"/>'],
+  ['Ask', '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'],
+].map(([l, d, on]) => `<i class="${on ? 'on' : ''}">${svg(d)}${l}</i>`).join('');
+if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');
+addEventListener('message', ev => {
+  const m = ev.data;
+  if (!m || typeof m.cmd !== 'string') return;
+  if (m.cmd === 'play') playError(m.arg);
+  if (m.cmd === 'set') { if ('undo' in m.arg) undoWindow = m.arg.undo; if ('slow' in m.arg) slow = m.arg.slow ? 4 : 1; if ('reduce' in m.arg) forceReduce = m.arg.reduce; syncBar(); }
+  if (m.cmd === 'theme') document.documentElement.dataset.theme = m.arg;
+  if (m.cmd === 'reset') { if (sheetRow) closeSheet(); if (asking) closeSlip(true); resetAll(); }
+});
+</script>
+</body>
+</html>

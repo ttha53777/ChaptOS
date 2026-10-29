@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>ChaptOS — launch film</title>
+<!-- Editable source of the ChaptOS launch film. Pure function of time: window.seek(t).
+     Render: node ../tools/render.mjs (see ../README.md). ?f=v for the 9:16 layout, ?t=12.5 to park on a frame, ?play to preview with sound. -->
+<link rel="stylesheet" href="../assets/fonts/fonts.css">
+<link rel="stylesheet" href="mock.css">
+<link rel="stylesheet" href="film.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+  <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+  <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="d-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-unlock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.3-1.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-squiggle" viewBox="0 0 120 24"><path d="M2 14c10-12 18 10 28 0s18-12 28 0 18 10 28 0 18-10 32-2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+</svg>
+<div id="film"></div>
+<script src="timeline.js"></script>
+<script src="engine.js"></script>
+<script src="ui.js"></script>
+<script src="scenes/01-chaos.js"></script>
+<script src="scenes/02-logo.js"></script>
+<script src="scenes/03-dash.js"></script>
+<script src="scenes/04-desk.js"></script>
+<script src="scenes/05-ask.js"></script>
+<script src="scenes/06-anything.js"></script>
+<script src="scenes/07-finale.js"></script>
+</body>
+</html>

@@ -22,7 +22,9 @@
   punch cards, log hours), Chapter (meetings + minutes; #chapter deep-links), Tasks (#tasks:
   urgency-banded checklist, two-week runway, blind-ballot polls + their sheets), Treasury
   (#treasury: ledger, dues, reimbursements, reports + every sheet they open), Docs (#docs: pinned
-  index cards, manila folder ledgers, search/filter/sort, drag to file or reorder, every sheet), and Ask Chapt
+  index cards, manila folder ledgers, search/filter/sort, drag to file or reorder, every sheet), Fundraising
+  (#fundraising: campaigns as jars over the shared Treasury ledger, hand-offs, the term's giving
+  statement — a proposed page, no real one yet), and Ask Chapt
   (⌘K / the Ask button): reasoning ledger → answers, proposals (writs) and the Approvals record.
   Two states (Full chapter / Day one) via the floating MOCK bar. Light / Dark / System lives in the
   sidebar profile menu → Appearance, as in the real app. All records are fictional. No backend.
@@ -3683,6 +3685,277 @@ html[data-theme="dark"] .px-rw{filter:drop-shadow(0 10px 16px rgba(0,0,0,.6))}
   .px-net b{font-size:.88rem}
 }
 
+/* ---------- fundraising (proposed app/[slug]/fundraising/page.tsx) -------------------
+   Campaigns, not a second set of books. Briefing → the one task (a campaign that ended
+   with money still held for its cause, drawn as Parties' envelope in butter) → Running
+   now: each campaign a card with its jar (fill = raised ÷ goal, dashed band = pledged,
+   i.e. scheduled income) → Coming up (dashed index cards) → Closed this term (filed,
+   rubber-stamped) → the term's giving statement. A campaign opens to its own page:
+   figures strip, the hand-off band, its slice of the Treasury ledger, who raised it,
+   its Timeline events. Every dollar here IS a Treasury transaction tagged with the
+   campaign; a hand-off is money out under Philanthropy. */
+.fr-due{box-shadow:4px 4px 0 var(--butter)}
+.fr-due .flap path{fill:var(--butter-soft)}
+.fr-due .seal,.fr-due .art{background:var(--butter)}
+.fr-due .tag{color:var(--butter-ink)}
+
+.fr-h2{all:unset; cursor:pointer}
+.fr-h2:hover{text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:5px}
+.fr-sec{display:flex; align-items:baseline; gap:12px; margin:34px 0 14px}
+.fr-sec h2{font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.025em; white-space:nowrap}
+.fr-sec .rule{flex:1; height:1.5px; background:var(--line); min-width:20px; align-self:center}
+.fr-sec .cnt{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+
+/* the jar */
+.fr-jar{display:block; width:100%; height:auto; overflow:visible}
+.fr-jar .body{fill:none; stroke:var(--ink); stroke-width:1.8; stroke-linejoin:round}
+.fr-jar .glass{fill:var(--card)}
+.fr-jar .lid{fill:var(--butter); stroke:var(--ink); stroke-width:1.8; filter:var(--note-filter)}
+.fr-jar .slot{fill:var(--ink)}
+.fr-jar .tick{stroke:var(--ink-3); stroke-width:1.2; stroke-linecap:round}
+.fr-jar .tkl{font-family:var(--mono); font-size:7.5px; fill:var(--ink-3)}
+.fr-jar .glare{fill:none; stroke:#fff; stroke-width:3; stroke-linecap:round; opacity:.55}
+html[data-theme="dark"] .fr-jar .glare{opacity:.12}
+.fr-jar .surf{fill:none; stroke:var(--ink); stroke-width:1.3; opacity:.55}
+.fr-jar .frpl{fill:var(--butter-soft); stroke:var(--butter-ink); stroke-width:1.2; stroke-dasharray:3 3}
+.fr-jar .lq{transition:transform 1.2s var(--ease-spring) .25s}
+.boot .fr-jar .lq{transform:translateY(112px)}
+.fr-jar.ghost .body{stroke:var(--line-2); stroke-dasharray:5 4}
+.fr-jar.ghost .lid{fill:var(--paper-3); stroke:var(--line-2); stroke-dasharray:4 3; filter:none}
+.fr-jar.ghost .slot{fill:var(--line-2)}
+
+/* the meter: a ruler with quarter ticks, butter fill, dashed pledged */
+.fr-meter{position:relative; height:16px; border:1.5px solid var(--ink); border-radius:999px; background:var(--paper-2); overflow:hidden}
+.fr-meter::after{content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent calc(25% - .75px), var(--line-2) calc(25% - .75px), var(--line-2) calc(25% + .75px), transparent calc(25% + .75px), transparent calc(50% - .75px), var(--line-2) calc(50% - .75px), var(--line-2) calc(50% + .75px), transparent calc(50% + .75px), transparent calc(75% - .75px), var(--line-2) calc(75% - .75px), var(--line-2) calc(75% + .75px), transparent calc(75% + .75px)); pointer-events:none}
+.fr-meter i{position:absolute; top:0; bottom:0; left:0; width:calc(var(--w) * 1%); background:repeating-linear-gradient(135deg, var(--butter) 0 7px, color-mix(in srgb, var(--butter) 78%, var(--butter-ink)) 7px 10px); border-right:1.5px solid var(--ink); transition:width 1s var(--ease-spring) .2s; z-index:1}
+.fr-meter i.frpl{left:calc(var(--a) * 1%); background:var(--butter-soft); border-right:1.5px dashed var(--butter-ink); z-index:0}
+.fr-meter.met i:not(.frpl){border-right:0}
+.boot .fr-meter i{width:0}
+
+/* stamps */
+.fr-stamp{display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border:1.5px solid currentColor; border-radius:5px; font-family:var(--mono); font-size:.6rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; transform:rotate(-2deg); white-space:nowrap; line-height:1.5}
+.fr-stamp.run{color:var(--mint-ink); background:var(--mint-soft)}
+.fr-stamp.plan{color:var(--sky-ink); border-style:dashed; background:var(--sky-soft)}
+.fr-stamp.ended{color:var(--peach-ink); background:var(--peach-soft)}
+.fr-stamp.closed{color:var(--ink-2); background:var(--paper-2)}
+.fr-stamp.met{color:var(--butter-ink); background:var(--butter-soft)}
+
+/* running campaign cards */
+.fr-run{display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap:16px}
+.fr-card{position:relative; display:grid; grid-template-columns:104px minmax(0,1fr); gap:20px; padding:20px 20px 16px; background:var(--card); border:1.5px solid var(--ink); border-radius:8px 18px 10px 16px; box-shadow:4px 4px 0 var(--butter); min-width:0}
+.fr-card.fresh{animation:fresh 2.4s var(--ease-out)}
+.fr-card.lead{grid-column:1/-1; grid-template-columns:150px minmax(0,1fr); padding:24px 24px 20px; box-shadow:5px 5px 0 var(--butter)}
+.fr-card .jw{align-self:start; padding-top:4px}
+.fr-top{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.fr-card h3{margin-top:8px; font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.028em; line-height:1.15}
+.fr-card.lead h3{font-size:1.65rem}
+.fr-card h3 button{all:unset; cursor:pointer}
+.fr-card h3 button:hover{text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:4px}
+.fr-ben{margin-top:4px; display:flex; align-items:center; gap:6px; font-size:.84rem; color:var(--ink-2)}
+.fr-ben .ic{width:14px; height:14px; color:var(--rose-ink)}
+.fr-ben.kept .ic{color:var(--sky-ink)}
+.fr-raised{margin-top:14px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
+.fr-raised .v{font-family:var(--display); font-weight:600; font-size:2.1rem; letter-spacing:-.045em; line-height:1}
+.fr-card.lead .fr-raised .v{font-size:2.7rem}
+.fr-raised .of{font-size:.9rem; color:var(--ink-3)}
+.fr-raised .of b{color:var(--ink-2); font-weight:600}
+.fr-raised .pct{margin-left:auto; font-family:var(--mono); font-size:.8rem; font-weight:600; color:var(--butter-ink)}
+.fr-raised .none{font-family:var(--display); font-weight:600; font-size:1.3rem; color:var(--ink-3); letter-spacing:-.02em}
+.fr-card .fr-meter{margin-top:10px}
+.fr-figs{margin-top:12px; display:flex; flex-wrap:wrap; gap:4px 16px; font-size:.78rem; color:var(--ink-3)}
+.fr-figs b{font-family:var(--mono); font-weight:600; color:var(--ink-2); letter-spacing:-.02em}
+.fr-figs .frpl b{color:var(--butter-ink)}
+.fr-figs .held b{color:var(--rose-ink)}
+.fr-who{margin-top:12px; display:flex; align-items:center; gap:10px; font-size:.8rem; color:var(--ink-2); min-width:0}
+.fr-who .avs{display:flex; flex:none}
+.fr-who .avs .avatar{width:26px; height:26px; font-size:.6rem; border:1.5px solid var(--card); margin-left:-7px}
+.fr-who .avs .avatar:first-child{margin-left:0}
+.fr-who span:last-child{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fr-acts{margin-top:14px; display:flex; flex-wrap:wrap; gap:8px}
+
+/* coming up + closed: index cards */
+.fr-row{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap:14px}
+.fr-ix{position:relative; display:block; width:100%; text-align:left; padding:16px 18px 14px; background:var(--card); border:1.5px dashed var(--line-2); border-radius:var(--r-md); cursor:pointer; transition:border-color .18s, transform .18s var(--ease-spring); font:inherit; color:inherit}
+.fr-ix:hover{border-color:var(--ink-3); transform:translateY(-2px)}
+.fr-ix h4{margin-top:8px; font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.022em; line-height:1.2}
+.fr-ix .s{margin-top:4px; font-size:.8rem; color:var(--ink-3)}
+.fr-ix .g{margin-top:10px; font-family:var(--mono); font-size:.76rem; color:var(--ink-2)}
+.fr-ix.closed{border-style:solid; border-color:var(--line); background:var(--paper-2)}
+.fr-ix.closed::after{content:'CLOSED'; position:absolute; right:14px; top:14px; padding:1px 7px; border:2px solid var(--ink-3); border-radius:4px; font-family:var(--mono); font-size:.62rem; font-weight:700; letter-spacing:.16em; color:var(--ink-3); transform:rotate(8deg); opacity:.75}
+.fr-ix .tot{margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; font-size:.78rem; color:var(--ink-3)}
+.fr-ix .tot b{font-family:var(--mono); color:var(--ink); font-weight:600}
+
+/* the term statement */
+.fr-st{position:relative; max-width:640px; margin-top:4px; padding:22px 26px 20px; background:var(--card); border:1.5px solid var(--ink); border-radius:4px; box-shadow:5px 5px 0 var(--lilac)}
+.fr-st .hd{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; padding-bottom:12px; border-bottom:1.5px solid var(--ink); background:var(--card)}
+.fr-st .hd b{font-family:var(--display); font-weight:600; font-size:1.12rem; letter-spacing:-.022em}
+.fr-st .hd small{font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.fr-st .hd .btn{margin-left:auto}
+.fr-st .ln{display:flex; align-items:baseline; gap:8px; height:30px; padding-top:7px; font-size:.88rem; color:var(--ink-2)}
+.fr-st .ln .dots{flex:1; border-bottom:1.5px dotted var(--line-2); transform:translateY(-4px); min-width:12px}
+.fr-st .ln b{font-family:var(--mono); font-weight:600; color:var(--ink); letter-spacing:-.02em}
+.fr-st .ln.sub{padding-left:16px; font-size:.82rem}
+.fr-st .ln.tot{margin-top:6px; height:auto; padding:8px 0 0; border-top:4px double var(--ink); font-weight:600; color:var(--ink)}
+.fr-st .ln.tot b{font-family:var(--display); font-size:1.25rem; letter-spacing:-.03em}
+.fr-st .ft{margin-top:12px; font-size:.74rem; color:var(--ink-3); line-height:1.45}
+
+/* day one */
+.fr-first{margin-top:26px; display:grid; grid-template-columns:150px minmax(0,1fr); gap:30px; align-items:center; padding:30px; background:var(--card); border:1.5px solid var(--ink); border-radius:8px 18px 10px 16px; box-shadow:5px 5px 0 var(--butter)}
+.fr-first h2{font-family:var(--display); font-weight:600; font-size:1.7rem; letter-spacing:-.035em; line-height:1.1}
+.fr-first p.l{margin-top:8px; color:var(--ink-2); font-size:.94rem; line-height:1.55; max-width:52ch}
+.fr-first form,.fr-first .fq{margin-top:18px; display:grid; gap:12px}
+.fr-first .ask{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:12px}
+
+/* campaign page */
+.fr-crumb{display:inline-flex; align-items:center; gap:6px; padding:0; border:0; background:none; font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); cursor:pointer}
+.fr-crumb:hover{color:var(--ink)}
+.fr-crumb .ic{width:14px; height:14px}
+.fr-head{position:relative; margin-top:16px; display:grid; grid-template-columns:170px minmax(0,1fr); gap:30px; align-items:center}
+.fr-head h1{margin-top:10px; font-family:var(--display); font-weight:600; font-size:clamp(1.9rem,3.4vw,2.7rem); letter-spacing:-.035em; line-height:1.05}
+.fr-head .fr-ben{font-size:.94rem; margin-top:8px}
+.fr-head .when{margin-top:6px; font-family:var(--mono); font-size:.74rem; color:var(--ink-3)}
+.fr-head .fr-acts{margin-top:18px}
+.fr-head .big-stamp{position:absolute; right:6px; top:-4px; padding:4px 14px; border:3px solid var(--ink-3); border-radius:6px; font-family:var(--mono); font-size:1rem; font-weight:700; letter-spacing:.2em; color:var(--ink-3); transform:rotate(9deg); opacity:.7; pointer-events:none}
+.fr-head .big-stamp.met{border-color:var(--butter-ink); color:var(--butter-ink)}
+.fr-strip{margin-top:24px; display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); background:var(--card); border:1.5px solid var(--ink); border-radius:6px 14px 8px 12px; overflow:hidden}
+.fr-strip > div{padding:16px 16px 14px; border-right:1px solid var(--paper-3); min-width:0}
+.fr-strip > div:last-child{border-right:0}
+.fr-strip .v{margin-top:7px; font-family:var(--display); font-weight:600; font-size:1.4rem; letter-spacing:-.035em; line-height:1.05; white-space:nowrap}
+.fr-strip .v.y{color:var(--butter-ink)} .fr-strip .v.r{color:var(--rose-ink)} .fr-strip .v.g{color:var(--mint-ink)} .fr-strip .v.q{color:var(--ink-3)}
+.fr-strip .s{margin-top:5px; font-size:.74rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fr-mw{margin-top:12px}
+.fr-hand{margin-top:18px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:16px; align-items:center; padding:16px 18px; background:var(--rose-soft); border:1.5px dashed var(--rose-ink); border-radius:var(--r-md)}
+.fr-hand.due{border-style:solid; background:var(--card); box-shadow:4px 4px 0 var(--rose)}
+.fr-hand .art{width:44px; height:44px; border-radius:13px; display:grid; place-items:center; background:var(--rose); color:var(--note-ink); border:1.5px solid var(--note-ink); transform:rotate(-5deg); filter:var(--note-filter)}
+.fr-hand b.v{font-family:var(--display); font-size:1.15rem; letter-spacing:-.025em}
+.fr-hand p{font-size:.86rem; color:var(--ink-2); line-height:1.5}
+.fr-hand p.t{color:var(--ink); font-size:.95rem}
+.fr-cols{margin-top:26px; display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:22px; align-items:start}
+.fr-box{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); min-width:0}
+.fr-box + .fr-box{margin-top:18px}
+.fr-box .bh{display:flex; align-items:center; gap:10px; padding:14px 16px 12px; border-bottom:1.5px solid var(--line)}
+.fr-box .bh h3{font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.022em}
+.fr-box .bh .sp{margin-left:auto}
+.fr-box .bh small{font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.fr-box .empty{padding:20px 18px; font-size:.86rem; color:var(--ink-3); line-height:1.5}
+.fr-grp{display:flex; align-items:center; gap:10px; padding:10px 16px 6px; font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.fr-grp .rule{flex:1; height:1px; background:var(--line)}
+.fr-grp.frpl{color:var(--butter-ink)}
+.fr-l{display:grid; grid-template-columns:44px minmax(0,1fr) auto 64px; gap:12px; align-items:center; padding:10px 12px 10px 16px; border-top:1px solid var(--paper-3); cursor:pointer}
+.fr-l:first-child{border-top:0}
+.fr-l:hover{background:var(--paper-2)}
+.fr-l.fresh{animation:fresh 2.4s var(--ease-out)}
+.fr-l .dt{text-align:center; line-height:1.05}
+.fr-l .dt b{display:block; font-family:var(--display); font-weight:600; font-size:1.15rem; letter-spacing:-.03em}
+.fr-l .dt small{font-family:var(--mono); font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.fr-l .t{display:block; font-size:.9rem; font-weight:550; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fr-l .m{display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:2px; font-size:.74rem; color:var(--ink-3)}
+.fr-l .m span{display:inline-flex; align-items:center; gap:4px}
+.fr-l .m .ic{width:12px; height:12px}
+.fr-l .m .cr{color:var(--ink-2); font-weight:550}
+.fr-l .am{font-family:var(--mono); font-weight:600; font-size:.9rem; letter-spacing:-.02em; white-space:nowrap; text-align:right}
+.fr-l .am.in{color:var(--mint-ink)} .fr-l .am.out{color:var(--peach-ink)} .fr-l .am.pay{color:var(--rose-ink)}
+.fr-l.sch .am{color:var(--butter-ink)}
+.fr-l .acts{display:flex; justify-content:flex-end; gap:2px; opacity:0; transition:opacity .15s}
+.fr-l:hover .acts,.fr-l:focus-within .acts{opacity:1}
+.fr-l .acts .iconbtn{width:28px; height:28px}
+.fr-l .acts .iconbtn .ic{width:14px; height:14px}
+.fr-mini{padding:4px 10px; border-radius:999px; border:1.5px solid var(--butter-ink); background:var(--butter-soft); color:var(--butter-ink); font-size:.72rem; font-weight:600; white-space:nowrap; cursor:pointer}
+.fr-mini:hover{background:var(--butter)}
+.fr-lb{padding:8px 16px 14px}
+.fr-lb .r{display:grid; grid-template-columns:28px minmax(0,1fr) auto; gap:10px; align-items:center; padding:7px 0}
+.fr-lb .avatar{width:28px; height:28px; font-size:.62rem}
+.fr-lb .nm{font-size:.86rem; font-weight:550; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fr-lb .bar{display:block; margin-top:4px; height:7px; border-radius:999px; background:var(--paper-3); overflow:hidden}
+.fr-lb .bar i{display:block; height:100%; width:calc(var(--w) * 1%); background:var(--butter); border-right:1.5px solid var(--butter-ink); transition:width .9s var(--ease-spring) .2s}
+.boot .fr-lb .bar i{width:0}
+.fr-lb .am{font-family:var(--mono); font-size:.84rem; font-weight:600}
+.fr-lb .r.tbl .avatar{background:var(--paper-3); color:var(--ink-3)}
+.fr-lb .r.tbl .nm{color:var(--ink-3); font-weight:500}
+.fr-lb .r.tbl .bar i{background:var(--paper-3); border-right-color:var(--line-2); background-image:repeating-linear-gradient(135deg, var(--line-2) 0 2px, transparent 2px 6px)}
+.fr-lb .lead1 .avatar{box-shadow:0 0 0 2px var(--card), 0 0 0 3.5px var(--butter-ink)}
+.fr-ev{display:grid; grid-template-columns:44px minmax(0,1fr) auto auto; gap:12px; align-items:center; padding:10px 12px 10px 16px; border-top:1px solid var(--paper-3)}
+.fr-ev:first-child{border-top:0}
+.fr-ev .cal{text-align:center; border:1.5px solid var(--ink); border-radius:9px; overflow:hidden; background:var(--card); line-height:1.05; transform:rotate(-2deg)}
+.fr-ev .cal small{display:block; padding:2px 0; background:var(--butter); color:var(--note-ink); filter:var(--note-filter); font-family:var(--mono); font-size:.52rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase}
+.fr-ev .cal b{display:block; padding:3px 0 4px; font-family:var(--display); font-weight:600; font-size:1.05rem}
+.fr-ev.up .cal{border-style:dashed; transform:none}
+.fr-ev.up .cal small{background:var(--sky-soft); color:var(--sky-ink); filter:none}
+.fr-ev .t{display:block; font-size:.88rem; font-weight:550; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fr-ev .t button{all:unset; cursor:pointer}
+.fr-ev .t button:hover{text-decoration:underline; text-underline-offset:3px}
+.fr-ev .s{display:block; margin-top:1px; font-size:.74rem; color:var(--ink-3)}
+.fr-ev .am{font-family:var(--mono); font-size:.82rem; font-weight:600; color:var(--mint-ink); white-space:nowrap}
+.fr-ev .am.q{color:var(--ink-3); font-weight:500}
+.fr-ev .iconbtn{width:28px; height:28px}
+.fr-ev .iconbtn .ic{width:13px; height:13px}
+.fr-note{margin-top:18px; position:relative; padding:16px 18px 14px; background:var(--butter); color:var(--note-ink); filter:var(--note-filter); border-radius:3px; transform:rotate(-.6deg); font-size:.88rem; line-height:1.5; box-shadow:var(--sh-1)}
+.fr-note::before{content:''; position:absolute; left:50%; top:-9px; width:64px; height:18px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border:1px solid rgba(38,33,27,.08)}
+.fr-note b{display:block; font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; opacity:.7}
+
+/* sheets */
+.fr-kind{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px}
+.fr-kind label{position:relative; cursor:pointer}
+.fr-kind input{position:absolute; opacity:0; pointer-events:none}
+.fr-kind .o{display:block; height:100%; padding:12px 14px; border:1.5px solid var(--line-2); border-radius:var(--r-md); background:var(--card); transition:border-color .15s, box-shadow .15s}
+.fr-kind .o b{display:flex; align-items:center; gap:7px; font-size:.9rem}
+.fr-kind .o b .ic{width:15px; height:15px}
+.fr-kind .o small{display:block; margin-top:4px; font-size:.76rem; color:var(--ink-3); line-height:1.4}
+.fr-kind input:checked + .o{border-color:var(--ink); box-shadow:3px 3px 0 var(--butter)}
+.fr-kind input:focus-visible + .o{outline:2px solid var(--lilac-ink); outline-offset:2px}
+.fr-pv{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; background:var(--paper-2); font-size:.82rem; color:var(--ink-2)}
+.fr-pv .ic{width:15px; height:15px; color:var(--butter-ink)}
+.fr-pv b{color:var(--ink)}
+.fr-dir{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px}
+.fr-dir label{cursor:pointer; position:relative}
+.fr-dir input{position:absolute; opacity:0; pointer-events:none}
+.fr-dir span{display:flex; align-items:center; justify-content:center; gap:7px; padding:9px 10px; border:1.5px solid var(--line-2); border-radius:12px; font-size:.86rem; font-weight:600; color:var(--ink-2)}
+.fr-dir input:checked + span{border-color:var(--ink); color:var(--ink); background:var(--mint-soft); box-shadow:2px 2px 0 var(--mint)}
+.fr-dir label.out input:checked + span{background:var(--peach-soft); box-shadow:2px 2px 0 var(--peach)}
+.fr-dir input:focus-visible + span{outline:2px solid var(--lilac-ink); outline-offset:2px}
+.fr-chips{display:flex; flex-wrap:wrap; gap:6px}
+.fr-chips label{cursor:pointer; position:relative}
+.fr-chips input{position:absolute; opacity:0; pointer-events:none}
+.fr-chips span{display:inline-block; padding:5px 11px; border:1.5px solid var(--line-2); border-radius:999px; font-size:.78rem; font-weight:550; color:var(--ink-2)}
+.fr-chips input:checked + span{border-color:var(--ink); color:var(--ink); background:var(--butter-soft)}
+.fr-chips input:focus-visible + span{outline:2px solid var(--lilac-ink); outline-offset:2px}
+.fr-rc{padding:14px 16px; border-radius:6px; background:var(--paper-2); border:1.5px dashed var(--line-2); font-size:.86rem}
+.fr-rc .ln{display:flex; justify-content:space-between; gap:10px; padding:3px 0; color:var(--ink-2)}
+.fr-rc .ln b{font-family:var(--mono); color:var(--ink)}
+.fr-rc .ln.tot{margin-top:4px; padding-top:7px; border-top:1.5px solid var(--ink); color:var(--ink); font-weight:600}
+.fr-warn{padding:10px 12px; border-radius:12px; background:var(--peach-soft); color:var(--peach-ink); font-size:.82rem; line-height:1.45}
+.fr-hide{display:none !important}
+
+@media (max-width:1100px){
+  .fr-strip{grid-template-columns:repeat(3, minmax(0,1fr))}
+  .fr-strip > div:nth-child(3){border-right:0}
+  .fr-strip > div:nth-child(-n+3){border-bottom:1px solid var(--paper-3)}
+  .fr-cols{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  .fr-card,.fr-card.lead{grid-template-columns:72px minmax(0,1fr); gap:14px; padding:16px 16px 14px}
+  .fr-card.lead .fr-raised .v{font-size:2.1rem}
+  .fr-card.lead h3{font-size:1.3rem}
+  .fr-head{grid-template-columns:96px minmax(0,1fr); gap:16px; align-items:start}
+  .fr-head .big-stamp{font-size:.72rem; top:auto; bottom:-8px}
+  .fr-strip{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .fr-strip > div{border-right:1px solid var(--paper-3) !important; border-bottom:1px solid var(--paper-3)}
+  .fr-strip > div:nth-child(2n){border-right:0 !important}
+  .fr-hand{grid-template-columns:minmax(0,1fr)}
+  .fr-hand .art{display:none}
+  .fr-first{grid-template-columns:minmax(0,1fr); padding:22px 18px; gap:14px}
+  .fr-first .jw{width:84px}
+  .fr-first .ask,.fr-kind{grid-template-columns:minmax(0,1fr)}
+  .fr-l{grid-template-columns:38px minmax(0,1fr) auto; padding-left:10px}
+  .fr-l .acts{display:none}
+  .fr-st{padding:18px 16px 16px}
+  .fr-ev{grid-template-columns:40px minmax(0,1fr) auto}
+  .fr-ev .iconbtn{display:none}
+}
+@media (max-width:420px){ .fr-sec .cnt{display:none} }
+
+.tz-r .fr-chip{border:0; background:none; padding:0; font:inherit; color:var(--butter-ink); cursor:pointer}
+.tz-r .fr-chip:hover{text-decoration:underline; text-underline-offset:3px}
 /* ---------- settings (app/[slug]/settings/page.tsx) --------------------------------
    A binder. The app sidebar steps aside for the settings nav (Back to app · find a
    setting · Index · the four sections), as the real page does at desktop width. The
@@ -4264,6 +4537,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
     <symbol id="d-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
     <symbol id="d-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="d-move" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 13.4h6.6m0 0-2.6-2.6m2.6 2.6-2.6 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-jar" viewBox="0 0 24 24"><path d="M7.4 3.4h9.2v3.2H7.4z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8 6.6c-2 1.1-3.2 2.9-3.2 5.2v6.4c0 1.3 1.1 2.4 2.4 2.4h9.6c1.3 0 2.4-1.1 2.4-2.4v-6.4c0-2.3-1.2-4.1-3.2-5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 4.9h4M8.6 14.4h6.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   </defs>
 </svg>
 
@@ -4337,7 +4611,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
   try { S.pref = localStorage.getItem("paper-mock-theme") || "light"; } catch (e) {}
   try { S.mode = localStorage.getItem("paper-mock-mode") || "full"; } catch (e) {}
   S.needsShut = false; try { S.needsShut = localStorage.getItem("paper-mock-needs") === "shut"; } catch (e) {}
-  S.page = location.hash === "#timeline" ? "timeline" : location.hash === "#chapter" ? "chapter" : location.hash === "#treasury" ? "treasury" : location.hash === "#tasks" ? "tasks" : location.hash === "#docs" ? "docs" : location.hash === "#brotherhood" ? "brotherhood" : location.hash === "#instagram" ? "instagram" : location.hash === "#service" ? "service" : location.hash === "#programming" ? "programming" : location.hash === "#parties" ? "parties" : location.hash === "#settings" ? "settings" : location.hash === "#billing" ? "billing" : "dashboard";
+  S.page = location.hash === "#timeline" ? "timeline" : location.hash === "#chapter" ? "chapter" : location.hash === "#treasury" ? "treasury" : location.hash === "#tasks" ? "tasks" : location.hash === "#docs" ? "docs" : location.hash === "#brotherhood" ? "brotherhood" : location.hash === "#instagram" ? "instagram" : location.hash === "#service" ? "service" : location.hash === "#programming" ? "programming" : location.hash === "#parties" ? "parties" : location.hash === "#fundraising" ? "fundraising" : location.hash === "#settings" ? "settings" : location.hash === "#billing" ? "billing" : "dashboard";
 
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
@@ -4367,13 +4641,15 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
       { l: "Programming", i: "board", q: "wrap" },
       { l: "Service", i: "heart" },
       { l: "Parties", i: "note" },
+      { l: "Fundraising", i: "jar", q: "hand" },
       { l: "Treasury", i: "wallet", q: "reimb" } ] }
   ];
   var QUEUES = [
     { k: "join", n: 2, t: "join requests", pg: "Brotherhood", tone: "t-lilac" },
     { k: "excuse", n: 1, t: "excuse", pg: "Timeline", tone: "t-butter" },
     { k: "wrap", n: 1, t: "event to wrap up", pg: "Programming", tone: "t-rose" },
-    { k: "reimb", n: 1, t: "reimbursement", pg: "Treasury", tone: "t-peach" }
+    { k: "reimb", n: 1, t: "reimbursement", pg: "Treasury", tone: "t-peach" },
+    { k: "hand", n: 1, t: "campaign to close", pg: "Fundraising", tone: "t-butter" }
   ];
   var ATT = [
     { id: "a1", tag: "Overdue", tone: "t-peach", t: "Submit the fall budget to the advisor", m: "Due Sat, Oct 10 · Treasurer · 4 days late", a: "Mark done", deadline: "d-budget" },
@@ -4444,7 +4720,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
   function renderSidebar() {
     if (S.page === "settings") { $("#sb").innerHTML = seNav(); return; }
     var full = S.mode === "full";
-    QUEUES.forEach(function (q) { if (q.k === "join" && S.bh) { q.n = S.bh.requests.length; q.t = q.n === 1 ? "join request" : "join requests"; } if (q.k === "excuse") { q.n = S.excuses.length; q.t = q.n === 1 ? "excuse" : "excuses"; } if (q.k === "reimb") { q.n = S.tz.full.reimb.filter(function (r) { return r.status === "pending"; }).length; q.t = q.n === 1 ? "reimbursement" : "reimbursements"; } if (q.k === "wrap" && S.pg) { q.n = S.pg.full.filter(pgWrapDue).length; q.t = q.n === 1 ? "event to wrap up" : "events to wrap up"; } });
+    QUEUES.forEach(function (q) { if (q.k === "join" && S.bh) { q.n = S.bh.requests.length; q.t = q.n === 1 ? "join request" : "join requests"; } if (q.k === "hand" && S.fr) { q.n = S.mode === "full" ? frDueList().length : 0; q.t = q.n === 1 ? "campaign to close" : "campaigns to close"; } if (q.k === "excuse") { q.n = S.excuses.length; q.t = q.n === 1 ? "excuse" : "excuses"; } if (q.k === "reimb") { q.n = S.tz.full.reimb.filter(function (r) { return r.status === "pending"; }).length; q.t = q.n === 1 ? "reimbursement" : "reimbursements"; } if (q.k === "wrap" && S.pg) { q.n = S.pg.full.filter(pgWrapDue).length; q.t = q.n === 1 ? "event to wrap up" : "events to wrap up"; } });
     var qMap = {}; QUEUES.forEach(function (q) { if (q.n) qMap[q.k] = q; });
     var total = QUEUES.reduce(function (a, q) { return a + q.n; }, 0);
     var stepsDone = Object.keys(S.steps).length;
@@ -4470,7 +4746,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
         '<button class="needs-h" aria-expanded="' + !S.needsShut + '" aria-controls="needs-b" title="' + (S.needsShut ? "Show" : "Hide") + ' what needs you">' + ic("flag") + '<b>Needs you</b><span class="needs-n">' + total + '</span>' + ic("chev-r", "needs-chev") + '</button>' +
         '<div class="needs-b" id="needs-b"><div>' +
         QUEUES.filter(function (q) { return q.n; }).map(function (q) {
-          return '<a href="#" class="needs-row ' + q.tone + '" data-nav="' + q.pg + '"' + (q.k === "excuse" ? ' data-then="review"' : q.k === "reimb" ? ' data-then="reimb"' : q.k === "join" ? ' data-then="join"' : q.k === "wrap" ? ' data-then="wrap"' : '') + (S.needsShut ? ' tabindex="-1"' : '') + '><span class="c">' + q.n + '</span>' + q.t + '</a>';
+          return '<a href="#" class="needs-row ' + q.tone + '" data-nav="' + q.pg + '"' + (q.k === "excuse" ? ' data-then="review"' : q.k === "reimb" ? ' data-then="reimb"' : q.k === "join" ? ' data-then="join"' : q.k === "wrap" ? ' data-then="wrap"' : q.k === "hand" ? ' data-then="hand"' : '') + (S.needsShut ? ' tabindex="-1"' : '') + '><span class="c">' + q.n + '</span>' + q.t + '</a>';
         }).join("") +
       '</div></div></div>';
     } else {
@@ -4487,7 +4763,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
       g.items.forEach(function (it) {
         if (S.se && S.se.off[it.l]) return;
         var q = full && it.q ? qMap[it.q] : null;
-        var on = ({ dashboard: "Dashboard", timeline: "Timeline", chapter: "Chapter", treasury: "Treasury", tasks: "Tasks", docs: "Docs", brotherhood: "Brotherhood", instagram: "Instagram", service: "Service", programming: "Programming", parties: "Parties" })[S.page] === it.l;
+        var on = ({ dashboard: "Dashboard", timeline: "Timeline", chapter: "Chapter", treasury: "Treasury", tasks: "Tasks", docs: "Docs", brotherhood: "Brotherhood", instagram: "Instagram", service: "Service", programming: "Programming", parties: "Parties", fundraising: "Fundraising" })[S.page] === it.l;
         h += '<a href="#" class="item" data-nav="' + it.l + '" data-tip="' + it.l + '"' + (on ? ' aria-current="page"' : '') + '>' + ic(it.i) +
           '<span class="lbl">' + it.l + '</span>' + (q ? '<i class="dot ' + q.tone + '" title="' + q.n + ' ' + q.t + '"></i>' : '') + '</a>';
       });
@@ -5498,7 +5774,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
   $("#cm").addEventListener("click", function (e) { if (e.target === this) closeComposer(); });
   document.addEventListener("submit", function (e) {
     e.preventDefault();
-    if (e.target.id === "cm-form") { if (!submitCI(e.target) && !submitBI(e.target) && !submitSE(e.target) && !submitPX(e.target) && !submitPG(e.target) && !submitSV(e.target) && !submitIG(e.target) && !submitBH(e.target) && !submitDC(e.target) && !submitTZ(e.target) && !submitTK(e.target) && !submitCH(e.target) && !submitTL(e.target)) submitComposer(e.target); }
+    if (e.target.id === "cm-form") { if (!submitCI(e.target) && !submitBI(e.target) && !submitSE(e.target) && !submitPX(e.target) && !submitFR(e.target) && !submitPG(e.target) && !submitSV(e.target) && !submitIG(e.target) && !submitBH(e.target) && !submitDC(e.target) && !submitTZ(e.target) && !submitTK(e.target) && !submitCH(e.target) && !submitTL(e.target)) submitComposer(e.target); }
     else if (e.target.dataset.mssubmit) submitMS(e.target);
     else if (e.target.dataset.tlsubmit) submitTLInline(e.target);
   });
@@ -5796,6 +6072,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
       h += '<div class="ev-sec">' +
         (e.prog ? '<button class="ev-link" data-nav="Programming" data-then="ev:' + e.id + '">' + ic("board") + 'Open in Programming<span class="ar">' + ic("arrow-r") + '</span></button>' : '') +
         (e.party ? '<button class="ev-link" data-nav="Parties" data-then="pt:' + e.id + '">' + ic("note") + 'Open in Parties<span class="ar">' + ic("arrow-r") + '</span></button>' : '') +
+        (e.camp && frById(e.camp) ? '<button class="ev-link" data-fr="open:' + e.camp + '">' + ic("jar") + '<span>Open in Fundraising<small>Part of ' + esc(frById(e.camp).name) + '</small></span><span class="ar">' + ic("arrow-r") + '</span></button>' : '') +
         (e.ig ? e.ig.map(function (p) { return '<button class="ev-link" data-tl="mock">' + ic("camera") + '<span>' + p[1] + '<small>On Instagram · ' + p[0] + ' · ' + dowOf(p[2]) + ' ' + fmtD(p[2]) + '</small></span></button>'; }).join("") : '') +
         (e.cat !== "deadline" ? '<button class="ev-link" data-tl="ics">' + ic("cal") + '<span>Add this event<small>One copy, or get every event kept up to date</small></span><span class="ar">' + ic("arrow-r") + '</span></button>' : '') +
       '</div>';
@@ -6845,7 +7122,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
     return '<div class="tz-r' + (sch ? " sch" : "") + (t.fresh ? " fresh" : "") + '" data-tz="edit:' + t.id + '" role="button" tabindex="0" aria-label="Edit ' + esc(t.desc) + '">' +
       '<span class="dt"><b>' + d.getDate() + '</b><small>' + MON3[d.getMonth()] + '</small></span>' +
       '<span class="wh"><span class="t">' + esc(t.desc) + '</span><span class="m"><span class="cpill" style="--cc:' + catC(t.type, t.cat) + '">' + t.cat + '</span>' +
-        (t.how ? '<span class="how">' + t.how + '</span>' : '') + (ev ? '<span class="evl">' + ic("cal") + esc(ev.title) + '</span>' : '') +
+        (t.how ? '<span class="how">' + t.how + '</span>' : '') + (ev ? '<span class="evl">' + ic("cal") + esc(ev.title) + '</span>' : '') + (t.camp && frById(t.camp) ? '<button class="evl fr-chip" data-fr="open:' + t.camp + '">' + ic("jar") + esc(frById(t.camp).name) + '</button>' : '') +
         (t.rq ? '<span class="evl" style="color:var(--peach-ink)">' + ic("receipt") + 'request</span>' : '') + (sch ? '<span style="color:var(--peach-ink);font-weight:600">' + relWhen(t.date) + '</span>' : '') + '</span></span>' +
       '<span class="am ' + (inc ? "in" : "out") + '"><span class="sg">' + (inc ? "+" : "−") + '</span>' + m2(t.amt).slice(1) + '</span>' +
       '<span class="run' + (run[t.id] < 0 ? " neg" : "") + '">' + (sch ? '<button class="tz-mini ok" data-tz="paid:' + t.id + '">Mark paid</button>' : m2(run[t.id])) + '</span>' +
@@ -7032,6 +7309,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
         '<div class="cef-r">' + ic("cal") + '<div><div class="when-line"><input class="inp" type="date" name="date" value="' + date + '" aria-label="Date"><span class="cef-hint" data-rel style="margin:0">' + relWhen(date) + '</span></div>' +
           '<label class="reqrow" style="margin-top:12px"><span><span class="t">Hasn’t happened yet</span><span class="s">Scheduled — the balance won’t move until it’s marked paid.</span></span><span class="sw"><input type="checkbox" name="sched"' + (isSch ? " checked" : "") + '><span class="track"></span></span></label></div></div>' +
         (dues ? '' : '<div class="cef-r">' + ic("link") + '<div><span class="lab">Tie it to an event <span style="font-weight:400;color:var(--ink-3)">· optional</span></span>' + sel("ev", [["", "— No event —"]].concat(evs), t && t.ev || "") + '</div></div>') +
+        (dues || !(L().camps || []).length ? '' : '<div class="cef-r">' + ic("jar") + '<div><span class="lab">Campaign <span style="font-weight:400;color:var(--ink-3)">· optional</span></span>' + sel("camp", [["", "— Not for a campaign —"]].concat(L().camps.filter(function (c) { return !c.closed || (t && t.camp === c.id); }).map(function (c) { return [c.id, c.name]; })), t && t.camp || o.camp || "") + '</div></div>') +
       '</div></div></div>' +
       '<div class="cef-foot"><span class="tzf-prev" data-prev aria-live="polite"></span><span class="sp"><button type="button" class="btn btn--soft" data-cm-close>Cancel</button><button class="btn' + (type === "income" ? " btn--ok" : "") + '" data-go>' + (t ? "Save entry" : dues ? "Record payment" : "Add to the books") + '</button></span></div>';
     openSheet("tz-tx", html, true, type === "income" ? "var(--mint)" : "var(--peach)");
@@ -7151,16 +7429,16 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
     if (k === "tz-tx") {
       var type = g("type") || "expense", cat = g("cat_" + type) || CATS[type][0][0], amt = r2(numIn(g("amt"))), sch = !!fd.get("sched"), date = g("date") || TODAY();
       if (!(amt > 0)) return bad("amt", "Enter an amount above $0");
-      var data = { type: type, cat: cat, amt: amt, desc: g("desc") || cat, how: g("how"), date: date, ev: g("ev"), status: sch ? "scheduled" : "posted" };
+      var data = { type: type, cat: cat, amt: amt, desc: g("desc") || cat, how: g("how"), date: date, ev: g("ev"), camp: g("camp"), status: sch ? "scheduled" : "posted" };
       if (f.dataset.dues) { var dm = ower(f.dataset.dues); if (amt > dm.owed + .001 && !sch) return bad("amt", first(dm) + " only owes " + money(dm.owed)); }
       if (f.dataset.id) {
         var t = txById(f.dataset.id); applyDues(t, -1);
-        for (var p in data) t[p] = data[p]; if (!t.ev) delete t.ev;
+        for (var p in data) t[p] = data[p]; if (!t.ev) delete t.ev; if (!t.camp) delete t.camp;
         applyDues(t, 1); L().tx.forEach(function (x) { x.fresh = false; }); t.fresh = true;
         toast("Entry saved" + (t.status === "posted" ? " — balance " + m0(bal()) : ""));
       } else {
         var nt = TX(nid(), date, type, cat, amt, data.desc, data.how, { status: data.status });
-        if (data.ev) nt.ev = data.ev;
+        if (data.ev) nt.ev = data.ev; if (data.camp) nt.camp = data.camp;
         if (f.dataset.dues) {
           var m = ower(f.dataset.dues); nt.who = m.id; addTx(nt, true);
           addAct({ tx: "<b>You</b> recorded " + money(amt) + " from " + (byId(m.id) ? '<b data-member="' + m.id + '">' + m.n + "</b>" : "<b>" + m.n + "</b>") + " · " + data.how, tag: "Dues", tone: "t-butter" });
@@ -7224,6 +7502,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
 
   function tzRerender() { var y = window.scrollY; render(false); window.scrollTo(0, y); }
   document.addEventListener("click", function (ev) {
+    if (ev.target.closest("[data-fr]")) return;
     var t = ev.target.closest("[data-tz],[data-tzf]"); if (!t) return;
     if (t.dataset.tzf) {
       var a = t.dataset.tzf;
@@ -9926,6 +10205,526 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
   });
   document.addEventListener("change", function (e) { if (e.target.closest && e.target.closest(".px-ri")) pxRc(); });
 
+  /* ---------- fundraising (proposed app/[slug]/fundraising/page.tsx) -------------------- */
+  // A campaign is a goal with money and events attached; it is not a second set of books.
+  // Every dollar is a Treasury transaction carrying t.camp (Log money here, or the new
+  // Campaign picker on Treasury's own form), credited to a member through t.who. Raised =
+  // posted income, pledged = scheduled income, costs = posted expenses, and a hand-off to
+  // the cause is money out under Philanthropy (t.payout). Events are Timeline events with
+  // e.camp, new ones in the Fundraiser category. Statuses follow the planned typed enum:
+  // planning (not started) · running · ended (past its end, not closed) · closed.
+  // Campaigns live beside the ledger (L().camps), so Day one starts with none.
+  // Proposals throughout (no real page exists yet): the jar, the envelope prompt, the
+  // statement, the stamps, the leaderboard, the per-week pace in the form.
+  CAT.fundraiser = { l: "Fundraiser", c: "var(--butter-ink)", f: "var(--butter)", s: "var(--butter-soft)" };
+  CATS.expense.push(["Philanthropy", "rose"]);
+  S.tz.empty.camps = [];
+  (function seedFundraising() {
+    var F = S.tz.full, before = F.tx.reduce(function (a, t) { return t.status === "posted" ? a + sgn(t) : a; }, 0);
+    var by = function (id) { return F.tx.filter(function (t) { return t.id === id; })[0]; };
+    F.camps = [
+      { id: "c1", name: "St. Jude Up ’til Dawn", kind: "cause", ben: "St. Jude Children’s Research Hospital", goal: 5000, start: "2026-09-21", end: "2026-11-14",
+        notes: "Nationals wants the total by Nov 20. Letter-writing night was the best hour we spent — run two next year." },
+      { id: "c2", name: "House fund — new couches", kind: "chapter", ben: "", goal: 2500, start: "2026-08-24", end: "2026-12-12",
+        notes: "Couches picked out — $2,340 delivered. Anything over goes to the TV." },
+      { id: "c3", name: "Back-to-school car wash", kind: "cause", ben: "Eastside Food Bank", goal: 600, start: "2026-08-29", end: "2026-09-06", closed: true, closedAt: "2026-09-10", notes: "" },
+      { id: "c4", name: "Homecoming raffle", kind: "cause", ben: "Riverside Animal Shelter", goal: 400, start: "2026-10-03", end: "2026-10-10", notes: "Two $50 gift cards as prizes. Sold out of the first roll by noon." },
+      { id: "c5", name: "Holiday toy drive fund", kind: "cause", ben: "Toys for Tots", goal: 800, start: "2026-11-16", end: "2026-12-05", notes: "" }
+    ];
+    by("t13").camp = "c1"; by("t06").camp = "c2"; by("t11").camp = "c2"; by("t11").ev = "e-sep27b";
+    [TX("f01", "2026-08-29", "expense", "Events", 38, "Car wash soap, sponges, buckets", "Cash", { camp: "c3", ev: "e-aug30" }),
+     TX("f02", "2026-08-30", "income", "Fundraiser", 540, "Car wash — cash box", "Cash", { camp: "c3", ev: "e-aug30", who: "leo" }),
+     TX("f03", "2026-09-06", "income", "Fundraiser", 95, "Car wash — Venmo stragglers", "Venmo", { camp: "c3" }),
+     TX("f04", "2026-09-10", "expense", "Philanthropy", 597, "Handed to Eastside Food Bank", "Check", { camp: "c3", payout: true }),
+     TX("f05", "2026-09-26", "expense", "Events", 66, "Bake sale supplies", "Cash", { camp: "c2", ev: "e-sep27b" }),
+     TX("f06", "2026-09-30", "expense", "Events", 420, "5K race shirts + bibs", "Card", { camp: "c1", ev: "e-oct03" }),
+     TX("f07", "2026-10-02", "expense", "Equipment", 40, "Raffle prizes — two gift cards", "Card", { camp: "c4" }),
+     TX("f08", "2026-10-06", "income", "Fundraiser", 635, "Letter-writing night — online gifts", "Card", { camp: "c1", ev: "e-oct06", who: "nia" }),
+     TX("f09", "2026-10-09", "income", "Donations", 313, "Priya’s donor page — family & friends", "Card", { camp: "c1", who: "priya" }),
+     TX("f10", "2026-10-10", "income", "Fundraiser", 372, "Raffle tickets at the tailgate", "Cash", { camp: "c4", ev: "e-oct10", who: "dev" }),
+     TX("f11", "2026-10-11", "income", "Donations", 145, "Maya’s donor page", "Venmo", { camp: "c1", who: "maya" }),
+     TX("f12", "2026-10-12", "income", "Fundraiser", 286, "Pie-a-brother on the quad", "Cash", { camp: "c1", ev: "e-oct12", who: "jordan" }),
+     TX("f13", "2026-10-13", "income", "Donations", 150, "Parents’ weekend jar", "Cash", { camp: "c2", who: "dev" }),
+     TX("f14", "2026-11-07", "income", "Fundraiser", 500, "Raising Cane’s — philanthropy week sponsor", "Check", { camp: "c1", ev: "e-nov07", status: "scheduled" })
+    ].forEach(function (t) { F.tx.push(t); });
+    // the dashboard's $12,480 is the balance today; opening balance absorbs the new rows
+    var after = F.tx.reduce(function (a, t) { return t.status === "posted" ? a + sgn(t) : a; }, 0);
+    F.open = r2(F.open - (after - before));
+    S.events.push(
+      E("e-aug30", "2026-08-30", "Back-to-school car wash", "fundraiser", { camp: "c3", time: "10:00 AM", end: "2:00 PM", loc: "Parking Lot B" }),
+      E("e-sep27b", "2026-09-27", "Bake sale on the quad", "fundraiser", { camp: "c2", time: "11:00 AM", end: "2:00 PM", loc: "Main Quad" }),
+      E("e-oct06", "2026-10-06", "Letter-writing night", "fundraiser", { camp: "c1", time: "7:00 PM", end: "9:00 PM", loc: "The house", desc: "Write to family for St. Jude. Laptops, stamps and pizza provided." }),
+      E("e-oct12", "2026-10-12", "Pie-a-brother", "fundraiser", { camp: "c1", time: "12:00 PM", end: "2:00 PM", loc: "Main Quad" }),
+      E("e-oct22", "2026-10-22", "Boba sale", "fundraiser", { camp: "c1", time: "11:00 AM", end: "3:00 PM", loc: "Student Union", desc: "Every brother takes one hour at the table." }),
+      E("e-nov19", "2026-11-19", "Alumni giving day", "fundraiser", { camp: "c2", allDay: true, loc: "Online" }));
+    [["e-oct03", "c1"], ["e-nov07", "c1"], ["e-oct10", "c4"], ["e-dec05", "c5"]].forEach(function (p) { var e = evById(p[0]); if (e) e.camp = p[1]; });
+  })();
+  S.fr = { sel: null, fresh: null };
+
+  var frList = function () { return L().camps; };
+  function frById(id) { return frList().filter(function (c) { return c.id === id; })[0] || null; }
+  function frStat(c) { return c.closed ? "closed" : c.start > TODAY() ? "planning" : c.end < TODAY() ? "ended" : "running"; }
+  var FR_ST = { running: ["Running", "run"], planning: ["Planning", "plan"], ended: ["Ended · hand it over", "ended"], closed: ["Closed", "closed"] };
+  function frStamp(c) { var s = frStat(c), x = FR_ST[s]; if (s === "ended" && (c.kind !== "cause" || frSum(c).held <= 0)) x = ["Ended · close it out", "ended"]; return '<span class="fr-stamp ' + x[1] + '">' + x[0] + '</span>'; }
+  function frTx(c) { return L().tx.filter(function (t) { return t.camp === c.id; }); }
+  function frSum(c) {
+    var o = { raised: 0, pledged: 0, costs: 0, paid: 0, n: 0, by: {} };
+    frTx(c).forEach(function (t) {
+      if (t.type === "income") { if (t.status === "scheduled") o.pledged += t.amt; else { o.raised += t.amt; o.n++; o.by[t.who || ""] = (o.by[t.who || ""] || 0) + t.amt; } }
+      else if (t.status === "posted") { if (t.payout) o.paid += t.amt; else o.costs += t.amt; }
+    });
+    o.raised = r2(o.raised); o.pledged = r2(o.pledged); o.costs = r2(o.costs); o.paid = r2(o.paid);
+    o.net = r2(o.raised - o.costs); o.held = c.kind === "cause" ? r2(Math.max(0, o.net - o.paid)) : 0;
+    o.pct = c.goal ? o.raised / c.goal : 0;
+    return o;
+  }
+  function frEvents(c) { return evList().filter(function (e) { return e.camp === c.id; }); }
+  function frDueList() { return frList().filter(function (c) { return frStat(c) === "ended"; }).sort(function (a, b) { return a.end < b.end ? -1 : 1; }); }
+  function frBen(c, short) {
+    return c.kind === "cause" ? '<p class="fr-ben">' + ic("heart") + '<span>' + (short ? "for " : "For ") + esc(c.ben || "a cause") + '</span></p>'
+      : '<p class="fr-ben kept">' + ic("home") + '<span>Kept by the chapter</span></p>';
+  }
+  function frWhen(c) {
+    var s = frStat(c), n = dFrom(c.end);
+    var r = fmtD(c.start) + " – " + fmtD(c.end);
+    if (s === "running") r += " · " + (n === 0 ? "ends today" : n === 1 ? "1 day left" : n + " days left");
+    else if (s === "planning") r += " · starts " + relWhen(c.start).toLowerCase();
+    else if (s === "ended") r += " · ended " + relWhen(c.end).toLowerCase();
+    else if (c.closedAt) r += " · closed " + fmtD(c.closedAt);
+    return r;
+  }
+  function frBoard(c, s) {
+    return Object.keys(s.by).filter(function (k) { return k; }).map(function (k) { return { m: byId(k), amt: s.by[k] }; })
+      .filter(function (x) { return x.m; }).sort(function (a, b) { return b.amt - a.amt; });
+  }
+
+  /* the jar: fill = raised ÷ goal, dashed band above it = pledged */
+  var frJarN = 0;
+  function frJar(c, s) {
+    var id = "frj" + (++frJarN), ghost = !c || (!s.raised && !s.pledged && frStat(c) === "planning");
+    var BODY = "M36 24h48v7c13 5 22 15 22 30v77c0 8-6 14-14 14H28c-8 0-14-6-14-14V61c0-15 9-25 22-30z";
+    var top = 46, bot = 152, H = bot - top;
+    var pct = s ? Math.min(1, s.pct) : 0, pp = s ? Math.min(1 - pct, c.goal ? s.pledged / c.goal : 0) : 0;
+    var fy = bot - pct * H, py = fy - pp * H;
+    var lbl = !c ? "An empty jar" : c.name + ": " + m0(s.raised) + " of " + m0(c.goal) + (s.pledged ? ", " + m0(s.pledged) + " pledged" : "");
+    var h = '<svg class="fr-jar' + (ghost ? " ghost" : "") + '" viewBox="0 0 120 156" role="img" aria-label="' + esc(lbl) + '">' +
+      '<defs><clipPath id="' + id + '"><path d="' + BODY + '"/></clipPath>' +
+      '<pattern id="' + id + 'p" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" style="fill:var(--butter)"/><rect width="3" height="9" style="fill:var(--butter-ink);opacity:.16"/></pattern></defs>' +
+      '<path class="glass" d="' + BODY + '"/>';
+    if (!ghost && s && (pct > 0 || pp > 0)) {
+      h += '<g clip-path="url(#' + id + ')"><g class="lq">' +
+        (pp > 0 ? '<rect class="frpl" x="10" y="' + py.toFixed(1) + '" width="100" height="' + (fy - py + 1).toFixed(1) + '"/>' : '') +
+        (pct > 0 ? '<rect x="0" y="' + fy.toFixed(1) + '" width="120" height="' + (bot - fy + 8).toFixed(1) + '" fill="url(#' + id + 'p)"/>' +
+          '<path class="surf" d="M10 ' + fy.toFixed(1) + ' q12 -3 25 0 t25 0 t25 0 t25 0"/>' : '') +
+      '</g></g>';
+    }
+    [[.25, "¼"], [.5, "½"], [.75, "¾"]].forEach(function (q) { var y = (bot - q[0] * H).toFixed(1); h += '<path class="tick" d="M90 ' + y + 'h9"/><text class="tkl" x="88" y="' + (+y + 2.6).toFixed(1) + '" text-anchor="end">' + q[1] + '</text>'; });
+    h += '<path class="glare" d="M24 72v44"/>' +
+      '<path class="body" d="' + BODY + '"/>' +
+      '<rect class="lid" x="31" y="6" width="58" height="18" rx="5"/><rect class="slot" x="47" y="12.5" width="26" height="4" rx="2"/>' +
+      '</svg>';
+    return h;
+  }
+  function frMeter(c, s) {
+    var w = Math.min(100, s.pct * 100), pw = Math.min(100 - w, c.goal ? s.pledged / c.goal * 100 : 0);
+    return '<div class="fr-meter' + (w >= 100 ? " met" : "") + '" role="meter" aria-valuemin="0" aria-valuemax="' + c.goal + '" aria-valuenow="' + s.raised + '" aria-label="Raised toward the goal">' +
+      (pw > 0 ? '<i class="frpl" style="--a:' + w.toFixed(2) + ';--w:' + pw.toFixed(2) + '"></i>' : '') + '<i style="--w:' + w.toFixed(2) + '"></i></div>';
+  }
+  function frRaised(c, s) {
+    if (!s.raised) return '<div class="fr-raised"><span class="none">' + (frStat(c) === "planning" ? "Not started" : "Nothing in yet") + '</span><span class="of">goal <b>' + m0(c.goal) + '</b></span></div>';
+    return '<div class="fr-raised"><span class="v">' + bigMoney(s.raised) + '</span><span class="of">of <b>' + m0(c.goal) + '</b></span><span class="pct">' + Math.floor(s.pct * 100) + '%</span></div>';
+  }
+
+  /* page */
+  function fundraisingPage() {
+    var c = S.fr.sel && frById(S.fr.sel);
+    if (c) return frDetail(c);
+    var T = TODAY(), td = dt(T), all = frList();
+    var kick = '<p class="kick" data-r><span class="chip">' + DOW[td.getDay()] + ' · ' + fmtD(T) + '</span> Fundraising · Fall ’26</p>' +
+      '<h1 class="greet" data-r style="--d:60ms">The fund <span class="hi" style="--mark:var(--butter)">drive.</span></h1>';
+    if (!all.length) return '<section class="tl-brief"><div>' + kick + '</div></section>' + frFirst();
+
+    var run = all.filter(function (x) { return frStat(x) === "running"; }).sort(function (a, b) { return a.end < b.end ? -1 : 1; });
+    var plan = all.filter(function (x) { return frStat(x) === "planning"; }).sort(function (a, b) { return a.start < b.start ? -1 : 1; });
+    var done = all.filter(function (x) { return frStat(x) === "closed"; }).sort(function (a, b) { return a.end < b.end ? 1 : -1; });
+    var due = frDueList(), counted = all.filter(function (x) { return frStat(x) !== "planning"; });
+    var tot = counted.reduce(function (a, x) { return a + frSum(x).raised; }, 0);
+    var lead = run.filter(function (x) { return x.kind === "cause"; })[0] || run[0], ls = lead && frSum(lead);
+    var took = counted.filter(function (x) { return frSum(x).raised > 0; }).length;
+    var dg = tot ? '<b>' + m0(tot) + '</b> raised this term across ' + took + (took === 1 ? " campaign." : " campaigns.") : "Nothing raised yet this term.";
+    if (lead && ls.raised) dg += ' ' + esc(lead.name) + ' is <b>' + Math.floor(ls.pct * 100) + '%</b> of the way to ' + m0(lead.goal) + ' with ' + dFrom(lead.end) + ' days left';
+    if (due.length) { var d0 = due[0], s0 = frSum(d0); dg += (lead && ls.raised ? ", and the " : " The ") + esc(d0.name.charAt(0).toLowerCase() + d0.name.slice(1)) + ' ended ' + relWhen(d0.end).toLowerCase() + (s0.held > 0 ? ' with <b>' + m0(s0.held) + '</b> still held for ' + esc(d0.ben) + '.' : ' — close it out.'); }
+    else if (lead && ls.raised) dg += ".";
+
+    var h = '<section class="tl-brief"><div>' + kick + '<p class="digest" data-r style="--d:140ms"><span class="aichip">' + ic("spark") + 'Digest</span><span>' + dg + '</span></p></div>' +
+      '<div class="tl-acts" data-r style="--d:200ms"><button class="btn" data-fr="new">' + ic("plus") + 'New campaign</button>' +
+        '<button class="btn btn--ghost" data-fr="log:' + (lead ? lead.id : "") + '">' + ic("receipt") + 'Log money</button>' +
+        '<button class="askbar" data-fr="ask">' + ic("spark") + 'Ask what we’ve raised<kbd>⌘K</kbd></button></div></section>';
+
+    if (due.length) {
+      var dc = due[0], ds = frSum(dc), ago = -dFrom(dc.end), cause = dc.kind === "cause" && ds.held > 0;
+      h += '<section class="px-due fr-due" data-r style="--d:240ms"><svg class="flap" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0 L50 34 L100 0"/></svg><span class="seal" aria-hidden="true">ΟΚ</span><span class="art">' + ic(cause ? "heart" : "check") + '</span>' +
+        '<div style="min-width:0"><p class="tag">' + (cause ? "Hand it over" : "Close it out") + ' · ended ' + ago + (ago === 1 ? " day" : " days") + ' ago</p><h2><button class="fr-h2" data-fr="open:' + dc.id + '">' + esc(dc.name) + '</button></h2>' +
+        '<p class="m">' + (cause ? '<b>' + m0(ds.held) + '</b> is still held for <b>' + esc(dc.ben) + '</b> — record the hand-off so the term’s giving total is right, and the books stop counting it as the chapter’s.'
+          : 'Raised <b>' + m0(ds.raised) + '</b> of ' + m0(dc.goal) + '. Close it so it files under this term’s totals.') + '</p>' +
+        (due.length > 1 ? '<p class="more">+' + (due.length - 1) + ' more waiting below</p>' : '') + '</div>' +
+        '<button class="btn" data-fr="' + (cause ? "hand:" : "close:") + dc.id + '">' + ic(cause ? "hand" : "check") + (cause ? "Record hand-off" : "Close it out") + '</button></section>';
+    }
+
+    h += '<div class="fr-sec" data-r style="--d:280ms"><h2>Running now</h2><span class="rule"></span><span class="cnt">' + (run.length ? run.length + (run.length === 1 ? " campaign" : " campaigns") : "none") + '</span></div>';
+    if (run.length) h += '<div class="fr-run" data-r style="--d:320ms">' + run.map(function (x, i) { return frCard(x, i === 0 && run.length % 2 === 1); }).join("") + '</div>';
+    else h += '<p style="color:var(--ink-3);font-size:.9rem">No campaign is running today' + (plan.length ? " — " + esc(plan[0].name) + " starts " + relWhen(plan[0].start).toLowerCase() + "." : ".") + '</p>';
+    var rest = due.slice(1);
+    if (plan.length || rest.length) h += '<div class="fr-sec" data-r style="--d:360ms"><h2>Coming up</h2><span class="rule"></span><span class="cnt">' + (plan.length + rest.length) + ' waiting</span></div><div class="fr-row" data-r style="--d:380ms">' + rest.concat(plan).map(frIx).join("") + '</div>';
+    if (done.length) h += '<div class="fr-sec" data-r style="--d:400ms"><h2>Closed this term</h2><span class="rule"></span><span class="cnt">' + done.length + ' filed</span></div><div class="fr-row" data-r style="--d:420ms">' + done.map(frIx).join("") + '</div>';
+    h += '<div class="fr-sec" data-r style="--d:440ms"><h2>The term’s giving</h2><span class="rule"></span><span class="cnt">what to tell nationals</span></div>' + frStatement(counted);
+    return h;
+  }
+  function frCard(c, lead) {
+    var s = frSum(c), board = frBoard(c, s), ev = frEvents(c).filter(function (e) { return e.date >= TODAY(); })[0];
+    var figs = [];
+    if (s.pledged) figs.push('<span class="frpl">Pledged <b>' + m0(s.pledged) + '</b></span>');
+    if (s.costs) figs.push('<span>Costs <b>' + m0(s.costs) + '</b></span>');
+    if (s.raised) figs.push(c.kind === "cause" ? '<span class="held">Held for them <b>' + m0(s.held) + '</b></span>' : '<span>Kept <b>' + m0(s.net) + '</b></span>');
+    if (ev) figs.push('<span>Next <b style="font-family:var(--sans);font-weight:600">' + esc(ev.title) + '</b> · ' + DOW[dt(ev.date).getDay()] + ' ' + fmtD(ev.date) + '</span>');
+    return '<article class="fr-card' + (lead ? " lead" : "") + (S.fr.fresh === c.id ? " fresh" : "") + '"><div class="jw">' + frJar(c, s) + '</div><div style="min-width:0">' +
+      '<div class="fr-top">' + frStamp(c) + (s.pct >= 1 ? '<span class="fr-stamp met">' + ic("star") + 'Goal met</span>' : '') + '<span>' + frWhen(c) + '</span></div>' +
+      '<h3><button data-fr="open:' + c.id + '">' + esc(c.name) + '</button></h3>' + frBen(c) + frRaised(c, s) + frMeter(c, s) +
+      (figs.length ? '<div class="fr-figs">' + figs.join("") + '</div>' : '') +
+      (board.length ? '<div class="fr-who"><span class="avs">' + board.slice(0, 4).map(function (x) { return '<span class="avatar" style="--av:' + x.m.av + '" title="' + esc(x.m.n) + '">' + x.m.i + '</span>'; }).join("") + '</span><span><b>' + esc(first(board[0].m)) + '</b> leads with ' + m0(board[0].amt) + (board.length > 1 ? ' · ' + board.length + ' members credited' : '') + '</span></div>' : '') +
+      '<div class="fr-acts"><button class="btn btn--sm" data-fr="log:' + c.id + '">' + ic("plus") + 'Log money</button><button class="btn btn--soft btn--sm" data-fr="open:' + c.id + '">Open campaign' + ic("arrow-r") + '</button></div>' +
+    '</div></article>';
+  }
+  function frIx(c) {
+    var s = frSum(c), st = frStat(c);
+    var g = st === "planning" ? "Goal " + m0(c.goal) + (frEvents(c).length ? " · " + frEvents(c).length + (frEvents(c).length === 1 ? " event" : " events") + " planned" : "") : "";
+    return '<button class="fr-ix' + (st === "closed" ? " closed" : "") + '" data-fr="open:' + c.id + '">' + (st === "closed" ? '' : frStamp(c)) +
+      '<h4>' + esc(c.name) + '</h4><p class="s">' + (c.kind === "cause" ? "For " + esc(c.ben) : "Kept by the chapter") + ' · ' + fmtD(c.start) + ' – ' + fmtD(c.end) + '</p>' +
+      (st === "closed" ? '<div class="tot"><span>Raised <b>' + m0(s.raised) + '</b></span>' + (c.kind === "cause" ? '<span>Handed over <b>' + m0(s.paid) + '</b></span>' : '<span>Kept <b>' + m0(s.net) + '</b></span>') + (s.pct >= 1 ? '<span style="color:var(--butter-ink);font-weight:600">' + Math.floor(s.pct * 100) + '% of goal</span>' : '') + '</div>'
+        : st === "ended" ? '<div class="tot"><span>Raised <b>' + m0(s.raised) + '</b></span>' + (s.held ? '<span>Held <b style="color:var(--rose-ink)">' + m0(s.held) + '</b></span>' : '') + '</div>' : '<p class="g">' + g + '</p>') +
+    '</button>';
+  }
+  function frStatement(list) {
+    var t = { raised: 0, costs: 0, paid: 0, held: 0, kept: 0 };
+    list.forEach(function (c) { var s = frSum(c); t.raised += s.raised; t.costs += s.costs; t.paid += s.paid; if (c.kind === "cause") t.held += s.held; else t.kept += s.net; });
+    var ln = function (l, v, cls) { return '<p class="ln' + (cls ? " " + cls : "") + '"><span>' + l + '</span><span class="dots"></span><b>' + v + '</b></p>'; };
+    var causes = list.filter(function (c) { return c.kind === "cause" && frSum(c).raised > 0; }).length, took = list.filter(function (c) { return frSum(c).raised > 0; }).length;
+    if (!list.length) return '<div class="fr-st" data-r style="--d:460ms"><div class="hd"><b>Fall ’26 · giving statement</b></div><p class="ln"><span>Nothing raised yet</span><span class="dots"></span><b>—</b></p><p class="ft">The statement fills in as campaigns start taking money.</p></div>';
+    return '<div class="fr-st" data-r style="--d:460ms"><div class="hd"><b>Fall ’26 · giving statement</b><small>Aug 24 – today</small><button class="btn btn--soft btn--sm" data-fr="copy">' + ic("copy") + 'Copy for nationals</button></div>' +
+      ln("Raised across " + took + (took === 1 ? " campaign" : " campaigns"), m0(t.raised)) +
+      ln("What it cost to raise", t.costs ? "−" + m0(t.costs) : "—", "sub") +
+      ln("Handed to causes", t.paid ? m0(t.paid) : "—") +
+      ln("Still held for causes", t.held ? m0(t.held) : "—", "sub") +
+      ln("Kept by the chapter", t.kept ? m0(t.kept) : "—") +
+      ln("Philanthropy dollars this term", m0(t.paid + t.held), "tot") +
+      '<p class="ft">Philanthropy = handed over + still held, across ' + causes + (causes === 1 ? " cause campaign" : " cause campaigns") + '. Every figure is a Treasury entry tagged with its campaign — nothing here is typed in twice.</p></div>';
+  }
+  function frFirst() {
+    return '<section class="fr-first" data-r style="--d:220ms"><div class="jw">' + frJar(null, null) + '</div><div style="min-width:0">' +
+      '<h2>What are you raising for?</h2><p class="l">A campaign is one goal — a cause you’ll hand the money to, or something the chapter is saving for. Money you log against it lands in Treasury like everything else; this page just keeps score.</p>' +
+      '<div class="fq"><div class="ask"><label class="fld"><span>The cause</span><input class="inp" id="fr1-name" placeholder="St. Jude, new couches, formal deposit…" autocomplete="off"></label>' +
+        '<label class="fld"><span>Goal</span><div class="amt-inp"><input class="inp" id="fr1-goal" inputmode="decimal" placeholder="2,000"></div></label></div>' +
+        '<div class="fr-kind" role="radiogroup" aria-label="Where the money goes">' + frKindOpts("cause", "fr1-kind") + '</div>' +
+        '<div class="actions" style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" data-fr="first">' + ic("plus") + 'Start the campaign</button><button class="btn btn--soft" data-fr="new">More options</button></div></div>' +
+    '</div></section>';
+  }
+  function frKindOpts(cur, name) {
+    return [["cause", "heart", "A cause we give it to", "Philanthropy. It leaves the books when you hand it over."], ["chapter", "home", "The chapter keeps it", "Saving for something — couches, a formal, a retreat."]].map(function (k) {
+      return '<label><input type="radio" name="' + name + '" value="' + k[0] + '"' + (cur === k[0] ? " checked" : "") + '><span class="o"><b>' + ic(k[1]) + k[2] + '</b><small>' + k[3] + '</small></span></label>'; }).join("");
+  }
+
+  /* one campaign */
+  function frDetail(c) {
+    var s = frSum(c), st = frStat(c), board = frBoard(c, s), evs = frEvents(c), txs = frTx(c);
+    var h = '<button class="fr-crumb" data-fr="back" data-r>' + ic("chev-l") + 'All campaigns</button>' +
+      '<section class="fr-head" data-r style="--d:60ms"><div>' + frJar(c, s) + '</div><div style="min-width:0">' +
+        '<div class="fr-top">' + frStamp(c) + '<span>' + frWhen(c) + '</span></div>' +
+        '<h1>' + esc(c.name) + '</h1>' + frBen(c) +
+        '<div class="fr-acts">' + (st !== "closed" ? '<button class="btn" data-fr="log:' + c.id + '">' + ic("plus") + 'Log money</button>' : '') +
+          (st !== "closed" ? '<button class="btn btn--ghost" data-fr="ev:' + c.id + '">' + ic("cal") + 'Add event</button>' : '') +
+          '<button class="btn btn--soft" data-fr="edit:' + c.id + '">' + ic("pencil") + 'Edit</button>' +
+          (st === "closed" ? '<button class="btn btn--soft" data-fr="reopen:' + c.id + '">' + ic("refresh") + 'Reopen</button>' : '<button class="btn btn--soft" data-fr="close:' + c.id + '">' + ic("check") + 'Close campaign</button>') +
+          '<button class="iconbtn" data-fr="del:' + c.id + '" aria-label="Delete campaign" title="Delete campaign">' + ic("trash") + '</button></div>' +
+      '</div>' + (st === "closed" ? '<span class="big-stamp' + (s.pct >= 1 ? " met" : "") + '">' + (s.pct >= 1 ? "GOAL MET" : "CLOSED") + '</span>' : s.pct >= 1 ? '<span class="big-stamp met">GOAL MET</span>' : '') + '</section>';
+
+    var cell = function (k, v, sub, cls) { return '<div><p class="px-k">' + k + '</p><p class="v' + (cls ? " " + cls : "") + '">' + v + '</p><p class="s">' + sub + '</p></div>'; };
+    h += '<div class="fr-strip" data-r style="--d:120ms">' +
+      cell("Raised", s.raised ? m0(s.raised) : "—", s.raised ? s.n + (s.n === 1 ? " entry" : " entries") : "nothing in yet", "y") +
+      cell("Goal", m0(c.goal), s.raised ? Math.floor(s.pct * 100) + "% there" : "the number to beat") +
+      cell("Pledged", s.pledged ? m0(s.pledged) : "—", s.pledged ? "promised, not in yet" : "no pledges", s.pledged ? "" : "q") +
+      cell("Costs", s.costs ? m0(s.costs) : "—", s.costs ? "to raise it" : "nothing spent", s.costs ? "" : "q") +
+      cell("Net", s.raised ? m0(s.net) : "—", s.raised && s.raised ? Math.round(s.net / s.raised * 100) + "% of what came in" : "raised − costs", s.raised ? "g" : "q") +
+      (c.kind === "cause" ? cell(s.paid && !s.held ? "Handed over" : "Held for them", s.paid && !s.held ? m0(s.paid) : s.held ? m0(s.held) : "—", s.paid && !s.held ? "all of it" : s.paid ? m0(s.paid) + " handed over" : "not handed over", s.held ? "r" : s.paid ? "g" : "q")
+        : cell("Kept", s.raised ? m0(s.net) : "—", "stays in the account", s.raised ? "g" : "q")) +
+    '</div>' + (s.raised || s.pledged ? '<div class="fr-mw" data-r style="--d:150ms">' + frMeter(c, s) + '</div>' : '');
+
+    if (c.kind === "cause" && s.held > 0) h += '<section class="fr-hand' + (st === "ended" ? " due" : "") + '" data-r style="--d:180ms"><span class="art">' + ic("heart") + '</span><div style="min-width:0">' +
+      '<p class="t"><b class="v">' + m0(s.held) + '</b> is held for ' + esc(c.ben) + '.</p><p>' + (st === "ended" ? "The campaign’s over — once it’s handed over, record it and close the campaign." : "It’s sitting in the chapter account, so Treasury’s balance includes it. When you hand it over, record it — it leaves the books under Philanthropy.") + '</p></div>' +
+      '<button class="btn' + (st === "ended" ? "" : " btn--ghost") + '" data-fr="hand:' + c.id + '">' + ic("hand") + 'Record hand-off</button></section>';
+
+    // money: this campaign's slice of the Treasury ledger
+    var sch = txs.filter(function (t) { return t.status === "scheduled"; }).sort(byDate), pst = txs.filter(function (t) { return t.status === "posted"; }).sort(byDate).reverse();
+    var money = '<div class="fr-box" data-r style="--d:220ms"><div class="bh"><span class="tile t-butter">' + ic("receipt") + '</span><h3>Money</h3><small>' + txs.length + ' in Treasury</small><span class="sp"></span>' +
+      (st !== "closed" ? '<button class="btn btn--sm" data-fr="log:' + c.id + '">' + ic("plus") + 'Log money</button>' : '') + '</div>';
+    if (!txs.length) money += '<p class="empty">Nothing logged yet. Money you log here lands in Treasury, tagged with this campaign — credit a member and they show up under Who raised it.</p>';
+    else {
+      if (sch.length) money += '<div class="fr-grp frpl">Pledged — not in yet<span class="rule"></span></div>' + sch.map(frLine).join("");
+      if (pst.length) money += (sch.length ? '<div class="fr-grp">In the books<span class="rule"></span></div>' : '') + pst.map(frLine).join("");
+    }
+    money += '</div>';
+    if (c.notes) money += '<div class="fr-note" data-r style="--d:260ms"><b>Notes</b>' + esc(c.notes) + '</div>';
+
+    var mx = board.length ? board[0].amt : 1, tbl = s.by[""] || 0;
+    if (tbl > mx) mx = tbl;
+    var who = '<div class="fr-box" data-r style="--d:240ms"><div class="bh"><span class="tile t-lilac">' + ic("people") + '</span><h3>Who raised it</h3><small>' + board.length + ' credited</small></div>';
+    if (!s.raised) who += '<p class="empty">Credit a member when you log money and the leaderboard starts here.</p>';
+    else who += '<div class="fr-lb">' + board.map(function (x, i) {
+      return '<div class="r' + (i === 0 ? " lead1" : "") + '"><span class="avatar" style="--av:' + x.m.av + '">' + x.m.i + '</span><span style="min-width:0"><span class="nm">' + esc(x.m.n) + (x.m.you ? ' <small style="color:var(--ink-3);font-weight:400">· you</small>' : '') + '</span><span class="bar"><i style="--w:' + (x.amt / mx * 100).toFixed(1) + '"></i></span></span><span class="am">' + m0(x.amt) + '</span></div>'; }).join("") +
+      (tbl ? '<div class="r tbl"><span class="avatar">' + ic("people") + '</span><span style="min-width:0"><span class="nm">No one credited · at the table</span><span class="bar"><i style="--w:' + (tbl / mx * 100).toFixed(1) + '"></i></span></span><span class="am">' + m0(tbl) + '</span></div>' : '') + '</div>';
+    who += '</div>';
+
+    var evb = '<div class="fr-box" data-r style="--d:260ms"><div class="bh"><span class="tile t-sky">' + ic("cal") + '</span><h3>Events</h3><small>on the Timeline</small><span class="sp"></span>' +
+      (st !== "closed" ? '<button class="btn btn--soft btn--sm" data-fr="ev:' + c.id + '">' + ic("plus") + 'Add</button>' : '') + '</div>';
+    if (!evs.length) evb += '<p class="empty">No events yet. Add the bake sale, the 5K, the giving day — they land on the Timeline, and money tied to them shows here per event.</p>';
+    else evb += evs.map(function (e) {
+      var d = dt(e.date), up = e.date >= TODAY(), took = txs.filter(function (t) { return t.ev === e.id && t.type === "income" && t.status === "posted"; }).reduce(function (a, t) { return a + t.amt; }, 0);
+      return '<div class="fr-ev' + (up ? " up" : "") + '"><span class="cal"><small>' + MON3[d.getMonth()] + '</small><b>' + d.getDate() + '</b></span><span style="min-width:0"><span class="t"><button data-fr="totl:' + e.id + '">' + esc(e.title) + '</button></span><span class="s">' + DOW[d.getDay()] + (e.time ? " · " + e.time : e.allDay ? " · all day" : "") + (e.loc ? " · " + esc(e.loc) : "") + '</span></span>' +
+        '<span class="am' + (took ? "" : " q") + '">' + (took ? "+" + m0(took) : up ? relWhen(e.date) : "—") + '</span>' +
+        '<button class="iconbtn" data-fr="unlink:' + e.id + '" aria-label="Take ' + esc(e.title) + ' off this campaign" title="Take off this campaign">' + ic("plus", "x45") + '</button></div>'; }).join("");
+    evb += '</div>';
+
+    return h + '<div class="fr-cols"><div style="min-width:0">' + money + '</div><div style="min-width:0">' + who + evb + '</div></div>';
+  }
+  function frLine(t) {
+    var d = dt(t.date), inc = t.type === "income", sch = t.status === "scheduled", m = t.who ? byId(t.who) : null, ev = t.ev ? evById(t.ev) : null;
+    return '<div class="fr-l' + (sch ? " sch" : "") + (t.fresh ? " fresh" : "") + '" data-tz="edit:' + t.id + '" role="button" tabindex="0" aria-label="Edit ' + esc(t.desc) + '">' +
+      '<span class="dt"><b>' + d.getDate() + '</b><small>' + MON3[d.getMonth()] + '</small></span>' +
+      '<span style="min-width:0"><span class="t">' + esc(t.desc) + '</span><span class="m">' +
+        (t.payout ? '<span style="color:var(--rose-ink);font-weight:600">' + ic("heart") + 'Hand-off</span>' : '<span>' + t.cat + '</span>') +
+        (m ? '<span class="cr">' + ic("star") + first(m) + '</span>' : '') + (ev ? '<span>' + ic("cal") + esc(ev.title) + '</span>' : '') + (t.how ? '<span>' + t.how + '</span>' : '') +
+        (sch ? '<span style="color:var(--butter-ink);font-weight:600">due ' + fmtD(t.date) + '</span>' : '') + '</span></span>' +
+      '<span class="am ' + (t.payout ? "pay" : inc ? "in" : "out") + '">' + (inc ? "+" : "−") + m2(t.amt).slice(1) + '</span>' +
+      '<span class="acts">' + (sch ? '<button class="fr-mini" data-tz="paid:' + t.id + '">Received</button>' : '<button class="iconbtn" data-tz="edit:' + t.id + '" aria-label="Edit" title="Edit">' + ic("pencil") + '</button><button class="iconbtn del" data-tz="del:' + t.id + '" aria-label="Delete" title="Delete">' + ic("trash") + '</button>') + '</span>' +
+    '</div>';
+  }
+  function frRerender() { var y = window.scrollY; render(false); window.scrollTo(0, y); }
+  function frOpen(id) { S.fr.sel = id; render(true); window.scrollTo({ top: 0 }); }
+
+  /* ---- sheets ---- */
+  var frX = '<button type="button" class="iconbtn" data-cm-close aria-label="Close">' + ic("plus", "x45") + '</button>';
+  var frOpt = '<small style="font-weight:400;color:var(--ink-3)">opt</small>';
+  function frHead(kicker, title, icon) { icon = icon || "jar"; return '<div class="cm-h"><span class="tile t-butter">' + ic(icon) + '</span><div><p>' + kicker + '</p><h3 id="cm-title">' + title + '</h3></div>' + frX + '</div>'; }
+  function openFrCamp(id, seed) {
+    var c = id ? frById(id) : null, sd = seed || {};
+    var start = c ? c.start : TODAY(), end = c ? c.end : plus(TODAY(), 42);
+    openSheet("fr-camp", frHead("Fundraising", c ? "Edit campaign" : "New campaign", "heart") +
+      '<div class="cm-b"><label class="fld"><span>What are you raising for?</span><input class="inp" name="name" placeholder="St. Jude Up ’til Dawn, new couches…" value="' + esc(c ? c.name : sd.name || "") + '" autocomplete="off" autofocus></label>' +
+        '<div class="fld"><span>Where the money goes</span><div class="fr-kind" role="radiogroup" aria-label="Where the money goes">' + frKindOpts(c ? c.kind : sd.kind || "cause", "kind") + '</div></div>' +
+        '<label class="fld' + ((c ? c.kind : sd.kind || "cause") === "cause" ? "" : " fr-hide") + '" data-benf><span>Who gets it</span><input class="inp" name="ben" placeholder="St. Jude Children’s Research Hospital" value="' + esc(c ? c.ben : "") + '"></label>' +
+        '<div class="two"><label class="fld"><span>Goal</span><div class="amt-inp"><input class="inp" name="goal" inputmode="decimal" placeholder="2,000" value="' + (c ? c.goal : sd.goal || "") + '"></div></label><span></span></div>' +
+        '<div class="two"><label class="fld"><span>Starts</span><input class="inp" type="date" name="start" value="' + start + '" min="' + TERM[0] + '" max="' + TERM[1] + '"></label>' +
+          '<label class="fld"><span>Ends</span><input class="inp" type="date" name="end" value="' + end + '" min="' + TERM[0] + '" max="' + TERM[1] + '"></label></div>' +
+        '<div class="fr-pv" data-frpv></div>' +
+        '<label class="fld"><span>Notes ' + frOpt + '</span><textarea class="inp" name="notes" rows="2" placeholder="Deadlines from nationals, what worked last year…">' + esc(c ? c.notes : "") + '</textarea></label></div>' +
+      '<div class="cm-f"><span class="note">' + (c ? "Its money and events stay attached." : "Log money against it from here or from Treasury.") + '</span><button type="button" class="btn btn--soft" data-cm-close>Cancel</button><button class="btn">' + (c ? "Save changes" : "Start campaign") + '</button></div>', false, "var(--butter)");
+    $("#cm-form").dataset.id = id || ""; frCampPv();
+  }
+  function frCampPv() {
+    var f = $("#cm-form"); if (!f || f.dataset.kind !== "fr-camp") return;
+    var g = numIn(f.elements.goal.value), a = f.elements.start.value, b = f.elements.end.value, p = $("[data-frpv]", f);
+    var cause = (f.querySelector('input[name="kind"]:checked') || {}).value === "cause";
+    $("[data-benf]", f).classList.toggle("fr-hide", !cause);
+    if (!(g > 0) || !a || !b || b < a) { p.innerHTML = ic("spark") + '<span>Set a goal and the dates to see the pace.</span>'; return; }
+    var wk = Math.max(1, Math.round((dt(b) - dt(a)) / 864e5 / 7)), per = g / wk, head = Math.max(1, bhAll().length);
+    p.innerHTML = ic("spark") + '<span><b>' + m0(g) + '</b> over ' + wk + (wk === 1 ? " week" : " weeks") + ' is about <b>' + m0(per) + ' a week</b> — or ' + m0(g / head) + ' per member' + (head > 1 ? ' across ' + head : '') + '.</span>';
+  }
+  function openFrLog(id, o) {
+    o = o || {}; var c = frById(id) || frList().filter(function (x) { return frStat(x) !== "closed"; })[0]; if (!c) { openFrCamp(); return; }
+    var open = frList().filter(function (x) { return frStat(x) !== "closed" || x.id === c.id; });
+    var ros = bhAll().slice().sort(function (a, b) { return a.you ? -1 : b.you ? 1 : a.n < b.n ? -1 : 1; });
+    var evs = frEvents(c), dir = o.dir || "income";
+    openSheet("fr-log", frHead("Log money", esc(c.name), "receipt") +
+      '<div class="cm-b">' + (open.length > 1 ? '<label class="fld"><span>Campaign</span>' + sel("camp", open.map(function (x) { return [x.id, x.name]; }), c.id) + '</label>' : '<input type="hidden" name="camp" value="' + c.id + '">') +
+        '<div class="fr-dir" role="radiogroup" aria-label="Money in or a cost"><label><input type="radio" name="dir" value="income"' + (dir === "income" ? " checked" : "") + '><span>' + ic("plus") + 'Money in</span></label><label class="out"><input type="radio" name="dir" value="expense"' + (dir === "expense" ? " checked" : "") + '><span>' + ic("receipt") + 'A cost</span></label></div>' +
+        '<div class="two"><label class="fld"><span>Amount</span><div class="amt-inp"><input class="inp" name="amt" inputmode="decimal" placeholder="0.00" autocomplete="off" autofocus></div></label>' +
+          '<label class="fld"><span>Date</span><input class="inp" type="date" name="date" value="' + TODAY() + '"></label></div>' +
+        '<label class="fld"><span>What was it?</span><input class="inp" name="desc" placeholder="Boba sale — cash box" autocomplete="off"></label>' +
+        '<div class="two"><label class="fld" data-crf><span>Credit to ' + frOpt + '</span>' + sel("who", [["", "— No one · at the table —"]].concat(ros.map(function (m) { return [m.id, m.n + (m.you ? " (you)" : "")]; })), "") + '</label>' +
+          '<label class="fld"><span>At an event ' + frOpt + '</span>' + sel("ev", [["", "— No event —"]].concat(evs.map(function (e) { return [e.id, e.title + " · " + fmtD(e.date)]; })), "") + '</label></div>' +
+        '<div class="fld"><span>How it came in</span><div class="fr-chips" role="radiogroup" aria-label="Payment method">' + METHODS.map(function (m, i) { return '<label><input type="radio" name="how" value="' + m + '"' + (i === 0 ? " checked" : "") + '><span>' + m + '</span></label>'; }).join("") + '</div></div>' +
+        '<label class="reqrow" data-plf style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--paper-2)"><span style="font-size:.84rem;color:var(--ink-2)"><b style="color:var(--ink)">Pledged, not in yet</b> — counts toward the jar as dashed, not the balance</span><span class="sw"><input type="checkbox" name="pledge"><span class="track"></span></span></label>' +
+        '<div class="fr-pv" data-frpv></div></div>' +
+      '<div class="cm-f"><span class="note">Lands in Treasury, tagged with this campaign.</span><button type="button" class="btn btn--soft" data-cm-close>Cancel</button><button class="btn">Log it</button></div>', false, "var(--butter)");
+    frLogPv();
+  }
+  function frLogPv() {
+    var f = $("#cm-form"); if (!f || f.dataset.kind !== "fr-log") return;
+    var c = frById(f.elements.camp.value), s = frSum(c), amt = numIn(f.elements.amt.value), dir = (f.querySelector('input[name="dir"]:checked') || {}).value, pl = f.elements.pledge.checked;
+    $("[data-crf]", f).classList.toggle("fr-hide", dir !== "income"); $("[data-plf]", f).classList.toggle("fr-hide", dir !== "income");
+    var p = $("[data-frpv]", f);
+    if (!(amt > 0)) { p.innerHTML = ic("spark") + '<span>' + (s.raised ? m0(s.raised) + " of " + m0(c.goal) + " so far — " + Math.floor(s.pct * 100) + "%." : "First money in for this campaign.") + '</span>'; return; }
+    if (dir === "expense") { p.innerHTML = ic("receipt") + '<span>Costs go to <b>' + m0(s.costs + amt) + '</b> — net ' + m0(s.net - amt) + '. Treasury balance ' + m0(bal()) + ' → <b>' + m0(bal() - amt) + '</b>.</span>'; return; }
+    if (pl) { p.innerHTML = ic("clock") + '<span>Pledged goes to <b>' + m0(s.pledged + amt) + '</b>. Mark it received when it lands — the balance stays ' + m0(bal()) + '.</span>'; return; }
+    var np = Math.floor((s.raised + amt) / c.goal * 100);
+    p.innerHTML = ic("spark") + '<span>' + Math.floor(s.pct * 100) + '% → <b>' + np + '%</b> of ' + m0(c.goal) + (np >= 100 && s.pct < 1 ? ' — <b>that’s the goal</b>' : '') + '. Balance ' + m0(bal()) + ' → ' + m0(bal() + amt) + '.</span>';
+  }
+  function openFrHand(id) {
+    var c = frById(id), s = frSum(c), st = frStat(c);
+    openSheet("fr-hand", frHead("Hand-off", "Hand it to " + esc(c.ben), "hand") +
+      '<div class="cm-b"><div class="fr-rc"><p class="ln"><span>Raised</span><b>' + m2(s.raised) + '</b></p>' + (s.costs ? '<p class="ln"><span>Costs</span><b>−' + m2(s.costs).slice(1) + '</b></p>' : '') + (s.paid ? '<p class="ln"><span>Already handed over</span><b>−' + m2(s.paid).slice(1) + '</b></p>' : '') + '<p class="ln tot"><span>Held for them</span><b>' + m2(s.held) + '</b></p></div>' +
+        '<div class="two"><label class="fld"><span>Amount handed over</span><div class="amt-inp"><input class="inp" name="amt" inputmode="decimal" value="' + s.held.toFixed(2) + '" autofocus></div></label>' +
+          '<label class="fld"><span>Date</span><input class="inp" type="date" name="date" value="' + TODAY() + '"></label></div>' +
+        '<div class="fld"><span>How</span><div class="fr-chips" role="radiogroup" aria-label="How it was handed over">' + ["Check", "Card", "Venmo", "Cash"].map(function (m, i) { return '<label><input type="radio" name="how" value="' + m + '"' + (i === 0 ? " checked" : "") + '><span>' + m + '</span></label>'; }).join("") + '</div></div>' +
+        '<label class="reqrow" style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--paper-2)"><span style="font-size:.84rem;color:var(--ink-2)"><b style="color:var(--ink)">Close the campaign</b> — file it under this term’s totals</span><span class="sw"><input type="checkbox" name="close"' + (st === "ended" ? " checked" : "") + '><span class="track"></span></span></label></div>' +
+      '<div class="cm-f"><span class="note">Leaves Treasury as money out under Philanthropy.</span><button type="button" class="btn btn--soft" data-cm-close>Cancel</button><button class="btn">Record hand-off</button></div>', false, "var(--rose)");
+    $("#cm-form").dataset.id = id;
+  }
+  function openFrClose(id) {
+    var c = frById(id), s = frSum(c), held = c.kind === "cause" && s.held > 0;
+    openSheet("fr-close", frHead("Close campaign", esc(c.name), "check") +
+      '<div class="cm-b"><div class="fr-rc"><p class="ln"><span>Raised</span><b>' + m2(s.raised) + '</b></p><p class="ln"><span>Goal</span><b>' + m2(c.goal) + '</b></p>' + (s.costs ? '<p class="ln"><span>Costs</span><b>−' + m2(s.costs).slice(1) + '</b></p>' : '') +
+        (c.kind === "cause" ? '<p class="ln"><span>Handed over</span><b>' + m2(s.paid) + '</b></p><p class="ln tot"><span>Still held</span><b>' + m2(s.held) + '</b></p>' : '<p class="ln tot"><span>Kept by the chapter</span><b>' + m2(s.net) + '</b></p>') + '</div>' +
+        (held ? '<p class="fr-warn">' + m0(s.held) + ' is still held for ' + esc(c.ben) + '. Record the hand-off first — closing now would file it as if it had been given.</p>' : '<p style="font-size:.88rem;color:var(--ink-2);line-height:1.5">Closing files it under this term’s totals and stops new money being logged against it. Its Treasury entries don’t change, and you can reopen it.</p>') +
+        (s.pledged ? '<p class="fr-warn">' + m0(s.pledged) + ' pledged hasn’t come in. It stays on the books as scheduled.</p>' : '') + '</div>' +
+      '<div class="cm-f"><span class="note"></span><button type="button" class="btn btn--soft" data-cm-close>Cancel</button>' + (held ? '<button type="button" class="btn" data-fr="hand:' + c.id + '">' + ic("hand") + 'Record hand-off</button>' : '<button class="btn">Close it out</button>') + '</div>', false, "var(--butter)");
+    $("#cm-form").dataset.id = id;
+  }
+  function openFrEv(id) {
+    var c = frById(id), mine = frEvents(c).map(function (e) { return e.id; });
+    var avail = evList().filter(function (e) { return e.cat !== "deadline" && !e.camp && mine.indexOf(e.id) < 0 && e.date >= plus(c.start, -14) && e.date <= plus(c.end, 14); });
+    openSheet("fr-ev", frHead("Add event · " + esc(c.name), "Add an event", "cal") +
+      '<div class="cm-b">' + (avail.length ? '<label class="fld"><span>Already on the Timeline?</span>' + sel("link", [["", "— No, a new event —"]].concat(avail.map(function (e) { return [e.id, e.title + " · " + fmtD(e.date)]; })), "") + '</label>' : '<input type="hidden" name="link" value="">') +
+        '<div data-newf style="display:grid;gap:13px"><label class="fld"><span>Event name</span><input class="inp" name="title" placeholder="Boba sale" autocomplete="off" autofocus></label>' +
+        '<div class="two"><label class="fld"><span>Date</span><input class="inp" type="date" name="date" value="' + (c.start > TODAY() ? c.start : plus(TODAY(), 7) > c.end ? c.end : plus(TODAY(), 7)) + '" min="' + TERM[0] + '" max="' + TERM[1] + '"></label>' +
+          '<label class="fld"><span>Starts ' + frOpt + '</span><input class="inp" type="time" name="time" value="12:00"></label></div>' +
+        '<label class="fld"><span>Where ' + frOpt + '</span><input class="inp" name="loc" placeholder="Student Union"></label></div></div>' +
+      '<div class="cm-f"><span class="note">Lands on the Timeline as a Fundraiser.</span><button type="button" class="btn btn--soft" data-cm-close>Cancel</button><button class="btn">Add event</button></div>', false, "var(--butter)");
+    $("#cm-form").dataset.id = id;
+  }
+  function frEvToggle() { var f = $("#cm-form"); if (!f || f.dataset.kind !== "fr-ev") return; $("[data-newf]", f).classList.toggle("fr-hide", !!f.elements.link.value); }
+
+  function submitFR(f) {
+    var k = f.dataset.kind; if (!/^fr-/.test(k)) return false;
+    var fd = new FormData(f), g = function (n) { return (fd.get(n) || "").toString().trim(); };
+    var bad = function (n, msg) { var i = f.querySelector('[name="' + n + '"]'); if (i) { i.setAttribute("aria-invalid", "true"); i.focus(); } toast(msg); return true; };
+    if (k === "fr-camp") {
+      var goal = r2(numIn(g("goal"))), kind = g("kind") || "cause";
+      if (!g("name")) return bad("name", "Name what you’re raising for");
+      if (kind === "cause" && !g("ben")) return bad("ben", "Who gets the money?");
+      if (!(goal > 0)) return bad("goal", "Set a goal above $0");
+      if (!g("start") || !g("end") || g("end") < g("start")) return bad("end", "The end has to come after the start");
+      var d = { name: g("name"), kind: kind, ben: kind === "cause" ? g("ben") : "", goal: goal, start: g("start"), end: g("end"), notes: g("notes") }, c;
+      if (f.dataset.id) { c = frById(f.dataset.id); for (var x in d) c[x] = d[x]; toast("Saved “" + c.name + "”"); }
+      else {
+        c = { id: nid("c") }; for (var y in d) c[y] = d[y]; frList().push(c);
+        addAct({ tx: "<b>You</b> started a campaign · " + esc(c.name) + " (" + m0(goal) + " goal)", tag: "Fundraising", tone: "t-butter" });
+        toast("Started “" + c.name + "” — log money against it any time");
+      }
+      closeComposer(); S.fr.fresh = c.id; frOpen(c.id); return true;
+    }
+    if (k === "fr-log") {
+      var amt = r2(numIn(g("amt"))), dir = g("dir") || "income", cl = frById(g("camp")), pl = dir === "income" && !!fd.get("pledge");
+      if (!(amt > 0)) return bad("amt", "Enter an amount above $0");
+      var date = g("date") || TODAY(); if (pl && date <= TODAY()) date = plus(TODAY(), 7);
+      var cat = dir === "income" ? (/donor|gift|donat/i.test(g("desc")) ? "Donations" : "Fundraiser") : "Events";
+      var t = TX(nid(), date, dir, cat, amt, g("desc") || (dir === "income" ? cl.name : cl.name + " — cost"), g("how"), { camp: cl.id, status: pl ? "scheduled" : "posted" });
+      if (dir === "income" && g("who")) t.who = g("who"); if (g("ev")) t.ev = g("ev");
+      var before = frSum(cl).pct; addTx(t);
+      var after = frSum(cl);
+      var b = f.querySelector(".cm-f .btn:not(.btn--soft)").getBoundingClientRect();
+      if (dir === "income" && !pl && before < 1 && after.pct >= 1) burst(b.left + b.width / 2, b.top);
+      closeComposer(); frRerender();
+      toast(pl ? "Pledge logged — " + m0(amt) + " due " + fmtD(date) : dir === "income" ? "Logged " + m0(amt) + (t.who ? " for " + first(byId(t.who)) : "") + " — " + Math.floor(after.pct * 100) + "% of the goal" + (before < 1 && after.pct >= 1 ? ". Goal met!" : "") : "Cost logged — net " + m0(after.net));
+      return true;
+    }
+    if (k === "fr-hand") {
+      var ch = frById(f.dataset.id), sh = frSum(ch), ha = r2(numIn(g("amt")));
+      if (!(ha > 0)) return bad("amt", "Enter what was handed over");
+      if (ha > sh.held + .001) return bad("amt", "Only " + m0(sh.held) + " is held for " + ch.ben);
+      addTx(TX(nid(), g("date") || TODAY(), "expense", "Philanthropy", ha, "Handed to " + ch.ben, g("how"), { camp: ch.id, payout: true }), true);
+      var closing = !!fd.get("close"); if (closing) { ch.closed = true; ch.closedAt = g("date") || TODAY(); }
+      addAct({ tx: "<b>You</b> handed " + m0(ha) + " to " + esc(ch.ben) + " · " + esc(ch.name), tag: "Fundraising", tone: "t-butter" });
+      var hb = f.querySelector(".cm-f .btn:not(.btn--soft)").getBoundingClientRect(); burst(hb.left + hb.width / 2, hb.top);
+      closeComposer(); frRerender(); toast(m0(ha) + " handed to " + ch.ben + (closing ? " — campaign closed" : "")); return true;
+    }
+    if (k === "fr-close") {
+      var cc = frById(f.dataset.id); cc.closed = true; cc.closedAt = TODAY();
+      addAct({ tx: "<b>You</b> closed <b>" + esc(cc.name) + "</b> · " + m0(frSum(cc).raised) + " raised", tag: "Fundraising", tone: "t-butter" });
+      var cb = f.querySelector(".cm-f .btn:not(.btn--soft)").getBoundingClientRect(); burst(cb.left + cb.width / 2, cb.top);
+      closeComposer(); frRerender(); toast("Closed “" + cc.name + "” — filed under Fall ’26"); return true;
+    }
+    if (k === "fr-ev") {
+      var ce = frById(f.dataset.id);
+      if (g("link")) { var le = evById(g("link")); le.camp = ce.id; closeComposer(); frRerender(); toast("“" + le.title + "” is part of " + ce.name + " now"); return true; }
+      if (!g("title")) return bad("title", "Name the event");
+      if (!g("date")) return bad("date", "Pick a date");
+      var ne = E(nid("fe"), g("date"), g("title"), "fundraiser", { camp: ce.id, time: g("time") ? pg12(g("time")) : "", loc: g("loc"), fresh: true });
+      (S.mode === "full" ? S.events : S.eventsEmpty).push(ne);
+      addAct({ tx: "<b>You</b> added " + esc(ne.title) + " (" + fmtD(ne.date) + ") to " + esc(ce.name), tag: "Fundraising", tone: "t-butter" });
+      closeComposer(); frRerender(); toast("Added “" + ne.title + "” — it’s on the Timeline too"); return true;
+    }
+    if (k === "fr-del") {
+      var cd = frById(f.dataset.id);
+      L().tx.forEach(function (t) { if (t.camp === cd.id) delete t.camp; });
+      S.events.concat(S.eventsEmpty).forEach(function (e) { if (e.camp === cd.id) delete e.camp; });
+      L().camps = frList().filter(function (x) { return x !== cd; }); S.fr.sel = null;
+      closeComposer(); render(true); window.scrollTo({ top: 0 }); toast("Deleted “" + cd.name + "” — its money stays in Treasury"); return true;
+    }
+    closeComposer(); return true;
+  }
+  function frThen(then) {
+    if (then === "hand") { var d = frDueList()[0]; if (d) { if (d.kind === "cause" && frSum(d).held > 0) openFrHand(d.id); else openFrClose(d.id); } }
+    else if (then.indexOf("hand:") === 0) openFrHand(then.slice(5));
+  }
+
+  document.addEventListener("click", function (ev) {
+    var t = ev.target.closest("[data-fr]"); if (!t) return;
+    ev.preventDefault(); ev.stopPropagation();
+    var p = t.dataset.fr.split(":"), cmd = p[0], a = p[1] || "";
+    switch (cmd) {
+      case "open": if (S.page !== "fundraising") { closeComposer(); go("Fundraising", "c:" + a); } else frOpen(a); return;
+      case "ask": closePops(); openSpot(); runAsk("how much have we raised this term?"); return;
+      case "back": S.fr.sel = null; render(true); window.scrollTo({ top: 0 }); return;
+      case "new": openFrCamp(); return;
+      case "edit": openFrCamp(a); return;
+      case "log": openFrLog(a); return;
+      case "hand": closeComposer(); setTimeout(function () { openFrHand(a); }, 10); return;
+      case "close": openFrClose(a); return;
+      case "reopen": var rc = frById(a); rc.closed = false; delete rc.closedAt; frRerender(); toast("Reopened “" + rc.name + "”"); return;
+      case "ev": openFrEv(a); return;
+      case "unlink": var ue = evById(a), uc = frById(ue.camp); delete ue.camp; frRerender(); toast("“" + ue.title + "” is off " + (uc ? uc.name : "the campaign") + " — still on the Timeline"); return;
+      case "totl": go("Timeline"); setTimeout(function () { S.tl.sel = a; var e = evById(a); if (e && isPast(e)) S.tl.pastOpen = true; else if (e) S.tl.open[e.date.slice(0, 7)] = true; var y = window.scrollY; render(false); window.scrollTo(0, y); var r = document.querySelector('[data-tl="sel:' + a + '"]'); if (r) r.scrollIntoView({ block: "center" }); }, 60); return;
+      case "first":
+        var nm = ($("#fr1-name") || {}).value || "", gl = r2(numIn(($("#fr1-goal") || {}).value)), kd = (document.querySelector('input[name="fr1-kind"]:checked') || {}).value || "cause";
+        if (!nm.trim()) { $("#fr1-name").focus(); toast("Name what you’re raising for"); return; }
+        if (!(gl > 0)) { $("#fr1-goal").focus(); toast("Set a goal above $0"); return; }
+        if (kd === "cause") { openFrCamp(null, { name: nm.trim(), goal: gl, kind: kd }); setTimeout(function () { var b = $('#cm-form [name="ben"]'); if (b) b.focus(); }, 80); toast("Who gets the money?"); return; }
+        var c = { id: nid("c"), name: nm.trim(), kind: kd, ben: "", goal: gl, start: TODAY(), end: plus(TODAY(), 42), notes: "" }; frList().push(c);
+        addAct({ tx: "<b>You</b> started a campaign · " + esc(c.name) + " (" + m0(gl) + " goal)", tag: "Fundraising", tone: "t-butter" });
+        var fb = t.getBoundingClientRect(); burst(fb.left + fb.width / 2, fb.top); S.fr.fresh = c.id; frOpen(c.id); toast("Started “" + c.name + "” — six weeks from today"); return;
+      case "copy":
+        var txt = frList().filter(function (x) { return frStat(x) !== "planning"; }).map(function (x) { var s = frSum(x); return x.name + " — raised " + m0(s.raised) + (x.kind === "cause" ? ", " + m0(s.paid) + " handed to " + x.ben + (s.held ? ", " + m0(s.held) + " still held" : "") : ", kept by the chapter"); }).join("\n");
+        try { navigator.clipboard.writeText("Oozma Kappa · Fall ’26 giving\n" + txt); } catch (e2) {}
+        toast("Copied the statement — paste it into the nationals report"); return;
+      case "del": var cd = frById(a), n = frTx(cd).length;
+        openSheet("fr-del", '<div class="cm-h"><span class="tile t-rose">' + ic("trash") + '</span><div><p>Fundraising</p><h3 id="cm-title">Delete campaign</h3></div></div>' +
+          '<div class="cm-b"><p style="font-size:.92rem;color:var(--ink-2);line-height:1.55">Delete <b style="color:var(--ink)">' + esc(cd.name) + '</b>? ' + (n ? 'Its ' + n + (n === 1 ? " Treasury entry stays" : " Treasury entries stay") + ' in the books — ' + (n === 1 ? "it just stops" : "they just stop") + ' counting toward a campaign. ' : '') + 'Its events stay on the Timeline.</p></div>' +
+          '<div class="cm-f"><span class="note"></span><button type="button" class="btn btn--soft" data-cm-close autofocus>Cancel</button><button class="btn danger-btn">Delete campaign</button></div>', false, "var(--rose)");
+        $("#cm-form").dataset.id = a; return;
+    }
+  }, true);
+  document.addEventListener("input", function (e) {
+    var f = e.target.form; if (!f || f.id !== "cm-form") return;
+    if (f.dataset.kind === "fr-camp") frCampPv();
+    if (f.dataset.kind === "fr-log") frLogPv();
+  });
+  document.addEventListener("change", function (e) {
+    var f = e.target.form; if (!f || f.id !== "cm-form") return;
+    if (f.dataset.kind === "fr-camp") frCampPv();
+    if (f.dataset.kind === "fr-log") { if (e.target.name === "camp") { var id = e.target.value; openFrLog(id, { dir: (f.querySelector('input[name="dir"]:checked') || {}).value }); return; } frLogPv(); }
+    if (f.dataset.kind === "fr-ev") frEvToggle();
+  });
+
   /* ---------- settings (app/[slug]/settings/page.tsx) ---------------------------- */
   // Mirrors the real page: its own nav column (Back to app · find a setting · Index ·
   // Identity / Membership / Operations / System) in place of the app sidebar, the
@@ -10687,18 +11486,20 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
   }, true);
 
   /* ---------- routing ------------------------------------------------------- */
-  var BUILT = { Dashboard: "dashboard", Timeline: "timeline", Chapter: "chapter", Tasks: "tasks", Treasury: "treasury", Docs: "docs", Brotherhood: "brotherhood", Instagram: "instagram", Service: "service", Programming: "programming", Parties: "parties", Settings: "settings", Billing: "billing" };
+  var BUILT = { Dashboard: "dashboard", Timeline: "timeline", Chapter: "chapter", Tasks: "tasks", Treasury: "treasury", Docs: "docs", Brotherhood: "brotherhood", Instagram: "instagram", Service: "service", Programming: "programming", Parties: "parties", Fundraising: "fundraising", Settings: "settings", Billing: "billing" };
   function go(label, then) {
     if (S.page === "settings" && BUILT[label] !== "settings" && seAnyDirty()) { seGuard(function () { seDrop(); go(label, then); }); return; }
-    if (!BUILT[label]) { toast(label + " isn’t built in this mock yet — Dashboard, Timeline, Brotherhood, Chapter, Tasks, Docs, Instagram, Programming, Service, Parties, Treasury, Settings and Billing are"); return; }
+    if (!BUILT[label]) { toast(label + " isn’t built in this mock yet — Dashboard, Timeline, Brotherhood, Chapter, Tasks, Docs, Instagram, Programming, Service, Parties, Fundraising, Treasury, Settings and Billing are"); return; }
     S.page = BUILT[label]; closePops(); if (S.page === "settings") { var si = then && seItem(then); S.se.dest = si ? si.g : "index"; S.se.focus = si ? then : null; S.se.q = ""; } closeDrawer(); igRail.classList.remove("open"); igShade.classList.remove("open"); S.ig.sel = null; S.ig.edit = false; pgRail.classList.remove("open"); S.pg.sel = null; S.pg.edit = null;
     try { history.replaceState(null, "", S.page === "dashboard" ? location.pathname : "#" + S.page); } catch (err) {}
     if (S.page === "timeline" && then === "review") S.tl.review = true;
+    if (S.page === "fundraising") S.fr.sel = then && then.indexOf("c:") === 0 ? then.slice(2) : null;
     if (S.page === "treasury") { S.tz.tab = then || "overview"; S.tz.approving = S.tz.declining = null; S.tz.just = {}; }
     render(true); window.scrollTo({ top: 0 });
     if (then === "join" && S.page === "brotherhood") setTimeout(function () { var j = $("#bh-jr"); if (j) j.scrollIntoView({ block: "start" }); }, 80);
     if (then && S.page === "programming") setTimeout(function () { pgThen(then); }, 90);
     if (then && S.page === "parties") setTimeout(function () { pxThen(then); }, 90);
+    if (then && S.page === "fundraising") setTimeout(function () { frThen(then); }, 90);
     if (then === "review" && S.page === "timeline") setTimeout(function () { var r = $("#review"); if (r) r.scrollIntoView({ block: "start" }); }, 80);
   }
 
@@ -10706,8 +11507,8 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
   function render(animate) {
     document.documentElement.dataset.page = S.page;
     renderSidebar();
-    $("#page").innerHTML = S.page === "timeline" ? timelinePage() : S.page === "chapter" ? chapterPage() : S.page === "treasury" ? treasuryPage() : S.page === "tasks" ? tasksPage() : S.page === "docs" ? docsPage() : S.page === "brotherhood" ? brotherhoodPage() : S.page === "instagram" ? instagramPage() : S.page === "service" ? servicePage() : S.page === "programming" ? programmingPage() : S.page === "parties" ? partiesPage() : S.page === "settings" ? settingsPage() : S.page === "billing" ? billingPage() : S.mode === "full" ? fullPage() : emptyPage();
-    $(".mbar b").textContent = S.page === "timeline" ? "Timeline" : S.page === "chapter" ? "Chapter" : S.page === "treasury" ? "Treasury" : S.page === "tasks" ? "Tasks" : S.page === "docs" ? "Docs" : S.page === "brotherhood" ? "Brotherhood" : S.page === "instagram" ? "Instagram" : S.page === "service" ? "Service" : S.page === "programming" ? "Programming" : S.page === "parties" ? "Parties" : S.page === "settings" ? "Settings" : S.page === "billing" ? "Billing" : "Oozma Kappa";
+    $("#page").innerHTML = S.page === "timeline" ? timelinePage() : S.page === "chapter" ? chapterPage() : S.page === "treasury" ? treasuryPage() : S.page === "tasks" ? tasksPage() : S.page === "docs" ? docsPage() : S.page === "brotherhood" ? brotherhoodPage() : S.page === "instagram" ? instagramPage() : S.page === "service" ? servicePage() : S.page === "programming" ? programmingPage() : S.page === "parties" ? partiesPage() : S.page === "fundraising" ? fundraisingPage() : S.page === "settings" ? settingsPage() : S.page === "billing" ? billingPage() : S.mode === "full" ? fullPage() : emptyPage();
+    $(".mbar b").textContent = S.page === "timeline" ? "Timeline" : S.page === "chapter" ? "Chapter" : S.page === "treasury" ? "Treasury" : S.page === "tasks" ? "Tasks" : S.page === "docs" ? "Docs" : S.page === "brotherhood" ? "Brotherhood" : S.page === "instagram" ? "Instagram" : S.page === "service" ? "Service" : S.page === "programming" ? "Programming" : S.page === "parties" ? "Parties" : S.page === "fundraising" ? "Fundraising" : S.page === "settings" ? "Settings" : S.page === "billing" ? "Billing" : "Oozma Kappa";
     if (S.page === "treasury") tzAfter();
     $$(".mockbar [data-mock]").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.mock === S.mode); });
     if (animate) play(); else settle();
@@ -10881,6 +11682,7 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
     if (/excuse/.test(l)) return { steps: [step("Found the next required meeting", "", (nextMtg(/next week/.test(l) ? plus(TODAY(), 1) : null) || { date: TODAY() }).date ? fmtD((nextMtg(/next week/.test(l) ? plus(TODAY(), 1) : null) || { date: TODAY() }).date) : "", "Timeline", "var(--sky-ink)"), step("Checked existing excuses", "", S.excuses.length + " pending", "Attendance", "var(--mint-ink)"), step("Drafted the excuse")], trace: "Checked the meeting and existing excuses, drafted one", a: hasPeople ? function () { return W.excuse(q); } : null };
     if (/add .*deadline|deadline (for|to)/.test(l)) return { steps: [step("Read your roles", "", "4 officers", "Roles", "var(--lilac-ink)"), step("Checked the calendar for clashes", "", "none", "Timeline", "var(--sky-ink)"), step("Drafted the deadline")], trace: "Checked roles and the calendar, drafted a deadline", a: function () { return W.deadline(q); } };
     if (/raise|improve|better|increase|boost/.test(l) && /turnout|attendance|meeting/.test(l)) return { steps: [step("Looked at turnout this term", "", "87% avg", "Attendance", "var(--mint-ink)"), step("Weighed what moves it")], trace: "Looked at this term’s turnout before advising", a: A.turnout };
+    if (/raise|raised|fundrais|campaign|st\.? ?jude|philanthrop|donat|giving/.test(l)) return { steps: [step("Read the campaigns", "", frList().length + " this term", "Fundraising", "var(--butter-ink)"), step("Summed their Treasury entries", "", L().tx.filter(function (t) { return t.camp; }).length + " tagged", "Treasury", "var(--mint-ink)")], trace: "Summed every campaign’s tagged Treasury entries", a: A.raised };
     if (/owe|dues|paid up/.test(l)) return member && /\b(i|me|my)\b/.test(l)
       ? { steps: [step("Read your dues record", "Fall ’26", "1 charge", "Your dues", "var(--mint-ink)")], trace: "Read your dues record", a: A.myDues }
       : { steps: [step("Read the dues ledger", "Fall ’26", ROSTER.length + " records", "Treasury · dues", "var(--mint-ink)"), step("Matched payments to members", "", ROSTER.filter(function (m) { return !m.owed; }).length + " paid up", "Roster", "var(--sky-ink)"), step("Applied the Oct 1 late-fee rule", "", ROSTER.filter(function (m) { return m.owed && m.late; }).length + " past due")], trace: "Read the dues ledger and roster — reconciled " + ROSTER.filter(function (m) { return m.owed; }).length + " balances", a: hasPeople ? A.dues : null };
@@ -10890,6 +11692,15 @@ html[data-theme="dark"] .bi-seg.custom{color:var(--ink); text-shadow:0 1px 2px v
     return { steps: [step("Looked for a matching record")], trace: "Looked for something to answer with", a: A.fallback };
   }
   var A = {
+    raised: function () {
+      var cs = frList().filter(function (c) { return frStat(c) !== "planning"; });
+      if (!cs.length) return { verdict: "*Nothing* raised yet — no campaign has started.", sources: [["Fundraising", "var(--butter-ink)"]], follows: [AQ("what’s due this week?")] };
+      var tot = 0, held = 0; cs.forEach(function (c) { var s = frSum(c); tot += s.raised; held += s.held; });
+      return { verdict: "*" + m0(tot) + "* raised this term" + (held ? " — " + m0(held) + " of it is still held for causes." : "."),
+        rows: cs.map(function (c) { var s = frSum(c), st = frStat(c); return { glyph: "jar", tone: "t-butter", title: c.name, sub: (c.kind === "cause" ? "For " + c.ben : "Kept by the chapter") + " · " + FR_ST[st][0].split(" · ")[0], val: s.raised ? m0(s.raised) + " of " + m0(c.goal) : "nothing in yet", risk: st === "ended" && s.held > 0, act: { t: "nav", page: "Fundraising" } }; }),
+        sources: [["Fundraising", "var(--butter-ink)"], ["Treasury", "var(--mint-ink)"]],
+        follows: [AQ("what’s due this week?")] };
+    },
     dues: function () {
       var owing = ROSTER.filter(function (m) { return m.owed > 0; }).sort(function (a, b) { return b.owed - a.owed; }), late = owing.filter(function (m) { return m.late; });
       if (!owing.length) return { verdict: "Everyone’s *paid up* for Fall ’26.", sources: [["Treasury · dues", "var(--mint-ink)"]], follows: [AQ("who missed the last two meetings?")] };

@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fundraising · Events</title>
+<!--
+  Fundraising, event-first — an EXPLORATION, isolated from Dashboard Paper Mock.html (whose
+  #fundraising page is the campaign version). No campaigns: each fundraiser event is the unit,
+  and every number on the page is built from events.
+    1. Needs you — the cash box, lid open, empty tray + "Count me" note; fills + gets stamped
+       when counted.
+    2. Coming up — every event card carries its shift strip: time slots, avatars, dashed "+"
+       seats you can take (peach inside 48h).
+    3. This term — till receipts hanging off one rail, length = net, dashed term average.
+    4. What pays — net per hour members worked, by kind of fundraiser, with stick-figure crews.
+    5. Giving by cause — one jar per cause, stacked in layers (one per event), target line.
+    6. Who worked — a punch card per member, one hole per shift.
+    7. Count the box — the paper count sheet (denominations, red-pen subtractions, double rule)
+       beside a cash box that fills as you type, cross-checked against the phone tally.
+    8. Run the table — the day-of phone: ticket stubs you tear onto a spike, running total.
+  Plus Plan a fundraiser (shift slots preview live). Full term / Day one + light/dark on the
+  MOCK bar. Same tokens as the dashboard mock. All records fictional. No backend.
+-->
+<script>
+  (function () {
+    var t = "light"; try { t = localStorage.getItem("fe-mock-theme") || "light"; } catch (e) {}
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@property --pct{syntax:'<number>'; inherits:false; initial-value:0}
+
+/* ---------- tokens ------------------------------------------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+
+  /* sticky notes are physical paper: same pastel and dark ink in both themes */
+  --note-ink:#26211B; --note-filter:none;
+  --mark-op:.85;
+  --wash-op:.55;
+  --av-ink:rgba(38,33,27,.72);
+
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --scrim:rgba(38,33,27,.28);
+
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-xl:30px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+/* Night paper: a warm desk under a lamp, not a black UI. Pastels become low-alpha tints with
+   lifted inks; hard shadows keep their colour so ink-bordered things still "sit up". */
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+
+  --note-filter:brightness(.93) saturate(.85);
+  --mark-op:.42;
+  --wash-op:.9;
+  --av-ink:rgba(22,18,14,.78);
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  --scrim:rgba(5,4,2,.6);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+h1,h2,h3,h4,p,ul,ol,figure{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input{font:inherit; color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+
+
+.ic{width:18px; height:18px; flex:none}
+.sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.display{font-family:var(--display); font-weight:600; letter-spacing:-.028em}
+
+/* highlighter behind a word — hand-drawn, slightly off-register */
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op);
+  transition:transform .8s var(--ease-spring) .35s;
+}
+.boot .hi::before{--mx:0}
+
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+
+/* buttons: ink pill with a hard pastel shadow that lifts on hover, presses on click */
+.btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; letter-spacing:-.01em;
+  box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap; text-decoration:none;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), background .2s, color .2s;
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn .ic{width:15px; height:15px}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
+.btn--soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.btn--soft:hover{border-color:var(--ink-3); color:var(--ink); box-shadow:none; transform:translateY(-1px)}
+.btn--sm{padding:6px 12px; font-size:.8rem; box-shadow:2px 2px 0 var(--hs)}
+.btn--sm.btn--soft{box-shadow:none}
+
+.pill{
+  display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px;
+  font-size:.74rem; font-weight:600; white-space:nowrap;
+  background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2)); border:1px solid var(--p-bd, var(--line));
+}
+.pill .dot{width:6px; height:6px; border-radius:50%; background:currentColor}
+.t-peach{--p-bg:var(--peach-soft); --p-fg:var(--peach-ink); --p-bd:var(--peach-bd)}
+.t-sky{--p-bg:var(--sky-soft); --p-fg:var(--sky-ink); --p-bd:var(--sky-bd)}
+.t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd)}
+.t-butter{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd)}
+.t-lilac{--p-bg:var(--lilac-soft); --p-fg:var(--lilac-ink); --p-bd:var(--lilac-bd)}
+.t-rose{--p-bg:var(--rose-soft); --p-fg:var(--rose-ink); --p-bd:var(--rose-bd)}
+
+.avatar{
+  width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center;
+  font-size:.68rem; font-weight:700; letter-spacing:-.02em; font-style:normal;
+  background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08);
+}
+.avatar--sm{width:24px; height:24px; font-size:.6rem}
+.avatar--ghost{background:transparent; border:1.5px dashed var(--line-2); color:var(--ink-3)}
+
+kbd{font-family:var(--mono); font-size:.68rem; border:1px solid var(--line-2); border-radius:6px; padding:1px 6px; background:var(--paper-2); color:var(--ink-3)}
+.iconbtn{width:34px; height:34px; flex:none; display:grid; place-items:center; border-radius:10px; border:1.5px solid transparent; background:none; color:var(--ink-3); transition:background .16s, color .16s, border-color .16s}
+.iconbtn:hover{background:var(--card); color:var(--ink); border-color:var(--line)}
+.iconbtn .ic{width:17px; height:17px; transition:transform .25s var(--ease-spring)}
+/* briefing */
+.brief{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:clamp(20px,4vw,56px); align-items:start}
+.kick{display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.kick .chip{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2)}
+.greet{font-family:var(--display); font-weight:600; letter-spacing:-.032em; line-height:1.04; font-size:clamp(2.05rem,3.7vw,3.05rem); margin-top:14px; display:flex; flex-wrap:wrap; align-items:center; gap:0 .28em}
+.wave{display:inline-block; width:.82em; height:.82em; color:var(--butter-ink); transform-origin:70% 85%}
+.wave svg{width:100%; height:100%}
+.boot .wave{animation:wave 1.6s var(--ease-out) .55s 1 both}
+@keyframes wave{0%{transform:rotate(0)}15%{transform:rotate(16deg)}30%{transform:rotate(-8deg)}45%{transform:rotate(14deg)}60%{transform:rotate(-4deg)}75%{transform:rotate(9deg)}100%{transform:rotate(0)}}
+.digest{margin-top:14px; display:flex; gap:10px; align-items:flex-start; font-size:1.02rem; line-height:1.55; color:var(--ink-2); max-width:62ch}
+.aichip{flex:none; display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; background:var(--lilac-soft); border:1px solid var(--lilac-bd); color:var(--lilac-ink); font-size:.64rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; margin-top:3px}
+.aichip .ic{width:9px; height:9px}
+.toast{position:fixed; left:50%; bottom:76px; transform:translate(-50%,10px); z-index:80; padding:9px 15px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--mint); font-size:.84rem; font-weight:500; opacity:0; pointer-events:none; transition:opacity .2s, transform .3s var(--ease-spring); display:flex; gap:8px; align-items:center}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+.toast .ic{width:15px; height:15px; color:var(--mint-ink)}
+
+/* paper burst */
+.bit{position:fixed; z-index:90; width:9px; height:12px; border-radius:2px; pointer-events:none; animation:bit .9s var(--ease-out) forwards}
+@keyframes bit{to{transform:translate(var(--x),var(--y)) rotate(var(--r)); opacity:0}}
+
+/* entrance: reveal-and-swap, nothing perpetual */
+[data-r]{opacity:1; transform:none; transition:opacity .6s var(--ease-out) var(--d,0ms), transform .8s var(--ease-spring) var(--d,0ms)}
+.boot [data-r]{opacity:0; transform:translate3d(0,16px,0)}
+
+/* composer: the form a quick action opens */
+.cm-shade{position:fixed; inset:0; z-index:78; background:var(--scrim); display:grid; place-items:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s}
+.cm-shade.open{opacity:1; pointer-events:auto}
+.cm{
+  width:min(480px,100%); max-height:calc(100vh - 32px); overflow:auto; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg);
+  box-shadow:6px 6px 0 var(--tone, var(--lilac)); transform:translateY(12px) scale(.98); transition:transform .32s var(--ease-spring);
+}
+.cm-shade.open .cm{transform:none}
+.cm-h{display:flex; align-items:center; gap:13px; padding:18px 20px 4px}
+.cm-h .tile{width:42px; height:42px; border-radius:13px; transform:rotate(-4deg)}
+.cm-h .tile .ic{width:20px; height:20px}
+.cm-h p{font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.cm-h h3{font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.025em; line-height:1.15}
+.cm-h .iconbtn{margin-left:auto; align-self:flex-start}
+.cm-b{padding:14px 20px 4px; display:grid; gap:13px}
+.cm-b > *{min-width:0}
+.prov > span:last-child{min-width:0}
+.cm-f{display:flex; justify-content:flex-end; align-items:center; gap:10px; padding:16px 20px 18px}
+.cm-f .note{margin-right:auto; font-size:.74rem; color:var(--ink-3); max-width:24ch; line-height:1.35}
+.fld > span{display:block; font-size:.74rem; font-weight:600; color:var(--ink-2); margin-bottom:5px}
+.inp{
+  width:100%; padding:10px 13px; border-radius:var(--r-sm); border:1.5px solid var(--line-2); background:var(--paper);
+  outline:none; font-size:.9rem; color:var(--ink); transition:border-color .15s, box-shadow .15s;
+}
+.inp:focus{border-color:var(--ink); box-shadow:2px 2px 0 var(--tone, var(--lilac))}
+textarea.inp{resize:vertical; min-height:72px; line-height:1.45}
+select.inp{appearance:none; -webkit-appearance:none; padding-right:34px; cursor:pointer;
+  background-image:linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position:calc(100% - 17px) 52%, calc(100% - 12px) 52%; background-size:5px 5px; background-repeat:no-repeat}
+.amt-inp{position:relative}
+.amt-inp::before{content:'$'; position:absolute; left:13px; top:50%; transform:translateY(-50%); font-family:var(--display); font-weight:600; color:var(--ink-3)}
+.amt-inp .inp{padding-left:26px; font-family:var(--display); font-weight:600; font-size:1.05rem}
+.two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px}
+.seg{display:flex; flex-wrap:wrap; gap:6px}
+.seg label{cursor:pointer}
+.seg input{position:absolute; opacity:0; pointer-events:none}
+.seg span{display:inline-flex; padding:6px 12px; border-radius:999px; border:1.5px solid var(--line-2); font-size:.8rem; font-weight:550; color:var(--ink-2); transition:background .15s, border-color .15s, color .15s}
+.seg input:checked + span{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.seg input:focus-visible + span{outline:2px solid var(--lilac-ink); outline-offset:2px}
+@keyframes fresh{0%,30%{background:var(--butter-soft); box-shadow:0 0 0 6px var(--butter-soft)} 100%{background:transparent; box-shadow:0 0 0 6px transparent}}
+.cef.is-allday .t-only{display:none}
+.cef.is-allday .a-only{display:contents}
+.sw{display:inline-flex; align-items:center; gap:9px; cursor:pointer; font-size:.82rem; font-weight:550; color:var(--ink-2)}
+.sw input{position:absolute; opacity:0; pointer-events:none}
+.sw .track{width:36px; height:21px; border-radius:999px; background:var(--paper-3); border:1.5px solid var(--line-2); position:relative; transition:background .2s, border-color .2s; flex:none}
+.sw .track::after{content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--card); box-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .25s var(--ease-spring)}
+
+/* ---------- page frame --------------------------------------------------- */
+.wrap{max-width:1200px; margin:0 auto; padding:clamp(26px,3.4vw,44px) clamp(16px,3vw,44px) 140px}
+.brief{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:end}
+.brief .acts{display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end}
+.sec{display:flex; align-items:baseline; gap:12px; margin:40px 0 16px}
+.sec h2{font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.025em; white-space:nowrap}
+.sec .rule{flex:1; height:1.5px; background:var(--line); min-width:20px; align-self:center}
+.sec .cnt{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+.sec .hint{font-size:.8rem; color:var(--ink-3)}
+.tile{width:32px; height:32px; flex:none; border-radius:10px; display:grid; place-items:center; background:var(--p-bg); border:1.5px solid var(--p-bd); color:var(--p-fg)}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.chip{display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:.72rem; font-weight:600; background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2)); border:1px solid var(--p-bd, var(--line)); white-space:nowrap}
+.chip .ic{width:12px; height:12px}
+
+/* ---------- 1. the cash box ---------------------------------------------- */
+.hero{margin-top:28px; display:grid; grid-template-columns:minmax(0,360px) minmax(0,1fr); gap:34px; align-items:center; padding:26px 30px; background:var(--card); border:1.5px solid var(--ink); border-radius:8px 18px 10px 16px; box-shadow:5px 5px 0 var(--butter)}
+.hero.done{box-shadow:5px 5px 0 var(--mint)}
+.hero.first{box-shadow:5px 5px 0 var(--lilac)}
+.hero .tag{font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--butter-ink)}
+.hero.done .tag{color:var(--mint-ink)} .hero.first .tag{color:var(--lilac-ink)}
+.hero h2{margin-top:6px; font-family:var(--display); font-weight:600; font-size:clamp(1.5rem,2.6vw,2rem); letter-spacing:-.034em; line-height:1.1}
+.hero p.m{margin-top:10px; color:var(--ink-2); font-size:.94rem; line-height:1.55; max-width:52ch}
+.hero p.m b{color:var(--ink)}
+.hero .facts{margin-top:14px; display:flex; flex-wrap:wrap; gap:8px}
+.hero .acts{margin-top:20px; display:flex; flex-wrap:wrap; gap:10px}
+.box{display:block; width:100%; height:auto; overflow:visible}
+.box .lid{fill:var(--paper-3); stroke:var(--ink); stroke-width:2}
+.box .hinge{stroke:var(--ink); stroke-width:2; stroke-linecap:round}
+.box .shell{fill:var(--card); stroke:var(--ink); stroke-width:2}
+.box .tray{fill:var(--paper-2); stroke:var(--line-2); stroke-width:1.5}
+.box .well{fill:var(--card); stroke:var(--line-2); stroke-width:1.4}
+.box .well.empty{fill:none; stroke-dasharray:4 4}
+.box .wl{font-family:var(--mono); font-size:11px; font-weight:600; fill:var(--ink-3); opacity:.6}
+.box .bill{stroke:var(--ink); stroke-width:1.2}
+.box .b20{fill:var(--mint)} .box .b10{fill:var(--sky)} .box .b5{fill:var(--lilac)} .box .b1{fill:var(--paper-3)}
+.box .bl{font-family:var(--display); font-weight:700; font-size:12px; fill:var(--note-ink)}
+.box .bseal{fill:none; stroke:var(--note-ink); stroke-width:1; opacity:.45}
+.box .cnt{font-family:var(--mono); font-size:11px; font-weight:600; fill:var(--ink-2)}
+.box .cup{fill:var(--card); stroke:var(--line-2); stroke-width:1.4}
+.box .coin{fill:var(--butter); stroke:var(--ink); stroke-width:1.1}
+.box .dig{fill:var(--sky-soft); stroke:var(--sky-ink); stroke-width:1.2; stroke-dasharray:3 2}
+.box .digt{font-family:var(--mono); font-size:10px; font-weight:600; fill:var(--sky-ink)}
+.box .note{fill:var(--butter); stroke:rgba(38,33,27,.15)}
+.box .notet{font-family:var(--display); font-weight:700; font-size:15px; fill:var(--note-ink)}
+.box .tape{fill:rgba(255,255,255,.6); stroke:rgba(38,33,27,.1)}
+.box .stamp rect{fill:var(--card); fill-opacity:.9; stroke-width:3}
+.box .stamp text{font-family:var(--mono); font-weight:700; letter-spacing:.14em}
+.box .stamp{color:var(--mint-ink); transform-box:fill-box; transform-origin:center}
+.box .stamp.slam{animation:slam .55s var(--ease-spring) both}
+@keyframes slam{0%{transform:scale(1.8) rotate(-14deg); opacity:0} 60%{opacity:1} 100%{transform:scale(1) rotate(-8deg); opacity:.9}}
+.box .stack{transition:transform .5s var(--ease-spring)}
+.boot .box .stack{transform:translateY(14px); opacity:0}
+.box.ghost .lid,.box.ghost .shell{stroke:var(--line-2); stroke-dasharray:6 5; fill:none}
+.box.ghost .tray{fill:none; stroke-dasharray:4 4}
+
+/* ---------- 2. coming up: event cards with the shift strip --------------- */
+.up{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap:16px}
+.ev{display:flex; flex-direction:column; padding:18px 18px 16px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); min-width:0}
+.ev.soon{border-color:var(--ink); box-shadow:4px 4px 0 var(--peach)}
+.ev.fresh{animation:fresh 2.4s var(--ease-out)}
+.ev-top{display:grid; grid-template-columns:52px minmax(0,1fr); gap:14px; align-items:start}
+.cal{display:block; text-align:center; border:1.5px solid var(--ink); border-radius:11px; overflow:hidden; background:var(--card); line-height:1.05; transform:rotate(-2deg); box-shadow:2px 2px 0 var(--butter)}
+.cal small{display:block; padding:3px 0 2px; background:var(--butter); color:var(--note-ink); filter:var(--note-filter); font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase}
+.cal b{display:block; padding:4px 0 1px; font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.03em}
+.cal i{display:block; padding-bottom:4px; font-style:normal; font-family:var(--mono); font-size:.56rem; color:var(--ink-3); text-transform:uppercase}
+.ev.soon .cal small{background:var(--peach)} .ev.soon .cal{box-shadow:2px 2px 0 var(--peach)}
+.ev h3{font-family:var(--display); font-weight:600; font-size:1.14rem; letter-spacing:-.024em; line-height:1.2}
+.ev .meta{margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.78rem; color:var(--ink-3)}
+.ev .meta span{display:inline-flex; align-items:center; gap:4px}
+.ev .meta .ic{width:12px; height:12px}
+.ev .tags{margin-top:8px; display:flex; flex-wrap:wrap; gap:6px}
+.sheet{margin-top:14px; padding:12px 12px 10px; border-radius:6px; background:var(--paper-2); border:1.5px dashed var(--line-2); position:relative}
+.sheet::before{content:''; position:absolute; left:50%; top:-8px; width:58px; height:15px; transform:translateX(-50%) rotate(-2deg); background:rgba(255,255,255,.6); border:1px solid rgba(38,33,27,.08)}
+html[data-theme="dark"] .sheet::before{background:rgba(255,255,255,.08)}
+.sheet-h{display:flex; align-items:baseline; gap:8px; margin-bottom:8px}
+.sheet-h b{font-family:var(--mono); font-size:.64rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.sheet-h .n{margin-left:auto; font-family:var(--mono); font-size:.74rem; font-weight:600}
+.sheet-h .n.short{color:var(--peach-ink)} .sheet-h .n.full{color:var(--mint-ink)}
+.shift{display:grid; grid-template-columns:64px minmax(0,1fr); gap:10px; align-items:center; padding:4px 0}
+.shift + .shift{border-top:1px dotted var(--line-2)}
+.shift .t{font-family:var(--mono); font-size:.72rem; color:var(--ink-2); white-space:nowrap}
+.seats{display:flex; flex-wrap:wrap; gap:6px}
+.seat{width:32px; height:32px; border-radius:50%; padding:0; display:grid; place-items:center; border:1.5px dashed var(--line-2); background:transparent; color:var(--ink-3); cursor:pointer; transition:transform .18s var(--ease-spring), border-color .15s, background .15s}
+.seat .ic{width:14px; height:14px}
+.seat:hover{transform:scale(1.1); border-color:var(--ink); color:var(--ink); background:var(--card)}
+.seat.open.hot{border-color:var(--peach-ink); color:var(--peach-ink); background:var(--peach-soft)}
+.seat.taken{border:0; cursor:default}
+.seat.taken .avatar{width:32px; height:32px; font-size:.64rem}
+.seat.me{cursor:pointer}
+.seat.me .avatar{box-shadow:0 0 0 2px var(--card), 0 0 0 3.5px var(--ink)}
+.seat.pop{animation:pop .5s var(--ease-spring)}
+@keyframes pop{0%{transform:scale(.4)} 100%{transform:scale(1)}}
+.ev-foot{margin-top:auto; padding-top:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.ev-foot .float{font-size:.76rem; color:var(--ink-3); display:inline-flex; align-items:center; gap:5px; margin-right:auto}
+.ev-foot .float .ic{width:13px; height:13px}
+.ev-foot .tal{font-family:var(--mono); font-size:.74rem; color:var(--mint-ink); font-weight:600}
+.ev-empty{padding:26px; border:1.5px dashed var(--line-2); border-radius:var(--r-lg); color:var(--ink-3); font-size:.9rem; display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+
+/* ---------- 3. till receipts on a rail ----------------------------------- */
+.rail-wrap{position:relative; overflow-x:auto; padding:0 4px 30px; margin:0 -4px}
+.rail{position:relative; display:flex; gap:16px; align-items:flex-start; min-width:max-content; padding-top:16px}
+.rail::before{content:''; position:absolute; left:0; right:0; top:4px; height:8px; border-radius:6px; background:var(--paper-3); border:1.5px solid var(--ink)}
+.avg{position:absolute; left:0; right:0; height:0; border-top:1.5px dashed var(--butter-ink); z-index:2; pointer-events:none}
+.avg span{position:absolute; right:0; top:-22px; font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--butter-ink); background:var(--paper); padding:1px 6px; border-radius:4px; white-space:nowrap}
+.rc{position:relative; flex:none; width:158px; padding:14px 13px 22px; background:#FFFFFF; color:#26211B; border:0; text-align:left; font:inherit; cursor:pointer; transform-origin:top center; transition:transform .25s var(--ease-spring);
+  -webkit-mask:conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/12px 7px repeat-x, linear-gradient(#000 0 0) top/100% calc(100% - 7px) no-repeat;
+  mask:conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom/12px 7px repeat-x, linear-gradient(#000 0 0) top/100% calc(100% - 7px) no-repeat}
+html[data-theme="dark"] .rc{background:#EFE7D6}
+.rcw{flex:none; display:block; filter:drop-shadow(0 0 .6px rgba(38,33,27,.55)) drop-shadow(0 6px 9px rgba(38,33,27,.14))}
+html[data-theme="dark"] .rcw{filter:drop-shadow(0 6px 12px rgba(0,0,0,.5))}
+.rc:hover{transform:rotate(-1.2deg) translateY(2px)}
+.rc .pin{position:absolute; left:50%; top:-1px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:#26211B}
+.rc .hd{font-family:var(--mono); font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:#8A7F71; text-align:center; margin-top:4px}
+.rc .nm{min-height:2.3em; margin-top:4px; font-family:var(--display); font-weight:600; font-size:.98rem; line-height:1.15; letter-spacing:-.02em; text-align:center}
+.rc hr{border:0; border-top:1.5px dashed #CDBFAB; margin:9px 0}
+.rc .ln{display:flex; justify-content:space-between; gap:6px; font-family:var(--mono); font-size:.72rem; color:#544A3F}
+.rc .ln b{color:#26211B; font-weight:600}
+.rc .ln.net{margin-top:6px; padding-top:6px; border-top:3px double #26211B; font-size:.82rem}
+.rc .ln.net b{font-size:.92rem}
+.rc .rate{margin-top:10px; text-align:center; font-family:var(--display); font-weight:700; font-size:1.25rem; letter-spacing:-.03em; color:#1B815B}
+.rc .rate small{display:block; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; color:#8A7F71; text-transform:uppercase}
+.rc .crew{margin-top:8px; display:flex; justify-content:center; flex-wrap:wrap; gap:1px; color:#544A3F}
+.rc .crew .ic{width:11px; height:11px}
+.rc .cz{display:block; margin:10px auto 0; width:max-content; max-width:100%; padding:2px 8px; border-radius:999px; font-size:.64rem; font-weight:600; border:1px solid currentColor; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.rc .fill{flex:1}
+.rc.fresh{animation:drop 1s var(--ease-spring)}
+@keyframes drop{0%{transform:translateY(-40px); opacity:0} 100%{transform:none; opacity:1}}
+.rc.ghost{background:transparent; border:1.5px dashed var(--line-2); filter:none; color:var(--ink-3); -webkit-mask:none; mask:none; border-radius:4px; cursor:default; width:200px}
+.rc.ghost .nm{color:var(--ink-3)}
+
+/* ---------- 4 + 5: two columns ------------------------------------------- */
+.duo{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:22px; align-items:start}
+.card{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); min-width:0}
+.card-h{display:flex; align-items:center; gap:11px; padding:16px 18px 6px}
+.card-h h3{font-family:var(--display); font-size:1.12rem; font-weight:600; letter-spacing:-.022em}
+.card-h small{margin-left:auto; font-family:var(--mono); font-size:.68rem; color:var(--ink-3); text-align:right}
+.card-s{padding:0 18px; font-size:.82rem; color:var(--ink-3); line-height:1.45}
+/* what pays */
+.pays{padding:14px 18px 18px}
+.pr{display:grid; grid-template-columns:118px minmax(0,1fr); gap:12px; align-items:center; padding:9px 0}
+.pr + .pr{border-top:1px dotted var(--line-2)}
+.pr .k{font-size:.84rem; font-weight:600; line-height:1.2}
+.pr .k small{display:block; font-weight:400; font-size:.72rem; color:var(--ink-3); margin-top:2px}
+.pr .bw{display:flex; align-items:center; gap:10px; min-width:0}
+.pr .bar{position:relative; height:26px; flex:none; width:calc(var(--w) * 1%); max-width:calc(100% - 64px); min-width:8px; border:1.5px solid var(--ink); border-radius:4px 10px 10px 4px; background:repeating-linear-gradient(135deg, var(--c) 0 8px, color-mix(in srgb, var(--c) 80%, var(--ink)) 8px 10px); transform-origin:left; transition:transform .9s var(--ease-spring) var(--dl,0ms)}
+.boot .pr .bar{transform:scaleX(0)}
+.pr .v{font-family:var(--display); font-weight:700; font-size:1.05rem; letter-spacing:-.03em; white-space:nowrap}
+.pr .v small{font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--ink-3); letter-spacing:0}
+.pr .crew{grid-column:2; display:flex; flex-wrap:wrap; gap:1px; color:var(--ink-3); margin-top:-2px}
+.pr .crew .ic{width:12px; height:12px}
+.pr.top .k::after{content:'best use of time'; display:block; margin-top:3px; width:max-content; padding:1px 6px; border-radius:4px; background:var(--mint-soft); color:var(--mint-ink); font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase}
+.pays-ft{padding:0 18px 16px; font-size:.74rem; color:var(--ink-3)}
+.wait{margin:14px 18px 18px; padding:18px; border:1.5px dashed var(--line-2); border-radius:var(--r-md); color:var(--ink-3); font-size:.86rem; line-height:1.5}
+.wait .dots{margin-top:10px; display:flex; gap:6px}
+.wait .dots i{width:14px; height:14px; border-radius:50%; border:1.5px dashed var(--line-2)}
+.wait .dots i.on{border:1.5px solid var(--ink); background:var(--butter)}
+/* jars */
+.jars{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:6px 14px; padding:12px 14px 16px}
+.jr{min-width:0; display:grid; grid-template-columns:92px minmax(0,1fr); gap:12px; align-items:end; padding:8px 4px}
+.jr h4{font-family:var(--display); font-weight:600; font-size:.98rem; letter-spacing:-.02em; line-height:1.2}
+.jr .tot{margin-top:2px; font-family:var(--display); font-weight:700; font-size:1.35rem; letter-spacing:-.035em}
+.jr .tot small{font-family:var(--sans); font-weight:500; font-size:.74rem; color:var(--ink-3); letter-spacing:0}
+.jr ul{margin-top:6px; display:grid; gap:1px}
+.jr li{min-width:0; display:flex; align-items:center; gap:6px; font-size:.74rem; color:var(--ink-2); padding:2px 4px; border-radius:5px; cursor:default}
+.jr li i{width:10px; height:10px; flex:none; border-radius:2px; border:1px solid var(--ink); background:var(--lc)}
+.jr li span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.jr li b{margin-left:auto; font-family:var(--mono); font-weight:600; color:var(--ink)}
+.jr li.hl,.jr li:hover{background:var(--paper-2)}
+.jar{display:block; width:100%; height:auto; overflow:visible}
+.jar .glass{fill:var(--card)}
+.jar .body{fill:none; stroke:var(--ink); stroke-width:1.8; stroke-linejoin:round}
+.jar .lid{fill:var(--lc0); stroke:var(--ink); stroke-width:1.8; filter:var(--note-filter)}
+.jar .slot{fill:var(--ink)}
+.jar .lay{stroke:var(--ink); stroke-width:1; transition:opacity .2s, transform 1s var(--ease-spring); transform-box:view-box}
+.jar.dim .lay{opacity:.35} .jar.dim .lay.hl{opacity:1}
+.boot .jar .lay{transform:translateY(112px)}
+.jar .tg{stroke:var(--ink); stroke-width:1.4; stroke-dasharray:4 3}
+.jar .tgt{font-family:var(--mono); font-size:9px; font-weight:600; fill:var(--ink-2)}
+.jar .glare{fill:none; stroke:#fff; stroke-width:3; stroke-linecap:round; opacity:.55}
+html[data-theme="dark"] .jar .glare{opacity:.12}
+.jar.ghost .body{stroke:var(--line-2); stroke-dasharray:5 4} .jar.ghost .lid{fill:var(--paper-3); stroke:var(--line-2); filter:none}
+.jr .stamp{display:inline-block; margin-top:6px; padding:1px 7px; border:2px solid var(--mint-ink); border-radius:4px; font-family:var(--mono); font-size:.58rem; font-weight:700; letter-spacing:.14em; color:var(--mint-ink); transform:rotate(-4deg)}
+.jr .stamp.hold{border-color:var(--rose-ink); color:var(--rose-ink)}
+
+/* ---------- 6. punch cards ----------------------------------------------- */
+.punch{display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap:12px}
+.pc{position:relative; display:block; width:100%; text-align:left; padding:12px 14px 12px 16px; background:var(--card); border:1.5px solid var(--line-2); border-radius:6px 6px 6px 18px; font:inherit; color:inherit; cursor:pointer; transition:transform .18s var(--ease-spring), border-color .15s}
+.pc::before{content:''; position:absolute; left:0; top:0; bottom:0; width:6px; border-radius:6px 0 0 18px; background:var(--av)}
+.pc:hover{transform:translateY(-2px); border-color:var(--ink-3)}
+.pc.open{border-color:var(--ink); box-shadow:3px 3px 0 var(--av)}
+.pc-h{display:flex; align-items:center; gap:10px}
+.pc-h b{font-size:.88rem; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pc-h .n{margin-left:auto; font-family:var(--mono); font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+.holes{margin-top:10px; display:flex; gap:6px; flex-wrap:wrap}
+.holes i{position:relative; width:17px; height:17px; border-radius:50%; border:1.5px dashed var(--line-2)}
+.holes i.p{border:1.5px solid var(--ink); background:var(--paper-3); box-shadow:inset 0 2px 0 rgba(38,33,27,.18)}
+.holes i.goal::after{content:''; position:absolute; left:50%; top:-7px; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:var(--butter-ink)}
+.pc ul{margin-top:10px; padding-top:8px; border-top:1px dashed var(--line-2); display:grid; gap:3px}
+.pc li{display:flex; gap:8px; font-size:.76rem; color:var(--ink-2)}
+.pc li span:last-child{margin-left:auto; font-family:var(--mono); color:var(--ink-3)}
+
+/* ---------- 7. count sheet ------------------------------------------------ */
+.cm--count{width:min(940px,100%)}
+.cs{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:22px; padding:12px 20px 4px}
+.form{padding:16px 18px 14px; background:#FFFDF8; color:#26211B; border:1.5px solid #26211B; border-radius:3px; box-shadow:3px 3px 0 var(--butter); background-image:repeating-linear-gradient(transparent 0 33px, #D8E6F8 33px 34px); background-position:0 44px}
+html[data-theme="dark"] .form{background-color:#EFE7D6}
+.form .ft{display:flex; justify-content:space-between; align-items:baseline; padding-bottom:9px; border-bottom:1.5px solid #26211B; background:#FFFDF8}
+html[data-theme="dark"] .form .ft{background:#EFE7D6}
+.form .ft b{font-family:var(--display); font-size:1rem; letter-spacing:-.02em}
+.form .ft small{font-family:var(--mono); font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; color:#8A7F71}
+.fl{display:grid; grid-template-columns:72px 18px 64px minmax(0,1fr); align-items:center; gap:6px; height:34px; font-family:var(--mono); font-size:.86rem}
+.fl .d{font-weight:600}
+.fl .x{color:#8A7F71; text-align:center}
+.fl input{width:100%; height:26px; padding:0 6px; border:0; border-bottom:1.5px solid #8A7F71; background:transparent; font:inherit; font-weight:600; color:#2A66C7; text-align:center; outline:none}
+.fl input:focus{border-bottom-color:#26211B; background:rgba(255,229,160,.45)}
+.fl .eq{text-align:right; font-weight:600}
+.fl.wide{grid-template-columns:minmax(0,1fr) 110px}
+.fl.wide input{text-align:right}
+.fl.red{color:#C9542D}
+.fl.red input{color:#C9542D}
+.fl.cost{grid-template-columns:18px minmax(0,1fr) 90px 22px}
+.fl.cost input.l{text-align:left; color:#C9542D}
+.fl .rm{width:22px; height:22px; border:0; background:none; color:#8A7F71; cursor:pointer; padding:0; font-size:1rem; line-height:1}
+.addc{margin:4px 0 0; padding:0; border:0; background:none; font-family:var(--mono); font-size:.74rem; color:#C9542D; cursor:pointer; text-decoration:underline; text-underline-offset:3px}
+.form .net{margin-top:10px; padding-top:8px; border-top:4px double #26211B; display:flex; justify-content:space-between; align-items:baseline; background:#FFFDF8}
+html[data-theme="dark"] .form .net{background:#EFE7D6}
+.form .net span{font-weight:600; font-size:.9rem}
+.form .net b{font-family:var(--display); font-size:1.6rem; letter-spacing:-.035em}
+.form .net b.neg{color:#C9542D}
+.cs-r{display:grid; gap:14px; align-content:start}
+.xchk{display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:12px; font-size:.84rem; line-height:1.45; background:var(--paper-2); color:var(--ink-2)}
+.xchk .ic{width:16px; height:16px; flex:none; margin-top:2px}
+.xchk.ok{background:var(--mint-soft); color:var(--mint-ink)}
+.xchk.off{background:var(--peach-soft); color:var(--peach-ink)}
+.xchk b{color:inherit}
+.who-h{display:flex; align-items:baseline; gap:8px; font-size:.78rem; font-weight:600; color:var(--ink-2)}
+.who-h small{margin-left:auto; font-family:var(--mono); font-weight:500; color:var(--ink-3)}
+.who{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px}
+.who label{cursor:pointer; position:relative}
+.who input{position:absolute; opacity:0; pointer-events:none}
+.who span{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 3px; border-radius:999px; border:1.5px solid var(--line-2); font-size:.78rem; font-weight:550; color:var(--ink-3); transition:all .15s}
+.who span .avatar{width:22px; height:22px; font-size:.54rem; filter:grayscale(1); opacity:.55}
+.who input:checked + span{border-color:var(--ink); color:var(--ink); background:var(--card)}
+.who input:checked + span .avatar{filter:none; opacity:1}
+.who input:focus-visible + span{outline:2px solid var(--lilac-ink); outline-offset:2px}
+
+/* ---------- 8. the phone at the table ------------------------------------ */
+.ph-shade{position:fixed; inset:0; z-index:85; background:var(--scrim); display:grid; place-items:center; padding:16px; opacity:0; pointer-events:none; transition:opacity .2s}
+.ph-shade.open{opacity:1; pointer-events:auto}
+.phone{position:relative; width:min(370px,100%); height:min(760px, calc(100vh - 32px)); display:flex; flex-direction:column; background:var(--paper); border:2px solid var(--ink); border-radius:42px; box-shadow:7px 7px 0 var(--butter); overflow:hidden; transform:translateY(16px); transition:transform .35s var(--ease-spring)}
+.ph-shade.open .phone{transform:none}
+.phone .notch{position:absolute; left:50%; top:9px; width:96px; height:24px; margin-left:-48px; border-radius:999px; background:var(--ink); z-index:3}
+.ph-top{padding:46px 20px 14px; text-align:center; border-bottom:1.5px dashed var(--line-2); position:relative}
+.ph-top .x{position:absolute; right:12px; top:40px}
+.ph-top p{font-family:var(--mono); font-size:.64rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.ph-top h3{font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em}
+.ph-top .ph-tot{color:var(--ink); text-transform:none; letter-spacing:-.05em; margin-top:10px; font-family:var(--display); font-weight:700; font-size:3rem; letter-spacing:-.05em; line-height:1}
+.ph-top .ph-tot.bump{animation:bump .35s var(--ease-spring)}
+@keyframes bump{40%{transform:scale(1.08)}}
+.ph-top .ph-sub{text-transform:none; letter-spacing:0; margin-top:4px; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.spike{position:relative; height:74px; margin:12px 20px 0; display:flex; justify-content:center}
+.spike .rod{position:absolute; left:50%; bottom:6px; width:3px; height:62px; margin-left:-1.5px; background:var(--ink); border-radius:2px}
+.spike .base{position:absolute; left:50%; bottom:0; width:56px; height:8px; margin-left:-28px; background:var(--ink); border-radius:4px}
+.spike .stub{position:absolute; left:50%; width:62px; height:20px; margin-left:-31px; background:#FFFDF8; border:1px solid rgba(38,33,27,.3); border-radius:3px; font-family:var(--mono); font-size:.58rem; font-weight:600; color:#26211B; display:grid; place-items:center; box-shadow:0 1px 1px rgba(38,33,27,.12)}
+.tix{flex:1; overflow:auto; padding:14px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; align-content:start}
+.tk{position:relative; padding:14px 12px 12px; border:1.5px solid var(--ink); border-radius:10px; background:var(--tk, var(--butter)); color:var(--note-ink); filter:var(--note-filter); text-align:left; font:inherit; cursor:pointer; transition:transform .12s var(--ease-spring)}
+.tk::before,.tk::after{content:''; position:absolute; top:50%; width:14px; height:14px; margin-top:-7px; border-radius:50%; background:var(--paper); border:1.5px solid var(--ink)}
+.tk::before{left:-8px} .tk::after{right:-8px}
+.tk:active{transform:scale(.95)}
+.tk b{display:block; font-family:var(--display); font-weight:600; font-size:.98rem; letter-spacing:-.02em; line-height:1.15}
+.tk span{display:block; margin-top:4px; font-family:var(--mono); font-weight:600; font-size:.86rem}
+.tk .c{position:absolute; right:10px; top:8px; min-width:22px; height:22px; padding:0 5px; border-radius:999px; background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:.7rem; font-weight:600; display:grid; place-items:center}
+.tk.other{background:var(--card); border-style:dashed; filter:none; color:var(--ink)}
+.flying{position:fixed; z-index:95; width:62px; height:20px; background:#FFFDF8; border:1px solid rgba(38,33,27,.3); border-radius:3px; font-family:var(--mono); font-size:.58rem; font-weight:600; color:#26211B; display:grid; place-items:center; pointer-events:none; transition:transform .45s cubic-bezier(.3,.7,.3,1), opacity .45s}
+.ph-foot{padding:12px 16px 22px; border-top:1.5px dashed var(--line-2); display:flex; gap:8px}
+.ph-foot .btn{flex:1}
+.ph-other{display:flex; gap:8px; padding:0 16px 10px}
+.ph-other input{flex:1}
+.ph-other[hidden]{display:none}
+
+/* ---------- plan sheet: live shift preview ------------------------------- */
+.plan-pv{padding:12px; border-radius:8px; background:var(--paper-2); border:1.5px dashed var(--line-2)}
+.plan-pv .sheet-h{margin-bottom:6px}
+.kinds{display:flex; flex-wrap:wrap; gap:6px}
+.kinds label{cursor:pointer; position:relative}
+.kinds input{position:absolute; opacity:0; pointer-events:none}
+.kinds span{display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border:1.5px solid var(--line-2); border-radius:999px; font-size:.8rem; font-weight:550; color:var(--ink-2)}
+.kinds span .ic{width:14px; height:14px}
+.kinds input:checked + span{border-color:var(--ink); color:var(--ink); background:var(--butter-soft); box-shadow:2px 2px 0 var(--butter)}
+.kinds input:focus-visible + span{outline:2px solid var(--lilac-ink); outline-offset:2px}
+.cm--plan{width:min(560px,100%)}
+
+/* ---------- receipt detail ----------------------------------------------- */
+.det{display:grid; grid-template-columns:minmax(0,1fr) 200px; gap:20px; padding:12px 20px 4px; align-items:start}
+.det .rc{width:100%; cursor:default}
+.det .rc:hover{transform:none}
+.det-l .row{display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dotted var(--line-2); font-size:.86rem; color:var(--ink-2)}
+.det-l .row b{font-family:var(--mono); color:var(--ink)}
+.det-l h5{margin:14px 0 6px; font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.det-l .crewl{display:flex; flex-wrap:wrap; gap:6px}
+
+/* ---------- mock bar ------------------------------------------------------ */
+.mockbar{position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:70; display:flex; align-items:center; gap:4px; padding:5px; border-radius:999px; background:var(--ink); box-shadow:0 10px 30px -10px rgba(0,0,0,.4)}
+.mockbar .lab{padding:0 8px 0 10px; font-family:var(--mono); font-size:.62rem; letter-spacing:.12em; color:rgba(255,255,255,.55)}
+html[data-theme="dark"] .mockbar .lab{color:rgba(0,0,0,.5)}
+.mockbar button{border:0; background:none; color:var(--paper); padding:7px 12px; border-radius:999px; font-size:.8rem; font-weight:600; opacity:.75}
+.mockbar button[aria-pressed="true"]{background:var(--butter); color:var(--note-ink); opacity:1}
+.mockbar .sep{width:1px; height:18px; background:rgba(255,255,255,.2); margin:0 2px}
+html[data-theme="dark"] .mockbar .sep{background:rgba(0,0,0,.2)}
+
+@media (max-width:980px){
+  .duo{grid-template-columns:minmax(0,1fr)}
+  .cs{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .brief{grid-template-columns:minmax(0,1fr)}
+  .brief .acts{justify-content:flex-start}
+  .hero{grid-template-columns:minmax(0,1fr); padding:20px 18px; gap:18px}
+  .hero .bx{max-width:320px}
+  .det{grid-template-columns:minmax(0,1fr)}
+  .det .rc{max-width:220px}
+}
+@media (max-width:480px){
+  .pr{grid-template-columns:minmax(0,1fr)}
+  .pr .crew{grid-column:1}
+  .jr{grid-template-columns:76px minmax(0,1fr)}
+  .fl{grid-template-columns:56px 14px 54px minmax(0,1fr); font-size:.8rem}
+  .sec .cnt,.sec .hint{display:none}
+  .mockbar .lab{display:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.6 6.4V4.4h4.8v2M6.6 6.8l.9 12.4c.1.8.7 1.4 1.5 1.4h6c.8 0 1.4-.6 1.5-1.4l.9-12.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.2 10.6v6M13.8 10.6v6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-pin" viewBox="0 0 24 24"><path d="M12 21s-6.4-5.6-6.4-11a6.4 6.4 0 0 1 12.8 0c0 5.4-6.4 11-6.4 11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+  <symbol id="d-person" viewBox="0 0 24 24"><circle cx="12" cy="5.6" r="3.2" fill="currentColor"/><path d="M12 9.6v6.4M12 16l-3.6 5.4M12 16l3.6 5.4M6.6 12.6h10.8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+  <symbol id="d-box" viewBox="0 0 24 24"><rect x="3.2" y="8" width="17.6" height="12.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M4.4 8 6.6 3.6h10.8L19.6 8M9.4 12.6h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-phone" viewBox="0 0 24 24"><rect x="6.4" y="2.6" width="11.2" height="18.8" rx="2.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M10.6 18h2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="d-cup" viewBox="0 0 24 24"><path d="M6.4 7.6h11.2l-1.4 12.2c-.1.9-.9 1.6-1.8 1.6H9.6c-.9 0-1.7-.7-1.8-1.6L6.4 7.6ZM5.4 7.6h13.2M12.6 7.4l2-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="d-drop" viewBox="0 0 24 24"><path d="M12 3.2s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+  <symbol id="d-ticket" viewBox="0 0 24 24"><path d="M3.4 7.4c0-.8.6-1.4 1.4-1.4h14.4c.8 0 1.4.6 1.4 1.4v2.2a2.4 2.4 0 0 0 0 4.8v2.2c0 .8-.6 1.4-1.4 1.4H4.8c-.8 0-1.4-.6-1.4-1.4v-2.2a2.4 2.4 0 0 0 0-4.8V7.4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14.4 6.4v11.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 2.2"/></symbol>
+  <symbol id="d-shoe" viewBox="0 0 24 24"><path d="M3 16.4V9.6l4.2-1.2 2 3.2 3.4 1.2 6 1.6c1.4.4 2.4 1.6 2.4 3v.4H3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="d-undo" viewBox="0 0 24 24"><path d="M9 7.4 4.6 11.8 9 16.2M5 11.8h9.4a4.8 4.8 0 0 1 0 9.6H12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<main class="wrap" id="page"></main>
+
+<div class="mockbar" role="group" aria-label="Mock state">
+  <span class="lab">MOCK</span>
+  <button data-mock="full" aria-pressed="true">Full term</button>
+  <button data-mock="empty" aria-pressed="false">Day one</button>
+  <span class="sep"></span>
+  <button data-theme-btn aria-label="Toggle dark paper">Night</button>
+</div>
+
+<div class="cm-shade" id="cm" aria-hidden="true"><form class="cm" id="cm-form" role="dialog" aria-modal="true" aria-labelledby="cm-title" autocomplete="off"></form></div>
+<div class="ph-shade" id="ph" aria-hidden="true"><div class="phone" id="phone" role="dialog" aria-modal="true" aria-label="Run the table"></div></div>
+<div class="toast" id="toast" role="status"><svg class="ic"><use href="#d-check"/></svg><span></span></div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var ic = function (id, cls) { return '<svg class="ic' + (cls ? " " + cls : "") + '" aria-hidden="true"><use href="#d-' + id + '"/></svg>'; };
+  var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  var r2 = function (v) { return Math.round(v * 100) / 100; };
+  var m0 = function (v) { return (v < 0 ? "−$" : "$") + Math.round(Math.abs(v)).toLocaleString("en-US"); };
+  var m2 = function (v) { return (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var num = function (s) { var v = parseFloat(String(s == null ? "" : s).replace(/[^0-9.]/g, "")); return isNaN(v) ? 0 : v; };
+  var MON3 = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function dt(iso) { var p = iso.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function plus(s, n) { var d = dt(s); d.setDate(d.getDate() + n); return iso(d); }
+  var fmtD = function (s) { var d = dt(s); return MON3[d.getMonth()] + " " + d.getDate(); };
+
+  /* ---------- state ---------------------------------------------------------- */
+  var S = { mode: "full", open: null, cs: null, tally: null, seq: 0 };
+  try { S.mode = localStorage.getItem("fe-mock-mode") || "full"; } catch (e) {}
+  var TODAY = function () { return S.mode === "full" ? "2026-10-14" : "2026-09-01"; };
+  var dFrom = function (s) { return Math.round((dt(s) - dt(TODAY())) / 864e5); };
+  var ME = "priya";
+
+  var M = {};
+  [["priya", "Priya Shah", "PS", "peach"], ["dev", "Dev Okafor", "DO", "sky"], ["nia", "Nia Brooks", "NB", "mint"], ["jordan", "Jordan Tao", "JT", "lilac"],
+   ["maya", "Maya Rivera", "MR", "butter"], ["leo", "Leo Park", "LP", "rose"], ["sam", "Sam Ortiz", "SO", "mint"], ["kai", "Kai Morgan", "KM", "rose"],
+   ["ava", "Ava Chen", "AC", "peach"], ["theo", "Theo Grant", "TG", "lilac"], ["rin", "Rin Sato", "RS", "butter"], ["ben", "Ben Hall", "BH", "sky"]
+  ].forEach(function (x) { M[x[0]] = { id: x[0], n: x[1], i: x[2], av: "var(--" + x[3] + ")" }; });
+  var first = function (id) { return M[id].n.split(" ")[0]; };
+  var av = function (id, cls) { var m = M[id]; return '<span class="avatar' + (cls ? " " + cls : "") + '" style="--av:' + m.av + '" title="' + esc(m.n) + '">' + m.i + '</span>'; };
+
+  var CAUSE = {
+    stjude: { n: "St. Jude Children’s Research Hospital", s: "St. Jude", hue: "rose", target: 5000 },
+    shelter: { n: "Riverside Animal Shelter", s: "Animal shelter", hue: "mint" },
+    foodbank: { n: "Eastside Food Bank", s: "Food bank", hue: "sky" },
+    chapter: { n: "The chapter", s: "Chapter", hue: "butter", kept: true }
+  };
+  var KIND = { food: ["Food sale", "cup"], wash: ["Car wash", "drop"], raffle: ["Raffle", "ticket"], stunt: ["Stunts", "star"], run: ["Run / walk", "shoe"], give: ["Giving night", "heart"] };
+  var ITEMS = { food: [["Boba", 5], ["Large boba", 6], ["Cookie", 2], ["Brownie", 3]], wash: [["Car", 10], ["Truck / SUV", 15], ["Tip", 5]], raffle: [["1 ticket", 2], ["6 tickets", 10]], stunt: [["Pie a brother", 10], ["Pie the president", 25]], run: [["Registration", 25], ["T-shirt", 15]], give: [["Gift", 20], ["Big gift", 50]] };
+
+  function sh(t, h, seats) { return { t: t, h: h, seats: seats }; }
+  // count: cash in the box at the end (float included), digital, costs, who worked
+  function split(cash) { var b = { 20: 0, 10: 0, 5: 0, 1: 0 }, r = cash; b[20] = Math.floor(r * .5 / 20); r -= b[20] * 20; b[10] = Math.floor(r * .5 / 10); r -= b[10] * 10; b[5] = Math.floor(r * .6 / 5); r -= b[5] * 5; b[1] = Math.floor(r); r = r2(r - b[1]); return { b: b, coins: r }; }
+  function counted(cash, dig, costs) { var s = split(cash); return { b: s.b, coins: s.coins, dig: dig, costs: costs }; }
+  function seedFull() {
+    return [
+      { id: "e1", name: "Back-to-school car wash", date: "2026-08-30", time: "10 AM – 4 PM", loc: "Parking Lot B", kind: "wash", cause: "foodbank", float: 40,
+        shifts: [sh("10–12", 2, ["leo", "sam", "kai", "ben"]), sh("12–2", 2, ["jordan", "theo", "rin", "leo"]), sh("2–4", 2, ["ava", "maya", "dev", "sam"])], count: counted(580, 95, [["Soap, sponges, buckets", 38]]) },
+      { id: "e2", name: "Boba sale", date: "2026-09-17", time: "11 AM – 3 PM", loc: "Student Union", kind: "food", cause: "stjude", float: 50,
+        shifts: [sh("11–12", 1, ["nia", "maya"]), sh("12–1", 1, ["priya", "ava"]), sh("1–2", 1, ["jordan", "rin"]), sh("2–3", 1, ["dev", "kai"])], count: counted(330, 175, [["Tapioca, tea, cups", 160]]) },
+      { id: "e3", name: "Bake sale on the quad", date: "2026-09-27", time: "11 AM – 3 PM", loc: "Main Quad", kind: "food", cause: "chapter", float: 50,
+        shifts: [sh("11–12", 1, ["maya", "theo"]), sh("12–1", 1, ["nia", "ben"]), sh("1–2", 1, ["priya", "sam"]), sh("2–3", 1, ["ava", "leo"])], count: counted(380, 82, [["Baking supplies", 66]]) },
+      { id: "e4", name: "Philanthropy 5K", date: "2026-10-03", time: "7 – 11 AM", loc: "Riverside Park", kind: "run", cause: "stjude", float: 0,
+        shifts: [sh("7–9", 2, ["nia", "priya", "dev", "jordan", "maya", "kai"]), sh("9–11", 2, ["leo", "sam", "ava", "theo", "rin", "ben"])], count: counted(210, 1650, [["Race shirts + bibs", 420], ["Water + bananas", 64]]) },
+      { id: "e5", name: "Letter-writing night", date: "2026-10-06", time: "7 – 9 PM", loc: "The house", kind: "give", cause: "stjude", float: 0,
+        shifts: [sh("7–9", 2, ["nia", "priya", "maya", "ava", "rin", "theo"])], count: counted(0, 635, [["Pizza", 48]]) },
+      { id: "e6", name: "Homecoming raffle", date: "2026-10-10", time: "11 AM – 1 PM", loc: "Tailgate, Lot 4", kind: "raffle", cause: "shelter", float: 30,
+        shifts: [sh("11–1", 2, ["dev", "jordan"])], count: counted(402, 0, [["Two gift cards (prizes)", 40]]) },
+      { id: "e7", name: "Pie-a-brother", date: "2026-10-12", time: "12 – 2 PM", loc: "Main Quad", kind: "stunt", cause: "stjude", float: 20,
+        shifts: [sh("12–1", 1, ["jordan", "leo", "kai"]), sh("1–2", 1, ["priya", "sam", "ben"])], count: counted(228, 78, [["Whipped cream + plates", 22]]) },
+      { id: "e8", name: "Cookie sale", date: "2026-10-13", time: "11 AM – 2 PM", loc: "Library steps", kind: "food", cause: "stjude", float: 50,
+        shifts: [sh("11–12", 1, ["maya", "ava"]), sh("12–1", 1, ["nia", "rin"]), sh("1–2", 1, ["priya", "theo"])], count: null,
+        tally: [].concat(rep(2, 63), rep(3, 12), [10, 8, 6]) },
+      { id: "e9", name: "Bake sale at the alumni mixer", date: "2026-10-16", time: "6 – 9 PM", loc: "The Commons", kind: "food", cause: "chapter", float: 40,
+        shifts: [sh("6–7", 1, ["maya", null]), sh("7–8", 1, [null, null]), sh("8–9", 1, ["ben", null])], count: null },
+      { id: "e10", name: "Boba sale", date: "2026-10-22", time: "11 AM – 3 PM", loc: "Student Union", kind: "food", cause: "stjude", float: 50,
+        shifts: [sh("11–12", 1, ["nia", "jordan"]), sh("12–1", 1, ["ava", null]), sh("1–2", 1, [null, null]), sh("2–3", 1, ["dev", null])], count: null },
+      { id: "e11", name: "Philanthropy week kickoff", date: "2026-11-07", time: "12 – 4 PM", loc: "Main Quad", kind: "stunt", cause: "stjude", float: 40,
+        shifts: [sh("12–2", 2, ["priya", null, null, null]), sh("2–4", 2, [null, null, null, null])], count: null },
+      { id: "e12", name: "Fall car wash", date: "2026-11-14", time: "10 AM – 2 PM", loc: "Parking Lot B", kind: "wash", cause: "chapter", float: 40,
+        shifts: [sh("10–12", 2, ["leo", null, null, null]), sh("12–2", 2, [null, null, null, null])], count: null }
+    ];
+  }
+  function rep(v, n) { var a = []; for (var i = 0; i < n; i++) a.push(v); return a; }
+  var DATA = { full: seedFull(), empty: [] };
+  var EV = function () { return DATA[S.mode]; };
+  var evById = function (id) { return EV().filter(function (e) { return e.id === id; })[0]; };
+
+  /* ---------- derived ---------------------------------------------------------- */
+  function cashOf(c) { return c.b[20] * 20 + c.b[10] * 10 + c.b[5] * 5 + c.b[1] + c.coins; }
+  function costOf(c) { return c.costs.reduce(function (a, x) { return a + num(x[1]); }, 0); }
+  function crew(e) { var s = {}; e.shifts.forEach(function (x) { x.seats.forEach(function (id) { if (id) s[id] = 1; }); }); return Object.keys(s); }
+  function worked(e) { return e.count && e.count.worked ? e.count.worked : crew(e); }
+  function hours(e) { var w = worked(e); return e.shifts.reduce(function (a, x) { return a + x.h * x.seats.filter(function (id) { return id && w.indexOf(id) > -1; }).length; }, 0); }
+  function money(e) {
+    var c = e.count; if (!c) return null;
+    var inn = r2(cashOf(c) - e.float + c.dig), cost = r2(costOf(c)), net = r2(inn - cost), h = hours(e);
+    return { inn: inn, cost: cost, net: net, h: h, rate: h ? net / h : 0, cash: cashOf(c) };
+  }
+  var past = function () { return EV().filter(function (e) { return e.count; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); };
+  var uncounted = function () { return EV().filter(function (e) { return !e.count && e.date <= TODAY(); }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); };
+  var upcoming = function () { return EV().filter(function (e) { return !e.count && e.date > TODAY(); }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }); };
+  function seatsInfo(e) { var n = 0, f = 0; e.shifts.forEach(function (x) { x.seats.forEach(function (id) { n++; if (id) f++; }); }); return { n: n, f: f }; }
+  var tallySum = function (e) { return (e.tally || []).reduce(function (a, v) { return a + v; }, 0); };
+  function causeChip(k) { var c = CAUSE[k]; return '<span class="chip t-' + c.hue + '">' + ic(c.kept ? "home" : "heart") + (c.kept ? "Kept by the chapter" : "For " + esc(c.s)) + '</span>'; }
+  function kindChip(k) { return '<span class="chip">' + ic(KIND[k][1]) + KIND[k][0] + '</span>'; }
+
+  /* ---------- 1. the cash box ------------------------------------------------- */
+  function cashBox(c, o) {
+    o = o || {};
+    var h = '<svg class="box' + (o.ghost ? " ghost" : "") + '" viewBox="0 0 360 236" role="img" aria-label="' + esc(o.label || "Cash box") + '">' +
+      '<rect class="lid" x="26" y="6" width="308" height="44" rx="10"/><path class="hinge" d="M40 54h280"/>' +
+      '<rect class="shell" x="14" y="56" width="332" height="172" rx="14"/><rect class="tray" x="26" y="70" width="308" height="146" rx="8"/>';
+    var D = [20, 10, 5, 1];
+    D.forEach(function (d, k) {
+      var x = 34 + k * 62, n = c ? c.b[d] || 0 : 0;
+      h += '<rect class="well' + (n ? "" : " empty") + '" x="' + x + '" y="78" width="54" height="130" rx="6"/>';
+      if (!n) { h += '<text class="wl" x="' + (x + 27) + '" y="148" text-anchor="middle">$' + d + '</text>'; return; }
+      var L = Math.min(n, 16), sg = '<g class="stack" style="transition-delay:' + (k * 80) + 'ms">';
+      for (var i = 0; i < L; i++) {
+        var y = 96 - i * 1.6, top = i === L - 1;
+        sg += '<rect class="bill b' + d + '" x="' + (x + 5) + '" y="' + y.toFixed(1) + '" width="44" height="92" rx="3"/>';
+        if (top) sg += '<rect class="bseal" x="' + (x + 11) + '" y="' + (y + 8).toFixed(1) + '" width="32" height="76" rx="2"/><text class="bl" x="' + (x + 27) + '" y="' + (y + 50).toFixed(1) + '" text-anchor="middle">$' + d + '</text>';
+      }
+      h += sg + '</g><text class="cnt" x="' + (x + 27) + '" y="203" text-anchor="middle">×' + n + '</text>';
+    });
+    // coins + the digital slip
+    var coins = c ? c.coins : 0, cn = Math.min(9, Math.ceil(coins / .5));
+    [0, 1, 2].forEach(function (k) { h += '<circle class="cup" cx="304" cy="' + (98 + k * 32) + '" r="14"/>'; });
+    for (var j = 0; j < cn; j++) { var cup = j % 3, lvl = Math.floor(j / 3); h += '<circle class="coin" cx="' + (304 - lvl * 2) + '" cy="' + (98 + cup * 32 - lvl * 2) + '" r="9"/>'; }
+    if (c && c.dig) h += '<rect class="dig" x="282" y="170" width="44" height="34" rx="3"/><text class="digt" x="304" y="184" text-anchor="middle">VENMO</text><text class="digt" x="304" y="197" text-anchor="middle">' + m0(c.dig) + '</text>';
+    else if (!c || !coins) h += '<text class="wl" x="304" y="196" text-anchor="middle">¢</text>';
+    if (o.note) h += '<g transform="rotate(-6 250 30)"><rect class="note" x="196" y="2" width="104" height="44" rx="2"/><rect class="tape" x="230" y="-5" width="36" height="12" transform="rotate(4 248 1)"/><text class="notet" x="248" y="30" text-anchor="middle">' + esc(o.note) + '</text></g>';
+    if (o.stamp) h += '<g class="stamp' + (o.slam ? " slam" : "") + '" style="transform:rotate(-8deg)"><rect x="92" y="112" width="176" height="56" rx="6" stroke="currentColor"/><text x="180" y="137" text-anchor="middle" font-size="17" fill="currentColor">COUNTED</text><text x="180" y="157" text-anchor="middle" font-size="13" fill="currentColor">' + esc(o.stamp) + '</text></g>';
+    return h + '</svg>';
+  }
+  function hero() {
+    var un = uncounted(), up = upcoming();
+    if (!EV().length) return '<section class="hero first" data-r style="--d:200ms"><div class="bx">' + cashBox(null, { ghost: true, label: "An empty cash box" }) + '</div><div style="min-width:0">' +
+      '<p class="tag">Your first fundraiser</p><h2>Plan one, staff it, count the box.</h2>' +
+      '<p class="m">Every fundraiser is one event: who’s working the table, how much change is in the box, and what it cleared when you count up after. The numbers on this page all come from those counts — nothing to set up first.</p>' +
+      '<div class="acts"><button class="btn" data-a="plan">' + ic("plus") + 'Plan a fundraiser</button></div></div></section>';
+    if (un.length) {
+      var e = un[0], ago = -dFrom(e.date), w = crew(e), ts = tallySum(e);
+      return '<section class="hero" data-r style="--d:200ms"><div class="bx">' + cashBox(null, { note: "Count me", label: "The cash box, not counted yet" }) + '</div><div style="min-width:0">' +
+        '<p class="tag">Needs you · ' + (ago === 0 ? "today" : ago === 1 ? "yesterday" : ago + " days ago") + '</p><h2>' + esc(e.name) + ' — count the box.</h2>' +
+        '<p class="m">It started with <b>' + m0(e.float) + ' in change</b>. ' + w.length + ' people worked ' + e.shifts.length + ' shifts' + (ts ? ', and the phone tally at the table came to <b>' + m0(ts) + '</b>' : '') + '. Count what’s in the box and it files to Treasury in one go.</p>' +
+        '<div class="facts">' + kindChip(e.kind) + causeChip(e.cause) + '<span class="chip">' + ic("people") + w.length + ' worked</span>' + (ts ? '<span class="chip t-mint">' + ic("phone") + 'Tally ' + m0(ts) + '</span>' : '') + '</div>' +
+        '<div class="acts"><button class="btn" data-a="count:' + e.id + '">' + ic("box") + 'Count the box</button>' + (un.length > 1 ? '<span class="chip t-peach">+' + (un.length - 1) + ' more to count</span>' : '') + '</div></div></section>';
+    }
+    var last = past().slice(-1)[0], lm = last && money(last), nx = up[0];
+    if (!last) return '';
+    return '<section class="hero done" data-r style="--d:200ms"><div class="bx">' + cashBox(last.count, { stamp: "+" + m0(lm.net) + " NET", slam: S.justCounted === last.id, label: last.name + " counted" }) + '</div><div style="min-width:0">' +
+      '<p class="tag">All boxes counted</p><h2>' + esc(last.name) + ' cleared ' + m0(lm.net) + '.</h2>' +
+      '<p class="m">' + m0(lm.inn) + ' came in, ' + m0(lm.cost) + ' went on supplies, and ' + worked(last).length + ' people put in ' + lm.h + ' hours — <b>' + m0(lm.rate) + ' an hour</b>. It’s in Treasury, tied to the event.</p>' +
+      (nx ? '<div class="facts"><span class="chip">' + ic("cal") + 'Next up · ' + esc(nx.name) + ', ' + DOW[dt(nx.date).getDay()] + ' ' + fmtD(nx.date) + '</span></div>' : '') +
+      '<div class="acts"><button class="btn btn--ghost" data-a="rc:' + last.id + '">' + ic("receipt") + 'See the receipt</button></div></div></section>';
+  }
+
+  /* ---------- 2. coming up ------------------------------------------------------ */
+  function evCard(e) {
+    var d = dt(e.date), n = dFrom(e.date), si = seatsInfo(e), hot = n <= 2 && si.f < si.n, ts = tallySum(e);
+    return '<article class="ev' + (hot ? " soon" : "") + (S.fresh === e.id ? " fresh" : "") + '" id="ev-' + e.id + '"><div class="ev-top"><span class="cal"><small>' + MON3[d.getMonth()] + '</small><b>' + d.getDate() + '</b><i>' + DOW[d.getDay()] + '</i></span><div style="min-width:0">' +
+      '<h3>' + esc(e.name) + '</h3><div class="meta"><span>' + ic("clock") + e.time + '</span><span>' + ic("pin") + esc(e.loc) + '</span></div>' +
+      '<div class="tags">' + kindChip(e.kind) + causeChip(e.cause) + '</div></div></div>' +
+      '<div class="sheet"><div class="sheet-h"><b>Who’s on the table</b><span class="n ' + (si.f === si.n ? "full" : hot ? "short" : "") + '">' + si.f + ' of ' + si.n + ' filled' + (hot ? ' · ' + (n === 0 ? "today" : n === 1 ? "tomorrow" : "in 2 days") : '') + '</span></div>' +
+      e.shifts.map(function (x, k) {
+        return '<div class="shift"><span class="t">' + x.t + '</span><div class="seats">' + x.seats.map(function (id, j) {
+          var key = e.id + ":" + k + ":" + j, pop = S.pop === key ? " pop" : "";
+          if (!id) return '<button class="seat open' + (hot ? " hot" : "") + '" data-a="take:' + key + '" aria-label="Take a seat on the ' + x.t + ' shift" title="Take this shift">' + ic("plus") + '</button>';
+          return id === ME ? '<button class="seat taken me' + pop + '" data-a="drop:' + key + '" title="You — tap to drop this shift" aria-label="Drop your ' + x.t + ' shift">' + av(id) + '</button>' : '<span class="seat taken' + pop + '">' + av(id) + '</span>';
+        }).join("") + '</div></div>';
+      }).join("") + '</div>' +
+      '<div class="ev-foot"><span class="float">' + ic("box") + m0(e.float) + ' in change' + (ts ? ' · <span class="tal">tally ' + m0(ts) + '</span>' : '') + '</span>' +
+      '<button class="btn btn--sm" data-a="run:' + e.id + '">' + ic("phone") + 'Run the table</button></div></article>';
+  }
+
+  /* ---------- 3. receipts ---------------------------------------------------------- */
+  function receipt(e, mx, big) {
+    var m = money(e), w = worked(e), c = CAUSE[e.cause], d = dt(e.date);
+    var hgt = big ? 0 : Math.round(m.net / mx * 170);
+    var cz = { rose: "#C23C77", mint: "#1B815B", sky: "#2A66C7", butter: "#9C6B08" }[c.hue];
+    return '<span class="rcw"><button class="rc' + (S.justCounted === e.id && !big ? " fresh" : "") + '"' + (big ? "" : ' data-a="rc:' + e.id + '" style="padding-bottom:' + (22 + hgt) + 'px"') + ' aria-label="' + esc(e.name) + ', ' + m0(m.net) + ' net">' +
+      '<span class="pin"></span><p class="hd">' + DOW[d.getDay()] + ' · ' + fmtD(e.date) + '</p><p class="nm">' + esc(e.name) + '</p><hr>' +
+      '<p class="ln"><span>In</span><b>' + m0(m.inn) + '</b></p><p class="ln"><span>Costs</span><b>−' + m0(m.cost).slice(1) + '</b></p>' +
+      '<p class="ln net"><span>NET</span><b>' + m0(m.net) + '</b></p>' +
+      '<p class="rate">' + m0(m.rate) + '<small>per hour worked</small></p>' +
+      '<p class="crew" title="' + w.length + ' worked">' + w.map(function () { return ic("person"); }).join("") + '</p>' +
+      '<span class="cz" style="color:' + cz + '">' + (c.kept ? "Chapter" : esc(c.s)) + '</span></button></span>';
+  }
+  function rail() {
+    var ps = past();
+    if (!ps.length) return '<div class="rail-wrap" data-r style="--d:320ms"><div class="rail"><div class="rc ghost"><span class="pin" style="background:var(--line-2)"></span><p class="hd" style="color:var(--ink-3)">Receipt #1</p><p class="nm">Your first receipt prints here</p><hr style="border-color:var(--line-2)"><p class="ln" style="color:var(--ink-3)"><span>after you count</span><b style="color:var(--ink-3)">—</b></p><p class="ln" style="color:var(--ink-3)"><span>a box</span><b style="color:var(--ink-3)">—</b></p></div></div></div>';
+    var mx = Math.max.apply(null, ps.map(function (e) { return money(e).net; })), avg = ps.reduce(function (a, e) { return a + money(e).net; }, 0) / ps.length;
+    return '<div class="rail-wrap" data-r style="--d:320ms"><div class="rail" id="rail">' + ps.slice().reverse().map(function (e) { return receipt(e, mx); }).join("") +
+      '<div class="avg" id="avg" data-avg="' + avg + '" data-mx="' + mx + '"><span>term average · ' + m0(avg) + ' net</span></div></div></div>';
+  }
+  // place the average line where a receipt of average net would end
+  function placeAvg() {
+    var a = $("#avg"), rl = $("#rail"); if (!a || !rl) return;
+    var rcs = $$(".rc", rl); if (!rcs.length) return;
+    var avg = +a.dataset.avg, mx = +a.dataset.mx;
+    // base height = tallest receipt minus its extra padding
+    var r0 = rcs[0], pad = parseFloat(r0.style.paddingBottom) - 22, base = r0.offsetHeight - pad;
+    a.style.top = (r0.offsetTop + base + Math.round(avg / mx * 170)) + "px";
+  }
+
+  /* ---------- 4. what pays ------------------------------------------------------------ */
+  function pays() {
+    var by = {};
+    past().forEach(function (e) { var m = money(e); var b = by[e.kind] || (by[e.kind] = { net: 0, h: 0, days: 0, crew: 0 }); b.net += m.net; b.h += m.h; b.days++; b.crew += worked(e).length; });
+    var ks = Object.keys(by), head = '<div class="card" data-r style="--d:380ms"><div class="card-h"><span class="tile t-mint">' + ic("clock") + '</span><h3>What pays</h3><small>net ÷ hours<br>members worked</small></div>' +
+      '<p class="card-s">Which kind of fundraiser is worth a Saturday. Each stick figure is one person on an average day.</p>';
+    if (ks.length < 2) {
+      var have = ks.length;
+      return head + '<div class="wait"><b style="color:var(--ink-2)">Needs two kinds of fundraiser counted.</b> ' + (have ? "One’s in — count a different kind and the comparison draws itself." : "Count a box and the first bar appears; a second kind and it starts comparing.") +
+        '<div class="dots"><i class="' + (have >= 1 ? "on" : "") + '"></i><i></i></div></div></div>';
+    }
+    var rows = ks.map(function (k) { var b = by[k]; return { k: k, rate: b.net / b.h, days: b.days, crew: Math.round(b.crew / b.days), net: b.net }; }).sort(function (a, b) { return b.rate - a.rate; });
+    var mx = rows[0].rate;
+    var C = { food: "var(--butter)", wash: "var(--sky)", raffle: "var(--mint)", stunt: "var(--lilac)", run: "var(--peach)", give: "var(--rose)" };
+    return head + '<div class="pays">' + rows.map(function (r, i) {
+      return '<div class="pr' + (i === 0 ? " top" : "") + '"><span class="k">' + KIND[r.k][0] + '<small>' + r.days + (r.days === 1 ? " day" : " days") + ' · ' + m0(r.net) + ' net</small></span>' +
+        '<span class="bw"><span class="bar" style="--w:' + (r.rate / mx * 100).toFixed(1) + ';--c:' + C[r.k] + ';--dl:' + (i * 90) + 'ms"></span><span class="v">' + m0(r.rate) + '<small>/hr</small></span></span>' +
+        '<span class="crew" title="' + r.crew + ' people on an average day">' + rep(0, r.crew).map(function () { return ic("person"); }).join("") + '</span></div>';
+    }).join("") + '</div><p class="pays-ft">' + (rows.length > 1 ? KIND[rows[0].k][0] + " clears " + (rows[0].rate / rows[rows.length - 1].rate).toFixed(1) + "× what a " + KIND[rows[rows.length - 1].k][0].toLowerCase() + " does for the same hour." : "") + '</p></div>';
+  }
+
+  /* ---------- 5. giving by cause --------------------------------------------------------- */
+  var jarN = 0;
+  function jarSvg(layers, scale, target, hue, ghost) {
+    var id = "jr" + (++jarN), BODY = "M36 24h48v7c13 5 22 15 22 30v77c0 8-6 14-14 14H28c-8 0-14-6-14-14V61c0-15 9-25 22-30z", top = 46, bot = 152, H = bot - top;
+    var h = '<svg class="jar' + (ghost ? " ghost" : "") + '" viewBox="0 0 120 156" style="--lc0:var(--' + hue + ')" aria-hidden="true"><defs><clipPath id="' + id + '"><path d="' + BODY + '"/></clipPath></defs><path class="glass" d="' + BODY + '"/><g clip-path="url(#' + id + ')">';
+    var y = bot;
+    layers.forEach(function (l, k) {
+      var lh = l.amt / scale * H; y -= lh;
+      h += '<rect class="lay" data-l="' + l.id + '" x="0" y="' + y.toFixed(1) + '" width="120" height="' + (lh + .6).toFixed(1) + '" style="fill:' + (k % 2 ? "var(--" + hue + "-soft)" : "var(--" + hue + ")") + ';transition-delay:' + (k * 70) + 'ms"/>';
+    });
+    h += '</g>';
+    if (target) { var ty = bot - target / scale * H; h += '<path class="tg" d="M8 ' + ty.toFixed(1) + 'H112"/><text class="tgt" x="112" y="' + (ty - 4).toFixed(1) + '" text-anchor="end">' + m0(target) + '</text>'; }
+    return h + '<path class="glare" d="M24 72v44"/><path class="body" d="' + BODY + '"/><rect class="lid" x="31" y="6" width="58" height="18" rx="5"/><rect class="slot" x="47" y="12.5" width="26" height="4" rx="2"/></svg>';
+  }
+  function causes() {
+    var by = {};
+    past().forEach(function (e) { (by[e.cause] = by[e.cause] || []).push({ id: e.id, n: e.name, amt: money(e).net, date: e.date }); });
+    var head = '<div class="card" data-r style="--d:420ms"><div class="card-h"><span class="tile t-rose">' + ic("heart") + '</span><h3>Giving by cause</h3><small>one layer<br>per event</small></div>' +
+      '<p class="card-s">What each cause got this term, built from the fundraisers you ran for it. Hover a line to find its layer.</p>';
+    var ks = Object.keys(CAUSE).filter(function (k) { return by[k]; });
+    if (!ks.length) return head + '<div class="jars"><div class="jr"><div>' + jarSvg([], 1, 0, "rose", true) + '</div><div><h4 style="color:var(--ink-3)">No cause yet</h4><p style="font-size:.8rem;color:var(--ink-3);margin-top:4px">Pick a cause when you plan a fundraiser — its jar fills from every count.</p></div></div></div></div>';
+    return head + '<div class="jars">' + ks.map(function (k) {
+      var c = CAUSE[k], ls = by[k], tot = ls.reduce(function (a, l) { return a + l.amt; }, 0), scale = Math.max(c.target || 0, tot) * 1.12;
+      return '<div class="jr" data-jar="' + k + '"><div>' + jarSvg(ls, scale, c.target, c.hue) + '</div><div style="min-width:0"><h4>' + esc(c.kept ? "Kept by the chapter" : c.s) + '</h4>' +
+        '<p class="tot">' + m0(tot) + (c.target ? ' <small>of ' + m0(c.target) + ' · ' + Math.floor(tot / c.target * 100) + '%</small>' : '') + '</p>' +
+        '<ul>' + ls.slice().reverse().map(function (l, i) { var k2 = ls.length - 1 - i; return '<li data-hl="' + l.id + '" style="--lc:' + (k2 % 2 ? "var(--" + c.hue + "-soft)" : "var(--" + c.hue + ")") + '"><i></i><span>' + esc(l.n) + '</span><b>' + m0(l.amt) + '</b></li>'; }).join("") + '</ul>' +
+        (k === "foodbank" ? '<span class="stamp">Handed over</span>' : k === "shelter" ? '<span class="stamp hold">Not handed over</span>' : '') + '</div></div>';
+    }).join("") + '</div></div>';
+  }
+
+  /* ---------- 6. punch cards ------------------------------------------------------------- */
+  function punch() {
+    var tally = {};
+    past().forEach(function (e) { var w = worked(e); e.shifts.forEach(function (x) { x.seats.forEach(function (id) { if (id && w.indexOf(id) > -1) (tally[id] = tally[id] || []).push({ e: e, t: x.t }); }); }); });
+    var ids = Object.keys(M).filter(function (id) { return S.mode === "full" || id === ME; }).sort(function (a, b) { return (tally[b] || []).length - (tally[a] || []).length || (a < b ? -1 : 1); });
+    var GOAL = 4;
+    return '<div class="punch" data-r style="--d:460ms">' + ids.map(function (id) {
+      var t = tally[id] || [], open = S.open === id, holes = Math.max(8, t.length);
+      var hs = ""; for (var i = 0; i < holes; i++) hs += '<i class="' + (i < t.length ? "p" : "") + (i === GOAL - 1 ? " goal" : "") + '"></i>';
+      return '<button class="pc' + (open ? " open" : "") + '" data-a="pc:' + id + '" style="--av:' + M[id].av + '" aria-expanded="' + open + '"><span class="pc-h">' + av(id, "avatar--sm") + '<b>' + esc(M[id].n) + (id === ME ? ' <small style="color:var(--ink-3);font-weight:400">· you</small>' : '') + '</b><span class="n">' + (t.length ? t.length + (t.length === 1 ? " shift" : " shifts") : "no shifts yet") + '</span></span>' +
+        '<span class="holes" aria-hidden="true">' + hs + '</span>' +
+        (open ? '<ul>' + (t.length ? t.map(function (x) { return '<li><span>' + esc(x.e.name) + '</span><span>' + fmtD(x.e.date) + ' · ' + x.t + '</span></li>'; }).join("") : '<li><span>Hasn’t worked a table yet.</span></li>') + '</ul>' : '') + '</button>';
+    }).join("") + '</div>';
+  }
+
+  /* ---------- page ------------------------------------------------------------------------- */
+  function page() {
+    var T = TODAY(), td = dt(T), ps = past(), up = upcoming(), un = uncounted();
+    var net = ps.reduce(function (a, e) { return a + money(e).net; }, 0), hrs = ps.reduce(function (a, e) { return a + money(e).h; }, 0);
+    var hot = up.filter(function (e) { var s = seatsInfo(e); return dFrom(e.date) <= 2 && s.f < s.n; })[0];
+    var dg;
+    if (!EV().length) dg = "Nothing on the books yet. Plan a fundraiser and this page fills in from the first box you count.";
+    else {
+      dg = ps.length ? '<b>' + m0(net) + '</b> cleared across ' + ps.length + ' fundraisers this term — <b>' + m0(net / hrs) + ' for every hour</b> someone stood at a table.' : "No boxes counted yet.";
+      if (un.length) dg += ' The ' + esc(un[0].name.toLowerCase()) + ' box still needs counting.';
+      if (hot) { var s = seatsInfo(hot); dg += ' ' + esc(hot.name) + ' is ' + (dFrom(hot.date) === 1 ? "tomorrow" : DOW[dt(hot.date).getDay()]) + ' with <b>' + (s.n - s.f) + ' open ' + (s.n - s.f === 1 ? "shift" : "shifts") + '</b>.'; }
+    }
+    var h = '<section class="brief"><div><p class="kick" data-r><span class="chip">' + DOW[td.getDay()] + ' · ' + fmtD(T) + '</span> Fundraising · Fall ’26</p>' +
+      '<h1 class="greet" data-r style="--d:60ms">The fundraising <span class="hi" style="--mark:var(--butter)">table.</span></h1>' +
+      '<p class="digest" data-r style="--d:140ms"><span class="aichip">' + ic("spark") + 'Digest</span><span>' + dg + '</span></p></div>' +
+      '<div class="acts" data-r style="--d:200ms"><button class="btn" data-a="plan">' + ic("plus") + 'Plan a fundraiser</button>' +
+      (up.length ? '<button class="btn btn--ghost" data-a="run:' + up[0].id + '">' + ic("phone") + 'Run the table</button>' : '') + '</div></section>';
+    h += hero();
+    h += '<div class="sec" data-r style="--d:260ms"><h2>Coming up</h2><span class="rule"></span><span class="cnt">' + (up.length ? up.length + " planned · tap a + to take a shift" : "nothing planned") + '</span></div>';
+    h += up.length ? '<div class="up" data-r style="--d:280ms">' + up.map(evCard).join("") + '</div>'
+      : '<div class="ev-empty" data-r style="--d:280ms"><span>No fundraisers on the calendar. Plan one and its shift sheet shows up here for people to sign onto.</span><button class="btn btn--sm" data-a="plan">' + ic("plus") + 'Plan a fundraiser</button></div>';
+    h += '<div class="sec" data-r style="--d:300ms"><h2>This term</h2><span class="rule"></span><span class="cnt">' + (ps.length ? ps.length + " receipts · longer = cleared more" : "no receipts yet") + '</span></div>' + rail();
+    h += '<div class="sec" data-r style="--d:360ms"><h2>Where it went</h2><span class="rule"></span></div><div class="duo">' + pays() + causes() + '</div>';
+    h += '<div class="sec" data-r style="--d:440ms"><h2>Who worked</h2><span class="rule"></span><span class="cnt">one hole per shift · dot = 4-shift goal</span></div>' + punch();
+    return h;
+  }
+
+  function render(animate) {
+    jarN = 0;
+    $("#page").innerHTML = page();
+    $$(".mockbar [data-mock]").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.mock === S.mode); });
+    $("[data-theme-btn]").textContent = document.documentElement.dataset.theme === "dark" ? "Day" : "Night";
+    if (animate && !reduce.matches) { var root = document.documentElement; root.classList.add("boot"); void document.body.offsetWidth; requestAnimationFrame(function () { requestAnimationFrame(function () { root.classList.remove("boot"); }); }); }
+    requestAnimationFrame(placeAvg);
+    S.pop = null; S.fresh = null;
+    setTimeout(function () { S.justCounted = null; }, 50);
+  }
+  function rerender() { var y = window.scrollY; render(false); window.scrollTo(0, y); }
+  function toast(msg) { var t = $("#toast"); $("span", t).textContent = msg; t.classList.add("on"); clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("on"); }, 2400); }
+  function burst(x, y) {
+    if (reduce.matches) return;
+    var cols = ["#FFD5C4", "#CFE2FF", "#C7EFDA", "#FFE5A0", "#E1D8FF", "#FFD6E6"];
+    for (var i = 0; i < 18; i++) { var b = document.createElement("i"); b.className = "bit"; var a = Math.random() * Math.PI * 2, r = 60 + Math.random() * 90;
+      b.style.cssText = "left:" + x + "px;top:" + y + "px;background:" + cols[i % 6] + ";--x:" + Math.cos(a) * r + "px;--y:" + (Math.sin(a) * r - 40) + "px;--r:" + (Math.random() * 540 - 270) + "deg";
+      document.body.appendChild(b); setTimeout(function (n) { n.remove(); }.bind(null, b), 950); }
+  }
+
+  /* ---------- sheets ------------------------------------------------------------------------ */
+  var X = '<button type="button" class="iconbtn" data-close aria-label="Close">' + ic("plus", "x45") + '</button>';
+  function openSheet(kind, html, cls, tone) {
+    var f = $("#cm-form"); f.className = "cm" + (cls ? " " + cls : ""); f.dataset.kind = kind; f.style.setProperty("--tone", tone || "var(--butter)"); f.innerHTML = html;
+    $("#cm").classList.add("open"); $("#cm").setAttribute("aria-hidden", "false");
+    setTimeout(function () { var a = f.querySelector("[autofocus]"); if (a) a.focus(); }, 60);
+  }
+  function closeSheet() { $("#cm").classList.remove("open"); $("#cm").setAttribute("aria-hidden", "true"); }
+
+  /* 7. count the box */
+  function openCount(id) {
+    var e = evById(id);
+    S.cs = { id: id, b: { 20: "", 10: "", 5: "", 1: "" }, coins: "", dig: "", costs: [["", ""]], worked: crew(e) };
+    var all = crew(e);
+    openSheet("count", '<div class="cm-h"><span class="tile t-butter">' + ic("box") + '</span><div><p>Count the box · ' + DOW[dt(e.date).getDay()] + ' ' + fmtD(e.date) + '</p><h3 id="cm-title">' + esc(e.name) + '</h3></div>' + X + '</div>' +
+      '<div class="cs"><div class="form"><div class="ft"><b>Cash count</b><small>Oozma Kappa · ' + fmtD(e.date) + '</small></div>' +
+        [20, 10, 5, 1].map(function (d) { return '<div class="fl"><span class="d">$' + d + '</span><span class="x">×</span><input name="b' + d + '" inputmode="numeric" placeholder="0" aria-label="How many $' + d + ' bills"' + (d === 20 ? " autofocus" : "") + '><span class="eq" data-eq="' + d + '">—</span></div>'; }).join("") +
+        '<div class="fl wide"><span>Coins</span><input name="coins" inputmode="decimal" placeholder="$0.00" aria-label="Coins"></div>' +
+        '<div class="fl wide"><span>Venmo / card</span><input name="dig" inputmode="decimal" placeholder="$0.00" aria-label="Venmo or card"></div>' +
+        '<div class="fl wide red"><span>− Change it started with</span><span style="text-align:right;font-weight:600">' + m2(e.float) + '</span></div>' +
+        '<div data-costs></div><button type="button" class="addc" data-a="addcost">+ another cost</button>' +
+        '<div class="net"><span>Net for the cause</span><b data-net>—</b></div></div>' +
+      '<div class="cs-r"><div data-livebox>' + cashBox(null, { note: "Count me" }) + '</div><div data-xchk></div>' +
+        '<div><div class="who-h">Who worked<small data-whon>' + all.length + ' of ' + all.length + '</small></div><div class="who">' + all.map(function (id) { return '<label><input type="checkbox" name="w" value="' + id + '" checked><span>' + av(id) + esc(first(id)) + '</span></label>'; }).join("") + '</div></div></div></div>' +
+      '<div class="cm-f"><span class="note">Posts to Treasury, tied to ' + esc(e.name) + '.</span><button type="button" class="btn btn--soft" data-close>Cancel</button><button class="btn">' + ic("check") + 'Close it out</button></div>', "cm--count");
+    drawCosts(); csLive();
+  }
+  function drawCosts() {
+    $("[data-costs]").innerHTML = S.cs.costs.map(function (c, i) {
+      return '<div class="fl cost red"><span>−</span><input class="l" data-cl="' + i + '" value="' + esc(c[0]) + '" placeholder="' + (i ? "Another cost" : "What it cost — e.g. cookie dough") + '" aria-label="Cost description"><input data-ca="' + i + '" value="' + esc(c[1]) + '" inputmode="decimal" placeholder="$0.00" aria-label="Cost amount" style="text-align:right">' +
+        (S.cs.costs.length > 1 ? '<button type="button" class="rm" data-a="rmcost:' + i + '" aria-label="Remove cost">×</button>' : '<span></span>') + '</div>';
+    }).join("");
+  }
+  function csRead() {
+    var f = $("#cm-form"), c = S.cs; if (!c) return null;
+    [20, 10, 5, 1].forEach(function (d) { c.b[d] = f.elements["b" + d].value; });
+    c.coins = f.elements.coins.value; c.dig = f.elements.dig.value;
+    $$("[data-cl]", f).forEach(function (i) { c.costs[+i.dataset.cl][0] = i.value; });
+    $$("[data-ca]", f).forEach(function (i) { c.costs[+i.dataset.ca][1] = i.value; });
+    c.worked = $$('input[name="w"]:checked', f).map(function (i) { return i.value; });
+    return { b: { 20: Math.floor(num(c.b[20])), 10: Math.floor(num(c.b[10])), 5: Math.floor(num(c.b[5])), 1: Math.floor(num(c.b[1])) }, coins: r2(num(c.coins)), dig: r2(num(c.dig)), costs: c.costs.filter(function (x) { return num(x[1]) > 0; }).map(function (x) { return [x[0] || "Supplies", r2(num(x[1]))]; }) };
+  }
+  function csLive() {
+    var f = $("#cm-form"); if (!f || f.dataset.kind !== "count") return;
+    var e = evById(S.cs.id), c = csRead(), cash = cashOf(c), any = cash || c.dig;
+    [20, 10, 5, 1].forEach(function (d) { $('[data-eq="' + d + '"]', f).textContent = c.b[d] ? m0(c.b[d] * d) : "—"; });
+    var inn = r2(cash - e.float + c.dig), net = r2(inn - costOf(c));
+    var nb = $("[data-net]", f); nb.textContent = any ? m2(net) : "—"; nb.classList.toggle("neg", net < 0);
+    $("[data-livebox]", f).innerHTML = cashBox(any ? c : null, any ? {} : { note: "Count me" });
+    var ts = tallySum(e), x = $("[data-xchk]", f);
+    if (!any) x.innerHTML = '<div class="xchk">' + ic("spark") + '<span>Type the counts and the box fills.' + (ts ? ' The phone tally said <b>' + m0(ts) + '</b> came in.' : '') + '</span></div>';
+    else if (!ts) x.innerHTML = '<div class="xchk">' + ic("spark") + '<span><b>' + m0(inn) + '</b> came in after taking out the change. No phone tally to check it against.</span></div>';
+    else { var off = r2(inn - ts); x.innerHTML = Math.abs(off) < 1 ? '<div class="xchk ok">' + ic("check") + '<span>Matches the phone tally — <b>' + m0(ts) + '</b> rung up, ' + m0(inn) + ' in the box.</span></div>'
+      : '<div class="xchk off">' + ic("spark") + '<span>The phone tally said <b>' + m0(ts) + '</b>; the box has <b>' + m0(inn) + '</b> — ' + (off > 0 ? m0(off) + " over (tips, or a sale nobody rang up)" : m0(-off) + " short. Recount, or note why.") + '</span></div>'; }
+    $("[data-whon]", f).textContent = S.cs.worked.length + " of " + crew(e).length;
+  }
+
+  /* plan a fundraiser */
+  function openPlan() {
+    var d = plus(TODAY(), 9);
+    openSheet("plan", '<div class="cm-h"><span class="tile t-butter">' + ic("cal") + '</span><div><p>Fundraising</p><h3 id="cm-title">Plan a fundraiser</h3></div>' + X + '</div>' +
+      '<div class="cm-b"><label class="fld"><span>What is it?</span><input class="inp" name="name" placeholder="Boba sale" autofocus></label>' +
+        '<div class="fld"><span>Kind</span><div class="kinds">' + Object.keys(KIND).map(function (k, i) { return '<label><input type="radio" name="kind" value="' + k + '"' + (i === 0 ? " checked" : "") + '><span>' + ic(KIND[k][1]) + KIND[k][0] + '</span></label>'; }).join("") + '</div></div>' +
+        '<div class="two"><label class="fld"><span>Date</span><input class="inp" type="date" name="date" value="' + d + '"></label><label class="fld"><span>Where</span><input class="inp" name="loc" placeholder="Student Union"></label></div>' +
+        '<div class="two"><label class="fld"><span>Starts</span><input class="inp" type="time" name="start" value="11:00"></label><label class="fld"><span>Ends</span><input class="inp" type="time" name="end" value="15:00"></label></div>' +
+        '<div class="two"><label class="fld"><span>People per shift</span><select class="inp" name="per">' + [1, 2, 3, 4, 6].map(function (n) { return '<option' + (n === 2 ? " selected" : "") + '>' + n + '</option>'; }).join("") + '</select></label>' +
+          '<label class="fld"><span>Shift length</span><select class="inp" name="len"><option value="1" selected>1 hour</option><option value="2">2 hours</option></select></label></div>' +
+        '<div class="two"><label class="fld"><span>Who it’s for</span><select class="inp" name="cause">' + Object.keys(CAUSE).map(function (k) { return '<option value="' + k + '"' + (k === "stjude" ? " selected" : "") + '>' + esc(CAUSE[k].kept ? "Kept by the chapter" : CAUSE[k].n) + '</option>'; }).join("") + '</select></label>' +
+          '<label class="fld"><span>Change in the box</span><div class="amt-inp"><input class="inp" name="float" inputmode="decimal" value="40"></div></label></div>' +
+        '<div class="plan-pv" data-ppv></div></div>' +
+      '<div class="cm-f"><span class="note">Lands on the Timeline as a Fundraiser, with its shift sheet open for sign-ups.</span><button type="button" class="btn btn--soft" data-close>Cancel</button><button class="btn">Plan it</button></div>', "cm--plan");
+    planPv();
+  }
+  function planShifts(f) {
+    var a = f.elements.start.value, b = f.elements.end.value, per = +f.elements.per.value, len = +f.elements.len.value;
+    if (!a || !b) return [];
+    var s = +a.split(":")[0], e = +b.split(":")[0]; if (e <= s) return [];
+    var out = [], lab = function (h) { return (h % 12) || 12; };
+    for (var t = s; t < e && out.length < 8; t += len) out.push(sh(lab(t) + "–" + lab(Math.min(e, t + len)), Math.min(len, e - t), rep(null, per)));
+    return out;
+  }
+  function planPv() {
+    var f = $("#cm-form"); if (!f || f.dataset.kind !== "plan") return;
+    var ss = planShifts(f), n = ss.reduce(function (a, x) { return a + x.seats.length; }, 0);
+    $("[data-ppv]", f).innerHTML = ss.length ? '<div class="sheet-h"><b>The shift sheet people will see</b><span class="n">' + n + ' seats · ' + ss.reduce(function (a, x) { return a + x.h * x.seats.length; }, 0) + ' hours</span></div>' +
+      ss.map(function (x) { return '<div class="shift"><span class="t">' + x.t + '</span><div class="seats">' + x.seats.map(function () { return '<span class="seat open">' + ic("plus") + '</span>'; }).join("") + '</div></div>'; }).join("")
+      : '<p style="font-size:.84rem;color:var(--ink-3)">Set a start and an end and the shift sheet draws itself.</p>';
+  }
+
+  /* receipt detail */
+  function openRc(id) {
+    var e = evById(id), m = money(e), c = e.count, w = worked(e), ps = past(), mx = Math.max.apply(null, ps.map(function (x) { return money(x).net; }));
+    openSheet("rc", '<div class="cm-h"><span class="tile t-butter">' + ic("receipt") + '</span><div><p>' + KIND[e.kind][0] + ' · ' + DOW[dt(e.date).getDay()] + ' ' + fmtD(e.date) + '</p><h3 id="cm-title">' + esc(e.name) + '</h3></div>' + X + '</div>' +
+      '<div class="det"><div class="det-l">' + causeChip(e.cause) +
+        '<h5>The count</h5>' + [20, 10, 5, 1].filter(function (d) { return c.b[d]; }).map(function (d) { return '<div class="row"><span>$' + d + ' × ' + c.b[d] + '</span><b>' + m0(d * c.b[d]) + '</b></div>'; }).join("") +
+        (c.coins ? '<div class="row"><span>Coins</span><b>' + m2(c.coins) + '</b></div>' : '') + (c.dig ? '<div class="row"><span>Venmo / card</span><b>' + m0(c.dig) + '</b></div>' : '') +
+        (e.float ? '<div class="row"><span style="color:var(--peach-ink)">− Starting change</span><b style="color:var(--peach-ink)">−' + m0(e.float).slice(1) + '</b></div>' : '') +
+        c.costs.map(function (x) { return '<div class="row"><span style="color:var(--peach-ink)">− ' + esc(x[0]) + '</span><b style="color:var(--peach-ink)">−' + m0(x[1]).slice(1) + '</b></div>'; }).join("") +
+        '<h5>Who worked · ' + m.h + ' hours</h5><div class="crewl">' + w.map(function (id) { return '<span class="chip">' + av(id, "avatar--sm") + esc(first(id)) + '</span>'; }).join("") + '</div></div>' +
+      '<div>' + receipt(e, mx, true) + '</div></div>' +
+      '<div class="cm-f"><span class="note">Filed in Treasury, tied to this event.</span><button type="button" class="btn btn--soft" data-close>Close</button></div>', "cm--count", "var(--mint)");
+  }
+
+  /* 8. the phone at the table */
+  function openRun(id) {
+    var e = evById(id); S.tally = { id: id, taps: (e.tally || []).slice(), labels: [] };
+    (e.tally || []).forEach(function (v) { S.tally.labels.push(null); });
+    drawPhone(); $("#ph").classList.add("open"); $("#ph").setAttribute("aria-hidden", "false");
+  }
+  function drawPhone(bump) {
+    var t = S.tally, e = evById(t.id), items = ITEMS[e.kind], tot = t.taps.reduce(function (a, v) { return a + v; }, 0);
+    var counts = {}; t.labels.forEach(function (l) { if (l) counts[l] = (counts[l] || 0) + 1; });
+    var cur = e.shifts[0]; var who = cur.seats.filter(Boolean);
+    var stubs = t.taps.slice(-7).map(function (v, i, a) { return '<span class="stub" style="bottom:' + (8 + i * 8) + 'px;transform:rotate(' + ((i * 37) % 11 - 5) + 'deg)">' + m0(v) + '</span>'; }).join("");
+    var isPast = e.date <= TODAY();
+    $("#phone").innerHTML = '<span class="notch"></span><div class="ph-top"><button class="iconbtn x" data-a="phclose" aria-label="Close">' + ic("plus", "x45") + '</button><p>At the table · ' + DOW[dt(e.date).getDay()] + ' ' + fmtD(e.date) + '</p><h3>' + esc(e.name) + '</h3>' +
+      '<p class="ph-tot' + (bump ? " bump" : "") + '">' + m0(tot) + '</p><p class="ph-sub">' + t.taps.length + ' rung up · on now: ' + (who.length ? who.map(first).join(", ") : "nobody signed up") + '</p></div>' +
+      '<div class="spike" aria-hidden="true"><span class="rod"></span><span class="base"></span>' + stubs + '</div>' +
+      '<div class="tix">' + items.map(function (it, i) { var tones = ["var(--butter)", "var(--mint)", "var(--sky)", "var(--rose)"]; return '<button class="tk" data-tap="' + it[1] + '" data-lab="' + esc(it[0]) + '" style="--tk:' + tones[i % 4] + '"><b>' + esc(it[0]) + '</b><span>' + m0(it[1]) + '</span>' + (counts[it[0]] ? '<em class="c">' + counts[it[0]] + '</em>' : '') + '</button>'; }).join("") +
+        '<button class="tk other" data-a="other"><b>Other amount</b><span>tip · donation</span></button></div>' +
+      '<div class="ph-other" data-oth hidden><input class="inp" id="ph-amt" inputmode="decimal" placeholder="$ amount"><button class="btn btn--sm" data-a="otherok">Add</button></div>' +
+      '<div class="ph-foot"><button class="btn btn--soft" data-a="undo"' + (t.taps.length ? "" : " disabled") + '>' + ic("undo") + 'Undo</button><button class="btn" data-a="phdone">' + (isPast ? "Done — count the box" : "Save the tally") + '</button></div>';
+  }
+  function tap(btn, v, lab) {
+    var t = S.tally; t.taps.push(v); t.labels.push(lab);
+    if (!reduce.matches) {
+      var r = btn.getBoundingClientRect(), sp = $(".spike .rod").getBoundingClientRect(), fl = document.createElement("span");
+      fl.className = "flying"; fl.textContent = m0(v); fl.style.left = (r.left + r.width / 2 - 31) + "px"; fl.style.top = (r.top + r.height / 2 - 10) + "px"; document.body.appendChild(fl);
+      requestAnimationFrame(function () { fl.style.transform = "translate(" + (sp.left - r.left - r.width / 2 + 32) + "px," + (sp.top - r.top - r.height / 2 + 30) + "px) rotate(" + (Math.random() * 20 - 10) + "deg)"; fl.style.opacity = ".2"; });
+      setTimeout(function () { fl.remove(); }, 480);
+    }
+    drawPhone(true);
+  }
+
+  /* ---------- events ---------------------------------------------------------------------------- */
+  document.addEventListener("click", function (ev) {
+    var m = ev.target.closest("[data-mock]");
+    if (m) { S.mode = m.dataset.mock; try { localStorage.setItem("fe-mock-mode", S.mode); } catch (e) {} S.open = null; render(true); window.scrollTo(0, 0); return; }
+    if (ev.target.closest("[data-theme-btn]")) { var r = document.documentElement, d = r.dataset.theme === "dark" ? "light" : "dark"; r.dataset.theme = d; try { localStorage.setItem("fe-mock-theme", d); } catch (e) {} $("[data-theme-btn]").textContent = d === "dark" ? "Day" : "Night"; return; }
+    if (ev.target.closest("[data-close]") || ev.target.id === "cm") { closeSheet(); return; }
+    if (ev.target.id === "ph") { $("#ph").classList.remove("open"); return; }
+    var tk = ev.target.closest("[data-tap]"); if (tk) { tap(tk, +tk.dataset.tap, tk.dataset.lab); return; }
+    var t = ev.target.closest("[data-a]"); if (!t) return;
+    ev.preventDefault();
+    var p = t.dataset.a.split(":"), cmd = p[0];
+    switch (cmd) {
+      case "plan": openPlan(); return;
+      case "count": openCount(p[1]); return;
+      case "rc": openRc(p[1]); return;
+      case "run": openRun(p[1]); return;
+      case "pc": S.open = S.open === p[1] ? null : p[1]; rerender(); return;
+      case "take": case "drop":
+        var e = evById(p[1]), x = e.shifts[+p[2]], j = +p[3];
+        if (cmd === "take") {
+          if (x.seats.indexOf(ME) > -1) { toast("You’re already on the " + x.t + " shift"); return; }
+          x.seats[j] = ME; S.pop = p[1] + ":" + p[2] + ":" + j;
+          var si = seatsInfo(e); var b = t.getBoundingClientRect(); if (si.f === si.n) burst(b.left + b.width / 2, b.top);
+          rerender(); toast(si.f === si.n ? "You took " + x.t + " — " + e.name + " is fully staffed" : "You’re on " + e.name + ", " + x.t + " · " + (si.n - si.f) + " still open");
+        } else { x.seats[j] = null; rerender(); toast("You dropped the " + x.t + " shift"); }
+        return;
+      case "addcost": csRead(); S.cs.costs.push(["", ""]); drawCosts(); csLive(); var li = $$("[data-cl]").slice(-1)[0]; if (li) li.focus(); return;
+      case "rmcost": csRead(); S.cs.costs.splice(+p[1], 1); drawCosts(); csLive(); return;
+      case "phclose": $("#ph").classList.remove("open"); $("#ph").setAttribute("aria-hidden", "true"); return;
+      case "other": var o = $("[data-oth]"); o.hidden = !o.hidden; if (!o.hidden) $("#ph-amt").focus(); return;
+      case "otherok": var v = r2(num($("#ph-amt").value)); if (!(v > 0)) { $("#ph-amt").focus(); return; } S.tally.taps.push(v); S.tally.labels.push(null); drawPhone(true); return;
+      case "undo": S.tally.taps.pop(); S.tally.labels.pop(); drawPhone(true); return;
+      case "phdone":
+        var te = evById(S.tally.id); te.tally = S.tally.taps.slice(); $("#ph").classList.remove("open"); $("#ph").setAttribute("aria-hidden", "true");
+        if (te.date <= TODAY()) { rerender(); setTimeout(function () { openCount(te.id); }, 200); }
+        else { rerender(); toast("Tally saved — " + m0(tallySum(te)) + " rung up for " + te.name); }
+        return;
+    }
+  });
+  document.addEventListener("input", function (e) {
+    var f = e.target.form;
+    if (f && f.id === "cm-form" && f.dataset.kind === "count") csLive();
+    if (f && f.id === "cm-form" && f.dataset.kind === "plan") planPv();
+  });
+  document.addEventListener("change", function (e) {
+    var f = e.target.form;
+    if (f && f.id === "cm-form" && f.dataset.kind === "count") csLive();
+    if (f && f.id === "cm-form" && f.dataset.kind === "plan") planPv();
+  });
+  document.addEventListener("mouseover", function (e) {
+    var li = e.target.closest("[data-hl]"), jr = e.target.closest(".jr");
+    $$(".jar.dim").forEach(function (j) { if (!jr || !jr.contains(j)) j.classList.remove("dim"); });
+    if (!li) { if (jr) { var jj = $(".jar", jr); jj.classList.remove("dim"); $$(".lay.hl", jr).forEach(function (l) { l.classList.remove("hl"); }); } return; }
+    var j = $(".jar", jr); j.classList.add("dim"); $$(".lay", j).forEach(function (l) { l.classList.toggle("hl", l.dataset.l === li.dataset.hl); });
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { closeSheet(); $("#ph").classList.remove("open"); } });
+  document.addEventListener("submit", function (e) {
+    e.preventDefault(); var f = e.target; if (f.id !== "cm-form") return;
+    var g = function (n) { return (f.elements[n] && f.elements[n].value || "").trim(); };
+    if (f.dataset.kind === "count") {
+      var c = csRead(), ev = evById(S.cs.id);
+      if (!cashOf(c) && !c.dig) { f.elements.b20.focus(); toast("Count something — a 0 in every line is fine if the box was empty"); return; }
+      if (!S.cs.worked.length) { toast("Tick who worked — it’s how hours get credited"); return; }
+      c.worked = S.cs.worked.slice(); ev.count = c;
+      var b = f.querySelector(".cm-f .btn:not(.btn--soft)").getBoundingClientRect(); burst(b.left + b.width / 2, b.top);
+      closeSheet(); S.justCounted = ev.id; var mm = money(ev);
+      render(false); window.scrollTo({ top: 0, behavior: reduce.matches ? "auto" : "smooth" });
+      toast(ev.name + " cleared " + m0(mm.net) + " — filed to Treasury"); return;
+    }
+    if (f.dataset.kind === "plan") {
+      if (!g("name")) { f.elements.name.focus(); toast("Name the fundraiser"); return; }
+      var ss = planShifts(f); if (!ss.length) { f.elements.end.focus(); toast("The end has to come after the start"); return; }
+      var lab = function (v) { var h = +v.split(":")[0], m = v.split(":")[1]; return ((h % 12) || 12) + (m !== "00" ? ":" + m : "") + (h < 12 ? " AM" : " PM"); };
+      var ne = { id: "n" + (++S.seq), name: g("name"), date: g("date") || plus(TODAY(), 7), time: lab(g("start")) + " – " + lab(g("end")), loc: g("loc") || "Add a place", kind: (f.querySelector('input[name="kind"]:checked') || {}).value || "food", cause: g("cause"), float: r2(num(g("float"))), shifts: ss, count: null };
+      if (ne.date <= TODAY()) ne.date = plus(TODAY(), 1);
+      EV().push(ne); closeSheet(); S.fresh = ne.id; rerender();
+      setTimeout(function () { var el = $("#ev-" + ne.id); if (el) el.scrollIntoView({ block: "center", behavior: reduce.matches ? "auto" : "smooth" }); }, 60);
+      toast("Planned “" + ne.name + "” — " + ss.reduce(function (a, x) { return a + x.seats.length; }, 0) + " seats open for sign-up"); return;
+    }
+    closeSheet();
+  });
+  window.addEventListener("resize", function () { requestAnimationFrame(placeAvg); });
+
+  render(true);
+})();
+</script>
+</body>
+</html>

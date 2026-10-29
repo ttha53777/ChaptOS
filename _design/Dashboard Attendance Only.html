@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attendance Dashboard</title>
+<!--
+  EXPLORATION — the paper dashboard for an org whose only tracked metric is attendance.
+  Same shell as the real /[slug] dashboard in the paper aesthetic (app/paper-aesthetic.css
+  tokens, Bricolage/Inter/Plex), but every panel the multi-metric dashboard spends on
+  dues/GPA/service/treasury is spent on attendance instead:
+    measures   → term rate (sparkline), last meeting split, below the line, perfect run
+    main       → needs attention (slipping / below line / excuses / no roll) · turnout by
+                 meeting (stacked chart) · the register (last-12 strip per member)
+    rail       → next roll call + who's one miss from the line · your attendance ·
+                 where everyone stands (histogram) · recent check-ins
+  All numbers derive from one seeded data set below, so every panel agrees.
+  Rate = present ÷ (meetings held − excused). Line = 80%.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;550;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;  --pp-peach-bd:#F8D2C2;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;    --pp-sky-bd:#CCDFFB;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;   --pp-mint-bd:#BDE7D2;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08; --pp-butter-bd:#F4DFA6;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;  --pp-lilac-bd:#DCD2FB;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;   --pp-rose-bd:#F8CEE0;
+  --pp-mark-op:.85; --pp-wash-op:.55;
+  --pp-sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --pp-sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-soft:#F4ECDD; --line-med:#DCD0B9;
+  --c-chapter:#2A66C7; --c-social:#9C6B08; --c-service:#1F8A80; --c-program:#6244CC;
+  --serif:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1); --spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme: light;
+}
+html[data-theme="night"] {
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A; --pp-peach-bd:rgba(255,178,148,.22);
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;   --pp-sky-bd:rgba(150,190,255,.22);
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;  --pp-mint-bd:rgba(140,220,180,.22);
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;--pp-butter-bd:rgba(255,214,120,.22);
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF; --pp-lilac-bd:rgba(180,160,255,.26);
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;  --pp-rose-bd:rgba(255,160,200,.22);
+  --pp-mark-op:.42;
+  --pp-sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --pp-sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-soft:#262019; --line-med:#43382B;
+  --c-chapter:#AACBFF; --c-social:#F0CC72; --c-service:#7FD6CB; --c-program:#C4B6FF;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.55;
+  letter-spacing: -.005em; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+svg { display: block; }
+.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* shell ---------------------------------------------------------------------- */
+.shell { display: flex; min-height: 100vh; }
+.page { flex: 1; min-width: 0; height: 100vh; overflow-y: auto;
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(60vw 50vh at 18% 0%,  color-mix(in srgb, var(--pp-butter-soft) 55%, transparent), transparent 62%),
+    radial-gradient(52vw 48vh at 98% 18%, color-mix(in srgb, var(--pp-sky-soft) 55%, transparent), transparent 60%),
+    radial-gradient(48vw 46vh at 20% 74%, color-mix(in srgb, var(--pp-lilac-soft) 55%, transparent), transparent 62%),
+    radial-gradient(56vw 50vh at 94% 96%, color-mix(in srgb, var(--pp-peach-soft) 55%, transparent), transparent 62%);
+  background-attachment: local, fixed, fixed, fixed, fixed; }
+html[data-theme="night"] .page { background-image: none; }
+
+/* sidebar */
+.sb { width: 252px; flex: none; height: 100vh; position: sticky; top: 0; display: flex; flex-direction: column;
+  background: var(--paper-2); border-right: 1.5px solid var(--line); }
+.sb-org { display: flex; align-items: center; gap: 10px; height: 66px; padding: 0 14px; border-bottom: 1.5px solid var(--line); }
+.sb-logo { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; flex: none;
+  background: var(--pp-sky); border: 1.5px solid var(--ink); color: var(--ink); font-family: var(--serif); font-weight: 700; font-size: 15px;
+  box-shadow: 2px 2px 0 var(--pp-butter); }
+html[data-theme="night"] .sb-logo { color: #26211B; }
+.sb-org b { display: block; font-size: .93rem; font-weight: 600; letter-spacing: -.015em; line-height: 1.2; }
+.sb-org small { font-family: var(--mono); font-size: .64rem; color: var(--muted); letter-spacing: .04em; }
+.sb-org .chev { margin-left: auto; color: var(--muted); width: 14px; height: 14px; }
+.sb-body { padding: 14px 10px; flex: 1; overflow-y: auto; }
+.sb-needs { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; margin-bottom: 14px; border-radius: 14px;
+  background: var(--card); border: 1.5px solid var(--line); box-shadow: var(--pp-sh-1); font-weight: 600; font-size: .9rem; text-align: left; }
+.sb-needs .i { color: var(--pp-peach-ink); width: 16px; height: 16px; }
+.sb-needs .n { margin-left: auto; min-width: 22px; height: 22px; border-radius: 999px; display: grid; place-items: center;
+  font-size: .7rem; font-weight: 700; color: var(--pp-peach-ink); background: var(--pp-peach-soft); border: 1px solid var(--pp-peach-bd); }
+.sb-grp-h { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px; font-size: .64rem; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
+.sb-grp-h::before { content: ""; width: 10px; height: 1.5px; background: var(--pp-peach-ink); opacity: .6; }
+.sb-grp:nth-child(3) .sb-grp-h::before { background: var(--pp-sky-ink); }
+.sb-item { display: flex; align-items: center; gap: 12px; width: 100%; height: 40px; padding: 0 12px; margin-bottom: 2px;
+  border: 1.5px solid transparent; border-radius: 12px; background: none; font-size: .95rem; font-weight: 500; color: var(--ink-soft); text-align: left; }
+.sb-item .i { width: 17px; height: 17px; color: var(--muted); }
+.sb-item:hover { background: color-mix(in srgb, var(--card) 70%, transparent); color: var(--ink); }
+.sb-item.on { background: var(--card); border-color: var(--ink); color: var(--ink); font-weight: 600; box-shadow: 2px 2px 0 var(--pp-butter); }
+.sb-item.on .i { color: var(--ink); }
+.sb-foot { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-top: 1.5px solid var(--line); }
+.sb-foot b { display: block; font-size: .86rem; font-weight: 600; line-height: 1.2; }
+.sb-foot small { font-size: .74rem; color: var(--muted); }
+
+/* dashboard ---------------------------------------------------------------- */
+.dash { max-width: 1200px; margin: 0 auto; padding: clamp(26px,3.4vw,44px) clamp(16px,3vw,44px) 130px; }
+
+.briefing { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: clamp(20px,4vw,56px); align-items: start; }
+.kicker { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: .72rem;
+  letter-spacing: .08em; font-weight: 600; color: var(--muted); text-transform: uppercase; }
+.kicker .today { padding: 2px 9px; border-radius: 999px; background: var(--card); border: 1.5px solid var(--line-med); color: var(--ink-soft); }
+h1.greeting { font-family: var(--serif); font-weight: 600; letter-spacing: -.032em; line-height: 1.04;
+  font-size: clamp(2.05rem,3.7vw,3.05rem); margin-top: 14px; }
+h1.greeting em { font-style: normal; position: relative; white-space: nowrap; z-index: 0; }
+h1.greeting em::before { content: ""; position: absolute; z-index: -1; left: -.12em; right: -.12em; bottom: .04em; height: .5em;
+  background: var(--pp-butter); border-radius: .4em .55em .38em .6em; transform: rotate(-.8deg); transform-origin: left center;
+  opacity: var(--pp-mark-op); animation: mark .8s var(--spring) .35s both; }
+@keyframes mark { from { transform: rotate(-.8deg) scaleX(0); } }
+.wave { display: inline-block; width: .82em; height: .82em; margin-left: .28em; vertical-align: -.06em; color: var(--pp-butter-ink);
+  transform-origin: 70% 85%; animation: wave 1.6s var(--ease-out) .55s 1 both; }
+.wave svg { width: 100%; height: 100%; }
+@keyframes wave { 0%{transform:rotate(0)} 15%{transform:rotate(16deg)} 30%{transform:rotate(-8deg)} 45%{transform:rotate(14deg)} 60%{transform:rotate(-4deg)} 75%{transform:rotate(9deg)} 100%{transform:rotate(0)} }
+.digest { margin-top: 14px; display: flex; gap: 10px; align-items: flex-start; max-width: 62ch; }
+.ai-chip { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; margin-top: 4px; border-radius: 999px;
+  background: var(--pp-lilac-soft); border: 1px solid var(--pp-lilac-bd); color: var(--pp-lilac-ink);
+  font-size: .64rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.ai-chip svg { width: 9px; height: 9px; }
+.digest p { font-size: 1.02rem; color: var(--ink-soft); }
+.digest b { color: var(--ink); font-weight: 600; }
+
+.btn { --bg: var(--card); --fg: var(--ink); --hs: var(--pp-peach);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 17px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--bg); color: var(--fg); font-weight: 600; font-size: .88rem; letter-spacing: -.01em;
+  box-shadow: 2.5px 2.5px 0 var(--hs); white-space: nowrap; transition: transform .18s var(--spring), box-shadow .18s var(--spring); }
+.btn:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--hs); }
+.btn .i { width: 15px; height: 15px; }
+.btn.ink { --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-lilac); }
+.btn.mint { --hs: var(--pp-mint); }
+.btn.quiet { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+.btn.quiet:hover { transform: translateY(-1px); box-shadow: none; border-color: var(--muted); color: var(--ink); }
+.btn.sm { font-size: .76rem; padding: 5px 11px; box-shadow: 2px 2px 0 var(--hs); }
+.brief-actions { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* the attendance dial (replaces the 5-bar health block) */
+.health { display: flex; align-items: center; gap: 20px; }
+.dial { position: relative; width: 124px; height: 124px; flex: none; }
+.dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.dial .num { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; line-height: 1; }
+.dial .num span { font-family: var(--serif); font-weight: 700; font-size: 2.15rem; letter-spacing: -.05em; }
+.dial .num span small { font-size: .9rem; color: var(--muted); margin-left: 1px; }
+.dial .num em { font-style: normal; margin-top: 5px; font-size: .58rem; font-weight: 700; letter-spacing: .12em; color: var(--muted); }
+.health .meta .label { font-size: .64rem; font-weight: 700; letter-spacing: .11em; color: var(--muted); }
+.health .meta .state { font-family: var(--serif); font-weight: 600; font-size: 1.28rem; letter-spacing: -.025em; margin: 2px 0 10px; }
+.split { width: 196px; }
+.split-bar { display: flex; height: 9px; border-radius: 5px; overflow: hidden; gap: 2px; }
+.split-bar i { display: block; height: 100%; }
+.split-key { margin-top: 9px; display: grid; gap: 4px; }
+.split-key div { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; font-size: .76rem; color: var(--ink-soft); }
+.split-key div b { font-family: var(--mono); font-weight: 500; font-size: .74rem; color: var(--ink); }
+.sw { width: 9px; height: 9px; border-radius: 3px; }
+.sw.p { background: var(--pp-mint-ink); } .sw.e { background: var(--pp-butter-ink); } .sw.a { background: var(--pp-peach-ink); }
+
+/* measures */
+.ledger { margin-top: 28px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 14px; }
+.measure { padding: 15px 16px 14px; background: var(--card); border: 1.5px solid var(--line); border-radius: 22px; box-shadow: var(--pp-sh-1);
+  overflow: hidden; position: relative; transition: transform .2s var(--spring), box-shadow .2s var(--spring), border-color .2s; cursor: pointer; }
+.measure:hover { transform: translateY(-2px); box-shadow: var(--pp-sh-2); border-color: var(--line-med); }
+.measure .k { display: flex; align-items: center; gap: 8px; font-size: .66rem; font-weight: 700; letter-spacing: .09em; color: var(--muted); text-transform: uppercase; }
+.measure .k .i { width: 15px; height: 15px; color: var(--c); }
+.measure .v { margin-top: 8px; font-family: var(--serif); font-weight: 600; font-size: 1.9rem; letter-spacing: -.04em; line-height: 1; }
+.measure .v small { font-size: .95rem; letter-spacing: -.02em; color: var(--muted); margin-left: 3px; font-weight: 600; }
+.measure .note { margin-top: 6px; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+.measure .note.good { color: var(--pp-mint-ink); } .measure .note.warn { color: var(--pp-peach-ink); }
+.measure .viz { margin-top: 12px; height: 30px; }
+.spark { width: 100%; height: 30px; overflow: visible; }
+.mini-split { display: flex; height: 8px; margin-top: 22px; border-radius: 6px; overflow: hidden; gap: 2px; }
+.mini-split i { height: 100%; transform-origin: left; animation: grow 1.1s var(--ease-out) .4s both; }
+@keyframes grow { from { transform: scaleX(0); } }
+.ticks { display: flex; gap: 3px; margin-top: 21px; }
+.ticks i { flex: 1; height: 10px; border-radius: 3px; background: var(--card-3); }
+.ticks i.on { background: var(--pp-peach-ink); }
+.faces { display: flex; margin-top: 16px; padding-left: 3px; }
+.faces .av { margin-left: -3px; box-shadow: 0 0 0 2px var(--card); }
+.faces .more { margin-left: 6px; align-self: center; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+
+/* grid + cards */
+.grid { margin-top: 22px; display: grid; grid-template-columns: minmax(0,1fr) 350px; gap: 22px; align-items: start; }
+.col { display: grid; gap: 22px; min-width: 0; }
+.card { background: var(--card); border: 1.5px solid var(--line); border-radius: 22px; box-shadow: var(--pp-sh-1); min-width: 0; }
+.card-h { display: flex; align-items: center; gap: 11px; padding: 16px 18px 12px; flex-wrap: wrap; row-gap: 10px; }
+.card-h h2 { font-family: var(--serif); font-weight: 600; font-size: 1.08rem; letter-spacing: -.022em; }
+.card-h .sub { margin-left: auto; font-family: var(--mono); font-size: .72rem; color: var(--muted); }
+.tile { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center;
+  background: var(--p-bg); border: 1.5px solid var(--p-bd); color: var(--p-fg); }
+.tile .i { width: 16px; height: 16px; }
+.t-peach { --p-bg:var(--pp-peach-soft); --p-fg:var(--pp-peach-ink); --p-bd:var(--pp-peach-bd); }
+.t-sky { --p-bg:var(--pp-sky-soft); --p-fg:var(--pp-sky-ink); --p-bd:var(--pp-sky-bd); }
+.t-mint { --p-bg:var(--pp-mint-soft); --p-fg:var(--pp-mint-ink); --p-bd:var(--pp-mint-bd); }
+.t-butter { --p-bg:var(--pp-butter-soft); --p-fg:var(--pp-butter-ink); --p-bd:var(--pp-butter-bd); }
+.t-lilac { --p-bg:var(--pp-lilac-soft); --p-fg:var(--pp-lilac-ink); --p-bd:var(--pp-lilac-bd); }
+.t-rose { --p-bg:var(--pp-rose-soft); --p-fg:var(--pp-rose-ink); --p-bd:var(--pp-rose-bd); }
+.count-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .74rem; font-weight: 600;
+  background: var(--pp-peach-soft); color: var(--pp-peach-ink); border: 1px solid var(--pp-peach-bd); }
+.count-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* needs attention */
+.att-list { padding: 0 18px 12px; display: grid; gap: 8px; }
+.att-row { display: grid; grid-template-columns: 84px minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 11px 12px;
+  border: 1.5px solid var(--line); border-radius: 16px; transition: border-color .3s, opacity .3s, transform .3s; }
+.att-row:hover { border-color: var(--line-med); }
+.att-row.gone { opacity: 0; transform: translateX(8px); }
+.tag { text-align: center; padding: 3px 7px; border-radius: 6px; font-family: var(--mono); font-size: .6rem; font-weight: 600; letter-spacing: .09em;
+  background: var(--p-bg); color: var(--p-fg); text-transform: uppercase; }
+.att-row .t { font-size: .9rem; font-weight: 550; line-height: 1.3; }
+.att-row .m { font-size: .76rem; color: var(--muted); margin-top: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.att-row .acts { display: flex; gap: 6px; }
+.miss-run { display: inline-flex; gap: 3px; }
+
+/* the dot vocabulary: present / excused / absent / no roll */
+.d { width: 12px; height: 12px; border-radius: 4px; flex: none; display: inline-block; position: relative; }
+.d.p { background: var(--pp-mint-ink); }
+.d.e { background: var(--pp-butter-soft); box-shadow: inset 0 0 0 2px var(--pp-butter-ink); }
+.d.a { background: var(--pp-peach-soft); box-shadow: inset 0 0 0 1.5px var(--pp-peach-ink); }
+.d.a::after { content: ""; position: absolute; inset: 3px; background:
+  linear-gradient(45deg, transparent 42%, var(--pp-peach-ink) 42% 58%, transparent 58%),
+  linear-gradient(-45deg, transparent 42%, var(--pp-peach-ink) 42% 58%, transparent 58%); }
+.d.n { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-med); }
+
+/* turnout chart */
+.seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--paper-2); border: 1.5px solid var(--line); }
+.seg button { border: 0; background: none; padding: 5px 12px; border-radius: 999px; font-size: .8rem; font-weight: 550; color: var(--muted);
+  transition: background .18s, color .18s; }
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--pp-sh-1); }
+.seg button .c { margin-left: 4px; color: var(--muted); font-weight: 500; }
+.chart-wrap { padding: 4px 18px 16px; position: relative; }
+.chart { width: 100%; height: 230px; overflow: visible; }
+.chart .bar { cursor: pointer; transition: opacity .2s; }
+.chart.hovering .bar:not(.hot) { opacity: .35; }
+.chart text { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 0 18px 16px; font-size: .76rem; color: var(--ink-soft); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend .line-sw { width: 16px; border-top: 1.5px dashed var(--ink-soft); }
+.tip { position: absolute; pointer-events: none; z-index: 5; min-width: 178px; padding: 10px 12px; border-radius: 14px;
+  background: var(--card); border: 1.5px solid var(--ink); box-shadow: 3px 3px 0 var(--pp-butter); font-size: .78rem;
+  opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; }
+.tip.show { opacity: 1; transform: none; }
+.tip b { display: block; font-size: .86rem; font-weight: 600; }
+.tip .when { font-family: var(--mono); font-size: .68rem; color: var(--muted); }
+.tip .rows { margin-top: 7px; display: grid; gap: 3px; }
+.tip .rows div { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; }
+.tip .rows b { display: inline; font-family: var(--mono); font-weight: 500; font-size: .74rem; }
+
+/* register */
+.rt .card-h .right { flex-basis: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.search { position: relative; }
+.search .i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--muted); }
+.search input { width: 200px; padding: 7px 12px 7px 32px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--paper);
+  font: inherit; font-size: .82rem; color: var(--ink); outline: none; transition: border-color .15s, width .15s; }
+.search input:focus { border-color: var(--muted); width: 220px; }
+.rt-scroll { border-top: 1.5px solid var(--line); overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 640px; }
+thead th { position: sticky; top: 0; background: var(--paper-2); box-shadow: inset 0 -1.5px 0 var(--line); text-align: left;
+  font-size: .64rem; font-weight: 700; letter-spacing: .09em; color: var(--muted); padding: 9px 12px; white-space: nowrap; text-transform: uppercase; }
+thead th:first-child, tbody td:first-child { padding-left: 18px; }
+thead th:last-child, tbody td:last-child { padding-right: 18px; text-align: right; }
+thead th button { border: 0; background: none; padding: 0; font: inherit; letter-spacing: inherit; color: inherit; text-transform: inherit;
+  display: inline-flex; align-items: center; gap: 4px; }
+thead th button:hover, thead th button.on { color: var(--ink); }
+thead th button .ar { font-size: .8em; opacity: 0; }
+thead th button.on .ar { opacity: 1; }
+tbody td { border-bottom: 1px solid var(--line-soft); font-size: .86rem; padding: 9px 12px; vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--paper-2); }
+tbody tr.risk { background: color-mix(in srgb, var(--pp-peach-soft) 70%, transparent); }
+tbody tr.risk:hover { background: var(--pp-peach-soft); }
+.who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.who .nm { font-weight: 550; line-height: 1.25; white-space: nowrap; }
+.who .rl { font-size: .72rem; color: var(--muted); }
+.av { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 700;
+  background: var(--p-bg); color: var(--p-fg); border: 1.5px solid var(--p-bd); }
+.av.sm { width: 24px; height: 24px; font-size: .6rem; }
+.strip { display: flex; gap: 3px; }
+.strip .d { cursor: default; }
+.rate { display: flex; align-items: center; gap: 9px; }
+.rate .track { width: 74px; height: 6px; border-radius: 3px; background: var(--card-3); position: relative; }
+.rate .track i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
+.rate .track::after { content: ""; position: absolute; left: 80%; top: -3px; bottom: -3px; width: 1.5px; background: var(--ink-soft); opacity: .55; }
+.rate .pct { font-family: var(--mono); font-size: .8rem; width: 38px; }
+.streak { font-size: .78rem; white-space: nowrap; color: var(--ink-soft); }
+.streak.hot { color: var(--pp-mint-ink); font-weight: 600; }
+.streak.cold { color: var(--pp-peach-ink); font-weight: 600; }
+.status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .74rem; font-weight: 600;
+  background: var(--p-bg); color: var(--p-fg); border: 1px solid var(--p-bd); white-space: nowrap; }
+.status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.rt-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 11px 18px;
+  border-top: 1.5px solid var(--line); background: var(--paper-2); border-radius: 0 0 20px 20px; font-size: .8rem; color: var(--muted); }
+.rt-foot .keys { display: flex; gap: 12px; flex-wrap: wrap; }
+.rt-foot .keys span { display: inline-flex; align-items: center; gap: 6px; }
+.rt-foot button { border: 0; background: none; padding: 0; font-weight: 600; color: var(--ink-soft); }
+.rt-foot button:hover { color: var(--ink); }
+.empty-row td { text-align: center !important; padding: 26px; color: var(--muted); }
+
+/* rail */
+.next { position: relative; overflow: hidden; background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); }
+.next .card-h .sub { color: var(--pp-butter-ink); }
+.next-body { padding: 0 18px 16px; }
+.when-row { display: flex; gap: 14px; align-items: center; }
+.date-tile { width: 58px; flex: none; text-align: center; border-radius: 14px; background: var(--card); border: 1.5px solid var(--ink);
+  box-shadow: 2.5px 2.5px 0 var(--pp-sky); overflow: hidden; }
+.date-tile .mo { font-size: .6rem; font-weight: 700; letter-spacing: .12em; padding: 3px 0; background: var(--pp-sky); color: #26211B; }
+.date-tile .dy { font-family: var(--serif); font-weight: 700; font-size: 1.55rem; line-height: 1.25; letter-spacing: -.04em; padding-bottom: 2px; }
+.when-row b { display: block; font-size: 1rem; font-weight: 600; letter-spacing: -.015em; }
+.when-row small { font-size: .78rem; color: var(--ink-soft); }
+.expect { margin-top: 14px; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1.5px solid var(--line); }
+.expect .lab { display: flex; justify-content: space-between; font-size: .74rem; color: var(--muted); }
+.expect .lab b { font-family: var(--mono); font-weight: 500; color: var(--ink); }
+.seats { margin-top: 8px; display: grid; grid-template-columns: repeat(24, 1fr); gap: 3px; }
+.seats i { aspect-ratio: 1; border-radius: 3px; background: var(--card-3); }
+.seats i.f { background: var(--pp-mint-ink); }
+.edge { margin-top: 14px; }
+.edge .lab { font-size: .7rem; font-weight: 700; letter-spacing: .08em; color: var(--pp-peach-ink); text-transform: uppercase; }
+.edge-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--pp-butter-bd); }
+.edge-row:last-of-type { border-bottom: 0; }
+.edge-row .nm { font-size: .84rem; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edge-row .drop { font-family: var(--mono); font-size: .74rem; color: var(--ink-soft); white-space: nowrap; }
+.edge-row .drop b { color: var(--pp-peach-ink); font-weight: 600; }
+.next-acts { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+
+.mine { padding: 0 18px 16px; }
+.mine-top { display: flex; align-items: baseline; gap: 10px; }
+.mine-top .big { font-family: var(--serif); font-weight: 700; font-size: 2.1rem; letter-spacing: -.05em; line-height: 1; }
+.mine-top .big small { font-size: .95rem; color: var(--muted); }
+.mine-top .of { font-size: .82rem; color: var(--ink-soft); }
+.mine .strip { margin-top: 12px; gap: 4px; }
+.mine .strip .d { width: auto; flex: 1; height: 16px; border-radius: 5px; }
+.mine .strip .d.a::after { inset: 4px calc(50% - 4px); }
+.mine-note { margin-top: 10px; font-size: .8rem; color: var(--ink-soft); display: flex; align-items: center; gap: 7px; }
+.mine-note .i { width: 15px; height: 15px; color: var(--pp-mint-ink); }
+
+.hist { padding: 22px 18px 4px; }
+.hist-bars { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; height: 132px; align-items: end; position: relative; }
+.hb { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 5px; cursor: pointer; }
+.hb .n { font-family: var(--mono); font-size: .72rem; color: var(--ink-soft); }
+.hb i { width: 100%; border-radius: 8px 8px 4px 4px; background: var(--p-fg); opacity: .9; transform-origin: bottom;
+  animation: rise 1s var(--ease-out) both; transition: opacity .15s; }
+.hb.dim i { opacity: .25; }
+@keyframes rise { from { transform: scaleY(0); } }
+.hist-axis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 6px; }
+.hist-axis span { text-align: center; font-family: var(--mono); font-size: .64rem; color: var(--muted); }
+.hist-line { position: absolute; top: -8px; bottom: 0; width: 0; border-left: 1.5px dashed var(--ink-soft); }
+.hist-line span { position: absolute; top: -20px; left: 6px; font-family: var(--mono); font-size: .64rem; color: var(--ink-soft); white-space: nowrap; }
+.hist-sum { display: grid; grid-template-columns: repeat(3, 1fr); margin: 14px 18px 16px; border: 1.5px solid var(--line); border-radius: 14px; overflow: hidden; }
+.hist-sum div { padding: 8px 10px; text-align: center; }
+.hist-sum div + div { border-left: 1.5px solid var(--line); }
+.hist-sum b { display: block; font-family: var(--serif); font-size: 1.25rem; font-weight: 700; letter-spacing: -.03em; color: var(--p-fg); }
+.hist-sum small { font-size: .7rem; color: var(--muted); }
+
+.feed { padding: 0 18px 14px; }
+.feed-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.feed-row:last-child { border-bottom: 0; }
+.feed-row .tx { font-size: .82rem; color: var(--ink-soft); line-height: 1.35; }
+.feed-row .tx b { color: var(--ink); font-weight: 600; }
+.feed-row time { font-family: var(--mono); font-size: .68rem; color: var(--muted); white-space: nowrap; }
+
+/* mock controls */
+.mockbar { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px;
+  border-radius: 999px; background: var(--card); border: 1.5px solid var(--ink); box-shadow: 3px 3px 0 var(--pp-lilac); font-size: .74rem; }
+.mockbar .lbl { font-family: var(--mono); font-size: .64rem; letter-spacing: .1em; color: var(--muted); margin-right: 4px; }
+.mockbar button { border: 0; background: none; padding: 5px 11px; border-radius: 999px; font-weight: 600; color: var(--muted); }
+.mockbar button.on { background: var(--ink); color: var(--paper); }
+.toast { position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 20px); opacity: 0; z-index: 60; pointer-events: none;
+  padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--paper); font-size: .84rem; font-weight: 550;
+  box-shadow: 3px 3px 0 var(--pp-mint); transition: opacity .2s, transform .25s var(--spring); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* responsive */
+@media (max-width: 1180px) {
+  .grid { grid-template-columns: minmax(0,1fr); }
+  .rail { grid-template-columns: repeat(2, minmax(0,1fr)); align-items: start; }
+}
+@media (max-width: 1023px) { .sb { display: none; } }
+@media (max-width: 900px) {
+  .briefing { grid-template-columns: minmax(0,1fr); }
+  .ledger { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 720px) {
+  .rail { grid-template-columns: minmax(0,1fr); }
+  .att-row { grid-template-columns: minmax(0,1fr) auto; }
+  .att-row .tag { grid-column: 1 / -1; justify-self: start; }
+  .health { flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+  .ledger { grid-template-columns: minmax(0,1fr); }
+  .att-row { grid-template-columns: minmax(0,1fr); }
+  .search input, .search input:focus { width: 100%; }
+  .search { flex: 1; }
+  .mockbar .lbl { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="timeline" viewBox="0 0 24 24"><path d="M4 5h1M4 12h1M4 19h1M9 5h11M9 12h11M9 19h11"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.6.8 2.7 2.6 3 5.2"/></symbol>
+  <symbol id="gavel" viewBox="0 0 24 24"><path d="m14 4 6 6M11.5 6.5l6 6M8 10l6-6 6 6-6 6zM9.5 11.5 3 18l3 3 6.5-6.5"/></symbol>
+  <symbol id="cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="checksq" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></symbol>
+  <symbol id="down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="bolt" viewBox="0 0 24 24"><path d="M13 3 5 13.5h6L10 21l8-10.5h-6z"/></symbol>
+  <symbol id="trend" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8M15 7h6v6"/></symbol>
+  <symbol id="star" viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+  <symbol id="alert" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4zM12 10v4M12 17h.01"/></symbol>
+  <symbol id="bars" viewBox="0 0 24 24"><path d="M5 20V11M10 20V5M15 20v-7M20 20V8"/></symbol>
+  <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12L17 12h4"/></symbol>
+  <symbol id="bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/></symbol>
+  <symbol id="sparkle" viewBox="0 0 24 24"><path d="M12 2c.6 4.7 2.3 7.4 7 8-4.7.6-6.4 3.3-7 8-.6-4.7-2.3-7.4-7-8 4.7-.6 6.4-3.3 7-8z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/></symbol>
+</svg>
+
+<div class="shell">
+  <aside class="sb">
+    <div class="sb-org">
+      <div class="sb-logo">L</div>
+      <div><b>Lakeside Debate</b><small>FA26</small></div>
+      <svg class="i chev"><use href="#chev"/></svg>
+    </div>
+    <div class="sb-body">
+      <button class="sb-needs" data-go="sec-attn"><svg class="i"><use href="#flag"/></svg>Needs you<span class="n" id="sbNeeds">4</span></button>
+      <div class="sb-grp"><div class="sb-grp-h">OVERVIEW</div>
+        <button class="sb-item on"><svg class="i"><use href="#home"/></svg>Dashboard</button>
+        <button class="sb-item"><svg class="i"><use href="#timeline"/></svg>Timeline</button>
+      </div>
+      <div class="sb-grp"><div class="sb-grp-h">MEMBERS</div>
+        <button class="sb-item"><svg class="i"><use href="#users"/></svg>Members</button>
+        <button class="sb-item"><svg class="i"><use href="#gavel"/></svg>Meetings</button>
+      </div>
+    </div>
+    <div class="sb-foot">
+      <span class="av t-lilac">MO</span>
+      <div><b>Maya Okafor</b><small>President</small></div>
+    </div>
+  </aside>
+
+  <main class="page" id="page">
+    <div class="dash">
+
+      <!-- briefing -->
+      <section class="briefing">
+        <div>
+          <div class="kicker"><span class="today">WED · OCT 7</span><span>WEEK OF OCT 5–11</span></div>
+          <h1 class="greeting">Good afternoon, <em>Maya</em>.<span class="wave"><svg class="i"><use href="#hand"/></svg></span></h1>
+          <div class="digest"><span class="ai-chip"><svg><use href="#sparkle"/></svg>AI</span><p id="digest"></p></div>
+          <div class="brief-actions">
+            <button class="btn ink" data-toast="Check-in opened for Mon Oct 12 · General meeting"><svg class="i"><use href="#check"/></svg>Open check-in</button>
+            <button class="btn mint" data-toast="Log attendance: pick a meeting, then tap names"><svg class="i"><use href="#checksq"/></svg>Log attendance</button>
+            <button class="btn" data-toast="Excuse form opened"><svg class="i"><use href="#clock"/></svg>Excuse an absence</button>
+            <button class="btn quiet" data-go="sec-mine">My attendance</button>
+          </div>
+        </div>
+        <div class="health">
+          <div class="meta">
+            <div class="label">TERM ATTENDANCE</div>
+            <div class="state" id="hState"></div>
+            <div class="split">
+              <div class="split-bar" id="hSplit"></div>
+              <div class="split-key" id="hKey"></div>
+            </div>
+          </div>
+          <div class="dial" id="dial"></div>
+        </div>
+      </section>
+
+      <!-- four measures, all attendance -->
+      <section class="ledger" id="ledger"></section>
+
+      <div class="grid">
+        <div class="col">
+          <section class="card" id="sec-attn" aria-label="Needs attention">
+            <div class="card-h"><span class="tile t-peach"><svg class="i"><use href="#flag"/></svg></span><h2>Needs attention</h2><span class="count-chip" id="attnCount"></span><span class="sub">Resolved items drop off</span></div>
+            <div class="att-list" id="attn"></div>
+          </section>
+
+          <section class="card" aria-label="Turnout by meeting">
+            <div class="card-h">
+              <span class="tile t-mint"><svg class="i"><use href="#bars"/></svg></span><h2>Turnout by meeting</h2>
+              <div class="seg" id="kindSeg" style="margin-left:auto"></div>
+            </div>
+            <div class="chart-wrap" id="chartWrap">
+              <svg class="chart" id="chart" role="img" aria-label="Turnout per meeting this term"></svg>
+              <div class="tip" id="tip"></div>
+            </div>
+            <div class="legend">
+              <span><i class="sw p"></i>Present</span><span><i class="sw e"></i>Excused</span><span><i class="sw a"></i>Absent</span>
+              <span><i class="line-sw"></i>80% line</span>
+              <span style="margin-left:auto;color:var(--muted)" id="chartAvg"></span>
+            </div>
+          </section>
+
+          <section class="card rt" aria-label="Attendance register">
+            <div class="card-h">
+              <span class="tile t-sky"><svg class="i"><use href="#users"/></svg></span><h2>Attendance register</h2>
+              <span class="sub" id="rtSub"></span>
+              <div class="right">
+                <div class="seg" id="stSeg"></div>
+                <label class="search"><svg class="i"><use href="#search"/></svg><input id="q" placeholder="Search members or role…"></label>
+              </div>
+            </div>
+            <div class="rt-scroll">
+              <table>
+                <thead><tr>
+                  <th><button data-sort="name">Member <span class="ar">↑</span></button></th>
+                  <th id="lastHead">This term, oldest → newest</th>
+                  <th><button data-sort="rate" class="on">Rate <span class="ar">↑</span></button></th>
+                  <th><button data-sort="streak">Streak <span class="ar">↑</span></button></th>
+                  <th>Status</th>
+                </tr></thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
+            <div class="rt-foot">
+              <div class="keys"><span><i class="d p"></i>Present</span><span><i class="d e"></i>Excused</span><span><i class="d a"></i>Absent</span><span><i class="d n"></i>Not a member yet</span></div>
+              <button id="more"></button>
+            </div>
+          </section>
+        </div>
+
+        <aside class="col rail">
+          <section class="card next" aria-label="Next roll call">
+            <div class="card-h"><span class="tile t-butter"><svg class="i"><use href="#bell"/></svg></span><h2>Next roll call</h2><span class="sub">in 5 days</span></div>
+            <div class="next-body">
+              <div class="when-row">
+                <div class="date-tile"><div class="mo">OCT</div><div class="dy">12</div></div>
+                <div><b>General meeting</b><small>Mon · 7:00 PM · Hartley 214</small></div>
+              </div>
+              <div class="expect"><div class="lab"><span>Expected turnout</span><b id="expN"></b></div><div class="seats" id="seats"></div></div>
+              <div class="edge"><div class="lab">One miss from the line</div><div id="edge"></div></div>
+              <div class="next-acts">
+                <button class="btn sm ink" data-toast="Reminder queued for the members one miss from the line">Nudge them</button>
+                <button class="btn sm" data-toast="Check-in QR ready for Oct 12">Prep check-in</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card" id="sec-mine" aria-label="Your attendance">
+            <div class="card-h"><span class="tile t-lilac"><svg class="i"><use href="#user"/></svg></span><h2>Your attendance</h2><span class="sub">Maya</span></div>
+            <div class="mine" id="mine"></div>
+          </section>
+
+          <section class="card" aria-label="Where everyone stands">
+            <div class="card-h"><span class="tile t-rose"><svg class="i"><use href="#pulse"/></svg></span><h2>Where everyone stands</h2></div>
+            <div class="hist"><div class="hist-bars" id="hist"></div><div class="hist-axis" id="histAxis"></div></div>
+            <div class="hist-sum" id="histSum"></div>
+          </section>
+
+          <section class="card" aria-label="Recent check-ins">
+            <div class="card-h"><span class="tile t-sky"><svg class="i"><use href="#clock"/></svg></span><h2>Recent check-ins</h2><span class="sub">Mon Oct 5</span></div>
+            <div class="feed" id="feed"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="mockbar"><span class="lbl">MOCK</span><button data-theme="day" class="on">Day</button><button data-theme="night">Night</button></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── data ──────────────────────────────────────────────────────────────────── */
+const LINE = 0.80;
+const MEETINGS = [
+  ["Aug 31","Mon","Kickoff general meeting","general"], ["Sep 3","Thu","Practice rounds","practice"],
+  ["Sep 7","Mon","General meeting","general"],          ["Sep 10","Thu","Practice rounds","practice"],
+  ["Sep 14","Mon","General meeting","general"],         ["Sep 17","Thu","Practice rounds","practice"],
+  ["Sep 21","Mon","General meeting","general"],         ["Sep 26","Sat","Novice tournament","tournament"],
+  ["Sep 28","Mon","General meeting","general"],         ["Oct 1","Thu","Practice rounds","practice"],
+  ["Oct 3","Sat","Fall social","social"],               ["Oct 5","Mon","General meeting","general"],
+].map(([date, dow, title, kind], i) => ({ i, date, dow, title, kind, roll: !(kind === "social") }));
+// The Oct 3 social had no roll taken — it's a needs-attention item, not a 0% bar.
+// Turnout climbs as term settles; practices and the away tournament run thinner.
+const DRIFT = [-.22,-.24,-.14,-.18,-.08,-.12,-.02,-.14,.02,-.03,0,.04];
+const KIND = { general: ["General", "var(--c-chapter)"], practice: ["Practice", "var(--c-program)"],
+  tournament: ["Tournament", "var(--c-service)"], social: ["Social", "var(--c-social)"] };
+
+const NAMES = [
+  ["Maya Okafor","President"],["Theo Brandt","Vice President"],["Priya Raman","Treasurer"],["Jonah Weiss","Secretary"],
+  ["Lena Castillo","Novice captain"],["Marcus Hale","Member"],["Dev Patel","Member"],["Sofia Marchetti","Member"],
+  ["Owen Gallagher","Member"],["Amara Nwosu","Member"],["Ruth Kim","Member"],["Felix Moreau","Member"],
+  ["Hana Sato","Member"],["Isaac Levin","Member"],["Grace Mbeki","Member"],["Leo Fischer","Member"],
+  ["Nadia Haddad","Member"],["Caleb Ortiz","Member"],["Zoe Lindqvist","Member"],["Ezra Cohen","Member"],
+  ["Mira Desai","Member"],["Tomas Novak","Member"],["Ava Brooks","Member"],["Sam Whitfield","Member"],
+  ["Iris Chen","Member"],["Noah Adeyemi","Member"],["Clara Jensen","Member"],["Ravi Menon","Member"],
+  ["Elise Dubois","Member"],["Kofi Asante","Member"],["Juno Park","Member"],["Ben Alvarez","Member"],
+  ["Tess Morgan","Member"],["Yusuf Kaya","Member"],["Lila Romero","Member"],["Gabe Turner","Member"],
+  ["Nina Petrova","Member"],["Ollie Grant","Member"],["Sana Qureshi","Member"],["Max Hoffmann","Member"],
+  ["Rosa Delgado","Member"],["Finn O'Brien","Member"],["Esme Laurent","Member"],["Arjun Rao","Member"],
+];
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const TINTS = ["t-peach","t-sky","t-mint","t-butter","t-lilac","t-rose"];
+const ROLLS = MEETINGS.filter(m => m.roll);
+
+const members = NAMES.map(([name, role], idx) => {
+  const p = idx < 5 ? .97 : [.97,.94,.9,.87,.84,.8,.76,.7,.6][Math.floor(rnd() * 9)];
+  const joined = idx === 30 || idx === 41 ? 4 : 0;          // two members joined late
+  const marks = MEETINGS.map((m, i) => {
+    if (!m.roll) return "x";                                 // no roll taken
+    if (i < joined) return "n";
+    const r = rnd(), q = p + DRIFT[i]; return r < q ? "p" : (r < q + (1 - q) * .18 ? "e" : "a");
+  });
+  return { id: idx, name, role, tint: TINTS[idx % 6], marks };
+});
+// Hand-set stories so the narrative panels have something true to say.
+const set = (n, s) => { const m = members.find(x => x.name === n); m.marks = s.split(""); };
+set("Maya Okafor",    "ppppppppepxp");
+set("Marcus Hale",    "pppeppppaaxa"); // three straight misses
+set("Dev Patel",      "pppaeppapexe");
+set("Sofia Marchetti","pappppapppxp");
+set("Owen Gallagher", "pppappppapxp");
+set("Ruth Kim",       "ppppapppppxa");
+set("Caleb Ortiz",    "papapaapapxp");
+for (let k = 0; k < 8; k++) { const m = members[8 + k * 2]; if (m && !["Owen Gallagher","Ruth Kim","Caleb Ortiz","Dev Patel","Marcus Hale"].includes(m.name)) m.marks = m.marks.map(c => c === "a" || c === "e" ? "p" : c); }
+
+function stats(m) {
+  const held = m.marks.filter(c => c !== "x" && c !== "n");
+  const p = held.filter(c => c === "p").length, e = held.filter(c => c === "e").length, a = held.filter(c => c === "a").length;
+  const counted = held.length - e, rate = counted ? p / counted : 1;
+  let streak = 0, kind = "hot";
+  const seq = m.marks.filter(c => c !== "x" && c !== "n").reverse();
+  if (seq[0] === "a") { kind = "cold"; for (const c of seq) { if (c === "a") streak++; else if (c === "e") continue; else break; } }
+  else { for (const c of seq) { if (c === "p") streak++; else if (c === "e") continue; else break; } }
+  const ifMiss = p / (counted + 1);
+  const status = rate >= .9 ? "good" : rate >= LINE ? "watch" : "risk";
+  return { p, e, a, held: held.length, counted, rate, streak, kind, ifMiss, status, perfect: a === 0 && e === 0 && held.length > 0 };
+}
+members.forEach(m => Object.assign(m, stats(m)));
+const me = members[0];
+const pct = x => Math.round(x * 100);
+const initials = n => n.split(" ").map(s => s[0]).join("").slice(0, 2);
+const ST = { good: ["On track","t-mint"], watch: ["Watch","t-butter"], risk: ["Below line","t-peach"] };
+
+// meeting turnout
+ROLLS.forEach(m => {
+  const cs = members.map(x => x.marks[m.i]).filter(c => c !== "n");
+  m.p = cs.filter(c => c === "p").length; m.e = cs.filter(c => c === "e").length; m.a = cs.filter(c => c === "a").length;
+  m.n = cs.length; m.rate = m.p / (m.n - m.e);
+});
+const totP = members.reduce((s, m) => s + m.p, 0), totE = members.reduce((s, m) => s + m.e, 0), totA = members.reduce((s, m) => s + m.a, 0);
+const termRate = totP / (totP + totA);
+const last = ROLLS[ROLLS.length - 1];
+const below = members.filter(m => m.status === "risk");
+const perfect = members.filter(m => m.perfect);
+const edge = members.filter(m => m.status !== "risk" && m.ifMiss < LINE).sort((a, b) => a.ifMiss - b.ifMiss).slice(0, 3);
+const marcus = members.find(m => m.name === "Marcus Hale");
+const firstHalf = ROLLS.slice(0, 5), secondHalf = ROLLS.slice(-5);
+const avgRate = arr => arr.reduce((s, m) => s + m.rate, 0) / arr.length;
+const delta = Math.round((avgRate(secondHalf) - avgRate(firstHalf)) * 100);
+
+/* ── helpers ───────────────────────────────────────────────────────────────── */
+const $ = s => document.querySelector(s);
+const ic = (id, cls = "i") => `<svg class="${cls}"><use href="#${id}"/></svg>`;
+const av = (m, sm) => `<span class="av ${sm ? "sm " : ""}${m.tint}" title="${m.name}">${initials(m.name)}</span>`;
+const dot = (c, mt) => { const lab = { p: "Present", e: "Excused", a: "Absent", n: "Not a member yet" }[c];
+  return `<i class="d ${c}" title="${mt.dow} ${mt.date} · ${mt.title} — ${lab}"></i>`; };
+const rateColor = r => r >= .9 ? "var(--pp-mint-ink)" : r >= LINE ? "var(--pp-butter-ink)" : "var(--pp-peach-ink)";
+
+/* ── briefing ──────────────────────────────────────────────────────────────── */
+const trendTxt = Math.abs(delta) < 2 ? `Turnout is holding at <b>${pct(termRate)}%</b>.` : `Turnout is ${delta > 0 ? "up" : "down"} <b>${Math.abs(delta)} pts</b> since the first weeks of term.`;
+$("#digest").innerHTML = `${trendTxt} <b>${marcus.name.split(" ")[0]}</b> has missed ${marcus.streak} in a row, and <b>${edge.length} members</b> drop below 80% if they skip Monday.`;
+$("#hState").textContent = termRate >= .9 ? "Strong" : termRate >= LINE ? "Healthy" : "Slipping";
+const all = totP + totE + totA;
+$("#hSplit").innerHTML = `<i style="flex:${totP};background:var(--pp-mint-ink)"></i><i style="flex:${totE};background:var(--pp-butter-ink)"></i><i style="flex:${totA};background:var(--pp-peach-ink)"></i>`;
+$("#hKey").innerHTML = [["p","Present",totP],["e","Excused",totE],["a","Absent",totA]]
+  .map(([c, l, n]) => `<div><i class="sw ${c}"></i>${l}<b>${n} · ${pct(n / all)}%</b></div>`).join("");
+(function dial() {
+  const r = 52, C = 2 * Math.PI * r, v = termRate;
+  const tick = LINE * 360;
+  $("#dial").innerHTML = `<svg viewBox="0 0 124 124">
+    <circle cx="62" cy="62" r="${r}" fill="none" stroke="var(--card-3)" stroke-width="9"/>
+    <circle cx="62" cy="62" r="${r}" fill="none" stroke="${rateColor(v)}" stroke-width="9" stroke-dasharray="${C}" stroke-dashoffset="${C}">
+      <animate attributeName="stroke-dashoffset" to="${C * (1 - v)}" dur="1.1s" begin=".3s" fill="freeze" calcMode="spline" keySplines=".22 .72 .24 1" keyTimes="0;1"/></circle>
+    <line x1="104" y1="62" x2="120" y2="62" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" transform="rotate(${tick} 62 62)"/>
+  </svg><div class="num"><span>${pct(v)}<small>%</small></span><em>LINE 80</em></div>`;
+})();
+
+/* ── measures ──────────────────────────────────────────────────────────────── */
+(function measures() {
+  const rates = ROLLS.map(m => m.rate), w = 200, h = 30, lo = .6, hi = 1;
+  const pts = rates.map((r, i) => [i / (rates.length - 1) * w, h - (r - lo) / (hi - lo) * h]);
+  const path = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const ly = h - (LINE - lo) / (hi - lo) * h, lp = pts[pts.length - 1];
+  const spark = `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <line x1="0" x2="${w}" y1="${ly}" y2="${ly}" stroke="var(--line-med)" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    <path d="${path} L ${w} ${h} L 0 ${h} Z" fill="var(--pp-mint-soft)"/>
+    <path d="${path}" fill="none" stroke="var(--pp-mint-ink)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <circle cx="${lp[0]}" cy="${lp[1]}" r="3" fill="var(--pp-mint-ink)"/></svg>`;
+  const lastSplit = `<div class="mini-split"><i style="flex:${last.p};background:var(--pp-mint-ink)"></i><i style="flex:${last.e};background:var(--pp-butter-ink)"></i><i style="flex:${last.a};background:var(--pp-peach-ink)"></i></div>`;
+  const ticks = `<div class="ticks">${members.slice().sort((a, b) => a.rate - b.rate).map(m => `<i class="${m.status === "risk" ? "on" : ""}"></i>`).join("")}</div>`;
+  const faces = `<div class="faces">${perfect.slice(0, 6).map(m => av(m, true)).join("")}<span class="more">+${Math.max(0, perfect.length - 6)}</span></div>`;
+  const cards = [
+    ["trend", "var(--pp-mint-ink)", "Term rate", `${pct(termRate)}<small>%</small>`, Math.abs(delta) < 2 ? "steady since September" : `${delta > 0 ? "▲" : "▼"} ${Math.abs(delta)} pts since September`, delta >= 0 ? "good" : "warn", spark],
+    ["checksq", "var(--pp-sky-ink)", "Last meeting", `${last.p}<small>/ ${last.n}</small>`, `${last.dow} ${last.date} · ${last.e} excused, ${last.a} absent`, "", lastSplit],
+    ["alert", "var(--pp-peach-ink)", "Below 80%", `${below.length}<small>members</small>`, `${edge.length} more one miss away`, "warn", ticks],
+    ["star", "var(--pp-butter-ink)", "Perfect record", `${perfect.length}<small>members</small>`, `every roll call this term`, "", faces],
+  ];
+  $("#ledger").innerHTML = cards.map(([icon, c, k, v, note, cls, viz]) =>
+    `<div class="measure" style="--c:${c}"><div class="k">${ic(icon)}${k}</div><div class="v">${v}</div><div class="note ${cls}">${note}</div>${viz}</div>`).join("");
+})();
+
+/* ── needs attention ───────────────────────────────────────────────────────── */
+const social = MEETINGS.find(m => !m.roll);
+const ATTN = [
+  { tag: "Slipping", t: "t-peach", title: `${marcus.name} has missed ${marcus.streak} in a row`,
+    meta: `<span class="miss-run">${ROLLS.slice(-5).map(m => dot(marcus.marks[m.i], m)).join("")}</span> ${pct(marcus.rate)}% for the term`, acts: [["Reach out", "ink"]] },
+  { tag: "Below line", t: "t-peach", title: `${below.length} members are under 80%`,
+    meta: below.slice(0, 4).map(m => m.name.split(" ")[0]).join(", ") + (below.length > 4 ? ` +${below.length - 4}` : ""), acts: [["Review", ""]] },
+  { tag: "Excuse", t: "t-lilac", title: `Dev Patel asked to excuse Mon Oct 5`,
+    meta: `"Midterm review session ran late" · sent Sunday`, acts: [["Deny", "quiet"], ["Approve", "mint"]] },
+  { tag: "No roll", t: "t-butter", title: `${social.title}, ${social.dow} ${social.date}: no attendance taken`,
+    meta: `Log it now, or mark it as not counting`, acts: [["Not counted", "quiet"], ["Log it", ""]] },
+];
+function renderAttn() {
+  $("#attn").innerHTML = ATTN.map((a, i) => `<div class="att-row" data-i="${i}">
+    <span class="tag ${a.t}">${a.tag}</span>
+    <div><div class="t">${a.title}</div><div class="m">${a.meta}</div></div>
+    <div class="acts">${a.acts.map(([l, k]) => `<button class="btn sm ${k}" data-done="${i}">${l}</button>`).join("")}</div></div>`).join("");
+  $("#attnCount").textContent = ATTN.length; $("#sbNeeds").textContent = ATTN.length;
+  $("#attnCount").style.display = ATTN.length ? "" : "none";
+  if (!ATTN.length) $("#attn").innerHTML = `<div style="padding:4px 2px 8px;color:var(--ink-soft);font-size:.88rem">Nothing to chase. Every roll is taken and nobody is slipping.</div>`;
+}
+$("#attn").addEventListener("click", e => {
+  const b = e.target.closest("[data-done]"); if (!b) return;
+  const row = b.closest(".att-row"); row.classList.add("gone");
+  toast(`${b.textContent} · ${ATTN[+b.dataset.done].title.split(":")[0]}`);
+  setTimeout(() => { ATTN.splice(+b.dataset.done, 1); renderAttn(); }, 280);
+});
+renderAttn();
+
+/* ── turnout chart ─────────────────────────────────────────────────────────── */
+let kindF = "all";
+function renderSeg() {
+  const kinds = ["all", ...new Set(ROLLS.map(m => m.kind))];
+  $("#kindSeg").innerHTML = kinds.map(k => `<button data-k="${k}" class="${k === kindF ? "on" : ""}">${k === "all" ? "All" : KIND[k][0]}<span class="c">${k === "all" ? ROLLS.length : ROLLS.filter(m => m.kind === k).length}</span></button>`).join("");
+}
+function renderChart() {
+  const list = MEETINGS.filter(m => kindF === "all" || m.kind === kindF);
+  const svg = $("#chart"), W = svg.clientWidth || 700, H = 230, padL = 30, padB = 40, padT = 22;
+  const n = members.length, cw = (W - padL) / list.length, bw = Math.min(46, cw * .6);
+  const y = v => padT + (1 - v / n) * (H - padT - padB);
+  let g = "";
+  [0, .25, .5, .75, 1].forEach(f => { const yy = y(f * n);
+    g += `<line x1="${padL}" x2="${W}" y1="${yy}" y2="${yy}" stroke="var(--line-soft)"/><text x="${padL - 8}" y="${yy + 3.5}" text-anchor="end">${Math.round(f * n)}</text>`; });
+  list.forEach((m, i) => {
+    const x = padL + i * cw + (cw - bw) / 2, cx = x + bw / 2;
+    if (!m.roll) {
+      g += `<g class="bar" data-i="${m.i}"><rect x="${x}" y="${y(n)}" width="${bw}" height="${y(0) - y(n)}" rx="8" fill="none" stroke="var(--line-med)" stroke-dasharray="4 4"/>
+        <text x="${cx}" y="${y(n / 2)}" text-anchor="middle" style="font-size:9.5px">no roll</text></g>`;
+    } else {
+      const top = y(m.p + m.e), full = y(m.n);
+      g += `<g class="bar" data-i="${m.i}">
+        ${m.a ? `<rect x="${x + .75}" y="${full + .75}" width="${bw - 1.5}" height="${top - full}" rx="7" fill="var(--pp-peach-soft)" stroke="var(--pp-peach-ink)" stroke-width="1.2" stroke-dasharray="3 3"/>` : ""}
+        <clipPath id="cp${m.i}"><rect x="${x}" y="${top}" width="${bw}" height="${y(0) - top}" rx="7"/></clipPath>
+        <g clip-path="url(#cp${m.i})"><rect x="${x}" y="${y(m.p)}" width="${bw}" height="${y(0) - y(m.p)}" fill="var(--pp-mint-ink)"/>
+        ${m.e ? `<rect x="${x}" y="${top}" width="${bw}" height="${y(m.p) - top - 1.5}" fill="var(--pp-butter-ink)"/>` : ""}</g>
+        <text x="${cx}" y="${full - 6}" text-anchor="middle" style="fill:${rateColor(m.rate)};font-weight:600">${pct(m.rate)}%</text></g>`;
+    }
+    g += `<circle cx="${cx}" cy="${H - padB + 12}" r="3" fill="${KIND[m.kind][1]}"/><text x="${cx}" y="${H - padB + 28}" text-anchor="middle">${m.date}</text>`;
+  });
+  const ly = y(LINE * n);
+  g += `<line x1="${padL}" x2="${W}" y1="${ly}" y2="${ly}" stroke="var(--ink-soft)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = g;
+  const shown = list.filter(m => m.roll);
+  $("#chartAvg").textContent = shown.length ? `avg ${pct(avgRate(shown))}% across ${shown.length} roll calls` : "";
+}
+$("#kindSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; kindF = b.dataset.k; renderSeg(); renderChart(); });
+$("#chart").addEventListener("mousemove", e => {
+  const g = e.target.closest(".bar"), tip = $("#tip"), svg = $("#chart");
+  svg.querySelectorAll(".bar.hot").forEach(b => b !== g && b.classList.remove("hot"));
+  if (!g) { tip.classList.remove("show"); svg.classList.remove("hovering"); return; }
+  g.classList.add("hot"); svg.classList.add("hovering");
+  const m = MEETINGS[+g.dataset.i];
+  tip.innerHTML = m.roll
+    ? `<b>${m.title}</b><div class="when">${m.dow} ${m.date} · ${KIND[m.kind][0]}</div><div class="rows">
+        <div><i class="sw p"></i>Present<b>${m.p}</b></div><div><i class="sw e"></i>Excused<b>${m.e}</b></div><div><i class="sw a"></i>Absent<b>${m.a}</b></div></div>
+        <div class="when" style="margin-top:6px">${pct(m.rate)}% of those expected</div>`
+    : `<b>${m.title}</b><div class="when">${m.dow} ${m.date}</div><div style="margin-top:6px;color:var(--ink-soft)">No attendance was taken.</div>`;
+  const wrap = $("#chartWrap").getBoundingClientRect(), r = g.getBoundingClientRect();
+  let left = r.left - wrap.left + r.width / 2 + 12; if (left + 190 > wrap.width) left = r.left - wrap.left - 190;
+  tip.style.left = Math.max(4, left) + "px"; tip.style.top = "14px"; tip.classList.add("show");
+});
+$("#chart").addEventListener("mouseleave", () => { $("#tip").classList.remove("show"); $("#chart").classList.remove("hovering"); $("#chart").querySelectorAll(".hot").forEach(b => b.classList.remove("hot")); });
+renderSeg(); renderChart();
+new ResizeObserver(() => renderChart()).observe($("#chartWrap"));
+
+/* ── register ──────────────────────────────────────────────────────────────── */
+let stF = "all", q = "", sortK = "rate", sortDir = 1, showAll = false;
+function renderStSeg() {
+  const c = s => s === "all" ? members.length : members.filter(m => m.status === s).length;
+  $("#stSeg").innerHTML = [["all","All"],["good","On track"],["watch","Watch"],["risk","Below line"]]
+    .map(([k, l]) => `<button data-s="${k}" class="${k === stF ? "on" : ""}">${l}<span class="c">${c(k)}</span></button>`).join("");
+}
+function renderRows() {
+  let list = members.filter(m => (stF === "all" || m.status === stF) && (!q || (m.name + " " + m.role).toLowerCase().includes(q)));
+  const val = m => sortK === "name" ? m.name : sortK === "streak" ? (m.kind === "cold" ? -m.streak : m.streak) : m.rate;
+  list.sort((a, b) => { const A = val(a), B = val(b); return (A < B ? -1 : A > B ? 1 : 0) * sortDir || a.name.localeCompare(b.name); });
+  const total = list.length; if (!showAll && !q && stF === "all") list = list.slice(0, 12);
+  $("#rows").innerHTML = list.length ? list.map(m => {
+    const strip = MEETINGS.map(mt => mt.roll ? dot(m.marks[mt.i], mt) : "").join("");
+    const [sl, st] = ST[m.status];
+    const streak = m.streak === 0 ? `<span class="streak">—</span>` : m.kind === "cold"
+      ? `<span class="streak cold">missed ${m.streak}</span>` : `<span class="streak ${m.streak >= 6 ? "hot" : ""}">${m.streak} in a row</span>`;
+    return `<tr class="${m.status === "risk" ? "risk" : ""}">
+      <td><div class="who">${av(m)}<div><div class="nm">${m.name}</div><div class="rl">${m.role}</div></div></div></td>
+      <td><div class="strip">${strip}</div></td>
+      <td><div class="rate"><span class="track"><i style="width:${pct(m.rate)}%;background:${rateColor(m.rate)}"></i></span><span class="pct">${pct(m.rate)}%</span></div></td>
+      <td>${streak}</td>
+      <td><span class="status ${st}">${sl}</span></td></tr>`;
+  }).join("") : `<tr class="empty-row"><td colspan="5">Nobody matches that.</td></tr>`;
+  const more = $("#more");
+  more.style.display = (!q && stF === "all") ? "" : "none";
+  more.textContent = showAll ? "Show fewer" : `Show all ${members.length} →`;
+  $("#rtSub").textContent = `${ROLLS.length} roll calls · ${total} shown`;
+  document.querySelectorAll("thead [data-sort]").forEach(b => { b.classList.toggle("on", b.dataset.sort === sortK); b.querySelector(".ar").textContent = sortDir > 0 ? "↑" : "↓"; });
+}
+$("#stSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; stF = b.dataset.s; renderStSeg(); renderRows(); });
+$("#q").addEventListener("input", e => { q = e.target.value.trim().toLowerCase(); renderRows(); });
+$("#more").addEventListener("click", () => { showAll = !showAll; renderRows(); });
+document.querySelectorAll("thead [data-sort]").forEach(b => b.addEventListener("click", () => {
+  if (sortK === b.dataset.sort) sortDir *= -1; else { sortK = b.dataset.sort; sortDir = sortK === "name" ? 1 : 1; } renderRows(); }));
+renderStSeg(); renderRows();
+
+/* ── rail ──────────────────────────────────────────────────────────────────── */
+(function next() {
+  const gens = ROLLS.filter(m => m.kind === "general").slice(-4);
+  const exp = Math.round(gens.reduce((s, m) => s + m.p, 0) / gens.length);
+  $("#expN").textContent = `~${exp} of ${members.length}`;
+  $("#seats").innerHTML = members.map((_, i) => `<i class="${i < exp ? "f" : ""}"></i>`).join("");
+  $("#edge").innerHTML = edge.map(m => `<div class="edge-row">${av(m, true)}<span class="nm">${m.name}</span>
+    <span class="drop">${pct(m.rate)}% → <b>${pct(m.ifMiss)}%</b></span></div>`).join("");
+})();
+(function mine() {
+  $("#mine").innerHTML = `<div class="mine-top"><span class="big">${pct(me.rate)}<small>%</small></span><span class="of">${me.p} of ${me.counted} counted · ${me.e} excused</span>
+    <span class="status ${ST[me.status][1]}" style="margin-left:auto">${ST[me.status][0]}</span></div>
+    <div class="strip">${ROLLS.map(mt => dot(me.marks[mt.i], mt)).join("")}</div>
+    <div class="mine-note">${ic("check")}${me.streak} in a row. You could miss ${Math.max(0, Math.floor((me.p - LINE * me.counted) / LINE))} more and stay above the line.</div>`;
+})();
+(function hist() {
+  const B = [[0,.6,"<60"],[.6,.7,"60s"],[.7,.8,"70s"],[.8,.9,"80s"],[.9,1,"90s"],[1,1.01,"100"]];
+  const counts = B.map(([lo, hi]) => members.filter(m => m.rate >= lo - 1e-9 && m.rate < hi - 1e-9 || (hi > 1 && m.rate >= 1)).length);
+  const maxC = Math.max(...counts);
+  $("#hist").innerHTML = B.map(([lo], i) => {
+    const t = lo >= .9 ? "t-mint" : lo >= .8 ? "t-butter" : "t-peach";
+    return `<div class="hb ${t}" data-b="${i}" title="${counts[i]} members"><span class="n">${counts[i]}</span><i style="height:${Math.max(4, counts[i] / maxC * 104)}px;animation-delay:${.15 + i * .06}s"></i></div>`;
+  }).join("") + `<div class="hist-line" style="left:50%"><span>80% line</span></div>`;
+  $("#histAxis").innerHTML = B.map(b => `<span>${b[2]}</span>`).join("");
+  const g = members.filter(m => m.status === "good").length, w = members.filter(m => m.status === "watch").length;
+  $("#histSum").innerHTML = `<div class="t-mint"><b>${g}</b><small>90%+</small></div><div class="t-butter"><b>${w}</b><small>80–89%</small></div><div class="t-peach"><b>${below.length}</b><small>under 80%</small></div>`;
+  $("#hist").addEventListener("mouseover", e => { const h = e.target.closest(".hb");
+    document.querySelectorAll(".hb").forEach(x => x.classList.toggle("dim", !!h && x !== h)); });
+  $("#hist").addEventListener("mouseleave", () => document.querySelectorAll(".hb").forEach(x => x.classList.remove("dim")));
+})();
+(function feed() {
+  const ins = members.filter(m => m.marks[last.i] === "p").slice(3, 7);
+  const rows = [
+    [ins[0], `<b>${ins[0].name}</b> checked in`, "6:58p"],
+    [ins[1], `<b>${ins[1].name}</b> checked in`, "7:01p"],
+    [members.find(m => m.marks[last.i] === "e"), `<b>${members.find(m => m.marks[last.i] === "e").name}</b> excused by Jonah`, "7:04p"],
+    [ins[2], `<b>${ins[2].name}</b> checked in late`, "7:19p"],
+    [members[3], `<b>Jonah Weiss</b> closed check-in · ${last.p} present`, "8:30p"],
+  ];
+  $("#feed").innerHTML = rows.map(([m, t, time]) => `<div class="feed-row">${av(m, true)}<span class="tx">${t}</span><time>${time}</time></div>`).join("");
+})();
+
+/* ── chrome ────────────────────────────────────────────────────────────────── */
+let tt; function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 2200); }
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-toast]"); if (t) toast(t.dataset.toast);
+  const g = e.target.closest("[data-go]"); if (g) document.getElementById(g.dataset.go).scrollIntoView({ behavior: "smooth", block: "start" });
+  const th = e.target.closest(".mockbar [data-theme]");
+  if (th) { document.documentElement.dataset.theme = th.dataset.theme;
+    document.querySelectorAll(".mockbar button").forEach(b => b.classList.toggle("on", b === th)); renderChart(); }
+});
+</script>
+</body>
+</html>

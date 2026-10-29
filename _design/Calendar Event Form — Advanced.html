@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Form Advanced</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --serif: "Fraunces", Georgia, serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "Geist Mono", ui-monospace, Menlo, monospace;
+    --bg: #0b0a08; --panel: #0f0d0a; --card: #161310; --card-2: #1b1813;
+    --ink: #ece7dd; --ink-soft: #c9c2b4; --muted: #958d7c; --faint: #6b6354;
+    --line: rgba(236,231,221,.09); --line-soft: rgba(236,231,221,.05);
+    --vio: #a78bfa; --vio-deep: #7c3aed; --vio-bg: rgba(167,139,250,.10);
+    --c-chapter:#8fb0d6; --c-social:#ddb36a; --c-fundy:#86b988; --c-program:#a78bfa;
+    --c-party:#d98ba3; --c-service:#5fbdb0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+
+  /* Fake timeline behind the scrim, just for context */
+  .page { padding: 40px 56px; opacity: .5; }
+  .page h1 { font-family: var(--serif); font-weight: 400; font-size: 34px; margin: 0 0 28px; }
+  .page .row { height: 54px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 13px; }
+  .page .row i { width: 8px; height: 8px; border-radius: 50%; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(10px); display: grid; place-items: center; padding: 16px; }
+
+  /* ── The dialog ─────────────────────────────────────────────── */
+  .dlg {
+    width: 100%; max-width: 680px; max-height: calc(100dvh - 32px); overflow: auto;
+    background: var(--panel); border: 1px solid rgba(236,231,221,.1); border-radius: 18px;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 0 28px; }
+  .dlg-kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+  .x { width: 32px; height: 32px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .x:hover { background: rgba(236,231,221,.07); color: var(--ink); }
+
+  form { padding: 4px 28px 0; }
+
+  /* Title: the headline of the event, typed where it will be read */
+  .title {
+    width: 100%; background: none; border: 0; outline: none; padding: 6px 0 14px;
+    font-family: var(--serif); font-size: 28px; line-height: 1.2; color: var(--ink);
+    border-bottom: 1px solid var(--line);
+  }
+  .title::placeholder { color: var(--faint); }
+  .title:focus { border-bottom-color: var(--vio); }
+
+  /* Icon-led rows: the icon is the label, so the form reads as a sentence */
+  .rows { display: flex; flex-direction: column; }
+  .r { display: grid; grid-template-columns: 28px minmax(0,1fr); gap: 14px; align-items: start; padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
+  .r:last-child { border-bottom: 0; }
+  .ic { width: 18px; height: 18px; margin-top: 9px; color: var(--faint); }
+  .r:focus-within .ic { color: var(--vio); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  .field {
+    font-family: var(--sans); font-size: 14px; color: var(--ink); background: var(--card-2);
+    border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; outline: none; min-width: 0;
+    transition: border-color .12s, box-shadow .12s;
+  }
+  .field::placeholder { color: var(--faint); }
+  .field:focus { border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+  input[type=date]::-webkit-calendar-picker-indicator, input[type=time]::-webkit-calendar-picker-indicator { filter: invert(.7); cursor: pointer; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* When */
+  .when { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .when .date { flex: 1 1 170px; }
+  .when .time { width: 124px; }
+  .arrow { color: var(--faint); font-size: 13px; }
+  .when-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; min-height: 22px; }
+  .dur { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .dur b { color: var(--ink-soft); font-weight: 500; }
+
+  /* Switch (shared by All day and Required) */
+  .sw { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; color: var(--ink-soft); cursor: pointer; user-select: none; }
+  .sw input { position: absolute; opacity: 0; pointer-events: none; }
+  .sw .track { width: 30px; height: 18px; border-radius: 999px; background: rgba(236,231,221,.12); position: relative; transition: background .15s; flex-shrink: 0; }
+  .sw .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-soft); transition: transform .15s, background .15s; }
+  .sw input:checked + .track { background: var(--vio-deep); }
+  .sw input:checked + .track::after { transform: translateX(12px); background: #fff; }
+  .sw input:focus-visible + .track { box-shadow: 0 0 0 3px var(--vio-bg); }
+
+  /* Category */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 3px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font: 500 12.5px var(--sans);
+    color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px 6px 10px;
+    transition: color .12s, border-color .12s, background .12s;
+  }
+  .chip:hover { color: var(--ink-soft); border-color: rgba(236,231,221,.2); }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+  .chip[aria-checked=true] { color: var(--ink); border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .hint { font-family: var(--serif); font-style: italic; font-size: 12.5px; color: var(--faint); margin: 8px 0 0; }
+
+  /* Required attendance: a row of its own, with the why underneath */
+  .req { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 6px; }
+  .req .t { font-size: 14px; color: var(--ink); }
+  .req .s { font-size: 12.5px; color: var(--faint); margin-top: 2px; }
+
+  /* Details: quiet, no boxes until you need them */
+  .quiet { width: 100%; background: none; border: 0; border-radius: 8px; padding: 9px 12px; font: 14px/1.5 var(--sans); color: var(--ink); outline: none; resize: none; transition: background .12s; }
+  .quiet::placeholder { color: var(--faint); }
+  .quiet:hover { background: rgba(236,231,221,.03); }
+  .quiet:focus { background: var(--card-2); box-shadow: inset 0 0 0 1px var(--vio); }
+  textarea.quiet { min-height: 44px; max-height: 160px; overflow: auto; }
+
+  /* Footer */
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 28px 20px; margin-top: 8px; border-top: 1px solid var(--line-soft); }
+  .kbd { font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+  .kbd kbd { font: inherit; border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px; color: var(--muted); }
+  .btns { display: flex; gap: 8px; margin-left: auto; }
+  .btn { font: 500 13.5px var(--sans); border-radius: 10px; padding: 10px 18px; cursor: pointer; border: 1px solid transparent; }
+  .ghost { background: none; color: var(--muted); border-color: var(--line); }
+  .ghost:hover { color: var(--ink); border-color: rgba(236,231,221,.2); }
+  .primary { background: var(--ink); color: #14110d; font-weight: 600; }
+  .primary:hover { background: #fff; }
+  .primary:disabled { background: rgba(236,231,221,.12); color: var(--faint); cursor: not-allowed; }
+
+  @media (max-width: 520px) {
+    .dlg-head { padding-left: 20px; } form { padding: 4px 20px 0; } .foot { padding: 14px 20px 18px; }
+    .title { font-size: 24px; }
+    .r { grid-template-columns: 20px minmax(0,1fr); gap: 12px; }
+    .when .date { flex-basis: 100%; }
+    .when .time { flex: 1 1 0; width: auto; }
+    .kbd { display: none; }
+    .btns { width: 100%; } .btns .btn { flex: 1; }
+  }
+
+  /* ── Advanced: the org's optional event fields, opted into per event ─────── */
+  .adv { border-top: 1px solid var(--line-soft); margin: 0 -28px; }
+  .adv-tog {
+    width: 100%; display: grid; grid-template-columns: 28px auto minmax(0,1fr) 16px; gap: 14px; align-items: center;
+    padding: 15px 28px; background: none; border: 0; color: var(--muted); cursor: pointer; text-align: left; font: 500 13.5px var(--sans);
+    transition: color .12s, background .12s;
+  }
+  .adv-tog:hover { color: var(--ink); background: rgba(236,231,221,.02); }
+  .adv-tog .ic { margin-top: 0; }
+  .adv-tog[aria-expanded=true] { color: var(--ink); }
+  .adv-tog[aria-expanded=true] .ic { color: var(--vio); }
+  .adv-sum { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: 400 12.5px var(--sans); color: var(--faint); }
+  .adv-sum b { font-weight: 500; color: var(--ink-soft); }
+  .adv-sum .sep { margin: 0 7px; color: rgba(236,231,221,.18); }
+  .adv-sum .sg { font-family: var(--serif); font-style: italic; }
+  .adv-chev { width: 16px; height: 16px; color: var(--faint); transition: transform .18s; }
+  .adv-tog[aria-expanded=true] .adv-chev { transform: rotate(180deg); }
+  .adv-body { padding: 2px 28px 18px 70px; animation: adv-in .18s ease-out; }
+  @keyframes adv-in { from { opacity: 0; transform: translateY(-4px); } }
+  @media (prefers-reduced-motion: reduce) { .adv-body { animation: none; } }
+
+  .adv-k { font-family: var(--mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin: 0 0 9px; }
+  .adv-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px; font: 500 12.5px var(--sans); color: var(--muted); cursor: pointer;
+    background: none; border: 1px dashed rgba(236,231,221,.16); border-radius: 999px; padding: 5px 11px 5px 9px;
+    transition: color .12s, border-color .12s, background .12s;
+  }
+  .pill .k { font: 500 10px var(--mono); color: var(--faint); min-width: 12px; text-align: center; }
+  .pill:hover { color: var(--ink-soft); border-color: rgba(236,231,221,.3); }
+  .pill[aria-pressed=true] { border-style: solid; border-color: rgba(167,139,250,.45); background: var(--vio-bg); color: var(--ink); }
+  .pill[aria-pressed=true] .k { color: var(--vio); }
+  .pill.sugg:not([aria-pressed=true]) { border-color: rgba(167,139,250,.35); color: var(--ink-soft); }
+  .pill.add { border-style: solid; border-color: transparent; color: var(--vio); padding-left: 6px; }
+  .pill.add:hover { background: var(--vio-bg); }
+  .pill.add svg { width: 12px; height: 12px; }
+  .pill:disabled { opacity: .45; cursor: not-allowed; }
+
+  .adv-sugg { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 10px 0 0; font: italic 12.5px var(--serif); color: var(--faint); }
+  .lnk { font: 500 12px var(--sans); font-style: normal; color: var(--vio); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+  /* Attached fields — each one is a row the officer answers now or later */
+  .adv-fields { margin-top: 16px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: rgba(236,231,221,.015); }
+  .adv-fields:empty { display: none; }
+  .af { display: grid; grid-template-columns: 132px minmax(0,1fr) 28px; gap: 12px; align-items: center; padding: 9px 8px 9px 14px; border-bottom: 1px solid var(--line-soft); }
+  .af:last-child { border-bottom: 0; }
+  .af.new { animation: af-in .5s ease-out; }
+  @keyframes af-in { from { background: var(--vio-bg); } }
+  .af-l { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; color: var(--ink-soft); }
+  .af-l span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .af-k { font: 500 10px var(--mono); color: var(--faint); width: 16px; text-align: center; flex-shrink: 0; }
+  .af:focus-within .af-k { color: var(--vio); }
+  .af .field { width: 100%; padding: 7px 10px; font-size: 13.5px; border-radius: 8px; }
+  .af-x { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 7px; background: none; color: var(--faint); cursor: pointer; }
+  .af-x:hover { color: var(--ink); background: rgba(236,231,221,.06); }
+  .af-x svg { width: 13px; height: 13px; }
+  .af-ed { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .af-pre { position: relative; flex: 1; min-width: 0; }
+  .af-pre > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font: 13.5px var(--mono); color: var(--faint); pointer-events: none; }
+  .af-pre .field { padding-left: 22px; }
+  .af-step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--card-2); }
+  .af-step button { width: 30px; height: 32px; border: 0; background: none; color: var(--muted); cursor: pointer; font: 15px var(--sans); }
+  .af-step button:hover { color: var(--ink); }
+  .af-step input { width: 64px; border: 0; background: none; text-align: center; color: var(--ink); font: 13.5px var(--sans); outline: none; font-variant-numeric: tabular-nums; }
+  .af-step:focus-within { border-color: var(--vio); box-shadow: 0 0 0 3px var(--vio-bg); }
+  .af-aux { font: 11px var(--mono); color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .af-bool { font-size: 13px; }
+  .af select.field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b6354' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; background-size: 14px; padding-right: 30px; cursor: pointer; }
+  .af select.field option { background: var(--card); }
+  .af-av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font: 600 9.5px var(--sans); color: #14110d; }
+  .af-file { flex-shrink: 0; font: 500 12px var(--sans); color: var(--ink-soft); background: none; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer; white-space: nowrap; }
+  .af-file:hover { border-color: rgba(236,231,221,.2); color: var(--ink); }
+
+  /* Taking off an ANSWERED field asks inline — the loss is chosen, never discovered */
+  .af.confirm { grid-template-columns: minmax(0,1fr) auto; background: rgba(217,139,163,.06); }
+  .af-cq { font-size: 13px; color: var(--ink-soft); }
+  .af-cq b { color: var(--ink); font-weight: 500; }
+  .af-cb { display: flex; gap: 6px; }
+  .mini { font: 500 12px var(--sans); border-radius: 7px; padding: 6px 11px; cursor: pointer; border: 1px solid var(--line); background: none; color: var(--muted); }
+  .mini:hover { color: var(--ink); }
+  .mini.warn { border-color: transparent; background: rgba(217,139,163,.16); color: #f0b8c8; }
+  .mini.warn:hover { background: rgba(217,139,163,.26); color: #fff; }
+  .mini.go { border-color: transparent; background: var(--ink); color: #14110d; font-weight: 600; }
+  .mini.go:disabled { background: rgba(236,231,221,.12); color: var(--faint); cursor: not-allowed; }
+
+  /* New field composer — lands on the org menu AND on this event */
+  .nf { margin-top: 12px; border: 1px solid rgba(167,139,250,.3); border-radius: 12px; padding: 14px; background: rgba(167,139,250,.04); }
+  .nf .adv-k { color: var(--vio); }
+  .nf-in { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); outline: none; padding: 4px 0 9px; font: 18px var(--serif); color: var(--ink); }
+  .nf-in::placeholder { color: var(--faint); }
+  .nf-in:focus { border-bottom-color: var(--vio); }
+  .nf-kinds { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+  .nf-kind { font: 500 12px var(--sans); color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+  .nf-kind .k { font: 10px var(--mono); color: var(--faint); }
+  .nf-kind[aria-checked=true] { color: var(--ink); border-color: var(--vio); background: var(--vio-bg); }
+  .nf-kind[aria-checked=true] .k { color: var(--vio); }
+  .nf-eg { font-size: 12.5px; color: var(--faint); margin: 10px 0 0; line-height: 1.5; }
+  .nf-eg b { color: var(--ink-soft); font-weight: 500; }
+  .nf-err { font-size: 12.5px; color: #f0b8c8; margin: 8px 0 0; }
+  .nf-foot { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+
+  .adv-note { margin: 14px 0 0; font-size: 12px; color: var(--faint); line-height: 1.5; }
+  .adv-note a { color: var(--muted); text-underline-offset: 2px; }
+  .adv-note a:hover { color: var(--ink); }
+
+  /* Mock-only state switcher */
+  .mockbar { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; gap: 2px; align-items: center; padding: 4px; border-radius: 10px; background: #000; border: 1px solid rgba(236,231,221,.12); font: 11px var(--mono); }
+  .mockbar span { color: #ffd166; padding: 0 8px; letter-spacing: .1em; }
+  .mockbar button { font: inherit; color: var(--muted); background: none; border: 0; border-radius: 7px; padding: 5px 9px; cursor: pointer; white-space: nowrap; }
+  .mockbar button[aria-pressed=true] { background: rgba(236,231,221,.1); color: var(--ink); }
+  .scrim { padding-top: 56px; }
+
+  @media (max-width: 520px) {
+    .adv { margin: 0 -20px; }
+    .adv-tog { padding: 14px 20px; grid-template-columns: 20px auto minmax(0,1fr) 16px; gap: 12px; }
+    .adv-body { padding: 2px 20px 16px; }
+    .af { grid-template-columns: minmax(0,1fr) 28px; row-gap: 6px; padding: 10px 6px 10px 12px; }
+    .af-l { grid-column: 1; } .af-x { grid-column: 2; grid-row: 1; }
+    .af-ed { grid-column: 1 / -1; }
+    .mockbar { left: 8px; right: 8px; transform: none; overflow-x: auto; }
+    .mockbar span { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="page" aria-hidden="true">
+    <h1>Timeline</h1>
+    <div class="row"><i style="background:var(--c-chapter)"></i>Chapter meeting · Sun 7:00 PM</div>
+    <div class="row"><i style="background:var(--c-social)"></i>Mixer with ΚΔ · Fri 9:00 PM</div>
+    <div class="row"><i style="background:var(--c-service)"></i>Food bank shift · Sat 10:00 AM</div>
+    <div class="row"><i style="background:var(--c-fundy)"></i>Pancake breakfast · Oct 12</div>
+    <div class="row"><i style="background:var(--c-party)"></i>Fall formal · Nov 8</div>
+  </div>
+
+  <div class="mockbar" role="toolbar" aria-label="Mock states"><span>MOCK</span><button type="button" data-st="fresh" aria-pressed="true">New · nothing added</button><button type="button" data-st="party">New · Party suggests</button><button type="button" data-st="edit">Edit · answered</button><button type="button" data-st="closed">Edit · collapsed</button></div>
+
+  <div class="scrim">
+    <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="k">
+      <div class="dlg-head">
+        <span class="dlg-kicker" id="k">New calendar event</span>
+        <button class="x" type="button" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
+      </div>
+
+      <form id="f">
+        <label class="sr" for="title">Title</label>
+        <input id="title" class="title" placeholder="Event name" autocomplete="off" autofocus required>
+
+        <div class="rows">
+          <!-- When -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <div>
+              <div class="when">
+                <label class="sr" for="date">Date</label>
+                <input id="date" type="date" class="field date num" value="2026-10-04">
+                <span id="times" style="display:contents">
+                  <label class="sr" for="start">Starts</label>
+                  <input id="start" type="time" class="field time num" value="19:00">
+                  <span class="arrow" aria-hidden="true">→</span>
+                  <label class="sr" for="end">Ends</label>
+                  <input id="end" type="time" class="field time num" value="21:00">
+                </span>
+              </div>
+              <div class="when-meta">
+                <span class="dur" id="dur" aria-live="polite"></span>
+                <label class="sw"><input type="checkbox" id="allday"><span class="track"></span>All day</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.3" fill="currentColor"/></svg>
+            <div>
+              <div class="chips" role="radiogroup" aria-label="Category" id="chips"></div>
+              <p class="hint" id="hint"></p>
+            </div>
+          </div>
+
+          <!-- Required attendance -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l2.5 2.5L16 9"/><rect x="3.5" y="3.5" width="17" height="17" rx="4"/></svg>
+            <label class="req">
+              <span><span class="t">Required attendance</span><span class="s" style="display:block">Take attendance and track excuses.</span></span>
+              <span class="sw"><input type="checkbox" id="req"><span class="track"></span></span>
+            </label>
+          </div>
+
+          <!-- Location -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+            <div><label class="sr" for="loc">Location</label><input id="loc" class="quiet" placeholder="Add location"></div>
+          </div>
+
+          <!-- Description -->
+          <div class="r">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+            <div><label class="sr" for="desc">Description</label><textarea id="desc" class="quiet" rows="1" placeholder="Add notes, agenda, or links"></textarea></div>
+          </div>
+        </div>
+
+        <!-- Advanced — optional fields from the org's menu, opted into per event -->
+        <div class="adv" id="adv">
+          <button type="button" class="adv-tog" id="advTog" aria-expanded="false" aria-controls="advBody">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+            <span>Advanced</span>
+            <span class="adv-sum" id="advSum"></span>
+            <svg class="adv-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="adv-body" id="advBody" hidden>
+            <p class="adv-k">Also collect on this event</p>
+            <div class="adv-pills" id="pills"></div>
+            <p class="adv-sugg" id="sugg"></p>
+            <div id="nf"></div>
+            <div class="adv-fields" id="afs"></div>
+            <p class="adv-note">This event only — other events keep what they collect. <a href="#" onclick="return false">Rename, reorder or retire fields in Settings</a>.</p>
+          </div>
+        </div>
+      </form>
+
+      <div class="foot">
+        <span class="kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to add</span>
+        <div class="btns">
+          <button class="btn ghost" type="button">Cancel</button>
+          <button class="btn primary" type="submit" form="f" id="go" disabled>Add event</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const CATS = [
+    { slug: "chapter", label: "Chapter", req: true },
+    { slug: "social", label: "Social" },
+    { slug: "fundy", label: "Fundraiser" },
+    { slug: "program", label: "Programming" },
+    { slug: "service", label: "Service" },
+    { slug: "party", label: "Party" },
+  ];
+  const $ = id => document.getElementById(id);
+  let cat = "chapter";
+
+  function renderChips() {
+    $("chips").innerHTML = CATS.map(c => `<button type="button" role="radio" class="chip" aria-checked="${c.slug === cat}" data-s="${c.slug}" style="--c:var(--c-${c.slug})"><span class="dot"></span>${c.label}</button>`).join("");
+    $("hint").textContent = cat === "party" ? "Guest list and wrap-up live on the Parties page." : cat === "chapter" ? "Chapter events are required by default." : "";
+    $("hint").hidden = !$("hint").textContent;
+  }
+  $("chips").addEventListener("click", e => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    cat = b.dataset.s; if (CATS.find(c => c.slug === cat).req) $("req").checked = true; renderChips();
+  });
+
+  const m = t => { const [h, n] = t.split(":").map(Number); return h * 60 + n; };
+  const clock = t => { let [h, n] = t.split(":").map(Number); const ap = h < 12 ? "AM" : "PM"; h = h % 12 || 12; return n ? `${h}:${String(n).padStart(2, "0")} ${ap}` : `${h} ${ap}`; };
+  function dur() {
+    const s = $("start").value, e = $("end").value, d = $("dur");
+    if ($("allday").checked) { d.innerHTML = "<b>All day</b>"; return; }
+    if (!s) { d.textContent = "Pick a start time"; return; }
+    if (!e) { d.innerHTML = `Starts <b>${clock(s)}</b> · no end time`; return; }
+    const len = (m(e) - m(s) + 1440) % 1440;
+    if (!len) { d.textContent = "End matches start"; return; }
+    const h = Math.floor(len / 60), n = len % 60;
+    d.innerHTML = `<b>${h ? h + " hr" : ""}${h && n ? " " : ""}${n ? n + " min" : ""}</b>${m(e) <= m(s) ? " · ends next day" : ""}`;
+  }
+  // Moving the start keeps the length, as calendar apps do.
+  let prevStart = $("start").value;
+  $("start").addEventListener("input", () => {
+    const s = $("start").value, e = $("end").value;
+    if (s && prevStart && e) { const len = (m(e) - m(prevStart) + 1440) % 1440, x = (m(s) + len) % 1440; $("end").value = `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`; }
+    prevStart = s; dur();
+  });
+  $("end").addEventListener("input", dur);
+  $("allday").addEventListener("change", () => { $("times").hidden = $("allday").checked; $("times").style.display = $("allday").checked ? "none" : "contents"; dur(); });
+
+  $("title").addEventListener("input", () => { $("go").disabled = !$("title").value.trim(); });
+  $("desc").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+  document.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !$("go").disabled) $("go").click(); });
+  $("f").addEventListener("submit", e => { e.preventDefault(); $("go").textContent = "Added ✓"; });
+
+  $("req").checked = true;
+  renderChips(); dur();
+
+  /* ── Advanced ─────────────────────────────────────────────────────────────
+     The org's event-field menu (lib/event-fields.ts built-ins + two customs).
+     Nothing is attached to a fresh calendar event; the type suggests a few. */
+  const KIND = {
+    text:   { g: "Aa", label: "Text",     eg: "Anything written — a contact, a note, a dress code." },
+    num:    { g: "#",  label: "Number",   eg: "A count. Head count, buses, tables." },
+    money:  { g: "$",  label: "Money",    eg: "A dollar amount, kept apart from what was actually spent." },
+    bool:   { g: "✓",  label: "Yes / no", eg: "A box that's either ticked or it isn't. Risk form filed?" },
+    date:   { g: "◷",  label: "Date",     eg: "A second date the event depends on — a deposit deadline." },
+    person: { g: "@",  label: "Person",   eg: "Somebody on the roster who isn't the owner." },
+    file:   { g: "↗",  label: "File",     eg: "A link or an attachment." },
+  };
+  let FIELDS = [
+    { slug: "budget",    label: "Budget",           kind: "money" },
+    { slug: "headcount", label: "Head count",       kind: "num" },
+    { slug: "cohost",    label: "Co-host",          kind: "text" },
+    { slug: "contact",   label: "Point of contact", kind: "person" },
+    { slug: "setup",     label: "Setup time",       kind: "text" },
+    { slug: "risk",      label: "Risk form",        kind: "bool" },
+    { slug: "dress",     label: "Dress code",       kind: "text" },
+    { slug: "transport", label: "Transportation",   kind: "text" },
+    { slug: "attachment",label: "Attachment",       kind: "file" },
+    { slug: "beneficiary", label: "Beneficiary",    kind: "text" },
+    { slug: "deposit",   label: "Deposit due",      kind: "date" },
+  ];
+  const MAX_FIELDS = 24;
+  // Proposal: each event type remembers which fields a NEW event of that type suggests (set in Settings → Event types).
+  const SUGG = {
+    chapter: [], social: ["cohost", "budget"], fundy: ["beneficiary", "budget", "headcount"],
+    program: ["budget", "headcount", "contact"], service: ["transport", "contact", "headcount"],
+    party: ["risk", "headcount", "dress", "deposit"],
+  };
+  const ROSTER = [
+    { n: "Marcus Webb", c: "#8fb0d6" }, { n: "Dev Patel", c: "#ddb36a" }, { n: "Jordan Ruiz", c: "#86b988" },
+    { n: "Sam Okafor", c: "#d98ba3" }, { n: "Eli Park", c: "#5fbdb0" },
+  ];
+  const PLACE = { budget: "0", cohost: "ΚΔ, DSP…", setup: "Doors 30 min early", dress: "Cocktail, theme…", transport: "2 vans from the house", beneficiary: "Who the money goes to" };
+
+  let attached = [], vals = {}, open = false, confirming = null, draft = null, fresh = null;
+  const fieldOf = s => FIELDS.find(f => f.slug === s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const answered = s => { const v = vals[s]; return v === true || (typeof v === "string" && v.trim() !== "" && v !== "0"); };
+  const money = v => "$" + Number(v).toLocaleString("en-US");
+  const shortDate = d => new Date(d + "T12:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const initials = n => n.split(" ").map(w => w[0]).join("");
+
+  function display(f) {
+    const v = vals[f.slug];
+    if (f.kind === "bool") return v ? "filed" : "not yet";
+    if (f.kind === "money") return money(v);
+    if (f.kind === "date") return shortDate(v);
+    if (f.kind === "person") return v.split(" ")[0];
+    if (f.kind === "file") return "linked";
+    return v;
+  }
+
+  function renderSum() {
+    const s = $("advSum");
+    if (attached.length) {
+      s.innerHTML = attached.map(sl => { const f = fieldOf(sl); return answered(sl) ? `${esc(f.label)} <b>${esc(display(f))}</b>` : esc(f.label); }).join('<span class="sep">·</span>');
+      return;
+    }
+    const sg = (SUGG[cat] || []).map(fieldOf).filter(Boolean);
+    const label = CATS.find(c => c.slug === cat).label;
+    s.innerHTML = sg.length ? `<span class="sg">${sg.length} suggested for ${label}</span>` : "Budget, head count, contacts and more";
+  }
+
+  function editor(f) {
+    const v = vals[f.slug] ?? "", id = `af-${f.slug}`;
+    switch (f.kind) {
+      case "money": return `<div class="af-pre"><span>$</span><input id="${id}" class="field num" inputmode="decimal" data-s="${f.slug}" value="${esc(v)}" placeholder="0"></div>`;
+      case "num": return `<div class="af-step"><button type="button" data-step="-1" data-s="${f.slug}" aria-label="Fewer">−</button><input id="${id}" inputmode="numeric" data-s="${f.slug}" value="${esc(v)}" placeholder="—"><button type="button" data-step="1" data-s="${f.slug}" aria-label="More">+</button></div><span class="af-aux">${f.slug === "headcount" ? "expected" : ""}</span>`;
+      case "bool": return `<label class="sw af-bool"><input id="${id}" type="checkbox" data-s="${f.slug}" ${v ? "checked" : ""}><span class="track"></span>${v ? "Filed" : "Not yet"}</label>`;
+      case "date": {
+        let aux = "";
+        if (v) { const d = Math.round((new Date($("date").value) - new Date(v)) / 864e5); aux = d > 0 ? `${d} day${d === 1 ? "" : "s"} before` : d === 0 ? "day of" : `${-d} day${d === -1 ? "" : "s"} after`; }
+        return `<input id="${id}" type="date" class="field num" data-s="${f.slug}" value="${esc(v)}" style="flex:1"><span class="af-aux">${aux}</span>`;
+      }
+      case "person": {
+        const p = ROSTER.find(r => r.n === v);
+        return `${p ? `<span class="af-av" style="background:${p.c}">${initials(p.n)}</span>` : ""}<select id="${id}" class="field" data-s="${f.slug}"><option value="">Pick someone on the roster</option>${ROSTER.map(r => `<option ${r.n === v ? "selected" : ""}>${r.n}</option>`).join("")}</select>`;
+      }
+      case "file": return `<input id="${id}" class="field" data-s="${f.slug}" value="${esc(v)}" placeholder="Paste a link" style="flex:1"><button type="button" class="af-file">Attach…</button>`;
+      default: return `<input id="${id}" class="field" data-s="${f.slug}" value="${esc(v)}" placeholder="${esc(PLACE[f.slug] || "")}" style="flex:1">`;
+    }
+  }
+
+  function renderAdv() {
+    renderSum();
+    $("advTog").setAttribute("aria-expanded", open);
+    $("advBody").hidden = !open;
+    if (!open) return;
+    const sg = SUGG[cat] || [];
+    $("pills").innerHTML = FIELDS.map(f => `<button type="button" class="pill${sg.includes(f.slug) ? " sugg" : ""}" aria-pressed="${attached.includes(f.slug)}" data-p="${f.slug}" title="${attached.includes(f.slug) ? `Take ${f.label} off this event` : `Collect ${f.label} on this event`}"><span class="k">${KIND[f.kind].g}</span>${esc(f.label)}</button>`).join("")
+      + (draft ? "" : `<button type="button" class="pill add" id="nfOpen" ${FIELDS.length >= MAX_FIELDS ? `disabled title="A chapter can collect at most ${MAX_FIELDS} fields."` : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New field</button>`);
+
+    const pending = sg.filter(s => !attached.includes(s));
+    const label = CATS.find(c => c.slug === cat).label;
+    $("sugg").innerHTML = pending.length ? `<span>${label} events usually collect ${pending.map(s => fieldOf(s).label.toLowerCase()).join(", ").replace(/, ([^,]*)$/, " and $1")}.</span><button type="button" class="lnk" id="addAll">Add ${pending.length === 1 ? "it" : pending.length === 2 ? "both" : "all " + pending.length}</button>` : "";
+    $("sugg").hidden = !pending.length;
+
+    $("nf").innerHTML = draft ? (() => {
+      const lbl = draft.label.trim(), clash = lbl && FIELDS.some(f => f.label.toLowerCase() === lbl.toLowerCase());
+      return `<div class="nf"><p class="adv-k">New field for every event</p>
+        <input class="nf-in" id="nfIn" maxlength="48" placeholder="Bus company, DJ contact, Ticket price…" value="${esc(draft.label)}" autocomplete="off">
+        <div class="nf-kinds" role="radiogroup" aria-label="What kind of answer">${Object.entries(KIND).map(([k, d]) => `<button type="button" class="nf-kind" role="radio" aria-checked="${draft.kind === k}" data-k="${k}"><span class="k">${d.g}</span>${d.label}</button>`).join("")}</div>
+        <p class="nf-eg"><b>${KIND[draft.kind].label}.</b> ${KIND[draft.kind].eg} A field's type is fixed once events start answering it.</p>
+        ${clash ? `<p class="nf-err">There's already a field called “${esc(lbl)}”.</p>` : ""}
+        <div class="nf-foot"><button type="button" class="mini" id="nfCancel">Cancel</button><button type="button" class="mini go" id="nfSave" ${!lbl || clash ? "disabled" : ""}>Add field</button></div></div>`;
+    })() : "";
+
+    $("afs").innerHTML = attached.map(sl => {
+      const f = fieldOf(sl);
+      if (confirming === sl) return `<div class="af confirm" data-row="${sl}"><span class="af-cq">Take <b>${esc(f.label)}</b> off? Its answer here — <b>${esc(display(f))}</b> — is cleared.</span><span class="af-cb"><button type="button" class="mini" data-keep="${sl}">Keep</button><button type="button" class="mini warn" data-drop="${sl}">Take it off</button></span></div>`;
+      return `<div class="af${fresh === sl ? " new" : ""}" data-row="${sl}"><label class="af-l" for="af-${sl}"><span class="af-k">${KIND[f.kind].g}</span><span>${esc(f.label)}</span></label><div class="af-ed">${editor(f)}</div><button type="button" class="af-x" data-x="${sl}" aria-label="Take ${esc(f.label)} off this event"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg></button></div>`;
+    }).join("");
+    fresh = null;
+  }
+
+  function attach(sl, focus) {
+    if (!attached.includes(sl)) attached.push(sl);
+    fresh = sl; confirming = null; renderAdv();
+    if (focus) $("af-" + sl)?.focus();
+  }
+  function detach(sl) { attached = attached.filter(s => s !== sl); delete vals[sl]; confirming = null; renderAdv(); }
+
+  $("advTog").addEventListener("click", () => { open = !open; renderAdv(); });
+  $("advBody").addEventListener("click", e => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.p) { const s = t.dataset.p; if (!attached.includes(s)) attach(s, true); else if (answered(s)) { confirming = s; renderAdv(); } else detach(s); return; }
+    if (t.dataset.x) { const s = t.dataset.x; if (answered(s)) { confirming = s; renderAdv(); } else detach(s); return; }
+    if (t.dataset.keep) { confirming = null; renderAdv(); return; }
+    if (t.dataset.drop) { detach(t.dataset.drop); return; }
+    if (t.dataset.step) { const s = t.dataset.step && t.dataset.s; vals[s] = String(Math.max(0, (parseInt(vals[s]) || 0) + Number(t.dataset.step))); $("af-" + s).value = vals[s]; renderSum(); return; }
+    if (t.id === "addAll") { (SUGG[cat] || []).forEach(s => { if (!attached.includes(s)) attached.push(s); }); renderAdv(); return; }
+    if (t.id === "nfOpen") { draft = { label: "", kind: "text" }; renderAdv(); $("nfIn").focus(); return; }
+    if (t.id === "nfCancel") { draft = null; renderAdv(); return; }
+    if (t.dataset.k) { draft.kind = t.dataset.k; renderAdv(); return; }
+    if (t.id === "nfSave") saveDraft();
+  });
+  function saveDraft() {
+    const lbl = draft.label.trim();
+    if (!lbl || FIELDS.some(f => f.label.toLowerCase() === lbl.toLowerCase())) return;
+    const slug = lbl.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "field";
+    FIELDS.push({ slug, label: lbl, kind: draft.kind });
+    draft = null; attach(slug, true);
+  }
+  $("advBody").addEventListener("input", e => {
+    const t = e.target;
+    if (t.id === "nfIn") {
+      draft.label = t.value; const pos = t.selectionStart; renderAdv(); const n = $("nfIn"); n.focus(); n.setSelectionRange(pos, pos); return;
+    }
+    const s = t.dataset.s; if (!s) return;
+    vals[s] = t.type === "checkbox" ? t.checked : t.value;
+    const f = fieldOf(s);
+    if (["bool", "date", "person"].includes(f.kind)) renderAdv(); else renderSum();
+  });
+  $("advBody").addEventListener("change", e => { if (e.target.tagName === "SELECT") { vals[e.target.dataset.s] = e.target.value; renderAdv(); } });
+  $("advBody").addEventListener("keydown", e => {
+    if (e.target.id === "nfIn" && e.key === "Enter") { e.preventDefault(); saveDraft(); }
+    if (e.target.id === "nfIn" && e.key === "Escape") { e.stopPropagation(); draft = null; renderAdv(); }
+  });
+  // Picking a new type refreshes the suggestions (it never detaches anything).
+  $("chips").addEventListener("click", () => renderAdv());
+
+  /* Mock-only: jump between the states worth reviewing */
+  const STATES = {
+    fresh: () => { $("title").value = ""; cat = "chapter"; attached = []; vals = {}; open = false; },
+    party: () => { $("title").value = "Fall formal"; $("date").value = "2026-11-08"; cat = "party"; attached = []; vals = {}; open = true; },
+    edit:  () => {
+      $("title").value = "Pancake breakfast"; $("date").value = "2026-10-12"; cat = "fundy"; open = true;
+      attached = ["beneficiary", "budget", "headcount", "contact", "deposit"];
+      vals = { beneficiary: "Ronald McDonald House", budget: "450", headcount: "120", contact: "Dev Patel", deposit: "2026-10-02" };
+    },
+    closed: () => { STATES.edit(); open = false; },
+  };
+  document.querySelector(".mockbar").addEventListener("click", e => {
+    const b = e.target.closest("button[data-st]"); if (!b) return;
+    document.querySelectorAll(".mockbar button").forEach(x => x.setAttribute("aria-pressed", x === b));
+    confirming = null; draft = null; STATES[b.dataset.st]();
+    $("req").checked = !!CATS.find(c => c.slug === cat).req;
+    $("go").disabled = !$("title").value.trim(); $("go").textContent = b.dataset.st === "fresh" || b.dataset.st === "party" ? "Add event" : "Save";
+    renderChips(); dur(); renderAdv();
+  });
+
+  renderAdv();
+</script>
+</body>
+</html>
