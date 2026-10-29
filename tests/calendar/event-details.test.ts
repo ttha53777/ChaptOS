@@ -123,4 +123,25 @@ describe("event details", () => {
     expect(read.details).toMatchObject([{ type: "theme", text: "Toga" }, { type: "collabs", items: [{ name: "KDF" }] }]);
     expect(await stored(event.id)).toEqual([]);
   });
+
+  it("clears a who that isn't on this org's roster, on create and on edit", async () => {
+    const { org, event, officerCtx, leo } = await setup();
+    await createSemester({ orgId: org.id });
+    const other = await createOrg("Other", "other");
+    const outsider = await createBrother({ orgId: other.id });
+    const details: EventDetail[] = [
+      { id: "sup", type: "supplies", items: [{ id: "ice", item: "Ice", who: leo.id }, { id: "grill", item: "Grill", who: outsider.id }] },
+      { id: "ct", type: "contact", who: outsider.id, phone: "", prefer: "text" },
+    ];
+    const expected = [
+      { id: "sup", type: "supplies", items: [{ id: "ice", item: "Ice", who: leo.id }, { id: "grill", item: "Grill", who: null }] },
+      { id: "ct", type: "contact", who: null, phone: "", prefer: "text" },
+    ];
+
+    const created = await createCalendar(officerCtx, createCalendarInput.parse({ title: "Cookout", date: "2026-05-03", category: "party", mandatory: false, details }));
+    expect(await stored(created.id)).toEqual(expected);
+
+    await updateCalendar(officerCtx, event.id, updateCalendarInput.parse({ details }));
+    expect(await stored(event.id)).toEqual(expected);
+  });
 });

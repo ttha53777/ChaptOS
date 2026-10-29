@@ -25,13 +25,19 @@ export async function listParticipationForEvent(ctx: RequestContext, serviceEven
     include: PARTICIPATION_INCLUDE,
     orderBy: { brother: { name: "asc" } },
   }) as ParticipationRow[];
+  // Only people on this org's roster. logParticipation used to accept any
+  // brotherId, so a row may exist for someone outside the org — and the
+  // Brother.name fallback below would hand their account name and avatar to
+  // whoever reads this list.
+  const onRoster = new Set(await ctx.db.member.listIds({ brotherId: { in: rows.map(r => r.brotherId) } }));
+  const members = rows.filter(r => onRoster.has(r.brotherId));
   // Org-local display name (Membership.name), same fallback rule as the roster.
   // Without this, a member who renamed themselves in this org would still show
   // their stale name on the service-hours roster.
   const nameByBrotherId = await ctx.db.member.resolveNames(
-    rows.map(r => ({ id: r.brother.id, name: r.brother.name })),
+    members.map(r => ({ id: r.brother.id, name: r.brother.name })),
   );
-  return rows.map(r => ({
+  return members.map(r => ({
     ...r,
     brother: { ...r.brother, name: nameByBrotherId.get(r.brother.id) ?? r.brother.name },
   }));
@@ -42,30 +48,44 @@ export async function listParticipationForEvent(ctx: RequestContext, serviceEven
  * having a row are updated; new members get a row created. Members not in the
  * payload are left as-is. Emits one `service_participation.logged` carrying every
  * affected member id so the recalc handler refreshes their serviceHours totals.
+ *
+ * Every id must be on this org's roster, checked before anything is written:
+ * the FK only proves the Brother exists somewhere, and RLS only checks the row's
+ * organizationId, so an unchecked id let an officer pin a stranger to their own
+ * event and read back that stranger's name and avatar. A repeated id keeps its
+ * last entry. The writes share one transaction, so a failure leaves nothing
+ * behind with a stale total.
  */
 export async function logParticipation(ctx: RequestContext, serviceEventId: number, input: LogParticipationInput) {
   const event = await ctx.db.serviceEvent.findUnique({ where: { id: serviceEventId } });
   if (!event) throw new NotFoundError("Service event");
 
-  // Existing rows for this event, keyed by member, so we know create vs update.
-  const existing = await ctx.db.serviceParticipation.findMany({ where: { serviceEventId } });
-  const byBrother = new Map(existing.map(r => [r.brotherId, r]));
+  const hoursByBrother = new Map(input.entries.map(e => [e.brotherId, e.hours]));
+  const brotherIds = [...hoursByBrother.keys()];
+  const found = await ctx.db.member.listIds({ brotherId: { in: brotherIds } });
+  if (found.length !== brotherIds.length) throw new NotFoundError("Member");
 
-  for (const entry of input.entries) {
-    const row = byBrother.get(entry.brotherId);
-    if (row) {
-      if (row.hours !== entry.hours) {
-        await ctx.db.serviceParticipation.update({ where: { id: row.id }, data: { hours: entry.hours } });
-      }
-    } else {
-      await ctx.db.serviceParticipation.create({
-        data: { serviceEventId, brotherId: entry.brotherId, hours: entry.hours },
+  // Set-based, like attendance-service.recordAttendance: a per-member loop inside
+  // a transaction times out on a big roster. Insert the missing rows (skipping
+  // any that exist, including one a concurrent request just made, so neither
+  // fails with a duplicate), then set hours with one updateMany per distinct
+  // value. The tx client is raw, so organizationId is carried explicitly.
+  const idsByHours = new Map<number, number[]>();
+  for (const [brotherId, hours] of hoursByBrother) idsByHours.set(hours, [...(idsByHours.get(hours) ?? []), brotherId]);
+  await ctx.db.$transaction(async tx => {
+    await tx.serviceParticipation.createMany({
+      data: [...hoursByBrother].map(([brotherId, hours]) => ({ organizationId: ctx.orgId, serviceEventId, brotherId, hours })),
+      skipDuplicates: true,
+    });
+    for (const [hours, ids] of idsByHours) {
+      await tx.serviceParticipation.updateMany({
+        where: { organizationId: ctx.orgId, serviceEventId, brotherId: { in: ids }, hours: { not: hours } },
+        data:  { hours },
       });
     }
-  }
+  });
 
-  const brotherIds = input.entries.map(e => e.brotherId);
-  const totalHours = input.entries.reduce((s, e) => s + e.hours, 0);
+  const totalHours = [...hoursByBrother.values()].reduce((s, h) => s + h, 0);
 
   await emit(ctx, "service_participation.logged", { type: "ServiceEvent", id: serviceEventId }, {
     serviceEventId, eventTitle: event.title, brotherIds, totalHours,

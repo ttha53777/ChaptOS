@@ -92,8 +92,29 @@ function fillAgendaFor(input: CreateCalendarInput, body: string): string {
   }));
 }
 
+/**
+ * Clear any "who" in the details that isn't on this org's roster. The schema only
+ * checks it's a positive integer, so a foreign or stale id would otherwise sit
+ * there as a claim nobody can see — the client names it from the org's roster.
+ */
+async function onlyRosterWho(ctx: RequestContext, details: EventDetail[]): Promise<EventDetail[]> {
+  const ids = new Set<number>();
+  for (const d of details) {
+    if (d.type === "supplies") for (const i of d.items) if (i.who != null) ids.add(i.who);
+    if (d.type === "contact" && d.who != null) ids.add(d.who);
+  }
+  if (ids.size === 0) return details;
+  const onRoster = new Set(await ctx.db.member.listIds({ brotherId: { in: [...ids] } }));
+  const keep = (who: number | null) => (who != null && onRoster.has(who) ? who : null);
+  return details.map(d =>
+    d.type === "supplies" ? { ...d, items: d.items.map(i => ({ ...i, who: keep(i.who) })) }
+    : d.type === "contact" ? { ...d, who: keep(d.who) }
+    : d);
+}
+
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
+  if (input.details?.length) input = { ...input, details: await onlyRosterWho(ctx, input.details) };
   if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   const templateId = input.agendaTemplateId ?? null;
   if (templateId != null) {
@@ -173,6 +194,7 @@ function repeatOccurrences(input: CreateCalendarInput): CreateCalendarInput[] {
 
 export async function updateCalendar(ctx: RequestContext, id: number, input: UpdateCalendarInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
+  if (input.details?.length) input = { ...input, details: await onlyRosterWho(ctx, input.details) };
   if (input.category != null) await assertCategoryUsable(ctx, input.category, "update");
   // Only re-validate when the date is actually being moved to a concrete value;
   // clearing it (null) or leaving it untouched (undefined) skips the bound check
