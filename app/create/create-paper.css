@@ -310,6 +310,36 @@ html[data-crf-theme="dusk"] .ocp .stamp{mix-blend-mode:normal}
 .ocp .act small{display:block; font-family:var(--mono); font-size:.62rem; font-weight:500; color:var(--ink-3); margin-top:1px; letter-spacing:.02em}
 .ocp .acts-go{grid-column:1/-1; display:flex; align-items:center; gap:12px; margin-top:4px}
 .ocp .acts-go .note{font-size:.78rem; color:var(--ink-3)}
+/* the month picker: each tile is a sticker naming the one page it pins to the charter */
+.ocp .acts.mp{gap:12px; margin-top:8px}
+.ocp .mp .act{grid-template-columns:42px minmax(0,1fr) 22px; gap:13px; padding:12px 14px 12px 12px; border-radius:6px 16px 12px 14px}
+.ocp .mp .act .act-t{min-width:0}
+.ocp .mp .act .tile{width:42px; height:42px; border-radius:12px; display:grid; place-items:center;
+  background:var(--p-bg); color:var(--p-fg); border:1.5px solid var(--p-bd);
+  transition:transform .35s var(--ease-spring), background .2s, border-color .2s, color .2s, box-shadow .2s}
+.ocp .mp .act .tile .ic{width:19px; height:19px}
+.ocp .mp .act:hover .tile{transform:rotate(-5deg) scale(1.05)}
+.ocp .mp .act[aria-pressed="true"] .tile{background:var(--p-hs); border-color:var(--ink); color:var(--note-ink); transform:rotate(-6deg); box-shadow:2px 2px 0 var(--ink); filter:var(--note-filter)}
+.ocp .mp .act .lb{display:block; color:var(--ink); font-weight:600; line-height:1.3}
+.ocp .mp .act .to{display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:2px 9px 2px 7px; border-radius:999px; border:1.5px dashed var(--line-2);
+  font-family:var(--mono); font-size:.62rem; font-weight:500; letter-spacing:.02em; color:var(--ink-3); transition:all .2s var(--ease-out)}
+.ocp .mp .act .to .ic{width:11px; height:11px; transition:transform .3s var(--ease-spring)}
+.ocp .mp .act:hover .to{border-color:var(--p-fg); color:var(--p-fg)}
+.ocp .mp .act:hover .to .ic{transform:translateX(2px)}
+.ocp .mp .act[aria-pressed="true"] .to{border-style:solid; border-color:var(--p-fg); background:var(--card); color:var(--p-fg); font-weight:600}
+.ocp .mp .act .bx{width:22px; height:22px; border-radius:7px}
+.ocp .mp .act[aria-pressed="true"] .bx .ic{animation:mp-tick .35s var(--ease-spring) both}
+@keyframes mp-tick{from{transform:scale(.3) rotate(-20deg)} to{transform:none}}
+.ocp .mp .acts-go{margin-top:8px; flex-wrap:wrap}
+.ocp .mp .acts-go .note{display:flex; align-items:center; gap:8px; font-size:.8rem}
+.ocp .mp .acts-go .note .n{flex:none; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.04em; padding:2px 8px; border-radius:999px; border:1.5px solid var(--ink); background:var(--butter); color:var(--note-ink); filter:var(--note-filter)}
+.ocp .mp .acts-go .note .n.zero{border-color:var(--line-2); background:none; color:var(--ink-3); filter:none}
+/* the charter's pages wear the colour of the tile that pinned them */
+.ocp .chip.pin{background:var(--p-bg); border-color:var(--p-bd); color:var(--ink); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring), border-color .18s}
+.ocp .chip.pin .ic{color:var(--p-fg)}
+.ocp .chip.lit{border-color:var(--p-fg); box-shadow:2px 2px 0 var(--p-hs); transform:translate(-1px,-1px)}
+.ocp .chip.ghost{background:none; border-style:dashed; border-color:var(--p-fg); color:var(--p-fg); opacity:.85; animation:chipin .3s var(--ease-spring) both}
+.ocp .chip.ghost .ic{color:var(--p-fg)}
 .ocp .addm{display:flex; gap:8px; align-items:center; margin:10px 0 0 43px}
 .ocp .addm input{flex:1; min-width:0; max-width:300px; padding:7px 12px; border-radius:999px; border:1.5px dashed var(--line-2); background:transparent; outline:none; font-size:.84rem}
 .ocp .addm input:focus{border-style:solid; border-color:var(--ink-3)}

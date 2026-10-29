@@ -28,7 +28,7 @@ import {
   readMoneyAnswer,
   type InterviewBeat,
 } from "@/lib/onboarding/answers";
-import { ACTIVITY_IDS, readActivities } from "@/lib/onboarding/activities";
+import { ACTIVITY_IDS, activityPage, readActivities } from "@/lib/onboarding/activities";
 import { MAX_CUSTOM_METRICS, type DocsAnswer, type Draft, type MoneyAnswer, type ThreadLine } from "@/lib/onboarding/draft";
 import {
   BUILTIN_METRIC_IDS,
@@ -43,11 +43,10 @@ import {
   type KindId,
 } from "@/lib/onboarding/kinds";
 import { TERM_MODELS, TERM_PERIOD_VOCAB, matchTermModel, suggestTerms, type TermModel } from "@/lib/onboarding/terms";
-import type { PaperIconName } from "@/app/components/paper/PaperIcon";
-import type { CharterSection } from "./Charter";
+import type { CharterSection, MonthPreview } from "./Charter";
 import { periodWord, trackedLabels } from "./Charter";
 import { draftVocab, type FlowAction } from "./flow-state";
-import { Ic, Rich, bold, em, fmtDay, listy, orgName, plain, plural, type Tone } from "./paper";
+import { Ic, Rich, bold, em, fmtDay, listy, orgName, pageRows, plain, plural, type PageRow } from "./paper";
 
 type Stage = InterviewBeat | "typing" | "recap";
 
@@ -76,15 +75,21 @@ const KIND_CHIP: Record<KindId, string> = {
   other:      "Something else",
 };
 
-const ACTIVITY_META: Record<string, { icon: PaperIconName; tone: Tone; label: string }> = {
-  meetings:  { icon: "gavel",  tone: "sky",    label: "Chapter meetings" },
-  socials:   { icon: "note",   tone: "rose",   label: "Social events or parties" },
-  service:   { icon: "heart",  tone: "mint",   label: "Service or volunteering" },
-  programs:  { icon: "board",  tone: "butter", label: "Programs or workshops" },
-  fundraisers: { icon: "jar",  tone: "mint",   label: "Fundraisers" },
-  tasks:     { icon: "box",    tone: "lilac",  label: "Handing out tasks & deadlines" },
-  online:    { icon: "camera", tone: "peach",  label: "Posting content online" },
+/** Tile labels. Each tile's icon and colour are its page's (pageRows), so the
+    tile and the chip it puts on the charter read as the same thing. */
+const ACTIVITY_LABEL: Record<string, string> = {
+  meetings:    "Chapter meetings",
+  socials:     "Social events or parties",
+  programs:    "Programs or workshops",
+  fundraisers: "Fundraisers",
+  service:     "Service or volunteering",
+  tasks:       "Handing out tasks & deadlines",
+  online:      "Posting content online",
 };
+
+function activityRow(d: Draft, id: string): PageRow {
+  return pageRows(d).find(p => p.id === activityPage(id))!;
+}
 
 const MONEY_CHIPS: [MoneyAnswer, string][] = [["yes", "Yes — all the time"], ["some", "Now and then"], ["none", "No money"]];
 const DOCS_CHIPS: [DocsAnswer, string][] = [["yes", "Yes, a few things"], ["scattered", "Yes, but it’s scattered"], ["none", "Not really"]];
@@ -106,7 +111,7 @@ function meetingsWord(d: Draft): string {
 }
 
 function activityLabel(d: Draft, id: string): string {
-  if (id !== "meetings") return ACTIVITY_META[id]?.label ?? id;
+  if (id !== "meetings") return ACTIVITY_LABEL[id] ?? id;
   const m = draftVocab(d, "Meetings");
   return m === "Chapter" ? "Chapter meetings" : m === "Meetings" ? "Regular meetings" : m;
 }
@@ -196,16 +201,20 @@ export function InterviewStep({
   dispatch,
   onFlash,
   onDone,
+  onMonthPreview,
   founderFallback,
 }: {
   draft: Draft;
   dispatch: React.Dispatch<FlowAction>;
   onFlash: (section: CharterSection) => void;
   onDone: () => void;
+  /** The unsubmitted month picks + hovered tile, for the charter to show live. */
+  onMonthPreview: (preview: MonthPreview | null) => void;
   founderFallback: string | null;
 }) {
   const [stage, setStage] = useState<Stage>(() => (draft.interviewDone ? "recap" : nextUnansweredBeat(draft) ?? "recap"));
   const [picks, setPicks] = useState<string[]>(() => draft.answers.acts ?? []);
+  const [hoverAct, setHoverAct] = useState<string | null>(null);
   const [metPicks, setMetPicks] = useState<BuiltinMetricFlags>(() => flagsOf(draft));
   const [text, setText] = useState("");
 
@@ -223,6 +232,10 @@ export function InterviewStep({
   const freshStage = shownStage.current !== stage;
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    onMonthPreview(stage === "month" ? { acts: picks, hover: hoverAct } : null);
+  }, [stage, picks, hoverAct, onMonthPreview]);
+  useEffect(() => () => onMonthPreview(null), [onMonthPreview]);
   useEffect(() => {
     seen.current = draft.thread.length;
     shownStage.current = stage;
@@ -538,23 +551,34 @@ export function InterviewStep({
         )}
 
         {stage === "month" && (
-          <div className={`acts${widgetCls}`}>
+          <div className={`acts mp${widgetCls}`}>
             {ACTIVITY_IDS.map(id => {
-              const meta = ACTIVITY_META[id]!;
+              const page = activityRow(draft, id);
               const on = picks.includes(id);
+              const leave = () => setHoverAct(h => (h === id ? null : h));
               return (
                 <button
                   key={id}
                   type="button"
-                  className={`act t-${meta.tone}`}
-                  style={{ ["--p-hs" as string]: `var(--${meta.tone})` }}
+                  className={`act t-${page.tone}`}
+                  style={{ ["--p-hs" as string]: `var(--${page.tone})` }}
                   aria-pressed={on}
                   onClick={() => setPicks(p => (on ? p.filter(x => x !== id) : [...p, id]))}
+                  onPointerEnter={() => setHoverAct(id)}
+                  onPointerLeave={leave}
+                  onFocus={() => setHoverAct(id)}
+                  onBlur={leave}
                 >
                   <span className="tile">
-                    <Ic name={meta.icon} />
+                    <Ic name={page.icon} />
                   </span>
-                  <span>{activityLabel(draft, id)}</span>
+                  <span className="act-t">
+                    <span className="lb">{activityLabel(draft, id)}</span>
+                    <span className="to">
+                      <Ic name="arrow-r" />
+                      {page.label} page
+                    </span>
+                  </span>
                   <span className="bx">
                     <Ic name="check" />
                   </span>
@@ -575,6 +599,12 @@ export function InterviewStep({
                 {picks.length ? "That’s our month" : "None of these, really"}
                 <Ic name="arrow-r" />
               </button>
+              <span className="note">
+                <span className={`n${picks.length ? "" : " zero"}`}>
+                  {picks.length ? `+${picks.length} ${picks.length === 1 ? "page" : "pages"}` : "No pages yet"}
+                </span>
+                {!draft.answers.money && <>Money comes next — that’s where {plain(draftVocab(draft, "Treasury"))} gets decided.</>}
+              </span>
             </div>
           </div>
         )}

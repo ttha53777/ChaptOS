@@ -75,23 +75,25 @@ export interface PageRow {
   lock: boolean;
   /** Sidebar group: 0 overview, 1 members, 2 operations. */
   group: 0 | 1 | 2;
+  /** The page's colour — on its charter chip and on the month tile that turns it on. */
+  tone: Tone;
 }
 
 /** Every page the sidebar can show, labelled the way the real sidebar will. */
 export function pageRows(draft: Draft): PageRow[] {
   return [
-    { id: "dashboard",      label: "Dashboard",                           icon: "home",     lock: true,  group: 0 },
-    { id: "timeline",       label: "Timeline",                            icon: "timeline", lock: true,  group: 0 },
-    { id: "members",        label: draftVocab(draft, "Member", true),     icon: "people",   lock: true,  group: 1 },
-    { id: "meetings",       label: draftVocab(draft, "Meetings"),         icon: "gavel",    lock: false, group: 1 },
-    { id: "tasks",          label: "Tasks",                               icon: "box",      lock: false, group: 1 },
-    { id: "docs",           label: "Docs",                                icon: "folder",   lock: false, group: 2 },
-    { id: "communications", label: "Instagram",                           icon: "camera",   lock: false, group: 2 },
-    { id: "events",         label: "Programming",                         icon: "board",    lock: false, group: 2 },
-    { id: "service",        label: draftVocab(draft, "Service"),          icon: "heart",    lock: false, group: 2 },
-    { id: "parties",        label: "Parties",                             icon: "note",     lock: false, group: 2 },
-    { id: "fundraisers",    label: "Fundraisers",                         icon: "jar",      lock: false, group: 2 },
-    { id: "finance",        label: draftVocab(draft, "Treasury"),         icon: "wallet",   lock: false, group: 2 },
+    { id: "dashboard",      label: "Dashboard",                           icon: "home",     lock: true,  group: 0, tone: "butter" },
+    { id: "timeline",       label: "Timeline",                            icon: "timeline", lock: true,  group: 0, tone: "butter" },
+    { id: "members",        label: draftVocab(draft, "Member", true),     icon: "people",   lock: true,  group: 1, tone: "butter" },
+    { id: "meetings",       label: draftVocab(draft, "Meetings"),         icon: "gavel",    lock: false, group: 1, tone: "sky" },
+    { id: "tasks",          label: "Tasks",                               icon: "box",      lock: false, group: 1, tone: "peach" },
+    { id: "docs",           label: "Docs",                                icon: "folder",   lock: false, group: 2, tone: "sky" },
+    { id: "communications", label: "Instagram",                           icon: "camera",   lock: false, group: 2, tone: "rose" },
+    { id: "events",         label: "Programming",                         icon: "board",    lock: false, group: 2, tone: "lilac" },
+    { id: "service",        label: draftVocab(draft, "Service"),          icon: "heart",    lock: false, group: 2, tone: "mint" },
+    { id: "parties",        label: "Parties",                             icon: "note",     lock: false, group: 2, tone: "rose" },
+    { id: "fundraisers",    label: "Fundraisers",                         icon: "jar",      lock: false, group: 2, tone: "butter" },
+    { id: "finance",        label: draftVocab(draft, "Treasury"),         icon: "wallet",   lock: false, group: 2, tone: "mint" },
   ];
 }
 

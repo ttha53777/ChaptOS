@@ -19,7 +19,7 @@ import { APP_NAME } from "@/lib/domains";
 import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import type { CreateStep } from "@/lib/onboarding/draft";
 import { draftSlug, useCreateTheme, useDraft } from "./flow-state";
-import { Charter, type CharterFlash, type CharterSection } from "./Charter";
+import { Charter, type CharterFlash, type CharterSection, type MonthPreview } from "./Charter";
 import { NameStep } from "./NameStep";
 import { InterviewStep } from "./InterviewStep";
 import { RolesStep } from "./RolesStep";
@@ -50,6 +50,7 @@ export function CreateFlow() {
   const { session, signOut } = useSession();
   const searchParams = useSearchParams();
   const [flash, setFlash] = useState<CharterFlash>(null);
+  const [monthPreview, setMonthPreview] = useState<MonthPreview | null>(null);
   const [slugNotice, setSlugNotice] = useState<string | null>(null);
   const [resume, setResume] = useState(false);
   const [resumeBarClosed, setResumeBarClosed] = useState(false);
@@ -211,10 +212,11 @@ export function CreateFlow() {
                 dispatch={dispatch}
                 onFlash={onFlash}
                 onDone={() => goto("roles")}
+                onMonthPreview={setMonthPreview}
                 founderFallback={founderFallback}
               />
               <div className="slot">
-                <Charter draft={draft} flash={flash} showTypes={draft.interviewDone} founderFallback={founderFallback} />
+                <Charter draft={draft} flash={flash} preview={monthPreview} showTypes={draft.interviewDone} founderFallback={founderFallback} />
               </div>
             </div>
           )}

@@ -10,16 +10,22 @@
  */
 
 import { useEffect, useRef } from "react";
+import { activityPage } from "@/lib/onboarding/activities";
+import { workflowsFromAnswers } from "@/lib/onboarding/answers";
 import type { Draft } from "@/lib/onboarding/draft";
 import { BUILTIN_METRIC_IDS, BUILTIN_METRIC_LABEL } from "@/lib/onboarding/kinds";
 import { activeAreas, areaState } from "@/lib/onboarding/perm-areas";
 import { TERM_PERIOD_VOCAB } from "@/lib/onboarding/terms";
 import { DISPLAY_HOST, draftEventTypes, draftSlug, draftVocab, wfSet } from "./flow-state";
 import { Mark } from "./Mark";
-import { Ic, pagesOn, plural, seatTone, todayLong } from "./paper";
+import { Ic, pageOn, pageRows, plural, seatTone, todayLong } from "./paper";
 
 export type CharterSection = "name" | "pages" | "words" | "metrics" | "seats" | "types" | "foot";
 export type CharterFlash = { section: CharterSection; key: number } | null;
+
+/** The month beat before it's answered: what's ticked, and the tile under the
+    pointer — so each tap shows its page here instead of waiting for the submit. */
+export type MonthPreview = { acts: string[]; hover: string | null };
 
 export function trackedLabels(draft: Draft): string[] {
   return [
@@ -74,9 +80,11 @@ export function Charter({
   filed = false,
   stamp = null,
   founderFallback,
+  preview = null,
 }: {
   draft: Draft;
   flash?: CharterFlash;
+  preview?: MonthPreview | null;
   showTypes?: boolean;
   filed?: boolean;
   /** The rubber stamp, once the org exists: "slam" plays the landing. */
@@ -86,7 +94,15 @@ export function Charter({
 }) {
   const name = draft.name.trim();
   const slug = draftSlug(draft);
-  const pages = pagesOn(draft);
+  // Pages come from the same rebuild a submitted answer goes through, so the
+  // preview can't show a page the answer wouldn't build.
+  const shown = preview
+    ? { ...draft, enabledWorkflows: workflowsFromAnswers({ ...draft.answers, acts: preview.acts }) }
+    : draft;
+  const hoverPage = preview?.hover ? activityPage(preview.hover) : undefined;
+  const rows = pageRows(shown);
+  const pages = rows.filter(p => pageOn(shown, p));
+  const ghostId = rows.find(p => p.id === hoverPage && !pageOn(shown, p))?.id;
 
   // Chips that weren't on the sheet a moment ago get the drop-in.
   const prev = useRef<string[] | null>(null);
@@ -124,14 +140,23 @@ export function Charter({
 
       <Sec id="pages" title="Pages" count={kinded ? pages.length : null} flash={flash}>
         <div className="chips">
-          {pages.map(p => (
-            <span key={p.id} className={`chip${p.lock ? " lock" : ""}${before && !before.includes(p.id) ? " new" : ""}`}>
-              <Ic name={p.icon} />
-              {p.label}
-            </span>
-          ))}
+          {rows
+            .filter(p => pageOn(shown, p) || p.id === ghostId)
+            .map(p => {
+              const cls = p.id === ghostId
+                ? ` ghost t-${p.tone}`
+                : p.lock
+                  ? " lock"
+                  : ` pin t-${p.tone}${before && !before.includes(p.id) ? " new" : ""}${p.id === hoverPage ? " lit" : ""}`;
+              return (
+                <span key={p.id} className={`chip${cls}`} style={{ ["--p-hs" as string]: `var(--${p.tone})` }}>
+                  <Ic name={p.icon} />
+                  {p.label}
+                </span>
+              );
+            })}
         </div>
-        {kinded && !draft.answers.acts && <p className="ch-pend">The rest arrive with “a normal month”.</p>}
+        {kinded && !draft.answers.acts && !preview?.acts.length && <p className="ch-pend">The rest arrive with “a normal month”.</p>}
       </Sec>
 
       <Sec id="words" title="Your words" flash={flash} pending={kinded ? null : "Fills in when you say what kind of org this is."}>
