@@ -114,6 +114,8 @@ export async function proxy(request: NextRequest) {
  *   /for       who it's for, plus /for/<audience> — the six org-type pages the
  *              footer's "For" column links to
  *   /blog      the blog, plus /blog/<post> and /blog/rss.xml
+ *   /seo-preview  the SEO landing-page mock (noindex, kept out of the sitemap)
+ *   /robots.txt, /sitemap.xml  crawler files; bounced to /login they're useless
  *
  * The /help articles and /for audiences are matched by prefix rather than
  * enumerated, but each prefix carries its trailing "/" so a future org slug like
@@ -122,7 +124,7 @@ export async function proxy(request: NextRequest) {
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   "/", "/create", "/trust", "/help", "/contact", "/for", "/pricing",
-  "/blog",
+  "/blog", "/seo-preview", "/robots.txt", "/sitemap.xml",
 ]);
 
 function isPublicPath(pathname: string): boolean {

@@ -52,6 +52,9 @@ const SYSTEM_ROUTES: readonly string[] = [
   // future sibling. Same reasoning as trust/privacy/terms above — cheaper to
   // reserve now than to rename someone's workspace later.
   "pricing", "billing",
+  // "seo-preview" backs app/seo-preview/ (the landing-page SEO mock). A real
+  // app route would shadow an org that took the slug, so reserve it.
+  "seo-preview",
 ];
 
 const INFRA_HOSTS: readonly string[] = [
