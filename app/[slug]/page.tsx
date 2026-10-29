@@ -66,6 +66,7 @@ import { CheckInPicker } from "../components/dashboard/ledger/CheckInPicker";
 import { TreasuryRail } from "../components/dashboard/ledger/TreasuryRail";
 import { ActivityRail } from "../components/dashboard/ledger/ActivityRail";
 import { UpNext } from "../components/dashboard/ledger/UpNext";
+import { paperCatVars } from "@/lib/event-hue";
 import { RecentDocs } from "../components/dashboard/ledger/RecentDocs";
 import { ActivityGlance, DocsGlance, MembersGlance, TreasuryGlance } from "../components/dashboard/PhoneGlances";
 import { CREATE_EVENT, CREATE_PARAM, isCreateKey, type CreateKey } from "../components/MobileTabBar";
@@ -2399,6 +2400,13 @@ export default function Home() {
       inColumn={!dash.layout.top.includes("announcement")}
     />
   ) };
+  // The live band wears the ticket stub Up next showed, in the event type's
+  // colour. The live payload carries no category, so look it up here.
+  const liveCategory = liveCheckIn ? calendarList.find(e => e.id === liveCheckIn.event.id)?.category : undefined;
+  const liveType = liveCategory ? eventTypeMap.get(liveCategory) : undefined;
+  const liveTone = liveCategory
+    ? paperCatVars(liveCategory, liveType?.colorDark ?? liveType?.color ?? "#8a8f98") as React.CSSProperties
+    : undefined;
   dashCards.next = { label: "Up next", icon: "clock", tone: "sky", blurb: "The next event, and check-in on the day", node: (
     <UpNext
       events={calendarList}
@@ -2609,6 +2617,7 @@ export default function Home() {
               onTakeAttendance={canAttendance && liveCheckIn
                 ? () => openAttendanceLog(calendarList.find(e => e.id === liveCheckIn.event.id))
                 : undefined}
+              tone={liveTone}
             />}
 
             {/* ── Calendar invite ─────────────────────────────────────────── */}

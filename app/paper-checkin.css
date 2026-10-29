@@ -27,6 +27,28 @@ html[data-aesthetic="paper"] .dash section.live[data-state="closed"] {
 html[data-aesthetic="paper"] .dash section.live::before { display: none; }
 @keyframes ci-in { from { opacity: 0; transform: translateY(-10px) rotate(-.4deg); } }
 
+/* The ticket stub Up next showed (core-cards.css .un-stub), torn off and
+   stamped. Its tone comes inline from the page as the paper --pc* set. */
+html[data-aesthetic="paper"] .dash section.live.has-stub { display: grid; grid-template-columns: 128px minmax(0, 1fr); }
+html[data-aesthetic="paper"] .dash section.live.has-stub .live-rule { left: 140px; }
+html[data-aesthetic="paper"] .dash .live-stub { border-radius: 20.5px 0 0 20.5px; justify-content: flex-start; padding-top: 22px; }
+html[data-aesthetic="paper"] .dash .live-stamp {
+  position: absolute; z-index: 3; left: 18px; bottom: 16px; padding: 3px 8px; border: 2px solid var(--pp-mint-ink); border-radius: 6px;
+  font-family: var(--mono); font-size: .6rem; font-weight: 600; letter-spacing: .12em; white-space: nowrap; color: var(--pp-mint-ink);
+  background: color-mix(in srgb, var(--card) 72%, transparent); transform: rotate(-9deg);
+  animation: ci-stamp .45s var(--pp-ease-spring) .25s both;
+}
+html[data-aesthetic="paper"] .dash .live-stamp.shut { border-color: var(--muted); color: var(--muted); animation: none; }
+html[data-aesthetic="paper"] .dash section.live[data-state="closed"] .live-stub { filter: grayscale(.75); opacity: .8; }
+@keyframes ci-stamp { from { opacity: 0; transform: rotate(-9deg) scale(1.8); } }
+
+/* landed by the ticket flight: no slide-in of its own, the words settle */
+html[data-aesthetic="paper"] .dash section.live.flown { animation: none; }
+html[data-aesthetic="paper"] .dash section.live.landed :is(.live-stub > :not(.live-stamp), .live-body > *) { animation: ci-settle .42s var(--pp-ease-out) both; }
+html[data-aesthetic="paper"] .dash section.live.landed .live-body > :nth-child(2) { animation-delay: .06s; }
+html[data-aesthetic="paper"] .dash section.live.landed .live-body > :nth-child(3) { animation-delay: .12s; }
+@keyframes ci-settle { from { opacity: 0; transform: translateY(6px); } }
+
 /* the remaining window, draining down a pill rule inset on the left */
 html[data-aesthetic="paper"] .dash .live-rule {
   left: 12px; top: 16px; bottom: 16px; width: 5px; border-radius: 3px; background: var(--card-3); overflow: hidden;
@@ -132,6 +154,11 @@ html[data-aesthetic="paper"] .dash section.live.closing .live-btn:not(.ghost) { 
 
 @media (max-width: 760px) {
   html[data-aesthetic="paper"] .dash .live-body { grid-template-columns: minmax(0,1fr); padding: 18px 18px 18px 30px; }
+  html[data-aesthetic="paper"] .dash section.live.has-stub { grid-template-columns: 84px minmax(0, 1fr); }
+  html[data-aesthetic="paper"] .dash section.live.has-stub .live-rule { left: 96px; }
+  html[data-aesthetic="paper"] .dash .live-stub b { font-size: 2.2rem; }
+  html[data-aesthetic="paper"] .dash .live-stub .adm { display: none; }
+  html[data-aesthetic="paper"] .dash .live-stamp { left: 4px; font-size: .5rem; padding: 2px 5px; letter-spacing: .08em; }
   html[data-aesthetic="paper"] .dash .live-count {
     min-width: 0; text-align: left; display: grid; grid-template-columns: auto minmax(0,1fr); column-gap: 14px; align-items: end;
   }
@@ -299,3 +326,7 @@ html[data-aesthetic="paper"] .dash .lcb.closing .lcb-what b { color: var(--ci); 
 html[data-aesthetic="paper"] .dash .lcb.closing .lcb-dot { background: var(--ci); animation: ci-pulse 1.8s ease-out infinite; }
 html[data-aesthetic="paper"] .dash .lcb.closing .lcb-btn,
 html[data-aesthetic="paper"] .dash .lcb.closing .lcb-btn:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-aesthetic="paper"] .dash :is(.live-stamp, section.live.landed .live-stub > *, section.live.landed .live-body > *) { animation: none; }
+}

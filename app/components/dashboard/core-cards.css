@@ -11,7 +11,7 @@
    lib/event-hue.ts). Wide it's stub | body | countdown; the container query on
    .un-b folds it to a compact stub in the rail or on a phone. */
 .dash .un-b { container-type: inline-size; }
-.dash :is(.un-tix, .un-mini) {
+.dash :is(.un-tix, .un-mini, .live-stub) {
   --c-ink: var(--pcc, var(--pp-sky-ink, var(--ink)));
   --c-fill: var(--pcf, var(--pp-sky, var(--line-med)));
   --c-soft: var(--pcs, var(--pp-sky-soft, var(--card-2)));
@@ -157,6 +157,15 @@
 .dash .un-mini .t { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .dash .un-mini .t b { font-size: .84rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash .un-mini .t span { font-size: .72rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* the copy that flies up to the live band (../ticket-flight.ts): just the
+   paper, the stub and the title, sized by the flight itself */
+.dash .un-tix.un-flying {
+  position: fixed; z-index: 60; margin: 0; pointer-events: none; animation: none; overflow: hidden; transition: none;
+  will-change: transform, width, height;
+}
+.dash .un-flying .un-bd { justify-content: center; }
+.dash .un-flying .un-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* the plain empty state Recent docs and the track cards share */
 .dash .un-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 16px; border: 1.5px dashed var(--line-med); border-radius: 14px; }

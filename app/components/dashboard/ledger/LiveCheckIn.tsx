@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import type { LiveAttendee, LiveCheckIn as LiveCheckInData, LiveRoster } from "@/lib/services/attendance-service";
 import { apiErrorMessage, requestJson } from "../../../lib/api";
 import { PaperIcon } from "../../paper/PaperIcon";
 import { WhosHere } from "./WhosHere";
 import { formatEventTime } from "@/lib/event-time";
+import { landTicket } from "../ticket-flight";
 
 // No "use client" directive: ledger/* components inherit client-ness from
 // app/[slug]/page.tsx, which is itself "use client".
@@ -32,6 +33,9 @@ function whenLabel(ms: number, now: number): string {
   return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} ${time}`;
 }
 
+const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -47,6 +51,7 @@ export function LiveCheckIn({
   onReopen,
   onTakeAttendance,
   onFileExcuse,
+  tone,
 }: {
   /** The live window, or null when there is none — the 99% case, where the band
    *  renders nothing at all rather than an empty state. */
@@ -63,6 +68,9 @@ export function LiveCheckIn({
   onTakeAttendance?: () => void;
   /** Opens the excuse form. Undefined hides the link. */
   onFileExcuse?: () => void;
+  /** The event type's paper colour set (lib/event-hue.ts) for the ticket stub;
+   *  the band reads as the same ticket Up next showed, now torn and stamped. */
+  tone?: React.CSSProperties;
 }) {
   // Which action is in flight — not merely that one is. A single boolean made an
   // officer's "reopen" relabel the member-facing button to "Checking in…".
@@ -74,6 +82,15 @@ export function LiveCheckIn({
   // Drives the "started N min ago" line and the draining rule between polls, so
   // the band ages smoothly instead of jumping every 20s when the poll lands.
   const [now, setNow] = useState(() => Date.now());
+  // Opening check-in from Up next flies that card's ticket up here
+  // (../ticket-flight.ts): land it before paint, once per event, so the band
+  // never flashes in its place first.
+  const bandRef = useRef<HTMLElement>(null);
+  const eventIdForFlight = data?.event.id ?? null;
+  useLayoutEffect(() => {
+    if (eventIdForFlight == null || !bandRef.current) return;
+    return landTicket(eventIdForFlight, bandRef.current);
+  }, [eventIdForFlight]);
 
   const open = data?.state === "open" || data?.state === "closing";
   useEffect(() => {
@@ -120,7 +137,7 @@ export function LiveCheckIn({
   // One class carries the card's whole temperature. Precedence matters: being
   // accounted for (checked in / excused) outranks the window's urgency, because
   // there is nothing left for this member to hurry about.
-  const tone =
+  const toneClass =
     excuseApproved      ? "excused"
     : me.checkedIn      ? "done"
     : closed            ? "done"
@@ -131,6 +148,7 @@ export function LiveCheckIn({
   const elapsed = now - Date.parse(data.openedAt);
   const remaining = closed ? 0 : Math.max(0, Math.min(1, 1 - elapsed / CHECKIN_WINDOW_MS));
 
+  const stubDate = new Date(`${event.date}T00:00:00Z`);
   const pct = eligibleCount > 0 ? Math.round((presentCount / eligibleCount) * 100) : 0;
 
   async function run(kind: "checkin" | "undo" | "window", action: () => Promise<void>, fallback: string) {
@@ -156,7 +174,16 @@ export function LiveCheckIn({
 
   return (
     <>
-    <section className={`live${tone ? ` ${tone}` : ""}`} data-state={state} aria-label="Live event check-in">
+    <section ref={bandRef} className={`live has-stub${toneClass ? ` ${toneClass}` : ""}`} data-state={state} aria-label="Live event check-in" style={tone}>
+      {/* Paper only: the ticket stub the event wore in Up next, stamped. */}
+      <div className="un-stub live-stub pp-only" aria-hidden="true">
+        <span className="adm">ADMIT ONE</span>
+        <small>{WD[stubDate.getUTCDay()]}</small>
+        <b>{stubDate.getUTCDate()}</b>
+        <small>{MON[stubDate.getUTCMonth()]}</small>
+        <span className={`live-stamp${closed ? " shut" : ""}`}>{closed ? "CHECK-IN CLOSED" : "CHECK-IN OPEN"}</span>
+      </div>
+
       <div className="live-rule">
         <i style={{ transform: `scaleY(${remaining.toFixed(3)})` }} />
       </div>

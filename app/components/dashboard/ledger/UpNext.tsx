@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 import type { CalEventType, CalendarEvent } from "../../../data";
 import { SectionError } from "./SectionError";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../paper/PaperIcon";
@@ -6,6 +6,7 @@ import { formatEventTime, startInstant } from "@/lib/event-time";
 import { paperCatVars } from "@/lib/event-hue";
 import { agendaPreview, countdown, factsOf, lastPast, untilLabel, upcoming, type Fact } from "@/lib/up-next";
 import { useNow } from "../../../hooks/useNow";
+import { launchTicket } from "../ticket-flight";
 import "../core-cards.css";
 
 const WD = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -103,8 +104,29 @@ export function UpNext({
   const list = loading || error ? [] : upcoming(events, today, now, liveEventId);
   const next = list[0];
 
+  // When the next event changes (check-in opened, so this one moved up to the
+  // band), ease the card to its new height rather than jumping.
+  const cardRef = useRef<HTMLElement>(null);
+  const lastHeight = useRef<number | null>(null);
+  const nextId = next?.id ?? null;
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { lastHeight.current = el.offsetHeight; });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const h = el.offsetHeight, was = lastHeight.current;
+    lastHeight.current = h;
+    if (was == null || was === h || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.animate([{ height: `${was}px`, overflow: "hidden" }, { height: `${h}px`, overflow: "hidden" }], { duration: 480, easing: "cubic-bezier(.45,0,.12,1)" });
+  }, [nextId]);
+
   return (
-    <section className="card un" aria-label="Up next">
+    <section ref={cardRef} className="card un" aria-label="Up next">
       <div className="card-h">
         <PaperTile icon="clock" tone="sky" />
         <h2>Up next</h2>
@@ -128,7 +150,7 @@ export function UpNext({
             <Empty events={events} today={today} now={now} onAddEvent={onAddEvent} />
           ) : (
             <>
-              <Ticket event={next} types={eventTypes} today={today} now={now} onSelect={onSelect} onOpenCheckIn={onOpenCheckIn} />
+              <Ticket key={next.id} event={next} types={eventTypes} today={today} now={now} onSelect={onSelect} onOpenCheckIn={onOpenCheckIn} />
               {list.length > 1 && (
                 <div className="un-after">
                   <p className="un-after-h">After that</p>
@@ -255,7 +277,11 @@ function Ticket({ event, types, today, now, onSelect, onOpenCheckIn }: {
         )}
         {cd.kind === "today" && onOpenCheckIn && (
           <div className="un-acts">
-            <button type="button" className="un-btn solid" onClick={() => onOpenCheckIn(event)}>Open check-in</button>
+            <button
+              type="button"
+              className="un-btn solid"
+              onClick={e => { launchTicket(event.id, e.currentTarget.closest<HTMLElement>(".un-tix")); onOpenCheckIn(event); }}
+            >Open check-in</button>
           </div>
         )}
       </div>
