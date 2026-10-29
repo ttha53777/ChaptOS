@@ -2750,11 +2750,13 @@ export default function Home() {
         </Modal>
       )}
       {activeModal === "excuse" && selectedEventForAttendance && (
-        <Modal title={isAdmin ? "Approve Excuse" : "Submit Excuse"} tone="dusk" onClose={closeModal}>
+        <Modal title={canAttendance ? "Approve Excuse" : "Submit Excuse"} tone="dusk" onClose={closeModal}>
+          {/* Attendance permission, not the deprecated isAdmin flag: the server
+              only honors brotherId (and auto-approves) for MANAGE_ATTENDANCE. */}
           <ExcuseForm
             event={selectedEventForAttendance}
             bList={brotherList}
-            isAdmin={isAdmin}
+            isAdmin={canAttendance}
             selfBrotherId={selfId}
             onDone={({ excuseStatus }) => {
               const eventTitle = selectedEventForAttendance.title;
