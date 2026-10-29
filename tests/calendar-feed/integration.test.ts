@@ -365,6 +365,9 @@ describe("v2: admins run readiness from Settings", () => {
     await manageCalendarSubscription(ctx, { action: "timeZone", timeZone: "America/Chicago" });
     const after = await testPrisma.calendarSubscription.findUniqueOrThrow({ where: { organizationId: org.id } });
     expect(after.enabled).toBe(true); expect(after.validatedAt).toEqual(settled.validatedAt);
+    // Typed times are read in the org's zone, so the change republishes; the
+    // feed answers 503 (retry later) until the worker has applied it.
+    await refreshCalendarFeed(org.id);
     const url = (await getCalendarSubscription(ctx)).url!;
     const [publicId, secret] = url.split("/").slice(-2);
     expect((await GET(new Request(url), { params: Promise.resolve({ publicId, secret }) })).status).toBe(200);

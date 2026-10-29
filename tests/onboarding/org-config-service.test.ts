@@ -446,7 +446,9 @@ describe("setDashboardLayout", () => {
 
     const out = await setDashboardLayout(ctx, { dashboardLayout: { ...layout, main: [...layout.main, "bogus", "week"] } });
 
-    const expected = { main: ["week", "members"], rail: ["needs", "activity", "ballot", "treasury"], hidden: ["health"], numbers: ["members", "week"] };
+    // The pinned note goes back to the top spot; rail cards it left out (next,
+    // ballot, treasury, docs) are appended in the default's order.
+    const expected = { top: ["announcement"], main: ["week", "members"], rail: ["needs", "activity", "next", "ballot", "treasury", "docs"], hidden: ["health"], numbers: ["members", "week"] };
     expect(out.dashboardLayout).toEqual(expected);
     const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
     expect(row?.dashboardLayout).toEqual(expected);
