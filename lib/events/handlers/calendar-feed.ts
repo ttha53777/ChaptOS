@@ -5,7 +5,9 @@ import { refreshCalendarFeed } from "@/lib/calendar-feed/worker";
 for (const action of ["calendar.created", "calendar.updated", "calendar.deleted", "task.created", "task.updated", "task.completed", "task.reopened", "task.deleted", "programming.created", "programming.updated", "programming.stage_changed", "programming.deleted", "party.created", "party.updated", "party.deleted", "service_event.created", "service_event.updated", "service_event.deleted"] as const) {
   on(action, async ctx => { if (process.env.CALENDAR_FEED_WORKER_ENABLED === "1") await refreshCalendarFeed(ctx.orgId); });
 }
-// An admin's readiness check enqueues durable work; wake the worker for it too.
+// Settings actions that enqueue durable work (a readiness check, turning on, a
+// time-zone change that republishes typed times); wake the worker for them too.
+const WAKING_ACTIONS: unknown[] = ["validate", "turnOn", "timeZone"];
 on("org.config.updated", async (ctx, { metadata }) => {
-  if (metadata.calendarSubscriptionAction === "validate" && process.env.CALENDAR_FEED_WORKER_ENABLED === "1") await refreshCalendarFeed(ctx.orgId);
+  if (WAKING_ACTIONS.includes(metadata.calendarSubscriptionAction) && process.env.CALENDAR_FEED_WORKER_ENABLED === "1") await refreshCalendarFeed(ctx.orgId);
 });

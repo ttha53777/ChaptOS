@@ -54,10 +54,10 @@ The triggers must ship with the tables: a schema-only `db push` is insufficient.
 1. In Settings → Operations → Calendar subscription, an officer confirms the IANA
    time zone. The field is prefilled from the officer's device and labelled
    "from this device"; it is saved only when they turn the calendar on, so no
-   server/browser default is silently assigned. It is only the
-   default for newly entered times: every published timed event carries its own
-   zone and absolute instants, so changing it later neither pauses nor
-   re-validates the subscription (v2; v1 paused the feed).
+   server/browser default is silently assigned. Changing it later doesn't
+   re-validate or turn off the subscription, but times typed without a saved
+   schedule ("7:00 PM") are read in this zone, so it queues a republish and the
+   feed answers 503 (retry later) until the worker has applied it.
 2. Run `npm run calendar:feeds -- provision --org=ID`.
 3. Run `npm run calendar:feeds -- audit --org=ID` and review the result.
 4. Run `npm run calendar:feeds -- backfill --org=ID`. Date-only calendar entries
