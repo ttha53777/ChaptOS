@@ -90,8 +90,7 @@ export function workflowsFromAnswers(answers: Draft["answers"]): WorkflowId[] {
   for (const opt of ACTIVITY_OPTIONS) {
     if (answers.acts?.includes(opt.id)) opt.workflows.forEach(w => on.add(w));
   }
-  // Money is asked after the month, so its answer is the final word on Treasury
-  // — "no money" wins even over a ticked "fundraisers".
+  // Treasury is the money beat's alone — no month answer turns it on.
   if (answers.money) {
     if (answers.money === "none") on.delete("finance");
     else on.add("finance");

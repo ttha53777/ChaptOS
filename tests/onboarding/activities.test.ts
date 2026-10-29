@@ -16,6 +16,7 @@ import {
   ACTIVITY_OWNED,
   activityLabels,
   activityPicksToAiPicks,
+  migrateActivityIds,
   readActivities,
 } from "@/lib/onboarding/activities";
 
@@ -112,6 +113,29 @@ describe("readActivities: negation", () => {
   });
 });
 
+describe("readActivities: programs vs fundraisers", () => {
+  it("can say programs without fundraisers — the reason they were split", () => {
+    expect(ids("we do GBMs and workshops but no fundraisers")).toEqual(["meetings", "programs"]);
+    expect(ids("speakers and info sessions")).toEqual(["programs"]);
+  });
+
+  it("can say fundraisers without programs", () => {
+    expect(ids("mostly fundraisers and posting on insta")).toEqual(["fundraisers", "online"]);
+    expect(ids("bake sales and raffles")).toEqual(["fundraisers"]);
+  });
+});
+
+describe("migrateActivityIds", () => {
+  it("splits the old shared tile into both of its pages", () => {
+    expect(migrateActivityIds(["meetings", "fundraise"])).toEqual(["meetings", "programs", "fundraisers"]);
+  });
+
+  it("leaves current ids alone and doesn't duplicate", () => {
+    expect(migrateActivityIds(["fundraisers", "fundraise", "online"])).toEqual(["programs", "fundraisers", "online"]);
+    expect(migrateActivityIds([])).toEqual([]);
+  });
+});
+
 describe("activityPicksToAiPicks", () => {
   it("is authoritative: unnamed activity pages are explicitly removed", () => {
     const picks = activityPicksToAiPicks(new Set(["meetings"]));
@@ -121,6 +145,16 @@ describe("activityPicksToAiPicks", () => {
     expect(picks.removeWorkflows.sort()).toEqual(
       ACTIVITY_OWNED.filter(w => w !== "meetings" && w !== "attendance").sort(),
     );
+  });
+
+  it("never touches Treasury — the money beat owns it", () => {
+    expect(ACTIVITY_OWNED).not.toContain("finance");
+    for (const o of ACTIVITY_OPTIONS) expect(o.workflows, o.id).not.toContain("finance");
+  });
+
+  it("gives every option its own page, so no tile turns on another's", () => {
+    const pages = ACTIVITY_OPTIONS.flatMap(o => o.workflows.filter(w => w !== "attendance"));
+    expect(new Set(pages).size).toBe(ACTIVITY_OPTIONS.length);
   });
 
   it("removes the whole domain when nothing was named", () => {
@@ -152,6 +186,7 @@ describe("the checklist table itself", () => {
       "chapter meetings",
       "parties",
       "volunteering",
+      "workshops",
       "fundraisers",
       "deadlines",
       "posting on instagram",

@@ -35,12 +35,19 @@ describe("workflowsFromAnswers", () => {
     expect(workflowsFromAnswers({})).toEqual(["members", "operations"]);
   });
 
-  it("turns on what the month names, and money has the final word on Treasury", () => {
-    const fundraise = workflowsFromAnswers({ acts: ["fundraise"] });
-    expect(fundraise).toContain("events");
-    expect(fundraise).toContain("finance");
-    // "No money" comes after the month and wins over a ticked fundraiser.
-    expect(workflowsFromAnswers({ acts: ["fundraise"], money: "none" })).not.toContain("finance");
+  it("turns on exactly the page each month tile names", () => {
+    const programs = workflowsFromAnswers({ acts: ["programs"] });
+    expect(programs).toContain("events");
+    expect(programs).not.toContain("fundraisers");
+    const fundraisers = workflowsFromAnswers({ acts: ["fundraisers"] });
+    expect(fundraisers).toContain("fundraisers");
+    expect(fundraisers).not.toContain("events");
+  });
+
+  it("leaves Treasury to the money beat alone", () => {
+    expect(workflowsFromAnswers({ acts: ["programs", "fundraisers"] })).not.toContain("finance");
+    expect(workflowsFromAnswers({ acts: ["fundraisers"], money: "some" })).toContain("finance");
+    expect(workflowsFromAnswers({ acts: ["fundraisers"], money: "none" })).not.toContain("finance");
     expect(workflowsFromAnswers({ money: "some" })).toContain("finance");
   });
 

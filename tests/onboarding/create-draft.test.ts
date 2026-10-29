@@ -232,6 +232,12 @@ describe("parseDraft", () => {
     expect(parseDraft(JSON.stringify(draft))).toEqual(draft);
   });
 
+  it("carries a pre-split month answer onto today's checklist ids", () => {
+    const draft = draftFor("club");
+    const saved = { ...draft, answers: { ...draft.answers, acts: ["meetings", "fundraise"] } };
+    expect(parseDraft(JSON.stringify(saved))?.answers.acts).toEqual(["meetings", "programs", "fundraisers"]);
+  });
+
   it("returns null for missing, corrupt, or wrong-shape values", () => {
     expect(parseDraft(null)).toBeNull();
     expect(parseDraft(undefined)).toBeNull();

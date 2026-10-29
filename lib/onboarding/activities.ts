@@ -18,7 +18,12 @@ import type { WorkflowId } from "@/lib/org-types";
  * the concierge prompt (app/api/ai/interview/route.ts) so the tapped-checklist
  * path and the model's free-text path resolve identical pages. Rendered as a
  * multi-select grid (the same accumulate-then-submit pattern the metrics picker
- * uses) because its six options exceed the concierge's 4-chip cap.
+ * uses) because its seven options exceed the concierge's 4-chip cap.
+ *
+ * One option, one page (plus attendance riding meetings). Programs and
+ * fundraisers used to share a tile that turned on Programming, Fundraisers AND
+ * Treasury at once, so "workshops, no fundraisers" couldn't be said. Treasury
+ * isn't this beat's to decide at all: the money beat right after owns it.
  *
  * Attendance rides the meetings tick rather than earning its own beat: taking
  * roll IS what a chapter meeting page is for, and a founder who disagrees has a
@@ -33,7 +38,8 @@ export const ACTIVITY_OPTIONS: readonly {
   { id: "meetings",  label: "Chapter meetings",             workflows: ["meetings", "attendance"] },
   { id: "socials",   label: "Social events or parties",     workflows: ["parties"] },
   { id: "service",   label: "Service or volunteering",      workflows: ["service"] },
-  { id: "fundraise", label: "Fundraisers or programs",      workflows: ["events", "finance", "fundraisers"] },
+  { id: "programs",  label: "Programs or workshops",        workflows: ["events"] },
+  { id: "fundraisers", label: "Fundraisers",                workflows: ["fundraisers"] },
   { id: "tasks",     label: "Handing out tasks/deadlines",  workflows: ["tasks"] },
   { id: "online",    label: "Posting content online",       workflows: ["communications"] },
 ];
@@ -41,11 +47,28 @@ export const ACTIVITY_OPTIONS: readonly {
 /** Every checklist option id. */
 export const ACTIVITY_IDS: readonly string[] = ACTIVITY_OPTIONS.map(o => o.id);
 
+/** The page an option exists to turn on (attendance only ever rides along). */
+export function activityPage(id: string): WorkflowId | undefined {
+  return ACTIVITY_OPTIONS.find(o => o.id === id)?.workflows[0];
+}
+
+/** Option ids a saved draft may still carry from an older checklist, and what
+    they mean now. "fundraise" was the shared "Fundraisers or programs" tile. */
+const LEGACY_ACTIVITY_IDS: Record<string, readonly string[]> = {
+  fundraise: ["programs", "fundraisers"],
+};
+
+/** Rewrite a saved selection onto today's option ids, in checklist order —
+    so a draft started before the split resumes with the same pages ticked. */
+export function migrateActivityIds(ids: readonly string[]): string[] {
+  const out = new Set(ids.flatMap(id => LEGACY_ACTIVITY_IDS[id] ?? [id]));
+  return [...ACTIVITY_IDS.filter(id => out.has(id)), ...[...out].filter(id => !ACTIVITY_IDS.includes(id))];
+}
+
 /** Every page the checklist can decide — its REMOVAL domain. A page in here that
     the founder didn't name gets turned OFF, which is what makes the checklist
-    authoritative instead of merely additive. (docs and finance can come back at
-    the later docs/payments beats; parties at the door beat. Those are strict
-    refinements that run after, so there's no conflict.) */
+    authoritative instead of merely additive. (finance and docs aren't in it —
+    the money and docs beats own those outright.) */
 export const ACTIVITY_OWNED: WorkflowId[] = [
   ...new Set(ACTIVITY_OPTIONS.flatMap(o => o.workflows)),
 ];
@@ -77,10 +100,11 @@ export function activityPicksToAiPicks(ids: ReadonlySet<string>): AiPicks {
 /** Which option a phrase names. Deliberately naive (same posture as matchKind) —
     the checklist is the primary input and a misread is one tap from fixed. */
 const ACTIVITY_KEYWORDS: readonly { id: string; re: RegExp }[] = [
-  { id: "meetings",  re: /\bmeet|chapter|assembly|weekly|general body\b/ },
+  { id: "meetings",  re: /\bmeet|chapter|assembly|weekly|general body\b|\bgbms?\b/ },
   { id: "socials",   re: /part(y|ies)|social|mixer|formal|tailgate|date night/ },
   { id: "service",   re: /service|volunteer|philanthrop|charity|community/ },
-  { id: "fundraise", re: /fundrais|program|workshop|speaker|rush|recruit/ },
+  { id: "programs",  re: /program|workshop|speaker|panel|info session|seminar|rush|recruit/ },
+  { id: "fundraisers", re: /fundrais|bake sale|raffle|merch/ },
   { id: "tasks",     re: /task|deadline|assign|committee|to-?do/ },
   { id: "online",    re: /instagram|social media|\bpost|announce|newsletter|online/ },
 ];
@@ -132,7 +156,7 @@ export interface ActivityRead {
  * not a degraded nicety; for some founders it is the only reader they ever meet.
  *
  * Returns `null` for an answer it CANNOT read at all. That distinction matters:
- * an empty selection means "none of these happen" and turns all six pages off,
+ * an empty selection means "none of these happen" and turns all seven pages off,
  * so every natural affirmative that names no keyword ("yes", "yeah, all of
  * those") must not collapse into it. An unreadable answer is a question to
  * re-ask, not an answer of "none".

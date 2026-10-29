@@ -344,7 +344,8 @@ ACTIVITY → PAGE MAPPING — when the founder describes what the org does (the 
   - chapter / regular meetings → "meetings" AND "attendance"
   - social events or parties → "parties"
   - service events or volunteering → "service"
-  - fundraisers or programs → "events" AND "finance" AND "fundraisers"
+  - programs or workshops (speakers, panels, info sessions, rush) → "events"
+  - fundraisers (bake sales, raffles, merch) → "fundraisers" — NOT "finance"; only the money beat turns Treasury on
   - handing out tasks / deadlines → "tasks"
   - posting content online (social media, announcements) → "communications"
   - shared documents or links (beat 5) → "docs"

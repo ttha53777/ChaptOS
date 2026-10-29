@@ -80,7 +80,8 @@ const ACTIVITY_META: Record<string, { icon: PaperIconName; tone: Tone; label: st
   meetings:  { icon: "gavel",  tone: "sky",    label: "Chapter meetings" },
   socials:   { icon: "note",   tone: "rose",   label: "Social events or parties" },
   service:   { icon: "heart",  tone: "mint",   label: "Service or volunteering" },
-  fundraise: { icon: "board",  tone: "butter", label: "Fundraisers or programs" },
+  programs:  { icon: "board",  tone: "butter", label: "Programs or workshops" },
+  fundraisers: { icon: "jar",  tone: "mint",   label: "Fundraisers" },
   tasks:     { icon: "box",    tone: "lilac",  label: "Handing out tasks & deadlines" },
   online:    { icon: "camera", tone: "peach",  label: "Posting content online" },
 };
@@ -113,7 +114,7 @@ function activityLabel(d: Draft, id: string): string {
 function monthWords(d: Draft, ids: readonly string[]): string[] {
   const words: Record<string, string> = {
     meetings: meetingsWord(d), socials: "parties", service: "service",
-    fundraise: "fundraisers", tasks: "deadlines", online: "posting",
+    programs: "programs", fundraisers: "fundraisers", tasks: "deadlines", online: "posting",
   };
   return ACTIVITY_IDS.filter(id => ids.includes(id)).map(id => words[id]!);
 }

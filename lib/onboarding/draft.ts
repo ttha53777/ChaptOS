@@ -23,6 +23,7 @@ import { resolveLabel, sanitizeVocabOverrides, type VocabKey } from "@/lib/vocab
 import { suggestSlug } from "@/lib/slug-rules";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import { BUILTIN_METRIC_DEFAULTS, KIND_IDS, KIND_TO_TYPE, KIND_VOCAB_DELTA, type KindId } from "./kinds";
+import { migrateActivityIds } from "./activities";
 import { MAX_DRAFT_EVENT_TYPES, resolveEventTypeRows } from "./event-types";
 import { TERM_MODELS, TERM_PERIOD_VOCAB } from "./terms";
 import type { Seat } from "./seats";
@@ -298,7 +299,11 @@ export function parseDraft(raw: string | null | undefined): Draft | null {
   const parsed = draftSchema.safeParse(json);
   if (!parsed.success) return null;
   if (Date.now() - parsed.data.savedAt > DRAFT_MAX_AGE_MS) return null;
-  return parsed.data;
+  const acts = parsed.data.answers.acts;
+  if (!acts) return parsed.data;
+  // Older drafts carry checklist ids that have since been split; carry them over
+  // rather than letting a resumed draft silently lose a page.
+  return { ...parsed.data, answers: { ...parsed.data.answers, acts: migrateActivityIds(acts) } };
 }
 
 /**
