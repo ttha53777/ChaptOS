@@ -2404,11 +2404,11 @@ export default function Home() {
       events={calendarList}
       eventTypes={eventTypeMap}
       today={todayISO}
-      live={liveCheckIn && liveCheckIn.state !== "closed" ? { eventId: liveCheckIn.event.id, here: liveCheckIn.presentCount } : null}
+      liveEventId={liveCheckIn && liveCheckIn.state !== "closed" ? liveCheckIn.event.id : null}
       onSelect={event => setWeekPeek({ kind: "event", event })}
       onOpenCheckIn={canAttendance ? ev => void handleOpenCheckIn(ev) : undefined}
-      onGoToLive={() => document.querySelector("section.live")?.scrollIntoView({ behavior: "smooth", block: "center" })}
       onAddEvent={canEvents && eventsEnabled ? () => setActiveModal("event") : undefined}
+      onAll={() => router.push(orgPath("/timeline"))}
       loading={!calendarLoaded}
       error={calendarFailed}
       onRetry={retryWeek}

@@ -59,6 +59,18 @@ function startMinute(e: Dated): number {
   return legacy ? Number(legacy.slice(0, 2)) * 60 + Number(legacy.slice(3)) : -1;
 }
 
+/**
+ * When an event starts, as an instant; null for all-day or untimed ones. A
+ * legacy row's clock time is read in the viewer's own zone, the same way the
+ * rest of the app shows it.
+ */
+export function startInstant(e: Dated): Date | null {
+  const parsed = e.schedule == null ? null : scheduleSchema.safeParse(e.schedule);
+  if (parsed?.success) return parsed.data.kind === "allDay" ? null : new Date(parsed.data.start);
+  const legacy = e.time ? parseLegacyTime(e.time).start : undefined;
+  return legacy ? new Date(`${e.date}T${legacy}:00`) : null;
+}
+
 /** Chronological order: date, then start time within the day, then id for stability. */
 export function compareEvents(a: Dated, b: Dated): number {
   return a.date.localeCompare(b.date) || startMinute(a) - startMinute(b) || (a.id ?? 0) - (b.id ?? 0);
