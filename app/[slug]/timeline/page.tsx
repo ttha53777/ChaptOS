@@ -34,6 +34,7 @@ import { isNavVisible } from "../../components/Sidebar";
 import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
 import { hasMinutes } from "@/lib/agenda-template";
+import { paperCatVars } from "@/lib/event-hue";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -151,24 +152,11 @@ function catColorOf(types: Map<string, CalEventType>, category: string): string 
   return t ? (t.colorDark ?? t.color) : FALLBACK_CAT_COLOR;
 }
 
-// Paper aesthetic: the mock's categories get its exact pastel family; any other
-// type gets ink/fill/soft mixed from its own colour (app/paper-aesthetic.css).
-const PAPER_HUE: Record<string, string> = {
-  chapter: "sky", social: "butter", service: "mint", fundraiser: "mint",
-  program: "lilac", party: "rose", deadline: "peach",
-};
-
 /** Per-row color: drive the `--catc` custom property the spine/rail read, plus
- *  the paper triplet (--pcc ink, --pcf fill, --pcs soft) only paper reads. */
+ *  the paper set (--pcc ink, --pcf fill, --pcs soft…) only paper reads. */
 function catStyleOf(types: Map<string, CalEventType>, category: string): React.CSSProperties {
   const c = catColorOf(types, category);
-  const hue = PAPER_HUE[category];
-  return {
-    ["--catc" as string]: c,
-    ["--pcc" as string]: hue ? `var(--pp-${hue}-ink)` : `color-mix(in srgb, ${c} 82%, var(--ink))`,
-    ["--pcf" as string]: hue ? `var(--pp-${hue})`     : `color-mix(in srgb, ${c} 38%, var(--card))`,
-    ["--pcs" as string]: hue ? `var(--pp-${hue}-soft)` : `color-mix(in srgb, ${c} 10%, var(--card))`,
-  } as React.CSSProperties;
+  return { ["--catc" as string]: c, ...paperCatVars(category, c) } as React.CSSProperties;
 }
 
 function catLabelOf(types: Map<string, CalEventType>, category: string): string {

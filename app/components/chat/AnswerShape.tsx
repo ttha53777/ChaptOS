@@ -14,6 +14,7 @@ import { useState, type CSSProperties } from "react";
 
 import { fmtUsd } from "@/lib/money";
 import { todayISO } from "@/lib/dates";
+import { paperCatVars } from "@/lib/event-hue";
 import { IcArrow, IcChev, KindGlyph } from "./icons";
 import { rowAction, type AnswerRow, type AnswerShape, type BreakdownShape, type MissingShape, type TallyMark, type TallyShape, type WeekItem, type WeekShape } from "./types";
 
@@ -31,25 +32,14 @@ export function isKnownShape(shape: AnswerShape | undefined): shape is AnswerSha
 
 /**
  * Paper's pastel family for the categories the mock names; any other colour is
- * mixed from the org's own hex. Mirrors catStyleOf on the Timeline so an event
- * reads the same colour here as on its spine.
+ * mixed from the org's own hex (lib/event-hue.ts, shared with the Timeline's
+ * catStyleOf), so an event reads the same colour here as on its spine.
  */
-const PAPER_HUE: Record<string, string> = {
-  chapter: "sky", social: "butter", service: "mint", fundraiser: "mint",
-  program: "lilac", party: "rose", deadline: "peach",
-};
 const FALLBACK_CAT_COLOR = "#8a8170";
 
 function catVars(slug: string | null, color: string | null, colorDark: string | null): CSSProperties {
   const c = colorDark ?? color ?? FALLBACK_CAT_COLOR;
-  const hue = slug ? PAPER_HUE[slug] : undefined;
-  return {
-    ["--catc" as string]: c,
-    ["--pcc" as string]: hue ? `var(--pp-${hue}-ink)` : `color-mix(in srgb, ${c} 82%, var(--ink))`,
-    ["--pcf" as string]: hue ? `var(--pp-${hue})` : `color-mix(in srgb, ${c} 38%, var(--card))`,
-    ["--pcs" as string]: hue ? `var(--pp-${hue}-soft)` : `color-mix(in srgb, ${c} 10%, var(--card))`,
-    ["--pcb" as string]: hue ? `var(--pp-${hue}-bd)` : `color-mix(in srgb, ${c} 30%, var(--card))`,
-  } as CSSProperties;
+  return { ["--catc" as string]: c, ...paperCatVars(slug, c) } as CSSProperties;
 }
 
 const personRow = (m: TallyMark): AnswerRow =>
