@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { fmtRange } from "../../../data";
 import { PaperIcon } from "../../paper/PaperIcon";
 
-function greetingFor(hour: number): string {
+export function greetingFor(hour: number): string {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";

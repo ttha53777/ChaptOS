@@ -40,6 +40,7 @@ import {
 } from "./proposal-edit";
 import type { ChoiceSets } from "./useProposalChoices";
 import type { ProposalCard } from "./types";
+import { isPhoneViewport } from "./usePhoneSheet";
 
 function GateNote({ card }: { card: ProposalCard }) {
   const { label, holders } = card.perm;
@@ -88,6 +89,12 @@ function RowEditor({ field, options, value, onCommit, onCancel }: {
     if (!el) return;
     el.focus();
     if (el instanceof HTMLInputElement && field.kind === "text") el.select();
+    // On a phone the keyboard is still rising when this runs; once it's up,
+    // bring the field into the space it leaves (the composer steps aside while
+    // a value is being edited — chat-phone.css).
+    if (!isPhoneViewport()) return;
+    const t = setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 320);
+    return () => clearTimeout(t);
   }, [field.kind]);
 
   // Enter commits, Escape reverts. Shift+Enter stays a newline in a textarea,

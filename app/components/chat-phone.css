@@ -1,0 +1,246 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ask Chapt on a phone (from _design/Ask Chapt Mobile Paper Mock.html).
+
+   At phone widths the spotlight becomes a full-bleed sheet whose box is the
+   VISUAL viewport (--cs-vvt / --cs-vvh, set by chat/usePhoneSheet.ts), so the
+   composer rides on the keyboard instead of hiding under it. Fields are 16px —
+   under that iOS zooms the page on focus. Touch targets are 38–44px, nothing
+   leans on hover or a keyboard shortcut.
+
+   Every selector is `html[data-aesthetic] body .chat-root …` so it outranks
+   both chat-spotlight.css and paper-chat.css (html[data-aesthetic="paper"]
+   .chat-root …) whatever order the stylesheets load in. Breakpoint matches the
+   mobile tab bar (mobile-shell.css) and PHONE_QUERY.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* The close chevron only exists on a phone. */
+.chat-root .cs-close { display: none; }
+
+@media (max-width: 767px) {
+  /* ── The sheet ─────────────────────────────────────────────────────────── */
+  html[data-aesthetic] body .chat-root .cs-overlay {
+    inset: auto 0 auto 0; top: var(--cs-vvt, 0px); height: var(--cs-vvh, 100dvh);
+    display: flex; padding: 0; background: var(--scrim);
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+  html[data-aesthetic] body .chat-root .cs-spot {
+    flex: 1; width: 100%; height: 100%; max-height: none; min-height: 0;
+    border: 0; border-radius: 0; box-shadow: none; background: var(--paper);
+    animation: cs-phone-in .36s cubic-bezier(.16,.9,.3,1.02) both;
+    transition: transform .3s cubic-bezier(.16,.9,.3,1.02);
+  }
+  html[data-aesthetic] body .chat-root .cs-spot.dragging { transition: none; }
+  @keyframes cs-phone-in { from { transform: translateY(100%); } to { transform: none; } }
+
+  /* Header: grabber, close, title, Approvals, New. Also the drag handle. */
+  html[data-aesthetic] body .chat-root .cs-bar {
+    position: relative; gap: 6px; padding: calc(env(safe-area-inset-top) + 10px) 10px 8px;
+    border-bottom: 1.5px solid var(--line); background: var(--paper); touch-action: none;
+  }
+  html[data-aesthetic] body .chat-root .cs-bar::before {
+    content: ""; position: absolute; left: 50%; top: calc(env(safe-area-inset-top) + 3px);
+    width: 36px; height: 4px; margin-left: -18px; border-radius: 3px; background: var(--line-med);
+  }
+  html[data-aesthetic] body .chat-root .cs-close {
+    display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0;
+    border: 0; border-radius: 12px; background: none; color: var(--ink-soft); cursor: pointer;
+  }
+  html[data-aesthetic] body .chat-root .cs-close:active { background: var(--paper-2); }
+  /* The title stays on the landing too — on a phone it's the only label the screen has. */
+  html[data-aesthetic] body .chat-root[data-scene="briefing"] .cs-bar .tick,
+  html[data-aesthetic] body .chat-root[data-scene="briefing"] .cs-bar .title { visibility: visible; }
+  html[data-aesthetic] body .chat-root .cs-bar .title { font-size: 16px; }
+  html[data-aesthetic] body .chat-root .cs-bar :is(.apprchip, .newq) { min-height: 34px; padding: 0 12px; }
+
+  /* ── Composer: docked on the keyboard ─────────────────────────────────── */
+  html[data-aesthetic] body .chat-root .cs-dock {
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1.5px solid var(--line); background: var(--paper);
+  }
+  html[data-aesthetic] body .chat-root[data-kb] .cs-dock { padding-bottom: 8px; }
+  html[data-aesthetic] body .chat-root .cs-dock .composer { border-radius: 22px; padding: 4px 4px 4px 15px; }
+  html[data-aesthetic] body .chat-root .cs-dock textarea { font-size: 16px; line-height: 1.4; padding: 8px 0; }
+  html[data-aesthetic] body .chat-root .cs-dock .send { width: 38px; height: 38px; border-radius: 50%; }
+  /* Correcting a writ value: the field is the focus, so the composer steps aside for it. */
+  html[data-aesthetic] body .chat-root .cs-spot:has(.wv.editing) .cs-dock { display: none; }
+
+  /* Every field 16px — under that, iOS zooms the page on focus and leaves it zoomed. */
+  html[data-aesthetic] body .chat-root :is(.einput, input, textarea, select) { font-size: 16px; }
+
+  /* ── Thread ────────────────────────────────────────────────────────────── */
+  html[data-aesthetic] body .chat-root :is(.cs-thread, .cs-inbox, .peek-body) {
+    padding-left: 16px; padding-right: 16px; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  }
+  html[data-aesthetic] body .chat-root .cs-thread { gap: 18px; padding-top: 16px; padding-bottom: 12px; }
+  html[data-aesthetic] body .chat-root .msg.user { font-size: 15px; padding: 9px 14px; border-radius: 18px 18px 5px 18px; }
+  html[data-aesthetic] body .chat-root .verdict { font-size: 19px; }
+  html[data-aesthetic] body .chat-root .note { font-size: 15px; }
+  html[data-aesthetic] body .chat-root .trace-toggle { min-height: 40px; }
+
+  /* Rows: thumb-height, the whole row is the target. */
+  html[data-aesthetic] body .chat-root .res { min-height: 56px; padding: 9px 12px 9px 13px; }
+  html[data-aesthetic] body .chat-root .res .t { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html[data-aesthetic] body .chat-root .res .s { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html[data-aesthetic] body .chat-root .res .chev { width: 18px; }
+
+  /* Chips: 38px tall. Follow-ups scroll sideways in one line instead of wrapping into a wall. */
+  html[data-aesthetic] body .chat-root .chip { min-height: 38px; padding: 0 14px; font-size: 13.5px; }
+  html[data-aesthetic] body .chat-root .follows {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    margin-left: -16px; margin-right: -16px; padding: 0 16px 2px;
+  }
+  html[data-aesthetic] body .chat-root .follows::-webkit-scrollbar { display: none; }
+  html[data-aesthetic] body .chat-root .follows .chip { flex: none; white-space: nowrap; }
+  html[data-aesthetic] body .chat-root .fbtn { width: 38px; height: 38px; }
+
+  /* ── The writ ─────────────────────────────────────────────────────────── */
+  html[data-aesthetic] body .chat-root .writ { box-shadow: 4px 4px 0 var(--wh, var(--pp-butter)); }
+  html[data-aesthetic] body .chat-root .writ.off { box-shadow: 3px 3px 0 var(--line); }
+  html[data-aesthetic] body .chat-root .wrow .wv { font-size: 15px; }
+  html[data-aesthetic] body .chat-root .wrow .wv.val { display: block; width: 100%; min-height: 30px; text-align: left; }
+  html[data-aesthetic] body .chat-root .wrow .wv.editing .einput { min-height: 42px; }
+  /* Approve takes the width; both buttons are thumb-sized. */
+  html[data-aesthetic] body .chat-root .writ .wfoot .wbtn { min-height: 44px; padding: 0 16px; font-size: 14.5px; }
+  html[data-aesthetic] body .chat-root .writ .wfoot .wbtn.primary { flex: 1; }
+
+  /* ── Peek + idea: a pushed screen over the thread ─────────────────────── */
+  html[data-aesthetic] body .chat-root :is(.cs-peek, .cs-idea) { background: var(--paper); animation: cs-phone-push .3s cubic-bezier(.22,.72,.24,1) both; }
+  @keyframes cs-phone-push { from { transform: translateX(30%); opacity: 0; } to { transform: none; opacity: 1; } }
+  html[data-aesthetic] body .chat-root .peek-hd { padding: 8px 12px; }
+  html[data-aesthetic] body .chat-root .peek-back { min-height: 38px; padding: 0 13px; font-size: 14px; }
+  html[data-aesthetic] body .chat-root .peek-ft { padding: 10px 16px; }
+
+  /* ── Approvals: filters scroll sideways ───────────────────────────────── */
+  html[data-aesthetic] body .chat-root .audit-filters {
+    flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: -16px; margin-right: -16px; padding: 0 16px 2px;
+  }
+  html[data-aesthetic] body .chat-root .audit-filters::-webkit-scrollbar { display: none; }
+  html[data-aesthetic] body .chat-root .fchip { flex: none; min-height: 34px; }
+  html[data-aesthetic] body .chat-root .appr-row { padding: 12px 13px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* ═══ The landing (chat/PhoneLanding.tsx) ════════════════════════════════
+     Dotted paper; greeting + highlighted ask up top; the lede on a taped note;
+     the starters as ink tickets near the thumb. Day adds two pastel washes;
+     night is plain paper. */
+  .chat-root .cs-land { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+  .chat-root .cs-land::-webkit-scrollbar { display: none; }
+  .chat-root .pl {
+    position: relative; min-height: 100%; display: flex; flex-direction: column; padding: 22px 18px 16px;
+    background:
+      radial-gradient(circle, color-mix(in srgb, var(--ink) 8%, transparent) 1px, transparent 1.4px) 0 0 / 18px 18px,
+      var(--paper);
+  }
+  html[data-theme="ivory"] .chat-root .pl {
+    background:
+      radial-gradient(120% 60% at 105% -5%, color-mix(in srgb, var(--pp-lilac) 32%, transparent), transparent 62%),
+      radial-gradient(90% 50% at -10% 105%, color-mix(in srgb, var(--pp-butter) 26%, transparent), transparent 60%),
+      radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.4px) 0 0 / 18px 18px,
+      var(--paper);
+  }
+  .chat-root .pl-top { display: grid; gap: 12px; }
+  .chat-root .pl-eye {
+    display: flex; align-items: center; gap: 9px; min-width: 0;
+    font: 600 10.5px var(--font-geist-mono), ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-root .pl-eye::before { content: ""; width: 22px; height: 2px; flex-shrink: 0; border-radius: 2px; background: var(--pp-lilac-ink); }
+  .chat-root .pl-eye b { color: var(--ink-soft); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  html[data-aesthetic] body .chat-root .pl-h {
+    margin: 0; font-family: var(--font-fraunces), system-ui, sans-serif; font-weight: 600;
+    font-size: 40px; line-height: 1.02; letter-spacing: -.035em; color: var(--ink); text-wrap: balance; text-align: left;
+  }
+  .chat-root .pl-h .hey { display: block; margin-bottom: 8px; font-size: .5em; font-weight: 500; letter-spacing: -.02em; color: var(--muted); }
+  .chat-root .pl-h .nw { white-space: nowrap; }
+  html[data-aesthetic] body .chat-root .pl-h em { font-style: normal; color: var(--ink); position: relative; z-index: 0; }
+  .chat-root .pl-h em::before {
+    content: ""; position: absolute; z-index: -1; left: -.1em; right: -.12em; bottom: .02em; height: .52em;
+    background: var(--pp-lilac); border-radius: .4em .55em .38em .6em; opacity: var(--pp-mark-op, .85);
+    transform: rotate(-1.2deg); transform-origin: left center; animation: pl-ink .5s cubic-bezier(.22,.72,.24,1) .42s both;
+  }
+  @keyframes pl-ink { from { transform: rotate(-1.2deg) scaleX(0); } to { transform: rotate(-1.2deg) scaleX(1); } }
+  .chat-root .pl-h .spk { display: inline-block; width: .62em; height: .62em; vertical-align: top; margin: -.18em 0 0 .06em; color: var(--pp-butter-ink); transform: rotate(12deg); }
+
+  /* the lede, on a taped note */
+  .chat-root .pl-note {
+    position: relative; align-self: flex-start; max-width: 84%; margin: 20px 0 0 4px; padding: 16px 16px 14px;
+    border-radius: 4px 4px 4px 14px; background: var(--pp-butter); color: var(--pp-note-ink, #26211B);
+    font-family: var(--font-geist-sans), system-ui, sans-serif; font-size: 14.5px; line-height: 1.5; font-weight: 500; letter-spacing: -.01em;
+    transform: rotate(-1.8deg); box-shadow: 0 1px 0 rgba(38,33,27,.08), 0 10px 18px -12px rgba(38,33,27,.45);
+  }
+  .chat-root .pl-note::before {
+    content: ""; position: absolute; top: -9px; left: 50%; width: 74px; height: 20px; margin-left: -37px; transform: rotate(3deg);
+    background: color-mix(in srgb, var(--pp-sky) 75%, transparent);
+    border-left: 1px dashed rgba(38,33,27,.12); border-right: 1px dashed rgba(38,33,27,.12);
+  }
+  .chat-root .pl-note b { font-weight: 700; }
+  .chat-root .pl-doodle { position: absolute; right: -46px; bottom: -30px; width: 56px; height: 52px; color: var(--muted); transform: rotate(6deg); }
+
+  /* the starters: three tickets */
+  .chat-root .pl-bot { margin-top: auto; padding-top: 26px; display: grid; gap: 12px; }
+  .chat-root .pl-lbl {
+    display: flex; align-items: center; gap: 8px;
+    font: 600 10px var(--font-geist-mono), ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .chat-root .pl-lbl::after { content: ""; flex: 1; border-top: 1.5px dashed var(--line-med); }
+  .chat-root .pl-starters { display: grid; gap: 12px; }
+  .chat-root .pl-tkt {
+    --sh: var(--pp-butter); --tb: var(--pp-butter-soft); --ti: var(--pp-butter-ink);
+    position: relative; display: grid; grid-template-columns: 52px minmax(0, 1fr) 34px; align-items: center; min-height: 68px;
+    padding: 0; text-align: left; cursor: pointer; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--ink); border-radius: 16px; box-shadow: 3.5px 3.5px 0 var(--sh);
+    transition: transform .18s cubic-bezier(.16,.9,.3,1.02), box-shadow .18s cubic-bezier(.16,.9,.3,1.02);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chat-root .pl-tkt:nth-child(2) { --sh: var(--pp-mint); --tb: var(--pp-mint-soft); --ti: var(--pp-mint-ink); }
+  .chat-root .pl-tkt:nth-child(3) { --sh: var(--pp-sky); --tb: var(--pp-sky-soft); --ti: var(--pp-sky-ink); }
+  .chat-root .pl-tkt:active { transform: translate(2.5px, 2.5px); box-shadow: 1px 1px 0 var(--sh); }
+  .chat-root .pl-tkt .stub {
+    align-self: stretch; display: grid; place-items: center; color: var(--ti);
+    background: var(--tb); border-right: 1.5px dashed var(--line-med); border-radius: 14.5px 0 0 14.5px;
+  }
+  .chat-root .pl-tkt .stub svg { width: 20px; height: 20px; }
+  .chat-root .pl-tkt .bd { min-width: 0; display: grid; gap: 2px; padding: 10px 0 10px 14px; }
+  .chat-root .pl-tkt .k { font: 600 9.5px var(--font-geist-mono), ui-monospace, monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--ti); }
+  .chat-root .pl-tkt .q { font-family: var(--font-fraunces), system-ui, sans-serif; font-weight: 600; font-size: 16.5px; line-height: 1.2; letter-spacing: -.022em; color: var(--ink); }
+  .chat-root .pl-tkt .go { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--line-med); color: var(--ink-soft); }
+
+  /* entrance: one quiet cascade, the highlighter drawn last */
+  .chat-root .pl-rv { animation: pl-rise .5s cubic-bezier(.16,.9,.3,1.02) both; animation-delay: calc(var(--d, 0) * 70ms + 60ms); }
+  .chat-root .pl-note.pl-rv { animation-name: pl-slip; }
+  @keyframes pl-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes pl-slip { from { opacity: 0; transform: translateY(10px) rotate(-5deg); } to { opacity: 1; transform: rotate(-1.8deg); } }
+
+  /* keyboard up: the ask stays, the note goes, the tickets fold into a strip above the composer */
+  .chat-root[data-kb] .pl { justify-content: flex-end; padding: 14px 0 12px; }
+  .chat-root[data-kb] .pl-top { padding: 0 18px; gap: 6px; }
+  html[data-aesthetic] body .chat-root[data-kb] .pl-h { font-size: 24px; }
+  .chat-root[data-kb] :is(.pl-h .hey, .pl-h .spk, .pl-note, .pl-lbl) { display: none; }
+  .chat-root[data-kb] .pl-bot { margin-top: 0; padding-top: 14px; }
+  .chat-root[data-kb] .pl-starters { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; padding: 2px 18px 6px; }
+  .chat-root[data-kb] .pl-starters::-webkit-scrollbar { display: none; }
+  .chat-root[data-kb] .pl-tkt { flex: none; grid-template-columns: 38px auto; min-height: 46px; padding-right: 14px; border-radius: 999px; box-shadow: 2.5px 2.5px 0 var(--sh); }
+  .chat-root[data-kb] .pl-tkt .stub { background: none; border-right: 0; border-radius: 999px 0 0 999px; }
+  .chat-root[data-kb] .pl-tkt .stub svg { width: 17px; height: 17px; }
+  .chat-root[data-kb] .pl-tkt .bd { padding: 0 0 0 2px; }
+  .chat-root[data-kb] .pl-tkt :is(.q, .go) { display: none; }
+  .chat-root[data-kb] .pl-tkt .k { font: 600 13.5px var(--font-geist-sans), system-ui, sans-serif; letter-spacing: -.01em; text-transform: none; color: var(--ink); }
+
+  /* A short screen (an SE, or a phone with the browser chrome showing) still
+     fits the whole landing without scrolling to the third ticket. */
+  @media (max-height: 740px) {
+    .chat-root .pl { padding-top: 16px; }
+    .chat-root .pl-top { gap: 8px; }
+    html[data-aesthetic] body .chat-root .pl-h { font-size: 33px; }
+    .chat-root .pl-h .hey { margin-bottom: 4px; }
+    .chat-root .pl-note { margin-top: 14px; padding: 12px 14px 11px; font-size: 13.5px; }
+    .chat-root .pl-bot { padding-top: 18px; gap: 10px; }
+    .chat-root .pl-starters { gap: 10px; }
+    .chat-root .pl-tkt { min-height: 58px; grid-template-columns: 46px minmax(0, 1fr) 32px; }
+    .chat-root .pl-tkt .q { font-size: 15.5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html[data-aesthetic] body .chat-root :is(.cs-spot, .cs-peek, .cs-idea),
+    .chat-root .pl-rv, .chat-root .pl-h em::before { animation: none; }
+  }
+}

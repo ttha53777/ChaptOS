@@ -27,6 +27,8 @@ import { PeekSheet, type PeekSeed } from "./chat/PeekSheet";
 import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
 import { WritCard } from "./chat/WritCard";
 import { useProposalChoices } from "./chat/useProposalChoices";
+import { usePhoneSheet, useSheetDrag } from "./chat/usePhoneSheet";
+import { PhoneLanding } from "./chat/PhoneLanding";
 import { ApprovalsView } from "./chat/ApprovalsView";
 import { refreshDuesStandings } from "../hooks/useDuesStandings";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
@@ -43,6 +45,7 @@ import {
   type ProposalCard,
 } from "./chat/types";
 import "./chat-spotlight.css";
+import "./chat-phone.css";
 
 const STORAGE_KEY = "chaptos_chat_v2";
 const LEGACY_STORAGE_KEY = "chaptos_chat_v1";
@@ -185,7 +188,13 @@ export function ChatWidget() {
   // batching (could read stale/empty state and POST {messages: []} → 400).
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
-  const endRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  // Whether the thread is scrolled to its newest turn. New content only pulls
+  // the thread down while it is — reading back up the history isn't yanked away
+  // by a ledger step landing — and so does the keyboard shrinking the thread.
+  const pinnedRef = useRef(true);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const spotRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   // Guards the persist effect until loadHistory has run — see below.
@@ -229,10 +238,28 @@ export function ChatWidget() {
     saveHistory(messages);
   }, [messages]);
 
-  // Auto-scroll the thread to the newest turn.
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages, streaming, scene]);
+  // Keep the thread on its newest turn while it's pinned there. Scrolls the
+  // thread itself: scrollIntoView would also scroll its ancestors, which on a
+  // phone is the page behind the sheet.
+  const pinThread = useCallback(() => {
+    const el = threadRef.current;
+    if (el && pinnedRef.current) el.scrollTop = el.scrollHeight;
+  }, []);
+  useEffect(pinThread, [messages, streaming, scene, pinThread]);
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(pinThread);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scene, open, pinThread]);
+  const onThreadScroll = useCallback(() => {
+    const el = threadRef.current;
+    if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }, []);
 
   const openSpotlight = useCallback(() => {
+    pinnedRef.current = true;
     setOpen(true);
     setScene(messagesRef.current.length > 0 ? "thread" : "briefing");
   }, []);
@@ -241,6 +268,9 @@ export function ChatWidget() {
     setOpen(false);
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
   }, []);
+
+  const { phone, keyboard } = usePhoneSheet(open, overlayRef);
+  const dragHandlers = useSheetDrag(spotRef, closeSpotlight, phone);
 
   const openPeek = useCallback((row: AnswerRow) => {
     if (!row.ref) return;
@@ -329,13 +359,16 @@ export function ChatWidget() {
     return () => window.removeEventListener("chapt:ask", onAsk);
   }, [openSpotlight]);
 
-  // On open: dismiss the pulse for good; focus the composer.
+  // On open: dismiss the pulse for good; focus the composer. Not on a phone:
+  // focusing there raises the keyboard over the landing before anyone asked
+  // to type, and buries the starters it exists to show.
   useEffect(() => {
     if (!open) return;
     if (pulse) { setPulse(false); try { localStorage.setItem(PULSE_SEEN_KEY, "1"); } catch { /* ignore */ } }
+    if (phone) return;
     const t = setTimeout(() => textareaRef.current?.focus(), 80);
     return () => clearTimeout(t);
-  }, [open, pulse, scene]);
+  }, [open, pulse, scene, phone]);
 
   // ── The ask flow ───────────────────────────────────────────────────────────
 
@@ -427,6 +460,8 @@ export function ChatWidget() {
       .filter(m => m.content.trim().length > 0)
       .slice(-12);
     setMessages(prev => [...prev, userMsg, assistantMsg]);
+    // Asking always lands you on the answer, wherever you'd scrolled to.
+    pinnedRef.current = true;
     setScene("thread");
     setInput("");
     setSelRow(-1);
@@ -800,7 +835,7 @@ export function ChatWidget() {
   const lastMsg = messages[messages.length - 1];
 
   return (
-    <div className="chat-root" data-scene={open ? scene : "closed"}>
+    <div className="chat-root" data-scene={open ? scene : "closed"} data-kb={keyboard ? "" : undefined}>
       {/* Launcher — visible only when the spotlight is closed */}
       {!open && (
         <button onClick={openSpotlight} aria-label="Ask Chapt" className={`chat-launcher${pulse ? " pulse" : ""}`}>
@@ -811,10 +846,14 @@ export function ChatWidget() {
       )}
 
       {open && (
-        <div className="cs-overlay" onClick={e => { if (e.target === e.currentTarget) closeSpotlight(); }}>
-          <div className="cs-spot" role="dialog" aria-label="Ask Chapt">
-            {/* Header bar */}
-            <div className="cs-bar">
+        <div ref={overlayRef} className="cs-overlay" onClick={e => { if (e.target === e.currentTarget) closeSpotlight(); }}>
+          <div ref={spotRef} className="cs-spot" role="dialog" aria-label="Ask Chapt">
+            {/* Header bar — on a phone, also the handle you pull the sheet down by */}
+            <div className="cs-bar" {...dragHandlers}>
+              {/* Phone only (chat-phone.css): the sheet fills the screen, so there's no scrim to tap. */}
+              <button type="button" className="cs-close" aria-label="Close" onClick={closeSpotlight}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
+              </button>
               <span className="tick" aria-hidden />
               <span className="title">Ask Chapt</span>
               <span className="spacer" />
@@ -835,8 +874,21 @@ export function ChatWidget() {
             </div>
 
             <div className="cs-body">
+              {/* Briefing — on a phone, a landing page of its own */}
+              {scene === "briefing" && phone && (
+                <div className="cs-land">
+                  <PhoneLanding
+                    firstName={currentUser?.name?.trim().split(/\s+/)[0] || null}
+                    orgName={currentUser?.org?.name ?? null}
+                    timeZone={currentUser?.org?.timeZone ?? null}
+                    starters={STARTERS}
+                    onAsk={q => void sendMessage(q)}
+                  />
+                </div>
+              )}
+
               {/* Briefing — a calm, centered invitation */}
-              {scene === "briefing" && (
+              {scene === "briefing" && !phone && (
                 <div className="cs-welcome">
                   <div className="wl">
                     <h2 className="in in-1">What do you want to <em>know?</em></h2>
@@ -856,7 +908,7 @@ export function ChatWidget() {
 
               {/* Thread */}
               {scene === "thread" && (
-                <div className="cs-thread" aria-live="polite">
+                <div ref={threadRef} className="cs-thread" aria-live="polite" onScroll={onThreadScroll}>
                   {messages.map(m => {
                     if (m.role === "user") {
                       return <div key={m.id} className="msg user send-in">{m.content}</div>;
@@ -923,7 +975,6 @@ export function ChatWidget() {
                       </div>
                     );
                   })}
-                  <div ref={endRef} />
                 </div>
               )}
 
@@ -961,6 +1012,7 @@ export function ChatWidget() {
                   ref={textareaRef}
                   value={input}
                   rows={1}
+                  enterKeyHint="send"
                   placeholder={scene === "approvals" ? "Ask about an approval…" : scene === "briefing" ? "Ask the chapter anything…" : "Ask a follow-up…"}
                   onChange={e => { setInput(e.target.value); autosize(e.target); }}
                   onKeyDown={handleKeyDown}
