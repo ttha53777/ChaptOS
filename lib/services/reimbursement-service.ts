@@ -9,6 +9,7 @@ import { FALLBACK_EXPENSE_CATEGORY } from "@/lib/transaction-categories";
 import { assertCategoryExists } from "@/lib/transaction-categories-db";
 import type { CreateReimbursementInput, UpdateReimbursementInput } from "@/lib/validation/reimbursement";
 import { toCents } from "@/lib/money";
+import { putReceiptObject, readReceipt, receiptObjectPath, removeReceiptObjects, signReceiptUrl } from "@/lib/supabase/receipts";
 
 // Fallback bucket when neither the requester nor the approving treasurer named one.
 // A reserved slug seeded into every org (and backfilled onto every legacy one), so
@@ -28,10 +29,18 @@ type ReimbursementRow = Prisma.ReimbursementGetPayload<{ include: typeof REIMBUR
 // Reimbursement rows carry an `amountCents` BigInt for finance-grade precision
 // (mirrors Transaction). BigInt is not JSON-serializable — Response.json() throws
 // on it — so strip it before returning, exactly like transaction-service's mapTx.
-function mapReimbursement<T extends { amountCents: bigint | null }>(raw: T): Omit<T, "amountCents"> {
+// The receipt's storage path is stripped too: the client only learns that one
+// exists, and opens it through GET /api/reimbursements/[id]/receipt.
+function mapReimbursement<T extends { amountCents: bigint | null; receiptPath: string | null }>(
+  raw: T,
+): Omit<T, "amountCents" | "receiptPath"> & { hasReceipt: boolean } {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { amountCents, ...rest } = raw;
-  return rest;
+  const { amountCents, receiptPath, ...rest } = raw;
+  return { ...rest, hasReceipt: receiptPath != null };
+}
+
+function canManageTreasury(ctx: RequestContext): boolean {
+  return ctx.isPlatformAdmin || ctx.isOrgAdmin || hasPermission(ctx.permissions, "MANAGE_TREASURY");
 }
 
 // Org-local display name (Membership.name), same fallback rule as the roster.
@@ -58,7 +67,7 @@ export async function listReimbursements(ctx: RequestContext) {
 export async function createReimbursement(ctx: RequestContext, input: CreateReimbursementInput) {
   // A reimbursement is a self-service request: any member may file for themselves.
   // Filing on another member's behalf requires treasury authority.
-  const canManage = ctx.isPlatformAdmin || ctx.isOrgAdmin || hasPermission(ctx.permissions, "MANAGE_TREASURY");
+  const canManage = canManageTreasury(ctx);
   const isSelf    = input.brotherId === ctx.actorId;
   if (!isSelf && !canManage) throw new ForbiddenError("Cannot file a reimbursement for another member");
 
@@ -234,4 +243,64 @@ export async function updateReimbursement(ctx: RequestContext, id: number, input
 
   const [resolved] = await withResolvedBrother(ctx, [row]);
   return mapReimbursement(resolved);
+}
+
+/**
+ * Attach (or replace) the receipt on a request. The requester may do it while the
+ * request is pending — after that the receipt is part of what was approved or
+ * declined, so only treasury can change it.
+ *
+ * Upload first, then point the row at it: if the row write fails the new object is
+ * removed, and the old object is removed only once nothing references it.
+ */
+export async function attachReceipt(ctx: RequestContext, id: number, file: File) {
+  const existing = await ctx.db.reimbursement.findUnique({ where: { id } });
+  if (!existing) throw new NotFoundError("Reimbursement");
+
+  const isRequester = existing.brotherId === ctx.actorId;
+  if (!canManageTreasury(ctx)) {
+    if (!isRequester) throw new ForbiddenError("Cannot attach a receipt to another member's request");
+    if (existing.status !== ReimbursementStatus.Pending) {
+      throw new ForbiddenError("The receipt can only be changed while the request is pending");
+    }
+  }
+
+  const receipt = await readReceipt(file);
+  const path = receiptObjectPath(ctx.orgId, id, receipt.ext);
+  await putReceiptObject(path, receipt.bytes, receipt.type);
+
+  let row: ReimbursementRow;
+  try {
+    row = await ctx.db.reimbursement.update({
+      where:   { id },
+      data:    { receiptPath: path },
+      include: REIMBURSEMENT_INCLUDE,
+    }) as ReimbursementRow;
+  } catch (e) {
+    await removeReceiptObjects([path]);
+    throw e;
+  }
+  await removeReceiptObjects([existing.receiptPath]);
+
+  await emit(ctx, "reimbursement.receipt_attached", { type: "Reimbursement", id: row.id }, {
+    brotherId: row.brotherId,
+    replaced:  existing.receiptPath != null,
+  });
+  const [resolved] = await withResolvedBrother(ctx, [row]);
+  return mapReimbursement(resolved);
+}
+
+/**
+ * A short-lived link to the receipt. Receipts carry card digits and addresses, so
+ * only the requester and treasury can open one — other members can see that a
+ * request has a receipt (hasReceipt), not what's on it.
+ */
+export async function getReceiptUrl(ctx: RequestContext, id: number): Promise<string> {
+  const existing = await ctx.db.reimbursement.findUnique({ where: { id } });
+  if (!existing) throw new NotFoundError("Reimbursement");
+  if (existing.brotherId !== ctx.actorId && !canManageTreasury(ctx)) {
+    throw new ForbiddenError("Only the requester and the treasurer can view this receipt");
+  }
+  if (!existing.receiptPath) throw new NotFoundError("Receipt");
+  return signReceiptUrl(existing.receiptPath);
 }

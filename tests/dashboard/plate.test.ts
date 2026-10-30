@@ -35,7 +35,7 @@ function poll(over: Partial<Poll> & { id: number }): Poll {
 function reimb(over: Partial<Reimbursement> & { id: number }): Reimbursement {
   return {
     brotherId: 9, brother: { id: 9, name: "Maya Patel", avatarUrl: null }, amount: 40, date: "2026-06-10",
-    description: "Snacks", status: "pending", createdAt: "2026-06-10", updatedAt: "2026-06-10", ...over,
+    description: "Snacks", status: "pending", hasReceipt: false, createdAt: "2026-06-10", updatedAt: "2026-06-10", ...over,
   };
 }
 function input(over: Partial<PlateInput> = {}): PlateInput {

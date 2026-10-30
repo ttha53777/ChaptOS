@@ -49,6 +49,8 @@
  *   GET    /api/treasury                       TreasuryData
  *   GET    /api/transactions                   Transaction[]
  *   GET    /api/reimbursements                 Reimbursement[]
+ *   POST   /api/reimbursements/[id]/receipt    Reimbursement           (multipart `file`; requester while pending, or treasury)
+ *   GET    /api/reimbursements/[id]/receipt    302 → 60s signed URL    (Accept: application/json → { url }; requester or treasury)
  *   GET    /api/dues                           DuesBoard               (?semester=<label>)
  *   GET    /api/dues/members/[brotherId]       MemberDuesBook
  *   POST   /api/dues/charges/preview           DuesChargePreview       (treasury; body = issueDuesChargeInput)

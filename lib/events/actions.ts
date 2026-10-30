@@ -207,6 +207,7 @@ export interface EventMetadata {
   // Reimbursements
   "reimbursement.created": { brotherId: number; amount: number; description: string };
   "reimbursement.updated": { status: string; brotherId: number; voidedTransactionId?: number };
+  "reimbursement.receipt_attached": { brotherId: number; replaced: boolean };
   // Approval is money movement: it mints the ledger row identified by transactionId.
   // selfApproved records a treasurer approving their own request — permitted (they
   // are often the one who fronted the cash) but worth surfacing in the audit trail.
@@ -311,7 +312,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "join_request.submitted", "join_request.approved", "join_request.rejected",
   "metric_definition.created", "metric_definition.updated", "metric_definition.deleted",
   "metric_value.updated",
-  "reimbursement.created", "reimbursement.updated", "reimbursement.approved",
+  "reimbursement.created", "reimbursement.updated", "reimbursement.approved", "reimbursement.receipt_attached",
   "dues.paid", "dues.adjusted", "dues.payment_voided", "dues.payment_attributed",
   "dues.charge_issued", "dues.charge_updated", "dues.charge_voided", "dues.line_voided", "dues.waived", "dues.waiver_voided",
   "dues_payment.submitted", "dues_payment.rejected",

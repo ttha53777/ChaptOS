@@ -16,6 +16,9 @@ export interface Reimbursement {
   rejectionNote?: string | null;
   // The ledger row approval minted. Null until approved; null again if reversed.
   transactionId?: number | null;
+  // A receipt is on file. Opened via GET /api/reimbursements/[id]/receipt, which
+  // only the requester and treasury may follow.
+  hasReceipt: boolean;
   createdAt: string;
   updatedAt: string;
 }

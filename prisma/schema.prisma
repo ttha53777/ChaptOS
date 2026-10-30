@@ -1363,6 +1363,9 @@ model Reimbursement {
   // Nothing else links the two books, so every balance in the app is blind to an
   // approved payout until this exists.
   transactionId  Int?     @unique
+  // Object path in the private `receipts` bucket — never a URL, never sent to the
+  // client. Read back only as a short-lived signed link after a permission check.
+  receiptPath    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

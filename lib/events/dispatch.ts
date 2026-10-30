@@ -135,6 +135,8 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return m.selfApproved
         ? `${who} approved their own $${Number(m.amount).toFixed(2)} reimbursement — posted to ${m.category}`
         : `${who} approved a $${Number(m.amount).toFixed(2)} reimbursement — posted to ${m.category}`;
+    case "reimbursement.receipt_attached":
+      return m.replaced ? `${who} replaced a reimbursement receipt` : `${who} attached a reimbursement receipt`;
     case "reimbursement.updated":
       if (m.status === "rejected") return `${who} declined a reimbursement request`;
       if (m.voidedTransactionId)   return `${who} reversed an approved reimbursement — its ledger entry was voided`;
