@@ -43,6 +43,7 @@ import { sanitizeVocabOverrides } from "@/lib/vocab";
 import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
 import { stripe, stripeEnabled } from "@/lib/stripe";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
+import { removeOrgReceipts } from "@/lib/supabase/receipts";
 import type { CreateOrgInput } from "@/lib/validation/org";
 import type { RequestContext } from "@/lib/context";
 
@@ -1045,6 +1046,8 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
   // may hold logos for other orgs they created). Never throws — storage is not
   // the source of truth and the org row is already gone.
   await removeOrgLogoObject(org.logoUrl);
+  // Same for reimbursement receipts, which live under one org-<id>/ folder.
+  await removeOrgReceipts(orgId);
 
   // No emit() here: emit writes an OperationalEvent FK'd to the org, which no
   // longer exists. The org's whole audit trail was just deleted with it. Record

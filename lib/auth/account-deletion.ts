@@ -44,6 +44,7 @@ import { ConflictError } from "@/lib/errors";
 import { logError } from "@/lib/observability";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { removeReceiptObjects } from "@/lib/supabase/receipts";
 import { bearerToken } from "./session-user";
 
 const AVATAR_BUCKET = "avatars";
@@ -125,7 +126,7 @@ export async function deleteOwnAccount(authUserId: string): Promise<{ orgIds: nu
 
   await removeAvatarObjects(authUserId);
 
-  const orgIds = await prismaPrivileged.$transaction(async (tx) => {
+  const { orgIds, receiptPaths } = await prismaPrivileged.$transaction(async (tx) => {
     const current = await tx.membership.findMany({
       where:  { brother: { authUserId } },
       select: { organizationId: true },
@@ -146,14 +147,22 @@ export async function deleteOwnAccount(authUserId: string): Promise<{ orgIds: nu
       where: brotherId === null ? { authUserId } : { OR: [{ authUserId }, { brotherId }] },
     });
 
+    // Receipts are erased with their reimbursement rows by the cascade, but
+    // Storage isn't in the FK graph — collect the paths before the rows go.
+    let receiptPaths: (string | null)[] = [];
     if (brotherId !== null) {
+      receiptPaths = (await tx.reimbursement.findMany({
+        where:  { brotherId, receiptPath: { not: null } },
+        select: { receiptPath: true },
+      })).map(r => r.receiptPath);
       for (const orgId of orgIds) await recordAccountDeletion(tx, orgId, brotherId);
       await tx.brother.delete({ where: { id: brotherId } });
     }
 
     await tx.$executeRaw`DELETE FROM auth.users WHERE id = ${authUserId}::uuid`;
-    return orgIds;
+    return { orgIds, receiptPaths };
   });
+  await removeReceiptObjects(receiptPaths);
 
   // Seats are billed off the roster count; each org just lost one. The billing
   // page reconciles on view too, so a failure here self-heals.

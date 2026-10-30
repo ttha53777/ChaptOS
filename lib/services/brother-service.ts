@@ -6,6 +6,7 @@ import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, PaymentRequiredError } from "@/lib/errors";
 import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
 import type { UpdateBrotherInput } from "@/lib/validation/brother";
+import { removeReceiptObjects } from "@/lib/supabase/receipts";
 import {
   sanitizeCustomFields,
   type CustomMemberFieldDef,
@@ -362,12 +363,20 @@ export async function deleteBrother(ctx: RequestContext, brotherId: number) {
   // boundary — no other org's data is read.
   const orgCount = await countMemberships(brotherId);
 
+  // Their receipts here go with their reimbursement rows, but Storage isn't in the
+  // FK graph — read the paths while the rows still exist, remove after commit.
+  const receipts = await ctx.db.reimbursement.findMany({
+    where:  { brotherId, receiptPath: { not: null } },
+    select: { receiptPath: true },
+  });
+
   if (orgCount <= 1) {
     await ctx.db.identity.deleteAccount(brotherId);
   } else {
     await eraseOrgScopedRecords(ctx, brotherId);
     await ctx.db.member.deleteByBrotherId(brotherId);
   }
+  await removeReceiptObjects(receipts.map(r => r.receiptPath));
 
   await emit(ctx, "brother.removed", { type: "Brother", id: brotherId }, { name: target.name });
 }
