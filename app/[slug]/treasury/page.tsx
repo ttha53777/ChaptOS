@@ -60,7 +60,8 @@ type PartyModal =
 
 type TxTab = "all" | "income" | "expense";
 
-import { requestJson } from "../../lib/api";
+import { apiErrorMessage, requestJson } from "../../lib/api";
+import { RECEIPT_ACCEPT, receiptHref, uploadReceipt } from "../../components/treasury/receipt-upload";
 import { todayStr } from "../../lib/dates";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -250,6 +251,7 @@ function ReimbursementsView({
   onToggleArchived,
   onAction,
   onRequest,
+  onAttachReceipt,
 }: {
   reimbursements: Reimbursement[];
   canTreasury: boolean;
@@ -259,8 +261,10 @@ function ReimbursementsView({
   onToggleArchived: () => void;
   onAction: (id: number, status: "approved" | "rejected", note?: string, category?: string) => void;
   onRequest: () => void;
+  onAttachReceipt: (id: number, file: File) => Promise<void>;
 }) {
   const [rejectingId,   setRejectingId]   = useState<number | null>(null);
+  const [uploadingId,   setUploadingId]   = useState<number | null>(null);
   const [rejectNote,    setRejectNote]    = useState("");
   // Approving posts real money to the ledger, so it confirms first — same inline
   // two-step shape as declining, and the last chance to fix the budget bucket.
@@ -326,6 +330,31 @@ function ReimbursementsView({
           <div className="tr-reimb-amount"><span className="tr-reimb-cur">$</span>{fmtReimb(r.amount).slice(1)}</div>
           <p className="tr-reimb-desc">{r.description}</p>
           <span className="tr-reimb-age">submitted {relativeAge(r.createdAt)}</span>
+          {/* Receipts carry card digits and addresses: only the requester and the
+              treasurer get the link (the server enforces the same rule). */}
+          {r.hasReceipt && (isMine || canTreasury) && (
+            <a className="tr-reimb-receipt" href={receiptHref(r.id)} target="_blank" rel="noopener noreferrer">
+              <PaperIcon name="receipt" />View receipt
+            </a>
+          )}
+          {!r.hasReceipt && isMine && r.status === "pending" && (
+            <label className="tr-reimb-receipt" aria-busy={uploadingId === r.id}>
+              <PaperIcon name="receipt" />{uploadingId === r.id ? "Uploading…" : "Attach receipt"}
+              <input
+                type="file"
+                accept={RECEIPT_ACCEPT}
+                className="sr-only"
+                disabled={uploadingId != null}
+                onChange={async e => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setUploadingId(r.id);
+                  try { await onAttachReceipt(r.id, file); } finally { setUploadingId(null); }
+                }}
+              />
+            </label>
+          )}
           {r.status !== "pending" && (
             <span className={`rubber pp-only ${r.status === "approved" ? "paid" : "no"}`} aria-hidden>
               {r.status === "approved" ? "Paid" : "Declined"}
@@ -525,7 +554,7 @@ function ReimbursementForm({
         </select>
       </div>
       <div>
-        <FieldLabel tone="dusk">Attach Receipt <span style={{ color: "var(--faint)", fontWeight: 400 }}>(optional)</span></FieldLabel>
+        <FieldLabel tone="dusk">Attach Receipt <span style={{ color: "var(--faint)", fontWeight: 400 }}>(optional — photo or PDF)</span></FieldLabel>
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
@@ -558,7 +587,7 @@ function ReimbursementForm({
         <input
           ref={fileRef}
           type="file"
-          accept="image/*,.pdf,.doc,.docx"
+          accept={RECEIPT_ACCEPT}
           className="hidden"
           onChange={e => setFile(e.target.files?.[0] ?? null)}
         />
@@ -1149,19 +1178,37 @@ export default function TreasuryPage() {
 
 
 
+  // A failed upload leaves the request filed without one; the card's "Attach
+  // receipt" is the retry, so the message points there.
+  const handleAttachReceipt = useCallback(async (id: number, file: File) => {
+    setMutErr(null);
+    try {
+      const saved = await uploadReceipt(id, file);
+      setReimbursements(list => list.map(r => r.id === id ? saved : r));
+    } catch (err) {
+      const why = apiErrorMessage(err, err instanceof RangeError ? err.message : "the upload failed");
+      setMutErr(`The receipt wasn't saved (${why}). Attach it from the request card.`);
+    }
+  }, [setReimbursements]);
+
   const handleSubmitReimbursement = useCallback(async (data: { date: string; amount: number; description: string; category: string; file: File | null }) => {
     if (!selfId) return;
     setReimbModal(false);
-    const res = await fetch("/api/reimbursements", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brotherId: selfId, amount: data.amount, date: data.date, description: data.description, category: data.category }),
-    });
-    if (res.ok) {
-      const created: Reimbursement = await res.json();
-      setReimbursements(prev => [created, ...prev]);
+    setMutErr(null);
+    let created: Reimbursement;
+    try {
+      created = await requestJson<Reimbursement>("/api/reimbursements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brotherId: selfId, amount: data.amount, date: data.date, description: data.description, category: data.category }),
+      });
+    } catch (err) {
+      setMutErr(apiErrorMessage(err, "Couldn't submit your reimbursement request. Please try again."));
+      return;
     }
-  }, [selfId, setReimbursements]);
+    setReimbursements(prev => [created, ...prev]);
+    if (data.file) await handleAttachReceipt(created.id, data.file);
+  }, [selfId, setReimbursements, handleAttachReceipt]);
 
   const handleReimbursementAction = useCallback(async (id: number, status: "approved" | "rejected", rejectionNote?: string, category?: string) => {
     const prev = reimbursements.find(r => r.id === id);
@@ -2155,6 +2202,7 @@ export default function TreasuryPage() {
                 onToggleArchived={() => setReimbArchived(v => !v)}
                 onAction={handleReimbursementAction}
                 onRequest={() => setReimbModal(true)}
+                onAttachReceipt={handleAttachReceipt}
               />
             )}
 
