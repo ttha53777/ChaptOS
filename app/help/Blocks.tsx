@@ -1,106 +1,102 @@
-import { Doodle } from "../components/landing/Doodle";
-import type { Block } from "./content";
 import { inline } from "../components/landing/inline";
+import { PaperIcon, type PaperIconName } from "../components/paper/PaperIcon";
+import type { Block } from "./content";
 
 /**
- * Renders an article body. One component per block kind, all styled by
- * `.lp .hc__…` rules in ./help.css — no motion hooks anywhere in here, since
- * the help pages never mount LandingMotion (see public-chrome.css).
+ * Renders an article body. Server-only and stateless: the article page passes
+ * the blocks straight from content.ts.
+ *
+ * Steps get the same ink pins as the figure above them, so step 3 and the
+ * figure's ③ are visibly one thing. warn / flag / good notes are taped sticky
+ * notes — the sharp edges you shouldn't skim past; plain notes are a calm aside.
  */
 
-/** The click path to a setting, rendered as a chevron-separated strip. */
-function Where({ path }: { path: string[] }) {
+/** The anchor id an "h" block gets, and the "On this page" link to it. */
+export function headingId(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+const STICKY: Record<"warn" | "flag" | "good", { tint: string; icon: PaperIconName }> = {
+  warn: { tint: "butter", icon: "alert" },
+  flag: { tint: "peach", icon: "flag" },
+  good: { tint: "mint", icon: "check" },
+};
+
+export function WherePath({ path }: { path: string[] }) {
   return (
-    <div className="hc__where">
-      <span className="hc__where-l">
-        <Doodle id="key" size={14} viewBox="0 0 24 24" className="doodle doodle--thin" />
-        Where
-      </span>
-      <span className="hc__where-p">
-        {path.map((seg, i) => (
-          <span key={seg} className={i === path.length - 1 ? "is-last" : undefined}>
-            {seg}
-          </span>
-        ))}
-      </span>
-    </div>
+    <span className="hc-path">
+      {path.map((seg, i) => (
+        <span key={i} style={{ display: "contents" }}>
+          {i > 0 && <i>›</i>}
+          <span>{seg}</span>
+        </span>
+      ))}
+    </span>
   );
 }
 
 export function Blocks({ blocks }: { blocks: Block[] }) {
   return (
-    <>
+    <div className="hc-body">
       {blocks.map((b, i) => {
         switch (b.k) {
-          case "h":
-            return <h2 key={i}>{inline(b.t)}</h2>;
-
           case "p":
             return <p key={i}>{inline(b.t)}</p>;
-
+          case "h":
+            return <h2 key={i} id={headingId(b.t)}>{inline(b.t)}</h2>;
           case "steps":
             return (
-              <ol key={i} className="hc__steps">
-                {b.items.map((t, j) => (
-                  <li key={j}>{inline(t)}</li>
+              <ol key={i} className="hc-steps">
+                {b.items.map((item, j) => (
+                  <li key={j}><i className="hc-pin">{j + 1}</i><span>{inline(item)}</span></li>
                 ))}
               </ol>
             );
-
           case "list":
             return (
-              <ul
-                key={i}
-                className={`hc__list${b.tone ? ` hc__list--${b.tone}` : ""}`}
-              >
-                {b.items.map((t, j) => (
-                  <li key={j}>{inline(t)}</li>
-                ))}
+              <ul key={i} className={`hc-list${b.tone ? ` hc-${b.tone}` : ""}`}>
+                {b.items.map((item, j) => <li key={j}>{inline(item)}</li>)}
               </ul>
             );
-
-          case "note":
+          case "note": {
+            const s = b.tone && b.tone !== "info" ? STICKY[b.tone] : null;
+            if (s) {
+              return (
+                <div key={i} className={`hc-sticky hc-t-${s.tint}`}>
+                  <h5><PaperIcon name={s.icon} className="hc-ic" />{inline(b.h)}</h5>
+                  <p>{inline(b.t)}</p>
+                </div>
+              );
+            }
             return (
-              <aside
-                key={i}
-                className={`hc__note${b.tone && b.tone !== "info" ? ` hc__note--${b.tone}` : ""}`}
-              >
-                <h5>{inline(b.h)}</h5>
-                <p>{inline(b.t)}</p>
-              </aside>
+              <div key={i} className="hc-note">
+                <PaperIcon name="chat" className="hc-ic" />
+                <div><h5>{inline(b.h)}</h5><p>{inline(b.t)}</p></div>
+              </div>
             );
-
+          }
           case "table":
             return (
-              // Wide tables scroll inside their own box — the page never scrolls
-              // sideways. The first header cell is often empty (a label column
-              // that needs no title), which is fine and stays in the DOM so the
-              // column association survives.
-              <div key={i} className="hc__tw">
-                <table className="hc__t">
-                  <thead>
-                    <tr>
-                      {b.head.map((h, j) => (
-                        <th key={j}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
+              <div key={i} className="hc-tw">
+                <table>
+                  <thead><tr><th>{b.head[0]}</th><th>{b.head[1]}</th></tr></thead>
                   <tbody>
                     {b.rows.map((r, j) => (
-                      <tr key={j}>
-                        <th>{inline(r[0])}</th>
-                        <td>{inline(r[1])}</td>
-                      </tr>
+                      <tr key={j}><th>{inline(r[0])}</th><td>{inline(r[1])}</td></tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             );
-
           case "where":
-            return <Where key={i} path={b.path} />;
+            return (
+              <div key={i} className="hc-where">
+                <span className="hc-lbl-m"><PaperIcon name="pin" className="hc-ic" /></span>
+                <WherePath path={b.path} />
+              </div>
+            );
         }
       })}
-    </>
+    </div>
   );
 }

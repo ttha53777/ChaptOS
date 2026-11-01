@@ -1,328 +1,401 @@
 /* ============================================================================
    ChaptOS — /help (help centre index + articles)
 
-   Same paper, ink, pastels and typefaces as the marketing landing page. Scoped
-   under `.lp .hc` and imports NOTHING of its own: every token comes from
-   landing.css, and the always-stuck nav + page head + escalation band come from
-   public-chrome.css. Both are imported by the pages alongside this file.
+   The in-app Paper language (app/paper-aesthetic.css, _design/Dashboard Paper
+   Mock.html) on a public page: cream paper, brown ink, pastel triplets, 1.5px
+   warm hairlines, hard pastel offset shadows, highlighter, washi tape, sticky
+   notes. Built from _design/Help Centre Paper Mock.html.
 
-   No motion anywhere — these pages never mount LandingMotion, so a [data-reveal]
-   hook in this tree would stay at opacity:0 forever. See public-chrome.css.
+   EVERYTHING is scoped under .hc. Next keeps a route's stylesheet loaded after
+   client navigation away from it, so a bare .btn / .card / .pill here would
+   restyle app pages. Night paper hangs off .hc[data-hc-theme="dark"], NOT
+   html[data-theme] — the root layout owns that attribute for the app's own
+   theme, and a signed-in dusk user shouldn't get a dark help centre they never
+   chose. The help centre's sun/moon toggle sets it (HelpShell.tsx).
 
-   Structure
-     1. search
-     2. quick paths (the three journeys)
-     3. categories + article lists
-     4. search results + empty state
-     5. article layout (prose column + rail)
-     6. article prose
-     7. article blocks (steps, lists, notes, tables, "where")
-     8. responsive
+   Fonts come from landingFontClass on the .hc root (--font-bricolage etc.);
+   icons from the Paper sprite the root layout mounts.
    ========================================================================== */
 
-/* ---------- 1. search ------------------------------------------------------ */
-.lp .hc__searchwrap{margin-top:clamp(30px,3.6vw,44px); max-width:680px}
 
-.lp .hc__search{
-  display:flex; align-items:center; gap:12px;
-  padding:5px 6px 5px 18px;
-  background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-pill);
-  box-shadow:4px 4px 0 var(--sky);
-  transition:box-shadow .18s var(--ease-spring), transform .18s var(--ease-spring);
+/* ---------- tokens (verbatim from the Paper mock) ---------- */
+.hc{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85;
+  --c-chapter:#2A66C7; --c-party:#C23C77; --c-deadline:#C9542D; --c-service:#1F8A80; --c-fundy:#9C6B08;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --scrim:rgba(38,33,27,.28);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sans:var(--font-inter), 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:var(--font-bricolage), 'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1); --spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
 }
-.lp .hc__search:focus-within{transform:translate(-1.5px,-1.5px); box-shadow:6px 6px 0 var(--sky)}
-.lp .hc__search-ic{flex:none; color:var(--ink-3)}
-
-/* type=search paints a UA clear button in WebKit that collides with our own
-   Clear control, and a UA cancel affordance we don't want. Strip both. */
-.lp .hc__search input{
-  flex:1 1 auto; min-width:0;
-  border:0; outline:0; background:transparent;
-  padding:12px 0; font-size:1.02rem; letter-spacing:-.01em; color:var(--ink);
-  appearance:none;
-}
-.lp .hc__search input::-webkit-search-cancel-button,
-.lp .hc__search input::-webkit-search-decoration{appearance:none; display:none}
-.lp .hc__search input::placeholder{color:var(--ink-3); opacity:1}
-
-.lp .hc__kbd{
-  flex:none; margin-right:12px;
-  min-width:24px; height:24px; padding:0 6px;
-  display:grid; place-items:center;
-  font-family:var(--mono); font-size:.78rem; color:var(--ink-3);
-  background:var(--paper-2); border:1px solid var(--line); border-radius:7px;
-}
-.lp .hc__clear{
-  flex:none; border:1.5px solid var(--line); background:var(--paper-2);
-  color:var(--ink-2); font-size:.83rem; font-weight:600;
-  padding:8px 15px; border-radius:var(--r-pill); cursor:pointer;
-  transition:background .16s, color .16s, border-color .16s;
-}
-.lp .hc__clear:hover{background:var(--paper-3); color:var(--ink); border-color:var(--line-2)}
-
-.lp .hc__searchnote{margin-top:12px; padding-left:4px; font-size:.87rem; color:var(--ink-3)}
-
-/* ---------- 2. quick paths ------------------------------------------------- */
-.lp .hc__paths{
-  margin-top:clamp(38px,4.6vw,58px);
-  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px;
-}
-.lp .hc__path{
-  display:block; padding:22px; text-decoration:none; color:inherit;
-  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg);
-  box-shadow:var(--sh-1);
-  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring),
-             border-color .18s;
-}
-.lp .hc__path:hover{
-  transform:translateY(-3px); border-color:var(--line-2); box-shadow:var(--sh-2);
-}
-.lp .hc__path h4{margin-top:14px}
-.lp .hc__path p{margin-top:7px; font-size:.9rem; line-height:1.5; color:var(--ink-2)}
-.lp .hc__go{
-  margin-top:14px; display:inline-flex; align-items:center; gap:7px;
-  font-size:.85rem; font-weight:600; color:var(--ink);
-}
-.lp .hc__go svg{transition:transform .18s var(--ease-spring)}
-.lp .hc__path:hover .hc__go svg{transform:translateX(3px)}
-
-/* The pastel chip every category and quick path wears. */
-.lp .hc__ic{
-  width:38px; height:38px; border-radius:12px; display:grid; place-items:center; flex:none;
-  background:var(--g, var(--sky-soft)); border:1.5px solid var(--gb, var(--sky));
+.hc[data-hc-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --note-filter:brightness(.93) saturate(.85); --mark-op:.42;
+  --c-chapter:#8DB2EC; --c-party:#E598B7; --c-deadline:#FFB49A; --c-service:#6FC9BD; --c-fundy:#F0CC72;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  --scrim:rgba(5,4,2,.6);
+  color-scheme:dark;
 }
 
-/* ---------- 3. categories -------------------------------------------------- */
-.lp .hc__cats{
-  margin-top:clamp(50px,6vw,84px); padding-bottom:clamp(20px,3vw,40px);
-  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(30px,3.6vw,48px);
-}
-/* scroll-margin so /help#money from an article's breadcrumb doesn't land the
-   heading underneath the always-stuck nav. */
-.lp .hc__cat{min-width:0; scroll-margin-top:calc(var(--pub-nav-h) + 24px)}
-.lp .hc__cathead{display:flex; gap:14px; align-items:flex-start}
-.lp .hc__cathead h3{font-size:1.28rem; letter-spacing:-.022em}
-.lp .hc__cathead p{margin-top:6px; font-size:.9rem; line-height:1.5; color:var(--ink-3)}
+/* ---------- base ---------- */
+.hc *,.hc *::before,.hc *::after{box-sizing:border-box}
+.hc{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:hidden; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+.hc h1,.hc h2,.hc h3,.hc h4,.hc h5,.hc p,.hc ul,.hc ol,.hc figure{margin:0}
+.hc ul,.hc ol{padding:0; list-style:none}
+.hc button,.hc input,.hc select{font:inherit; color:inherit}
+.hc button{cursor:pointer}
+.hc a{color:inherit}
+.hc svg{display:block}
+.hc :focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.hc .hc-ic{width:18px; height:18px; flex:none}
+.hc .hc-mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hc .hc-hi{position:relative; z-index:0}
+.hc .hc-hi::before{content:''; position:absolute; z-index:-1; left:-.1em; right:-.1em; bottom:.06em; height:.46em; background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg); opacity:var(--mark-op)}
+.hc kbd{font-family:var(--mono); font-size:.68rem; border:1px solid var(--line-2); border-radius:6px; padding:1px 6px; background:var(--paper-2); color:var(--ink-3)}
+.hc .hc-t-peach{--p-bg:var(--peach-soft); --p-fg:var(--peach-ink); --p-bd:var(--peach-bd); --p:var(--peach)}
+.hc .hc-t-sky{--p-bg:var(--sky-soft); --p-fg:var(--sky-ink); --p-bd:var(--sky-bd); --p:var(--sky)}
+.hc .hc-t-mint{--p-bg:var(--mint-soft); --p-fg:var(--mint-ink); --p-bd:var(--mint-bd); --p:var(--mint)}
+.hc .hc-t-butter{--p-bg:var(--butter-soft); --p-fg:var(--butter-ink); --p-bd:var(--butter-bd); --p:var(--butter)}
+.hc .hc-t-lilac{--p-bg:var(--lilac-soft); --p-fg:var(--lilac-ink); --p-bd:var(--lilac-bd); --p:var(--lilac)}
+.hc .hc-t-rose{--p-bg:var(--rose-soft); --p-fg:var(--rose-ink); --p-bd:var(--rose-bd); --p:var(--rose)}
+.hc .hc-tile{width:34px; height:34px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--p-bg); border:1.5px solid var(--p-bd); color:var(--p-fg)}
+.hc .hc-tile .hc-ic{width:17px; height:17px}
+.hc .hc-pill{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:.74rem; font-weight:600; white-space:nowrap; background:var(--p-bg, var(--paper-2)); color:var(--p-fg, var(--ink-2)); border:1px solid var(--p-bd, var(--line))}
+.hc .hc-pill .hc-ic{width:12px; height:12px}
+.hc .hc-btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac); display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap; text-decoration:none; transition:transform .18s var(--spring), box-shadow .18s var(--spring)}
+.hc .hc-btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.hc .hc-btn .hc-ic{width:15px; height:15px}
+.hc .hc-btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
 
-.lp .hc__arts{margin-top:18px; display:grid; gap:2px}
-.lp .hc__arts a{
-  display:block; padding:11px 14px; border-radius:var(--r-md);
-  text-decoration:none; color:inherit;
-  transition:background .16s;
-}
-.lp .hc__arts a:hover{background:var(--paper-2)}
-.lp .hc__arts .t{display:block; font-weight:600; font-size:.96rem; letter-spacing:-.012em}
-.lp .hc__arts a:hover .t{text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
-.lp .hc__arts .b{display:block; margin-top:3px; font-size:.86rem; line-height:1.45; color:var(--ink-3)}
-
-/* ---------- 4. results + empty --------------------------------------------- */
-.lp .hc__results{margin-top:clamp(30px,3.6vw,42px); display:grid; gap:8px; max-width:820px}
-.lp .hc__results a{
-  display:block; padding:16px 18px; text-decoration:none; color:inherit;
-  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md);
-  transition:border-color .16s, box-shadow .16s, transform .16s var(--ease-spring);
-}
-.lp .hc__results a:hover{
-  border-color:var(--ink); transform:translateX(3px); box-shadow:var(--sh-1);
-}
-.lp .hc__rcat{
-  display:inline-block; font-size:.7rem; letter-spacing:.09em; text-transform:uppercase;
-  font-weight:700; color:var(--ink-3);
-}
-.lp .hc__rt{display:block; margin-top:6px; font-family:var(--display); font-weight:600;
-  font-size:1.06rem; letter-spacing:-.02em; line-height:1.25}
-.lp .hc__rb{display:block; margin-top:5px; font-size:.89rem; line-height:1.5; color:var(--ink-2)}
-
-.lp .hc__empty{
-  margin-top:clamp(30px,3.6vw,42px); max-width:560px; padding:clamp(24px,3vw,34px);
-  background:var(--paper-2); border:1.5px dashed var(--line-2); border-radius:var(--r-lg);
-}
-.lp .hc__empty h3{font-size:1.24rem}
-.lp .hc__empty p{margin-top:10px; color:var(--ink-2); font-size:.94rem; line-height:1.6}
-.lp .hc__empty .btn{margin-top:20px}
-
-/* ---------- 5. article layout ---------------------------------------------- */
-.lp .hc__artwrap{padding:clamp(38px,4.6vw,60px) 0 0}
-.lp .hc__artgrid{
-  display:grid; grid-template-columns:minmax(0,1fr) 268px; gap:clamp(34px,5vw,72px);
-  align-items:start;
-}
-/* min-width:0 because this is a grid item AND a grid container: without it the
-   automatic minimum size is content-based, and the widest thing inside is a
-   table carrying min-width — which would push the column past the viewport
-   instead of scrolling inside its own box. */
-.lp .hc__body{max-width:70ch; min-width:0; display:grid; gap:0}
-
-.lp .hc__rail{position:sticky; top:calc(var(--pub-nav-h) + 24px); display:grid; gap:0}
-.lp .hc__railcat{
-  display:flex; align-items:center; gap:11px;
-  font-size:.86rem; font-weight:600; color:var(--ink-2);
-}
-.lp .hc__rail h5{
-  margin-top:26px; margin-bottom:10px;
-  font-size:.72rem; letter-spacing:.09em; text-transform:uppercase;
-  color:var(--ink-3); font-weight:600;
-}
-.lp .hc__railnav{display:grid; gap:1px}
-.lp .hc__railnav a{
-  display:block; padding:8px 11px; border-radius:var(--r-sm);
-  text-decoration:none; color:var(--ink-2); font-size:.885rem; line-height:1.4;
-  transition:background .16s, color .16s;
-}
-.lp .hc__railnav a:hover{background:var(--paper-2); color:var(--ink)}
-
-.lp .hc__railask{
-  margin-top:24px; padding:16px; display:flex; gap:11px; align-items:flex-start;
-  text-decoration:none; color:inherit;
-  background:var(--lilac-soft); border:1.5px solid #DCD2FB; border-radius:var(--r-md);
-  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
-}
-.lp .hc__railask:hover{transform:translate(-1.5px,-1.5px); box-shadow:3px 3px 0 var(--lilac)}
-.lp .hc__railask svg{flex:none; margin-top:1px}
-.lp .hc__railask b{display:block; font-size:.9rem; color:var(--ink)}
-.lp .hc__railask span{font-size:.83rem; line-height:1.5; color:var(--ink-2)}
-
-/* ---------- 6. article prose ----------------------------------------------- */
-.lp .hc__body > h2{
-  margin-top:44px; font-family:var(--display); font-weight:600;
-  font-size:1.3rem; letter-spacing:-.022em; line-height:1.22;
-  scroll-margin-top:calc(var(--pub-nav-h) + 24px);
-}
-.lp .hc__body > p{margin-top:16px; color:var(--ink-2); line-height:1.68}
-/* Every block carries its own top margin (§7), which would stack on top of the
-   section padding when it happens to be the article's opener. One rule rather
-   than a :first-child variant per block kind. */
-.lp .hc__body > *:first-child{margin-top:0}
-.lp .hc__body strong,.lp .hc__body b{color:var(--ink); font-weight:600}
-.lp .hc__body a{
-  color:var(--sky-ink); text-decoration:underline;
-  text-decoration-color:#BBD3F5; text-underline-offset:2.5px;
-}
-.lp .hc__body a:hover{text-decoration-color:var(--sky-ink)}
-.lp .hc__body code{
-  font-family:var(--mono); font-size:.86em; padding:1.5px 5px;
-  background:var(--paper-3); border-radius:5px; color:var(--ink-2);
-  overflow-wrap:anywhere;
+/* ---------- app frame + sidebar (the app's own) ---------- */
+.hc .hc-app{display:flex; min-height:100vh}
+.hc .hc-main{flex:1; min-width:0}
+.hc .hc-sb{position:sticky; top:0; height:100vh; width:262px; flex:none; z-index:30; display:flex; flex-direction:column; background:color-mix(in srgb, var(--paper-2) 88%, transparent); border-right:1.5px solid var(--line)}
+.hc .hc-sb-org{display:flex; align-items:center; gap:11px; height:66px; flex:none; padding:0 14px; border-bottom:1.5px solid var(--line); text-decoration:none}
+.hc .hc-orglogo{width:36px; height:36px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink); font-family:var(--display); font-weight:700; font-size:1rem; transform:rotate(-3deg); box-shadow:2px 2px 0 var(--peach); filter:var(--note-filter)}
+.hc .hc-sb-org b{display:block; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.022em; line-height:1.15}
+.hc .hc-sb-org small{display:block; font-family:var(--mono); font-size:.64rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); margin-top:2px}
+.hc .hc-sb-scroll{flex:1; overflow-y:auto; padding:12px 10px 16px; scrollbar-width:thin}
+.hc .hc-sb-search{display:flex; align-items:center; gap:9px; width:100%; margin:0 0 14px; padding:9px 11px; border-radius:12px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-3); font-size:.86rem; text-align:left}
+.hc .hc-sb-search:hover{border-color:var(--ink-3); color:var(--ink)}
+.hc .hc-sb-search .hc-ic{width:16px; height:16px}
+.hc .hc-sb-search kbd{margin-left:auto}
+.hc .hc-grp + .hc-grp{margin-top:14px}
+.hc .hc-grp-h{display:flex; align-items:center; gap:8px; padding:0 10px 6px; font-size:.64rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.hc .hc-grp-h::before{content:''; width:12px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
+.hc .hc-item{display:flex; align-items:center; gap:11px; min-height:38px; padding:0 11px; margin:2px 0; border-radius:12px; border:1.5px solid transparent; text-decoration:none; color:var(--ink-2); font-size:.9rem; font-weight:500; transition:background .16s, color .16s, border-color .16s, box-shadow .2s var(--spring)}
+.hc .hc-item .hc-ic{color:var(--ink-3); transition:transform .3s var(--spring), color .16s}
+.hc .hc-item:hover{background:var(--card); color:var(--ink)}
+.hc .hc-item:hover .hc-ic{color:var(--ink); transform:rotate(-6deg) scale(1.06)}
+.hc .hc-item[aria-current="page"]{background:var(--card); color:var(--ink); font-weight:600; border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--butter)}
+.hc .hc-item[aria-current="page"] .hc-ic{color:var(--ink)}
+.hc .hc-item .hc-lbl{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.hc .hc-item .hc-n{font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.hc .hc-sub{margin:2px 0 8px 22px; padding-left:12px; border-left:1.5px dashed var(--line-2); display:grid; gap:1px}
+.hc .hc-sub a{display:block; padding:5px 9px; border-radius:9px; font-size:.82rem; color:var(--ink-3); text-decoration:none; line-height:1.35}
+.hc .hc-sub a:hover{background:var(--card); color:var(--ink)}
+.hc .hc-sub a[aria-current="page"]{color:var(--ink); font-weight:600; background:var(--card); box-shadow:inset 2px 0 0 var(--ink)}
+.hc .hc-sb-foot{display:flex; align-items:center; gap:8px; padding:10px 12px 12px; border-top:1.5px solid var(--line)}
+.hc .hc-seg{display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:var(--card); border:1.5px solid var(--line)}
+.hc .hc-seg button{display:flex; align-items:center; gap:6px; border:0; background:none; padding:5px 10px; border-radius:999px; font-size:.76rem; font-weight:600; color:var(--ink-3)}
+.hc .hc-seg button .hc-ic{width:14px; height:14px}
+.hc .hc-seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.hc .hc-sb-human{margin-left:auto; font-size:.78rem; font-weight:600; color:var(--ink-2); text-decoration:none; display:flex; align-items:center; gap:6px}
+.hc .hc-sb-human .hc-ic{width:15px; height:15px}
+.hc .hc-mbar{display:none}
+.hc .hc-shade{display:none}
+@media (max-width:1023px){
+  .hc .hc-sb{position:fixed; left:0; top:0; bottom:0; height:auto; width:min(300px,86vw); transform:translateX(-102%); background:var(--paper-2); box-shadow:var(--sh-3); transition:transform .26s var(--spring)}
+  .hc .hc-sb.hc-open{transform:none}
+  .hc .hc-shade{display:block; position:fixed; inset:0; z-index:25; background:var(--scrim); opacity:0; pointer-events:none; transition:opacity .2s; border:0}
+  .hc .hc-shade.hc-open{opacity:1; pointer-events:auto}
+  .hc .hc-mbar{display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:20; padding:10px 14px; background:color-mix(in srgb, var(--paper) 86%, transparent); backdrop-filter:blur(12px); border-bottom:1.5px solid var(--line)}
+  .hc .hc-mbar b{font-family:var(--display); font-weight:600; flex:1}
+  .hc .hc-iconbtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1.5px solid var(--line); background:var(--card)}
 }
 
-/* ---------- 7. blocks ------------------------------------------------------ */
-/* Steps. landing.css strips list styling globally under .lp, so the numbers are
-   a counter rather than a list-style — which also lets them be mono and sit in
-   their own gutter. */
-.lp .hc__steps{margin-top:20px; display:grid; gap:14px; counter-reset:step}
-.lp .hc__steps > li{
-  position:relative; padding-left:38px; color:var(--ink-2); line-height:1.62;
-}
-.lp .hc__steps > li::before{
-  counter-increment:step; content:counter(step);
-  position:absolute; left:0; top:-1px;
-  width:26px; height:26px; display:grid; place-items:center;
-  font-family:var(--mono); font-size:.8rem; font-weight:500; color:var(--ink-2);
-  background:var(--paper-2); border:1.5px solid var(--line); border-radius:50%;
-  font-variant-numeric:tabular-nums;
+/* ---------- page ---------- */
+.hc .hc-wrap{max-width:1120px; margin:0 auto; padding:clamp(26px,3.4vw,44px) clamp(16px,3vw,44px) 120px}
+.hc .hc-kick{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.hc .hc-kick .hc-chip{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2)}
+.hc .hc-kick a{color:var(--ink-3); text-decoration:none}
+.hc .hc-kick a:hover{color:var(--ink)}
+.hc .hc-greet{font-family:var(--display); font-weight:600; letter-spacing:-.034em; line-height:1.03; font-size:clamp(2.1rem,4vw,3.2rem); margin-top:14px; max-width:20ch; font-variation-settings:"opsz" 96}
+.hc .hc-lede{margin-top:14px; max-width:60ch; font-size:1.04rem; line-height:1.6; color:var(--ink-2)}
+
+/* search card — the ⌘K card */
+.hc .hc-find{margin-top:26px; max-width:720px; position:relative; z-index:5}
+.hc .hc-find-box{display:flex; align-items:center; gap:12px; padding:6px 8px 6px 18px; background:var(--card); border:1.5px solid var(--ink); border-radius:18px; box-shadow:4px 4px 0 var(--lilac); transition:transform .18s var(--spring), box-shadow .18s var(--spring)}
+.hc .hc-find-box:focus-within{transform:translate(-1.5px,-1.5px); box-shadow:6px 6px 0 var(--lilac)}
+.hc .hc-find-box .hc-ic{color:var(--ink-3)}
+.hc .hc-find-box input{flex:1; min-width:0; border:0; outline:0; background:transparent; padding:12px 0; font-size:1.02rem}
+.hc .hc-find-box input::placeholder{color:var(--ink-3)}
+.hc .hc-find-res{margin-top:10px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md); box-shadow:var(--sh-2); padding:6px; display:grid; gap:2px}
+.hc .hc-find-res a{display:flex; gap:12px; align-items:flex-start; padding:10px 10px; border-radius:12px; text-decoration:none}
+.hc .hc-find-res a:hover,.hc .hc-find-res a.hc-on{background:var(--paper-2)}
+.hc .hc-find-res .hc-t{font-weight:600; font-size:.92rem}
+.hc .hc-find-res .hc-b{font-size:.82rem; color:var(--ink-3); line-height:1.4; margin-top:1px}
+.hc .hc-find-res .hc-tile{width:30px; height:30px; border-radius:9px}
+.hc .hc-find-none{padding:18px; font-size:.9rem; color:var(--ink-2)}
+
+/* who filter */
+.hc .hc-tabs{display:inline-flex; gap:3px; padding:3px; border-radius:20px; background:var(--paper-2); border:1.5px solid var(--line); flex-wrap:wrap}
+.hc .hc-tabs button{border:0; background:none; padding:6px 13px; border-radius:999px; font-size:.82rem; font-weight:600; color:var(--ink-3); display:flex; gap:6px; align-items:center}
+.hc .hc-tabs button .hc-n{font-family:var(--mono); font-size:.68rem; opacity:.7}
+.hc .hc-tabs button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 0 0 1.5px var(--ink), 2px 2px 0 var(--butter)}
+.hc .hc-who{margin-top:34px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.hc .hc-who > span{font-size:.82rem; color:var(--ink-3); font-weight:500}
+
+/* sticky-note doors */
+.hc .hc-sec-h{display:flex; align-items:baseline; gap:12px; margin:46px 0 16px}
+.hc .hc-sec-h h2{font-family:var(--display); font-weight:600; font-size:1.3rem; letter-spacing:-.024em}
+.hc .hc-sec-h .hc-rule{flex:1; height:1.5px; background:var(--line)}
+.hc .hc-sec-h small{font-size:.8rem; color:var(--ink-3)}
+.hc .hc-doors{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; padding:6px 4px 0}
+.hc .hc-door{position:relative; display:block; padding:20px 20px 18px; text-decoration:none; color:var(--note-ink); background:var(--p); filter:var(--note-filter); border-radius:6px 16px 8px 14px; box-shadow:var(--sh-2); transform:rotate(var(--r,-1.2deg)); transition:transform .25s var(--spring), box-shadow .25s var(--spring)}
+.hc .hc-door:nth-child(2){--r:.9deg}
+.hc .hc-door:nth-child(3){--r:-.6deg}
+.hc .hc-door:hover{transform:rotate(0) translateY(-3px); box-shadow:var(--sh-3)}
+.hc .hc-door::after{content:''; position:absolute; left:50%; top:-8px; width:58px; height:16px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16)}
+.hc .hc-door .hc-ic{width:22px; height:22px}
+.hc .hc-door b{display:block; font-family:var(--display); font-weight:600; font-size:1.14rem; letter-spacing:-.02em; margin-top:12px}
+.hc .hc-door span{display:block; font-size:.86rem; line-height:1.45; margin-top:5px; opacity:.82}
+.hc .hc-door i{display:inline-flex; align-items:center; gap:6px; margin-top:14px; font-style:normal; font-size:.8rem; font-weight:600}
+.hc .hc-door i .hc-ic{width:14px; height:14px}
+
+/* journey */
+.hc .hc-journey{position:relative; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; padding-top:26px}
+.hc .hc-journey::before{content:''; position:absolute; left:12px; right:12px; top:12px; height:0; border-top:2px dashed var(--line-2)}
+.hc .hc-stop{position:relative}
+.hc .hc-stop::before{content:''; position:absolute; left:2px; top:-21px; width:16px; height:16px; border-radius:50%; background:var(--p); border:2px solid var(--ink)}
+.hc .hc-stop h3{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em}
+.hc .hc-stop p{font-size:.8rem; color:var(--ink-3); margin-top:2px}
+.hc .hc-stop ul{margin-top:10px; display:grid; gap:5px}
+.hc .hc-stop a{display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:11px; background:var(--card); border:1.5px solid var(--line); font-size:.83rem; font-weight:500; text-decoration:none; color:var(--ink-2); transition:border-color .15s, transform .18s var(--spring)}
+.hc .hc-stop a:hover{border-color:var(--ink); color:var(--ink); transform:translateX(2px)}
+.hc .hc-stop a .hc-ic{width:14px; height:14px; color:var(--p-fg)}
+
+/* shelf */
+.hc .hc-shelf{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.hc .hc-card{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); min-width:0}
+.hc .hc-cat{display:flex; flex-direction:column; scroll-margin-top:90px}
+.hc .hc-cat-h{display:flex; align-items:center; gap:11px; padding:16px 18px 6px}
+.hc .hc-cat-h h3{font-family:var(--display); font-weight:600; font-size:1.06rem; letter-spacing:-.022em}
+.hc .hc-cat-h .hc-n{margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.hc .hc-cat > p{padding:0 18px; font-size:.82rem; color:var(--ink-3); line-height:1.45}
+.hc .hc-cat ul{padding:10px 8px 10px; display:grid; gap:1px; flex:1}
+.hc .hc-cat li a{display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:10px; font-size:.86rem; color:var(--ink-2); text-decoration:none; line-height:1.3}
+.hc .hc-cat li a:hover{background:var(--paper-2); color:var(--ink)}
+.hc .hc-cat li a .hc-ic{width:14px; height:14px; color:var(--ink-3)}
+.hc .hc-cat li a .hc-lk{margin-left:auto; color:var(--ink-3); opacity:.7}
+.hc .hc-cat li.hc-dim{display:none}
+.hc .hc-cat-empty{padding:4px 18px 18px; font-size:.8rem; color:var(--ink-3); font-style:italic}
+
+.hc .hc-stuck{margin-top:46px; display:flex; gap:22px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:22px 24px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-lg); box-shadow:5px 5px 0 var(--butter)}
+.hc .hc-stuck h3{font-family:var(--display); font-weight:600; font-size:1.24rem; letter-spacing:-.022em}
+.hc .hc-stuck p{margin-top:6px; color:var(--ink-2); font-size:.92rem; max-width:56ch}
+
+/* ---------- article ---------- */
+.hc .hc-art{display:grid; grid-template-columns:minmax(0,1fr) 230px; gap:clamp(28px,4vw,56px); align-items:start}
+.hc .hc-art-main{min-width:0; max-width:760px}
+.hc .hc-art h1{font-family:var(--display); font-weight:600; letter-spacing:-.034em; line-height:1.05; font-size:clamp(1.9rem,3.4vw,2.7rem); margin-top:14px; font-variation-settings:"opsz" 96}
+.hc .hc-facts{margin-top:22px; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px}
+.hc .hc-fact{padding:12px 14px; border-radius:14px; background:var(--paper-2); border:1.5px solid var(--line)}
+.hc .hc-fact .hc-k{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.hc .hc-fact .hc-k .hc-ic{width:13px; height:13px}
+.hc .hc-fact .hc-v{margin-top:6px; font-size:.86rem; color:var(--ink); font-weight:500; line-height:1.45}
+.hc .hc-path{display:flex; flex-wrap:wrap; gap:4px; align-items:center}
+.hc .hc-path span{padding:2px 9px; border-radius:8px; background:var(--card); border:1.5px solid var(--line-2); font-size:.8rem; font-weight:600}
+.hc .hc-path span:last-child{border-color:var(--ink); box-shadow:2px 2px 0 var(--butter)}
+.hc .hc-path i{font-style:normal; color:var(--ink-3); font-size:.8rem}
+
+/* figure */
+.hc .hc-fig{margin-top:22px; position:relative; padding:22px; background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-lg); overflow:hidden}
+.hc .hc-fig::before{content:''; position:absolute; inset:0; background-image:radial-gradient(var(--line-2) 1px, transparent 1px); background-size:18px 18px; opacity:.5; pointer-events:none}
+.hc .hc-fig > *{position:relative}
+.hc .hc-fig-cap{display:flex; align-items:center; gap:8px; margin-top:16px; font-size:.8rem; color:var(--ink-3)}
+.hc .hc-fig-cap b{font-family:var(--mono); font-size:.66rem; letter-spacing:.08em; color:var(--ink-2); padding:2px 7px; border-radius:6px; background:var(--card); border:1px solid var(--line-2)}
+
+/* mini-UI kit used inside figures */
+.hc .hc-scr{background:var(--card); border:1.5px solid var(--line-2); border-radius:14px; box-shadow:var(--sh-2); overflow:hidden; min-width:0}
+.hc .hc-scr-h{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1.5px solid var(--line); background:var(--paper-2); font-family:var(--mono); font-size:.66rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3)}
+.hc .hc-scr-h .hc-ic{width:13px; height:13px}
+.hc .hc-scr-b{padding:14px}
+.hc .hc-u-t{font-family:var(--display); font-weight:600; letter-spacing:-.022em; font-size:1.02rem; line-height:1.2}
+.hc .hc-u-s{font-size:.78rem; color:var(--ink-3); line-height:1.4}
+.hc .hc-u-lb{display:block; font-size:.7rem; font-weight:600; color:var(--ink-3); margin:0 0 4px}
+.hc .hc-u-in{display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:10px; border:1.5px solid var(--line-2); background:var(--card); font-size:.8rem; color:var(--ink); min-height:34px}
+.hc .hc-u-in.hc-ph{color:var(--ink-3)}
+.hc .hc-u-in .hc-ic{width:14px; height:14px; color:var(--ink-3)}
+.hc .hc-u-btn{--hs:var(--lilac); display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); font-size:.76rem; font-weight:600; box-shadow:2px 2px 0 var(--hs); white-space:nowrap}
+.hc .hc-u-btn .hc-ic{width:13px; height:13px}
+.hc .hc-u-btn.hc-g{background:var(--card); color:var(--ink); --hs:var(--peach)}
+.hc .hc-u-btn.hc-s{background:transparent; color:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.hc .hc-u-btn.hc-r{background:var(--card); color:var(--rose-ink); border-color:var(--rose-ink); --hs:var(--rose)}
+.hc .hc-u-row{display:flex; align-items:center; gap:10px; padding:9px 2px; border-bottom:1px dashed var(--line-2); font-size:.82rem; min-width:0}
+.hc .hc-u-row:last-child{border-bottom:0}
+.hc .hc-u-row .hc-grow{flex:1; min-width:0}
+.hc .hc-u-row b{display:block; font-size:.84rem; font-weight:600}
+.hc .hc-u-tog{width:30px; height:18px; flex:none; border-radius:999px; background:var(--line-2); position:relative}
+.hc .hc-u-tog::after{content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--card); box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.hc .hc-u-tog.hc-on{background:var(--ink)}
+.hc .hc-u-tog.hc-on::after{left:14px}
+.hc .hc-u-chk{width:16px; height:16px; flex:none; border-radius:5px; border:1.5px solid var(--line-2); display:grid; place-items:center; background:var(--card)}
+.hc .hc-u-chk.hc-on{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.hc .hc-u-chk .hc-ic{width:11px; height:11px}
+.hc .hc-av{width:28px; height:28px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.64rem; font-weight:700; background:var(--av, var(--lilac)); color:rgba(38,33,27,.72); border:1.5px solid rgba(38,33,27,.08)}
+.hc .hc-u-tabs{display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; border-radius:999px; background:var(--paper-2); border:1.5px solid var(--line)}
+.hc .hc-u-tabs span{padding:4px 10px; border-radius:999px; font-size:.72rem; font-weight:600; color:var(--ink-3)}
+.hc .hc-u-tabs span.hc-on{background:var(--card); color:var(--ink); box-shadow:0 0 0 1.5px var(--ink)}
+.hc .hc-u-stat{padding:10px; border-radius:12px; background:var(--paper-2); border:1.5px solid var(--line)}
+.hc .hc-u-stat .hc-k{font-size:.66rem; font-weight:600; color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em}
+.hc .hc-u-stat .hc-v{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.02em; margin-top:2px}
+.hc .hc-u-pop{background:var(--card); border:1.5px solid var(--ink); border-radius:14px; box-shadow:4px 4px 0 var(--hs, var(--lilac)); padding:6px}
+.hc .hc-u-pop .hc-r{display:flex; align-items:flex-start; gap:10px; padding:8px 9px; border-radius:10px; font-size:.82rem; color:var(--ink-2)}
+.hc .hc-u-pop .hc-r .hc-ic{width:15px; height:15px; color:var(--ink-3); margin-top:1px}
+.hc .hc-u-pop .hc-r small{display:block; font-size:.72rem; color:var(--ink-3)}
+.hc .hc-u-pop .hc-r.hc-on{background:var(--paper-2); color:var(--ink)}
+.hc .hc-u-pop .hc-r.hc-danger{color:var(--rose-ink)}
+.hc .hc-u-pop .hc-r.hc-danger .hc-ic{color:var(--rose-ink)}
+.hc .hc-u-pop hr{border:0; border-top:1px dashed var(--line-2); margin:4px}
+.hc .hc-stamp{display:inline-block; font-family:var(--mono); font-weight:600; font-size:.7rem; letter-spacing:.14em; padding:5px 10px; border:2px solid currentColor; border-radius:6px; transform:rotate(-6deg); color:var(--p-fg, var(--mint-ink)); opacity:.9}
+.hc .hc-note-s{position:relative; padding:12px 14px; color:var(--note-ink); background:var(--p); filter:var(--note-filter); border-radius:5px 12px 7px 10px; box-shadow:var(--sh-2); font-size:.8rem; line-height:1.4; transform:rotate(-1deg)}
+.hc .hc-tape{position:relative}
+.hc .hc-tape::after{content:''; position:absolute; left:50%; top:-8px; width:52px; height:15px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16)}
+.hc[data-hc-theme="dark"] .hc-tape::after{background:rgba(255,255,255,.14)}
+
+/* pins: the numbered markers shared by figures and steps */
+.hc .hc-pin{display:inline-grid; place-items:center; width:21px; height:21px; flex:none; border-radius:50%; background:var(--ink); color:var(--paper); font-family:var(--mono); font-style:normal; font-size:.68rem; font-weight:600; box-shadow:2px 2px 0 var(--butter); vertical-align:middle; line-height:1}
+.hc .hc-pin.hc-abs{position:absolute; z-index:2}
+
+/* figure layouts */
+.hc .hc-f-row{display:flex; gap:14px; align-items:stretch; flex-wrap:wrap}
+.hc .hc-f-grid2{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px}
+.hc .hc-f-grid3{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+.hc .hc-flow{display:flex; align-items:stretch; gap:6px; flex-wrap:wrap}
+.hc .hc-flow > .hc-st{flex:1 1 140px; min-width:0}
+.hc .hc-flow > .hc-ar{flex:none; align-self:center; color:var(--ink-3); width:22px}
+.hc .hc-flow > .hc-ar .hc-ic{width:20px; height:20px}
+.hc .hc-st{position:relative; padding:12px 12px 12px; border-radius:14px; background:var(--card); border:1.5px solid var(--line-2); box-shadow:var(--sh-1)}
+.hc .hc-st .hc-pin{position:absolute; top:-9px; left:-7px}
+.hc .hc-st .hc-k{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--p-fg, var(--ink-3))}
+.hc .hc-st b{display:block; font-size:.88rem; margin-top:3px; line-height:1.25}
+.hc .hc-st p{font-size:.76rem; color:var(--ink-3); line-height:1.4; margin-top:4px}
+.hc .hc-st.hc-hl{border-color:var(--ink); box-shadow:3px 3px 0 var(--p, var(--butter))}
+.hc .hc-st.hc-ghost{border-style:dashed; background:transparent; box-shadow:none}
+.hc .hc-lbl-m{font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.hc .hc-x-out{text-decoration:line-through; text-decoration-thickness:1.5px; color:var(--ink-3)}
+
+/* ruler (standing) */
+.hc .hc-ruler{position:relative; height:34px; border-radius:10px; overflow:hidden; display:flex; border:1.5px solid var(--ink)}
+.hc .hc-ruler > span{display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:700; color:var(--note-ink); filter:var(--note-filter)}
+.hc .hc-ruler-ticks{position:relative; height:18px; margin-top:4px; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.hc .hc-ruler-ticks span{position:absolute; transform:translateX(-50%)}
+
+/* body blocks */
+.hc .hc-body{margin-top:26px}
+.hc .hc-body > *:first-child{margin-top:0}
+.hc .hc-body h2{font-family:var(--display); font-weight:600; font-size:1.22rem; letter-spacing:-.022em; margin-top:34px; scroll-margin-top:24px; display:flex; align-items:center; gap:10px}
+.hc .hc-body h2::before{content:''; width:14px; height:2.5px; border-radius:2px; background:var(--eb, var(--peach))}
+.hc .hc-body > p{margin-top:14px; color:var(--ink-2); line-height:1.68}
+.hc .hc-body b{color:var(--ink); font-weight:600}
+.hc .hc-body a{color:var(--ink); text-decoration:underline; text-decoration-color:var(--lilac-ink); text-decoration-thickness:1.5px; text-underline-offset:3px}
+.hc .hc-body a.hc-ext{text-decoration-style:dotted; text-decoration-color:var(--line-2)}
+.hc .hc-body code{font-family:var(--mono); font-size:.84em; padding:1px 6px; background:var(--paper-3); border-radius:6px; color:var(--ink-2); overflow-wrap:anywhere}
+.hc .hc-steps{margin-top:16px; display:grid; gap:10px}
+.hc .hc-steps li{display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border-radius:14px; background:var(--card); border:1.5px solid var(--line); line-height:1.55; color:var(--ink-2)}
+.hc .hc-steps li .hc-pin{margin-top:1px}
+.hc .hc-list{margin-top:14px; display:grid; gap:9px}
+.hc .hc-list li{position:relative; padding-left:22px; color:var(--ink-2); line-height:1.62}
+.hc .hc-list li::before{content:''; position:absolute; left:2px; top:.66em; width:11px; height:2.5px; border-radius:2px; background:var(--line-2); transform:rotate(-4deg)}
+.hc .hc-list.hc-check li::before{content:'✓'; width:auto; height:auto; background:none; top:0; left:1px; color:var(--mint-ink); font-weight:700; transform:none}
+.hc .hc-list.hc-no li::before{content:'✕'; width:auto; height:auto; background:none; top:0; left:1px; color:var(--peach-ink); font-weight:700; font-size:.88em; transform:none}
+.hc .hc-note{margin-top:18px; display:flex; gap:12px; padding:14px 16px; border-radius:14px; background:var(--sky-soft); border:1.5px solid var(--sky-bd)}
+.hc .hc-note .hc-ic{width:18px; height:18px; color:var(--sky-ink); margin-top:2px}
+.hc .hc-note h5{font-size:.86rem; font-weight:700; color:var(--ink)}
+.hc .hc-note p{margin-top:3px; color:var(--ink-2); font-size:.9rem; line-height:1.58}
+.hc .hc-sticky{margin:26px 6px 4px; position:relative; padding:16px 18px 15px; color:var(--note-ink); background:var(--p); filter:var(--note-filter); border-radius:6px 16px 8px 14px; box-shadow:var(--sh-2); transform:rotate(var(--r,-.6deg))}
+.hc .hc-sticky:nth-of-type(even){--r:.5deg}
+.hc .hc-sticky::after{content:''; position:absolute; left:50%; top:-8px; width:58px; height:16px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16)}
+.hc .hc-sticky h5{display:flex; align-items:center; gap:7px; font-family:var(--display); font-size:1rem; font-weight:600; letter-spacing:-.018em}
+.hc .hc-sticky h5 .hc-ic{width:16px; height:16px}
+.hc .hc-sticky p{margin-top:5px; font-size:.9rem; line-height:1.55}
+.hc .hc-sticky a,.hc .hc-sticky b{color:var(--note-ink)}
+.hc .hc-sticky code{background:rgba(255,255,255,.5)}
+.hc .hc-tw{margin-top:16px; overflow-x:auto; border:1.5px solid var(--line); border-radius:16px; background:var(--card)}
+.hc table{width:100%; border-collapse:collapse; font-size:.88rem; min-width:440px}
+.hc th,.hc td{text-align:left; padding:11px 14px; vertical-align:top; line-height:1.5; border-bottom:1.5px solid var(--line)}
+.hc thead th{background:var(--paper-2); font-family:var(--mono); font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.hc tbody tr:last-child > *{border-bottom:0}
+.hc tbody th{font-weight:600; width:30%; min-width:120px}
+.hc td{color:var(--ink-2)}
+.hc .hc-where{margin-top:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border-radius:12px; border:1.5px dashed var(--line-2)}
+
+/* rail */
+.hc .hc-rail{position:sticky; top:24px; display:grid; gap:18px}
+.hc .hc-rail h5{font-family:var(--mono); font-size:.64rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:8px}
+.hc .hc-toc{display:grid; gap:1px; border-left:1.5px solid var(--line); padding-left:2px}
+.hc .hc-toc a{display:block; padding:5px 10px; font-size:.82rem; color:var(--ink-3); text-decoration:none; border-left:2px solid transparent; margin-left:-3.5px}
+.hc .hc-toc a:hover{color:var(--ink); border-left-color:var(--ink)}
+.hc .hc-rail .hc-note-s{transform:rotate(1.2deg)}
+.hc .hc-rail .hc-note-s b{display:block; font-family:var(--display); font-size:.96rem}
+.hc .hc-rail .hc-note-s a{display:inline-flex; align-items:center; gap:5px; margin-top:8px; font-weight:600; color:var(--note-ink)}
+
+.hc .hc-pn{margin-top:40px; display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.hc .hc-pn a{display:block; padding:14px 16px; border-radius:16px; background:var(--card); border:1.5px solid var(--line); text-decoration:none; transition:border-color .15s, transform .18s var(--spring), box-shadow .18s var(--spring)}
+.hc .hc-pn a:hover{border-color:var(--ink); box-shadow:3px 3px 0 var(--butter); transform:translate(-1px,-1px)}
+.hc .hc-pn a.hc-nx{text-align:right}
+.hc .hc-pn small{font-family:var(--mono); font-size:.64rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.hc .hc-pn b{display:block; margin-top:3px; font-size:.92rem}
+
+
+/* responsive */
+@media (max-width:1180px){ .hc .hc-art{grid-template-columns:minmax(0,1fr)} .hc .hc-rail{display:none} }
+@media (max-width:980px){ .hc .hc-shelf{grid-template-columns:1fr 1fr} .hc .hc-journey{grid-template-columns:1fr 1fr; row-gap:34px} .hc .hc-journey::before{display:none} .hc .hc-stop::before{top:-20px} }
+@media (max-width:720px){
+  .hc .hc-doors{grid-template-columns:1fr; gap:24px}
+  .hc .hc-shelf{grid-template-columns:1fr}
+  .hc .hc-journey{grid-template-columns:1fr}
+  .hc .hc-facts{grid-template-columns:1fr}
+  .hc .hc-f-grid2,.hc .hc-f-grid3{grid-template-columns:1fr}
+  .hc .hc-fig{padding:16px}
+  .hc .hc-flow > .hc-ar{transform:rotate(90deg); margin:0 auto}
+  .hc .hc-flow > .hc-st{flex-basis:100%}
+  .hc .hc-pn{grid-template-columns:1fr}
+  .hc table{min-width:360px}
 }
 
-/* Bullets, rebuilt for the same reason. The default marker is a hand-drawn-
-   feeling en rule; --check and --no swap it for a tick or a cross. */
-.lp .hc__list{margin-top:18px; display:grid; gap:11px}
-.lp .hc__list > li{position:relative; padding-left:20px; color:var(--ink-2); line-height:1.62}
-.lp .hc__list > li::before{
-  content:''; position:absolute; left:0; top:.72em;
-  width:10px; height:2px; border-radius:2px; background:var(--line-2);
-}
-.lp .hc__list--check > li::before{
-  content:'✓'; width:auto; height:auto; background:none; top:0;
-  color:var(--mint-ink); font-size:.92em; font-weight:700;
-}
-.lp .hc__list--no > li::before{
-  content:'✕'; width:auto; height:auto; background:none; top:0;
-  color:var(--peach-ink); font-size:.86em; font-weight:700;
-}
-
-/* Callouts. Default is the calm aside; warn/flag are for a limit the reader
-   must not skim past. */
-.lp .hc__note{
-  margin-top:22px; padding:17px 19px; border-radius:var(--r-md);
-  background:var(--n-bg, var(--sky-soft)); border:1.5px solid var(--n-bd, #CCDFFB);
-}
-.lp .hc__note h5{
-  font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
-  color:var(--n-fg, var(--sky-ink)); margin-bottom:8px;
-}
-.lp .hc__note p{margin-top:0; color:var(--ink-2); font-size:.93rem; line-height:1.6}
-.lp .hc__note--warn{--n-bg:var(--butter-soft); --n-bd:#F4DFA6; --n-fg:var(--butter-ink)}
-.lp .hc__note--good{--n-bg:var(--mint-soft);   --n-bd:#BDE7D2; --n-fg:var(--mint-ink)}
-.lp .hc__note--flag{--n-bg:var(--peach-soft);  --n-bd:#F8D2C2; --n-fg:var(--peach-ink)}
-
-/* Tables. Wide ones scroll inside their own box — the page body never scrolls
-   sideways. */
-.lp .hc__tw{
-  margin-top:20px; overflow-x:auto; border:1.5px solid var(--line);
-  border-radius:var(--r-md); background:var(--card);
-}
-.lp .hc__t{width:100%; border-collapse:collapse; font-size:.9rem; min-width:460px}
-.lp .hc__t th,.lp .hc__t td{
-  text-align:left; padding:11px 14px; vertical-align:top; line-height:1.55;
-  border-bottom:1px solid var(--line);
-}
-.lp .hc__t thead th{
-  background:var(--paper-2); font-size:.72rem; letter-spacing:.07em;
-  text-transform:uppercase; color:var(--ink-3); font-weight:600; white-space:nowrap;
-}
-.lp .hc__t tbody tr:last-child th,.lp .hc__t tbody tr:last-child td{border-bottom:0}
-.lp .hc__t tbody th{font-weight:600; color:var(--ink); width:26%; min-width:110px}
-.lp .hc__t td{color:var(--ink-2)}
-
-/* "Where to find it" — the click path to a setting. Reads as a route, so it's
-   mono, and the last segment is the destination so it's inked. */
-.lp .hc__where{
-  margin-top:20px; padding:12px 16px;
-  display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px;
-  background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-md);
-}
-.lp .hc__where-l{
-  display:inline-flex; align-items:center; gap:7px; flex:none;
-  font-size:.7rem; letter-spacing:.09em; text-transform:uppercase;
-  font-weight:700; color:var(--ink-3);
-}
-.lp .hc__where-l svg{color:var(--ink-3)}
-.lp .hc__where-p{
-  display:flex; flex-wrap:wrap; align-items:center; gap:3px 9px;
-  font-family:var(--mono); font-size:.86rem; color:var(--ink-2);
-}
-/* The chevron is a ::before on every segment after the first, so a wrapped path
-   leads the new line with the arrow instead of orphaning one at the end. */
-.lp .hc__where-p > span + span::before{content:'→'; margin-right:9px; color:var(--line-2)}
-.lp .hc__where-p .is-last{color:var(--ink); font-weight:500}
-
-/* ---------- 8. responsive --------------------------------------------------- */
-@media (max-width: 1080px){
-  .lp .hc__artgrid{grid-template-columns:minmax(0,1fr); gap:40px}
-  /* The rail stops being a rail and becomes a card under the article. */
-  .lp .hc__rail{
-    position:static; padding:20px;
-    background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-lg);
-  }
-  .lp .hc__railnav{grid-template-columns:1fr 1fr; display:grid; gap:2px 16px}
-  .lp .hc__body{max-width:none}
-}
-@media (max-width: 900px){
-  .lp .hc__cats{grid-template-columns:minmax(0,1fr); gap:36px}
-  .lp .hc__paths{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-  /* Three paths in a 2-up grid: the third spans so it doesn't sit half-width
-     next to a hole. */
-  .lp .hc__path:last-child{grid-column:1 / -1}
-}
-@media (max-width: 620px){
-  .lp .hc__paths{grid-template-columns:minmax(0,1fr)}
-  .lp .hc__path:last-child{grid-column:auto}
-  .lp .hc__railnav{grid-template-columns:minmax(0,1fr)}
-  /* The Clear button and the placeholder can't both fit; the placeholder is
-     truncated by the input, so shrink the padding instead of the control. */
-  .lp .hc__search{padding-left:14px; gap:9px}
-  .lp .hc__search input{font-size:.96rem}
-  /* Tables still scroll rather than reflow (a two-column table of prose is
-     worse stacked), but a narrower floor means less of a swipe. */
-  .lp .hc__t{min-width:380px}
-  .lp .hc__t th,.lp .hc__t td{padding:10px 12px}
-}
+/* ---------- app-integration additions ------------------------------------- */
+/* inline() renders **bold** as <strong> (the mock used <b>). */
+.hc .hc-body strong,.hc .hc-note strong,.hc td strong,.hc th strong{color:var(--ink); font-weight:600}
+.hc .hc-sticky strong{color:var(--note-ink); font-weight:600}
+.hc .hc-lede strong{color:var(--ink); font-weight:600}
+/* The root body is a flex column; the help centre fills it. */
+.hc{flex:1; width:100%; min-height:100vh}
+.hc .hc-sb-brand{width:36px; height:36px; flex:none; transform:rotate(-4deg)}
+.hc .hc-sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+.hc .hc-sb-org > span{min-width:0}

@@ -1,27 +1,22 @@
 // One help article.
 //
-// Statically generated from ./content.ts at build time (generateStaticParams
+// Statically generated from ../content.ts at build time (generateStaticParams
 // enumerates every slug), so an article is a static document with no runtime
 // data access — which is also why it's readable signed out.
 //
-// Motionless for the same reason as the index: no LandingMotion in this tree,
-// so no [data-reveal] hooks anywhere.
+// Layout: where it lives + who can, then the figure (../figures.ts — a replica
+// of the real screen with pins matching the steps), then the body, then
+// previous/next. The rail holds "On this page", the rest of the section, and
+// the way to a person with this article already named.
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import "../../components/landing/landing.css";
-import "../../components/landing/public-chrome.css";
-import "../help.css";
-
-import { Doodle, sx } from "../../components/landing/Doodle";
-import { DoodleSprite } from "../../components/landing/DoodleSprite";
-import { landingFontClass } from "../../components/landing/fonts";
-import { PublicNav } from "../../components/landing/PublicChrome";
-import { Footer } from "../../components/landing/sections/Footer";
-import { Blocks } from "../Blocks";
-import { CatIcon } from "../CatIcon";
 import { inline } from "../../components/landing/inline";
-import { ARTICLES, ARTICLES_BY_SLUG, CATEGORIES_BY_ID, articlesIn } from "../content";
+import { PaperIcon } from "../../components/paper/PaperIcon";
+import { Blocks, WherePath, headingId } from "../Blocks";
+import { FIGURES } from "../figures";
+import { ARTICLES, ARTICLES_BY_SLUG, CATEGORIES_BY_ID, articlesIn, type Article } from "../content";
 import { APP_NAME } from "@/lib/domains";
 
 export function generateStaticParams() {
@@ -42,6 +37,19 @@ export async function generateMetadata({
   };
 }
 
+/** The title with the highlighter behind its `hi` phrase. */
+function Title({ article, tint }: { article: Article; tint: string }) {
+  const at = article.hi ? article.title.lastIndexOf(article.hi) : -1;
+  if (!article.hi || at < 0) return <h1>{article.title}</h1>;
+  return (
+    <h1>
+      {article.title.slice(0, at)}
+      <span className="hc-hi" style={{ "--mark": `var(--${tint})` } as React.CSSProperties}>{article.hi}</span>
+      {article.title.slice(at + article.hi.length)}
+    </h1>
+  );
+}
+
 export default async function HelpArticlePage({
   params,
 }: {
@@ -52,104 +60,87 @@ export default async function HelpArticlePage({
   if (!article) notFound();
 
   const category = CATEGORIES_BY_ID.get(article.categoryId)!;
-  // Siblings minus self — "more in this category", which is nearly always what
-  // someone wants next and is cheaper to scan than a global list.
-  const siblings = articlesIn(category.id).filter(a => a.slug !== article.slug);
+  const section = articlesIn(category.id);
+  const at = ARTICLES.indexOf(article);
+  const prev = ARTICLES[at - 1];
+  const next = ARTICLES[at + 1];
 
-  // Carries the article the reader gave up on into the composer on /contact,
-  // which opens with it named in the subject and the draft. Deliberately NOT a
-  // mailto: — a mailto: does nothing at all on a browser with no mail handler,
-  // and a whole card that silently no-ops is worse than one that navigates.
+  // A leading "where" block becomes the "Where it lives" fact instead.
+  const [first, ...rest] = article.body;
+  const where = first?.k === "where" ? first.path : null;
+  const body = where ? rest : article.body;
+  const headings = body.flatMap(b => (b.k === "h" ? [b.t] : []));
+
+  // Carries the article the reader gave up on into the composer on /contact.
   const askHref = `/contact?from=${encodeURIComponent(article.slug)}`;
 
   return (
-    <div className={`lp pub hc hc--art ${landingFontClass}`}>
-      <DoodleSprite />
+    <main className="hc-wrap">
+      <div className="hc-art">
+        <div className="hc-art-main" style={{ "--eb": `var(--${category.tint})` } as React.CSSProperties}>
+          <nav className="hc-kick" aria-label="Breadcrumb">
+            <Link href="/help">Help</Link><span>/</span>
+            <Link href={`/help/${section[0].slug}`}>{category.title}</Link>
+          </nav>
+          <Title article={article} tint={category.tint} />
+          <p className="hc-lede">{inline(article.lede)}</p>
 
-      <PublicNav here="help" />
-
-      <main id="top">
-        <section className="pub__hero">
-          <div className="wrap">
-            <div className="pub__head">
-              <nav className="pub__crumbs" aria-label="Breadcrumb">
-                <a href="/help">Help centre</a>
-                <a href={`/help#${category.id}`}>{category.title}</a>
-              </nav>
-              <h1>{article.title}</h1>
-              <p className="lede">{inline(article.lede)}</p>
+          <div className="hc-facts" style={where ? undefined : { gridTemplateColumns: "1fr" }}>
+            {where && (
+              <div className="hc-fact">
+                <span className="hc-k"><PaperIcon name="pin" className="hc-ic" />Where it lives</span>
+                <div className="hc-v"><WherePath path={where} /></div>
+              </div>
+            )}
+            <div className="hc-fact">
+              <span className="hc-k"><PaperIcon name="key" className="hc-ic" />Who can</span>
+              <div className="hc-v">{article.who}</div>
             </div>
           </div>
-        </section>
 
-        <section className="hc__artwrap">
-          <div className="wrap hc__artgrid">
-            <article className="hc__body">
-              <Blocks blocks={article.body} />
-            </article>
+          <figure className="hc-fig">
+            {/* Static, authored markup — see the note at the top of figures.ts. */}
+            <div dangerouslySetInnerHTML={{ __html: FIGURES[article.slug]() }} />
+            <figcaption className="hc-fig-cap"><b>FIG</b>{article.cap}</figcaption>
+          </figure>
 
-            {/* The rail: where you are, what else is here, and the way out. */}
-            <aside className="hc__rail">
-              <div className="hc__railcat">
-                <CatIcon doodle={category.doodle} tint={category.tint} size={18} />
-                <span>{category.title}</span>
-              </div>
+          <Blocks blocks={body} />
 
-              {siblings.length > 0 && (
-                <>
-                  <h5>More in this section</h5>
-                  <ul className="hc__railnav">
-                    {siblings.map(s => (
-                      <li key={s.slug}>
-                        <a href={`/help/${s.slug}`}>{s.title}</a>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
+          <nav className="hc-pn" aria-label="More articles">
+            {prev ? (
+              <Link href={`/help/${prev.slug}`}><small>← Previous</small><b>{prev.title}</b></Link>
+            ) : <span />}
+            {next && (
+              <Link className="hc-nx" href={`/help/${next.slug}`}><small>Next →</small><b>{next.title}</b></Link>
+            )}
+          </nav>
+        </div>
 
-              <a className="hc__railask" href={askHref}>
-                <Doodle
-                  id="chat"
-                  size={17}
-                  viewBox="0 0 24 24"
-                  className="doodle doodle--thin"
-                  style={sx({ color: "var(--lilac-ink)" })}
-                />
-                <span>
-                  <b>This didn&apos;t answer it</b>
-                  Write to a person, with this page already named in the draft.
-                </span>
-              </a>
-            </aside>
-          </div>
-        </section>
-
-        <section className="pub__ask">
-          <div className="wrap">
-            <div className="pub__askcard">
-              <div className="t">
-                <h3>Didn&apos;t find it?</h3>
-                <p>
-                  Search covers the full text of every article — if it isn&apos;t there, it
-                  probably isn&apos;t written yet, and that&apos;s worth telling us.
-                </p>
-              </div>
-              <div className="a">
-                <a className="btn btn--ghost" href="/help">
-                  Back to help
-                </a>
-                <a className="btn" href="/contact">
-                  Talk to a human{" "}
-                  <Doodle id="arrow-r" size={16} viewBox="0 0 24 24" />
-                </a>
+        <aside className="hc-rail">
+          {headings.length > 0 && (
+            <div>
+              <h5>On this page</h5>
+              <div className="hc-toc">
+                {headings.map(h => <a key={h} href={`#${headingId(h)}`}>{h}</a>)}
               </div>
             </div>
+          )}
+          <div>
+            <h5>{`In ${category.title}`}</h5>
+            <div className="hc-toc">
+              {section.filter(a => a.slug !== article.slug).map(a => (
+                <Link key={a.slug} href={`/help/${a.slug}`}>{a.title}</Link>
+              ))}
+            </div>
           </div>
-        </section>
-      </main>
-
-      <Footer />
-    </div>
+          <div className="hc-note-s hc-t-lilac hc-tape">
+            <b>This didn&apos;t answer it</b>
+            Write to a person, with this page already named in the draft.
+            <br />
+            <Link href={askHref}>Talk to a human <PaperIcon name="arrow-r" className="hc-ic" /></Link>
+          </div>
+        </aside>
+      </div>
+    </main>
   );
 }

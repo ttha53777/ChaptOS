@@ -1,0 +1,1625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Help Centre Rewrite</title>
+<!--
+  /help, rewritten against the code as it stands on 2026-11-01.
+
+  Same look as the shipped help centre (app/help/help.css on top of landing.css): cream paper,
+  brown ink, pastel chips, 1.5px hairlines, hard pastel offset shadows. Same block vocabulary as
+  app/help/content.ts (p / h / steps / list / note / table / where), so the ARTICLES array below
+  can be ported into content.ts nearly verbatim.
+
+  Every article carries:
+    status  — new | rewritten | updated | kept
+    review  — what changed vs the shipped article, and the files each claim was checked against.
+  The MOCK bar (bottom left) toggles those review marks and opens the full change list, which
+  also lists app bugs and stale copy found OUTSIDE the help centre while verifying.
+
+  Routing is hash-based: #/ is the index, #/a/<slug> an article. Links to other public pages
+  (/contact, /trust, /create) are inert in the mock.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4; --peach-soft:#FFEDE5; --peach-ink:#C9542D;
+  --sky:#CFE2FF;   --sky-soft:#EAF2FF;   --sky-ink:#2A66C7;
+  --mint:#C7EFDA;  --mint-soft:#E6F8EF;  --mint-ink:#1B815B;
+  --butter:#FFE5A0;--butter-soft:#FFF6DC;--butter-ink:#9C6B08;
+  --lilac:#E1D8FF; --lilac-soft:#F1EDFF; --lilac-ink:#6244CC;
+  --rose:#FFD6E6;  --rose-soft:#FFEDF4;  --rose-ink:#C23C77;
+  --r-sm:10px; --r-md:16px; --r-lg:22px; --r-pill:999px;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+  --wrap:1180px; --nav-h:64px;
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{scroll-behavior:auto}
+body{background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.5; -webkit-font-smoothing:antialiased}
+ul,ol{list-style:none}
+a{color:inherit}
+h1,h2,h3,h4,h5{font-family:var(--display); font-weight:600; letter-spacing:-.02em; font-variation-settings:"opsz" 48}
+.wrap{max-width:var(--wrap); margin:0 auto; padding:0 clamp(16px,4vw,40px)}
+
+/* nav */
+.nav{position:sticky; top:0; z-index:20; height:var(--nav-h); background:rgba(255,252,246,.92); backdrop-filter:blur(8px); border-bottom:1.5px solid var(--line)}
+.nav .wrap{height:100%; display:flex; align-items:center; gap:24px}
+.brand{display:flex; align-items:center; gap:9px; font-family:var(--display); font-weight:700; font-size:1.12rem; text-decoration:none}
+.brand i{width:26px; height:26px; border-radius:8px; background:var(--ink); display:grid; place-items:center; color:var(--paper); font-style:normal; font-size:.8rem; box-shadow:2px 2px 0 var(--lilac)}
+.nav nav{display:flex; gap:4px; margin-left:auto}
+.nav nav a{padding:8px 13px; border-radius:var(--r-pill); font-size:.9rem; font-weight:500; color:var(--ink-2); text-decoration:none}
+.nav nav a.on{background:var(--paper-2); color:var(--ink); box-shadow:inset 0 0 0 1.5px var(--line)}
+
+/* page head */
+.hero{padding:clamp(40px,6vw,76px) 0 0}
+.eyebrow{display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:var(--r-pill); font-size:.74rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:var(--mint-soft); border:1.5px solid var(--mint); color:var(--mint-ink)}
+.hero h1{margin-top:18px; font-size:clamp(2.1rem,4.6vw,3.4rem); line-height:1.04; letter-spacing:-.035em; max-width:17ch; font-variation-settings:"opsz" 96}
+.lede{margin-top:16px; max-width:62ch; font-size:1.08rem; line-height:1.6; color:var(--ink-2)}
+.crumbs{display:flex; flex-wrap:wrap; gap:8px; font-size:.86rem; color:var(--ink-3)}
+.crumbs a{color:var(--ink-3); text-decoration:none}
+.crumbs a:hover{color:var(--ink); text-decoration:underline}
+.crumbs a + a::before{content:'/'; margin-right:8px; color:var(--line-2)}
+
+/* search */
+.searchwrap{margin-top:clamp(28px,3.6vw,42px); max-width:680px}
+.search{display:flex; align-items:center; gap:12px; padding:5px 6px 5px 18px; background:var(--card); border:1.5px solid var(--ink); border-radius:var(--r-pill); box-shadow:4px 4px 0 var(--sky); transition:transform .18s var(--spring), box-shadow .18s var(--spring)}
+.search:focus-within{transform:translate(-1.5px,-1.5px); box-shadow:6px 6px 0 var(--sky)}
+.search svg{flex:none; color:var(--ink-3)}
+.search input{flex:1; min-width:0; border:0; outline:0; background:transparent; padding:12px 0; font:inherit; font-size:1.02rem; color:var(--ink)}
+.search input::placeholder{color:var(--ink-3)}
+.search button{flex:none; border:1.5px solid var(--line); background:var(--paper-2); color:var(--ink-2); font:inherit; font-size:.83rem; font-weight:600; padding:8px 15px; border-radius:var(--r-pill); cursor:pointer}
+.searchnote{margin-top:12px; padding-left:4px; font-size:.87rem; color:var(--ink-3)}
+
+/* quick paths */
+.paths{margin-top:clamp(36px,4.6vw,56px); display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+.path{display:block; padding:22px; text-decoration:none; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); transition:transform .18s var(--spring), box-shadow .18s var(--spring), border-color .18s}
+.path:hover{transform:translateY(-3px); border-color:var(--line-2); box-shadow:var(--sh-2)}
+.path h4{margin-top:14px; font-size:1.08rem}
+.path p{margin-top:7px; font-size:.9rem; line-height:1.5; color:var(--ink-2)}
+.go{margin-top:14px; display:inline-flex; gap:7px; font-size:.85rem; font-weight:600}
+.ic{width:38px; height:38px; border-radius:12px; display:grid; place-items:center; flex:none; background:var(--g); border:1.5px solid var(--gb); color:var(--gi); font-size:1.05rem}
+
+/* categories */
+.cats{margin-top:clamp(48px,6vw,80px); padding-bottom:clamp(30px,4vw,56px); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(30px,3.6vw,48px)}
+.cat{min-width:0; scroll-margin-top:calc(var(--nav-h) + 24px)}
+.cathead{display:flex; gap:14px; align-items:flex-start}
+.cathead h3{font-size:1.28rem}
+.cathead p{margin-top:6px; font-size:.9rem; line-height:1.5; color:var(--ink-3)}
+.arts{margin-top:18px; display:grid; gap:2px}
+.arts a{display:block; padding:11px 14px; border-radius:var(--r-md); text-decoration:none}
+.arts a:hover{background:var(--paper-2)}
+.arts .t{display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:600; font-size:.96rem; letter-spacing:-.012em}
+.arts .b{display:block; margin-top:3px; font-size:.86rem; line-height:1.45; color:var(--ink-3)}
+
+/* results */
+.results{margin-top:clamp(28px,3.6vw,40px); display:grid; gap:8px; max-width:820px; padding-bottom:48px}
+.results a{display:block; padding:16px 18px; text-decoration:none; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md); transition:border-color .16s, transform .16s var(--spring)}
+.results a:hover{border-color:var(--ink); transform:translateX(3px)}
+.rcat{font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700; color:var(--ink-3)}
+.rt{display:flex; gap:8px; align-items:center; margin-top:6px; font-family:var(--display); font-weight:600; font-size:1.06rem}
+.rb{display:block; margin-top:5px; font-size:.89rem; line-height:1.5; color:var(--ink-2)}
+.empty{margin:32px 0 48px; max-width:560px; padding:28px; background:var(--paper-2); border:1.5px dashed var(--line-2); border-radius:var(--r-lg)}
+.empty p{margin-top:10px; color:var(--ink-2)}
+
+/* article */
+.artwrap{padding:clamp(34px,4.6vw,56px) 0 clamp(40px,5vw,72px)}
+.artgrid{display:grid; grid-template-columns:minmax(0,1fr) 268px; gap:clamp(34px,5vw,72px); align-items:start}
+.body{max-width:70ch; min-width:0}
+.body > *:first-child{margin-top:0 !important}
+.body > h2{margin-top:42px; font-size:1.3rem; line-height:1.22}
+.body > p{margin-top:16px; color:var(--ink-2); line-height:1.68}
+.body b,.body strong{color:var(--ink); font-weight:600}
+.body a{color:var(--sky-ink); text-decoration:underline; text-decoration-color:#BBD3F5; text-underline-offset:2.5px}
+.body a.ext{color:var(--ink-2); text-decoration-style:dotted}
+.body code{font-family:var(--mono); font-size:.86em; padding:1.5px 5px; background:var(--paper-3); border-radius:5px; color:var(--ink-2); overflow-wrap:anywhere}
+.steps{margin-top:20px; display:grid; gap:14px; counter-reset:s}
+.steps > li{position:relative; padding-left:38px; color:var(--ink-2); line-height:1.62}
+.steps > li::before{counter-increment:s; content:counter(s); position:absolute; left:0; top:-1px; width:26px; height:26px; display:grid; place-items:center; font-family:var(--mono); font-size:.8rem; color:var(--ink-2); background:var(--paper-2); border:1.5px solid var(--line); border-radius:50%}
+.list{margin-top:18px; display:grid; gap:11px}
+.list > li{position:relative; padding-left:20px; color:var(--ink-2); line-height:1.62}
+.list > li::before{content:''; position:absolute; left:0; top:.72em; width:10px; height:2px; border-radius:2px; background:var(--line-2)}
+.list.check > li::before{content:'✓'; width:auto; height:auto; background:none; top:0; color:var(--mint-ink); font-weight:700}
+.list.no > li::before{content:'✕'; width:auto; height:auto; background:none; top:0; color:var(--peach-ink); font-weight:700; font-size:.88em}
+.note{margin-top:22px; padding:17px 19px; border-radius:var(--r-md); background:var(--n-bg,var(--sky-soft)); border:1.5px solid var(--n-bd,#CCDFFB)}
+.note h5{font-family:var(--sans); font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700; color:var(--n-fg,var(--sky-ink)); margin-bottom:8px}
+.note p{color:var(--ink-2); font-size:.93rem; line-height:1.6}
+.note.warn{--n-bg:var(--butter-soft); --n-bd:#F4DFA6; --n-fg:var(--butter-ink)}
+.note.good{--n-bg:var(--mint-soft); --n-bd:#BDE7D2; --n-fg:var(--mint-ink)}
+.note.flag{--n-bg:var(--peach-soft); --n-bd:#F8D2C2; --n-fg:var(--peach-ink)}
+.tw{margin-top:20px; overflow-x:auto; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card)}
+table{width:100%; border-collapse:collapse; font-size:.9rem; min-width:460px}
+th,td{text-align:left; padding:11px 14px; vertical-align:top; line-height:1.55; border-bottom:1px solid var(--line)}
+thead th{background:var(--paper-2); font-size:.72rem; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3); font-weight:600; white-space:nowrap}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+tbody th{font-weight:600; color:var(--ink); width:28%; min-width:120px}
+td{color:var(--ink-2)}
+.where{margin-top:20px; padding:12px 16px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-md)}
+.where-l{font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; font-weight:700; color:var(--ink-3)}
+.where-p{display:flex; flex-wrap:wrap; gap:3px 9px; font-family:var(--mono); font-size:.86rem; color:var(--ink-2)}
+.where-p > span + span::before{content:'→'; margin-right:9px; color:var(--line-2)}
+.where-p .last{color:var(--ink); font-weight:500}
+
+.rail{position:sticky; top:calc(var(--nav-h) + 24px)}
+.railcat{display:flex; align-items:center; gap:11px; font-size:.86rem; font-weight:600; color:var(--ink-2)}
+.railcat .ic{width:30px; height:30px; border-radius:10px; font-size:.9rem}
+.rail h5{margin:26px 0 10px; font-family:var(--sans); font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+.railnav{display:grid; gap:1px}
+.railnav a{display:flex; gap:7px; align-items:center; padding:8px 11px; border-radius:var(--r-sm); text-decoration:none; color:var(--ink-2); font-size:.885rem; line-height:1.4}
+.railnav a:hover{background:var(--paper-2); color:var(--ink)}
+.railask{margin-top:24px; padding:16px; display:block; text-decoration:none; background:var(--lilac-soft); border:1.5px solid #DCD2FB; border-radius:var(--r-md)}
+.railask b{display:block; font-size:.9rem}
+.railask span{font-size:.83rem; line-height:1.5; color:var(--ink-2)}
+
+.ask{padding:0 0 clamp(50px,6vw,80px)}
+.askcard{display:flex; gap:24px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:clamp(22px,3vw,34px); background:var(--butter-soft); border:1.5px solid var(--ink); border-radius:var(--r-lg); box-shadow:5px 5px 0 var(--butter)}
+.askcard h3{font-size:1.36rem}
+.askcard p{margin-top:8px; max-width:56ch; color:var(--ink-2); font-size:.95rem}
+.btn{display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:var(--r-pill); background:var(--ink); color:var(--paper); font-weight:600; font-size:.93rem; text-decoration:none; box-shadow:3px 3px 0 var(--lilac); border:0; cursor:pointer}
+.btn.ghost{background:var(--card); color:var(--ink); box-shadow:none; border:1.5px solid var(--line-2)}
+footer{border-top:1.5px solid var(--line); padding:28px 0 90px; font-size:.85rem; color:var(--ink-3)}
+
+/* ---------- review layer (mock only) ---------- */
+.badge{display:none; font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; padding:2px 7px; border-radius:var(--r-pill); border:1.2px solid; white-space:nowrap; line-height:1.4}
+body.rv .badge{display:inline-block}
+.badge.new{background:var(--mint-soft); border-color:var(--mint); color:var(--mint-ink)}
+.badge.rewritten{background:var(--peach-soft); border-color:var(--peach); color:var(--peach-ink)}
+.badge.updated{background:var(--butter-soft); border-color:var(--butter); color:var(--butter-ink)}
+.badge.kept{background:var(--paper-2); border-color:var(--line-2); color:var(--ink-3)}
+.review{display:none; margin-top:28px; padding:18px 20px; border:1.5px dashed var(--lilac-ink); border-radius:var(--r-md); background:#FBFAFF}
+body.rv .review{display:block}
+.review h6{font-family:var(--mono); font-size:.7rem; letter-spacing:.08em; text-transform:uppercase; color:var(--lilac-ink); margin-bottom:10px; font-weight:600}
+.review ul{display:grid; gap:7px; font-size:.87rem; color:var(--ink-2); line-height:1.5}
+.review ul li{padding-left:16px; position:relative}
+.review ul li::before{content:'›'; position:absolute; left:2px; color:var(--lilac-ink)}
+.review .src{margin-top:14px; display:flex; flex-wrap:wrap; gap:6px}
+.review .src code{font-family:var(--mono); font-size:.74rem; padding:2px 7px; background:var(--lilac-soft); border-radius:6px; color:var(--lilac-ink)}
+
+.mock{position:fixed; left:16px; bottom:16px; z-index:50; display:flex; gap:6px; align-items:center; padding:6px; background:var(--ink); color:var(--paper); border-radius:var(--r-pill); box-shadow:0 10px 30px -10px rgba(0,0,0,.4); font-size:.8rem}
+.mock b{font-family:var(--mono); font-size:.68rem; letter-spacing:.1em; padding:0 8px 0 10px; color:var(--butter)}
+.mock button{border:0; font:inherit; font-weight:600; padding:7px 13px; border-radius:var(--r-pill); background:rgba(255,255,255,.1); color:var(--paper); cursor:pointer}
+.mock button[aria-pressed="true"]{background:var(--paper); color:var(--ink)}
+
+.sheet{position:fixed; inset:0; z-index:60; display:none; background:rgba(38,33,27,.35); padding:clamp(12px,4vw,48px); overflow:auto}
+.sheet.open{display:block}
+.sheet .pane{max-width:860px; margin:0 auto; background:var(--paper); border:1.5px solid var(--ink); border-radius:var(--r-lg); box-shadow:6px 6px 0 var(--lilac); padding:clamp(20px,3.5vw,36px)}
+.sheet .x{float:right}
+.sheet h2{font-size:1.6rem}
+.sheet h3{margin-top:28px; font-size:1.1rem}
+.sheet p{margin-top:8px; color:var(--ink-2); font-size:.94rem}
+.sheet .tally{margin-top:16px; display:flex; flex-wrap:wrap; gap:8px}
+.sheet .tally span{display:inline-flex; gap:6px; align-items:center; font-size:.85rem; padding:6px 12px; border-radius:var(--r-pill); background:var(--card); border:1.5px solid var(--line)}
+.sheet ol{margin-top:12px; display:grid; gap:10px; counter-reset:i}
+.sheet ol li{position:relative; padding:12px 14px 12px 44px; background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-md); font-size:.9rem; color:var(--ink-2); line-height:1.55}
+.sheet ol li::before{counter-increment:i; content:counter(i); position:absolute; left:14px; top:12px; font-family:var(--mono); font-size:.78rem; color:var(--ink-3)}
+.sheet ol li b{color:var(--ink)}
+.sheet ol li code{font-family:var(--mono); font-size:.78rem; background:var(--paper-3); padding:1px 5px; border-radius:5px}
+
+@media (max-width:1080px){
+  .artgrid{grid-template-columns:minmax(0,1fr); gap:40px}
+  .rail{position:static; padding:20px; background:var(--paper-2); border:1.5px solid var(--line); border-radius:var(--r-lg)}
+  .railnav{grid-template-columns:1fr 1fr; gap:2px 16px}
+  .body{max-width:none}
+}
+@media (max-width:900px){
+  .cats{grid-template-columns:minmax(0,1fr)}
+  .paths{grid-template-columns:1fr 1fr}
+  .path:last-child{grid-column:1/-1}
+}
+@media (max-width:620px){
+  .nav nav a:not(.on){display:none}
+  .paths{grid-template-columns:minmax(0,1fr)}
+  .path:last-child{grid-column:auto}
+  .railnav{grid-template-columns:minmax(0,1fr)}
+  table{min-width:380px}
+  th,td{padding:10px 12px}
+  .mock b{display:none}
+}
+</style>
+</head>
+<body class="rv">
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#/"><i>C</i>ChaptOS</a>
+    <nav><a href="#ext">Pricing</a><a href="#/" class="on">Help</a><a href="#ext">Trust</a><a href="#ext">Contact</a></nav>
+  </div>
+</header>
+<main id="app"></main>
+<footer><div class="wrap">ChaptOS · help centre mock · content verified against the codebase on 1 Nov 2026</div></footer>
+
+<div class="mock" role="toolbar" aria-label="Mock controls">
+  <b>MOCK</b>
+  <button id="tg-rv" aria-pressed="true">Review marks</button>
+  <button id="tg-ch">What changed</button>
+</div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="What changed"><div class="pane" id="sheet-pane"></div></div>
+
+<script>
+/* =========================================================================
+   CONTENT — same Block schema as app/help/content.ts.
+   Inline markup: **bold** *italic* `code` [label](/href)
+   ========================================================================= */
+const CATEGORIES = [
+  { id:"start",   title:"Getting started",      icon:"✦", tint:"butter", blurb:"Making an org, joining one, and the term everything is filed under." },
+  { id:"members", title:"Members & roles",      icon:"☺", tint:"sky",    blurb:"Getting people in, deciding what each of them can touch, and what you track about them." },
+  { id:"money",   title:"Money",                icon:"$", tint:"mint",   blurb:"The ledger, dues, reimbursements, categories, and getting the numbers back out." },
+  { id:"week",    title:"The week",             icon:"▦", tint:"lilac",  blurb:"Events, meetings and minutes, attendance, excuses, tasks and polls." },
+  { id:"pages",   title:"Optional pages",       icon:"◧", tint:"peach",  blurb:"Service, Programming, Parties, Instagram and Fundraisers — the pages only some orgs turn on." },
+  { id:"ask",     title:"Ask Chapt",            icon:"✶", tint:"rose",   blurb:"What the assistant can see, what it can change, and what to do when it's wrong." },
+  { id:"record",  title:"Docs & the record",    icon:"▤", tint:"peach",  blurb:"The library, the activity log, and how a term ends without taking the org with it." },
+  { id:"account", title:"Your account & orgs",  icon:"⚿", tint:"sky",    blurb:"Signing in, more than one org, the dashboard and pages, and leaving cleanly." },
+  { id:"billing", title:"What this costs",      icon:"◫", tint:"butter", blurb:"The price, what counts toward it, and what happens when you outgrow the free plan." },
+];
+
+const ARTICLES = [
+/* ─────────────────────────── Getting started ─────────────────────────── */
+{
+  slug:"set-up-your-org", status:"rewritten", categoryId:"start",
+  title:"Setting up a new org",
+  blurb:"The interview at /create, the charter it builds, and why you sign in at the very end.",
+  keywords:["create","new chapter","sign up","onboarding","slug","url","start","charter","interview"],
+  lede:"Setup is a conversation, not a form. You answer questions signed out, review everything on one sheet, and only sign in once there's something to save.",
+  body:[
+    { k:"steps", items:[
+      "Go to [chaptos.com/create](/create) and type your org's name. Nothing is created yet. You're only answering.",
+      "Answer the interview: who you are, what kind of group it is, your role, what happens in a normal month, whether you handle money, whether people share files and links, what to track for each member, and which term you're in right now. Each answer turns pages on or off.",
+      "Check **who can do what**. The starting seats come from your kind of org. Rename them and choose what each one can touch.",
+      "Check **what lands on your timeline**: the categories every dated thing is tagged with. Rename them, recolour them or add your own.",
+      "Review the **charter**. Everything on it is editable in place, including the web address and the term. The web address is the one thing that can stop the build.",
+      "Continue with Google. This is the first moment anything is written, and the whole charter is created in one go.",
+    ]},
+    { k:"note", tone:"info", h:"Web address rules", t:"3–32 characters: lowercase letters, numbers and single hyphens. Some words are reserved (`admin`, `api`, `help`, `trust` and similar) so a workspace can never shadow a system page. The charter checks availability as you type." },
+    { k:"note", tone:"good", h:"Your answers survive the sign-in", t:"The draft lives in your browser while you work, so getting bounced to Google and back doesn't cost you the interview. It also means the draft is on **that** device — finish on the machine you started on." },
+    { k:"h", t:"What gets built" },
+    { k:"list", items:[
+      "The org, with you as its first **org admin** — every permission, whatever roles you hold. See [org admins](/help/org-admins).",
+      "The seats you reviewed, as roles. Yours carries every permission; the others can be renamed or deleted later.",
+      "The pages your answers turned on, and only those.",
+      "Your timeline categories and the per-member tracking you picked.",
+      "Your first term, already **active**, so you land in a working workspace rather than in front of [the term screen](/help/first-term).",
+    ]},
+    { k:"p", t:"You then land on a welcome page with your first-week list. Its first real step is making the link that brings people in — see [making invite links](/help/invite-people)." },
+  ],
+  review:{ changes:[
+    "Old article said no term is created and the first screen would be the semester wall. /create now asks for the term and provisionOrg creates it ACTIVE.",
+    "Old steps described the pre-paper flow (pick pages on a screen after creation). Pages are decided by interview answers before sign-in; the post-creation screen is a welcome, not a page picker.",
+    "Added the Roles, Timeline and Charter steps, which exist as their own steps in the flow.",
+  ], sources:["app/create/_components/CreateFlow.tsx","app/create/_components/InterviewStep.tsx","lib/onboarding/answers.ts","lib/onboarding/draft.ts","lib/services/org-service.ts","app/[slug]/onboarding/page.tsx","lib/slug-rules.ts"] }
+},
+{
+  slug:"join-an-org", status:"rewritten", categoryId:"start",
+  title:"Joining an org you were invited to",
+  blurb:"What the /join link does, why you wait for approval, and what each screen means.",
+  keywords:["invite","invitation","join","link","new member","accept","pending","waiting","approval","declined"],
+  lede:"An invite link doesn't put you on the roster. It lets you ask. An officer approves you, and only then are you in.",
+  body:[
+    { k:"steps", items:[
+      "Open the link you were sent. It looks like `/join/…` and shows the org's name and badge before you sign in to anything.",
+      "Continue with Google. It's the only way in, so there's no password to make or forget.",
+      "Check that the account shown is the one you mean to use, type your full name, and send the request.",
+      "Wait for an officer. The page says you're waiting and keeps checking while it's open.",
+    ]},
+    { k:"table", head:["What the page says","What it means"], rows:[
+      ["You're in","You already belong to this org. There's no form — just the way in."],
+      ["Waiting for approval","Your request is with the officers. Nothing about you exists in the org yet. Opening the link again shows the same screen and doesn't send a second request."],
+      ["Not approved","An officer declined. This link won't work for you again. If they change their mind, they can send you a different link and you can ask again."],
+      ["Expired, turned off, or reached its limit","The link itself is dead. Ask for a new one."],
+      ["All places on this link are reserved","The link has a use limit, and people already waiting have taken every place. Ask for another link."],
+    ]},
+    { k:"note", tone:"info", h:"The name you type is the one they see", t:"There's no list of names to match you against. The name you enter is what officers see on your request and, once approved, on that org's roster. Spell it the way you want it shown. It can be changed later, in that org only." },
+    { k:"note", tone:"info", h:"All your requests in one place", t:"The waiting screen links to every join request you've made, across every org." },
+    { k:"note", tone:"flag", h:"Wrong Google account?", t:"The page shows which account you're signed in with, and switching is one click. Ask with the account you'll keep using — see [signing in](/help/signing-in)." },
+  ],
+  review:{ changes:[
+    "Removed the Open vs Claim link table and the “we couldn't find that name” advice. The claim / name-match flow was deleted (AGENTS.md; 20260807000001_drop_accountless_members).",
+    "Joining is now a reviewed JoinRequest. Added the five states the page actually shows.",
+    "Removed “shows the org's headcount”: JoinClient deliberately shows no headcount.",
+  ], sources:["app/join/[token]/JoinClient.tsx","lib/auth/join-request-submit.ts","lib/auth/join-state.ts","lib/auth/invite-lookup.ts","lib/state/invite-status.ts"] }
+},
+{
+  slug:"first-term", status:"updated", categoryId:"start",
+  title:"When it asks for a term before letting you in",
+  blurb:"The semester screen that can't be dismissed: when it shows up, and the two ways past it.",
+  keywords:["semester","term","active semester","blocked","modal","stuck","gate","ended","period closed"],
+  lede:"Orgs made at /create start with an active term, so most people meet this screen later: the day the active term's end date passes.",
+  body:[
+    { k:"p", t:"A term is your reporting period — a semester, a quarter, a season. The **active** one drives the dashboard and every per-term number. Events, tasks, polls, service events, programming, parties and fundraisers must be dated inside it, and attendance and excuses need one to exist. So without an active term the app stops and asks." },
+    { k:"h", t:"When you'll see it" },
+    { k:"list", items:[
+      "**Your semester has ended.** The active term's end date is in the past. Nothing ends it for you, so the app stays locked until someone extends it or starts the next one.",
+      "**No active semester.** The org has terms but none is active.",
+      "**Set your first semester.** The org has no terms at all.",
+    ]},
+    { k:"h", t:"If you hold the Semesters permission" },
+    { k:"list", items:[
+      "**Create new** — name it and set the dates. It becomes active straight away.",
+      "**Extend current** — pushes the term's end date out and makes it active again. Only offered when the org has had a term before.",
+    ]},
+    { k:"where", path:["Settings","Operations","Semesters"] },
+    { k:"note", tone:"info", h:"If you don't", t:"You'll see the same screen with no form. Ask someone who holds the **Semesters** permission — an org admin always does." },
+    { k:"note", tone:"good", h:"Dates you can change later", t:"Guessing the end date is fine. Settings → Semesters lets you fix a term's dates or switch which one is active." },
+    { k:"note", tone:"warn", h:"The ledger is the exception", t:"Transactions aren't refused for a date outside the active term. Everything else with a date is." },
+  ],
+  review:{ changes:[
+    "Old lede said a brand-new org has no term. That's no longer true for /create orgs.",
+    "The gate also fires when the active term's END DATE has passed (“Your semester has ended”) — not mentioned before, and now the most common way to meet it.",
+    "Listed exactly which writes are range-checked (semester-bounds callers); the old “writes with a date outside it are refused” over-claimed for transactions.",
+  ], sources:["app/components/SemesterGate.tsx","lib/services/semester-bounds.ts","lib/services/semester-service.ts","app/[slug]/settings/sections/SemestersSection.tsx"] }
+},
+{
+  slug:"first-week", status:"updated", categoryId:"start",
+  title:"Your first week, in order",
+  blurb:"The shortest path from an empty org to one your board will actually open.",
+  keywords:["checklist","setup","getting started","first","onboarding","what now","welcome"],
+  lede:"Do these in order and the rest of the app has something to stand on. Skip around and you'll hit walls that look like bugs and aren't.",
+  body:[
+    { k:"p", t:"The welcome page you land on after setup keeps a version of this list, and ticks steps off from your real data if you go back to it." },
+    { k:"steps", items:[
+      "**Check the term.** Setup made one active. Make sure its dates are right in Settings → Operations → Semesters.",
+      "**Get the exec board in.** Make one invite link, send it to the people who'll help set up, and [approve their requests](/help/join-requests). You can give each a role as you approve.",
+      "**Fix the roles.** The starting seats fit an average org, not yours. Check your treasurer holds **Treasury** and nobody holds more than they need. See [roles and permissions](/help/roles-and-permissions).",
+      "**Schedule your first meeting.** It lands on the timeline. If you track money, hand out this term's dues from Treasury → Dues.",
+      "**Put one real thing in each page you kept.** An empty page teaches nobody anything; a page with one real row teaches everybody.",
+      "**Then invite everyone else.** Now the first thing they open isn't blank.",
+    ]},
+    { k:"note", tone:"info", h:"Turn pages off you're not ready for", t:"A twelve-person committee and a two-hundred-member chapter run the same pages — just fewer of them. Hiding a page costs nothing, and turning it back on doesn't lose its history. See [turning pages on and off](/help/turn-pages-on-and-off)." },
+    { k:"note", tone:"warn", h:"Don't backfill the whole year on day one", t:"Dated records outside the active term are refused, and creating a term makes it active straight away. To file last year: create last year's term, add to it, then switch the active term back in Settings → Semesters." },
+  ],
+  review:{ changes:[
+    "Step 1 was “set a term” — setup already does that now.",
+    "Step 2 now goes through join-request approval (there's no other way onto the roster).",
+    "Added meeting + dues steps to match the welcome page's own list.",
+    "Backfill note now says creating a term activates it (createSemester deactivates every other term).",
+  ], sources:["app/[slug]/onboarding/WelcomeFrame.tsx","lib/services/semester-service.ts"] }
+},
+
+/* ─────────────────────────── Members & roles ─────────────────────────── */
+{
+  slug:"invite-people", status:"rewritten", categoryId:"members",
+  title:"Making invite links",
+  blurb:"Making a link, scoping it, and turning it off when the recruiting table closes.",
+  keywords:["invite","link","add members","expire","revoke","max uses","limit","recruit","replacement"],
+  lede:"A link lets people ask to join; it doesn't let them in. Every request still needs an officer's approval. Scoping the link limits who can ask, and how many.",
+  body:[
+    { k:"where", path:["Settings","Membership","Invitations"] },
+    { k:"p", t:"**Invite people** in your profile menu opens the same screen. Making and revoking links needs the **Org settings** permission." },
+    { k:"h", t:"What you choose when you make one" },
+    { k:"table", head:["Setting","What it does"], rows:[
+      ["Label","Your name for it — “spring rush table”, “exec only”. Up to 60 characters. Officers see it on every request that came through the link."],
+      ["Expiry","20 minutes, 1 day, 7 days, 14 days, or never. A short one is right for a link you're about to read aloud."],
+      ["Use limit","Optional. A cap from 1 to 500 on how many people the link can bring in."],
+    ]},
+    { k:"note", tone:"info", h:"Waiting requests hold a place", t:"On a capped link, a request holds a place while it waits. When people approved plus people waiting reach the cap, the link shows **All places reserved** and refuses new requests. Declining someone frees their place." },
+    { k:"note", tone:"good", h:"The cap is exact", t:"Requests and approvals for an org are handled one at a time, so a burst of people clicking at once can't push a link past its limit." },
+    { k:"note", tone:"warn", h:"Never expires, no limit", t:"The screen warns you when a link would work forever for anyone who gets it. That's the link most likely to end up somewhere you didn't mean." },
+    { k:"h", t:"Turning a link off" },
+    { k:"p", t:"**Revoke** stops new requests immediately. People already waiting can still be approved, and people already admitted keep their access. It can't be undone. Expired, used-up and revoked links are hidden until you tick **Show inactive links**; each has **Create replacement link**, which starts a new link with the same settings." },
+    { k:"h", t:"Seeing who used it" },
+    { k:"p", t:"Each link records everyone admitted through it, and when. Open a link's joins to read the list — that's also how you check whether a link went further than you meant." },
+    { k:"note", tone:"info", h:"Two permissions, on purpose", t:"Making links needs **Org settings**. Approving the requests they bring in needs **Roster**. See [approving join requests](/help/join-requests)." },
+  ],
+  review:{ changes:[
+    "Removed the Mode row (Open/Claim). There is no mode any more.",
+    "Removed “the link is the credential / no second check”: approval IS the second check.",
+    "Removed “the use cap is soft”: submissions and approvals now take an admission lock, and pending requests count toward the cap (new “All places reserved” status).",
+    "Label: “only you see it” was wrong — officers see it on each join request.",
+    "Added revoke semantics, Show inactive links, Create replacement link, and the profile-menu entry point.",
+  ], sources:["app/[slug]/settings/sections/InvitationsSection.tsx","lib/validation/invite.ts","lib/services/invite-service.ts","lib/state/invite-status.ts","lib/auth/join-request-submit.ts","app/api/invites/route.ts","app/components/SidebarProfile.tsx"] }
+},
+{
+  slug:"join-requests", status:"new", categoryId:"members",
+  title:"Approving join requests",
+  blurb:"The review queue on the roster: approving, declining, and choosing a role.",
+  keywords:["join request","approve","decline","reject","pending","queue","new member","add member","waiting"],
+  lede:"Everyone who opens an invite link and asks to join lands here. Nothing about them exists in your org until someone approves them — and approving is the only way anyone gets onto the roster.",
+  body:[
+    { k:"where", path:["Members page","Join requests (top of the page)"] },
+    { k:"p", t:"The count also shows under **Needs you** in the sidebar, and waiting requests appear on the dashboard's members card. Reviewing needs the **Roster** permission." },
+    { k:"steps", items:[
+      "Open the roster. The band lists who's waiting, oldest first, with the link each came through.",
+      "Search by name or email, or narrow it to one invite link.",
+      "Choose **Review & approve**. Pick a role, or leave it at no role.",
+      "Approve. They're on the roster and can get in immediately, starting with no dues, no attendance and no recorded hours.",
+    ]},
+    { k:"note", tone:"info", h:"Roles below your own", t:"The role list only offers roles ranked below yours. Org admins can give any role. You can change it later from the roster." },
+    { k:"h", t:"Declining" },
+    { k:"p", t:"Declining tells them the request wasn't approved, and that link stops working for them. If you change your mind, send them a different link — asking through a new link starts a fresh request." },
+    { k:"note", tone:"warn", h:"At your plan's limit", t:"People can still ask. Approving is what's blocked, with “Adding another member needs a billing update.” An org admin fixes that in Billing — see [the member limit](/help/member-limit)." },
+    { k:"note", tone:"good", h:"Two officers, one request", t:"If another officer decides first, you're told it was already reviewed and the queue refreshes. Nobody gets added twice." },
+    { k:"note", tone:"info", h:"Already a member somewhere else?", t:"If the person already uses ChaptOS in another org, approving links that same account. Each org keeps its own roster entry, so nothing from the other org shows up in yours." },
+  ],
+  review:{ changes:[
+    "Brand-new article. The officer side of joining had no coverage anywhere in the help centre.",
+  ], sources:["app/components/dashboard/JoinRequestsPanel.tsx","lib/services/join-request-service.ts","app/api/join-requests/route.ts","app/components/Sidebar.tsx","app/components/dashboard/MembersCard.tsx","lib/permissions.ts (canGrantRank)"] }
+},
+{
+  slug:"roles-and-permissions", status:"updated", categoryId:"members",
+  title:"Roles, permissions and rank",
+  blurb:"Fifteen switches, bundled into roles, ordered by rank so nobody promotes themselves.",
+  keywords:["permissions","roles","admin","officer","access","rank","president","treasurer"],
+  lede:"A role is a bundle of permission switches plus a rank. The switches decide what you can touch; the rank decides who you can hand it to.",
+  body:[
+    { k:"where", path:["Settings","Membership","Roles"] },
+    { k:"h", t:"The fifteen switches, as the Roles screen groups them" },
+    { k:"table", head:["Switch","What it covers"], rows:[
+      ["Roster","Editing member details, approving join requests, archiving and removing people."],
+      ["Attendance","Taking attendance, opening check-in, deciding excuses, setting exemptions."],
+      ["Roles","This screen: creating roles and handing out ones ranked below your own."],
+      ["Org settings","The org's setup: pages, vocabulary, thresholds, member fields, custom metrics, event types, the logo and Instagram handle, the sidebar order and the dashboard layout. Also invite links."],
+      ["Treasury","Recording transactions and dues, deciding reimbursements, money categories, the opening balance, exporting the books."],
+      ["Fundraisers","Planning fundraisers, their shopping lists, and counting them up."],
+      ["Events","Timeline events, meetings and their minutes, agenda templates, event fields, the Programming board."],
+      ["Parties","Creating and wrapping up parties."],
+      ["Service","Service events, and logging hours for other people."],
+      ["Semesters","Creating terms, fixing their dates, choosing the active one."],
+      ["Announcement","The pinned note on the dashboard."],
+      ["Docs","Adding, editing, pinning and organising the library."],
+      ["Tasks","Creating, assigning and deleting tasks and deadlines."],
+      ["Polls","Creating, assigning, closing and deleting polls."],
+      ["Instagram","The Instagram content calendar."],
+    ]},
+    { k:"h", t:"Rank is the part people miss" },
+    { k:"p", t:"Every role has a rank. You can only create, edit, grant, take away or delete roles ranked **below** your highest one, and you can't put a switch into a role unless you hold it yourself. That's what stops a chair from quietly making themselves president." },
+    { k:"h", t:"Two things worth doing on day one" },
+    { k:"list", items:[
+      "Check the treasurer actually holds **Treasury** — the starting roles are a template, not your org.",
+      "Check that only the right people hold **Roles** and **Org settings**. Those two are the keys to the building.",
+    ]},
+    { k:"note", tone:"info", h:"Org admins sit above all of this", t:"An org admin has every switch regardless of roles. See [org admins](/help/org-admins)." },
+    { k:"note", tone:"good", h:"There is no messaging permission", t:"ChaptOS doesn't send emails or notifications, so there's no “can message everyone” switch to worry about. The Announcement switch controls the pinned note people see on the dashboard." },
+  ],
+  review:{ changes:[
+    "Fourteen → fifteen: MANAGE_FUNDRAISING (lib/permissions.ts:39) was missing.",
+    "Names and groups now match the Roles screen (Roster, Org settings, Announcement…).",
+    "“Members — adding” removed: nobody can add a person by hand; Roster now means approving join requests.",
+    "Rank rule tightened to what the code does: strictly below your highest rank, and you can't assign bits you don't hold.",
+    "“Announcements is the only broadcast surface” reframed: there's no email/push sending anywhere in lib/ or app/.",
+  ], sources:["lib/permissions.ts","app/[slug]/settings/sections/RolesSection.tsx","lib/services/role-service.ts","lib/services/org-config-service.ts"] }
+},
+{
+  slug:"org-admins", status:"new", categoryId:"members",
+  title:"Org admins",
+  blurb:"The person who set the org up, what only they can do, and the one thing they can't do yet.",
+  keywords:["admin","org admin","owner","founder","promote","last admin","full access"],
+  lede:"An org admin isn't a role. It's a mark on someone's membership that gives every permission in that org, whatever roles they hold.",
+  body:[
+    { k:"p", t:"Whoever creates the org at /create is its first org admin. It's per org: an admin of one chapter is an ordinary member of another unless they're an admin there too. Settings → Membership → Accounts shows who's an admin." },
+    { k:"h", t:"Only an org admin can" },
+    { k:"list", items:[
+      "Run billing — plans, cards, cancelling.",
+      "Delete the org.",
+      "Turn calendar subscriptions on or off.",
+    ]},
+    { k:"p", t:"Everything else about the org's setup — pages, vocabulary, thresholds, member fields, custom metrics, event types, the logo, the Instagram handle, the sidebar order and the dashboard layout — belongs to the **Org settings** permission, which you can give to a role." },
+    { k:"note", tone:"flag", h:"Making another org admin needs us", t:"There's no button for an org admin to make someone else an admin — that switch is only available to ChaptOS staff right now. [Write to us](/contact) and say who should be one." },
+    { k:"note", tone:"warn", h:"The last admin can't leave", t:"The last org admin can't leave the org or delete their account. Get a second admin first, or delete the org." },
+  ],
+  review:{ changes:[
+    "Brand-new article. “Org admin” was mentioned in billing only.",
+    "Org-config saves (workflows, vocab, thresholds, member fields, metrics, event types, logo, Instagram handle, nav order, dashboard layout) moved from org-admin to MANAGE_SETTINGS — the list now reflects that. Calendar subscriptions, billing and org deletion stay admin-only.",
+    "Flags a real product gap: PATCH /api/auth/accounts/[id] is platform-admin-only, so an org can't make its own second admin.",
+  ], sources:["lib/context/request-context.ts","lib/services/org-config-service.ts","lib/services/calendar-event-type-service.ts","lib/services/metric-definition-service.ts","app/api/auth/accounts/[id]/route.ts","app/[slug]/settings/sections/AccountsSection.tsx","lib/services/membership-service.ts","lib/auth/account-deletion.ts"] }
+},
+{
+  slug:"member-card", status:"new", categoryId:"members",
+  title:"A member's card",
+  blurb:"What opens when you click someone on the roster, and what you can change there.",
+  keywords:["profile","member card","spotlight","edit member","details","exempt","archive"],
+  lede:"Click anyone on the roster and their card opens: who they are, their numbers, anything that needs acting on, and the details your org keeps.",
+  body:[
+    { k:"list", items:[
+      "**Who** — name, roles, and one sentence about their standing.",
+      "**Their numbers** — each opens the detail behind it: which events they missed, what's excused, what they owe.",
+      "**Needs attention** — only things someone has to act on, like a waiting excuse. Hidden when there's nothing.",
+      "**About** — roles, email, your custom fields and metrics.",
+    ]},
+    { k:"p", t:"Officers — anyone with the Roster, Treasury, Attendance or Service permission — and the member themself see the full card. Everyone else sees a smaller contact card." },
+    { k:"h", t:"What can be changed here" },
+    { k:"table", head:["Change","Who"], rows:[
+      ["Their name in this org","The member, or Roster. Other orgs keep their own name for them."],
+      ["Custom fields and metric values","The member, or Roster."],
+      ["Roles","Roles — and only roles ranked below your own."],
+      ["Attendance exemption","Attendance."],
+      ["Log service hours","Service."],
+      ["Archive, or remove permanently","Roster. See [archiving or removing](/help/remove-someone)."],
+    ]},
+    { k:"note", tone:"info", h:"One value at a time", t:"Each change saves on its own. Most show an Undo; dues waivers and excuse decisions don't, because they're recorded decisions." },
+  ],
+  review:{ changes:["Brand-new article for Member Spotlight, which replaced the old drawer on 2026-09-30 and wasn't mentioned."],
+    sources:["app/components/members/MemberSpotlight.tsx","app/api/brothers/[id]/route.ts"] }
+},
+{
+  slug:"member-fields", status:"updated", categoryId:"members",
+  title:"Your own member fields and metrics",
+  blurb:"Jersey number, section, pledge class — plus numbers you want measured per member.",
+  keywords:["custom fields","member fields","columns","major","pledge class","jersey","custom metrics","goal"],
+  lede:"The built-in measures cover what most orgs track. Everything else is a field or a metric you define once and then have on everybody.",
+  body:[
+    { k:"h", t:"Member fields — a value" },
+    { k:"where", path:["Settings","Membership","Member fields"] },
+    { k:"p", t:"Marching bands add *section*, sports clubs add *jersey number*, Greek orgs add *pledge class*. Up to 20 fields. Each shows on every member's card; the member or a Roster officer fills it in. Removing a field hides what was recorded rather than deleting it, and adding the field back brings it back." },
+    { k:"h", t:"Custom metrics — a number with a goal" },
+    { k:"where", path:["Settings","Operations","Custom metrics"] },
+    { k:"p", t:"Give it a name, an optional unit, a goal per member, an **At risk below** number and, optionally, a **Watch below** number, plus how the dashboard headline adds it up. Values are entered on each member's card. Deleting a metric keeps the values but stops showing it." },
+    { k:"note", tone:"info", h:"Who can change them", t:"Both sections need the **Org settings** permission." },
+    { k:"note", tone:"flag", h:"Don't put sensitive categories in here", t:"Health conditions, disabilities, religion, ethnicity, sexuality, immigration status — a free-text field will happily accept any of it, and that puts your org on the wrong side of privacy law with no warning from us. Keep it operational. [More on what not to store](/trust#sensitive)." },
+  ],
+  review:{ changes:[
+    "Folded in Custom metrics (previously a one-line pointer) with the fields the form really has.",
+    "Added: 20-field limit, removing hides rather than deletes, org-admin-only saves.",
+    "Dropped “measured per term and rolled up — a health dial” (not verified as written).",
+  ], sources:["app/[slug]/settings/sections/MemberFieldsSection.tsx","lib/custom-member-fields.ts","app/[slug]/settings/sections/CustomMetricsSection.tsx","lib/validation/metrics.ts","lib/services/org-config-service.ts"] }
+},
+{
+  slug:"standing", status:"rewritten", categoryId:"members",
+  title:"Standing: good, watch, at risk",
+  blurb:"Exactly what puts someone on watch or at risk, and how to set it to your policy.",
+  keywords:["thresholds","at risk","watch","standing","gpa","attendance","flag","needs attention","cutoff"],
+  lede:"Every member gets one of three badges, worked out from the cutoffs in one screen. Here's the exact rule.",
+  body:[
+    { k:"where", path:["Settings","Operations","Thresholds"] },
+    { k:"table", head:["Badge","When"], rows:[
+      ["At risk","Attendance below the at-risk cutoff (default 65%), or GPA below the at-risk cutoff (default 2.7)."],
+      ["Watch","Not at risk, but any of: attendance below the watch cutoff (80%), GPA below the watch cutoff (3.0), any dues owed, or service hours below the goal (10)."],
+      ["Good","None of the above."],
+    ]},
+    { k:"list", items:[
+      "**Only what you track counts.** Attendance, GPA, dues and service hours are each switched by their KPI under Settings → Workflows → Dashboard widgets. Turn one off and it leaves the roster and never flags anyone.",
+      "**Exempt members aren't judged on attendance** for that term.",
+      "**Custom metrics carry their own cutoffs**, but they don't change the badge.",
+    ]},
+    { k:"p", t:"The badges drive the roster's Good / Watch / At risk filter, each member's card, and the dashboard. Changing thresholds needs the Org settings permission." },
+    { k:"note", tone:"info", h:"Set them to your bylaws, not to what feels strict", t:"The numbers only earn their keep if they match the rule you'd actually enforce. If your policy is three misses, set the attendance cutoff so three misses trips it." },
+  ],
+  review:{ changes:[
+    "Old article fed a “needs-attention queue” that no longer exists (replaced by On your plate).",
+    "Old article implied one cutoff per measure. There are two tiers, and dues/service only ever cause Watch.",
+    "Added the tracked-metric switch: turning a KPI off removes that measure from standing (lib/tracked-metrics.ts).",
+  ], sources:["lib/thresholds.ts","app/data.ts (getBrotherStatus)","lib/tracked-metrics.ts","lib/workflow-features.ts","app/[slug]/brothers/page.tsx"] }
+},
+{
+  slug:"remove-someone", status:"rewritten", categoryId:"members",
+  title:"Archiving or removing someone",
+  blurb:"Archive to keep their history, remove to erase it — and what each one leaves behind.",
+  keywords:["delete member","remove","archive","graduate","quit","off roster","alumni","erase"],
+  lede:"Archive when someone leaves and you want their history. Remove permanently when you've been asked to erase them, or they shouldn't have been added.",
+  body:[
+    { k:"table", head:["","What it does"], rows:[
+      ["Archive","Takes them off the roster and out of your billable headcount. Their attendance, dues and history all stay. It doesn't take away their access to the org — remove them for that."],
+      ["Remove permanently","Erases what this org holds about them: attendance, excuses, exemptions, dues, service hours, metric values and roles. Ledger transactions stay, without their name. If they belong to other orgs, only your org's records go."],
+    ]},
+    { k:"steps", items:[
+      "Open their card from the roster.",
+      "Open the menu and choose **Archive**, or **Remove permanently…** and type their name to confirm.",
+    ]},
+    { k:"p", t:"Both need the Roster permission. Settings → Membership → Accounts can also remove someone." },
+    { k:"note", tone:"flag", h:"Bringing an archived member back", t:"Archiving shows an **Undo** straight away. After that there's no screen to restore someone yet — [write to us](/contact). Restoring also takes a seat on your plan." },
+    { k:"note", tone:"warn", h:"Two things refuse", t:"The org's last admin can't be removed, and neither can an account held by ChaptOS staff." },
+    { k:"note", tone:"good", h:"The books outlive the person", t:"A payment someone made stays in the ledger after they're removed. Erasing a member must not make your books stop balancing." },
+    { k:"note", tone:"info", h:"Leaving is different", t:"Members can leave an org themselves. See [leaving or deleting](/help/leaving-or-deleting)." },
+  ],
+  review:{ changes:[
+    "Old article said deleting fails once someone has attendance. That error no longer exists; deleteBrother erases this org's rows via the member-erasure FK cascades.",
+    "Added Archive, which exists and frees the seat, and was not mentioned at all.",
+    "Flagged the real gap: no UI to restore an archived member beyond the Undo toast.",
+    "Same stale claim lives in app/for/content.ts:306 — see What changed.",
+  ], sources:["lib/services/brother-service.ts","app/components/members/MemberSpotlight.tsx","app/[slug]/brothers/page.tsx","lib/validation/brother.ts","app/[slug]/settings/sections/AccountsSection.tsx","lib/context/request-context.ts"] }
+},
+
+/* ─────────────────────────── Money ─────────────────────────── */
+{
+  slug:"treasury-basics", status:"new", categoryId:"money",
+  title:"How the Treasury works",
+  blurb:"One ledger, a balance worked out from it, and who can see and change what.",
+  keywords:["treasury","ledger","balance","transactions","opening balance","scheduled","books","finance"],
+  lede:"One ledger of money in and out, a balance worked out from it, and the tabs that read it. Everyone in the org can see the books; changing them takes the Treasury permission.",
+  body:[
+    { k:"p", t:"The tabs are **Overview**, **Transactions**, **Dues**, **Reports** and **Reimbursements**." },
+    { k:"h", t:"How the balance is worked out" },
+    { k:"p", t:"**Opening balance + posted income + party door revenue − posted expenses.**" },
+    { k:"list", items:[
+      "An expense marked **Scheduled** (not paid yet) doesn't come off until it's posted.",
+      "A party's door revenue counts. The party's expenses figure doesn't — log that spending as an expense transaction too.",
+      "Fundraisers never touch the Treasury. See [fundraisers](/help/fundraisers).",
+    ]},
+    { k:"h", t:"Recording a transaction" },
+    { k:"p", t:"Income or expense, a category, the amount, date and description, an optional payment method, optional linked events, and the Scheduled switch. A **Dues** income row attributed to a member also lowers what that member owes — see [dues](/help/dues)." },
+    { k:"h", t:"The opening balance" },
+    { k:"where", path:["Settings","Operations","Opening balance"] },
+    { k:"p", t:"What was in the account when you started keeping books here. $0 is a fine answer. Until it's set, Treasury holders are asked for it when they open the page, and everyone else sees that the books haven't been opened yet." },
+    { k:"note", tone:"warn", h:"There's no budget screen right now", t:"The Budget tab is switched off, so there's nowhere to set allocations at the moment. The “budget category” on a reimbursement is its expense category." },
+    { k:"note", tone:"info", h:"Everyone can read the books", t:"Any member can open the Treasury and read the ledger. Ask Chapt answers money questions for anyone for the same reason." },
+  ],
+  review:{ changes:[
+    "Brand-new article. Replaces the Budget article, whose tab is hidden (treasury/page.tsx:47 “intentionally omitted from the nav for now”).",
+    "Balance formula is lib/treasury-balance.ts verbatim, including the party door-revenue / expenses asymmetry.",
+    "Ledger read access verified: GET /api/transactions and /api/treasury have no requirePerm.",
+  ], sources:["app/[slug]/treasury/page.tsx","lib/treasury-balance.ts","app/components/treasury/TxForm.tsx","app/components/treasury/TreasuryOpenBooks.tsx","app/components/treasury/TreasuryLocked.tsx","lib/services/treasury-settings-service.ts","app/api/transactions/route.ts"] }
+},
+{
+  slug:"dues", status:"rewritten", categoryId:"money",
+  title:"Dues: handing out, recording, waiving",
+  blurb:"Charges on people's tabs, payments that hit the books, and waivers that don't.",
+  keywords:["dues","balance","owed","payment","waive","charge","collect","venmo","overdue","hand out"],
+  lede:"Dues are charges on people's tabs. Handing them out puts nothing in the books; money only reaches the ledger when someone actually pays.",
+  body:[
+    { k:"where", path:["Treasury","Dues"] },
+    { k:"h", t:"Handing out dues" },
+    { k:"steps", items:[
+      "**Who's paying?** Everyone (and leave anyone out), By role (a rate per role, plus members with no role and a base rate), or Pick people — for fines, shirts and one-offs.",
+      "**What's it for?** Name it, then either everyone pays the same amount or you split a total.",
+      "**When's it due?** A date, or none. Add an optional note, like where to pay.",
+      "Hand it out. It shows up on each tab right away. **Nobody is messaged.**",
+    ]},
+    { k:"p", t:"Anyone who already has a charge with the same name this term is skipped, unless you choose to bill them again." },
+    { k:"h", t:"Recording a payment (money actually moved)" },
+    { k:"p", t:"Open the person from the Dues tab and choose **Record what they paid**. That posts a Dues income row to the books and takes it off their tab in one step. Payments come off their oldest charge first." },
+    { k:"h", t:"Waiving (no money moved)" },
+    { k:"p", t:"**Waive part of the tab** lowers what they owe without touching the books, with an optional reason. You can also take someone off a single charge." },
+    { k:"h", t:"Paid, due, overdue" },
+    { k:"p", t:"A charge is **overdue** once its due date has passed and money's still owing. A charge with no due date is owed but never overdue." },
+    { k:"note", tone:"good", h:"The balance isn't a field you can type over", t:"Every movement is a charge, a payment or a waiver, which is why what someone owes can always be explained." },
+    { k:"note", tone:"warn", h:"Voiding a payment gives the debt back", t:"If you void or re-price a dues row in the ledger, the member's balance goes back up by the same amount. A “quick fix” to a ledger row shows up on someone's tab." },
+    { k:"note", tone:"info", h:"Who sees what", t:"Everyone in the org can see the Dues tab. Handing out, recording, waiving and editing need the Treasury permission." },
+    { k:"note", tone:"info", h:"We never touch your chapter's money", t:"No card numbers, no bank details, no processor for dues. What's here are *records* of money that moved somewhere else. (Your org's subscription to this app is separate — see [what this costs](/help/what-you-pay).)" },
+  ],
+  review:{ changes:[
+    "Rewritten around the Dues tab (charges, standings, member drawer), which shipped after the article was written.",
+    "Old “recording a payment through the normal transaction form” is still possible, but the Dues tab's Record is the real path; both post the same Dues income row.",
+    "Added “Nobody is messaged”, oldest-charge-first allocation, overdue rules, duplicate-name skip.",
+  ], sources:["app/components/treasury/dues/HandOutDuesSheet.tsx","app/components/treasury/dues/DuesMemberDrawer.tsx","app/components/treasury/dues/DuesTab.tsx","lib/services/dues-charge-service.ts","lib/services/dues-service.ts","lib/validation/dues.ts","lib/dues-ledger.ts"] }
+},
+{
+  slug:"reimbursements", status:"updated", categoryId:"money",
+  title:"Reimbursements",
+  blurb:"Asking to be paid back, deciding a request, and what approval writes.",
+  keywords:["reimbursement","expense","receipt","pay me back","approve","decline"],
+  lede:"A reimbursement is a request until a treasurer decides on it. Approving is what turns it into money that left the account.",
+  body:[
+    { k:"h", t:"If you spent the money" },
+    { k:"steps", items:[
+      "Treasury → Reimbursements → **Request reimbursement**.",
+      "Enter the date, the amount, what it was for, and its category, and attach the receipt — a photo or a PDF.",
+      "It waits for the treasurer. If it's declined, you'll see their note if they left one.",
+    ]},
+    { k:"h", t:"Receipts" },
+    { k:"list", items:[
+      "JPEG, PNG, WebP, HEIC or PDF, up to 4 MB. Big phone photos are shrunk on your device before they upload, so a straight-off-the-camera shot is fine.",
+      "Forgot it, or the upload failed? **Attach receipt** on your request card adds it, as long as the request is still waiting.",
+      "Only you and the treasurer can open it, from **View receipt** on the request.",
+      "If you're removed from the org, delete your account, or the org is deleted, the receipt file is erased too.",
+    ]},
+    { k:"h", t:"If you're the treasurer" },
+    { k:"p", t:"**Approve & post** puts the expense in the ledger, dated the day it was spent, and moves the balance in one step — you don't also have to log it. You can change the category as you approve. Declining can carry an optional note, shown to the person who asked. Nothing is deleted either way; decided requests sit under **Show resolved**." },
+    { k:"note", tone:"info", h:"Who can do what", t:"Any member can ask for themselves. Deciding needs the Treasury permission." },
+  ],
+  review:{ changes:[
+    "“Declining needs a reason” was false — rejectionNote is optional and the field says so.",
+    "Receipts: stored since 9acd3b3/5417394 — formats, 4 MB cap with in-browser shrinking, attach-later while pending, requester + treasurer only, erased with member/account/org (494019f).",
+    "Removed “lands on a budget line”: there's no budget screen to land on.",
+  ], sources:["app/[slug]/treasury/page.tsx","app/components/treasury/receipt-upload.ts","lib/supabase/receipts.ts","lib/validation/reimbursement.ts","lib/services/reimbursement-service.ts","app/api/reimbursements/[id]/route.ts","app/api/reimbursements/[id]/receipt/route.ts"] }
+},
+{
+  slug:"money-categories", status:"new", categoryId:"money",
+  title:"Money categories",
+  blurb:"The income and expense streams your books file money under.",
+  keywords:["categories","income","expense","rename","hide","ledger categories","streams"],
+  lede:"Every transaction is filed under a category. They're yours to name — the two the app posts to itself just can't be removed.",
+  body:[
+    { k:"where", path:["Settings","Operations","Money categories"] },
+    { k:"list", items:[
+      "Separate lists for income and expenses, up to 60 in all.",
+      "Rename or recolour any of them. The name it was first filed under is permanent behind the scenes, so renaming never rewrites history.",
+      "**Hide** one you've stopped using. **Delete** only works while nothing is filed under it — it tells you what's still using it.",
+      "**Dues** (income) and **Reimbursement** (expense) are posted to by the app itself. Rename them freely; they can't be hidden or deleted.",
+    ]},
+    { k:"note", tone:"info", h:"Treasurer's call", t:"This section needs the Treasury permission, and only shows when the Treasury page is on." },
+  ],
+  review:{ changes:["Brand-new article; the section shipped 2026-08-08 and had no help coverage."],
+    sources:["app/[slug]/settings/sections/TransactionCategoriesSection.tsx","lib/services/transaction-category-service.ts","lib/transaction-categories.ts","app/[slug]/settings/page.tsx"] }
+},
+{
+  slug:"export-your-data", status:"updated", categoryId:"money",
+  title:"Getting your data back out",
+  blurb:"What exports today, what doesn't yet, and where to ask for the rest.",
+  keywords:["export","csv","download","advisor","audit","backup","spreadsheet","minutes"],
+  lede:"Here's every way to get data out right now — and the gaps, so you don't find them at the worst moment.",
+  body:[
+    { k:"table", head:["What","How"], rows:[
+      ["The ledger","Treasury → **Export CSV**. Date, Type, Category, Description, Amount, Payment Method and Semester, for one term or all of them. Needs the Treasury permission."],
+      ["The roster","Members page → **Export CSV**. Name, Role, Attendance %, GPA, Service Hours, Dues Owed and Status — exactly the rows your current filter shows, so filter first."],
+      ["Meeting minutes","One meeting at a time: **Copy as text**, **Download .md** or **Print**."],
+      ["One event","**Add this event** sends a copy to Google or Apple Calendar."],
+    ]},
+    { k:"note", tone:"warn", h:"No export for attendance or the docs list", t:"There's no CSV for attendance records, and the docs library doesn't export (its items are links, so the files themselves live wherever they're hosted). If you need attendance for an audit or an advisor, [write to us](/contact)." },
+    { k:"note", tone:"good", h:"Including on the way out", t:"Exports aren't gated on your plan or on payment being current. If you can see it, you can take it." },
+  ],
+  review:{ changes:[
+    "Added minutes and single-event exports, which exist.",
+    "“Documents you uploaded can be downloaded” was false — the library stores links only (createDocInput has a url, no file).",
+    "Ledger column list now matches the CSV header exactly (“Semester”, not “term”).",
+  ], sources:["app/api/transactions/export/route.ts","app/[slug]/brothers/page.tsx","app/[slug]/chapter/page.tsx","lib/validation/calendar-feed.ts","lib/validation/doc.ts","lib/billing/guard.ts"] }
+},
+
+/* ─────────────────────────── The week ─────────────────────────── */
+{
+  slug:"timeline-and-events", status:"updated", categoryId:"week",
+  title:"The timeline and event types",
+  blurb:"One line for the whole org's week, categorised in the words you use.",
+  keywords:["timeline","calendar","events","event types","categories","colors","schedule","required attendance"],
+  lede:"Every event carries a type. The type sets its colour and where it shows up, so it's worth ten minutes on the types before you add fifty events.",
+  body:[
+    { k:"where", path:["Settings","Operations","Event types"] },
+    { k:"list", items:[
+      "Five are built in: **Chapter** (meetings, with required attendance on by default), **Party**, **Community Service**, **Deadline** (from tasks with a due date) and **Fundraising** (from fundraisers). Rename and recolour any of them.",
+      "Add your own, up to 40.",
+      "A built-in can't be deleted, only hidden — and only while its page is turned off.",
+      "One of your own can be deleted once no event uses it.",
+    ]},
+    { k:"p", t:"Changing types needs the Org settings permission. Adding an event needs the Events permission: give it a name, a type, a date and time, and choose whether it has **Required attendance** — that's what makes it take a roll and accept excuses. A location, notes and [more details](/help/event-details) are optional." },
+    { k:"note", tone:"info", h:"Events live inside a term", t:"An event dated outside the active term is refused. Planning next semester? Its term has to be the active one first — see [ending a term](/help/ending-a-term)." },
+  ],
+  review:{ changes:[
+    "Listed the actual five built-ins and the hide-not-delete rule (built-ins can only hide while their workflow is off).",
+    "Removed “whether it counts for attendance” from the TYPE — it's the per-event Required attendance switch (the type only sets the default).",
+    "Added the org-admin save gate and 40-type cap.",
+  ], sources:["lib/event-types.ts","lib/services/calendar-event-type-service.ts","app/[slug]/settings/sections/EventTypesSection.tsx","app/components/timeline/CalendarEventForm.tsx"] }
+},
+{
+  slug:"event-details", status:"new", categoryId:"week",
+  title:"More details on an event",
+  blurb:"Checklists, a budget, who's bringing what, and the rest of what an event can carry.",
+  keywords:["event details","checklist","supplies","who's bringing","dress code","capacity","contact","directions","theme"],
+  lede:"Beyond the date and place, an event can carry small extra sections. Add only the ones it needs.",
+  body:[
+    { k:"table", head:["Section","For"], rows:[
+      ["Checklist · Budget · Who's bringing what","Planning it."],
+      ["Point of contact · Who's invited · Capacity · Collabs","The people side."],
+      ["Theme · Dress code · Getting there · Links","On the day — parking, door code, tickets, playlists."],
+      ["Your own field","Anything else. Name it and pick what it holds."],
+    ]},
+    { k:"list", items:[
+      "One of each per event; your own fields can repeat.",
+      "**Checklist and Budget are for officers.** Members don't see them.",
+      "Any member can claim an item on **Who's bringing what**.",
+      "**Start every [type] event with these** saves the sections, blank, as the starting point for that type's next event.",
+    ]},
+  ],
+  review:{ changes:["Brand-new article for CalendarEvent.details (shipped 2026-10-13)."],
+    sources:["lib/event-details.ts","app/components/timeline/CalendarEventForm.tsx","app/api/calendar/[id]/details/route.ts","lib/services/calendar-service.ts"] }
+},
+{
+  slug:"meetings-and-minutes", status:"new", categoryId:"week",
+  title:"Meetings, minutes and agenda templates",
+  blurb:"Scheduling meetings, repeating them, taking minutes and pulling out the action items.",
+  keywords:["meeting","minutes","agenda","template","repeat","weekly","chapter","summary","action items","notes"],
+  lede:"The Meetings page (your org may call it Chapter) is the minute book: what was said, who was there, and who owes what.",
+  body:[
+    { k:"h", t:"Adding a meeting" },
+    { k:"list", items:[
+      "Name, date, time and place.",
+      "**Required attendance** counts toward standing and sends excuses for review. Optional means no roll is taken.",
+      "Start the notes from an **agenda template**, or blank.",
+      "**Repeat** weekly or every 2 weeks, until the end of the term or an earlier date — up to 52 meetings. Each one is its own meeting, so editing one never touches the rest.",
+    ]},
+    { k:"h", t:"Minutes" },
+    { k:"p", t:"Writing the minutes needs the Events permission; everyone can read them. Write action items like “- Dev to send the budget by Oct 10” and **Summarize** pulls out the decisions and who owes what. If the notes change, **Re-summarize**. An action item can be ticked off by an officer or by the person it's assigned to. Copy, download or print the minutes from the meeting's menu." },
+    { k:"note", tone:"info", h:"Summaries use the AI provider", t:"Summarize sends the meeting's notes to our AI provider and saves the summary on the meeting. [What's sent](/trust#assistant)." },
+    { k:"h", t:"Agenda templates" },
+    { k:"p", t:"**Templates** on the Meetings page opens the drawer. A template is sections, checklist lines and bullets, plus blanks — `{{meeting_title}}`, `{{meeting_date}}`, `{{meeting_time}}`, `{{location}}` — filled in when a meeting is made from it. Make one the default and new meetings start from it. Editing a template never changes past meetings. Up to 50; needs the Events permission." },
+  ],
+  review:{ changes:["Brand-new article: the Meetings page, minutes editor, Summarize, action items, agenda templates and Add-meeting Repeat had no coverage."],
+    sources:["app/[slug]/chapter/page.tsx","app/[slug]/chapter/templates/page.tsx","lib/agenda-template.ts","lib/event-repeat.ts","app/components/timeline/RepeatFields.tsx","lib/services/meeting-summary-service.ts","app/api/calendar/[id]/notes/route.ts","app/api/calendar/[id]/action-items/route.ts","app/trust/page.tsx"] }
+},
+{
+  slug:"attendance", status:"rewritten", categoryId:"week",
+  title:"Taking attendance",
+  blurb:"Live check-in from the room, marking a roll by hand, and how the percentage is built.",
+  keywords:["attendance","roll call","present","absent","mandatory","percentage","missed","check-in","check in"],
+  lede:"Only events with Required attendance take a roll. There are two ways to take it: open check-in and let people tap in, or mark it yourself.",
+  body:[
+    { k:"h", t:"Live check-in" },
+    { k:"steps", items:[
+      "On the dashboard, choose **Open check-in** and pick the event. Tonight's is picked for you; earlier ones are there for corrections.",
+      "Members tap **I'm here** — on the dashboard, or from the bar that follows them onto any other page.",
+      "The window lasts 60 minutes. Close it sooner if you like. Closing marks everyone who didn't tap in as absent.",
+    ]},
+    { k:"note", tone:"warn", h:"Closing is what counts the absences", t:"A member with no record for an event isn't counted for it at all. Until the window closes, everyone who hasn't tapped in has no record — so every percentage would read high. A window that times out closes itself." },
+    { k:"h", t:"By hand" },
+    { k:"p", t:"Open the meeting on the Meetings page and choose **Take attendance**, or **Edit attendance** to correct it later. Correcting one person leaves everyone else's check-in alone." },
+    { k:"h", t:"How the percentage is built" },
+    { k:"p", t:"For each required event, the people counted are everyone on the roster minus anyone exempt this term and anyone excused for that event. Present ÷ counted, added up across the term." },
+    { k:"note", tone:"info", h:"The excuse comes after the absence", t:"Mark the roll honestly on the night. An excuse is a separate request with its own decision — see [excuses and exemptions](/help/excuses-and-exemptions)." },
+    { k:"note", tone:"good", h:"Permissions", t:"Opening check-in and marking a roll need the Attendance permission. Tapping in needs nothing." },
+  ],
+  review:{ changes:[
+    "Live check-in (60-minute window, the follow-you bar, close writes absences) didn't exist when the article was written.",
+    "Old steps (“Open the event. Mark the roll.”) didn't match where the controls are: dashboard for check-in, Meetings page for by-hand.",
+  ], sources:["lib/services/attendance-service.ts","lib/checkin.ts","app/components/LiveCheckInBar.tsx","app/components/dashboard/ledger/CheckInPicker.tsx","app/api/attendance/[eventId]/window/route.ts","app/api/attendance/[eventId]/check-in/route.ts","app/[slug]/chapter/page.tsx"] }
+},
+{
+  slug:"excuses-and-exemptions", status:"updated", categoryId:"week",
+  title:"Excuses and exemptions",
+  blurb:"One event versus a whole term — two different things that people mix up constantly.",
+  keywords:["excuse","exempt","absence","study abroad","co-op","inactive","approve","decline"],
+  lede:"An excuse forgives one absence. An exemption takes someone out of the roll for the whole term. Reaching for the wrong one is the most common mistake on this page.",
+  body:[
+    { k:"table", head:["","What it is"], rows:[
+      ["Excuse","A member's request about **one required event**, with a reason — filed from the event on the Timeline, or by asking Ask Chapt. Someone with the Attendance permission approves or declines it, optionally with a note. A declined excuse can be sent again."],
+      ["Exemption","Set on a member's card by someone with the Attendance permission, for the active term: studying abroad, co-op or internship, inactive, or other, with an optional note. They leave every required event's roll and show as Exempt, not 0%."],
+    ]},
+    { k:"p", t:"Waiting excuses show under **Needs you** in the sidebar for whoever can decide them. An excuse filed by someone who holds the Attendance permission is approved automatically." },
+    { k:"note", tone:"good", h:"Why exemption isn't “excuse everything”", t:"Someone abroad shouldn't file twelve excuses, and shouldn't show up as a 0% crisis either. An exemption says *not counted*, which is different from *didn't come*." },
+    { k:"note", tone:"info", h:"Both leave a trail", t:"Every excuse decision and exemption records who decided and when." },
+  ],
+  review:{ changes:[
+    "Added the real exemption reasons, where each is set, auto-approval for Attendance holders, resubmission, and the sidebar queue.",
+  ], sources:["lib/services/excuse-service.ts","lib/validation/excuse.ts","lib/services/exemption-service.ts","app/api/exemptions/route.ts","app/components/members/MemberSpotlight.tsx","app/[slug]/timeline/page.tsx","app/components/Sidebar.tsx"] }
+},
+{
+  slug:"tasks-and-polls", status:"updated", categoryId:"week",
+  title:"Tasks and polls",
+  blurb:"Assigning to a person, a role or everyone — and asking the chapter something.",
+  keywords:["tasks","todo","assign","deadline","everyone","poll","vote","survey","ballot"],
+  lede:"Both can target a **role** instead of a list of names, so they keep working when the people in that role change.",
+  body:[
+    { k:"h", t:"Tasks" },
+    { k:"p", t:"A title, an optional due date and notes, and who it's for: members, roles, or **Everyone**. A task with a due date shows on the Timeline as a deadline. Creating tasks needs the Tasks permission; anyone assigned can tick their own off." },
+    { k:"table", head:["Everyone, as…","Means"], rows:[
+      ["Every member does it","Each person ticks off their own. It's done when everyone has."],
+      ["One person does it","Anyone can pick it up. The first to finish ticks it off for the chapter."],
+    ]},
+    { k:"h", t:"Polls" },
+    { k:"list", items:[
+      "A question, 2 to 10 options, an optional close date, and the voters — members and/or roles.",
+      "Only assigned voters can vote. One choice each, changeable while the poll is open.",
+      "Results stay hidden until you've voted or the poll closes. Whoever manages polls always sees them, plus who hasn't voted yet.",
+      "Options lock once the first vote is in.",
+      "Open polls also appear on each voter's dashboard, ready to vote on.",
+    ]},
+    { k:"note", tone:"info", h:"Both live inside the active term", t:"A due date or close date outside it is refused. See [terms](/help/first-term)." },
+  ],
+  review:{ changes:[
+    "Added the two Everyone modes, the blind-ballot rule, option locking, one-choice + re-vote, and the dashboard plate.",
+  ], sources:["lib/validation/task.ts","lib/services/task-service.ts","app/[slug]/tasks/PaperTasks.tsx","lib/validation/poll.ts","lib/services/poll-service.ts","lib/workflow-features.ts"] }
+},
+{
+  slug:"calendar-subscription", status:"new", categoryId:"week",
+  title:"Your events in your own calendar",
+  blurb:"Putting the org's events and deadlines in Google or Apple Calendar, kept up to date.",
+  keywords:["calendar","google calendar","apple calendar","ical","ics","subscribe","sync","webcal"],
+  lede:"Members can add your org's events and deadlines to Google or Apple Calendar, where they keep updating as you edit them here.",
+  body:[
+    { k:"h", t:"Turning it on (org admin)" },
+    { k:"where", path:["Settings","Operations","Calendar subscription"] },
+    { k:"steps", items:[
+      "Choose your org's time zone.",
+      "Choose **Turn on for members**. A check runs for about a minute and switches it on by itself.",
+    ]},
+    { k:"h", t:"Adding it (anyone)" },
+    { k:"steps", items:[
+      "Timeline → **Add to my calendar**.",
+      "**Add to Google Calendar** — from a computer; it then syncs to your phone. Or **Open in Apple Calendar** and choose Subscribe.",
+    ]},
+    { k:"note", tone:"warn", h:"Not available everywhere yet", t:"Calendar subscriptions are opening up org by org. If Settings says they aren't available for your organization yet, that's the reason — it isn't a switch you've missed." },
+    { k:"list", items:[
+      "Programming events only appear once they're Confirmed. A finished task's deadline drops off.",
+      "Google can take up to a day to refresh; Apple refreshes on its own schedule.",
+      "If an admin pauses updates, events already in people's calendars stay but stop changing.",
+      "If the link is replaced, add it again and remove the old one so nothing shows twice.",
+      "**Add this event** on a single event works whether or not the subscription is on.",
+    ]},
+  ],
+  review:{ changes:["Brand-new article. Rollout is gated by CALENDAR_FEED_ORGS, hence the honest availability note."],
+    sources:["app/components/timeline/CalendarSubscription.tsx","lib/services/calendar-subscription-service.ts","lib/calendar-feed/config.ts","lib/calendar-feed/projection.ts","lib/services/calendar-feed-service.ts","lib/services/programming-service.ts"] }
+},
+
+/* ─────────────────────────── Optional pages ─────────────────────────── */
+{
+  slug:"service-hours", status:"new", categoryId:"pages",
+  title:"Service hours",
+  blurb:"Service events, logging the hours, and the goal each member is measured against.",
+  keywords:["service","hours","volunteer","community service","log hours","goal","punch card"],
+  lede:"Service events, and the hours members put in at them. Each member's total counts toward the service-hour goal in Thresholds.",
+  body:[
+    { k:"list", items:[
+      "Officers with the Service permission create service events. They show on the Timeline as Community Service.",
+      "After the event, **Log hours** records everyone who came. 0 hours is allowed.",
+      "Members can **Log my hours** for an event themselves.",
+      "Officers can correct or remove anyone's hours. Totals recalculate.",
+    ]},
+    { k:"note", tone:"warn", h:"Self-logged hours count straight away", t:"There's no review step for hours a member logs for themselves. Glance at each event's sheet afterwards." },
+    { k:"p", t:"The goal (default 10 hours) is in Settings → Operations → Thresholds. Falling short puts someone on Watch — see [standing](/help/standing)." },
+  ],
+  review:{ changes:["Brand-new article."], sources:["lib/services/service-participation-service.ts","lib/validation/service-participation.ts","app/api/service-events/[id]/participation/me/route.ts","app/[slug]/service/PaperService.tsx","lib/thresholds.ts"] }
+},
+{
+  slug:"programming-board", status:"new", categoryId:"pages",
+  title:"The Programming board",
+  blurb:"Planning events from first idea to wrap-up, and when the chapter gets to see them.",
+  keywords:["programming","events board","idea","planning","confirmed","wrap up","event fields","pipeline"],
+  lede:"Plan events in lanes. Nothing reaches the chapter's Timeline until it's Confirmed.",
+  body:[
+    { k:"table", head:["Lane","Needs"], rows:[
+      ["Idea","A title and a type."],
+      ["Planning","An owner — one person or one role. Still off the Timeline."],
+      ["Confirmed","A date and a real location. It now shows on everyone's Timeline."],
+      ["Done","It has to have been Confirmed first. Then wrap it up: what was spent, a 1–5 rating, and notes."],
+    ]},
+    { k:"p", t:"Events that have happened and still need a wrap-up show under **Needs you** in the sidebar. Moving a confirmed event back to Planning takes it off the Timeline. The board needs the Events permission." },
+    { k:"h", t:"Event fields" },
+    { k:"where", path:["Settings","Operations","Event fields"] },
+    { k:"p", t:"The questions every event on the board answers, so a budget or a head count can be compared across the term. Ten are built in — Description, Budget, Attachment, Head count and Co-host start on; Point of contact, Setup time, Risk form, Dress code and Transportation start off. Rename them, add your own, or stop collecting one." },
+  ],
+  review:{ changes:["Brand-new article."], sources:["lib/programming.ts","lib/services/programming-service.ts","lib/validation/programming.ts","lib/event-fields.ts","lib/services/event-field-service.ts","app/components/Sidebar.tsx"] }
+},
+{
+  slug:"parties", status:"new", categoryId:"pages",
+  title:"Parties",
+  blurb:"The night's details beforehand, the door and the roll afterwards.",
+  keywords:["party","parties","door","wristband","theme","collab","social","wrap up"],
+  lede:"Plan the night, then close it out with what came in at the door and who showed up.",
+  body:[
+    { k:"list", items:[
+      "A name, date and time, **Open** (anyone with a wristband; door money counts) or **Closed** (members and their plus-ones), a theme and a collab org. It lands on the Timeline as a party.",
+      "Afterwards, **wrap it up**: door revenue and expenses are required, notes are optional.",
+      "If you can take attendance, you then tick off who came — everyone starts ticked, so untick the no-shows. It counts toward attendance only if the party is required.",
+    ]},
+    { k:"note", tone:"warn", h:"Door revenue reaches the Treasury; expenses don't", t:"A party's door revenue is added to the Treasury balance. Its expenses figure isn't subtracted — log that spending as expense transactions as well. See [how the Treasury works](/help/treasury-basics)." },
+    { k:"p", t:"Creating and wrapping up parties needs the Parties permission." },
+  ],
+  review:{ changes:["Brand-new article."], sources:["app/[slug]/parties/page.tsx","lib/validation/party.ts","lib/services/party-service.ts","lib/treasury-balance.ts"] }
+},
+{
+  slug:"instagram", status:"new", categoryId:"pages",
+  title:"The Instagram planner",
+  blurb:"A content calendar for posts — not a connection to Instagram.",
+  keywords:["instagram","posts","reel","story","carousel","content calendar","social media"],
+  lede:"Plan what goes up and when. ChaptOS doesn't connect to Instagram or post anything for you.",
+  body:[
+    { k:"list", items:[
+      "Each post is a Story, Reel or Carousel with a due date, optionally linked to the event it promotes.",
+      "**Mark posted** when it's up.",
+      "See the month at a glance.",
+      "Ask Chapt can draft a post for you to approve.",
+    ]},
+    { k:"p", t:"Needs the Instagram permission. The org's handle, shown on the page, is set in Settings → Identity → General by anyone with the Org settings permission." },
+  ],
+  review:{ changes:["Brand-new article. Verified there's no Instagram API integration anywhere in lib/ or app/."], sources:["lib/validation/instagram.ts","app/[slug]/instagram/page.tsx","app/[slug]/settings/sections/GeneralSection.tsx","lib/services/org-config-service.ts"] }
+},
+{
+  slug:"fundraisers", status:"new", categoryId:"pages",
+  title:"Fundraisers",
+  blurb:"Three numbers: what the supplies cost, what came in, and what you made.",
+  keywords:["fundraiser","bake sale","car wash","raffle","drink sale","supplies","goal","made"],
+  lede:"A fundraiser here is three numbers: supplies, what came in, and what you made. That's deliberately all.",
+  body:[
+    { k:"steps", items:[
+      "**Plan it** — a name, a date, and optionally a time, a place and a goal. Name it “bake sale”, “car wash”, “raffle” or similar and it suggests a shopping list.",
+      "**List the supplies** and what each cost.",
+      "**Count up** after the day: one total for what came in. Made = came in − supplies.",
+    ]},
+    { k:"p", t:"It shows on the Timeline as Fundraising, and the sidebar nudges you when one is ready to count up. Everyone can see fundraisers; planning and counting up need the Fundraisers permission." },
+    { k:"note", tone:"warn", h:"It never touches the Treasury", t:"Nothing here posts to the books. When the money's deposited, record it as an income transaction if you want it in your balance." },
+  ],
+  review:{ changes:["Brand-new article (shipped cb5ac94)."], sources:["lib/fundraisers.ts","lib/validation/fundraiser.ts","lib/services/fundraiser-service.ts","app/[slug]/fundraisers/page.tsx","app/api/fundraisers/route.ts","app/components/Sidebar.tsx"] }
+},
+
+/* ─────────────────────────── Ask Chapt ─────────────────────────── */
+{
+  slug:"ask-basics", status:"updated", categoryId:"ask",
+  title:"What to ask it",
+  blurb:"Opening it, the questions it's actually good at, and how to phrase a date.",
+  keywords:["ask","chat","assistant","ai","cmd k","search","question"],
+  lede:"Press **⌘K** (or Ctrl+K) anywhere in the app, or tap the Ask Chapt button. On a phone it opens as a full-height sheet. It answers from your org's live records.",
+  body:[
+    { k:"h", t:"Questions it's good at" },
+    { k:"list", items:[
+      "“Who hasn't paid dues?”",
+      "“What did we spend on formal last year?”",
+      "“Who's missed three or more meetings this term?”",
+      "“What's on the calendar for next week?”",
+      "“How do I add a custom metric?” — it'll point you to the right screen.",
+    ]},
+    { k:"p", t:"It shows its working as it goes — the steps it's taking and what it consulted — and the rows in its answer open the record behind them, so you can check it rather than trust it." },
+    { k:"note", tone:"warn", h:"Say which month you mean", t:"A bare “the 14th” gets anchored to the month already in play in the conversation. If you've switched topics, say “March 14th”." },
+    { k:"note", tone:"info", h:"Your conversation stays in this browser", t:"History isn't stored on our servers. It lives in your browser, and **New** starts fresh." },
+    { k:"note", tone:"info", h:"No button?", t:"If Ask Chapt isn't switched on, its button simply doesn't appear." },
+  ],
+  review:{ changes:[
+    "Removed the “social budget” example — there's no budget screen to answer from.",
+    "Added the phone sheet, browser-only history, and the hidden-launcher case.",
+  ], sources:["app/components/ChatWidget.tsx","app/components/chat/usePhoneSheet.ts","lib/ai-prompt.ts","app/trust/page.tsx"] }
+},
+{
+  slug:"ask-what-it-sees", status:"rewritten", categoryId:"ask",
+  title:"What it can see",
+  blurb:"Your org, what your seat can see in the app, and nothing past either line.",
+  keywords:["privacy","ai","data","permissions","training","what does it know","openai"],
+  lede:"It reads your records through the same doors you'd use in the app: inside your organization, and inside what your seat can see.",
+  body:[
+    { k:"list", tone:"check", items:[
+      "**Your org only.** It cannot read another organization's records — that's enforced by the database, not by asking the model nicely.",
+      "**What you could see in the app.** Most records are open to every member — the roster, the calendar, the ledger, the Dues tab — so they're open to it too. The gated ones stay gated: join requests need Roster; exemptions need Attendance unless they're yours; other people's dues payments need Treasury; poll turnout needs Polls.",
+      "**Live records.** A number it gives you is the number on the page right now.",
+    ]},
+    { k:"note", tone:"info", h:"What leaves the building", t:"Answering sends your question, a little of the recent conversation, and the results of the lookups it ran to OpenAI. We don't train any model on it; what OpenAI keeps is set by their API terms. The full account is in [Trust & privacy](/trust#assistant)." },
+    { k:"note", tone:"warn", h:"It can be wrong inside those lines", t:"The boundaries are about *access*, not accuracy. See [when it gets something wrong](/help/ask-got-it-wrong)." },
+  ],
+  review:{ changes:[
+    "Old example “a service chair asking about the ledger doesn't get the ledger” was false — the ledger is readable by every member in the app and the assistant mirrors that.",
+    "Replaced with the actual gated tools (listJoinRequests, listAttendanceExemptions, listDuesPayments, listPolls turnout).",
+    "“It is not used to train anyone's model” over-claimed for OpenAI; Trust page only commits to “we do not train” and says OpenAI's terms aren't yet stated.",
+  ], sources:["lib/ai-tools.ts (canAccess and each gated tool)","app/api/transactions/route.ts","app/trust/page.tsx"] }
+},
+{
+  slug:"ask-approvals", status:"rewritten", categoryId:"ask",
+  title:"When it wants to change something",
+  blurb:"The cards it drafts, why nothing is written until you approve, and what gets recorded.",
+  keywords:["approve","proposal","write","change","confirm","approvals","log dues","card"],
+  lede:"Ask it to add a deadline or log a payment and it doesn't do it. It draws you a card of exactly what it would do, and waits.",
+  body:[
+    { k:"table", head:["Card","What it can do"], rows:[
+      ["Officer actions","Add a deadline, add a calendar event, log a transaction, record a dues payment, add an Instagram post, add a programming event. Only someone who holds the matching permission can approve — if that's not you, the card names who can."],
+      ["Just-you actions","Submit an excuse, request a reimbursement, log your own service hours, mark your task done, cast your vote. These only ever touch your own record."],
+    ]},
+    { k:"list", tone:"check", items:[
+      "**Nothing is written until you press Approve.** Discard writes nothing. There's no setting that turns this off.",
+      "**Approving goes through the same checks as the button in the app**, so it can never do more than your own permissions allow.",
+      "**Officer approvals are recorded** in the **Approvals** tab — what was approved, by whom, under which permission. Everyone in the org can read it.",
+      "**The card is signed by the server when it's drafted**, so an altered card can't produce an approval record.",
+    ]},
+    { k:"note", tone:"good", h:"This is the whole safety model", t:"The assistant proposes and a permitted person decides. Nothing with a consequence happens on the model's say-so — which is the honest answer when someone asks whether “the AI can move money”." },
+  ],
+  review:{ changes:[
+    "Added the five self-service proposals (perm null) that the old list left out.",
+    "“A modified card writes nothing at all” was wrong: the signature protects the APPROVAL RECORD; the write goes through the normal permission-checked route. Rephrased to what's true.",
+    "Self-service approvals are deliberately not recorded — stated.",
+    "Added the Approvals tab (org-wide, last 100).",
+  ], sources:["lib/ai-tools.ts (PROPOSAL_META)","lib/services/chat-approval-service.ts","app/components/chat/ApprovalsView.tsx","app/components/chat/WritCard.tsx","app/components/ChatWidget.tsx"] }
+},
+{
+  slug:"ask-got-it-wrong", status:"updated", categoryId:"ask",
+  title:"When it gets something wrong",
+  blurb:"How to tell, what usually causes it, and what telling us actually does.",
+  keywords:["wrong","hallucination","incorrect","feedback","rating","bad answer","fix","thumbs"],
+  lede:"It will be wrong sometimes. The design goal isn't an assistant that never errs — it's one where you can always see how it got there.",
+  body:[
+    { k:"steps", items:[
+      "**Open the trace.** The steps it took are kept with the answer. Most mistakes are visible there — the wrong term, the wrong month.",
+      "**Check the row.** Answers link to the records behind them. Open one: either the record is wrong or the answer is.",
+      "**Rate it.** A thumbs up or down is recorded with the start of your question.",
+    ]},
+    { k:"h", t:"The usual causes, in order" },
+    { k:"list", items:[
+      "**The wrong term is active.** Most “that number is wrong” is a term boundary. Check which term is active first.",
+      "**A bare date.** “The 14th” gets pinned to the month in play. Say the month.",
+      "**The record really is wrong.** If nobody marked the roll for three weeks, no assistant can tell you who's at risk.",
+    ]},
+    { k:"note", tone:"info", h:"If it's badly wrong, tell a human", t:"A rating helps us; it doesn't get you an answer today. [Write to us](/contact) with what you asked and what it said." },
+  ],
+  review:{ changes:["“The thumbs are read by a person” isn't something the code can promise — feedback is an event with the first 300 characters of the question. Rephrased."],
+    sources:["app/components/ChatWidget.tsx (giveFeedback)","lib/services/assistant-feedback-service.ts"] }
+},
+
+/* ─────────────────────────── Docs & the record ─────────────────────────── */
+{
+  slug:"docs-library", status:"rewritten", categoryId:"record",
+  title:"The docs library",
+  blurb:"Saved links in folders, pinning, and the difference between moving and reordering.",
+  keywords:["docs","documents","links","folders","bylaws","pin","drag","sort","library"],
+  lede:"The library is a set of saved links — the bylaws, the forms, the shared drive, the thing nobody can ever find — in folders, with the most-asked-for pinned to the top.",
+  body:[
+    { k:"p", t:"Everyone can browse and search it. Adding, editing, pinning, moving and deleting need the Docs permission. Files themselves live wherever the link points; the library doesn't store uploads." },
+    { k:"h", t:"Moving versus reordering" },
+    { k:"list", items:[
+      "**Move** a doc into a folder by dragging it onto the folder's header.",
+      "**Reorder** by dragging within a section. The view switches to **Manual** so you can see the order you set.",
+      "Dragging is off while a search or filter is narrowing the list.",
+      "Sort by Manual, Newest, Name or Kind.",
+    ]},
+    { k:"h", t:"Pinning" },
+    { k:"p", t:"Pin the four or five docs or folders people actually ask for. A library where the bylaws are pinned gets asked about the bylaws far less." },
+    { k:"note", tone:"info", h:"Saved links fetch a preview", t:"When a link is saved, we fetch the page once for its title and description, so the site sees a request from us. **Refresh preview** fetches it again." },
+    { k:"note", tone:"warn", h:"No export for the library", t:"The list of links doesn't export. See [getting your data out](/help/export-your-data)." },
+  ],
+  review:{ changes:[
+    "“Drag does nothing while sorted by name or date” was false — drag works under any sort and flips the view to Manual; it's disabled only while searching/filtering.",
+    "“Documents you uploaded can be downloaded individually” was false — docs are links (createDocInput: title, url, description).",
+    "Added the Kind sort and folder pinning.",
+  ], sources:["app/[slug]/docs/page.tsx","lib/validation/doc.ts","lib/services/doc-service.ts","app/api/docs/route.ts","app/api/docs/refresh-metadata/route.ts"] }
+},
+{
+  slug:"activity-log", status:"updated", categoryId:"record",
+  title:"The activity log",
+  blurb:"Who changed what, when — and the argument it's designed to end.",
+  keywords:["audit","log","history","who changed","activity","trail","accountability"],
+  lede:"Changes across the app write an entry: what changed, who did it, and when. It's the answer to “who deleted that” and, more often, the protection for whoever didn't.",
+  body:[
+    { k:"where", path:["Settings","System","Activity log"] },
+    { k:"p", t:"It's chronological and covers the whole org. The dashboard's Activity card opens the same history. Everyone in the org can read it." },
+    { k:"note", tone:"good", h:"It mostly protects the officers", t:"It reads like surveillance and works like an alibi. The person who handles your money is the person a log with their name on every legitimate action helps most." },
+    { k:"note", tone:"info", h:"Entries aren't edited or pruned", t:"If someone is removed or deletes their account, their entries stay: the link to who did it is cleared, though a name written into an entry's text stays. [What that means for retention](/trust#retention)." },
+  ],
+  review:{ changes:[
+    "“Including the names in them” was half-true: ActivityLog.actorId is ON DELETE SET NULL, but the message text keeps any name it contains.",
+    "Added that every member can read it and the dashboard Activity card.",
+  ], sources:["prisma/schema.prisma (ActivityLog)","app/api/activity/route.ts","app/[slug]/settings/page.tsx"] }
+},
+{
+  slug:"ending-a-term", status:"rewritten", categoryId:"record",
+  title:"Ending a term",
+  blurb:"Starting the new term without losing the last one — and when to do it.",
+  keywords:["archive","semester","end of year","transition","new board","rollover","next term"],
+  lede:"Ending a term is starting the next one. Nothing is deleted; the old term just stops being the one in front of everyone.",
+  body:[
+    { k:"steps", items:[
+      "Settings → Operations → Semesters → create the next term with its dates.",
+      "That's it. It's active straight away, and the old term stays completely readable.",
+    ]},
+    { k:"p", t:"Last term's events, ledger, attendance and standings are still there, filed under it. The dashboard starts clean because it shows the active term, not because the old one went anywhere. You can switch the active term back from the same screen, and you can ask Ask Chapt about it — “what did we spend on formal last year?”" },
+    { k:"note", tone:"warn", h:"Don't create the next term early", t:"Creating a term makes it active immediately, so the current one stops being the default the moment you do. Do it at the changeover, or switch back afterwards." },
+    { k:"note", tone:"info", h:"If nobody does it", t:"When the active term's end date passes, the app locks with “Your semester has ended” until someone extends it or starts the next one. See [the term screen](/help/first-term)." },
+    { k:"note", tone:"info", h:"Do it before the handover, not after", t:"Flipping the term while the outgoing board is still around means someone who knows the answers is there for the first “where did X go”." },
+  ],
+  review:{ changes:[
+    "Old steps were “create, then make active” — creating already activates (createSemester).",
+    "Added the early-creation trap and the end-date lockout.",
+  ], sources:["lib/services/semester-service.ts","app/[slug]/settings/sections/SemestersSection.tsx","app/components/SemesterGate.tsx"] }
+},
+
+/* ─────────────────────────── Your account & orgs ─────────────────────────── */
+{
+  slug:"signing-in", status:"updated", categoryId:"account",
+  title:"Signing in",
+  blurb:"Google, and only Google — plus what to do when you can't reach your org.",
+  keywords:["login","sign in","google","password","oauth","cant log in","locked out","invite required"],
+  lede:"There's no password to make, forget, reuse or leak. You sign in with Google, and that account is your identity everywhere in the app.",
+  body:[
+    { k:"note", tone:"warn", h:"Use the same Google account every time", t:"Your personal Gmail and your university account are two different people as far as the app is concerned. If you joined with one and sign in with the other, you'll look like a stranger." },
+    { k:"h", t:"“I'm signed in but I can't get to my org”" },
+    { k:"list", items:[
+      "**Wrong account.** Check which Google account you're using.",
+      "**Your request hasn't been approved yet**, or was declined. Open your invite link again — it tells you which. See [joining](/help/join-an-org).",
+      "**You left, or were removed.** Coming back needs a new invite link and an officer's approval.",
+      "**“Invite required”** means that account isn't a member of that org. You need an invite link from someone in it.",
+    ]},
+    { k:"p", t:"If none of those fit, [tell a human](/contact) — include the email address you're signing in with." },
+  ],
+  review:{ changes:["“Your invite was never redeemed” / “access was revoked” replaced with the real states (pending, declined, left, Invite required)."],
+    sources:["lib/supabase/oauth.ts","app/[slug]/NeedsInvite.tsx","app/[slug]/AwaitingApproval.tsx","app/join/[token]/JoinClient.tsx","app/components/SidebarProfile.tsx"] }
+},
+{
+  slug:"multiple-orgs", status:"kept", categoryId:"account",
+  title:"Being in more than one org",
+  blurb:"One login, several workspaces, each with its own roster entry for you.",
+  keywords:["multiple","switch","two orgs","several","membership","another chapter"],
+  lede:"One Google account, as many organizations as you belong to. Switching between them is a menu, not a second login.",
+  body:[
+    { k:"p", t:"Switch orgs from the org name at the top of the sidebar. Each org is a separate workspace with its own roster, money, roles and records — the isolation between them is enforced at the database, not just hidden in the interface. Your permissions are per org too: you can be president of one and an ordinary member of another." },
+    { k:"p", t:"Your roster place is per org as well — its own dues, attendance, GPA, service hours, office and name, so you can be *Rob* in one chapter and *Robert Chen* in another. Nothing an officer records about you in one org is visible to, or editable from, another. Leaving one org leaves the others untouched." },
+  ],
+  review:{ changes:["Kept. Added where the switcher lives and that leaving one org doesn't affect others."],
+    sources:["app/components/OrgSwitcher.tsx","lib/services/membership-service.ts","AGENTS.md (Membership vs Brother)"] }
+},
+{
+  slug:"leaving-or-deleting", status:"rewritten", categoryId:"account",
+  title:"Leaving an org, or deleting your account or the org",
+  blurb:"Three different exits, and exactly what each one destroys.",
+  keywords:["leave","delete","delete account","quit","close account","remove org","shut down","erase"],
+  lede:"Leaving, deleting your account and deleting the org are three different things with three different blast radii. Pick deliberately.",
+  body:[
+    { k:"table", head:["Action","What it does"], rows:[
+      ["**Leave an org**","Profile menu → Leave, or Settings → Membership → Accounts. Drops your membership and roles in that org; your records stay with them. Coming back needs a new invite and approval. Refused if you're its last admin."],
+      ["**Delete your account**","Settings → Membership → Accounts → Delete account, then type DELETE. Erases your login and removes you from every org — attendance, dues lines, hours and the rest. Money you paid stays on the books without your name. Refused while you're the last admin of any org, even one where you're the only member: delete that org first."],
+      ["**Delete the org**","An org admin, at the bottom of Settings → Identity → General, types the org's exact name. Everything the org holds goes, in one transaction."],
+    ]},
+    { k:"note", tone:"flag", h:"Deleting is not reversible", t:"Deleting an account or an org has no undo and no grace period. [Export what you need](/help/export-your-data) first." },
+    { k:"note", tone:"info", h:"Deleting an org doesn't delete people with somewhere else to be", t:"Anyone who belongs to another org keeps their account there, which is why the deletion summary's count can be smaller than your headcount." },
+    { k:"p", t:"Something else you want erased? [Write to us](/contact) and see [your rights](/trust#rights)." },
+  ],
+  review:{ changes:[
+    "Removed “Unlink your account” — /api/auth/unlink-self has no UI anywhere.",
+    "Added self-serve account deletion (built 2026-10-14) instead of “that's a rights request — write to us”.",
+    "Org deletion confirmation is the org's NAME (DangerZone), not its slug.",
+  ], sources:["lib/services/membership-service.ts","app/components/LeaveOrgModal.tsx","app/[slug]/settings/sections/AccountsSection.tsx","app/components/DeleteAccountModal.tsx","lib/auth/account-deletion.ts","app/[slug]/settings/sections/DangerZone.tsx","lib/services/org-service.ts (deleteOrg)"] }
+},
+{
+  slug:"turn-pages-on-and-off", status:"updated", categoryId:"account",
+  title:"Turning pages on and off",
+  blurb:"Showing only the pages your org uses, and the dashboard widgets inside them.",
+  keywords:["workflows","pages","sidebar","hide","nav","reorder","simplify","modules","widgets","kpi"],
+  lede:"Most orgs need about half of what's here. Hiding the rest is one screen, and it's the single highest-value thing a new admin can do.",
+  body:[
+    { k:"where", path:["Settings","Operations","Workflows"] },
+    { k:"list", items:[
+      "Turn a whole page on or off. **Dashboard and Timeline are always on**; everything else can be hidden.",
+      "Turn off dashboard widgets you don't use — the announcement, the four headline numbers, the health widget, On your plate, member tracking.",
+      "Reorder the sidebar within each group, so the page your org opens most is at the top.",
+    ]},
+    { k:"note", tone:"warn", h:"A headline number is also a tracking switch", t:"Turning off the Attendance, Dues, GPA or Service Hours number also stops tracking it: it leaves the roster and stops affecting anyone's [standing](/help/standing)." },
+    { k:"note", tone:"good", h:"Turning something off never deletes it", t:"Hidden means hidden. Turn Service back on in March and every hour logged before is still there." },
+    { k:"note", tone:"info", h:"Who can change this", t:"Anyone with the **Org settings** permission. People with it can also drag sidebar items into a new order right in the sidebar." },
+  ],
+  review:{ changes:[
+    "“Dashboard, Timeline and Chapter are always on” — Chapter can be turned off now (NAV_WORKFLOW_MAP: Chapter → meetings). The same stale line is in Settings' own lede.",
+    "Removed the “carry the whole set” warning — it's an API-caller note, not something a person using this screen can do wrong.",
+    "Added the KPI-is-tracking coupling.",
+  ], sources:["app/[slug]/settings/sections/WorkflowsSection.tsx","app/components/Sidebar.tsx","lib/org-types.ts","lib/workflow-features.ts","lib/tracked-metrics.ts","lib/services/org-config-service.ts"] }
+},
+{
+  slug:"arrange-dashboard", status:"new", categoryId:"account",
+  title:"Arranging the dashboard",
+  blurb:"One layout for the whole org — and what On your plate shows.",
+  keywords:["dashboard","arrange","customize","layout","widgets","cards","on your plate"],
+  lede:"Everyone in the org sees the same dashboard. Anyone with the Org settings permission can arrange it.",
+  body:[
+    { k:"steps", items:[
+      "On the dashboard, choose **Arrange**.",
+      "Drag cards into the order you want, and put away the ones you don't. Optional cards — money, dues, grades, service, Instagram, and one per custom metric — wait in the tray until you add them.",
+      "Save.",
+    ]},
+    { k:"list", items:[
+      "There's no per-person layout.",
+      "A card for a page that's turned off doesn't appear. Turn the page back on and the card comes back where you left it.",
+      "Some cards have a fixed place: they can be put away, not moved. The pinned note can also sit in the wide spot at the top.",
+    ]},
+    { k:"h", t:"On your plate" },
+    { k:"p", t:"Everything waiting on whoever's looking: their tasks, votes and dues — plus late deadlines, wrap-ups, dues and reimbursements for officers who can act on them." },
+  ],
+  review:{ changes:["Brand-new article for Arrange (b058484) and On your plate (43200d3)."],
+    sources:["lib/dashboard-layout.ts","app/components/dashboard/ledger/BriefingActions.tsx","lib/services/org-config-service.ts (setDashboardLayout)","lib/workflow-features.ts"] }
+},
+{
+  slug:"rename-the-words", status:"updated", categoryId:"account",
+  title:"Renaming the words the app uses",
+  blurb:"Say chapter, or crew, or section — the app doesn't care which.",
+  keywords:["vocabulary","rename","wording","terminology","brother","member","language"],
+  lede:"A sorority, a marching band and a robotics team do not use the same nouns. Swap them once and the app follows.",
+  body:[
+    { k:"where", path:["Settings","Identity","Vocabulary"] },
+    { k:"table", head:["Group","Words"], rows:[
+      ["People","Member, Admin, Role"],
+      ["Features","Treasury, Dues, Meetings, Service, Attendance, Announcement, Doc"],
+      ["Time","Period (your term), Event"],
+    ]},
+    { k:"p", t:"Changes show in sidebar labels and page headings as soon as you save. Changing them needs the Org settings permission." },
+    { k:"note", tone:"warn", h:"Ask Chapt doesn't use them yet", t:"The assistant can still say the default words — “brothers”, “semester” — in its answers." },
+    { k:"note", tone:"info", h:"Do it before you invite everyone", t:"The vocabulary is the first thing people notice and the last thing they mention." },
+  ],
+  review:{ changes:[
+    "“The change ripples… including the assistant's answers” was false: the chat prompt hard-codes fraternity wording and doesn't read vocabularyOverrides (lib/ai-prompt.ts:161).",
+    "Listed the actual 12 words in the screen's own groups.",
+  ], sources:["lib/vocab.ts","app/[slug]/settings/sections/VocabSection.tsx","lib/ai-prompt.ts","lib/services/org-config-service.ts"] }
+},
+{
+  slug:"appearance", status:"new", categoryId:"account",
+  title:"Light and dark",
+  blurb:"Choosing how the app looks on your device.",
+  keywords:["dark mode","light mode","theme","appearance","system"],
+  lede:"Your profile menu → **Appearance** → Dark, Light or System.",
+  body:[
+    { k:"p", t:"It's saved in this browser, so each device remembers its own choice. System follows your device's setting as it changes." },
+  ],
+  review:{ changes:["Brand-new, small. Note: Settings → Aesthetic is hidden in the code (paper is the only look), so it isn't documented."],
+    sources:["app/components/SidebarProfile.tsx","app/hooks/useAppTheme.ts","app/[slug]/settings/page.tsx"] }
+},
+
+/* ─────────────────────────── What this costs ─────────────────────────── */
+{
+  slug:"what-you-pay", status:"updated", categoryId:"billing",
+  title:"What this costs",
+  blurb:"One price per org, set by headcount. Free to four, $25/month to fifty.",
+  keywords:["price","pricing","cost","plan","subscription","free","how much","billing","$"],
+  lede:"One price for the whole organization, decided by how many people are on it. Not per person, not per term, and not a smaller product at the lower prices.",
+  body:[
+    { k:"table", head:["Organization size","Per month"], rows:[
+      ["1–4 people","Free"], ["5–50 people","$25"], ["51–120 people","$65"], ["121+ people","Quoted — talk to us"],
+    ]},
+    { k:"p", t:"Archived members don't count. There are two ways to pay:" },
+    { k:"list", items:[
+      "**Automatic** — the price follows your member count. Adding a card while you're at four or fewer charges nothing until the fifth person.",
+      "**Choose a plan** — Standard ($25, up to 50) or Pro ($65, up to 120). It starts charging straight away and stays put as the roster changes; removing members doesn't lower it. You can't pick a plan smaller than your current count, and switching down takes effect at renewal.",
+    ]},
+    { k:"h", t:"Every feature is on every plan" },
+    { k:"p", t:"There is no feature locked behind a higher price, and no screen that asks you to upgrade to see something. The price only tracks how many of you there are." },
+    { k:"note", tone:"info", h:"Two different kinds of money", t:"This is what your org pays *us*. It has nothing to do with the dues and books you keep inside the app. See [Dues](/help/dues) for the other one." },
+    { k:"where", path:["Settings","System","Billing"] },
+    { k:"p", t:"Billing is only visible to org admins." },
+  ],
+  review:{ changes:["Plan mechanics restated from the Billing page copy; added who counts and the admin-only visibility."],
+    sources:["lib/billing/tiers.ts","lib/billing/guard.ts","lib/billing/seats.ts","app/[slug]/billing/page.tsx","app/[slug]/settings/page.tsx"] }
+},
+{
+  slug:"member-limit", status:"updated", categoryId:"billing",
+  title:"What happens when you hit the limit",
+  blurb:"The one thing that stops, and the many things that don't.",
+  keywords:["limit","cap","full","can't add","at capacity","402","blocked","seat","maximum"],
+  lede:"Growing past what you're paying for blocks exactly one thing: letting the next person in. Everything you already have keeps working.",
+  body:[
+    { k:"h", t:"What stops" },
+    { k:"list", tone:"no", items:[
+      "Approving a join request that would take you over. People can still send requests, and you can still read them.",
+      "Bringing back someone you just archived.",
+    ]},
+    { k:"h", t:"What doesn't" },
+    { k:"list", tone:"check", items:[
+      "Every member you already have keeps their access — nobody is removed or locked out.",
+      "Every page keeps working.",
+      "Exports keep working, so your data is never held hostage.",
+      "Nothing is deleted, hidden, or degraded.",
+    ]},
+    { k:"h", t:"Clearing it" },
+    { k:"steps", items:[
+      "An org admin opens Settings → Billing.",
+      "Choose a plan, or add a card for automatic billing.",
+      "Once payment is confirmed, approve the waiting request. A chosen plan stops approvals again at its own capacity until you pick a bigger one.",
+    ]},
+    { k:"note", tone:"warn", h:"Only an org admin can clear it", t:"Billing belongs to org admins, not to a permission you can hand out. A treasurer running the chapter's money can't add the card." },
+    { k:"note", tone:"info", h:"Above 120 people it needs a conversation", t:"Past that size the page asks for a quote instead of a card. [Talk to us](/contact)." },
+  ],
+  review:{ changes:["Removed “adding a new member to the roster” — approval is the only way in now.","“Un-archiving” clarified: the only restore path is the Undo right after archiving."],
+    sources:["lib/billing/guard.ts","lib/services/join-request-service.ts","lib/services/brother-service.ts","app/components/dashboard/JoinRequestsPanel.tsx","app/[slug]/billing/page.tsx"] }
+},
+{
+  slug:"paying-and-invoices", status:"updated", categoryId:"billing",
+  title:"Cards, invoices and failed payments",
+  blurb:"Where the card lives, how to get receipts, and what a declined payment does.",
+  keywords:["card","invoice","receipt","payment","stripe","portal","past due","declined","failed"],
+  lede:"Payment is handled by Stripe end to end. We never see or store your card.",
+  body:[
+    { k:"where", path:["Settings","System","Billing","Manage billing"] },
+    { k:"p", t:"That opens Stripe's own portal: change the card, download past invoices, update the billing address." },
+    { k:"h", t:"When a payment fails" },
+    { k:"p", t:"The Billing page says your last payment didn't go through, and the button becomes **Update payment method**. Stripe handles retries and payment emails." },
+    { k:"list", tone:"check", items:[
+      "Nobody is removed and nothing is deleted.",
+      "Every existing member keeps working access.",
+      "You can't approve new members until it's resolved — same rule as the member limit.",
+    ]},
+    { k:"note", tone:"info", h:"Who gets the emails", t:"Stripe emails the address on the billing account — the person who set it up. If they've graduated, change it in the portal before it matters." },
+  ],
+  review:{ changes:["Softened “Stripe retries on a schedule of its own while emailing” to what we can promise; named the real in-app banner and button."],
+    sources:["app/[slug]/billing/page.tsx","lib/services/billing-service.ts","lib/billing/guard.ts"] }
+},
+{
+  slug:"cancelling", status:"updated", categoryId:"billing",
+  title:"Cancelling",
+  blurb:"How to stop paying, what you keep, and what the free plan means afterwards.",
+  keywords:["cancel","stop paying","downgrade","unsubscribe","refund","end subscription","resume"],
+  lede:"Cancelling takes a couple of clicks, doesn't need an email to anyone, and doesn't take your records with it.",
+  body:[
+    { k:"steps", items:[
+      "An org admin opens Settings → Billing.",
+      "Choose **Cancel subscription**, then **Confirm cancellation**. (Stripe's portal, under Manage billing, can do it too.)",
+      "It ends on your renewal date; until then nothing changes.",
+    ]},
+    { k:"h", t:"What happens next" },
+    { k:"list", tone:"check", items:[
+      "After that date the org is back on the free allowance.",
+      "Every record stays exactly where it is.",
+      "Exports keep working.",
+    ]},
+    { k:"note", tone:"warn", h:"The free allowance is four", t:"Nobody is removed — 40 people stay 40 people with full access. But approving anyone past four needs a subscription again." },
+    { k:"note", tone:"info", h:"Changed your mind?", t:"Before the end date, **Resume subscription** on the same page keeps it going." },
+    { k:"note", tone:"info", h:"Cancelling is not deleting", t:"If you want the organization gone, that's a separate action — see [leaving or deleting](/help/leaving-or-deleting)." },
+  ],
+  review:{ changes:["Billing page now has its own Cancel / Resume buttons; the old article only knew the Stripe portal."],
+    sources:["app/[slug]/billing/page.tsx","lib/services/billing-service.ts (changePlan)"] }
+},
+];
+
+const REMOVED = [
+  { slug:"budget", title:"The term budget", why:"The Budget tab is hidden in Treasury (app/[slug]/treasury/page.tsx:46–48) and there's no other way to set allocations. Its useful truths moved into “How the Treasury works”. /seo-preview still links /help/budget." },
+];
+
+const APP_ISSUES = [
+  "<s>Reimbursement receipts are silently dropped.</s> <b>Fixed</b> (9acd3b3, 494019f, 5417394) — the Reimbursements article now documents receipts.",
+  "<b>No way for an org to make a second org admin.</b> <code>PATCH /api/auth/accounts/[id]</code> is platform-admin only, yet leaving and account deletion both say “promote another admin first”.",
+  "<b>No way to restore an archived member</b> after the Undo toast — <code>archived:false</code> is only ever sent from that toast.",
+  "<b>Settings → Workflows lede is stale</b>: “Dashboard, Timeline and Chapter are always available” (<code>app/[slug]/settings/page.tsx</code>); Chapter is toggleable.",
+  "<b><code>app/for/content.ts:306</code></b> still says removing a member with attendance history needs support.",
+  "<b>Roles screen copy</b>: Roster's description says “Edit member details and dues”, but dues writes are Treasury-only (<code>assertCanManageDues</code>).",
+  "<b>Party expenses never reach the balance</b> while door revenue does (<code>lib/treasury-balance.ts</code>). Possibly intended; documented as-is.",
+  "<b>Ask Chapt ignores org vocabulary</b>: the system prompt hard-codes “fraternity chapter… brothers” (<code>lib/ai-prompt.ts:161</code>).",
+  "<s>Settings sections shown to Org settings holders but only saving for org admins.</s> <b>Fixed</b> (uncommitted) — all org-config saves now gate on MANAGE_SETTINGS; articles updated.",
+  "<b><code>/seo-preview</code></b> links <code>/help/budget</code>, which this rewrite removes.",
+];
+
+const QUICK_PATHS = [
+  { slug:"set-up-your-org", label:"I'm setting one up", hint:"From nothing to a workspace your board will open.", icon:"✦", tint:"butter" },
+  { slug:"join-an-org", label:"I was sent a link", hint:"What the invite does, and why you wait for approval.", icon:"☺", tint:"sky" },
+  { slug:"first-term", label:"It won't let me past a screen", hint:"Almost always the term. Here's the thirty-second fix.", icon:"◷", tint:"peach" },
+];
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+const TINT = {
+  butter:["var(--butter-soft)","var(--butter)","var(--butter-ink)"], sky:["var(--sky-soft)","var(--sky)","var(--sky-ink)"],
+  mint:["var(--mint-soft)","var(--mint)","var(--mint-ink)"], lilac:["var(--lilac-soft)","var(--lilac)","var(--lilac-ink)"],
+  rose:["var(--rose-soft)","var(--rose)","var(--rose-ink)"], peach:["var(--peach-soft)","var(--peach)","var(--peach-ink)"],
+};
+const BY_SLUG = new Map(ARTICLES.map(a => [a.slug, a]));
+const CAT = new Map(CATEGORIES.map(c => [c.id, c]));
+const app = document.getElementById("app");
+
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function inline(s){
+  let h = esc(s);
+  h = h.replace(/`([^`]+)`/g, "<code>$1</code>");
+  h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  h = h.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+    const m = href.match(/^\/help\/([a-z0-9-]+)/);
+    if (m) return `<a href="#/a/${m[1]}">${label}</a>`;
+    return `<a class="ext" href="#ext" title="${href} — outside the mock">${label}</a>`;
+  });
+  return h;
+}
+const ic = (sym, tint, cls="ic") => { const t = TINT[tint]; return `<span class="${cls}" style="--g:${t[0]};--gb:${t[1]};--gi:${t[2]}" aria-hidden="true">${sym}</span>`; };
+const badge = st => `<span class="badge ${st}">${st}</span>`;
+
+function block(b){
+  switch (b.k){
+    case "p": return `<p>${inline(b.t)}</p>`;
+    case "h": return `<h2>${inline(b.t)}</h2>`;
+    case "steps": return `<ol class="steps">${b.items.map(i=>`<li>${inline(i)}</li>`).join("")}</ol>`;
+    case "list": return `<ul class="list ${b.tone||""}">${b.items.map(i=>`<li>${inline(i)}</li>`).join("")}</ul>`;
+    case "note": return `<div class="note ${b.tone||""}"><h5>${inline(b.h)}</h5><p>${inline(b.t)}</p></div>`;
+    case "table": return `<div class="tw"><table><thead><tr><th>${esc(b.head[0])}</th><th>${esc(b.head[1])}</th></tr></thead><tbody>${b.rows.map(r=>`<tr><th>${inline(r[0])}</th><td>${inline(r[1])}</td></tr>`).join("")}</tbody></table></div>`;
+    case "where": return `<div class="where"><span class="where-l">Where</span><span class="where-p">${b.path.map((p,i)=>`<span class="${i===b.path.length-1?"last":""}">${esc(p)}</span>`).join("")}</span></div>`;
+  }
+  return "";
+}
+
+function blockText(b){
+  if (b.k==="p"||b.k==="h") return b.t;
+  if (b.k==="steps"||b.k==="list") return b.items.join(" ");
+  if (b.k==="note") return b.h+" "+b.t;
+  if (b.k==="table") return [...b.head, ...b.rows.flat()].join(" ");
+  if (b.k==="where") return b.path.join(" ");
+  return "";
+}
+const INDEX = ARTICLES.map(a => ({
+  a, head:[a.title,a.blurb,a.keywords.join(" "),CAT.get(a.categoryId).title].join(" ").toLowerCase(),
+  body:[a.lede, ...a.body.map(blockText)].join(" ").toLowerCase(),
+}));
+
+let query = "";
+function renderIndex(){
+  app.innerHTML = `
+  <section class="hero"><div class="wrap">
+    <span class="eyebrow">Help centre</span>
+    <h1>Everything it does, in the order you'll need it.</h1>
+    <p class="lede">${ARTICLES.length} articles, all of them about something that exists in the product today. Where a thing is half-built or has a sharp edge, the article says so — you should never go looking for a button that isn't there.</p>
+    <div class="searchwrap">
+      <label class="search">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Search — “dues”, “join request”, “check-in”…" value="${esc(query)}" autocomplete="off" aria-label="Search the help centre">
+        <button id="qc" type="button" ${query?"":"hidden"}>Clear</button>
+      </label>
+      <p class="searchnote">Searches the full text of every article.</p>
+    </div>
+    <div id="results"></div>
+  </div></section>
+  ${askBand("Still stuck?", "There's no ticket queue and no bot on the other end — it's one person, and that person reads everything. Tell them what you were doing and what happened instead.")}`;
+  const q = document.getElementById("q"), qc = document.getElementById("qc");
+  q.addEventListener("input", () => { query = q.value; qc.hidden = !query; renderResults(); });
+  qc.addEventListener("click", () => { query = ""; q.value = ""; qc.hidden = true; renderResults(); q.focus(); });
+  renderResults();
+}
+function renderResults(){
+  const el = document.getElementById("results");
+  const t = query.trim().toLowerCase();
+  if (!t){
+    el.innerHTML = `
+      <div class="paths">${QUICK_PATHS.map(p=>`<a class="path" href="#/a/${p.slug}">${ic(p.icon,p.tint)}<h4>${p.label}</h4><p>${p.hint}</p><span class="go">Read it →</span></a>`).join("")}</div>
+      <div class="cats">${CATEGORIES.map(c=>`
+        <section class="cat" id="${c.id}">
+          <div class="cathead">${ic(c.icon,c.tint)}<div><h3>${c.title}</h3><p>${c.blurb}</p></div></div>
+          <div class="arts">${ARTICLES.filter(a=>a.categoryId===c.id).map(a=>`<a href="#/a/${a.slug}"><span class="t">${esc(a.title)} ${badge(a.status)}</span><span class="b">${esc(a.blurb)}</span></a>`).join("")}</div>
+        </section>`).join("")}</div>`;
+    return;
+  }
+  const words = t.split(/\s+/).filter(Boolean);
+  const hits = INDEX.map(r => {
+    let score = 0;
+    for (const w of words){ if (r.head.includes(w)) score += 3; else if (r.body.includes(w)) score += 1; else return null; }
+    return { r, score };
+  }).filter(Boolean).sort((x,y)=>y.score-x.score);
+  el.innerHTML = hits.length
+    ? `<div class="results">${hits.map(({r})=>`<a href="#/a/${r.a.slug}"><span class="rcat">${CAT.get(r.a.categoryId).title}</span><span class="rt">${esc(r.a.title)} ${badge(r.a.status)}</span><span class="rb">${esc(r.a.blurb)}</span></a>`).join("")}</div>`
+    : `<div class="empty"><h3>Nothing matches “${esc(query)}”</h3><p>If it isn't here, it probably isn't written yet — and that's worth telling us.</p><a class="btn" href="#ext" style="margin-top:18px">Talk to a human →</a></div>`;
+}
+
+function askBand(h, p){
+  return `<section class="ask"><div class="wrap"><div class="askcard"><div><h3>${h}</h3><p>${p}</p></div><div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn ghost" href="#/">Back to help</a><a class="btn" href="#ext">Talk to a human →</a></div></div></div></section>`;
+}
+
+function renderArticle(slug){
+  const a = BY_SLUG.get(slug);
+  if (!a){ location.hash = "#/"; return; }
+  const c = CAT.get(a.categoryId);
+  const sibs = ARTICLES.filter(x => x.categoryId === c.id && x.slug !== a.slug);
+  app.innerHTML = `
+  <section class="hero"><div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Help centre</a><a href="#/c/${c.id}">${c.title}</a></nav>
+    <h1>${esc(a.title)}</h1>
+    <p class="lede">${inline(a.lede)}</p>
+    <div style="margin-top:14px">${badge(a.status)}</div>
+  </div></section>
+  <section class="artwrap"><div class="wrap artgrid">
+    <article class="body">
+      ${a.body.map(block).join("")}
+      <div class="review">
+        <h6>Review · what changed</h6>
+        <ul>${a.review.changes.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+        <div class="src">${a.review.sources.map(s=>`<code>${esc(s)}</code>`).join("")}</div>
+      </div>
+    </article>
+    <aside class="rail">
+      <div class="railcat">${ic(c.icon,c.tint)}<span>${c.title}</span></div>
+      ${sibs.length?`<h5>More in this section</h5><div class="railnav">${sibs.map(s=>`<a href="#/a/${s.slug}">${esc(s.title)} ${badge(s.status)}</a>`).join("")}</div>`:""}
+      <a class="railask" href="#ext"><b>This didn't answer it</b><span>Write to a person, with this page already named in the draft.</span></a>
+    </aside>
+  </div></section>
+  ${askBand("Didn't find it?", "Search covers the full text of every article — if it isn't there, it probably isn't written yet, and that's worth telling us.")}`;
+  window.scrollTo(0,0);
+}
+
+function route(){
+  const h = location.hash || "#/";
+  let m;
+  if ((m = h.match(/^#\/a\/([a-z0-9-]+)/))) return renderArticle(m[1]);
+  if ((m = h.match(/^#\/c\/([a-z0-9-]+)/))){ renderIndex(); const el = document.getElementById(m[1]); if (el) el.scrollIntoView(); return; }
+  if (h === "#ext") { history.back(); return; }
+  renderIndex(); window.scrollTo(0,0);
+}
+window.addEventListener("hashchange", route);
+route();
+
+/* ---------- mock controls ---------- */
+const tgRv = document.getElementById("tg-rv");
+tgRv.addEventListener("click", () => {
+  const on = !document.body.classList.toggle("rv") ? false : true;
+  tgRv.setAttribute("aria-pressed", String(document.body.classList.contains("rv")));
+});
+const sheet = document.getElementById("sheet");
+document.getElementById("tg-ch").addEventListener("click", () => {
+  const n = s => ARTICLES.filter(a => a.status === s);
+  const list = s => n(s).map(a => `<li><b><a href="#/a/${a.slug}" data-close>${esc(a.title)}</a></b> — ${esc(a.review.changes[0])}</li>`).join("");
+  document.getElementById("sheet-pane").innerHTML = `
+    <button class="btn ghost x" data-close>Close</button>
+    <h2>What changed</h2>
+    <p>Every claim was checked against the code on 1 Nov 2026. Each article page lists its own changes and the files behind them.</p>
+    <div class="tally">
+      <span>${badge("new")} ${n("new").length} new</span><span>${badge("rewritten")} ${n("rewritten").length} rewritten</span>
+      <span>${badge("updated")} ${n("updated").length} updated</span><span>${badge("kept")} ${n("kept").length} kept</span>
+      <span>✕ ${REMOVED.length} removed</span><span>+1 category: Optional pages</span>
+    </div>
+    <h3>Rewritten — the old article was wrong</h3><ol>${list("rewritten")}</ol>
+    <h3>New — the blind spots</h3><ol>${list("new")}</ol>
+    <h3>Updated</h3><ol>${list("updated")}</ol>
+    <h3>Removed</h3><ol>${REMOVED.map(r=>`<li><b>${esc(r.title)}</b> (<code>/help/${r.slug}</code>) — ${esc(r.why)}</li>`).join("")}</ol>
+    <h3>Found in the app while verifying — not help-centre fixes</h3>
+    <p>These are why some articles carry a flag note. Fixing any of them means updating the article in the same PR.</p>
+    <ol>${APP_ISSUES.map(x=>`<li>${x}</li>`).join("")}</ol>`;
+  document.body.classList.add("rv"); tgRv.setAttribute("aria-pressed","true");
+  sheet.classList.add("open");
+});
+sheet.addEventListener("click", e => { if (e.target === sheet || e.target.closest("[data-close]")) sheet.classList.remove("open"); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") sheet.classList.remove("open"); });
+</script>
+</body>
+</html>
