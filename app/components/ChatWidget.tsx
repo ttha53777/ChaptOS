@@ -31,6 +31,7 @@ import { usePhoneSheet, useSheetDrag } from "./chat/usePhoneSheet";
 import { PhoneLanding } from "./chat/PhoneLanding";
 import { ApprovalsView } from "./chat/ApprovalsView";
 import { refreshDuesStandings } from "../hooks/useDuesStandings";
+import { dropOtherPeoplesChats } from "../lib/local-session";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
 import {
   newId,
@@ -47,8 +48,6 @@ import {
 import "./chat-spotlight.css";
 import "./chat-phone.css";
 
-const STORAGE_KEY = "chaptos_chat_v2";
-const LEGACY_STORAGE_KEY = "chaptos_chat_v1";
 const PULSE_SEEN_KEY = "chaptos_chat_seen_v1";
 const MAX_HISTORY = 50;
 // Only the most recent turns keep their ledger steps in storage — traces on
@@ -106,11 +105,10 @@ function messageText(m: ChatMessage): string {
   return "";
 }
 
-function loadHistory(): ChatMessage[] {
+function loadHistory(storageKey: string): ChatMessage[] {
   if (typeof window === "undefined") return [];
   try {
-    localStorage.removeItem(LEGACY_STORAGE_KEY); // pre-Spotlight shape — drop silently
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as ChatMessage[];
     if (!Array.isArray(parsed)) return [];
@@ -131,7 +129,7 @@ function loadHistory(): ChatMessage[] {
   } catch { return []; }
 }
 
-function saveHistory(msgs: ChatMessage[]) {
+function saveHistory(storageKey: string, msgs: ChatMessage[]) {
   if (typeof window === "undefined") return;
   try {
     // An empty thread never overwrites a stored one. ChatWidgetGate renders the
@@ -149,7 +147,7 @@ function saveHistory(msgs: ChatMessage[]) {
     const trimmed = msgs.slice(-MAX_HISTORY).map((m, i, all) =>
       all.length - i > STEPS_KEPT ? { ...m, steps: undefined } : m,
     );
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    localStorage.setItem(storageKey, JSON.stringify(trimmed));
   } catch { /* localStorage full — silently drop */ }
 }
 
@@ -165,7 +163,12 @@ function SparkleIcon({ className = "" }: { className?: string }) {
   );
 }
 
-export function ChatWidget() {
+/**
+ * `storageKey` is this person's thread in this org (chatHistoryKey). The gate
+ * also passes it as the React key, so switching org or account remounts the
+ * widget instead of carrying one thread's messages into another's key.
+ */
+export function ChatWidget({ brotherId, storageKey }: { brotherId: number; storageKey: string }) {
   const { currentUser, refreshChapterData } = useChapter();
   const router = useRouter();
   const [enabled, setEnabled] = useState<boolean | null>(null); // null = unknown
@@ -219,13 +222,16 @@ export function ChatWidget() {
 
   // Load persisted history once on mount. Show the first-run pulse only when the
   // member has never opened the spotlight before (no seen-flag, no history).
+  // Anyone else's thread left in this browser goes first: on a shared machine
+  // the next person to sign in must not inherit the last one's answers.
   useEffect(() => {
-    setMessages(loadHistory());
+    dropOtherPeoplesChats(brotherId);
+    setMessages(loadHistory(storageKey));
     loadedRef.current = true;
     try {
-      if (!localStorage.getItem(PULSE_SEEN_KEY) && !localStorage.getItem(STORAGE_KEY)) setPulse(true);
+      if (!localStorage.getItem(PULSE_SEEN_KEY) && !localStorage.getItem(storageKey)) setPulse(true);
     } catch { /* ignore */ }
-  }, []);
+  }, [brotherId, storageKey]);
 
   // Persist on every change — but never before the load above has run. Both
   // effects fire on mount, and this one used to win with `messages` still at its
@@ -235,8 +241,8 @@ export function ChatWidget() {
   // refresh, so the "approve it later" the pending state promises was a lie.
   useEffect(() => {
     if (!loadedRef.current) return;
-    saveHistory(messages);
-  }, [messages]);
+    saveHistory(storageKey, messages);
+  }, [storageKey, messages]);
 
   // Keep the thread on its newest turn while it's pinned there. Scrolls the
   // thread itself: scrollIntoView would also scroll its ancestors, which on a
@@ -815,7 +821,7 @@ export function ChatWidget() {
     // Starting a new thread is the one legitimate way to an empty one, so it
     // clears the key itself — saveHistory deliberately won't write [] over a
     // stored thread (see there for why an empty save is always a mount artifact).
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem(storageKey); } catch { /* ignore */ }
     setMessages([]);
     setInput("");
     setSelRow(-1);

@@ -9,6 +9,7 @@ import type { InviteDeadReason } from "@/lib/auth/invite-lookup";
 
 import type { JoinState } from "@/lib/auth/join-state";
 import { useJoinPolling, readJoinStatus, JoinPollError } from "@/app/hooks/useJoinPolling";
+import { clearSessionStorage } from "@/app/lib/local-session";
 
 interface Account { email: string | null; name: string | null; avatarUrl: string | null }
 
@@ -113,6 +114,7 @@ export function JoinClient({
     setBusy(true);
     try { await fetch("/api/auth/signout", { method: "POST" }); }
     catch { /* network failure — reload anyway; the page re-checks on mount */ }
+    clearSessionStorage();
     window.location.assign(`/join/${encodeURIComponent(token)}`);
   }, [token]);
 

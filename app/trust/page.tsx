@@ -743,7 +743,8 @@ export default function TrustPage() {
                     </li>
                     <li>
                       <strong>Your chat transcripts are not stored on our servers.</strong>{" "}
-                      History lives in your own browser and clearing it is enough.
+                      History lives in your own browser, kept separately for each account
+                      and org, and is erased when you sign out.
                     </li>
                     <li>We do not train any model on your data, and we have none to train.</li>
                   </ul>
@@ -1004,9 +1005,11 @@ export default function TrustPage() {
               <ul className="tp__list">
                 <li>
                   <strong>Your assistant conversation history</strong>{" "}— this is the only copy
-                  of the transcript; we keep none. The one exception is a question you
-                  explicitly rate helpful or not, which we keep in order to fix bad answers
-                  (see <a href="#data">section 3</a>).
+                  of the transcript; we keep none. It is kept per account and per org, so on a
+                  shared computer the next person to sign in never sees yours, and signing out
+                  erases it. The one exception is a question you explicitly rate helpful or
+                  not, which we keep in order to fix bad answers (see{" "}
+                  <a href="#data">section 3</a>).
                 </li>
                 <li>
                   <strong>An in-progress org setup draft</strong>, so the flow survives being

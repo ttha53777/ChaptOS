@@ -5,6 +5,7 @@ import { Modal } from "./dashboard/primitives";
 import { requestJson } from "../lib/api";
 import { DELETE_ACCOUNT_CONFIRMATION } from "@/lib/validation/account";
 import type { AccountDeletionPreview } from "@/lib/api-types";
+import { clearSessionStorage } from "@/app/lib/local-session";
 
 // Self-serve account deletion. Asks the server what deletion would touch first
 // (GET /api/auth/account), so a last admin learns why they can't before typing
@@ -42,6 +43,7 @@ export function DeleteAccountModal({ onClose, onError }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ confirm: typed.trim() }),
       });
+      clearSessionStorage();
       window.location.assign("/");
     } catch (e) {
       const message = e instanceof Error ? e.message : "";

@@ -21,6 +21,7 @@ import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useChapter } from "../context/ChapterContext";
 import { isDashboardRoute } from "../lib/routes";
+import { chatHistoryKey } from "../lib/local-session";
 
 // Lazy-loaded so its ~600-line bundle stays out of the shared first-paint chunk on
 // every route. The gate already renders it client-only (below), so ssr:false is a
@@ -32,5 +33,7 @@ export function ChatWidgetGate() {
   const { currentUser } = useChapter();
   if (!currentUser?.org) return null;
   if (!isDashboardRoute(pathname)) return null;
-  return <ChatWidget />;
+  // Keyed on person + org so a switch remounts with that pair's own thread.
+  const storageKey = chatHistoryKey(currentUser.id, currentUser.org.slug);
+  return <ChatWidget key={storageKey} brotherId={currentUser.id} storageKey={storageKey} />;
 }

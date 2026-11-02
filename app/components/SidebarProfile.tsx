@@ -11,6 +11,7 @@ import { useChapter } from "../context/ChapterContext";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { useAppTheme } from "../hooks/useAppTheme";
 import { leaveOrg } from "../lib/leave-org";
+import { clearSessionStorage } from "../lib/local-session";
 import { SvgIcon } from "./SvgIcon";
 
 const ICONS = {
@@ -94,11 +95,9 @@ export function SidebarProfile({ title, onNavigate }: { title: string; onNavigat
     try {
       await fetch("/api/auth/signout", { method: "POST" });
     } catch { /* network failure — still redirect */ }
-    // Clear the remembered org so the next /login visit starts at the org picker
-    // rather than offering one-click re-entry into the org they left.
-    try {
-      localStorage.removeItem("chaptos_last_org");
-    } catch { /* storage unavailable — nothing to clear */ }
+    // Clear the remembered org (so the next /login visit starts at the org
+    // picker) and every Ask Chapt thread and digest this browser holds.
+    clearSessionStorage();
     router.push("/login");
   }
 

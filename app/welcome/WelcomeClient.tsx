@@ -4,6 +4,7 @@ import Link from "next/link";
 import { APP_NAME } from "@/lib/domains";
 import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import { OwnJoinRequests } from "@/app/components/OwnJoinRequests";
+import { clearSessionStorage } from "@/app/lib/local-session";
 
 // This page is already authenticated; signing in again with the same account
 // cannot create membership. Show the verified email and the invitation path.
@@ -71,12 +72,8 @@ function SignOutLink() {
     } catch {
       // network failure — still navigate
     }
-    // Clear the remembered org so the next /login visit starts clean.
-    try {
-      localStorage.removeItem("chaptos_last_org");
-    } catch {
-      // storage unavailable — nothing to clear
-    }
+    // Clear the remembered org and any member data cached in this browser.
+    clearSessionStorage();
     window.location.assign("/login");
   }
   return (
