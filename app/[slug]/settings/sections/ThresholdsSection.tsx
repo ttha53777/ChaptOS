@@ -164,7 +164,7 @@ export function ThresholdsSection({
       const message = e instanceof Error ? e.message : "";
       onError(
         message.includes("403") || /forbidden/i.test(message)
-          ? "Only an org admin can change thresholds."
+          ? "You need the Org settings permission to change thresholds."
           : "Couldn't save your changes. Try again.",
       );
     } finally {

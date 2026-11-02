@@ -40,7 +40,10 @@ export function GeneralSection({
     setActivityFeed,
     setMutationError,
     refreshChapterData,
+    can,
   } = useChapter();
+  // Same gate as /api/orgs/logo; everyone else sees the icon without controls.
+  const canEditLogo = can("MANAGE_SETTINGS");
 
   // Quick actions are shortcuts INTO other pages, so they have to respect the
   // same workflow gating the sidebar uses — otherwise Settings offers to file an
@@ -191,7 +194,7 @@ export function GeneralSection({
                 htmlFor> that stood in for it isn't either — which left no
                 keyboard path at all to the most-used setting on the page. The
                 visible control is now a real button that forwards the click. */}
-            <div className="sc-btn-row">
+            {canEditLogo && <div className="sc-btn-row">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -220,7 +223,7 @@ export function GeneralSection({
                   Remove
                 </button>
               )}
-            </div>
+            </div>}
           </div>
           {logoError && <p className="sc-err mt-2" id="org-logo-error" role="alert">{logoError}</p>}
         </div>

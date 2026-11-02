@@ -15,6 +15,7 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
 import { normalizeWorkflows, type WorkflowId } from "@/lib/org-types";
 import { normalizeNavOrder, NAV_LABELS } from "@/lib/nav-order";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
@@ -30,7 +31,7 @@ import {
 } from "@/lib/custom-member-fields";
 
 export async function setInstagramHandle(ctx: RequestContext, instagramHandle: string | null) {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) throw new ForbiddenError("Only an org admin can change the Instagram handle");
+  if (!can(ctx, "MANAGE_SETTINGS")) throw new ForbiddenError("You need the Org settings permission to change the Instagram handle");
   await ctx.db.organizationConfig.upsert({ instagramHandle });
   await emit(ctx, "org.config.updated", { type: "Organization", id: ctx.orgId }, { instagramHandle });
 }
@@ -42,11 +43,11 @@ export interface OrgConfigDTO {
 /**
  * Replace the org's enabled-workflow set.
  *
- * Authorization: org admins only. The page picker is a founder/admin surface;
- * a regular member must never be able to hide pages for the whole org. We gate
- * on isOrgAdmin (platform admins also pass — they hold every capability within
- * the active org) rather than a permission bit because enabling/disabling whole
- * product surfaces is an org-owner action, not a delegated one.
+ * Authorization: MANAGE_SETTINGS (org and platform admins pass through can()).
+ * Every setter in this file uses that one gate, so the Settings page, which
+ * shows these sections to holders of the bit, and the server agree. A regular
+ * member can never hide pages for the whole org. Turning a workflow off only
+ * hides it; nothing is deleted, so an admin can always turn it back on.
  *
  * The desired set is normalized before persisting:
  *   - de-duplicated (a doubled id from the client is harmless but we store clean
@@ -60,8 +61,8 @@ export async function setWorkflows(
   ctx: RequestContext,
   input: { enabledWorkflows: string[] },
 ): Promise<OrgConfigDTO> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change enabled workflows");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change enabled workflows");
   }
 
   // normalizeWorkflows de-dupes, force-unions ALWAYS_ON_WORKFLOWS, and orders by
@@ -115,11 +116,9 @@ export async function completeOnboarding(ctx: RequestContext): Promise<{ complet
 }
 
 /**
- * Replace the org's sidebar nav order. Authorization: org admins only.
+ * Replace the org's sidebar nav order. Authorization: MANAGE_SETTINGS.
  *
- * Same posture and gate as setWorkflows/setDisabledFeatures: arranging the
- * sidebar is an org-wide layout choice every member sees, so it's an org-owner
- * action, not a delegated permission bit. The incoming list is normalized
+ * Same gate as setWorkflows/setDisabledFeatures. The incoming list is normalized
  * (trimmed, de-duped, unknown labels dropped, order preserved) so a stale or
  * hand-crafted client can't write junk into the column. The list is SPARSE —
  * labels it omits keep their default sidebar position (see lib/nav-order.ts), so
@@ -129,8 +128,8 @@ export async function setNavOrder(
   ctx: RequestContext,
   input: { navOrder: string[] },
 ): Promise<{ navOrder: string[] }> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can reorder the sidebar");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to reorder the sidebar");
   }
 
   const navOrder = normalizeNavOrder(input.navOrder, NAV_LABELS);
@@ -151,8 +150,8 @@ export async function setVocab(
   ctx: RequestContext,
   overrides: Record<string, string>,
 ): Promise<void> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change vocabulary");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change vocabulary");
   }
 
   // Strip unknown keys so arbitrary client input can't pollute the JSON column.
@@ -166,11 +165,8 @@ export async function setVocab(
 }
 
 /**
- * Replace the org's member-status thresholds. Authorization: org admins only.
- *
- * The thresholds decide every At-Risk/Watch badge and the health score for the
- * whole org, so changing them is an org-owner action — same gate as workflows
- * and vocab, not a delegated permission bit.
+ * Replace the org's member-status thresholds. Authorization: MANAGE_SETTINGS,
+ * same gate as workflows and vocab.
  *
  * The Zod schema (thresholdsInput) already enforces the per-key bounds; we run
  * the values back through resolveThresholds() before persisting so the stored
@@ -181,8 +177,8 @@ export async function setThresholds(
   ctx: RequestContext,
   input: Thresholds,
 ): Promise<Thresholds> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change thresholds");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change thresholds");
   }
 
   const thresholds = resolveThresholds(input);
@@ -201,11 +197,11 @@ export async function setThresholds(
 }
 
 /**
- * Replace the org's disabled-feature set. Authorization: org admins only.
+ * Replace the org's disabled-feature set. Authorization: MANAGE_SETTINGS.
  *
  * Features are the toggleable sub-sections of a workflow's page (e.g. the
- * Dashboard's Health widget). Hiding one is a visibility change — same gate and
- * posture as setWorkflows: an org-owner action, not a delegated permission bit.
+ * Dashboard's Health widget). Hiding one is a visibility change, same gate as
+ * setWorkflows.
  *
  * The map is OPT-OUT — it records only the features turned *off*. It is
  * normalized before persisting (unknown workflow/feature ids and empty lists
@@ -216,8 +212,8 @@ export async function setDisabledFeatures(
   ctx: RequestContext,
   input: { disabledFeatures: DisabledFeatures },
 ): Promise<DisabledFeatures> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change which sections are shown");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change which sections are shown");
   }
 
   const disabledFeatures = normalizeDisabledFeatures(input.disabledFeatures);
@@ -234,7 +230,7 @@ export async function setDisabledFeatures(
 }
 
 /**
- * Replace the org's custom member field definitions. Authorization: org admins only.
+ * Replace the org's custom member field definitions. Authorization: MANAGE_SETTINGS.
  *
  * The incoming list is sanitized (unknown types defaulted to "text", labels
  * truncated, list capped at MAX_FIELDS) before persisting. New definitions
@@ -246,8 +242,8 @@ export async function setCustomMemberFields(
   ctx: RequestContext,
   input: CustomMemberFieldDef[],
 ): Promise<CustomMemberFieldDef[]> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change custom member fields");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change custom member fields");
   }
 
   // Collect ids that are already valid so we can avoid collisions when
@@ -279,10 +275,10 @@ export async function setCustomMemberFields(
 
 /**
  * Replace the org's dashboard arrangement, or clear it (null) back to the
- * default. Authorization: org admins only.
+ * default. Authorization: MANAGE_SETTINGS.
  *
- * Same posture as setNavOrder: there is one dashboard per org and every member
- * sees it, so arranging it is an org-owner action. The payload is normalized
+ * Same gate as setNavOrder: there is one dashboard per org and every member
+ * sees it. The payload is normalized
  * (unknown ids dropped, missing cards re-appended to their default column), so a
  * client from another release can't store a layout that loses a card.
  */
@@ -290,8 +286,8 @@ export async function setDashboardLayout(
   ctx: RequestContext,
   input: { dashboardLayout: unknown },
 ): Promise<{ dashboardLayout: DashboardLayout | null }> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can arrange the dashboard");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to arrange the dashboard");
   }
   const dashboardLayout = input.dashboardLayout === null ? null : normalizeDashboardLayout(input.dashboardLayout);
 

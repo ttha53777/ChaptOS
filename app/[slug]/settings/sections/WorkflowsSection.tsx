@@ -296,7 +296,7 @@ export function WorkflowsSection({
       const message = e instanceof Error ? e.message : "";
       onError(
         message.includes("403") || /forbidden/i.test(message)
-          ? "Only an org admin can change which pages are enabled."
+          ? "You need the Org settings permission to change which pages are enabled."
           : "Couldn't save your changes. Try again.",
       );
     } finally {

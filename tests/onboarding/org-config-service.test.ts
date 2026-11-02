@@ -13,7 +13,11 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother } from "../setup/factories";
 import { db } from "@/lib/db";
-import { setWorkflows, setThresholds, setDisabledFeatures, setNavOrder, setDashboardLayout, completeOnboarding } from "@/lib/services/org-config-service";
+import { setWorkflows, setThresholds, setDisabledFeatures, setNavOrder, setDashboardLayout, setVocab, setCustomMemberFields, setInstagramHandle, completeOnboarding } from "@/lib/services/org-config-service";
+import { createMetricDefinition } from "@/lib/services/metric-definition-service";
+import { createEventType } from "@/lib/services/calendar-event-type-service";
+import { PERMISSIONS } from "@/lib/permissions";
+import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import { ForbiddenError } from "@/lib/errors";
 import { ALWAYS_ON_WORKFLOWS } from "@/lib/org-types";
 import { DEFAULT_THRESHOLDS, type Thresholds } from "@/lib/thresholds";
@@ -40,7 +44,7 @@ afterAll(async () => {
  * isPlatformAdmin / db / orgId, and emit() reads requestId / actorId. Everything
  * else is filler the service never touches.
  */
-function ctxFor(orgId: number, actorId: number, opts: { isOrgAdmin?: boolean; isPlatformAdmin?: boolean } = {}): RequestContext {
+function ctxFor(orgId: number, actorId: number, opts: { isOrgAdmin?: boolean; isPlatformAdmin?: boolean; permissions?: number } = {}): RequestContext {
   return {
     requestId:       randomUUID(),
     orgId,
@@ -49,7 +53,7 @@ function ctxFor(orgId: number, actorId: number, opts: { isOrgAdmin?: boolean; is
     actorEmail:      null,
     authUserId:      "auth-test",
     membershipId:    null,
-    permissions:     0,
+    permissions:     opts.permissions ?? 0,
     maxRank:         0,
     isOrgAdmin:      opts.isOrgAdmin ?? false,
     isPlatformAdmin: opts.isPlatformAdmin ?? false,
@@ -481,5 +485,57 @@ describe("setDashboardLayout", () => {
 
     const bRow = await testPrisma.organizationConfig.findUnique({ where: { organizationId: orgB.id } });
     expect(bRow?.dashboardLayout).toBeNull();
+  });
+});
+
+// The Settings page shows every setup section to holders of MANAGE_SETTINGS, so
+// the services must let them save — an officer with the bit and no admin flag.
+describe("MANAGE_SETTINGS delegation", () => {
+  async function officerCtx() {
+    const { org } = await seedAdminOrg();
+    const officer = await createBrother({ orgId: org.id, isOrgAdmin: false });
+    return { org, ctx: ctxFor(org.id, officer.id, { permissions: PERMISSIONS.MANAGE_SETTINGS }) };
+  }
+
+  it("lets a non-admin officer with the bit save every org-config setter", async () => {
+    const { org, ctx } = await officerCtx();
+
+    await setWorkflows(ctx, { enabledWorkflows: ["finance"] });
+    await setVocab(ctx, { member: "Sibling" });
+    await setThresholds(ctx, SAMPLE_THRESHOLDS);
+    await setDisabledFeatures(ctx, { disabledFeatures: { operations: ["health"] } });
+    await setCustomMemberFields(ctx, [{ id: "", label: "Major", type: "text" } as CustomMemberFieldDef]);
+    await setNavOrder(ctx, { navOrder: ["Docs"] });
+    await setDashboardLayout(ctx, { dashboardLayout: null });
+    await setInstagramHandle(ctx, "chapter");
+
+    const row = await testPrisma.organizationConfig.findUnique({ where: { organizationId: org.id } });
+    expect(row?.enabledWorkflows).toContain("finance");
+    expect(row?.navOrder).toEqual(["Docs"]);
+    expect(row?.instagramHandle).toBe("chapter");
+  });
+
+  it("lets the officer create custom metrics and event types", async () => {
+    const { ctx } = await officerCtx();
+
+    await expect(createMetricDefinition(ctx, {
+      name: "Reps", slug: "reps", goal: 10, atRiskBelow: 5, aggregation: "avg",
+    })).resolves.toMatchObject({ slug: "reps" });
+    await expect(createEventType(ctx, {
+      slug: "retreat", label: "Retreat", color: "#3f6ea3",
+    })).resolves.toMatchObject({ slug: "retreat" });
+  });
+
+  it("still keeps finishing onboarding admin-only", async () => {
+    const { ctx } = await officerCtx();
+    await expect(completeOnboarding(ctx)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it("rejects a member holding a different bit", async () => {
+    const { org } = await seedAdminOrg();
+    const member = await createBrother({ orgId: org.id, isOrgAdmin: false });
+    const ctx = ctxFor(org.id, member.id, { permissions: PERMISSIONS.MANAGE_EVENTS });
+    await expect(setWorkflows(ctx, { enabledWorkflows: ["finance"] })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(createEventType(ctx, { slug: "retreat", label: "Retreat", color: "#3f6ea3" })).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

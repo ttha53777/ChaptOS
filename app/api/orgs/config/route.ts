@@ -16,7 +16,9 @@ import { logError } from "@/lib/observability";
 // x-org-slug header so there is no slug in the path to drift out of sync with
 // ctx.orgId.
 export async function PATCH(req: NextRequest) {
-  const { ctx, error } = await buildContext({ requireOrgAdmin: true });
+  // MANAGE_SETTINGS covers every field here (org admins pass too). The one
+  // admin-only step, completeOnboarding, re-checks in its service.
+  const { ctx, error } = await buildContext({ requirePerm: "MANAGE_SETTINGS" });
   if (error) return error;
   try {
     const body = await req.json().catch(() => ({}));

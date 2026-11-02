@@ -41,7 +41,7 @@ const PERMISSION_COPY: Record<Permission, { label: string; desc: string }> = {
   MANAGE_BROTHERS:      { label: "Roster",        desc: "Edit member details and dues, approve join requests, remove people." },
   MANAGE_ATTENDANCE:    { label: "Attendance",    desc: "Record attendance and approve excuses." },
   MANAGE_ROLES:         { label: "Roles",         desc: "Create roles and hand out any role ranked below their own." },
-  MANAGE_SETTINGS:      { label: "Org settings",  desc: "Change org settings and manage invite links." },
+  MANAGE_SETTINGS:      { label: "Org settings",  desc: "Change the org's setup (pages, vocabulary, thresholds, fields, metrics, event types, icon, layout) and manage invite links." },
   MANAGE_TREASURY:      { label: "Treasury",      desc: "Record transactions, set budgets, export the books." },
   MANAGE_FUNDRAISING:   { label: "Fundraisers",   desc: "Plan fundraisers, keep their shopping lists, and wrap them up." },
   MANAGE_EVENTS:        { label: "Events",        desc: "Create and edit calendar events." },

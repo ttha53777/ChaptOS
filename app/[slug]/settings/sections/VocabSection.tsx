@@ -94,7 +94,7 @@ export function VocabSection({
       const message = e instanceof Error ? e.message : "";
       onError(
         message.includes("403") || /forbidden/i.test(message)
-          ? "Only an org admin can change vocabulary."
+          ? "You need the Org settings permission to change vocabulary."
           : "Couldn't save your changes. Try again.",
       );
     } finally {

@@ -50,7 +50,7 @@ describe("Instagram persistence", () => {
     await setInstagramHandle(ctx, "planner.chapter");
     expect((await ctx.db.organizationConfig.find())?.instagramHandle).toBe("planner.chapter");
     expect((await outsider.db.organizationConfig.find())?.instagramHandle ?? null).toBeNull();
-    await expect(setInstagramHandle(context(ctx.orgId, ctx.actorId, false), "bad")).rejects.toThrow("Only an org admin");
+    await expect(setInstagramHandle(context(ctx.orgId, ctx.actorId, false), "bad")).rejects.toThrow("Org settings permission");
     await setInstagramHandle(ctx, null);
     expect((await ctx.db.organizationConfig.find())?.instagramHandle).toBeNull();
   });

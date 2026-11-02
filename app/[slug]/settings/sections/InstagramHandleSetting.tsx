@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChapter } from "../../../context/ChapterContext";
-import { useIsOrgAdmin } from "../../../hooks/useIsOrgAdmin";
 import { requestJson } from "../../../lib/api";
 import { useDirtyGuard } from "../SettingsDirtyContext";
 
 export function InstagramHandleSetting({ onStatus, onError }: { onStatus: (message: string) => void; onError: (message: string) => void }) {
-  const { currentUser, refreshChapterData } = useChapter();
-  const admin = useIsOrgAdmin();
+  const { currentUser, refreshChapterData, can } = useChapter();
+  const admin = can("MANAGE_SETTINGS");
   const saved = currentUser?.org?.instagramHandle ?? "";
   const [draft, setDraft] = useState(saved);
   const [busy, setBusy] = useState(false);

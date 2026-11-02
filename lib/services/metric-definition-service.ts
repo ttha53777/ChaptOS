@@ -1,14 +1,16 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
 import type { CreateMetricDefinitionInput, UpdateMetricDefinitionInput } from "@/lib/validation/metrics";
 import type { CustomMetricDefinition } from "@/lib/metrics";
 
 const MAX_METRICS_PER_ORG = 20;
 
-function requireAdmin(ctx: RequestContext) {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can manage custom metrics");
+// Same gate as the route (requirePerm MANAGE_SETTINGS); admins pass through can().
+function requireSettings(ctx: RequestContext) {
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to manage custom metrics");
   }
 }
 
@@ -60,7 +62,7 @@ export async function createMetricDefinition(
   ctx: RequestContext,
   input: CreateMetricDefinitionInput,
 ): Promise<CustomMetricDefinition> {
-  requireAdmin(ctx);
+  requireSettings(ctx);
 
   // Max 20 active definitions per org
   const activeCount = await ctx.db.orgMetricDefinition.count({ where: { deletedAt: null } });
@@ -96,7 +98,7 @@ export async function updateMetricDefinition(
   id: number,
   input: UpdateMetricDefinitionInput,
 ): Promise<CustomMetricDefinition> {
-  requireAdmin(ctx);
+  requireSettings(ctx);
 
   const existing = await ctx.db.orgMetricDefinition.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new NotFoundError("Metric definition not found");
@@ -137,7 +139,7 @@ export async function softDeleteMetricDefinition(
   ctx: RequestContext,
   id: number,
 ): Promise<void> {
-  requireAdmin(ctx);
+  requireSettings(ctx);
 
   const existing = await ctx.db.orgMetricDefinition.findFirst({ where: { id, deletedAt: null } });
   if (!existing) throw new NotFoundError("Metric definition not found");

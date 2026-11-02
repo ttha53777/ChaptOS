@@ -267,11 +267,10 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
   // each heading. Empty/absent → default order.
   const navOrder = currentUser?.org?.navOrder ?? [];
 
-  // Reordering is an org-wide layout change — gated on org admin (platform admin
-  // OR Membership.isOrgAdmin for the active org), the same posture the
-  // org-config service enforces server-side.
+  // Reordering is an org-wide layout change — gated on MANAGE_SETTINGS (admins
+  // pass too), the same gate setNavOrder enforces server-side.
   const activeMembership = currentUser?.memberships.find(m => m.organizationId === currentUser.orgId);
-  const isOrgAdmin = !!currentUser && (currentUser.isAdmin || (activeMembership?.isOrgAdmin ?? false));
+  const canReorder = !!currentUser && can("MANAGE_SETTINGS");
   const myTitle = activeMembership?.title ?? currentUser?.role ?? "";
 
   // ── Drag-to-reorder (org admin only) ──────────────────────────────────────
@@ -375,7 +374,7 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
       </button>
     );
 
-    if (!isOrgAdmin) return <div key={label}>{inner}</div>;
+    if (!canReorder) return <div key={label}>{inner}</div>;
 
     // Admins get a drag-reorderable wrapper: the whole row is the handle, with a
     // drop-line above the hovered target during a drag.

@@ -922,15 +922,15 @@ export default function Home() {
   const activeSemester = useActiveSemester();
   const handleSemesterError = useSemesterErrorHandler();
 
-  // Whether the viewer is an admin of the *active* org. This — not a permission
-  // bit — is what gates Customize, because the server (setDashboardLayout)
-  // authorizes on isOrgAdmin/isPlatformAdmin, not on MANAGE_SETTINGS. Resolved the same way /api/auth/me does. Platform admins
-  // pass because /me marks their active membership isOrgAdmin.
+  // Whether the viewer is an admin of the *active* org. Resolved the same way
+  // /api/auth/me does; platform admins pass because /me marks their active
+  // membership isOrgAdmin. Customize itself is gated on canSettings, matching
+  // setDashboardLayout's MANAGE_SETTINGS check.
   const isActiveOrgAdmin =
     currentUser?.memberships?.find(m => m.organizationId === currentUser.orgId)?.isOrgAdmin ?? false;
 
   // The org's dashboard arrangement — one per org, shared by every member — and
-  // Customize mode's live draft of it. Only org admins can arrange it; the server
+  // Customize mode's live draft of it. Only MANAGE_SETTINGS holders can arrange it; the server
   // re-checks on PATCH /api/orgs/config. Whether a widget exists at all is still
   // the org's workflows + Settings switches (feature()); the layout only orders
   // and hides what those leave.
@@ -2572,7 +2572,7 @@ export default function Home() {
                   quickActionsAdmin={isAdmin || canTreasury || canAttendance}
                   quickActionsCanManageTasks={canTasks}
                   enabledWorkflows={currentUser?.org?.enabledWorkflows}
-                  onCustomize={isActiveOrgAdmin ? () => (dash.editing ? void finishCustomizing() : dash.start()) : undefined}
+                  onCustomize={canSettings ? () => (dash.editing ? void finishCustomizing() : dash.start()) : undefined}
                   customizing={dash.editing}
                 />
               }

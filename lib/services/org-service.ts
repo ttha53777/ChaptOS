@@ -40,7 +40,7 @@ import { normalizeDisabledFeatures, type DisabledFeatures } from "@/lib/workflow
 import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
 import { BUILTIN_METRIC_IDS } from "@/lib/onboarding/kinds";
 import { sanitizeVocabOverrides } from "@/lib/vocab";
-import { PERMISSIONS, ALL_PERMISSIONS, type Permission } from "@/lib/permissions";
+import { PERMISSIONS, ALL_PERMISSIONS, can, type Permission } from "@/lib/permissions";
 import { stripe, stripeEnabled } from "@/lib/stripe";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
 import { removeOrgReceipts } from "@/lib/supabase/receipts";
@@ -667,12 +667,9 @@ function permissionBits(names: readonly Permission[]): number {
 /**
  * Set (or replace) the active org's profile picture.
  *
- * Authorization: org admins only (platform admins pass too). Setting the org's
- * public identity is an org-owner action, same posture as setWorkflows() — we
- * gate on isOrgAdmin rather than a delegated permission bit. The route ALSO
- * requires MANAGE_SETTINGS as a coarse first gate; this re-check is the
- * authoritative one so the service can't be driven by a permission-bit-only
- * caller.
+ * Authorization: MANAGE_SETTINGS (org and platform admins pass through can()).
+ * The org's icon is part of its setup, same gate as setWorkflows() and the rest
+ * of org-config-service. The route checks the same bit at its boundary.
  *
  * Storage: the image is uploaded to the org-logos bucket under the actor's own
  * auth.uid() folder (so the existing per-user RLS authorizes it); the resulting
@@ -685,8 +682,8 @@ function permissionBits(names: readonly Permission[]): number {
  * is server-resolved, never client-supplied, so this can't touch another tenant.
  */
 export async function setOrgLogo(ctx: RequestContext, file: File): Promise<{ logoUrl: string }> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change the organization logo");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change the organization logo");
   }
 
   const existing = await ctx.db.organization.findUnique({
@@ -717,11 +714,11 @@ export async function setOrgLogo(ctx: RequestContext, file: File): Promise<{ log
 
 /**
  * Remove the active org's profile picture: best-effort delete the storage
- * object, then null the column. Org-admin only, same posture as setOrgLogo.
+ * object, then null the column. Same MANAGE_SETTINGS gate as setOrgLogo.
  */
 export async function clearOrgLogo(ctx: RequestContext): Promise<void> {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can change the organization logo");
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to change the organization logo");
   }
 
   const existing = await ctx.db.organization.findUnique({

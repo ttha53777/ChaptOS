@@ -1,6 +1,7 @@
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
 import { parseEventDetails, type EventDetail } from "@/lib/event-details";
 import type { CreateEventTypeInput, UpdateEventTypeInput } from "@/lib/validation/event-types";
 
@@ -25,9 +26,10 @@ export interface CalendarEventTypeDTO {
   updatedAt: string;
 }
 
-function requireAdmin(ctx: RequestContext) {
-  if (!ctx.isOrgAdmin && !ctx.isPlatformAdmin) {
-    throw new ForbiddenError("Only an org admin can manage event types");
+// Same gate as the route (requirePerm MANAGE_SETTINGS); admins pass through can().
+function requireSettings(ctx: RequestContext) {
+  if (!can(ctx, "MANAGE_SETTINGS")) {
+    throw new ForbiddenError("You need the Org settings permission to manage event types");
   }
 }
 
@@ -73,7 +75,7 @@ export async function createEventType(
   ctx: RequestContext,
   input: CreateEventTypeInput,
 ): Promise<CalendarEventTypeDTO> {
-  requireAdmin(ctx);
+  requireSettings(ctx);
 
   const total = await ctx.db.calendarEventType.count();
   if (total >= MAX_EVENT_TYPES_PER_ORG) {
@@ -110,7 +112,7 @@ export async function updateEventType(
   id: number,
   input: UpdateEventTypeInput,
 ): Promise<CalendarEventTypeDTO> {
-  requireAdmin(ctx);
+  requireSettings(ctx);
 
   const existing = await ctx.db.calendarEventType.findFirst({ where: { id } });
   if (!existing) throw new NotFoundError("Event type not found");
@@ -156,7 +158,7 @@ export async function updateEventType(
 }
 
 export async function deleteEventType(ctx: RequestContext, id: number): Promise<void> {
-  requireAdmin(ctx);
+  requireSettings(ctx);
 
   const existing = await ctx.db.calendarEventType.findFirst({ where: { id } });
   if (!existing) throw new NotFoundError("Event type not found");
