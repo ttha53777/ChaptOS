@@ -4,14 +4,19 @@
    The in-app Paper language (app/paper-aesthetic.css, _design/Dashboard Paper
    Mock.html) on a public page: cream paper, brown ink, pastel triplets, 1.5px
    warm hairlines, hard pastel offset shadows, highlighter, washi tape, sticky
-   notes. Built from _design/Help Centre Paper Mock.html.
+   notes. Built from _design/Help Centre Paper Mock.html, then re-framed from
+   _design/Help Centre Top Bar Mock.html: no app sidebar — the site's own top
+   bar (<PublicNav>) and footer, with help's navigation in the page (the
+   field-guide hero, a help card beside each article, a sheet on phones).
 
    EVERYTHING is scoped under .hc. Next keeps a route's stylesheet loaded after
    client navigation away from it, so a bare .btn / .card / .pill here would
    restyle app pages. Night paper hangs off .hc[data-hc-theme="dark"], NOT
    html[data-theme] — the root layout owns that attribute for the app's own
    theme, and a signed-in dusk user shouldn't get a dark help centre they never
-   chose. The help centre's sun/moon toggle sets it (HelpShell.tsx).
+   chose. The help centre's sun/moon toggles set it (ThemeSeg.tsx). The site
+   bar (site-nav.css) carries its own light tokens on .sn, so night paper
+   re-points them below.
 
    Fonts come from landingFontClass on the .hc root (--font-bricolage etc.);
    icons from the Paper sprite the root layout mounts.
@@ -63,7 +68,7 @@
 
 /* ---------- base ---------- */
 .hc *,.hc *::before,.hc *::after{box-sizing:border-box}
-.hc{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:hidden; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+.hc{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:clip; position:relative; min-height:100vh; display:flex; flex-direction:column; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
 .hc h1,.hc h2,.hc h3,.hc h4,.hc h5,.hc p,.hc ul,.hc ol,.hc figure{margin:0}
 .hc ul,.hc ol{padding:0; list-style:none}
 .hc button,.hc input,.hc select{font:inherit; color:inherit}
@@ -91,55 +96,14 @@
 .hc .hc-btn .hc-ic{width:15px; height:15px}
 .hc .hc-btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
 
-/* ---------- app frame + sidebar (the app's own) ---------- */
-.hc .hc-app{display:flex; min-height:100vh}
-.hc .hc-main{flex:1; min-width:0}
-.hc .hc-sb{position:sticky; top:0; height:100vh; width:262px; flex:none; z-index:30; display:flex; flex-direction:column; background:color-mix(in srgb, var(--paper-2) 88%, transparent); border-right:1.5px solid var(--line)}
-.hc .hc-sb-org{display:flex; align-items:center; gap:11px; height:66px; flex:none; padding:0 14px; border-bottom:1.5px solid var(--line); text-decoration:none}
-.hc .hc-orglogo{width:36px; height:36px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--butter); border:2px solid var(--note-ink); color:var(--note-ink); font-family:var(--display); font-weight:700; font-size:1rem; transform:rotate(-3deg); box-shadow:2px 2px 0 var(--peach); filter:var(--note-filter)}
-.hc .hc-sb-org b{display:block; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.022em; line-height:1.15}
-.hc .hc-sb-org small{display:block; font-family:var(--mono); font-size:.64rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3); margin-top:2px}
-.hc .hc-sb-scroll{flex:1; overflow-y:auto; padding:12px 10px 16px; scrollbar-width:thin}
-.hc .hc-sb-search{display:flex; align-items:center; gap:9px; width:100%; margin:0 0 14px; padding:9px 11px; border-radius:12px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-3); font-size:.86rem; text-align:left}
-.hc .hc-sb-search:hover{border-color:var(--ink-3); color:var(--ink)}
-.hc .hc-sb-search .hc-ic{width:16px; height:16px}
-.hc .hc-sb-search kbd{margin-left:auto}
-.hc .hc-grp + .hc-grp{margin-top:14px}
-.hc .hc-grp-h{display:flex; align-items:center; gap:8px; padding:0 10px 6px; font-size:.64rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
-.hc .hc-grp-h::before{content:''; width:12px; height:2px; border-radius:2px; background:var(--eb, var(--peach))}
-.hc .hc-item{display:flex; align-items:center; gap:11px; min-height:38px; padding:0 11px; margin:2px 0; border-radius:12px; border:1.5px solid transparent; text-decoration:none; color:var(--ink-2); font-size:.9rem; font-weight:500; transition:background .16s, color .16s, border-color .16s, box-shadow .2s var(--spring)}
-.hc .hc-item .hc-ic{color:var(--ink-3); transition:transform .3s var(--spring), color .16s}
-.hc .hc-item:hover{background:var(--card); color:var(--ink)}
-.hc .hc-item:hover .hc-ic{color:var(--ink); transform:rotate(-6deg) scale(1.06)}
-.hc .hc-item[aria-current="page"]{background:var(--card); color:var(--ink); font-weight:600; border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--butter)}
-.hc .hc-item[aria-current="page"] .hc-ic{color:var(--ink)}
-.hc .hc-item .hc-lbl{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.hc .hc-item .hc-n{font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
-.hc .hc-sub{margin:2px 0 8px 22px; padding-left:12px; border-left:1.5px dashed var(--line-2); display:grid; gap:1px}
-.hc .hc-sub a{display:block; padding:5px 9px; border-radius:9px; font-size:.82rem; color:var(--ink-3); text-decoration:none; line-height:1.35}
-.hc .hc-sub a:hover{background:var(--card); color:var(--ink)}
-.hc .hc-sub a[aria-current="page"]{color:var(--ink); font-weight:600; background:var(--card); box-shadow:inset 2px 0 0 var(--ink)}
-.hc .hc-sb-foot{display:flex; align-items:center; gap:8px; padding:10px 12px 12px; border-top:1.5px solid var(--line)}
+/* ---------- light / dark ---------- */
 .hc .hc-seg{display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:var(--card); border:1.5px solid var(--line)}
 .hc .hc-seg button{display:flex; align-items:center; gap:6px; border:0; background:none; padding:5px 10px; border-radius:999px; font-size:.76rem; font-weight:600; color:var(--ink-3)}
 .hc .hc-seg button .hc-ic{width:14px; height:14px}
 .hc .hc-seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
-.hc .hc-sb-human{margin-left:auto; font-size:.78rem; font-weight:600; color:var(--ink-2); text-decoration:none; display:flex; align-items:center; gap:6px}
-.hc .hc-sb-human .hc-ic{width:15px; height:15px}
-.hc .hc-mbar{display:none}
-.hc .hc-shade{display:none}
-@media (max-width:1023px){
-  .hc .hc-sb{position:fixed; left:0; top:0; bottom:0; height:auto; width:min(300px,86vw); transform:translateX(-102%); background:var(--paper-2); box-shadow:var(--sh-3); transition:transform .26s var(--spring)}
-  .hc .hc-sb.hc-open{transform:none}
-  .hc .hc-shade{display:block; position:fixed; inset:0; z-index:25; background:var(--scrim); opacity:0; pointer-events:none; transition:opacity .2s; border:0}
-  .hc .hc-shade.hc-open{opacity:1; pointer-events:auto}
-  .hc .hc-mbar{display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:20; padding:10px 14px; background:color-mix(in srgb, var(--paper) 86%, transparent); backdrop-filter:blur(12px); border-bottom:1.5px solid var(--line)}
-  .hc .hc-mbar b{font-family:var(--display); font-weight:600; flex:1}
-  .hc .hc-iconbtn{width:36px; height:36px; display:grid; place-items:center; border-radius:10px; border:1.5px solid var(--line); background:var(--card)}
-}
 
 /* ---------- page ---------- */
-.hc .hc-wrap{max-width:1120px; margin:0 auto; padding:clamp(26px,3.4vw,44px) clamp(16px,3vw,44px) 120px}
+.hc .hc-wrap{width:100%; max-width:1280px; margin:0 auto; padding:clamp(30px,3.6vw,48px) clamp(16px,3vw,32px) 110px}
 .hc .hc-kick{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
 .hc .hc-kick .hc-chip{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2)}
 .hc .hc-kick a{color:var(--ink-3); text-decoration:none}
@@ -202,7 +166,7 @@
 /* shelf */
 .hc .hc-shelf{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
 .hc .hc-card{background:var(--card); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1); min-width:0}
-.hc .hc-cat{display:flex; flex-direction:column; scroll-margin-top:90px}
+.hc .hc-cat{display:flex; flex-direction:column; scroll-margin-top:100px}
 .hc .hc-cat-h{display:flex; align-items:center; gap:11px; padding:16px 18px 6px}
 .hc .hc-cat-h h3{font-family:var(--display); font-weight:600; font-size:1.06rem; letter-spacing:-.022em}
 .hc .hc-cat-h .hc-n{margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
@@ -220,7 +184,7 @@
 .hc .hc-stuck p{margin-top:6px; color:var(--ink-2); font-size:.92rem; max-width:56ch}
 
 /* ---------- article ---------- */
-.hc .hc-art{display:grid; grid-template-columns:minmax(0,1fr) 230px; gap:clamp(28px,4vw,56px); align-items:start}
+.hc .hc-art{display:grid; grid-template-columns:236px minmax(0,1fr) 214px; gap:clamp(28px,4vw,56px); align-items:start}
 .hc .hc-art-main{min-width:0; max-width:760px}
 .hc .hc-art h1{font-family:var(--display); font-weight:600; letter-spacing:-.034em; line-height:1.05; font-size:clamp(1.9rem,3.4vw,2.7rem); margin-top:14px; font-variation-settings:"opsz" 96}
 .hc .hc-facts{margin-top:22px; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px}
@@ -319,7 +283,7 @@
 /* body blocks */
 .hc .hc-body{margin-top:26px}
 .hc .hc-body > *:first-child{margin-top:0}
-.hc .hc-body h2{font-family:var(--display); font-weight:600; font-size:1.22rem; letter-spacing:-.022em; margin-top:34px; scroll-margin-top:24px; display:flex; align-items:center; gap:10px}
+.hc .hc-body h2{font-family:var(--display); font-weight:600; font-size:1.22rem; letter-spacing:-.022em; margin-top:34px; scroll-margin-top:100px; display:flex; align-items:center; gap:10px}
 .hc .hc-body h2::before{content:''; width:14px; height:2.5px; border-radius:2px; background:var(--eb, var(--peach))}
 .hc .hc-body > p{margin-top:14px; color:var(--ink-2); line-height:1.68}
 .hc .hc-body b{color:var(--ink); font-weight:600}
@@ -356,7 +320,7 @@
 .hc .hc-where{margin-top:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border-radius:12px; border:1.5px dashed var(--line-2)}
 
 /* rail */
-.hc .hc-rail{position:sticky; top:24px; display:grid; gap:18px}
+.hc .hc-rail{position:sticky; top:96px; display:grid; gap:18px}
 .hc .hc-rail h5{font-family:var(--mono); font-size:.64rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:8px}
 .hc .hc-toc{display:grid; gap:1px; border-left:1.5px solid var(--line); padding-left:2px}
 .hc .hc-toc a{display:block; padding:5px 10px; font-size:.82rem; color:var(--ink-3); text-decoration:none; border-left:2px solid transparent; margin-left:-3.5px}
@@ -374,7 +338,6 @@
 
 
 /* responsive */
-@media (max-width:1180px){ .hc .hc-art{grid-template-columns:minmax(0,1fr)} .hc .hc-rail{display:none} }
 @media (max-width:980px){ .hc .hc-shelf{grid-template-columns:1fr 1fr} .hc .hc-journey{grid-template-columns:1fr 1fr; row-gap:34px} .hc .hc-journey::before{display:none} .hc .hc-stop::before{top:-20px} }
 @media (max-width:720px){
   .hc .hc-doors{grid-template-columns:1fr; gap:24px}
@@ -396,6 +359,255 @@
 .hc .hc-lede strong{color:var(--ink); font-weight:600}
 /* The root body is a flex column; the help centre fills it. */
 .hc{flex:1; width:100%; min-height:100vh}
-.hc .hc-sb-brand{width:36px; height:36px; flex:none; transform:rotate(-4deg)}
 .hc .hc-sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
-.hc .hc-sb-org > span{min-width:0}
+
+/* ═══════════ top bar frame (_design/Help Centre Top Bar Mock.html) ═══════════ */
+
+/* the landing's paper washes under the in-app Paper content */
+.hc::before{content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+  background:
+    radial-gradient(60vw 50vh at 8% 2%,  var(--butter-soft), transparent 62%),
+    radial-gradient(52vw 48vh at 96% 22%, var(--sky-soft),   transparent 60%),
+    radial-gradient(48vw 46vh at 4% 62%,  var(--lilac-soft), transparent 62%),
+    radial-gradient(56vw 50vh at 92% 88%, var(--peach-soft), transparent 62%)}
+/* only main + footer: .sn is position:fixed and must keep it */
+.hc > main, .hc > footer{position:relative; z-index:1}
+.hc > main{flex:1}
+
+/* ---------- one top bar only: the help centre's own navigation lives in the page ----------
+   Index: the hero search + the topic shelf. Articles: a sticky "help card" rail on the
+   left (home, search, this topic, other topics, light/dark + a human). Phones: a chip
+   + search button at the head of each article, both opening the same help sheet. */
+.hc .hc-idx-top{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.hc .hc-idx-top .hc-seg{margin-left:auto}
+
+/* the help card (article left rail) */
+.hc .hc-lrail{position:sticky; top:96px; max-height:calc(100vh - 112px); display:flex; flex-direction:column;
+  background:color-mix(in srgb, var(--card) 70%, transparent); border:1.5px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--sh-1)}
+.hc .hc-lr-head{padding:12px 12px 10px; border-bottom:1.5px dashed var(--line-2); display:grid; grid-template-columns:minmax(0,1fr); gap:10px}
+.hc .hc-lr-home{display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); border-radius:12px}
+.hc .hc-hb-mark{width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:9px; background:var(--lilac); color:var(--note-ink); border:2px solid var(--note-ink); box-shadow:2px 2px 0 var(--butter);
+  font-family:var(--display); font-weight:700; font-size:1.02rem; line-height:1; transform:rotate(-4deg); filter:var(--note-filter); transition:transform .4s var(--spring)}
+.hc .hc-lr-home:hover .hc-hb-mark{transform:rotate(6deg) scale(1.06)}
+.hc .hc-lr-home b{display:block; font-family:var(--display); font-weight:600; font-size:.98rem; letter-spacing:-.022em; line-height:1.15}
+.hc .hc-lr-home small{display:block; font-family:var(--mono); font-size:.6rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin-top:1px}
+.hc .hc-lr-search{position:relative}
+.hc .hc-sbox{display:flex; align-items:center; gap:8px; height:36px; padding:0 8px 0 10px; border-radius:11px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-3); transition:border-color .16s, box-shadow .2s var(--spring)}
+.hc .hc-sbox:hover{border-color:var(--ink-3)}
+.hc .hc-sbox:focus-within{border-color:var(--ink); box-shadow:2px 2px 0 var(--lilac); color:var(--ink)}
+.hc .hc-sbox .hc-ic{width:15px; height:15px}
+.hc .hc-sbox input{flex:1; min-width:0; border:0; outline:0; background:transparent; font-size:.85rem; padding:0}
+.hc .hc-sbox input::placeholder{color:var(--ink-3)}
+.hc .hc-sbox input::-webkit-search-cancel-button{display:none}
+.hc .hc-lr-res{position:absolute; left:0; top:calc(100% + 8px); z-index:40; width:400px}
+.hc .hc-lr-res .hc-find-res{border-color:var(--ink); box-shadow:4px 4px 0 var(--lilac), var(--sh-3)}
+.hc .hc-lr-body{flex:1; min-height:0; overflow-y:auto; scrollbar-width:thin; padding:12px 10px 10px; display:grid; gap:18px; align-content:start}
+.hc .hc-lr-cat{display:flex; align-items:center; gap:10px; padding:0 2px}
+.hc .hc-lr-cat .hc-tile{width:30px; height:30px; border-radius:9px}
+.hc .hc-lr-cat b{display:block; font-family:var(--display); font-weight:600; font-size:.96rem; letter-spacing:-.02em; line-height:1.15}
+.hc .hc-lr-cat small{display:block; font-family:var(--mono); font-size:.6rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin-top:2px}
+.hc .hc-lr-list{display:grid; gap:2px; margin-top:8px; padding-left:10px; margin-left:14px; border-left:1.5px dashed var(--line-2)}
+.hc .hc-lr-list a{display:block; padding:6px 9px; border-radius:10px; font-size:.83rem; line-height:1.35; color:var(--ink-3); text-decoration:none; border:1.5px solid transparent; transition:background .15s, color .15s}
+.hc .hc-lr-list a:hover{background:var(--paper-2); color:var(--ink)}
+.hc .hc-lr-list a[aria-current="page"]{color:var(--ink); font-weight:600; background:var(--card); border-color:var(--ink); box-shadow:2px 2px 0 var(--p)}
+.hc .hc-lrail h5, .hc .hc-more h5{font-family:var(--mono); font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin:0 0 6px 4px}
+.hc .hc-lr-other{display:grid; gap:1px}
+.hc .hc-lr-other a{display:flex; align-items:center; gap:9px; padding:5px 8px; border-radius:9px; font-size:.82rem; color:var(--ink-2); text-decoration:none}
+.hc .hc-lr-other a .hc-ic{width:14px; height:14px; color:var(--p-fg)}
+.hc .hc-lr-other a .hc-n{margin-left:auto; font-family:var(--mono); font-size:.64rem; color:var(--ink-3)}
+.hc .hc-lr-other a:hover{background:var(--paper-2); color:var(--ink)}
+.hc .hc-lr-foot{display:flex; align-items:center; gap:8px; padding:9px 10px; border-top:1.5px solid var(--line)}
+.hc .hc-lr-foot .hc-seg button{padding:4px 8px}
+.hc .hc-human{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:600; color:var(--ink-2); text-decoration:none}
+.hc .hc-human:hover{color:var(--ink)}
+.hc .hc-human .hc-ic{width:15px; height:15px}
+
+/* phones: a head row on each article instead of the card */
+.hc .hc-mhead{display:none; align-items:center; gap:8px; margin-bottom:18px}
+.hc .hc-mchip{display:inline-flex; align-items:center; gap:8px; min-width:0; height:40px; padding:0 12px 0 6px; border-radius:13px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--lilac); font-weight:600; font-size:.88rem; color:var(--ink)}
+.hc .hc-mchip .hc-hb-mark{width:26px; height:26px; font-size:.9rem; border-width:1.5px; box-shadow:none}
+.hc .hc-mchip i{font-style:normal; color:var(--line-2)}
+.hc .hc-mchip .hc-ct{display:inline-flex; align-items:center; gap:5px; color:var(--p-fg); min-width:0}
+.hc .hc-mchip .hc-ct span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.hc .hc-mchip .hc-ct .hc-ic{width:14px; height:14px}
+.hc .hc-mchip .hc-chev{width:14px; height:14px; color:var(--ink-3)}
+.hc .hc-mfind{display:grid; place-items:center; width:40px; height:40px; margin-left:auto; flex:none; border-radius:13px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-2); padding:0}
+.hc .hc-mfind .hc-ic{width:17px; height:17px}
+
+/* the help sheet (phones): search + topics + light/dark + a human */
+.hc .hc-hs{position:fixed; inset:0; z-index:85; display:flex; align-items:flex-end; background:var(--scrim); opacity:0; visibility:hidden; transition:opacity .22s var(--ease-out), visibility 0s .4s}
+.hc .hc-hs.hc-on{opacity:1; visibility:visible; transition:opacity .22s var(--ease-out)}
+.hc .hc-hs-p{width:100%; max-height:88vh; display:flex; flex-direction:column; background:var(--paper); border:1.5px solid var(--ink); border-bottom:0; border-radius:22px 22px 0 0; box-shadow:0 -5px 0 var(--lilac), var(--sh-3);
+  transform:translateY(40px); transition:transform .45s var(--spring)}
+.hc .hc-hs.hc-on .hc-hs-p{transform:none}
+.hc .hc-hs-grab{width:42px; height:4px; border-radius:4px; background:var(--line-2); margin:9px auto 2px}
+.hc .hc-hs-top{display:flex; align-items:center; gap:8px; padding:8px 14px 12px}
+.hc .hc-hs-top .hc-sbox{flex:1; height:42px}
+.hc .hc-hs-top .hc-sbox input{font-size:16px}
+.hc .hc-hs-x{width:40px; height:40px; flex:none; display:grid; place-items:center; border-radius:12px; border:1.5px solid var(--line); background:var(--card); padding:0}
+.hc .hc-hs-x .hc-ic{width:16px; height:16px}
+.hc .hc-hs-b{flex:1; min-height:0; overflow-y:auto; padding:0 12px 10px}
+.hc .hc-hs-b .hc-find-res{box-shadow:none; margin-top:0}
+.hc .hc-hs-b h5{font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin:4px 4px 6px}
+.hc .hc-hs-cat{display:flex; align-items:center; gap:11px; padding:9px 10px; border-radius:14px; border:1.5px solid transparent; text-decoration:none; color:var(--ink)}
+.hc .hc-hs-cat b{font-family:var(--display); font-weight:600; font-size:.98rem; letter-spacing:-.02em}
+.hc .hc-hs-cat .hc-n{margin-left:auto; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.hc .hc-hs-cat[aria-current="page"]{background:var(--card); border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--p)}
+.hc .hc-hs-foot{display:flex; align-items:center; gap:10px; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); border-top:1.5px solid var(--line); background:var(--paper-2)}
+.hc .hc-hs-foot a{display:inline-flex; align-items:center; gap:6px; font-size:.84rem; font-weight:600; color:var(--ink-2); text-decoration:none}
+.hc .hc-hs-foot a .hc-ic{width:15px; height:15px}
+.hc .hc-hs-foot .hc-seg{margin-left:auto}
+
+/* ---------- landing footer (landing.css §12) ---------- */
+.hc .foot{margin-top:auto; border-top:1.5px solid var(--line); padding:clamp(48px,6vw,76px) 0 40px; background:var(--paper-2)}
+.hc .foot .wrap{width:min(100% - 44px, 1180px); margin-inline:auto}
+.hc .foot__grid{display:grid; grid-template-columns:1.5fr repeat(3, 1fr); gap:34px}
+.hc .foot .brand{display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); font-family:var(--display); font-weight:700; font-size:1.16rem; letter-spacing:-.03em}
+.hc .foot .brand svg{width:34px; height:34px; flex:none; filter:var(--note-filter)}
+.hc .foot__blurb{margin-top:16px; font-size:.92rem; color:var(--ink-2); max-width:34ch; line-height:1.6}
+.hc .foot h5{font-size:.78rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin:0 0 14px}
+.hc .foot ul{display:grid; gap:9px}
+.hc .foot a{color:var(--ink-2); text-decoration:none; font-size:.93rem}
+.hc .foot a:hover{color:var(--ink); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.hc .foot a[aria-current="page"]{color:var(--ink); font-weight:600}
+.hc .foot__base{margin-top:44px; padding-top:22px; border-top:1.5px solid var(--line); display:flex; flex-wrap:wrap; gap:12px; align-items:center; font-size:.83rem; color:var(--ink-3)}
+.hc .foot__base .sp{margin-left:auto}
+@media (max-width:860px){ .hc .foot__grid{grid-template-columns:1fr 1fr} .hc .foot__brand{grid-column:1 / -1} }
+
+.hc .hc-more{display:none; margin-top:28px}
+.hc .hc-more .hc-lr-list{margin:0; padding:0; border:0}
+.hc .hc-more .hc-lr-list a{padding:10px 12px; border-color:var(--line); background:var(--card); color:var(--ink-2)}
+
+/* ═══════════ polish pass: the help centre as a field guide on a desk ═══════════ */
+
+/* hero: copy + search on the left, the field guide itself on the right */
+.hc .hc-hero{display:grid; grid-template-columns:minmax(0,1fr) 420px; gap:clamp(36px,5vw,72px); align-items:center}
+.hc .hc-hero .hc-greet{font-size:clamp(2.3rem,4.6vw,3.7rem); max-width:13ch}
+.hc .hc-hero .hc-find{max-width:none}
+.hc .hc-hero .hc-greet .hc-hi{white-space:nowrap}
+
+/* the field guide: spiral pad, inked cover, a divider tab per topic */
+.hc .hc-guide{position:relative; height:420px; padding-right:58px}
+.hc .hc-g-book{position:relative; height:100%; transform:rotate(1.6deg); transition:transform .6s var(--spring)}
+.hc .hc-guide:hover .hc-g-book{transform:rotate(.4deg)}
+.hc .hc-g-page{position:absolute; inset:0; border-radius:8px 18px 18px 8px; background:var(--card); border:1.5px solid var(--line-2)}
+.hc .hc-g-page.hc-p2{transform:translate(7px,7px) rotate(1.2deg); background:var(--paper-3)}
+.hc .hc-g-page.hc-p3{transform:translate(3px,3px) rotate(.5deg); background:var(--paper-2)}
+.hc .hc-g-cover{position:absolute; inset:0; border-radius:8px 18px 18px 8px; background:var(--butter); color:var(--note-ink); border:2px solid var(--note-ink); box-shadow:6px 6px 0 var(--lilac), var(--sh-3);
+  filter:var(--note-filter); padding:30px 30px 26px 52px; display:flex; flex-direction:column; overflow:hidden}
+.hc .hc-g-cover::after{content:''; position:absolute; left:38px; top:0; bottom:0; border-left:1.5px solid rgba(194,60,119,.35)}
+.hc .hc-g-rings{position:absolute; left:10px; top:22px; bottom:22px; z-index:3; display:flex; flex-direction:column; justify-content:space-between}
+.hc .hc-g-rings i{display:block; width:26px; height:11px; border-radius:999px; border:2.5px solid var(--note-ink); border-left-color:transparent; background:transparent; transform:rotate(-8deg); filter:var(--note-filter)}
+.hc .hc-g-cover > *{position:relative}
+.hc .hc-g-label{align-self:flex-start; display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.14em; padding:4px 11px 4px 9px; border:1.5px solid var(--note-ink); border-radius:999px; background:rgba(255,255,255,.7); box-shadow:2px 2px 0 var(--peach)}
+.hc .hc-g-label i{width:7px; height:7px; border-radius:2px; rotate:45deg; background:var(--lilac-ink)}
+.hc .hc-g-tape{position:absolute !important; left:50%; top:-7px; width:70px; height:17px; transform:translateX(-50%) rotate(-2.5deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16); z-index:4}
+.hc[data-hc-theme="dark"] .hc-g-tape{background:rgba(255,255,255,.3)}
+.hc .hc-g-cover h2{margin-top:20px; font-family:var(--display); font-weight:700; font-size:2.35rem; line-height:.98; letter-spacing:-.04em; font-variation-settings:"opsz" 96}
+.hc .hc-g-cover h2 em{font-style:normal; position:relative; z-index:0}
+.hc .hc-g-cover h2 em::before{content:''; position:absolute; z-index:-1; left:-.08em; right:-.08em; bottom:.04em; height:.42em; background:var(--peach); border-radius:.4em .55em .38em .6em; transform:rotate(-1.2deg)}
+.hc .hc-g-cover p{margin-top:10px; font-size:.9rem; line-height:1.5; max-width:24ch; opacity:.78}
+.hc .hc-g-idx{margin-top:auto; padding-top:10px; border-top:1.5px dashed rgba(38,33,27,.22)}
+.hc .hc-g-idx h3{display:flex; align-items:center; gap:8px; margin:0 0 5px; font-family:var(--sans); font-size:.6rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; opacity:.62}
+.hc .hc-g-idx h3::before{content:''; width:12px; height:2px; border-radius:2px; background:var(--note-ink)}
+.hc .hc-g-idx ol{display:grid; gap:0}
+.hc .hc-g-idx a{display:flex; align-items:center; gap:9px; height:19px; padding:0 6px; margin:0 -6px; border-radius:7px; text-decoration:none; color:var(--note-ink);
+  font-size:.76rem; font-weight:500; letter-spacing:-.005em; transition:background .15s, transform .25s var(--spring)}
+.hc .hc-g-idx a i{width:9px; height:9px; flex:none; border-radius:3px; background:var(--p); border:1.5px solid var(--note-ink); transition:transform .3s var(--spring)}
+.hc .hc-g-idx a .hc-ld{flex:1; height:0; border-bottom:1.5px dotted rgba(38,33,27,.24)}
+.hc .hc-g-idx a b{font-family:var(--mono); font-size:.66rem; font-weight:600; opacity:.72; min-width:1ch; text-align:right}
+.hc .hc-g-idx a:hover{background:rgba(255,255,255,.6); transform:translateX(2px)}
+.hc .hc-g-idx a:hover i{transform:rotate(-12deg) scale(1.15)}
+/* the divider tabs stick out past the cover's right edge; hover pulls one out */
+.hc .hc-g-tabs{position:absolute; right:-54px; top:16px; bottom:16px; z-index:0; display:flex; flex-direction:column; gap:3px; width:76px}
+.hc .hc-g-tab{flex:1; display:flex; align-items:center; justify-content:flex-end; gap:5px; padding:0 8px 0 18px; border-radius:0 10px 10px 0; background:var(--p); color:var(--note-ink); border:1.5px solid var(--note-ink); border-left:0;
+  filter:var(--note-filter); text-decoration:none; font-size:.66rem; font-weight:700; letter-spacing:.01em; white-space:nowrap; overflow:hidden;
+  transform:translateX(calc(var(--o, 0px))); transition:transform .4s var(--spring), box-shadow .3s}
+.hc .hc-g-tab .hc-ic{width:13px; height:13px; flex:none}
+.hc .hc-g-tab span{display:none}
+.hc .hc-g-tab:hover, .hc .hc-g-tab:focus-visible{transform:translateX(16px); box-shadow:3px 3px 0 var(--note-ink); z-index:2}
+.hc .hc-g-tab:hover span, .hc .hc-g-tab:focus-visible span{display:inline}
+.hc .hc-g-tab:hover{width:max-content}
+.hc .hc-g-note{position:absolute; left:-52px; bottom:-72px; z-index:5; width:178px; padding:13px 14px 12px; color:var(--note-ink); background:var(--sky); filter:var(--note-filter); border-radius:5px 12px 7px 10px; box-shadow:var(--sh-2);
+  font-size:.8rem; line-height:1.4; transform:rotate(-4deg); transition:transform .4s var(--spring)}
+.hc .hc-g-note:hover{transform:rotate(-1deg) translateY(-3px)}
+.hc .hc-g-note::after{content:''; position:absolute; left:50%; top:-8px; width:52px; height:15px; transform:translateX(-50%) rotate(3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16)}
+.hc .hc-g-note b{display:block; font-family:var(--display); font-size:.95rem; letter-spacing:-.015em}
+.hc .hc-g-note a{display:inline-flex; align-items:center; gap:5px; margin-top:6px; font-weight:700; color:var(--note-ink)}
+.hc .hc-g-note a .hc-ic{width:13px; height:13px}
+
+/* section heads: numbered, editorial */
+.hc .hc-index{counter-reset:sec}
+.hc .hc-sec-h{counter-increment:sec; margin:60px 0 20px; align-items:center}
+.hc .hc-sec-h h2{display:flex; align-items:baseline; gap:12px; font-size:1.55rem; letter-spacing:-.03em}
+.hc .hc-sec-h h2::before{content:counter(sec, decimal-leading-zero); font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.04em; color:var(--ink-3);
+  padding:3px 7px; border:1.5px solid var(--line-2); border-radius:7px; background:var(--card); transform:translateY(-4px)}
+.hc .hc-sec-h .hc-rule{height:0; border-top:1.5px dashed var(--line-2); background:none}
+
+/* topic shelf: file dividers with a tab, lifted on hover */
+.hc .hc-shelf{gap:26px 18px; padding-top:12px}
+.hc .hc-cat ul{align-content:start}
+.hc .hc-cat{position:relative; border-radius:6px var(--r-lg) var(--r-lg) var(--r-lg); transition:transform .25s var(--spring), box-shadow .25s var(--spring), border-color .2s}
+.hc .hc-cat::before{content:''; position:absolute; left:-1.5px; top:-13px; width:96px; height:14px; background:var(--p); border:1.5px solid var(--line); border-bottom:0; border-radius:9px 12px 0 0; filter:var(--note-filter); transition:border-color .2s}
+.hc .hc-cat:hover{transform:translate(-2px,-3px); border-color:var(--ink); box-shadow:5px 5px 0 var(--p)}
+.hc .hc-cat:hover::before{border-color:var(--ink)}
+.hc .hc-cat-h .hc-tile{transition:transform .35s var(--spring)}
+.hc .hc-cat:hover .hc-cat-h .hc-tile{transform:rotate(-8deg) scale(1.08)}
+.hc .hc-cat-h h3{font-size:1.14rem}
+
+/* doors + journey: a touch more lift */
+.hc .hc-door{box-shadow:var(--sh-2), 3px 3px 0 rgba(38,33,27,.06)}
+.hc .hc-stop a{box-shadow:var(--sh-1)}
+.hc .hc-stop::before{box-shadow:2px 2px 0 var(--ink)}
+
+/* still stuck: an envelope + a taped promise */
+.hc .hc-stuck{position:relative; padding:28px 30px 28px 104px; margin-top:70px; overflow:visible}
+.hc .hc-stuck .hc-env{position:absolute; left:26px; top:50%; width:56px; height:56px; margin-top:-28px; display:grid; place-items:center; border-radius:16px; background:var(--peach); color:var(--note-ink); border:2px solid var(--note-ink);
+  box-shadow:3px 3px 0 var(--note-ink); transform:rotate(-8deg); filter:var(--note-filter)}
+.hc .hc-stuck .hc-env .hc-ic{width:26px; height:26px}
+.hc .hc-stuck .hc-promise{position:absolute; right:150px; top:-22px; padding:7px 12px; background:var(--mint); color:var(--note-ink); font-size:.76rem; font-weight:600; border-radius:4px 10px 5px 8px; box-shadow:var(--sh-2); transform:rotate(3deg); filter:var(--note-filter)}
+.hc .hc-stuck h3{font-size:1.4rem}
+
+/* article head */
+.hc .hc-art-main h1{font-size:clamp(2rem,3.6vw,2.9rem)}
+.hc .hc-kick .hc-rt{display:inline-flex; align-items:center; gap:5px}
+.hc .hc-kick .hc-rt .hc-ic{width:12px; height:12px}
+
+/* help card: taped on in the topic's colour, highlighter on the page you're reading */
+.hc .hc-lrail{overflow:visible}
+.hc .hc-lrail::before{content:''; position:absolute; z-index:2; left:50%; top:-9px; width:82px; height:18px; transform:translateX(-50%) rotate(-2.5deg); background:color-mix(in srgb, var(--p) 78%, transparent);
+  border-inline:1px dashed rgba(38,33,27,.18); filter:var(--note-filter)}
+.hc .hc-lr-head{background:linear-gradient(var(--p-bg), transparent); border-radius:var(--r-lg) var(--r-lg) 0 0; padding-top:16px}
+.hc .hc-lr-list a[aria-current="page"]{position:relative; z-index:0; background:none; border-color:transparent; box-shadow:none; color:var(--ink)}
+.hc .hc-lr-list a[aria-current="page"]::before{content:''; position:absolute; z-index:-1; inset:4px 2px; background:var(--p); opacity:var(--mark-op); border-radius:.5em .7em .45em .65em; transform:rotate(-1deg)}
+.hc .hc-lr-list a[aria-current="page"]::after{content:''; position:absolute; left:-15px; top:50%; width:8px; height:8px; margin-top:-4px; border-radius:2px; background:var(--p-fg); transform:rotate(45deg)}
+.hc .hc-lr-body{scrollbar-width:none}
+
+@media (max-width:1180px){ .hc .hc-hero{grid-template-columns:minmax(0,1fr) 340px} .hc .hc-guide{height:430px} .hc .hc-g-cover h2{font-size:2rem} }
+@media (max-width:980px){ .hc .hc-hero{grid-template-columns:minmax(0,1fr)} .hc .hc-guide{display:none} .hc .hc-hero .hc-greet{max-width:16ch} }
+@media (max-width:720px){
+  .hc .hc-stuck{padding:24px 20px 22px} .hc .hc-stuck .hc-env{position:static; margin:0 0 4px; transform:rotate(-6deg)}
+  .hc .hc-stuck .hc-promise{right:18px}
+  .hc .hc-sec-h{margin-top:48px} .hc .hc-sec-h h2{font-size:1.3rem}
+}
+
+
+/* article columns: these come last so they beat the base rules for the card, head row and "more" list above */
+@media (max-width:1180px){ .hc .hc-art{grid-template-columns:226px minmax(0,1fr)} .hc .hc-rail{display:none} }
+@media (max-width:900px){ .hc .hc-art{grid-template-columns:minmax(0,1fr)} .hc .hc-lrail{display:none} .hc .hc-more{display:block} .hc .hc-mhead{display:flex} }
+
+/* ---------- the site bar at night ----------
+   site-nav.css declares light tokens on .sn itself; on night paper re-point
+   them, or the bar stays a cream strip over a dark page. */
+.hc[data-hc-theme="dark"] .sn{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A; --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC; --sky-ink:#AACBFF; --mint:#80CBA4; --mint-ink:#8FDDB6;
+  --butter:#E3BF66; --lilac:#A593EE; --lilac-ink:#C4B6FF; --rose:#E598B7;
+  --note-filter:brightness(.93) saturate(.85);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  color-scheme:dark;
+}

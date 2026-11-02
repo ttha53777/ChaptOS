@@ -3,12 +3,15 @@
 //
 // Content lives in ./content.ts and nowhere else; this page just arranges it.
 // The search card, role filter and topic shelf are client-side (HelpIndex);
-// the sticky-note doors and the term journey are static and render here.
+// the hero copy, the field guide, the sticky-note doors and the term journey
+// are static and render here. Section heads number themselves (help.css).
 import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PaperIcon } from "../components/paper/PaperIcon";
+import { FieldGuide } from "./FieldGuide";
 import { HelpIndex } from "./HelpIndex";
+import { ThemeSeg } from "./ThemeSeg";
 import { ARTICLES, ARTICLES_BY_SLUG, JOURNEY, QUICK_PATHS } from "./content";
 import { APP_NAME } from "@/lib/domains";
 
@@ -22,21 +25,28 @@ export const metadata: Metadata = {
 
 export default function HelpIndexPage() {
   return (
-    <main className="hc-wrap">
-      <div className="hc-kick">
-        <span className="hc-chip">Help centre</span>
-        {`${ARTICLES.length} articles · each one checked against the app`}
-      </div>
-      <h1 className="hc-greet">
-        {"What are you "}<span className="hc-hi">trying to do</span>?
-      </h1>
-      <p className="hc-lede">
-        Every article opens with a picture of the real screen it&apos;s about, with numbered
-        pins that match the steps. Where something is half-built or has a sharp edge, it says
-        so on a sticky note.
-      </p>
-
+    <main className="hc-wrap hc-index">
       <HelpIndex
+        head={
+          <>
+            <div className="hc-idx-top">
+              <div className="hc-kick">
+                <span className="hc-chip">Help centre</span>
+                {`${ARTICLES.length} articles, each one checked against the app`}
+              </div>
+              <ThemeSeg />
+            </div>
+            <h1 className="hc-greet">
+              {"What are you "}<span className="hc-hi">trying to do</span>?
+            </h1>
+            <p className="hc-lede">
+              Every article opens with a picture of the real screen it&apos;s about, with numbered
+              pins that match the steps. Where something is half-built or has a sharp edge, it says
+              so on a sticky note.
+            </p>
+          </>
+        }
+        aside={<FieldGuide />}
         between={
           <>
             <div className="hc-sec-h"><h2>Start here</h2><span className="hc-rule" /></div>
@@ -78,6 +88,8 @@ export default function HelpIndexPage() {
       />
 
       <div className="hc-stuck">
+        <span className="hc-env"><PaperIcon name="envelope" className="hc-ic" /></span>
+        <span className="hc-promise">one person · reads everything</span>
         <div>
           <h3>Still stuck?</h3>
           <p>

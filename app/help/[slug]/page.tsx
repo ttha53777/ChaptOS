@@ -4,10 +4,12 @@
 // enumerates every slug), so an article is a static document with no runtime
 // data access — which is also why it's readable signed out.
 //
-// Layout: where it lives + who can, then the figure (../figures.ts — a replica
-// of the real screen with pins matching the steps), then the body, then
-// previous/next. The rail holds "On this page", the rest of the section, and
-// the way to a person with this article already named.
+// Layout: the help card on the left (../HelpCard.tsx — home, search, this
+// topic, other topics), then where it lives + who can, the figure
+// (../figures.ts — a replica of the real screen with pins matching the steps),
+// the body, previous/next. The right rail holds "On this page" and the way to a
+// person with this article already named. Phones get MobileHead + the sheet
+// instead of the card, and the topic's other articles after the article.
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,6 +17,8 @@ import { notFound } from "next/navigation";
 import { inline } from "../../components/landing/inline";
 import { PaperIcon } from "../../components/paper/PaperIcon";
 import { Blocks, WherePath, headingId } from "../Blocks";
+import { HelpCard } from "../HelpCard";
+import { MobileHead } from "../HelpShell";
 import { FIGURES } from "../figures";
 import { ARTICLES, ARTICLES_BY_SLUG, CATEGORIES_BY_ID, articlesIn, type Article } from "../content";
 import { APP_NAME } from "@/lib/domains";
@@ -73,14 +77,25 @@ export default async function HelpArticlePage({
 
   // Carries the article the reader gave up on into the composer on /contact.
   const askHref = `/contact?from=${encodeURIComponent(article.slug)}`;
+  // ~200 words a minute over the body as written (figures not counted).
+  const minutes = Math.max(1, Math.round(JSON.stringify(article.body).split(/\s+/).length / 200));
+  const sectionList = section.map(a => (
+    <Link key={a.slug} href={`/help/${a.slug}`} aria-current={a.slug === article.slug ? "page" : undefined}>{a.title}</Link>
+  ));
 
   return (
     <main className="hc-wrap">
       <div className="hc-art">
+        <HelpCard article={article} category={category} askHref={askHref} />
+
         <div className="hc-art-main" style={{ "--eb": `var(--${category.tint})` } as React.CSSProperties}>
+          <MobileHead tint={category.tint} icon={category.icon} title={category.title} />
           <nav className="hc-kick" aria-label="Breadcrumb">
             <Link href="/help">Help</Link><span>/</span>
             <Link href={`/help/${section[0].slug}`}>{category.title}</Link>
+            <span>·</span>{`${section.indexOf(article) + 1} of ${section.length}`}
+            <span>·</span>
+            <span className="hc-rt"><PaperIcon name="clock" className="hc-ic" />{`${minutes} min read`}</span>
           </nav>
           <Title article={article} tint={category.tint} />
           <p className="hc-lede">{inline(article.lede)}</p>
@@ -114,6 +129,11 @@ export default async function HelpArticlePage({
               <Link className="hc-nx" href={`/help/${next.slug}`}><small>Next →</small><b>{next.title}</b></Link>
             )}
           </nav>
+
+          <div className="hc-more">
+            <h5>{`More in ${category.title}`}</h5>
+            <nav className={`hc-lr-list hc-t-${category.tint}`} aria-label={category.title}>{sectionList}</nav>
+          </div>
         </div>
 
         <aside className="hc-rail">
@@ -125,14 +145,6 @@ export default async function HelpArticlePage({
               </div>
             </div>
           )}
-          <div>
-            <h5>{`In ${category.title}`}</h5>
-            <div className="hc-toc">
-              {section.filter(a => a.slug !== article.slug).map(a => (
-                <Link key={a.slug} href={`/help/${a.slug}`}>{a.title}</Link>
-              ))}
-            </div>
-          </div>
           <div className="hc-note-s hc-t-lilac hc-tape">
             <b>This didn&apos;t answer it</b>
             Write to a person, with this page already named in the draft.
