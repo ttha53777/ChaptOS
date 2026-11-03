@@ -28,6 +28,7 @@ import "../../components/dashboard/meetings-ledger.css";
 import "../../components/timeline/calendar-event-form.css";
 import "../../components/agenda-templates/agenda-templates.css";
 import { AgendaBody } from "../../components/agenda-templates/AgendaBody";
+import { MeetingsDayOne } from "./DayOne";
 import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
 import { useNow } from "../../hooks/useNow";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../components/timeline/ScheduleFields";
@@ -1291,6 +1292,9 @@ export default function ChapterPage() {
       </>;
 
   const addDefaults = useMemo(() => nextMeetingDraft(events, semester, today), [events, semester, today]);
+  // No meetings at all yet: the page explains itself instead of showing an
+  // empty On deck and an empty ledger (see DayOne.tsx).
+  const dayOne = !loading && !loadError && events.length === 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
@@ -1355,16 +1359,21 @@ export default function ChapterPage() {
                   </span>
                   <span className="lg-only">&ensp;·&ensp;</span>Chapter Meetings
                 </p>
-                <h1 className="greeting">The <em>minutes</em>.</h1>
-                <div className="digest">
-                  {!loading && (
-                    <span className="ai-chip">
-                      <span className="lg-only">AI</span>
-                      <span className="pp-only"><PaperIcon name="spark" />Digest</span>
-                    </span>
-                  )}
-                  <p>{loading ? "" : digest}</p>
-                </div>
+                {dayOne ? <>
+                  <h1 className="greeting mt1-h">Every meeting, <em>written down</em>.</h1>
+                  <p className="mt1-sub">Add the meeting. While it happens, someone types the notes. Afterwards everyone can read what was decided, who came, and who owes what.</p>
+                </> : <>
+                  <h1 className="greeting">The <em>minutes</em>.</h1>
+                  <div className="digest">
+                    {!loading && (
+                      <span className="ai-chip">
+                        <span className="lg-only">AI</span>
+                        <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+                      </span>
+                    )}
+                    <p>{loading ? "" : digest}</p>
+                  </div>
+                </>}
               </div>
               <div className="ch-acts">
                 {canEvents && (
@@ -1379,9 +1388,9 @@ export default function ChapterPage() {
                     Add meeting
                   </button>
                 )}
-                <button className="askbar pp-only" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "" } }))}>
+                {!dayOne && <button className="askbar pp-only" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "" } }))}>
                   <PaperIcon name="spark" />Ask about past meetings<kbd>⌘K</kbd>
-                </button>
+                </button>}
               </div>
             </div>
 
@@ -1393,7 +1402,9 @@ export default function ChapterPage() {
               </div>
             )}
 
-            {!loading && !loadError && (
+            {dayOne && <MeetingsDayOne canManage={canEvents} known={currentUser != null} onAdd={() => setShowAddModal(true)} />}
+
+            {!loading && !loadError && !dayOne && (
               <div className="mt-layout">
                 <div>
                   {/* ── On deck ───────────────────────────────────────────────── */}

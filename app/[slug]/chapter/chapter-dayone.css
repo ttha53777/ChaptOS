@@ -1,0 +1,98 @@
+/* ── Meetings day one (DayOne.tsx) ────────────────────────────────────────────
+   Ported from _design/Meetings Day One Mock.html, which copies the Fundraisers
+   day one (.fz-d1): one dashed card, three small pictures, one button. It renders
+   the same in Ledger and Paper, so the paper tokens carry fallbacks the way
+   docs-dayone.css does. mt1-* keeps every class off the shared namespace. */
+.mt1 {
+  --d1-display: var(--font-fraunces), sans-serif; --d1-mono: var(--font-geist-mono), monospace;
+  --d1-ink-2: var(--ink-soft); --d1-ink-3: var(--muted); --d1-line-2: var(--line-med);
+  --d1-sky: var(--pp-sky, #CFE2FF);
+  --d1-mint: var(--pp-mint, #C7EFDA); --d1-mint-ink: var(--pp-mint-ink, #1B815B);
+  --d1-butter: var(--pp-butter, #FFE5A0); --d1-butter-soft: var(--pp-butter-soft, #FFF6DC); --d1-butter-bd: var(--pp-butter-bd, #F4DFA6);
+  --d1-rose-ink: var(--pp-rose-ink, #C23C77);
+  --d1-note-ink: #26211B; --d1-note-filter: none;
+  --d1-ease-spring: cubic-bezier(.16,.9,.3,1.02);
+  margin-top: 28px;
+}
+html[data-theme="dusk"] .mt1 { --d1-note-filter: brightness(.93) saturate(.85); }
+.mt1 :where(p, figure) { margin: 0; }
+
+.mt1-card {
+  display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); align-items: end; padding: 30px 28px 26px;
+  background: var(--card); border: 1.5px dashed var(--d1-line-2); border-radius: 30px;
+}
+.mt1-card figure { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 0 10px; }
+.mt1-card .pic { height: 150px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.mt1-card figcaption b { display: block; font-family: var(--d1-display); font-weight: 600; font-size: 1.05rem; letter-spacing: -.015em; color: var(--ink); }
+.mt1-card figcaption span { display: block; margin-top: 2px; font-size: .82rem; color: var(--d1-ink-3); }
+
+/* 1 · the meeting: a desk-calendar page */
+.mt1-cal {
+  display: block; width: 116px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; overflow: hidden;
+  text-align: center; transform: rotate(-3deg); box-shadow: 3px 3px 0 var(--d1-sky); color: var(--ink);
+}
+.mt1-cal small {
+  display: block; padding: 4px 0 3px; background: var(--d1-sky); color: var(--d1-note-ink); filter: var(--d1-note-filter);
+  font-family: var(--d1-mono); font-size: .62rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+}
+.mt1-cal b { display: block; padding-top: 6px; font-family: var(--d1-display); font-weight: 600; font-size: 2.6rem; letter-spacing: -.04em; line-height: 1; }
+.mt1-cal > span { display: block; margin-top: 8px; padding: 6px 8px 10px; border-top: 1px dashed var(--d1-line-2); font-size: .72rem; font-weight: 600; color: var(--d1-ink-2); }
+.mt1-cal em { display: block; margin-top: 1px; font-style: normal; font-family: var(--d1-mono); font-size: .6rem; font-weight: 500; color: var(--d1-ink-3); }
+
+/* 2 · the notes: a legal pad, red margin rule, a cursor still typing */
+.mt1-pad {
+  position: relative; display: block; width: 172px; padding: 16px 12px 10px 24px; text-align: left; color: var(--d1-ink-2);
+  background: var(--d1-butter-soft); border: 1.5px solid var(--ink); border-radius: 3px 3px 10px 10px;
+  box-shadow: 3px 3px 0 var(--d1-butter); transform: rotate(2deg);
+}
+.mt1-pad::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 1.5px; background: var(--d1-rose-ink); opacity: .45; }
+.mt1-pad::after { content: ''; position: absolute; left: -1.5px; right: -1.5px; top: -1.5px; height: 9px; background: var(--d1-ink-2); border-radius: 3px 3px 0 0; }
+.mt1-pad > span { display: block; padding: 3px 0; border-bottom: 1px solid var(--d1-butter-bd); font-size: .68rem; line-height: 1.25; white-space: nowrap; }
+.mt1-pad > span:last-child { border-bottom: 0; }
+.mt1-pad .h { font-family: var(--d1-mono); font-size: .58rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.mt1-pad .act { font-weight: 600; color: var(--ink); }
+.mt1-pad .cur { display: inline-block; width: 1.5px; height: .8em; margin-left: 1px; vertical-align: -1px; background: var(--ink); animation: mt1-blink 1.1s steps(1) infinite; }
+@keyframes mt1-blink { 50% { opacity: 0; } }
+
+/* 3 · the book: one filed page — who came, who owes what */
+.mt1-filed {
+  position: relative; display: block; width: 158px; padding: 11px 12px 10px; text-align: left; color: var(--ink);
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 10px; box-shadow: 3px 3px 0 var(--d1-mint); transform: rotate(-3deg);
+}
+.mt1-filed small { display: block; font-family: var(--d1-mono); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--d1-ink-3); }
+.mt1-filed .dots { display: flex; gap: 3px; margin-top: 7px; }
+.mt1-filed .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--d1-mint); border: 1.2px solid var(--ink); }
+.mt1-filed .dots i.o { background: transparent; border: 1.2px dashed color-mix(in srgb, var(--ink) 35%, transparent); }
+.mt1-filed .turn { display: block; margin-top: 4px; font-family: var(--d1-mono); font-size: .6rem; color: var(--d1-ink-2); }
+.mt1-filed .todo { display: grid; gap: 4px; margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--d1-line-2); }
+.mt1-filed .todo > span { display: flex; align-items: center; gap: 6px; font-size: .66rem; line-height: 1.2; }
+.mt1-filed .todo i { position: relative; width: 11px; height: 11px; flex: none; border-radius: 3px; border: 1.3px solid var(--ink); }
+.mt1-filed .todo .d { color: var(--d1-ink-3); text-decoration: line-through; }
+.mt1-filed .todo .d i { background: var(--ink); }
+.mt1-filed .todo .d i::after { content: ''; position: absolute; left: 2.5px; top: 2px; width: 5px; height: 3px; border: solid var(--paper); border-width: 0 0 1.5px 1.5px; transform: rotate(-45deg); }
+.mt1-filed .stamp {
+  position: absolute; right: -16px; top: -14px; padding: 2px 9px; border-radius: 6px; background: var(--card); color: var(--d1-mint-ink);
+  border: 1.5px solid var(--d1-mint-ink); font-family: var(--d1-mono); font-weight: 600; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; transform: rotate(8deg);
+}
+
+.mt1-cta { margin-top: 20px; display: flex; justify-content: center; }
+.mt1-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink);
+  background: var(--ink); color: var(--paper); font-weight: 600; font-size: .88rem; letter-spacing: -.01em; white-space: nowrap; cursor: pointer;
+  box-shadow: 2.5px 2.5px 0 var(--d1-mint); transition: transform .18s var(--d1-ease-spring), box-shadow .18s var(--d1-ease-spring);
+}
+.mt1-btn:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--d1-mint); }
+.mt1-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--d1-mint); }
+.mt1-btn .pp-ic { width: 15px; height: 15px; }
+.mt1-note { margin-top: 14px !important; text-align: center; color: var(--d1-ink-3); font-size: .88rem; }
+
+/* the briefing's plain sentence, standing in for the AI digest on day one */
+.dash-chapter .briefing .mt1-sub { margin-top: 12px; max-width: 56ch; font-size: 16px; line-height: 1.55; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash-chapter h1.greeting.mt1-h em::before { background: var(--pp-butter); }
+
+@media (max-width: 720px) {
+  .mt1-card { grid-template-columns: minmax(0,1fr); gap: 30px; padding: 28px 18px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mt1-pad .cur { animation: none; }
+}
