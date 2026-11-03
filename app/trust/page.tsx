@@ -56,7 +56,7 @@ export const metadata: Metadata = {
 
 const SECTIONS = [
   ["roles", "Who we are, and who decides what"],
-  ["never", "What we never do"],
+  ["never", "What we don't do"],
   ["data", "What your organization keeps here"],
   ["sensitive", "What not to put here"],
   ["access", "Who can see it"],
@@ -92,9 +92,11 @@ export default function TrustPage() {
                 happens to all of it.
               </h1>
               <p className="lede">
-                This page is written to be read, not to be survivable in court. Where a
-                protection is real, we name the mechanism. Where it isn&apos;t built yet, we
-                say so in <a href="#security">section 8</a>{" "}rather than leave you to find out.
+                This page explains, in plain language, how {APP_NAME}{" "}handles your data as of
+                the effective date below. Where a protection is real, we name the mechanism.
+                Where it isn&apos;t built yet, we say so in <a href="#security">section 8</a>{" "}
+                rather than leave you to find out. It describes our practices; it isn&apos;t a
+                contract, and it will change as the product does.
               </p>
               {/* Separators are CSS ::before on each item after the first, not
                   standalone nodes — a wrapped row would otherwise strand a lone
@@ -124,11 +126,12 @@ export default function TrustPage() {
                     style={sx({ color: "var(--mint-ink)" })}
                   />
                 </span>
-                <h4>We never touch your chapter&rsquo;s money</h4>
+                <h4>We don&rsquo;t hold your chapter&rsquo;s money</h4>
                 <p>
                   Dues and reimbursements are <em>records</em>{" "}of money that moved somewhere
-                  else — no card numbers, no bank details, no processor. Your own subscription
-                  is paid through Stripe, and your card details go to them, never to us.
+                  else — we don&apos;t ask for card numbers or bank details, and there is no
+                  processor. Your own subscription is paid through Stripe, and your card details
+                  go to them rather than to us.
                 </p>
               </div>
               <div className="tldr">
@@ -146,8 +149,8 @@ export default function TrustPage() {
                 </span>
                 <h4>Nothing is sold or tracked</h4>
                 <p>
-                  No advertising, no data sales, and not a single analytics or tracking
-                  script anywhere in the product.
+                  No advertising, no data sales, and we don&apos;t use analytics or tracking
+                  tools in the product.
                 </p>
               </div>
               <div className="tldr">
@@ -248,10 +251,10 @@ export default function TrustPage() {
 
             {/* 2 ─ never */}
             <section className="tp__sec" id="never">
-              <h2>What we never do</h2>
+              <h2>What we don&apos;t do</h2>
               <p className="tp__lede">
-                Short list, and it is the plainest part of this page because every item is
-                verifiable by inspection rather than by promise.
+                A short list of things the product isn&apos;t built to do, as of the effective
+                date above.
               </p>
               <ul className="tp__list tp__list--no">
                 <li>
@@ -261,13 +264,15 @@ export default function TrustPage() {
                   here.
                 </li>
                 <li>
-                  <strong>We run no analytics or tracking.</strong>{" "}No Google Analytics, no
+                  <strong>We don&apos;t use analytics or tracking tools.</strong>{" "}No Google Analytics, no
                   PostHog, Mixpanel, Segment, Plausible or Vercel Analytics. No advertising
                   pixels, no session recorders, no fingerprinting, no third-party cookies.
                 </li>
                 <li>
-                  <strong>We hold no payment instruments.</strong>{" "}Card and bank data never
-                  enters the product, so it can never leak from it. Your chapter&rsquo;s own
+                  <strong>We don&apos;t collect payment details.</strong>{" "}Nothing in the
+                  product asks for card or bank details, so we don&apos;t store them — though
+                  people can type anything into a free-text field, which is why{" "}
+                  <a href="#sensitive">section 4</a>{" "}asks them not to. Your chapter&rsquo;s own
                   books have no processor behind them at all: &ldquo;payment method&rdquo; on a
                   dues record is a word someone typed — <code>venmo</code>, <code>cash</code>,
                   <code>check</code>. The one place real money moves is your subscription to
@@ -739,8 +744,8 @@ export default function TrustPage() {
                 </li>
               </ul>
               <p>
-                No decision with any consequence for a member is made solely by a machine.
-                There is a person holding the relevant office at the end of every path.
+                The assistant can&apos;t change anything on its own: every change it drafts
+                needs a person holding the relevant permission to confirm it.
               </p>
 
               <h3>What is sent to our AI provider</h3>
@@ -886,9 +891,9 @@ export default function TrustPage() {
               <p>
                 These providers run on infrastructure in the United States. If your
                 organization or its members are in the UK, the EU or another region with
-                transfer requirements, that means data is processed outside your region and we
-                should put the appropriate transfer terms in place —{" "}
-                <a href="#contact">tell us</a>{" "}and we will.
+                transfer requirements, that means data is processed outside your region and
+                transfer terms may be needed —{" "}<a href="#contact">tell us</a>{" "}and we&apos;ll
+                work through it with you.
               </p>
             </section>
 
@@ -902,12 +907,13 @@ export default function TrustPage() {
 
               <h3>Organizations are isolated twice, independently</h3>
               <p>
-                The first layer is the data layer: every single database operation runs through
-                a wrapper that attaches your organization to it automatically. Reading one
+                The first layer is the data layer: the app&apos;s database operations run through
+                a wrapper that attaches your organization to them automatically. Reading one
                 record by its id is silently rewritten into &ldquo;read that record{" "}
                 <em>within this org</em>&rdquo;, and updates and deletes verify ownership
-                before they touch anything. A developer cannot accidentally write a query that
-                reaches across orgs, because the query they write isn&apos;t the query that
+                before they touch anything. That makes it hard for a developer to accidentally
+                write a query that reaches across orgs, because the query they write isn&apos;t
+                the query that
                 runs.
               </p>
               <p>
@@ -937,9 +943,9 @@ export default function TrustPage() {
                   camera, microphone and geolocation to itself outright.
                 </li>
                 <li>
-                  <strong>Every write is schema-validated</strong>{" "}before it reaches a
-                  database, and permissions are re-checked on the server for every request —
-                  hiding a button is never the security control.
+                  <strong>Writes are schema-validated</strong>{" "}before they reach the
+                  database, and permissions are checked on the server, not just in the
+                  interface — hiding a button isn&apos;t the security control.
                 </li>
                 <li>
                   <strong>Members can&apos;t move money on their own.</strong>{" "}A member&apos;s
@@ -1007,10 +1013,10 @@ export default function TrustPage() {
                   don&apos;t treat {APP_NAME}{" "}as your only copy of anything you can&apos;t lose.
                 </li>
                 <li>
-                  <strong>No formal breach-notification window.</strong>{" "}Our commitment today
-                  is to tell affected organizations promptly and in plain language once we
-                  understand what happened, and to tell you what we don&apos;t know yet rather
-                  than wait to know everything.
+                  <strong>No formal breach-notification window.</strong>{" "}Our aim is to tell
+                  affected organizations in plain language once we understand what happened,
+                  including what we don&apos;t know yet, and to meet whatever notification
+                  deadlines the law sets.
                 </li>
               </ul>
             </section>
@@ -1210,9 +1216,9 @@ export default function TrustPage() {
             <section className="tp__sec" id="rights">
               <h2>Your rights, and how to use them</h2>
               <p className="tp__lede">
-                Depending on where you live you may have formal rights over your data. We
-                extend the substance of them to everyone, regardless of where you are, because
-                sorting members by jurisdiction would be worse than just honouring the request.
+                Depending on where you live you may have formal rights over your data. In
+                practice we handle access, correction and deletion requests the same way for
+                everyone, and the table below shows where each stands today.
               </p>
               <div className="tp__tw">
                 <table className="tp__t">
@@ -1270,8 +1276,8 @@ export default function TrustPage() {
                     <tr>
                       <th>Human review</th>
                       <td>
-                        Already true — no decision about a member is made solely automatically.
-                        See <a href="#assistant">section 6</a>.
+                        The assistant only drafts changes; a person with the right permission
+                        confirms each one. See <a href="#assistant">section 6</a>.
                       </td>
                     </tr>
                     <tr>
@@ -1284,12 +1290,12 @@ export default function TrustPage() {
                 </table>
               </div>
               <p>
-                Write to <Fill value={PRIVACY_EMAIL} label="privacy contact address" />. We
-                acknowledge within <strong>5 business days</strong>{" "}and complete within{" "}
-                <strong>30 days</strong>, which is the shorter of the windows the major privacy
-                laws set. If a request needs longer we&apos;ll tell you why before the 30 days
-                are up rather than after. We may need to verify you control the account —
-                usually by having you write from its email address.
+                Write to <Fill value={PRIVACY_EMAIL} label="privacy contact address" />. We aim
+                to acknowledge within <strong>5 business days</strong>{" "}and to complete a
+                request within <strong>30 days</strong>. Where a law gives you a deadline, we
+                work to that deadline, and if a request will take longer we&apos;ll tell you why.
+                We may need to verify you control the account — usually by having you write
+                from its email address.
               </p>
               <p>
                 If we get it wrong, you can complain to your local data protection authority.
@@ -1377,9 +1383,9 @@ export default function TrustPage() {
               <p>
                 The effective date at the top moves whenever the substance changes. For a
                 change that expands what we collect, adds a provider to{" "}
-                <a href="#where">section 7</a>, or reduces a protection described here, we will
-                notify organization admins <strong>before it takes effect</strong>, not after —
-                and we will say what changed rather than only that something did.
+                <a href="#where">section 7</a>, or reduces a protection described here, we aim
+                to tell organization admins <strong>before it takes effect</strong>, and to say
+                what changed rather than only that something did.
               </p>
               <p>
                 Fixing wording, adding detail, and moving items out of{" "}
@@ -1399,8 +1405,11 @@ export default function TrustPage() {
                 <h3>Get in touch</h3>
                 <p>
                   If you believe you have found a security vulnerability, please write to us
-                  before disclosing it publicly. We won&apos;t pursue anyone who reports a
-                  genuine issue in good faith, and we&apos;ll tell you what we did about it.
+                  before disclosing it publicly. If you report in good faith — you don&apos;t
+                  access or change other people&apos;s data beyond what you need to show the
+                  problem, you don&apos;t disrupt the service, and you give us reasonable time to
+                  fix it before going public — we won&apos;t take legal action against you over
+                  the report, and we&apos;ll tell you what we did about it.
                 </p>
                 <dl className="tp__rows">
                   <div className="tp__row">
@@ -1429,7 +1438,7 @@ export default function TrustPage() {
                   </div>
                   <div className="tp__row">
                     <dt>Response target</dt>
-                    <dd>5 business days to acknowledge, 30 days to complete</dd>
+                    <dd>We aim for 5 business days to acknowledge, 30 days to complete</dd>
                   </div>
                 </dl>
               </div>
