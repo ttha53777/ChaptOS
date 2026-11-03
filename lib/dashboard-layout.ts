@@ -70,12 +70,17 @@ export interface DashboardLayout extends DashboardLayoutWire {
   numbers: DashStatId[];
 }
 
+/**
+ * What a new org starts with: no headline numbers, the calendar and the feed in
+ * the wide column, the to-dos and the people beside them. Recent docs waits in
+ * the Arrange tray.
+ */
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = {
   top: ["announcement"],
-  main: ["needs", "week", "members"],
-  rail: ["next", "ballot", "treasury", "activity", "docs"],
-  hidden: [],
-  numbers: DEFAULT_DASH_NUMBERS,
+  main: ["next", "week", "activity"],
+  rail: ["needs", "members", "treasury", "ballot", "docs"],
+  hidden: ["docs"],
+  numbers: [],
 };
 
 const CARD_SET = new Set<string>([...DASH_CARDS, ...OPTIONAL_CARDS]);

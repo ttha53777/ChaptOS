@@ -11,6 +11,7 @@ import {
   setWidgetHidden,
   type DashCardId,
   type DashStatId,
+  type DashboardLayout,
 } from "@/lib/dashboard-layout";
 
 const all = () => true;
@@ -26,8 +27,8 @@ describe("normalizeDashboardLayout", () => {
     const out = normalizeDashboardLayout({ main: ["week", "nope", "week"], rail: ["members", 3], hidden: ["health", "zzz", "health"], numbers: ["members", "metric:12", "metric:0", "bogus"] });
     expect(out).toEqual({
       top: ["announcement"],
-      main: ["week", "needs"],
-      rail: ["members", "next", "ballot", "treasury", "activity", "docs"],
+      main: ["week", "next", "activity"],
+      rail: ["members", "needs", "treasury", "ballot", "docs"],
       hidden: ["health"],
       numbers: ["members", "metric:12"],
     });
@@ -83,28 +84,45 @@ describe("normalizeDashboardLayout", () => {
   it("resolves a never-customized org to the default", () => {
     expect(resolveDashboardLayout(null)).toEqual(DEFAULT_DASHBOARD_LAYOUT);
   });
+
+  it("starts a new org with no numbers, Up next / This week / Activity wide, and the plate, members and treasury beside them", () => {
+    const l = resolveDashboardLayout(null);
+    expect(l.numbers).toEqual([]);
+    expect(l.main).toEqual(["next", "week", "activity"]);
+    expect(l.rail.filter(k => !l.hidden.includes(k) && k !== "ballot")).toEqual(["needs", "members", "treasury"]);
+  });
 });
+
+// A fixed arrangement for the move tests, so they don't shift whenever the
+// default a new org starts with does.
+const L: DashboardLayout = {
+  top: ["announcement"],
+  main: ["needs", "week", "members"],
+  rail: ["next", "ballot", "treasury", "activity", "docs"],
+  hidden: [],
+  numbers: [],
+};
 
 describe("moves", () => {
   it("nudges past cards that aren't visible so every press moves the card", () => {
     const visible = (k: DashCardId) => k !== "treasury";
-    const l = { ...DEFAULT_DASHBOARD_LAYOUT, rail: ["ballot", "week", "treasury", "activity"] as DashCardId[] };
+    const l = { ...L, rail: ["ballot", "week", "treasury", "activity"] as DashCardId[] };
     expect(nudgeCard(l, "activity", "up", visible).rail).toEqual(["ballot", "activity", "week", "treasury"]);
   });
 
   it("returns the same object for a move off the end", () => {
-    expect(nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "needs", "up", all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
+    expect(nudgeCard(L, "needs", "up", all)).toBe(L);
   });
 
   it("swaps a card into the other column at the same visual height", () => {
-    const out = nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "members", "swap", all);
+    const out = nudgeCard(L, "members", "swap", all);
     expect(out.main).toEqual(["needs", "week"]);
     expect(out.rail).toEqual(["next", "ballot", "members", "treasury", "activity", "docs"]);
   });
 
   it("places a card at a visible slot, skipping cards that aren't shown", () => {
     const visible = (k: DashCardId) => k !== "ballot";
-    const l = { ...DEFAULT_DASHBOARD_LAYOUT, rail: ["ballot", "treasury", "activity"] as DashCardId[] };
+    const l = { ...L, rail: ["ballot", "treasury", "activity"] as DashCardId[] };
     // rail = ballot (not shown), treasury, activity → slot 0 is before treasury
     const out = placeCard(l, "week", "rail", 0, visible);
     expect(out.main).toEqual(["needs", "members"]);
@@ -113,34 +131,34 @@ describe("moves", () => {
   });
 
   it("placing a hidden card brings it back", () => {
-    const h = setWidgetHidden(DEFAULT_DASHBOARD_LAYOUT, "activity", true);
+    const h = setWidgetHidden(L, "activity", true);
     const out = placeCard(h, "activity", "main", 1, all);
     expect(out.hidden).toEqual([]);
     expect(out.main).toEqual(["needs", "activity", "week", "members"]);
   });
 
   it("returns the same object when a card is dropped back where it was", () => {
-    expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "main", 1, all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
+    expect(placeCard(L, "week", "main", 1, all)).toBe(L);
   });
 
   it("moves the pinned note between the top spot and a column, and nothing else onto the top", () => {
-    const down = placeCard(DEFAULT_DASHBOARD_LAYOUT, "announcement", "rail", 1, all);
+    const down = placeCard(L, "announcement", "rail", 1, all);
     expect(down.top).toEqual([]);
     expect(down.rail.slice(0, 2)).toEqual(["next", "announcement"]);
     expect(placeCard(down, "announcement", "top", 0, all).top).toEqual(["announcement"]);
-    expect(placeCard(DEFAULT_DASHBOARD_LAYOUT, "week", "top", 0, all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
+    expect(placeCard(L, "week", "top", 0, all)).toBe(L);
   });
 
   it("keyboard: down from the top spot lands first in the wide column, up from there goes back", () => {
-    const down = nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "announcement", "down", all);
+    const down = nudgeCard(L, "announcement", "down", all);
     expect(down.top).toEqual([]);
     expect(down.main[0]).toBe("announcement");
     expect(nudgeCard(down, "announcement", "up", all).top).toEqual(["announcement"]);
-    expect(nudgeCard(DEFAULT_DASHBOARD_LAYOUT, "announcement", "up", all)).toBe(DEFAULT_DASHBOARD_LAYOUT);
+    expect(nudgeCard(L, "announcement", "up", all)).toBe(L);
   });
 
   it("hides and shows without duplicating", () => {
-    const h = setWidgetHidden(DEFAULT_DASHBOARD_LAYOUT, "activity", true);
+    const h = setWidgetHidden(L, "activity", true);
     expect(setWidgetHidden(h, "activity", true)).toBe(h);
     expect(setWidgetHidden(h, "activity", false).hidden).toEqual([]);
   });
