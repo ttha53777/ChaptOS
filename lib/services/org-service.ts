@@ -954,6 +954,10 @@ export async function deleteOrg(ctx: RequestContext, confirmSlug: string): Promi
     await tx.fundraiserSupply.deleteMany({ where: { organizationId: orgId } });
     await tx.fundraiser.deleteMany({ where: { organizationId: orgId } });
     await tx.serviceEvent.deleteMany({ where: { organizationId: orgId } });
+    // ProgrammingEvent's org FK is RESTRICT and its calendarEventId only SETs
+    // NULL, so it outlives the calendar delete and would block the org's own
+    // delete below. Its ProgrammingEventDoc rows cascade with it.
+    await tx.programmingEvent.deleteMany({ where: { organizationId: orgId } });
     await tx.calendarEvent.deleteMany({ where: { organizationId: orgId } });
     // After CalendarEvent (its agendaTemplateId would only SET NULL anyway).
     await tx.agendaTemplate.deleteMany({ where: { organizationId: orgId } });

@@ -61,7 +61,13 @@ async function seedFullOrg(slug: string) {
   await createPartyEvent({ orgId: organizationId });
   await createTask({ orgId: organizationId, assigneeBrotherId: brotherId });
   await createInstagramTask({ orgId: organizationId });
-  await createDoc({ orgId: organizationId });
+  const doc = await createDoc({ orgId: organizationId });
+  // ProgrammingEvent's org FK is RESTRICT and outlives its calendar event — the
+  // row that used to make deleteOrg roll back for any org that used Programming.
+  const pe = await testPrisma.programmingEvent.create({
+    data: { organizationId, title: "Mixer", category: "social", calendarEventId: cal.id },
+  });
+  await testPrisma.programmingEventDoc.create({ data: { organizationId, programmingEventId: pe.id, docId: doc.id } });
   await createTransaction({ orgId: organizationId });
   const budget = await createBudget({ orgId: organizationId });
   await testPrisma.budgetAllocation.create({
@@ -77,7 +83,7 @@ async function childCounts(orgId: number) {
   const [
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
     parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
-    operationalEvents,
+    operationalEvents, programmingEvents, programmingEventDocs,
   ] = await Promise.all([
     testPrisma.organizationConfig.count({ where: { organizationId: orgId } }),
     testPrisma.membership.count({ where: { organizationId: orgId } }),
@@ -96,11 +102,13 @@ async function childCounts(orgId: number) {
     testPrisma.activityLog.count({ where: { organizationId: orgId } }),
     testPrisma.chapterAnnouncement.count({ where: { organizationId: orgId } }),
     testPrisma.operationalEvent.count({ where: { organizationId: orgId } }),
+    testPrisma.programmingEvent.count({ where: { organizationId: orgId } }),
+    testPrisma.programmingEventDoc.count({ where: { organizationId: orgId } }),
   ]);
   return {
     config, memberships, roles, brotherRoles, semesters, calendarEvents, serviceEvents,
     parties, tasks, taskAssignments, igTasks, docs, transactions, budgets, activityLogs, announcements,
-    operationalEvents,
+    operationalEvents, programmingEvents, programmingEventDocs,
   };
 }
 
