@@ -99,7 +99,7 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-bal-top { padding: 20px 22px 6px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
 .dash .tr-bal-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .dash .tr-bal-row { margin-top: 8px; display: flex; align-items: flex-end; gap: 12px; }
-.dash .tr-bal-num { font-family: var(--serif); font-weight: 400; font-size: 46px; line-height: 1; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash .tr-bal-num { font-family: var(--serif); font-weight: 400; font-size: 46px; line-height: 1; letter-spacing: -.02em; color: var(--ink); }
 .dash .tr-bal-num.neg { color: var(--rose); }
 .dash .tr-bal-chip { margin-bottom: 6px; font-family: var(--mono); font-size: 10px; letter-spacing: .04em; padding: 3px 9px; border-radius: 999px; }
 .dash .tr-bal-chip.up { color: var(--ok); background: var(--ok-bg); }
@@ -145,7 +145,7 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-cat .body { flex: 1; min-width: 0; }
 .dash .tr-cat .body .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .dash .tr-cat .body .nm { font-size: 12px; color: var(--ink-soft); font-weight: 500; }
-.dash .tr-cat .body .amt { font-family: var(--mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash .tr-cat .body .amt { font-family: var(--mono); font-size: 12px; color: var(--ink); }
 .dash .tr-cat .body .pct { font-family: var(--mono); font-size: 9.5px; color: var(--faint); margin-right: 6px; }
 .dash .tr-cat .bar { height: 4px; border-radius: 2px; background: var(--line); margin-top: 5px; overflow: hidden; }
 .dash .tr-cat .bar i { display: block; height: 100%; border-radius: 2px; }
@@ -357,7 +357,7 @@ header.dash-toolbar .tr-crumb {
 
 /* Amount is the hero — large serif, the thing you scan. */
 .dash .tr-reimb-amount { font-family: var(--serif); font-weight: 500; font-size: 34px; line-height: 1;
-  letter-spacing: -.01em; color: var(--ink); font-variant-numeric: tabular-nums; }
+  letter-spacing: -.01em; color: var(--ink); }
 .dash .tr-reimb-cur { font-size: 18px; color: var(--muted); vertical-align: .28em; margin-right: 1px; }
 .dash .tr-reimb-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-top: 10px; }
 .dash .tr-reimb-age { font-family: var(--mono); font-size: 10px; color: var(--faint); margin-top: 6px; }
@@ -412,7 +412,7 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-reimb-approve-cat > span { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
 .dash .tr-reimb-approve-balance { display: flex; flex-direction: column; gap: 4px; text-align: right; }
 .dash .tr-reimb-approve-balance > span { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
-.dash .tr-reimb-approve-balance > strong { font-size: 13px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dash .tr-reimb-approve-balance > strong { font-size: 13px; font-weight: 600; color: var(--ink); }
 .dash .tr-reimb-btn-confirm-approve { border-radius: 8px; background: var(--ok-bg); border: 1px solid var(--ok);
   color: var(--ok); font-size: 12px; font-weight: 600; padding: 6px 14px; cursor: pointer; transition: background .14s, color .14s; }
 .dash .tr-reimb-btn-confirm-approve:hover { background: var(--ok); color: var(--paper); }
@@ -544,8 +544,11 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-open form { margin-top: 22px; display: grid; gap: 12px; justify-items: center; }
 .dash .tr-cash { display: flex; align-items: baseline; justify-content: center; gap: 4px; min-width: 240px; padding: 6px 18px 8px; border-bottom: 2px solid var(--line); transition: border-color .15s; }
 .dash .tr-cash:focus-within { border-color: var(--vio); }
-.dash .tr-cash span { font-family: var(--serif); font-size: 28px; color: var(--faint); }
-.dash .tr-cash input { width: 6.5ch; border: 0; outline: none; background: none; font-family: var(--serif); font-size: 34px; color: var(--ink); }
+.dash .tr-cash-sym { font-family: var(--serif); font-size: 28px; color: var(--faint); }
+.dash .tr-cash-fit { display: inline-grid; }
+.dash .tr-cash-fit > * { grid-area: 1 / 1; font-family: var(--serif); font-size: 34px; font-variant-numeric: tabular-nums; }
+.dash .tr-cash-sizer { visibility: hidden; white-space: pre; padding-right: 1px; }
+.dash .tr-cash input { width: 100%; min-width: 0; padding: 0; border: 0; outline: none; background: none; color: var(--ink); }
 .dash .tr-cash input::placeholder { color: var(--line); }
 .dash .tr-open-err { font-size: 12px; color: var(--rose); }
 .dash .tr-open .tr-add:disabled { opacity: .6; cursor: default; }
