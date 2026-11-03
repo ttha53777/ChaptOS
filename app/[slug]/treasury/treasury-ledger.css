@@ -548,10 +548,13 @@ header.dash-toolbar .tr-crumb {
    (not "$ + number") sits on the centre of the line. */
 .dash .tr-cash::after { content: "$"; visibility: hidden; }
 .dash .tr-cash-sym, .dash .tr-cash::after { font-family: var(--serif); font-size: 28px; color: var(--faint); }
-.dash .tr-cash-fit { display: inline-grid; }
-.dash .tr-cash-fit > * { grid-area: 1 / 1; font-family: var(--serif); font-size: 34px; font-variant-numeric: tabular-nums; }
-.dash .tr-cash-sizer { visibility: hidden; white-space: pre; padding-right: 1px; }
-.dash .tr-cash input { width: 100%; min-width: 0; padding: 0; border: 0; outline: none; background: none; color: var(--ink); }
+/* The hidden sizer alone sets the width; the input is laid over it. (In a grid
+   cell an input's default ~20ch width still counts toward the track, so it
+   never shrank to its text.) */
+.dash .tr-cash-fit { position: relative; display: inline-block; }
+.dash .tr-cash-fit > * { font-family: var(--serif); font-size: 34px; font-variant-numeric: tabular-nums; }
+.dash .tr-cash-sizer { display: block; visibility: hidden; white-space: pre; padding-right: 1px; }
+.dash .tr-cash input { position: absolute; inset: 0; width: 100%; min-width: 0; padding: 0; border: 0; outline: none; background: none; color: var(--ink); }
 .dash .tr-cash input::placeholder { color: var(--line); }
 .dash .tr-open-err { font-size: 12px; color: var(--rose); }
 .dash .tr-open .tr-add:disabled { opacity: .6; cursor: default; }
