@@ -46,6 +46,13 @@ export const NAV_ICONS: Record<string, string> = {
 export const NAV = NAV_LABELS;
 export const SETTINGS_NAV = "Settings";
 
+// Fixed display names for nav keys whose stored label is out of date. The key
+// stays the routing/persistence id (navOrder rows store it); only the text changes.
+export const NAV_DISPLAY_NAMES: Record<string, string> = {
+  Instagram: "Media",
+};
+export const navDisplayName = (label: string) => NAV_DISPLAY_NAMES[label] ?? label;
+
 // Which workflow each nav surface belongs to. A label maps to `null` when it is
 // ALWAYS shown regardless of the org's enabled workflows:
 //   - Dashboard / Timeline: every org's home + planning surfaces (product rule).
@@ -123,7 +130,7 @@ const NAV_ROUTES: Record<string, string> = {
   Brotherhood: "/brothers",
   Chapter:     "/chapter",
   Docs:        "/docs",
-  Instagram:   "/instagram",
+  Instagram:   "/media",
   Service:     "/service",
   Fundraisers: "/fundraisers",
 };
@@ -212,10 +219,12 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
 
   // Display labels for vocab-driven nav items. Routing keys (NAV_WORKFLOW_MAP,
   // NAV_ICONS, NAV_ROUTES) remain the original string — only the rendered text
-  // changes. Instagram and Parties intentionally fall back to their own labels
-  // rather than the generic "Communications"/"Social".
+  // changes. Parties intentionally falls back to its own label rather than the
+  // generic "Social". Instagram is shown as "Media" but keeps its key, since
+  // org navOrder rows store it.
   const NAV_DISPLAY: Record<string, string> = {
     Brotherhood: v("Member", true),
+    Instagram:   NAV_DISPLAY_NAMES.Instagram,
     Chapter:     v("Meetings"),
     Treasury:    v("Treasury"),
     Service:     v("Service"),

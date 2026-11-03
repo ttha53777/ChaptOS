@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChapter } from "../../../context/ChapterContext";
 import { requestJson } from "../../../lib/api";
-import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS } from "../../../components/Sidebar";
+import { NAV, NAV_WORKFLOW_MAP, NAV_DESCRIPTIONS, navDisplayName } from "../../../components/Sidebar";
 import { ALWAYS_ON_WORKFLOWS, type WorkflowId } from "@/lib/org-types";
 import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-features";
 import { NAV_GROUPS, applyNavOrder } from "@/lib/nav-order";
@@ -393,7 +393,7 @@ export function WorkflowsSection({
                     </svg>
                   </span>
                   <div className="min-w-0">
-                    <div className="sc-check-key">{item.label}</div>
+                    <div className="sc-check-key">{navDisplayName(item.label)}</div>
                     <div className="sc-check-sub">{item.description}</div>
                   </div>
                 </label>
@@ -427,7 +427,7 @@ export function WorkflowsSection({
                     return (
                       <div key={label} className="sc-row sc-row-between">
                         <span className={`sc-row-key${off ? " is-off" : ""}`}>
-                          {label}
+                          {navDisplayName(label)}
                           {off && <span className="sc-reorder-hidden">Hidden</span>}
                         </span>
                         <div className="sc-reorder-btns">
@@ -436,7 +436,7 @@ export function WorkflowsSection({
                             className="sc-iconbtn"
                             onClick={() => moveItem(group.label, i, -1)}
                             disabled={i === 0 || saving}
-                            aria-label={`Move ${label} up`}
+                            aria-label={`Move ${navDisplayName(label)} up`}
                           >
                             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M8 12V4M4 8l4-4 4 4" />
@@ -447,7 +447,7 @@ export function WorkflowsSection({
                             className="sc-iconbtn"
                             onClick={() => moveItem(group.label, i, 1)}
                             disabled={i === items.length - 1 || saving}
-                            aria-label={`Move ${label} down`}
+                            aria-label={`Move ${navDisplayName(label)} down`}
                           >
                             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M8 4v8M4 8l4 4 4-4" />

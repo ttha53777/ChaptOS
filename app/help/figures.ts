@@ -125,7 +125,7 @@ export const FIGURES: Record<string, () => string> = {
         ${g("People & access","sky",["Roster","Attendance","Roles","Org settings"],[0])}
         ${g("Money","mint",["Treasury","Fundraisers"],[0,1])}
         ${g("Calendar","lilac",["Events","Parties","Service","Semesters"],[])}
-        ${g("Communication","peach",["Announcement","Docs","Tasks","Polls","Instagram"],[])}
+        ${g("Communication","peach",["Announcement","Docs","Tasks","Polls","Media"],[])}
       </div>
       <div class="hc-st" style="padding:14px">
         <span class="hc-k">Rank</span>
@@ -454,7 +454,7 @@ export const FIGURES: Record<string, () => string> = {
         <div class="hc-u-row">${I("timeline")}<span class="hc-grow">Timeline</span><span class="hc-pill">${I("lock")}Always on</span></div>
         <div class="hc-u-row">${I("note")}<span class="hc-grow">Meetings</span><span class="hc-u-tog hc-on"></span></div>
         <div class="hc-u-row">${I("wallet")}<span class="hc-grow">Treasury</span><span class="hc-u-tog hc-on"></span></div>
-        <div class="hc-u-row">${I("camera")}<span class="hc-grow">Instagram</span><span class="hc-u-tog"></span></div>
+        <div class="hc-u-row">${I("camera")}<span class="hc-grow">Media</span><span class="hc-u-tog"></span></div>
       </div></div>
       <div class="hc-scr"><div class="hc-scr-h">${I("home")} Dashboard widgets</div><div class="hc-scr-b" style="padding:4px 14px">
         <div class="hc-u-row"><span class="hc-u-chk hc-on">${I("check")}</span><span class="hc-grow">Attendance KPI</span></div>
@@ -470,7 +470,7 @@ export const FIGURES: Record<string, () => string> = {
       <div class="hc-st" style="padding:10px; border-color:var(--ink); box-shadow:4px 4px 0 var(--lilac); transform:rotate(-2deg)"><span class="hc-k">${I("grip","ic")}</span><span class="hc-k">Members</span><p>dragging…</p></div>
       <div class="hc-st hc-ghost" style="padding:10px"><p>drop here</p></div>
     </div>
-    <div style="margin-top:12px; padding:10px; border-radius:12px; border:1.5px dashed var(--line-2); display:flex; gap:6px; flex-wrap:wrap; align-items:center"><span class="hc-lbl-m">Tray</span><span class="hc-pill hc-t-mint">Money</span><span class="hc-pill hc-t-sky">Dues</span><span class="hc-pill hc-t-lilac">Grades</span><span class="hc-pill hc-t-rose">Service</span><span class="hc-pill hc-t-peach">Instagram</span><span class="hc-pill">Practice reps</span></div>`,
+    <div style="margin-top:12px; padding:10px; border-radius:12px; border:1.5px dashed var(--line-2); display:flex; gap:6px; flex-wrap:wrap; align-items:center"><span class="hc-lbl-m">Tray</span><span class="hc-pill hc-t-mint">Money</span><span class="hc-pill hc-t-sky">Dues</span><span class="hc-pill hc-t-lilac">Grades</span><span class="hc-pill hc-t-rose">Service</span><span class="hc-pill hc-t-peach">Media</span><span class="hc-pill">Practice reps</span></div>`,
   "rename-the-words": () => {
     const r = (a: string, b: string) => `<div class="hc-u-row"><span class="hc-grow hc-u-s">${a}</span>${I("arrow-r")}<b style="display:inline; min-width:110px">${b}</b></div>`;
     return `<div class="hc-scr" style="max-width:420px; margin:0 auto"><div class="hc-scr-h">${I("pencil")} Settings · Vocabulary</div><div class="hc-scr-b" style="padding:4px 14px">

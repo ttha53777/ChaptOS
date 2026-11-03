@@ -136,7 +136,7 @@ export default function InstagramPage() {
   return <div className="flex h-dvh overflow-hidden bg-[color:var(--paper)]">
     <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} activeSection="Instagram" onNavClick={() => {}} />
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <header className="igp-scope igp-mobilebar"><button className="igp-iconbtn" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}><PaperIcon name="menu" /></button><b>Instagram</b><button className="igp-btn ghost small" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: {} }))}><PaperIcon name="spark" />Ask</button></header>
+      <header className="igp-scope igp-mobilebar"><button className="igp-iconbtn" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}><PaperIcon name="menu" /></button><b>Media</b><button className="igp-btn ghost small" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: {} }))}><PaperIcon name="spark" />Ask</button></header>
       <main className="igp-main flex-1 overflow-y-auto"><div className="igp-scope igp-page">
         <section className="igp-brief">
           <div><p className="igp-kick"><span className="chip">{shortDay(today)} · {instagramDate(today)}</span> Content calendar{currentUser?.org?.instagramHandle && <> · @{currentUser.org.instagramHandle}</>}</p>

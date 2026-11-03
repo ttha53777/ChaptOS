@@ -116,7 +116,7 @@ export const CATEGORIES: Category[] = [
     title: "Optional pages",
     icon: "board",
     tint: "peach",
-    blurb: "Service, Programming, Parties, Instagram and Fundraisers.",
+    blurb: "Service, Programming, Parties, Media and Fundraisers.",
   },
   {
     id: "ask",
@@ -521,7 +521,7 @@ export const ARTICLES: Article[] = [
           ["Docs", "Adding, editing, pinning and organising the library."],
           ["Tasks", "Creating, assigning and deleting tasks and deadlines."],
           ["Polls", "Creating, assigning, closing and deleting polls."],
-          ["Instagram", "The Instagram content calendar."],
+          ["Media", "The social posts calendar."],
         ],
       },
       { k: "h", t: "Rank is the part people miss" },
@@ -1382,11 +1382,11 @@ export const ARTICLES: Article[] = [
     categoryId: "pages",
     icon: "camera",
     aud: ["officer"],
-    title: "The Instagram planner",
-    hi: "Instagram",
+    title: "The Media planner",
+    hi: "Media",
     blurb: "A content calendar for posts — not a connection to Instagram.",
-    keywords: ["instagram", "posts", "reel", "story", "carousel", "content calendar", "social media"],
-    who: "Instagram permission.",
+    keywords: ["media", "instagram", "posts", "reel", "story", "carousel", "content calendar", "social media"],
+    who: "Media permission.",
     lede: "Plan what goes up and when. ChaptOS doesn't connect to Instagram or post anything for you.",
     cap: "Stories, Reels and Carousels on their due dates. ✓ = marked posted.",
     body: [
@@ -1541,7 +1541,7 @@ export const ARTICLES: Article[] = [
         rows: [
           [
             "Officer actions",
-            "Add a deadline, add a calendar event, log a transaction, record a dues payment, add an Instagram post, add a programming event. Only someone who holds the matching permission can **Approve** — if that's not you, the card names who can.",
+            "Add a deadline, add a calendar event, log a transaction, record a dues payment, add a social post, add a programming event. Only someone who holds the matching permission can **Approve** — if that's not you, the card names who can.",
           ],
           [
             "Just-you actions",
@@ -1870,7 +1870,7 @@ export const ARTICLES: Article[] = [
         k: "steps",
         items: [
           "On the dashboard, choose **Arrange**.",
-          "Drag cards into the order you want, and put away the ones you don't. Optional cards — money, dues, grades, service, Instagram, and one per custom metric — wait in the tray until you add them.",
+          "Drag cards into the order you want, and put away the ones you don't. Optional cards — money, dues, grades, service, media, and one per custom metric — wait in the tray until you add them.",
           "Save.",
         ],
       },

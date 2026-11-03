@@ -168,7 +168,7 @@ WORKFLOWS (pages the org can enable), choose the relevant subset by id:
   - finance: Budget, transactions, and running balance (Treasury page).
   - parties: Social events with door revenue and wrap-up tracking.
   - service: Service events and per-member service-hour totals.
-  - communications: Social post planning and announcements (Instagram page).
+  - communications: Social post planning and announcements (Media page).
   - docs: Pinned links and shared documents.
   - meetings: The Chapter page — meeting minutes, agendas, and meeting records. Enable it for orgs that hold formal recurring meetings (fraternities, clubs, honor societies); omit it for orgs that don't (a pickup sports team, a loose interest group).
   - operations: Always-on — backs the Dashboard and Timeline pages.

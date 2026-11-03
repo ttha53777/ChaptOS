@@ -30,7 +30,7 @@ const KIND_LABELS: Record<string, string> = {
   treasury: "Treasury",
   events: "Events",
   timeline: "Timeline",
-  instagram: "Instagram",
+  instagram: "Media",
   programming: "Programming",
 };
 

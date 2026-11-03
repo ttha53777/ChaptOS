@@ -156,7 +156,7 @@ export function GeneralSection({
     setActiveModal(null);
     persist(
       requestJson<InstagramTask>("/api/instagram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(t) }),
-      "Instagram task could not be saved. Local changes were reverted.",
+      "Post could not be saved. Local changes were reverted.",
       () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
       saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
     );
@@ -310,7 +310,7 @@ export function GeneralSection({
         </Modal>
       )}
       {activeModal === "ig" && (
-        <Modal title="Add Instagram Task" tone="dusk" onClose={() => setActiveModal(null)}>
+        <Modal title="Add Social Post" tone="dusk" onClose={() => setActiveModal(null)}>
           <AddIGTaskForm onSubmit={handleAddIGTask} />
         </Modal>
       )}

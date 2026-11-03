@@ -143,7 +143,7 @@ function mount(): () => void {
       attN: "32<small>/38</small>", memK: "Members", memN: "38 <small>members</small>", memS: "2 requests to join",
       minT: "Fall trip approved · 3 action items", modK: "Docs", modBig: "Officer handbook", modS: "updated by this year’s board", mod: 0 },
     team: { logo: "DT", c: "var(--rose)", name: "Dance Team", meta: "FALL ’26 · 24", word: "team",
-      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Tasks", "peach"], ["Budget", "mint"], ["Fundraising", "butter", 1], ["Instagram", "peach", 1]],
+      nav: [["Dashboard", "butter"], ["Timeline", "sky"], ["Members", "lilac"], ["Tasks", "peach"], ["Budget", "mint"], ["Fundraising", "butter", 1], ["Media", "peach", 1]],
       nextT: "Rehearsal · Thu 8:00", nextS: "Studio B · costume fitting after",
       budK: "Budget left", budBig: "$860 <small>/ 1,500</small>", budS: "Showcase costs · 2 receipts", bud: 57,
       attN: "22<small>/24</small>", memK: "Members", memN: "24 <small>dancers</small>", memS: "1 request to join",
@@ -555,7 +555,7 @@ function mount(): () => void {
   (() => {
     // real nav order; Dashboard, Timeline and Members come with every org
     const P: [string, string, string, number?][] = [["dash", "Dashboard", "butter", 1], ["timeline", "Timeline", "sky", 1], ["meetings", "Meetings", "sky"], ["tasks", "Tasks", "peach"],
-      ["members", "Members", "lilac", 1], ["ig", "Instagram", "peach"], ["treasury", "Treasury", "mint"], ["service", "Service", "mint"],
+      ["members", "Members", "lilac", 1], ["ig", "Media", "peach"], ["treasury", "Treasury", "mint"], ["service", "Service", "mint"],
       ["prog", "Programming", "lilac"], ["parties", "Parties", "rose"]];
     const onSet = new Set(["meetings", "treasury"]);
     const fxNav = $("#fxNav"), pv = $("#fxPv"), note = $("#fxNote"), acts = $$("#fxActs .act");

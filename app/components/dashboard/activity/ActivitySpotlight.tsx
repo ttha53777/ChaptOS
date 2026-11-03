@@ -52,7 +52,7 @@ const CATEGORY_DEST: Partial<Record<ActivityCategory, { nav: string; href: strin
   fundraisers: { nav: "Fundraisers", href: "/fundraisers" },
   tasks:       { nav: "Tasks",       href: "/tasks" },
   docs:        { nav: "Docs",        href: "/docs" },
-  instagram:   { nav: "Instagram",   href: "/instagram" },
+  instagram:   { nav: "Media",       href: "/media" },
   settings:    { nav: "Settings",    href: "/settings" },
   metrics:     { nav: "Settings",    href: "/settings" },
 };

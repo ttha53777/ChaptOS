@@ -63,7 +63,7 @@ export const AREA_META: Record<PermAreaId, { label: string; icon: PaperIconName;
   people:   { label: "People",   icon: "people",    tone: "sky",    can: "edit the roster, roles & invites" },
   meetings: { label: "Meetings", icon: "gavel",     tone: "lilac",  can: "take attendance & run the term" },
   events:   { label: "Events",   icon: "board",     tone: "rose",   can: "plan events & parties" },
-  comms:    { label: "Comms",    icon: "megaphone", tone: "peach",  can: "post announcements & Instagram" },
+  comms:    { label: "Comms",    icon: "megaphone", tone: "peach",  can: "post announcements & media" },
   content:  { label: "Content",  icon: "folder",    tone: "mint",   can: "manage docs, tasks, polls & service" },
 };
 
@@ -88,7 +88,7 @@ export function pageRows(draft: Draft): PageRow[] {
     { id: "meetings",       label: draftVocab(draft, "Meetings"),         icon: "gavel",    lock: false, group: 1, tone: "sky" },
     { id: "tasks",          label: "Tasks",                               icon: "box",      lock: false, group: 1, tone: "peach" },
     { id: "docs",           label: "Docs",                                icon: "folder",   lock: false, group: 2, tone: "sky" },
-    { id: "communications", label: "Instagram",                           icon: "camera",   lock: false, group: 2, tone: "rose" },
+    { id: "communications", label: "Media",                               icon: "camera",   lock: false, group: 2, tone: "rose" },
     { id: "events",         label: "Programming",                         icon: "board",    lock: false, group: 2, tone: "lilac" },
     { id: "service",        label: draftVocab(draft, "Service"),          icon: "heart",    lock: false, group: 2, tone: "mint" },
     { id: "parties",        label: "Parties",                             icon: "note",     lock: false, group: 2, tone: "rose" },

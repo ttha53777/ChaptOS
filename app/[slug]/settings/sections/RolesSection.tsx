@@ -52,7 +52,7 @@ const PERMISSION_COPY: Record<Permission, { label: string; desc: string }> = {
   MANAGE_DOCS:          { label: "Docs",          desc: "Pin, edit and delete shared doc links." },
   MANAGE_TASKS:         { label: "Tasks",         desc: "Create, assign and delete tasks and deadlines." },
   MANAGE_POLLS:         { label: "Polls",         desc: "Create, assign, close and delete polls." },
-  MANAGE_INSTAGRAM:     { label: "Instagram",     desc: "Manage Instagram content." },
+  MANAGE_INSTAGRAM:     { label: "Media",         desc: "Plan and manage social posts." },
 };
 
 const PERMISSION_GROUPS: { label: string; perms: Permission[] }[] = [

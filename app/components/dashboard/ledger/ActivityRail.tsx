@@ -30,7 +30,7 @@ export const ACTIVITY_CATEGORY: Record<ActivityCategory, { label: (v: Vocab) => 
   fundraisers:  { label: () => "Fundraisers",          tone: "butter" },
   tasks:        { label: () => "Tasks",                tone: "peach" },
   docs:         { label: v => v("Doc", true),          tone: "sky" },
-  instagram:    { label: () => "Instagram",            tone: "rose" },
+  instagram:    { label: () => "Media",                tone: "rose" },
   metrics:      { label: () => "Metrics",              tone: "lilac" },
   settings:     { label: () => "Settings",             tone: "peach" },
 };

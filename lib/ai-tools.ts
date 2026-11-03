@@ -153,7 +153,7 @@ export interface ProposalCtx {
  */
 export const PROPOSAL_META: Record<string, { perm: Permission | null; label: string; kind: ProposalKind; title: string }> = {
   propose_add_deadline:          { perm: "MANAGE_TASKS",     label: "Manage timeline",  kind: "timeline",    title: "Add a deadline" },
-  propose_add_instagram_task:    { perm: "MANAGE_INSTAGRAM", label: "Manage Instagram", kind: "instagram",   title: "Add an Instagram task" },
+  propose_add_instagram_task:    { perm: "MANAGE_INSTAGRAM", label: "Manage Media",     kind: "instagram",   title: "Add a social post" },
   propose_add_calendar_event:    { perm: "MANAGE_EVENTS",    label: "Manage events",    kind: "events",      title: "Add a calendar event" },
   propose_log_transaction:       { perm: "MANAGE_TREASURY",  label: "Manage treasury",  kind: "treasury",    title: "Log a transaction" },
   propose_record_dues_payment:   { perm: "MANAGE_TREASURY",  label: "Manage dues",      kind: "dues",        title: "Record a dues payment" },
@@ -269,7 +269,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "list_instagram_tasks",
       description:
-        "Instagram content tasks (title, dueDate, status, type). Status is open or posted. " +
+        "Social posts from the Media page (title, dueDate, status, type). Status is open or posted. " +
         "Urgency ('urgent', 'due soon') is NOT a stored status — it's how close dueDate is, so ask for it with a date window, not a status filter. " +
         "For 'next/soonest' set start=<today> (overdue tasks aren't 'next'), order_by='dueDate', asc, small limit.",
       parameters: {
@@ -720,7 +720,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "propose_add_instagram_task",
       description:
-        "Propose adding an Instagram content task (story, reel, or carousel). Returns a confirm card; the task is NOT created until confirmed. " +
+        "Propose adding a social post to the Media page (story, reel, or carousel). Returns a confirm card; the task is NOT created until confirmed. " +
         "Only ask the user for the required fields (title, dueDate, type). New posts start 'open'; there is no status to set.",
       parameters: {
         type: "object",
@@ -1086,7 +1086,7 @@ export const SCREEN_PATHS = {
   treasury:    { label: "Treasury",    path: "/treasury" },
   dues:        { label: "Dues",        path: "/treasury/dues" },
   service:     { label: "Service",     path: "/service" },
-  instagram:   { label: "Instagram",   path: "/instagram" },
+  instagram:   { label: "Media",       path: "/media" },
   parties:     { label: "Parties",     path: "/parties" },
   docs:        { label: "Docs",        path: "/docs" },
   settings:    { label: "Settings",    path: "/settings" },
@@ -3678,7 +3678,7 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
     },
   },
   list_deadlines: { verb: "Checking deadlines", source: "Timeline", finding: countFinding("deadline") },
-  list_instagram_tasks: { verb: "Checking Instagram tasks", source: "Instagram", finding: countFinding("task") },
+  list_instagram_tasks: { verb: "Checking social posts", source: "Media", finding: countFinding("task") },
   list_calendar_events: { verb: "Scanning the calendar", source: "Events", finding: countFinding("event") },
   search_meeting_notes: { verb: "Reading meeting notes", source: "Chapter · minutes", finding: countFinding("meeting") },
   list_parties: { verb: "Reviewing parties", source: "Parties", finding: countFinding("party", "parties") },
@@ -3811,7 +3811,7 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   // Proposal drafts: no source chip (their reads are incidental) and no posted
   // finding — the writ card that follows IS the result.
   propose_add_deadline:          { verb: "Drafting a deadline" },
-  propose_add_instagram_task:    { verb: "Drafting an Instagram task" },
+  propose_add_instagram_task:    { verb: "Drafting a social post" },
   propose_add_calendar_event:    { verb: "Drafting an event" },
   propose_log_transaction:       { verb: "Drafting a transaction" },
   propose_record_dues_payment:   { verb: "Drafting a payment record" },

@@ -33,7 +33,7 @@ const SYSTEM_ROUTES: readonly string[] = [
   "admin", "api", "app", "auth", "callback", "chapter", "create", "dashboard",
   "docs", "login", "logout", "settings", "signin", "signout", "signup",
   "welcome", "pending-access", "brothers", "timeline", "treasury",
-  "service", "parties", "instagram", "fundraisers",
+  "service", "parties", "instagram", "media", "fundraisers",
   // "trust" backs the real page at app/trust/ (public disclosure copy) and
   // "terms" backs app/terms/ (the Terms of Service). The other two are their
   // conventional siblings — reserved ahead of being built so

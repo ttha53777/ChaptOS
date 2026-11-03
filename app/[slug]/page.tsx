@@ -601,7 +601,7 @@ function WidgetDetailDrawer({
         const sections: { label: string; tone: string; count: number; rows: { key: string; title: string; meta: string }[] }[] = [
           { label: "Deadlines", tone: "vio", count: deadlinesDue.length,
             rows: deadlinesDue.map(d => ({ key: `d${d.id}`, title: d.title, meta: `${d.dueDate ? fmtDate(d.dueDate) : "No date"} · ${taskAssigneeLabel(d, 1)}` })) },
-          { label: "Instagram", tone: "rose", count: igDue.length,
+          { label: "Media", tone: "rose", count: igDue.length,
             rows: igDue.map(t => ({ key: `i${t.id}`, title: t.title, meta: `${fmtDate(t.dueDate)} · ${t.type}` })) },
           { label: "Events", tone: "info", count: eventsThisWeek.length,
             rows: eventsThisWeek.map(e => ({ key: `e${e.id}`, title: e.title, meta: formatEventTime(e.time, e.schedule) ? `${fmtDate(e.date)} · ${formatEventTime(e.time, e.schedule)}` : fmtDate(e.date) })) },
@@ -1582,7 +1582,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(t),
       }),
-      "Instagram task could not be saved. Local changes were reverted.",
+      "Post could not be saved. Local changes were reverted.",
       () => setIgTaskList(prev => prev.filter(x => x.id !== tempId)),
       saved => setIgTaskList(prev => prev.map(x => x.id === tempId ? saved : x)),
     );
@@ -2450,8 +2450,8 @@ export default function Home() {
   if (tracked.gpa) dashCards.gpa = { label: "Grades", icon: "star", tone: "lilac", blurb: "The GPA spread against your at-risk line", node: (
     <GradesCard brothers={brotherList} atRisk={THRESHOLDS.gpaAtRisk} loading={!rosterLoaded} error={rosterFailed} onRetry={retrySections} onOpen={() => setActiveDrawer("gpa")} />
   ) };
-  if (igEnabled) dashCards.social = { label: "Instagram", icon: "camera", tone: "peach", blurb: "What went up, and what's next", node: (
-    <InstagramCard tasks={igTaskList} today={todayISO} loading={!loadedSections.has("instagram")} error={sectionErrors.has("instagram")} onRetry={retrySections} onOpen={() => router.push(orgPath("/instagram"))} />
+  if (igEnabled) dashCards.social = { label: "Media", icon: "camera", tone: "peach", blurb: "What went up, and what's next", node: (
+    <InstagramCard tasks={igTaskList} today={todayISO} loading={!loadedSections.has("instagram")} error={sectionErrors.has("instagram")} onRetry={retrySections} onOpen={() => router.push(orgPath("/media"))} />
   ) };
   for (const snap of customMetricSnapshots) dashCards[`metric:${snap.definitionId}`] = { label: snap.name, icon: "bars", tone: "sky", blurb: "Every member against your goal", node: (
     <MetricCard snap={snap} onOpen={() => setActiveCustomMetricId(snap.definitionId)} />
@@ -2725,7 +2725,7 @@ export default function Home() {
         </Modal>
       )}
       {igEnabled && activeModal === "ig" && (
-        <Modal title="Add Instagram Task" tone="dusk" onClose={closeModal}>
+        <Modal title="Add Social Post" tone="dusk" onClose={closeModal}>
           <AddIGTaskForm onSubmit={handleAddIGTask} />
         </Modal>
       )}

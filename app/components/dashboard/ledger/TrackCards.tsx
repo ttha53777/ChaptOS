@@ -273,7 +273,7 @@ export function InstagramCard({ tasks, today, loading, error, onRetry, onOpen }:
   const days = next ? Math.round((utc(next.dueDate).getTime() - utc(today).getTime()) / 86_400_000) : 0;
   const nextWhen = !next ? "" : days === 0 ? "Today" : days === 1 ? "Tomorrow" : days < 7 ? WD[utc(next.dueDate).getUTCDay()] : short(next.dueDate);
   return (
-    <Shell label="Instagram" icon="camera" tone="peach" onOpen={onOpen} error={error} onRetry={onRetry} what="Instagram posts">
+    <Shell label="Media" icon="camera" tone="peach" onOpen={onOpen} error={error} onRetry={onRetry} what="social posts">
       {loading ? <Skel /> : tasks.length === 0 ? <Empty>No posts planned yet.</Empty> : (
         <>
           <p className="tk-ig-top"><b>{thisMonth}</b> posted this month · <b>{planned.length}</b> planned</p>

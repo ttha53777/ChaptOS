@@ -80,7 +80,7 @@ export const PERM_LABELS: Record<Permission, string> = {
   MANAGE_EVENTS:        "Manage events",
   MANAGE_PARTIES:       "Run parties & socials",
   MANAGE_ANNOUNCEMENTS: "Post announcements",
-  MANAGE_INSTAGRAM:     "Run Instagram",
+  MANAGE_INSTAGRAM:     "Run Media",
   MANAGE_DOCS:          "Manage docs",
   MANAGE_TASKS:         "Assign tasks",
   MANAGE_POLLS:         "Run polls",
@@ -104,7 +104,7 @@ export const AREA_DESC: Record<PermAreaId, string> = {
   people:   "Add or remove members, assign roles, and manage org settings & invite links.",
   meetings: "Take attendance and set up the term's meeting schedule.",
   events:   "Create events, and plan parties & socials.",
-  comms:    "Post announcements to the chapter and run the Instagram.",
+  comms:    "Post announcements to the chapter and run the media page.",
   content:  "Manage shared docs, assign tasks, run polls, and track service hours.",
 };
 

@@ -230,7 +230,7 @@ const SECTIONS_BY_PAGE: Record<string, readonly DataSection[]> = {
   docs:       [],
   events:     [],
   onboarding: [],
-  instagram:  ["instagram"],
+  media:      ["instagram"],
   parties:    ["parties"],
   tasks:      ["deadlines", "polls"],
   // GeneralSection reads igTaskList alongside the page's own brothers/tasks/parties.

@@ -780,7 +780,7 @@ function EventDetail({
   onOpenFundraiser?: () => void;
   /** Instagram posts that promote this event (reverse of InstagramTask.calendarEventId). */
   linkedPosts?: { id: number; title: string; type: string; dueDate: string }[];
-  /** Jump to the Instagram page. */
+  /** Jump to the Media page. */
   onOpenInstagram?: () => void;
   brotherList: { id: number; name: string }[];
   selfBrotherId: number | null;
@@ -1021,10 +1021,10 @@ function EventDetail({
         </button>
       )}
 
-      {/* Instagram posts that promote this event (set from the Instagram page). */}
+      {/* Instagram posts that promote this event (set from the Media page). */}
       {linkedPosts && linkedPosts.length > 0 && (
         <div className="ev-linked-ig">
-          <span className="lab">On Instagram</span>
+          <span className="lab">Media posts</span>
           {linkedPosts.map(p => (
             <button key={p.id} className="ev-ig-row" onClick={onOpenInstagram}>
               <span className="ig-type">{p.type}</span>
@@ -2693,7 +2693,7 @@ export default function TimelinePage() {
                             .map(t => ({ id: t.id, title: t.title, type: t.type, dueDate: t.dueDate }))
                         : []
                     }
-                    onOpenInstagram={() => router.push(orgPath("/instagram"))}
+                    onOpenInstagram={() => router.push(orgPath("/media"))}
                     brotherList={brotherList}
                     selfBrotherId={selfId}
                     deadlineStatus={selectedDeadline?.status ?? null}

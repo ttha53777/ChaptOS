@@ -401,7 +401,7 @@ export function LandingPage() {
                 <button className="act" data-p="prog" style={sx({ "--c": "var(--lilac)" })}><span className="bx"><svg><use href="#i-check" /></svg></span><span className="al">run events &amp; fundraisers</span><span className="pg">Programming</span></button>
                 <button className="act" data-p="parties" style={sx({ "--c": "var(--rose)" })}><span className="bx"><svg><use href="#i-check" /></svg></span><span className="al">throw socials</span><span className="pg">Parties</span></button>
                 <button className="act" data-p="service" style={sx({ "--c": "var(--mint)" })}><span className="bx"><svg><use href="#i-check" /></svg></span><span className="al">volunteer</span><span className="pg">Service</span></button>
-                <button className="act" data-p="ig" style={sx({ "--c": "var(--peach)" })}><span className="bx"><svg><use href="#i-check" /></svg></span><span className="al">post online</span><span className="pg">Instagram</span></button>
+                <button className="act" data-p="ig" style={sx({ "--c": "var(--peach)" })}><span className="bx"><svg><use href="#i-check" /></svg></span><span className="al">post online</span><span className="pg">Media</span></button>
               </div>
             </div>
             <div className="fx-pv" id="fxPv">
