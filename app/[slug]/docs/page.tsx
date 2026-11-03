@@ -12,6 +12,7 @@ import { FolderSection } from "./FolderSection";
 import { LedgerRow } from "./LedgerRow";
 import { MoveDocDialog } from "./MoveDocDialog";
 import { PinnedCard } from "./PinnedCard";
+import { DocsDayOne } from "./DayOne";
 import { PaperIcon } from "../../components/paper/PaperIcon";
 import { requestJson } from "../../lib/api";
 import "../../components/dashboard/dashboard-ledger.css";
@@ -649,6 +650,9 @@ export default function DocsPage() {
 
   const orgName = currentUser?.org?.name ?? "ChaptOS";
   const hasDocs = docs.length > 0;
+  // Nothing filed and no folders yet: the page explains itself instead of
+  // showing an empty library (see DayOne.tsx).
+  const dayOne = !loading && !loadError && !hasDocs && folders.length === 0;
   const queryActive = query.trim() !== "" || filter !== "all";
   // Search/filter matched nothing anywhere — skip the shelf and sections and
   // show one global empty state instead of a page of none-match lines.
@@ -703,12 +707,18 @@ export default function DocsPage() {
                 </svg>
               </button>
               <div>
-                <p className="kicker">Reference Library</p>
-                <h1>The chapter&rsquo;s <em>reading room</em>.</h1>
-                <div className="dx-digest">
-                  <span className="ai"><span className="lg-only">AI</span><span className="pp-only"><PaperIcon name="spark" />Digest</span></span>
-                  <p>{digestLine(sorted, orgName)}</p>
-                </div>
+                {dayOne ? <>
+                  <p className="kicker">Docs</p>
+                  <h1>Your links, <em>all in one place</em>.</h1>
+                  <p className="dx1-sub">Paste a link to anything the chapter uses. It turns into a card here that everyone can open.</p>
+                </> : <>
+                  <p className="kicker">Reference Library</p>
+                  <h1>The chapter&rsquo;s <em>reading room</em>.</h1>
+                  <div className="dx-digest">
+                    <span className="ai"><span className="lg-only">AI</span><span className="pp-only"><PaperIcon name="spark" />Digest</span></span>
+                    <p>{digestLine(sorted, orgName)}</p>
+                  </div>
+                </>}
                 {hasDocs && (
                   <p className="dx-meta-line">
                     <span><b>{glance.total}</b>{" "}{glance.total === 1 ? "reference" : "references"}</span>
@@ -725,22 +735,22 @@ export default function DocsPage() {
               </div>
               {canManage && (
                 <div className="dx-actions">
-                  <button className="dx-add ghost" onClick={() => setShowAddFolder(true)}>
+                  {!dayOne && <button className="dx-add ghost" onClick={() => setShowAddFolder(true)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><path d="M12 11v4M10 13h4" /></svg>
                     New folder
-                  </button>
+                  </button>}
                   <button className="dx-add" onClick={() => openAdd(null)}>
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                     Add doc
                   </button>
                 </div>
               )}
-              <button
+              {!dayOne && <button
                 className="dx-ask pp-only"
                 onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "Where do we keep " } }))}
               >
                 <PaperIcon name="spark" />Ask where a doc lives<kbd>⌘K</kbd>
-              </button>
+              </button>}
             </section>
 
             {/* ── Toolbar: search + kind filter + sort ── */}
@@ -804,15 +814,7 @@ export default function DocsPage() {
               </div>
             )}
 
-            {!loading && !loadError && !hasDocs && folders.length === 0 && (
-              <div className="dx-empty">
-                <div className="ic">
-                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                </div>
-                <p className="t">No references pinned yet</p>
-                <p className="h">{canManage ? "Add a link to start your chapter's reference library." : "Ask an admin to add some links."}</p>
-              </div>
-            )}
+            {dayOne && <DocsDayOne canManage={canManage} known={currentUser != null} onAdd={() => openAdd(null)} />}
 
             {/* Search / filter matched nothing anywhere. */}
             {!loading && !loadError && nothingMatches && (
