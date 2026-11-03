@@ -20,6 +20,7 @@ import { PaperIcon } from "../../components/paper/PaperIcon";
 import { makeTypeVisuals, typeVisual } from "../../components/programming/typeColor";
 import { TimelineStrip } from "../../components/programming/TimelineStrip";
 import { UndatedRail } from "../../components/programming/UndatedRail";
+import { ProgrammingDayOne } from "../../components/programming/ProgrammingDayOne";
 import { statusBits, starterIdeas, type StatusBit } from "../../components/programming/eventsCopy";
 import { LedgerStrip, Measure } from "../../components/dashboard/ledger/LedgerStrip";
 import type { CalEventType, ProgrammingTask, TaskStatus } from "../../data";
@@ -96,6 +97,7 @@ export default function ProgrammingPage() {
   // job was undoing the single-select limitation next to it.
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
   const [eventTypes, setEventTypes] = useState<CalEventType[]>([]);
+  const [typesLoaded, setTypesLoaded] = useState(false);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isClosingDrawer, setIsClosingDrawer] = useState(false);
@@ -110,7 +112,6 @@ export default function ProgrammingPage() {
   // Paper's calendar reschedule of a published event: which one, and to when.
   const [demoteTarget, setDemoteTarget] = useState<{ event: ProgrammingTask; date: string } | null>(null);
   // A starter idea from the empty board pre-fills the composer.
-  const [ideaPreset, setIdeaPreset] = useState<{ title: string; category: string } | undefined>(undefined);
   // Briefly highlights a lane a status clause pointed at.
   const [flashStage, setFlashStage] = useState<ProgrammingStage | null>(null);
 
@@ -183,7 +184,8 @@ export default function ProgrammingPage() {
   useEffect(() => {
     requestJson<CalEventType[]>("/api/calendar/event-types")
       .then(setEventTypes)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setTypesLoaded(true));
   }, []);
 
   // Roles, for the owner picker's Role tab. Fetched here rather than through
@@ -208,10 +210,15 @@ export default function ProgrammingPage() {
       .map(t => ({ slug: t.slug, label: t.label, color: t.colorDark ?? t.color, mandatoryDefault: t.mandatoryDefault })),
     [eventTypes, enabledWorkflows],
   );
-  const starters = useMemo(
-    () => starterIdeas(programmingFormOptions.map(o => ({ slug: o.slug, label: o.label, color: o.color }))),
-    [programmingFormOptions],
-  );
+  // Day one's pictures follow one event through the lanes: the first of this
+  // org's own starter ideas, so it's always in a type the chapter has.
+  // Null until the types land, so the pictures don't swap their example mid-read.
+  const dayOneSample = useMemo(() => {
+    if (!typesLoaded) return null;
+    const st = starterIdeas(programmingFormOptions.map(o => ({ slug: o.slug, label: o.label, color: o.color })))[0];
+    const opt = programmingFormOptions.find(o => o.slug === st?.category) ?? programmingFormOptions[0];
+    return { title: st?.title ?? "Chapter retreat", label: opt?.label ?? null, color: opt?.color ?? null };
+  }, [programmingFormOptions, typesLoaded]);
 
   // slug → colour/glyph for every type the org defines. Built once here and
   // passed down, replacing four label-keyed lookup tables that rendered any
@@ -604,6 +611,9 @@ export default function ProgrammingPage() {
 
   // The drawer stays mounted through its slide-out so the animation can run.
   const panelOpen = selected || isClosingDrawer;
+  // Nothing on the board at all. Paper swaps the measures, filters and lanes
+  // for ProgrammingDayOne; Ledger keeps its own empty state.
+  const dayOne = !loading && events.length === 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
@@ -623,7 +633,7 @@ export default function ProgrammingPage() {
         </header>
 
         <main className="page-ambient flex-1 overflow-y-auto">
-          <div className="dash dash-events" data-dashboard-theme="dusk">
+          <div className="dash dash-events" data-dashboard-theme="dusk" data-day-one={dayOne || undefined}>
 
             {/* ── Briefing ── */}
             <section className="briefing" aria-label="Events">
@@ -632,7 +642,14 @@ export default function ProgrammingPage() {
                   <span className="today">{dateLabel}</span>
                   &ensp;·&ensp;{termLabel}
                 </p>
-                <h1 className="greeting">The <em>programme</em>.</h1>
+                {dayOne ? (
+                  <h1 className="greeting">
+                    <span className="pp-only">Events, <em>one step at a time</em></span>
+                    <span className="lg-only">The <em>programme</em>.</span>
+                  </h1>
+                ) : (
+                  <h1 className="greeting">The <em>programme</em>.</h1>
+                )}
                 {/* Three derived clauses, not a digest paragraph. Each one names a
                     count the board's gates make actionable, so the line reads as
                     a short to-do rather than a summary of what you can already
@@ -662,6 +679,14 @@ export default function ProgrammingPage() {
                         </span>
                       ))}
                     </>
+                  ) : dayOne ? (
+                    <>
+                      <span className="pp-only">
+                        Write down an idea, pick who&apos;s running it, then give it a date and a place.
+                        That&apos;s when the whole chapter sees it.
+                      </span>
+                      <span className="lg-only">Nothing scheduled.</span>
+                    </>
                   ) : (
                     "Nothing scheduled."
                   )}
@@ -672,11 +697,11 @@ export default function ProgrammingPage() {
                   <>
                     {/* The cheap way in. Sits before "New event" because holding a
                         thought should cost less than scheduling one. */}
-                    <button className="ev-add ghost" onClick={() => { setIdeaPreset(undefined); setModal("idea"); }}>
+                    <button className="ev-add ghost" onClick={() => { setModal("idea"); }}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                       New idea
                     </button>
-                    <button className="ev-add" onClick={() => setModal("add")}>
+                    <button className={`ev-add${dayOne ? " d1-hide" : ""}`} onClick={() => setModal("add")}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                       New event
                     </button>
@@ -686,7 +711,7 @@ export default function ProgrammingPage() {
                     where you look when you don't know what to do next, but it
                     isn't one of them. */}
                 <button
-                  className="ev-help-btn"
+                  className={`ev-help-btn${dayOne ? " d1-hide" : ""}`}
                   onClick={() => setHelpOpen(true)}
                   aria-label="How this board works"
                   title="How this board works  (?)"
@@ -791,54 +816,15 @@ export default function ProgrammingPage() {
 
                 {events.length === 0 ? (
                   <>
-                  {/* Paper: the four lanes as a ladder, each with its price,
-                      and a few starter ideas in this org's own categories. */}
-                  <div className="ev-empty-pp pp-only">
-                    <div className="ev-ladder" aria-hidden>
-                      {STAGES.map((s, i) => (
-                        <span key={s} className="ev-ladder-step">
-                          <span className="rung" data-stage={s}>
-                            <b><i />{STAGE_LADDER[s].label}</b>
-                            <small>{STAGE_LADDER[s].cost}</small>
-                          </span>
-                          {i < STAGES.length - 1 && <PaperIcon name="arrow-r" />}
-                        </span>
-                      ))}
-                    </div>
-                    <h3>Nothing on the slate yet.</h3>
-                    <p>
-                      Every event starts as an idea — a title and a type is all it costs. Give it an
-                      owner to start planning; a date and a place confirm it onto the chapter&apos;s Timeline.
-                    </p>
-                    {canManage && (
-                      <>
-                        <div className="acts">
-                          <button className="ev-add" onClick={() => { setIdeaPreset(undefined); setModal("idea"); }}>
-                            <PaperIcon name="plus" />New idea
-                          </button>
-                          <button className="ev-add ghost" onClick={() => setModal("add")}>
-                            <PaperIcon name="plus" />New event
-                          </button>
-                        </div>
-                        {starters.length > 0 && (
-                          <div className="ev-starters">
-                            <p className="k">Ideas to start with</p>
-                            <div className="chips">
-                              {starters.map(st => (
-                                <button
-                                  key={st.title}
-                                  type="button"
-                                  style={{ ["--tc" as string]: st.color ?? "var(--faint)" }}
-                                  onClick={() => { setIdeaPreset({ title: st.title, category: st.category }); setModal("idea"); }}
-                                >
-                                  <i />{st.title}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
+                  <div className="pp-only">
+                    <ProgrammingDayOne
+                      ready={!!currentUser}
+                      canManage={canManage}
+                      sample={dayOneSample}
+                      owner={canManage ? (currentUser?.name ?? "You") : "An officer"}
+                      today={today}
+                      onNew={() => setModal("idea")}
+                    />
                   </div>
                   <div className="ev-empty lg-only">
                     <span className="ic">
@@ -960,7 +946,6 @@ export default function ProgrammingPage() {
       {modal === "idea" && (
         <NewIdeaComposer
           categoryOptions={programmingFormOptions}
-          initial={ideaPreset}
           onCancel={() => setModal(null)}
           onCommit={handleAddIdea}
         />
@@ -1064,13 +1049,3 @@ export default function ProgrammingPage() {
     </div>
   );
 }
-
-// ─── Helpers + on-deck hero ──────────────────────────────────────────────────
-
-/** Paper's empty-board ladder: each lane and what it costs to enter. */
-const STAGE_LADDER: Record<ProgrammingStage, { label: string; cost: string }> = {
-  idea:      { label: "Idea",      cost: "A title and a type." },
-  planning:  { label: "Planning",  cost: "Plus an owner — one person or role." },
-  confirmed: { label: "Confirmed", cost: "Plus a date and a place. Publishes it." },
-  done:      { label: "Done",      cost: "It happened. Rate it and file it." },
-};

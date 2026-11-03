@@ -362,31 +362,69 @@ html[data-aesthetic="paper"] .dash .ev-tl-chip.leave { display: none; }
 @keyframes pp-ev-tk { from { transform: translateY(-14px) rotate(-3deg); opacity: 0; } }
 
 /* ── Empty board ───────────────────────────────────────────────────────────── */
-html[data-aesthetic="paper"] .dash .ev-empty-pp { margin-top: 24px; padding: 30px 30px 28px; text-align: center; border: 1.5px dashed var(--line-med); border-radius: 22px; }
-html[data-aesthetic="paper"] .dash .ev-ladder { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; }
-html[data-aesthetic="paper"] .dash .ev-ladder-step { display: inline-flex; align-items: center; gap: 8px; }
-html[data-aesthetic="paper"] .dash .ev-ladder-step > svg { width: 16px; height: 16px; color: var(--muted); }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung { width: 132px; padding: 12px 10px 10px; text-align: left; border-radius: 5px 13px 7px 12px; background: var(--card); border: 1.5px solid var(--line-med); }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung b { display: flex; align-items: center; gap: 7px; font-family: var(--font-fraunces); font-weight: 600; font-size: 1rem; letter-spacing: -.02em; }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung b i { width: 9px; height: 9px; border-radius: 50%; background: var(--sf); border: 1.5px solid var(--sc); }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung small { display: block; margin-top: 5px; font-size: .74rem; line-height: 1.35; color: var(--muted); }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="idea"] { background: var(--pp-butter-soft); border-color: transparent; border-radius: 3px; transform: rotate(-2deg); box-shadow: 0 8px 14px -10px rgba(var(--shade-rgb),.35); }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="idea"] b i { background: transparent; border-style: dashed; }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="planning"] { border-style: dashed; }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="confirmed"] { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-lilac); }
-html[data-aesthetic="paper"] .dash .ev-ladder .rung[data-stage="done"] { background: var(--paper-2); }
-html[data-aesthetic="paper"] .dash .ev-empty-pp h3 { margin-top: 22px; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.5rem; letter-spacing: -.03em; }
-html[data-aesthetic="paper"] .dash .ev-empty-pp > p { margin: 8px auto 0; max-width: 58ch; color: var(--ink-soft); font-size: .92rem; }
-html[data-aesthetic="paper"] .dash .ev-empty-pp .acts { margin-top: 18px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-html[data-aesthetic="paper"] .dash .ev-starters { margin: 24px auto 0; max-width: 640px; padding-top: 16px; border-top: 1px dashed var(--line-med); }
-html[data-aesthetic="paper"] .dash .ev-starters .k { font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-html[data-aesthetic="paper"] .dash .ev-starters .chips { margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-html[data-aesthetic="paper"] .dash .ev-starters button {
-  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px 6px 9px; border-radius: 999px; border: 1.5px dashed var(--line-med);
-  background: var(--ts); font-size: .82rem; font-weight: 550; color: var(--ink-soft); transition: transform .18s var(--pp-ease-spring);
+/* Day one (ProgrammingDayOne): the Fundraisers day-one shape — four numbered
+   pictures of the same event in each lane's paper, then one button. The board's
+   instruments and filters wait for the first event. */
+html[data-aesthetic="paper"] .dash-events[data-day-one] :is(.ledger, .ev-toolbar, .ev-tl, .d1-hide) { display: none; }
+html[data-aesthetic="paper"] .dash .ev-d1 {
+  margin-top: 28px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); align-items: end;
+  padding: 30px 24px 26px; background: var(--card); border: 1.5px dashed var(--line-med); border-radius: 30px;
 }
-html[data-aesthetic="paper"] .dash .ev-starters button:hover { transform: translateY(-2px); border-style: solid; border-color: var(--tc); color: var(--ink); }
-html[data-aesthetic="paper"] .dash .ev-starters button i { width: 7px; height: 7px; border-radius: 50%; background: var(--tc); }
+html[data-aesthetic="paper"] .dash .ev-d1 figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; padding: 0 8px; text-align: center; }
+html[data-aesthetic="paper"] .dash .ev-d1 figure > div { height: 140px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+html[data-aesthetic="paper"] .dash .ev-d1 figcaption b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.05rem; letter-spacing: -.02em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .ev-d1 figcaption span { display: block; margin-top: 2px; font-size: .82rem; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .ev-d1-cta { margin-top: 22px; display: flex; justify-content: center; }
+html[data-aesthetic="paper"] .dash .ev-d1-note { margin-top: 16px; text-align: center; font-size: .88rem; color: var(--muted); }
+
+html[data-aesthetic="paper"] .dash .d1-card {
+  position: relative; width: 150px; max-width: 100%; display: flex; flex-direction: column; padding: 11px 12px;
+  border-radius: 5px 13px 7px 12px; border: 1.5px solid var(--line-med); background: var(--card); text-align: left; font-size: .74rem; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .dash .d1-card > b { font-weight: 600; font-size: .84rem; letter-spacing: -.01em; color: var(--ink); overflow-wrap: anywhere; }
+html[data-aesthetic="paper"] .dash .d1-ty { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: .7rem; font-weight: 600; color: var(--tc); }
+html[data-aesthetic="paper"] .dash .d1-ty::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+html[data-aesthetic="paper"] .dash .d1-m { display: flex; align-items: center; gap: 6px; margin-top: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-aesthetic="paper"] .dash .d1-m svg { width: 12px; height: 12px; flex: none; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .d1-av {
+  width: 18px; height: 18px; flex: none; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: .52rem; font-weight: 700;
+  background: var(--pp-butter); color: #26211b;
+}
+/* the lanes' paper, as on the board */
+html[data-aesthetic="paper"] .dash .d1-card[data-stage="idea"] {
+  border-color: transparent; border-radius: 3px; transform: rotate(-3deg);
+  background: color-mix(in srgb, var(--tf) 62%, var(--card));
+  box-shadow: 0 1px 1px rgba(var(--shade-rgb),.06), 0 9px 14px -10px rgba(var(--shade-rgb),.35);
+}
+html[data-aesthetic="paper"][data-theme="dusk"] .dash .d1-card[data-stage="idea"] { background: color-mix(in srgb, var(--tc) 18%, var(--card)); box-shadow: 0 9px 16px -10px rgba(0,0,0,.7); }
+html[data-aesthetic="paper"] .dash .d1-card[data-stage="idea"]::before {
+  content: ""; position: absolute; left: 50%; top: -8px; width: 46px; height: 15px; transform: translateX(-50%) rotate(-2.5deg); border-radius: 2px;
+  background: color-mix(in srgb, var(--pp-butter) 70%, transparent); border-inline: 1px dashed rgba(38,33,27,.16);
+}
+html[data-aesthetic="paper"] .dash .d1-card[data-stage="planning"] { border-style: dashed; transform: rotate(1.5deg); }
+html[data-aesthetic="paper"] .dash .d1-card[data-stage="confirmed"] { border-color: var(--ink); box-shadow: 3px 3px 0 var(--tf); transform: rotate(-1.5deg); }
+html[data-aesthetic="paper"] .dash .d1-card[data-stage="done"] { background: var(--paper-2); transform: rotate(2deg); }
+html[data-aesthetic="paper"] .dash .d1-card[data-stage="done"] > b { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dash .d1-pub {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 1px 7px; border-radius: 6px;
+  font-family: var(--mono); font-size: .56rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  background: var(--pp-lilac-soft); color: var(--pp-lilac-ink); border: 1px dashed var(--pp-lilac-bd);
+}
+html[data-aesthetic="paper"] .dash .d1-pub svg { width: 10px; height: 10px; }
+html[data-aesthetic="paper"] .dash .d1-stars { margin-top: 6px; color: var(--pp-butter-ink); letter-spacing: .08em; font-size: .82rem; }
+html[data-aesthetic="paper"] .dash .d1-stars s { text-decoration: none; color: var(--line-med); }
+html[data-aesthetic="paper"] .dash .d1-stamp {
+  position: absolute; right: -10px; top: -10px; padding: 1px 7px; border-radius: 5px; transform: rotate(8deg);
+  font-family: var(--mono); font-size: .56rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--pp-mint-ink); background: var(--paper); border: 1.5px solid var(--pp-mint-ink);
+}
+@media (max-width: 1100px) {
+  html[data-aesthetic="paper"] .dash .ev-d1 { grid-template-columns: repeat(2, minmax(0,1fr)); row-gap: 30px; }
+}
+@media (max-width: 640px) {
+  html[data-aesthetic="paper"] .dash .ev-d1 { grid-template-columns: minmax(0,1fr); padding: 26px 16px 22px; border-radius: 22px; }
+  html[data-aesthetic="paper"] .dash .ev-d1 figure > div { height: auto; }
+}
 
 html[data-aesthetic="paper"] .dash .ev-nomatch { margin-top: 22px; padding: 26px 20px; border: 1.5px dashed var(--line-med); border-radius: 22px; text-align: center; }
 html[data-aesthetic="paper"] .dash .ev-nomatch .nm-t { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.3rem; letter-spacing: -.026em; }
