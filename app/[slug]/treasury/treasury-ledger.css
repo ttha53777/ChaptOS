@@ -516,6 +516,8 @@ header.dash-toolbar .tr-crumb {
   color: var(--vio); display: grid; place-items: center; font-family: var(--mono); font-size: 9px; font-weight: 600; }
 .dash .tr-locked .who-can span { font-size: 12.3px; color: var(--ink-soft); }
 .dash .tr-locked .who-can b { font-weight: 500; color: var(--ink); }
+/* a member on unopened books can still ask to be paid back */
+.dash .tr-locked-reimb { margin: 8px auto 0; max-width: 760px; }
 
 @media (max-width: 560px) {
   .dash .tr-locked { padding: 40px 20px 44px; }

@@ -38,7 +38,7 @@ import { useChapter } from "../context/ChapterContext";
 import { useToast } from "../components/dashboard/Toast";
 import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../components/dashboard/forms";
 import { TaskForm, type RoleOption, type TaskFormValue } from "../components/dashboard/TaskForm";
-import type { QuickActionKey } from "../components/dashboard/QuickActionsMenu";
+import { REIMBURSE_QUERY, type QuickActionKey } from "../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../components/timeline/CalendarEventForm";
 import { CalendarInviteCard } from "../components/timeline/CalendarInvite";
@@ -1980,6 +1980,7 @@ export default function Home() {
   function handleQuickAction(key: QuickActionKey) {
     if (key === "expense"  && !canTreasury) return;
     if (key === "revenue"  && !canTreasury) return;
+    if (key === "reimburse") { router.push(`${orgPath("/treasury")}${REIMBURSE_QUERY}`); return; }
     if (key === "excuse") {
       // Refresh calendar so the picker shows the latest mandatory events.
       orgFetch("/api/calendar")

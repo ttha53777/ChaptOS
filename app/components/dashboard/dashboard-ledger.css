@@ -92,7 +92,7 @@
 .dash .ba-qa { position: relative; }
 .dash .ba-qa .ba-caret { width: 10px; height: 10px; opacity: .7; transition: transform .14s; }
 .dash .ba-qa.open .ba-caret { transform: rotate(180deg); }
-.dash .ba-qa-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 212px;
+.dash .ba-qa-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 236px;
   background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
   padding: 5px; }
 .dash .ba-qa-item { display: flex; align-items: center; gap: 10px; width: 100%;

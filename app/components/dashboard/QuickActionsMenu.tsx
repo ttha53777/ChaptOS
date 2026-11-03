@@ -6,6 +6,7 @@ import type { WorkflowId } from "@/lib/org-types";
 export type QuickActionKey =
   | "expense"
   | "revenue"
+  | "reimburse"
   | "excuse"
   | "deadline"
   | "task"
@@ -40,6 +41,13 @@ const RevenueIcon = (
   <svg className={ICON_CLS} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 17l6-6 4 4 8-8" />
     <path d="M14 7h7v7" />
+  </svg>
+);
+
+const ReimburseIcon = (
+  <svg className={ICON_CLS} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 3h12v18l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6z" />
+    <path d="M9.5 8h5M9.5 12h5" />
   </svg>
 );
 
@@ -85,12 +93,21 @@ const IgIcon = (
 const QUICK_ACTIONS: QuickAction[] = [
   { key: "expense",  label: "Log Expense",  icon: ExpenseIcon,  adminOnly: true,  workflow: "finance" },
   { key: "revenue",  label: "Log Revenue",  icon: RevenueIcon,  adminOnly: true,  workflow: "finance" },
+  // Anyone can ask to be paid back; it opens the request form on Treasury.
+  { key: "reimburse", label: "Request Reimbursement", icon: ReimburseIcon, adminOnly: false, workflow: "finance" },
   { key: "excuse",   label: "Log Excuse",   icon: ExcuseIcon,   adminOnly: false },
   { key: "deadline", label: "Add Deadline", icon: DeadlineIcon, adminOnly: false, requiresManageTasks: true },
   { key: "task",     label: "Add Task",     icon: TaskIcon,     adminOnly: false, requiresManageTasks: true },
   { key: "event",    label: "New Event",    icon: EventIcon,    adminOnly: false, workflow: "events" },
   { key: "ig",       label: "Add IG Task",  icon: IgIcon,       adminOnly: false, workflow: "communications" },
 ];
+
+/** Where "Request Reimbursement" goes, under orgPath("/treasury"): the
+ *  Reimbursements tab with the request form already open. */
+export const REIMBURSE_QUERY = "?tab=Reimbursements&request=1";
+/** Fired on window when it's picked while already on Treasury, where a push to
+ *  the same page wouldn't re-run the page's mount-time ?request=1 check. */
+export const REIMBURSE_EVENT = "chapt:reimburse";
 
 /** The actions this viewer may take, in menu order. Shared with the phone's
  *  Create sheet (MobileTabBar), so the two never disagree about who sees what. */

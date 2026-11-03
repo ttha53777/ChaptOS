@@ -7,7 +7,7 @@ import { useChapter } from "../context/ChapterContext";
 import { useOrgPath } from "../hooks/useOrgPath";
 import { useVocab } from "../hooks/useVocab";
 import { useFeature } from "../hooks/useFeature";
-import { visibleQuickActions, type QuickActionKey } from "./dashboard/QuickActionsMenu";
+import { REIMBURSE_EVENT, REIMBURSE_QUERY, visibleQuickActions, type QuickActionKey } from "./dashboard/QuickActionsMenu";
 import { PaperIcon, PaperTile, type PaperIconName, type PaperTone } from "./paper/PaperIcon";
 import { BottomSheet } from "./BottomSheet";
 import "./mobile-shell.css";
@@ -21,7 +21,7 @@ export const CREATE_EVENT = "chapt:create";
 /** Off the dashboard, Create goes home with ?create=<key> and the dashboard runs it. */
 export const CREATE_PARAM = "create";
 
-const CREATE_KEYS: readonly string[] = ["expense", "revenue", "excuse", "deadline", "task", "event", "ig", "checkin", "announcement"];
+const CREATE_KEYS: readonly string[] = ["expense", "revenue", "reimburse", "excuse", "deadline", "task", "event", "ig", "checkin", "announcement"];
 export function isCreateKey(v: unknown): v is CreateKey {
   return typeof v === "string" && CREATE_KEYS.includes(v);
 }
@@ -32,6 +32,7 @@ const FACE: Partial<Record<CreateKey, { label: string; icon: PaperIconName; tone
   announcement: { label: "Pinned note", icon: "pin",       tone: "butter" },
   expense:      { label: "Log expense", icon: "wallet",    tone: "rose" },
   revenue:      { label: "Log revenue", icon: "cash",      tone: "mint" },
+  reimburse:    { label: "Reimbursement", icon: "receipt", tone: "butter" },
   excuse:       { label: "Log excuse",  icon: "form",      tone: "lilac" },
   ig:           { label: "IG post",     icon: "camera",    tone: "peach" },
 };
@@ -79,6 +80,12 @@ export function MobileTabBar({ onMore }: { onMore: () => void }) {
 
   function pick(key: CreateKey) {
     setCreateOpen(false);
+    // The request form lives on Treasury, so go straight there.
+    if (key === "reimburse") {
+      if (subPath === "/treasury") window.dispatchEvent(new Event(REIMBURSE_EVENT));
+      else router.push(`${orgPath("/treasury")}${REIMBURSE_QUERY}`);
+      return;
+    }
     if (subPath === "/") {
       window.dispatchEvent(new CustomEvent(CREATE_EVENT, { detail: { key } }));
     } else {

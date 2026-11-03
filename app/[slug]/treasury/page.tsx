@@ -29,6 +29,7 @@ import { useTransactionCategories } from "../../hooks/useTransactionCategories";
 import { netBalance } from "../../../lib/treasury-balance";
 import { TxForm, type TxFormEvent } from "../../components/treasury/TxForm";
 import { TreasuryLocked } from "../../components/treasury/TreasuryLocked";
+import { REIMBURSE_EVENT } from "../../components/dashboard/QuickActionsMenu";
 import { GhostBalanceChart, GhostDonut } from "../../components/treasury/TreasuryGhosts";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../components/paper/PaperIcon";
 import { PaperBalanceChart, PaperBreakdown, type PaperEntry, type PaperRange } from "../../components/treasury/PaperTreasury";
@@ -770,6 +771,13 @@ export default function TreasuryPage() {
     const params = new URLSearchParams(window.location.search);
     const target = params.get("tab");
     if (target && (NAV_TABS as string[]).includes(target)) setNavTab(target as NavTab);
+    // "Request Reimbursement" (quick actions) opens the form too. Dropped from
+    // the URL so a refresh doesn't reopen it.
+    if (params.get("request") === "1") {
+      setReimbModal(true);
+      params.delete("request");
+      window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+    }
     if (target === "Dues") {
       const f = params.get("f");
       const m = Number(params.get("m"));
@@ -778,6 +786,13 @@ export default function TreasuryPage() {
         memberId: Number.isInteger(m) && m > 0 ? m : null,
       });
     }
+  }, []);
+
+  // The same, picked from the phone's Create sheet while already on this page.
+  useEffect(() => {
+    const open = () => { setNavTab("Reimbursements"); setReimbModal(true); };
+    window.addEventListener(REIMBURSE_EVENT, open);
+    return () => window.removeEventListener(REIMBURSE_EVENT, open);
   }, []);
 
   // ── Derived data ─────────────────────────────────────────────────────────────
@@ -1435,7 +1450,25 @@ export default function TreasuryPage() {
             </section>
 
             {lockedForMember ? (
-              <TreasuryLocked treasuryLabel={v("Treasury")} />
+              <>
+                <TreasuryLocked treasuryLabel={v("Treasury")} />
+                {/* Unopened books don't stop anyone being owed money: the request
+                    form and their own requests stay reachable. Nothing here
+                    prints a balance (that's only in the officer's approve step). */}
+                <div className="tr-locked-reimb">
+                  <ReimbursementsView
+                    reimbursements={reimbursements}
+                    canTreasury={false}
+                    selfId={selfId}
+                    balance={balance}
+                    showArchived={reimbArchived}
+                    onToggleArchived={() => setReimbArchived(v => !v)}
+                    onAction={handleReimbursementAction}
+                    onRequest={() => setReimbModal(true)}
+                    onAttachReceipt={handleAttachReceipt}
+                  />
+                </div>
+              </>
             ) : openingForOfficer ? (
               <TreasuryOpenBooks
                 onOpened={ob => setTreasuryData(prev => prev
