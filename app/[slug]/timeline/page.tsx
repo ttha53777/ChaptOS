@@ -35,6 +35,7 @@ import "../../components/dashboard/dashboard-ledger.css";
 import "../../components/dashboard/timeline-ledger.css";
 import { hasMinutes } from "@/lib/agenda-template";
 import { paperCatVars } from "@/lib/event-hue";
+import { TimelineDayOne } from "./DayOne";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1334,7 +1335,7 @@ function TimelineTodo({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TimelinePage() {
-  const { currentUser, taskList, setTaskList, igTaskList, setIgTaskList, refreshChapterData, brotherList, setBrotherList, avatarRevision, can } = useChapter();
+  const { currentUser, taskList, setTaskList, igTaskList, setIgTaskList, refreshChapterData, brotherList, setBrotherList, avatarRevision, can, loadedSections } = useChapter();
   const router  = useRouter();
   const searchParams = useSearchParams();
   const orgPath = useOrgPath();
@@ -1690,6 +1691,12 @@ export default function TimelinePage() {
 
   const timeline = useMemo(() => buildTimeline(filtered, now, todayStr), [filtered, now, todayStr]);
   const hasEvents = timeline.pastCount > 0 || timeline.upcoming.length > 0;
+  // Day one: nothing on the calendar at all, and the deadline/party/post sections
+  // that fold into it have landed too, so it can't flash before they arrive. The
+  // briefing explains the page and the three pictures replace the measures, the
+  // filter and the spine (see DayOne.tsx).
+  const dayOne = !calendarLoading && !calendarError && allEvents.length === 0
+    && loadedSections.has("deadlines") && loadedSections.has("parties") && loadedSections.has("instagram");
   const isMonthCollapsed = (id: string) => timeline.defaultCollapsed.has(id) !== toggledMonths.has(id);
 
   // Completion for the task and Instagram rows folded into the timeline, keyed by
@@ -2310,8 +2317,11 @@ export default function TimelinePage() {
                   <span className="today">{dateLabel}</span>
                   &ensp;·&ensp;Week of {fmtRange(weekStart, weekEnd)}
                 </p>
-                <h1 className="greeting">The weeks <em>ahead</em>.</h1>
-                {digest ? (
+                {dayOne ? <>
+                  <h1 className="greeting">Everything you have on, <em>on one line</em>.</h1>
+                  <p className="tl1-sub">Add an event or a deadline once. It takes its place on the line by date, everyone can see it, and on the day they tap in.</p>
+                </> : <h1 className="greeting">The weeks <em>ahead</em>.</h1>}
+                {dayOne ? null : digest ? (
                   <div className="digest">
                     <span className="ai-chip">Digest</span>
                     <p>{digest}</p>
@@ -2336,6 +2346,17 @@ export default function TimelinePage() {
               </div>
             </section>
 
+            {dayOne && (
+              <TimelineDayOne
+                canEvents={canManageEvents}
+                canDeadlines={can("MANAGE_TASKS")}
+                known={currentUser != null}
+                onAddEvent={() => openEventModal("create")}
+                onAddDeadline={() => router.push(orgPath("/tasks?new=1"))}
+              />
+            )}
+
+            {!dayOne && <>
             {/* ── Glance strip — each measure opens its breakdown in the rail ── */}
             <section className="ledger" aria-label="Timeline measures">
               <button
@@ -2771,6 +2792,7 @@ export default function TimelinePage() {
                   onClick={() => { setSelectedEvent(null); setGlanceFocus(null); setCalDayOpen(false); }} />
               )}
             </div>
+            </>}
           </div>
         </main>
       </div>

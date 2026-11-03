@@ -1,0 +1,120 @@
+/* ── Timeline day one (DayOne.tsx) ────────────────────────────────────────────
+   Ported from _design/Timeline Day One Mock.html, the Meetings day one's shape
+   (chapter-dayone.css): one dashed card, three small pictures, the buttons under
+   it. It renders the same in Ledger and Paper, so the paper tokens carry
+   fallbacks. tl1-* keeps every class off the shared namespace. */
+.tl1 {
+  --d1-display: var(--font-fraunces), sans-serif; --d1-mono: var(--font-geist-mono), monospace;
+  --d1-ink-2: var(--ink-soft); --d1-ink-3: var(--muted); --d1-line-2: var(--line-med);
+  --d1-paper-3: var(--pp-paper-3, #F4ECDD);
+  --d1-sky: var(--pp-sky, #CFE2FF);
+  --d1-mint: var(--pp-mint, #C7EFDA); --d1-mint-ink: var(--pp-mint-ink, #1B815B);
+  --d1-butter: var(--pp-butter, #FFE5A0);
+  --d1-rose: var(--pp-rose, #FFD6E6); --d1-rose-soft: var(--pp-rose-soft, #FFEDF4); --d1-rose-bd: var(--pp-rose-bd, #F8CEE0); --d1-rose-ink: var(--pp-rose-ink, #C23C77);
+  --d1-peach-ink: var(--pp-peach-ink, #C9542D);
+  --d1-note-ink: #26211B; --d1-note-filter: none;
+  --d1-ease-spring: cubic-bezier(.16,.9,.3,1.02);
+  margin-top: 28px;
+}
+html[data-theme="dusk"] .tl1 { --d1-note-filter: brightness(.93) saturate(.85); }
+.tl1 :where(p, figure) { margin: 0; }
+
+.tl1-card {
+  display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); align-items: end; padding: 30px 28px 26px;
+  background: var(--card); border: 1.5px dashed var(--d1-line-2); border-radius: 30px;
+}
+.tl1-card figure { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 0 10px; }
+.tl1-card .pic { height: 150px; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.tl1-card figcaption b { display: block; font-family: var(--d1-display); font-weight: 600; font-size: 1.05rem; letter-spacing: -.015em; color: var(--ink); }
+.tl1-card figcaption span { display: block; margin-top: 2px; font-size: .82rem; color: var(--d1-ink-3); }
+
+/* 1 · the event: one ticket, written once */
+.tl1-ticket {
+  position: relative; display: flex; width: 178px; text-align: left; color: var(--ink);
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: 3px 3px 0 var(--d1-rose); transform: rotate(-3deg);
+}
+.tl1-ticket .stub {
+  width: 48px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0;
+  background: var(--d1-rose); color: var(--d1-note-ink); filter: var(--d1-note-filter); border-radius: 10px 0 0 10px; border-right: 1.5px dashed var(--ink);
+}
+.tl1-ticket .stub small { font-family: var(--d1-mono); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+.tl1-ticket .stub b { font-family: var(--d1-display); font-weight: 600; font-size: 1.7rem; letter-spacing: -.04em; line-height: 1; }
+.tl1-ticket .body { display: block; padding: 10px 11px; min-width: 0; }
+.tl1-ticket .body b { display: block; font-family: var(--d1-display); font-weight: 600; font-size: .95rem; letter-spacing: -.02em; line-height: 1.15; }
+.tl1-ticket .body span { display: block; margin-top: 3px; font-family: var(--d1-mono); font-size: .58rem; text-transform: uppercase; color: var(--d1-ink-3); }
+.tl1-ticket .body em {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 7px; padding: 1px 7px; border-radius: 999px;
+  background: var(--d1-rose-soft); border: 1.2px solid var(--d1-rose-bd); color: var(--d1-rose-ink); font-style: normal; font-size: .58rem; font-weight: 600;
+}
+.tl1-ticket .body em::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.tl1-ticket::before, .tl1-ticket::after { content: ''; position: absolute; left: 41px; width: 12px; height: 12px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--ink); }
+.tl1-ticket::before { top: -7px; clip-path: inset(50% 0 0 0); }
+.tl1-ticket::after { bottom: -7px; clip-path: inset(0 0 50% 0); }
+
+/* 2 · the line: everything in date order, today as the seam */
+.tl1-line {
+  position: relative; display: block; width: 196px; padding: 9px 12px 9px 30px; text-align: left; color: var(--d1-ink-2);
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: 3px 3px 0 var(--d1-sky); transform: rotate(2deg);
+}
+.tl1-line::before { content: ''; position: absolute; left: 16px; top: 14px; bottom: 14px; width: 1.5px; background: var(--d1-line-2); }
+.tl1-line .row { position: relative; display: flex; align-items: baseline; gap: 6px; padding: 3px 0; font-size: .68rem; line-height: 1.2; white-space: nowrap; }
+.tl1-line .row::before { content: ''; position: absolute; left: -18px; top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--c); border: 1.3px solid var(--ink); }
+.tl1-line .sky { --c: var(--d1-sky); } .tl1-line .rose { --c: var(--d1-rose); } .tl1-line .butter { --c: var(--d1-butter); }
+.tl1-line .dl::before { border-radius: 2px; transform: rotate(45deg) scale(.86); }
+.tl1-line .past { color: var(--d1-ink-3); }
+.tl1-line .past::before { background: var(--d1-paper-3); border-color: var(--d1-ink-3); }
+.tl1-line time { flex: none; width: 38px; font-family: var(--d1-mono); font-size: .56rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--d1-ink-3); }
+.tl1-line .new { margin: 2px -6px; padding: 4px 6px; border-radius: 7px; background: var(--d1-rose-soft); color: var(--ink); font-weight: 600; animation: tl1-slot 3.6s var(--d1-ease-spring) infinite; }
+.tl1-line .new::before { left: -12px; }
+@keyframes tl1-slot { 0%, 12% { opacity: 0; transform: translateX(-10px); } 26%, 88% { opacity: 1; transform: none; } 100% { opacity: 1; } }
+.tl1-line .today {
+  display: flex; align-items: center; gap: 6px; margin: 2px 0 2px -18px;
+  font-family: var(--d1-mono); font-size: .54rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--d1-peach-ink);
+}
+.tl1-line .today::before { content: ''; width: 13px; height: 1.5px; background: currentColor; }
+.tl1-line .today::after { content: ''; flex: 1; border-top: 1.5px dashed currentColor; opacity: .55; }
+
+/* 3 · the door: on the day members tap in, and required events count who came */
+.tl1-door {
+  position: relative; display: block; width: 160px; padding: 11px 12px; text-align: left; color: var(--ink);
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: 3px 3px 0 var(--d1-mint); transform: rotate(-2.5deg);
+}
+.tl1-door small { display: block; font-family: var(--d1-mono); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--d1-ink-3); }
+.tl1-door > b { display: block; margin-top: 2px; font-family: var(--d1-display); font-weight: 600; font-size: .92rem; letter-spacing: -.02em; }
+.tl1-door .tap {
+  display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 8px; padding: 6px 0; border-radius: 999px;
+  background: var(--ink); color: var(--paper); font-size: .66rem; font-weight: 600; box-shadow: 2px 2px 0 var(--d1-mint);
+}
+.tl1-door .tap .pp-ic { width: 11px; height: 11px; }
+.tl1-door .dots { display: flex; gap: 3px; margin-top: 9px; }
+.tl1-door .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--d1-mint); border: 1.2px solid var(--ink); }
+.tl1-door .dots i.o { background: transparent; border: 1.2px dashed color-mix(in srgb, var(--ink) 35%, transparent); }
+.tl1-door .turn { display: block; margin-top: 4px; font-family: var(--d1-mono); font-size: .6rem; color: var(--d1-ink-2); }
+.tl1-door .stamp {
+  position: absolute; right: -18px; top: -14px; padding: 2px 9px; border-radius: 6px; background: var(--card); color: var(--d1-mint-ink);
+  border: 1.5px solid var(--d1-mint-ink); font-family: var(--d1-mono); font-weight: 600; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; transform: rotate(8deg);
+}
+
+.tl1-cta { margin-top: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.tl1-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink);
+  background: var(--ink); color: var(--paper); font-weight: 600; font-size: .88rem; letter-spacing: -.01em; white-space: nowrap; cursor: pointer;
+  box-shadow: 2.5px 2.5px 0 var(--d1-mint); transition: transform .18s var(--d1-ease-spring), box-shadow .18s var(--d1-ease-spring);
+}
+.tl1-btn:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--d1-mint); }
+.tl1-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 var(--d1-mint); }
+.tl1-btn .pp-ic { width: 15px; height: 15px; }
+.tl1-btn.soft { background: transparent; color: var(--d1-ink-2); border-color: var(--d1-line-2); box-shadow: none; }
+.tl1-btn.soft:hover { border-color: var(--d1-ink-3); color: var(--ink); box-shadow: none; transform: translateY(-1px); }
+.tl1-note { margin-top: 14px !important; text-align: center; color: var(--d1-ink-3); font-size: .88rem; }
+
+/* the briefing's plain sentence, standing in for the digest on day one */
+.dash-timeline .briefing .tl1-sub { margin-top: 12px; max-width: 58ch; font-size: 16px; line-height: 1.55; color: var(--ink-soft); }
+
+@media (max-width: 720px) {
+  .tl1-card { grid-template-columns: minmax(0,1fr); gap: 30px; padding: 28px 18px 24px; }
+  .tl1-cta .tl1-btn { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl1-line .new { animation: none; }
+}
