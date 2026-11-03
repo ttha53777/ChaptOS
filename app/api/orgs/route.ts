@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createOrgInput } from "@/lib/validation/org";
+import { createOrgTermsInput } from "@/lib/validation/terms";
 import { provisionOrg } from "@/lib/services/org-service";
 import { AlreadyLinkedError, toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
@@ -49,10 +50,16 @@ export async function POST(req: NextRequest) {
   // ── 3. Validate input ───────────────────────────────────────────────────
   // toResponse() maps ZodError → 400 with details — services don't need to
   // re-throw or repackage. Same convention every other route follows.
+  // The Terms of Service version rides alongside the org fields rather than
+  // inside createOrgInput: it's the founder's agreement, not part of the org.
+  // Required — the /create checkbox is the only way an org gets made, and an org
+  // whose founder never agreed is exactly the gap the terms exist to close.
   let input;
+  let terms;
   try {
     const body = await req.json();
     input = createOrgInput.parse(body);
+    terms = createOrgTermsInput.parse(body);
   } catch (e) {
     return toResponse(e);
   }
@@ -60,7 +67,7 @@ export async function POST(req: NextRequest) {
   // ── 4. Provision ───────────────────────────────────────────────────────
   let provisioned;
   try {
-    provisioned = await provisionOrg(input, user.id, user.email ?? null);
+    provisioned = await provisionOrg(input, user.id, user.email ?? null, { version: terms.termsVersion });
   } catch (e) {
     // Recovery for the narrow already-linked race. Note: a linked user founding
     // an additional org now SUCCEEDS (provisionOrg reuses their Brother), so

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { termsVersionInput } from "./terms";
 
 /**
  * Inputs for the join-request flow: one pre-auth (the person asking) and one
@@ -16,6 +17,8 @@ export const JOIN_REQUEST_NAME_MAX = 80;
 export const submitJoinRequestInput = z.object({
   token: z.string().trim().min(1, "Missing invite token").max(256),
   name:  z.string().trim().min(1, "Name is required").max(JOIN_REQUEST_NAME_MAX),
+  /** The Terms of Service version shown above "Request to join". */
+  termsVersion: termsVersionInput,
 });
 export type SubmitJoinRequestInput = z.infer<typeof submitJoinRequestInput>;
 

@@ -1,0 +1,58 @@
+/* ============================================================================
+   ChaptOS — /terms (Terms of service)
+
+   Rides on /trust's reading layout: the page imports landing.css and
+   ../trust/trust.css and wears `.lp.tp`. This file only adds what a contract
+   needs and a disclosure page doesn't, scoped under `.tos` so none of it leaks
+   back onto /trust:
+
+     1. a contents rail that scrolls inside itself (25 entries outgrow a laptop)
+     2. numbered sub-lists (1. 2. 3.) for clauses that cite "item 2"
+     3. the ruled box that keeps capitalized legal text conspicuous but readable
+     4. the "In short" tag on each section's summary line
+   ========================================================================== */
+
+/* ---------- 1. contents rail ---------------------------------------------- */
+.lp.tos .tp__toc{
+  max-height:calc(100vh - var(--tp-nav-h) - 40px); overflow:auto;
+  padding-right:4px; scrollbar-width:thin;
+}
+
+/* ---------- 2. numbered sub-lists ----------------------------------------- */
+.lp.tos .tp__list--num{counter-reset:li}
+.lp.tos .tp__list--num > li{padding-left:24px}
+.lp.tos .tp__list--num > li::before{
+  counter-increment:li; content:counter(li) "."; width:auto; height:auto; background:none;
+  top:0; font-family:var(--mono); font-size:.82em; color:var(--ink-3);
+}
+
+/* ---------- 3. conspicuous legal text ------------------------------------- */
+/* Disclaimers and liability limits must stand out (that's what makes them
+   enforceable), but bare capitals are hard to read. A ruled box with a heavy
+   left rule does the standing-out; slightly tighter caps keep it legible. */
+.lp.tos .tp__legal{
+  margin-top:18px; padding:18px 20px; border-radius:var(--r-md);
+  background:var(--paper-2); border:1.5px solid var(--line-2); border-left:4px solid var(--ink);
+}
+.lp.tos .tp__legal p{margin-top:0; font-size:.84rem; letter-spacing:.012em; line-height:1.62; color:var(--ink)}
+.lp.tos .tp__legal p + p{margin-top:12px}
+
+/* ---------- 4. "In short" ------------------------------------------------- */
+/* Each section's first line is a summary, not the clause. The tag says so at a
+   glance, which is also what the page's own lede promises. */
+.lp.tos .tp__sec .tp__lede::before{
+  content:'In short'; display:inline-block; margin-right:9px; transform:translateY(-1px);
+  font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  padding:2px 7px; border-radius:6px; background:var(--paper-3); color:var(--ink-3);
+}
+
+.lp.tos .lede a{
+  color:var(--sky-ink); text-decoration:underline;
+  text-decoration-color:#BBD3F5; text-underline-offset:2.5px;
+}
+
+@media (max-width:1000px){
+  /* The rail becomes a contents card above the copy (trust.css); it no longer
+     needs its own scroll. */
+  .lp.tos .tp__toc{max-height:none; overflow:visible}
+}

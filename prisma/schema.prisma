@@ -77,6 +77,7 @@ model Organization {
   config                    OrganizationConfig?
   invites                   OrgInvite[]
   joinRequests              JoinRequest[]
+  termsAcceptances          TermsAcceptance[]
   metricDefinitions         OrgMetricDefinition[]
   calendarEventTypes        CalendarEventType[]
   subscription              Subscription?
@@ -1684,6 +1685,30 @@ model Subscription {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([stripeCustomerId])
+}
+
+// Who agreed to which version of the Terms of Service, and where. One row per
+// acceptance, never updated: a new version adds a row, so the history of what a
+// person agreed to stays provable (lib/terms.ts holds the versions).
+//
+// GLOBAL, keyed by authUserId rather than Brother: a join request agrees before
+// any Brother or Membership exists, and the terms bind the person, not one org's
+// roster row. RLS is on with NO policy, like StripeEvent after the Data API
+// lockdown, so only prismaPrivileged reads or writes it (lib/auth/terms-acceptance.ts).
+// organizationId is set only for `create`, where the founder agrees for the new
+// org too; SetNull so deleting that org never blocks on this table.
+model TermsAcceptance {
+  id             Int           @id @default(autoincrement())
+  authUserId     String
+  version        String
+  // TermsAcceptanceContext (@/lib/state) — CHECK-constrained in the DB.
+  context        String
+  organizationId Int?
+  acceptedAt     DateTime      @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([authUserId, acceptedAt])
 }
 
 // Webhook idempotency ledger. The Stripe event id is the primary key, so a

@@ -21,6 +21,7 @@ import { BILLING_BANDS, formatPrice } from "@/lib/billing/tiers";
 import { APP_AESTHETIC_STORAGE_KEY } from "@/lib/aesthetic";
 import { ORG_SLUG_HEADER } from "@/app/lib/api";
 import { validateSlugFormat } from "@/lib/slug-rules";
+import { TERMS_VERSION } from "@/lib/terms";
 import { Charter } from "./Charter";
 import { DISPLAY_HOST, clearStoredDraft } from "./flow-state";
 import { Mark } from "./Mark";
@@ -60,6 +61,7 @@ export function BuildStep({
   draft,
   session,
   autoBuild,
+  onTermsChange,
   onSignOut,
   onSlugRejected,
   onBackToCharter,
@@ -68,6 +70,8 @@ export function BuildStep({
   session: CreateSession | null;
   /** True when we just returned from OAuth (?resume=1) — fire immediately. */
   autoBuild: boolean;
+  /** The terms checkbox. Written into the draft so the tick survives OAuth. */
+  onTermsChange: (version: string | null) => void;
   onSignOut: () => void;
   /** Back to the charter's Address field, with the reason. Covers every way the
       slug can be unusable — taken during sign-in, malformed, reserved, empty. */
@@ -81,6 +85,9 @@ export function BuildStep({
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const started = useRef(false);
   const name = orgName(draft);
+  // Ticked for THIS version only: a draft holding an older one (a new version
+  // shipped mid-flow) asks again rather than carrying a stale agreement forward.
+  const agreed = draft.termsAccepted === TERMS_VERSION;
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
 
@@ -146,7 +153,9 @@ export function BuildStep({
       const res = await fetch("/api/orgs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
+        // The agreement rides beside the org fields; /api/orgs records it in the
+        // same transaction that creates the org.
+        body: JSON.stringify({ ...input, termsVersion: draft.termsAccepted }),
       });
       const data = await res.json().catch(() => ({}));
       await theater;
@@ -199,6 +208,13 @@ export function BuildStep({
       // the schema says which.
       if (res.status === 400) {
         const issues = Array.isArray(data?.details) ? (data.details as { path?: unknown[] }[]) : [];
+        // No (current) agreement on file: back to the ticket, box unticked, so
+        // the founder sees exactly what they're agreeing to before trying again.
+        if (issues.some(i => Array.isArray(i.path) && i.path[0] === "termsVersion")) {
+          onTermsChange(null);
+          setPhase({ kind: "signin", notice: "Agree to the Terms of Service to build your org." });
+          return;
+        }
         const onSlug = issues.some(i => Array.isArray(i.path) && i.path[0] === "slug");
         onSlugRejected(
           onSlug
@@ -241,11 +257,12 @@ export function BuildStep({
         canRetry: true,
       });
     }
-  }, [draft, session?.name, onSlugRejected]);
+  }, [draft, session?.name, onSlugRejected, onTermsChange]);
 
   // Post-OAuth resume: the callback landed us here with a restored draft.
   useEffect(() => {
-    if (autoBuild && draft.name.trim()) void build();
+    // Without the tick on file there's nothing to build on: stay on the ticket.
+    if (autoBuild && draft.name.trim() && agreed) void build();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoBuild]);
 
@@ -262,6 +279,28 @@ export function BuildStep({
 
   if (phase.kind === "signin") {
     const signed = !!session;
+    // A checkbox rather than "by continuing": this person is agreeing for the
+    // whole org they're about to create (terms section 2), so it's an explicit
+    // act, and the buttons below stay disabled until it's done.
+    const agreeBox = (
+      <label className={`agree${agreed ? " on" : ""}`}>
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={e => onTermsChange(e.target.checked ? TERMS_VERSION : null)}
+        />
+        <span className="agree-box" aria-hidden="true">
+          <Ic name="check" />
+        </span>
+        <span>
+          I agree to the{" "}
+          <a href="/terms" target="_blank" rel="noreferrer">Terms of Service</a>{" "}
+          on behalf of <b>{name}</b>, and I&rsquo;m authorized to. I&rsquo;ve read how ChaptOS handles
+          data on the{" "}
+          <a href="/trust" target="_blank" rel="noreferrer">Trust &amp; privacy</a>{" "}page.
+        </span>
+      </label>
+    );
     return (
       <div className="signwrap">
         <div className="ticket">
@@ -287,16 +326,20 @@ export function BuildStep({
                     Not you?
                   </button>
                 </div>
-                <button type="button" className="btn btn--lg wide" onClick={() => void build()}>
+                {agreeBox}
+                <button type="button" className="btn btn--lg wide" disabled={!agreed} onClick={() => void build()}>
                   Build {name}
                   <Ic name="arrow-r" />
                 </button>
               </>
             ) : (
-              <button type="button" className="gbtn" disabled={googling} onClick={() => void startGoogle()}>
-                {googling ? <span className="spin" aria-hidden="true" /> : <GoogleLogo />}
-                {googling ? "Opening Google…" : "Continue with Google"}
-              </button>
+              <>
+                {agreeBox}
+                <button type="button" className={`gbtn${agreed ? "" : " locked"}`} disabled={googling || !agreed} onClick={() => void startGoogle()}>
+                  {googling ? <span className="spin" aria-hidden="true" /> : <GoogleLogo />}
+                  {googling ? "Opening Google…" : "Continue with Google"}
+                </button>
+              </>
             )}
             {phase.notice && <p className="fine err">{phase.notice}</p>}
             <p className="fine">

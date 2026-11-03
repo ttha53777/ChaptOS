@@ -32,6 +32,9 @@
  *                                 tables have no permissive policy — the app
  *                                 role would return an empty result rather than
  *                                 an error, which reads as real data.
+ *   lib/auth/terms-acceptance.ts  Terms of Service acceptance records: a global
+ *                                 table with RLS on and no policy, keyed by the
+ *                                 Google account rather than any org.
  *   lib/billing/webhook.ts        Stripe deliveries, which carry no session and
  *                                 no org cookie, so there is no app.org_id to
  *                                 SET LOCAL and the enforcing org_isolation

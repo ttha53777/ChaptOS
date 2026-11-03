@@ -1,0 +1,44 @@
+/* ── TermsGate (.tg-*) ────────────────────────────────────────────────────────
+   The Terms of Service prompt. Its head, button, error and note are SemesterGate's
+   (.sg-*, semester-gate.css, and their paper versions in paper-doors.css); this
+   file only adds the parts that gate has no use for: the summary rows, the
+   effective-date line and the "Not now" link. Ledger first, then paper. */
+
+.tg-list {
+  margin: 22px 0 0; padding: 0; list-style: none;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--card);
+}
+.tg-list li {
+  display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 10px;
+  padding: 11px 14px; font-size: 13px; line-height: 1.5; color: var(--ink-soft);
+}
+.tg-list li + li { border-top: 1px solid var(--line); }
+.tg-list b {
+  font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .04em;
+  color: var(--muted); padding-top: 2px;
+}
+
+.tg-meta { margin: 14px 0 0; font-size: 12.5px; color: var(--muted); text-align: center; }
+.tg-meta a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--line); }
+.tg-meta a:hover { text-decoration-color: currentColor; }
+
+.tg-later {
+  display: block; width: 100%; margin-top: 12px; padding: 6px; border: 0; background: none; cursor: pointer;
+  font-size: 12.5px; color: var(--muted); text-align: center;
+}
+.tg-later:hover { color: var(--ink); }
+.tg-later:focus-visible { outline: 2px solid var(--vio); outline-offset: 2px; border-radius: 6px; }
+
+@media (max-width: 420px) {
+  .tg-list li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
+/* ── Paper ──────────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .ui-modal:has(.tg) { --acc: var(--pp-peach); }
+html[data-aesthetic="paper"] .tg .sg-seal { background: var(--pp-peach); box-shadow: 2.5px 2.5px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .tg-list { border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper-2); }
+html[data-aesthetic="paper"] .tg-list li { font-size: .86rem; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .tg-list b { font-family: var(--font-geist-mono); font-size: .7rem; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .tg-meta { font-size: .8rem; }
+html[data-aesthetic="paper"] .tg-later { font-size: .8rem; }
+html[data-aesthetic="paper"] .tg-later:focus-visible { outline-color: var(--pp-lilac-ink); }

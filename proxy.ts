@@ -109,6 +109,7 @@ export async function proxy(request: NextRequest) {
  *              inside the matcher (unlike /login) so the post-OAuth resume leg
  *              still gets a fresh session cookie from the refresh above.
  *   /trust     public disclosure copy, linked from the marketing footer
+ *   /terms     the Terms of Service, linked from the footer, /create and /join
  *   /help      the help centre, plus /help/<article>
  *   /contact   "talk to a human"
  *   /blog      the blog, plus /blog/<post> and /blog/rss.xml
@@ -121,7 +122,7 @@ export async function proxy(request: NextRequest) {
  * "/helpdesk" does not start with "/help/".
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
-  "/", "/create", "/trust", "/help", "/contact", "/pricing",
+  "/", "/create", "/trust", "/terms", "/help", "/contact", "/pricing",
   "/blog", "/seo-preview", "/robots.txt", "/sitemap.xml",
 ]);
 

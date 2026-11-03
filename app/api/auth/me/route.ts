@@ -19,6 +19,7 @@ import { logError } from "@/lib/observability";
 import { resolveProgrammingDisplay } from "@/lib/programming";
 import type { Schedule } from "@/lib/calendar-feed/schedule";
 import type { MeResponse } from "@/lib/api-types";
+import { latestAcceptedTermsVersion, termsStatus } from "@/lib/auth/terms-acceptance";
 
 export async function GET() {
   const user = await requireUser();
@@ -73,6 +74,13 @@ export async function GET() {
     //
     // resolvePermissions is deliberately NOT in here: it does no I/O (it filters
     // roleRows that requireUser already loaded), so it needs no transaction.
+    // Terms acceptance lives on a global table only the privileged client can
+    // read (lib/auth/terms-acceptance.ts), so it can't join the scoped
+    // transaction below; it runs alongside it instead, costing no extra wait.
+    const acceptedTermsPromise = latestAcceptedTermsVersion(user.authUserId);
+    // Awaited below; this only stops a rejection that lands while the
+    // transaction is still running from being reported as unhandled.
+    acceptedTermsPromise.catch(() => {});
     const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows } =
       await db(user.orgId).$transaction(async tx => {
         const scoped = db(user.orgId);
@@ -159,6 +167,7 @@ export async function GET() {
       });
 
     const perms = await resolvePermissions(user);
+    const acceptedTermsVersion = await acceptedTermsPromise;
 
     // requireUser() already verified the session with Supabase and surfaced the
     // auth user's metadata — no second auth.getUser() network round-trip needed.
@@ -302,6 +311,7 @@ export async function GET() {
       permissions: effectivePermissions,
       maxRank: Number.isFinite(effectiveMaxRank) ? effectiveMaxRank : null,
       roles: perms.roles,
+      terms: termsStatus(acceptedTermsVersion),
     } satisfies MeResponse);
   } catch (e) {
     logError(e, { route: "/api/auth/me", method: "GET", userId: user?.id });

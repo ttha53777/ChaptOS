@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       authUserId: user.id,
       email:      user.email ?? null,
       avatarUrl,
-    });
+    }, parsed.data.termsVersion);
 
     switch (outcome.state) {
       case "pending":

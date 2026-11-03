@@ -146,6 +146,8 @@ export async function deleteOwnAccount(authUserId: string): Promise<{ orgIds: nu
     await tx.joinRequest.deleteMany({
       where: brotherId === null ? { authUserId } : { OR: [{ authUserId }, { brotherId }] },
     });
+    // Keyed by the Google account, not the Brother, so no cascade reaches it.
+    await tx.termsAcceptance.deleteMany({ where: { authUserId } });
 
     // Receipts are erased with their reimbursement rows by the cascade, but
     // Storage isn't in the FK graph — collect the paths before the rows go.

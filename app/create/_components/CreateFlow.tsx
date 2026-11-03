@@ -245,6 +245,7 @@ export function CreateFlow() {
               draft={draft}
               session={session}
               autoBuild={resume}
+              onTermsChange={version => dispatch({ type: "setTermsAccepted", version })}
               onSignOut={() => void signOut()}
               onSlugRejected={message => {
                 setResume(false);

@@ -6,6 +6,7 @@ import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { TermsLine } from "@/app/components/TermsLine";
 
 // The login page — deliberately minimal.
 //
@@ -82,7 +83,10 @@ function LoginContent() {
                 </div>
               )}
 
-              <GoogleButton loading={signingIn} disabled={signingIn || creating} onClick={handleSignIn} />
+              <div>
+                <GoogleButton loading={signingIn} disabled={signingIn || creating} onClick={handleSignIn} />
+                <TermsLine />
+              </div>
 
               <div className="auth-divider">or</div>
 

@@ -533,6 +533,23 @@ html[data-crf-theme="dusk"] .ocp .stamp{mix-blend-mode:normal}
 .ocp .price{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); border:1.5px solid var(--line); border-radius:12px; overflow:hidden}
 .ocp .price div{padding:9px 12px; font-size:.78rem; color:var(--ink-3)}
 .ocp .price div + div{border-left:1.5px dashed var(--line-2)}
+/* The terms checkbox on the sign-in ticket. The whole row is the label, so the
+   hit area is the sentence, not a 20px square; the native input stays in the
+   tab order (visually hidden) so it keeps its keyboard and screen-reader role. */
+.ocp .agree{position:relative; display:flex; gap:11px; align-items:flex-start; padding:12px 13px; border-radius:12px; cursor:pointer; background:var(--butter-soft); border:1.5px solid var(--butter-bd); font-size:.82rem; line-height:1.5; color:var(--ink-2); text-align:left; transition:background .16s, border-color .16s}
+.ocp .agree.on{background:var(--mint-soft); border-color:var(--mint-bd)}
+.ocp .agree input{position:absolute; opacity:0; width:1px; height:1px; pointer-events:none}
+.ocp .agree-box{flex:none; width:20px; height:20px; margin-top:1px; border-radius:6px; border:1.5px solid var(--ink); background:var(--card); display:grid; place-items:center; color:var(--paper)}
+.ocp .agree-box .ic{width:13px; height:13px; opacity:0}
+.ocp .agree.on .agree-box{background:var(--ink)}
+.ocp .agree.on .agree-box .ic{opacity:1}
+.ocp .agree input:focus-visible + .agree-box{outline:2px solid var(--lilac-ink); outline-offset:2px}
+.ocp .agree b{color:var(--ink); font-weight:600}
+.ocp .agree a{color:var(--ink); text-decoration:underline; text-underline-offset:2px; text-decoration-color:var(--line-2)}
+.ocp .agree a:hover{text-decoration-color:currentColor}
+/* Locked until the box above is ticked. Its own class because :disabled already
+   means "opening Google…" (the progress cursor further down). */
+.ocp .gbtn.locked:disabled{opacity:.42; cursor:not-allowed; box-shadow:none; transform:none}
 .ocp .price b{display:block; font-family:var(--display); font-weight:600; font-size:1.05rem; color:var(--ink); letter-spacing:-.02em}
 .ocp .bld{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,430px); gap:clamp(26px,4.4vw,68px); align-items:center; max-width:1060px; margin:0 auto; padding-top:clamp(0px,3vh,30px)}
 .ocp .bld .q{font-size:clamp(2rem,3.6vw,3rem)}

@@ -457,7 +457,7 @@ export function LandingPage() {
             <div><a className="brand" href="#top" style={sx({ "padding": "0" })}><svg className="logo"><use href="#i-logo" /></svg>{APP_NAME}</a><p>One place for every student org that outgrew its group chat.</p></div>
             <div><h5>Product</h5><a href="#ask">Ask Chapt</a><a href="#how">How it works</a><a href="#fit">Who it&apos;s for</a><a href="/create">Start your org</a></div>
             <div><h5>Resources</h5><a href="/help">Help center</a><a href="/blog">Blog</a><a href="#faq">FAQ</a><a href="/login">Sign in</a></div>
-            <div><h5>Company</h5><a href="/pricing">Pricing</a><a href="/trust">Trust &amp; privacy</a><a href="/contact">Talk to a human</a></div>
+            <div><h5>Company</h5><a href="/pricing">Pricing</a><a href="/trust">Trust &amp; privacy</a><a href="/terms">Terms of service</a><a href="/contact">Talk to a human</a></div>
           </div>
           <div className="ft-b"><span>© {new Date().getFullYear()} {APP_NAME} · chaptos.com</span><span>Made for meeting night, every week.</span></div>
         </div>

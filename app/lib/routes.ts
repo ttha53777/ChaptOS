@@ -27,6 +27,7 @@ export const RESERVED_SEGMENTS = new Set([
   // Public marketing/disclosure pages (see PUBLIC_PATHS in proxy.ts). They
   // render the same signed in, and none of them belongs to an org.
   "trust",
+  "terms",
   "help",
   "contact",
   "pricing",

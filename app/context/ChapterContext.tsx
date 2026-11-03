@@ -36,7 +36,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
 // Wire shapes shared with the native app (lib/api-types); TransactionCategory and
 // MembershipSummary stay importable from here for existing callers.
 export type { TransactionCategory, MembershipSummary } from "@/lib/api-types";
-import type { TreasuryData, TransactionCategory, MembershipSummary, DashboardLayout } from "@/lib/api-types";
+import type { TreasuryData, TransactionCategory, MembershipSummary, DashboardLayout, TermsStatus } from "@/lib/api-types";
 
 interface CurrentUserRole {
   id: number;
@@ -93,6 +93,9 @@ export interface CurrentUser {
   orgId: number;
   /** All orgs this user belongs to. UI renders a switcher when length > 1. */
   memberships: MembershipSummary[];
+  /** Where this account stands with the Terms of Service — read by TermsGate.
+   *  Optional: a /me payload cached from before the field existed lacks it. */
+  terms?: TermsStatus;
 }
 
 interface ChapterContextValue {

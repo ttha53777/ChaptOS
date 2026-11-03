@@ -19,6 +19,7 @@ import "./paper-doors.css";
 import { ChapterProvider } from "./context/ChapterContext";
 import { ChatWidgetGate } from "./components/ChatWidgetGate";
 import { SemesterGate } from "./components/SemesterGate";
+import { TermsGate } from "./components/TermsGate";
 import { LiveCheckInGate } from "./components/LiveCheckInGate";
 import { ToastProvider } from "./components/dashboard/Toast";
 import { APP_THEME_BOOT } from "@/lib/theme";
@@ -88,7 +89,7 @@ export default function RootLayout({
       {/* Blocking, before any paint: stamps data-theme so ivory never flashes
           dusk, and data-sb so a collapsed sidebar never flashes open. */}
       <head><script dangerouslySetInnerHTML={{ __html: APP_THEME_BOOT + SIDEBAR_RAIL_BOOT }} /></head>
-      <body suppressHydrationWarning className="min-h-full flex flex-col"><PaperSprite /><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col"><PaperSprite /><ToastProvider><ChapterProvider><LiveCheckInGate>{children}</LiveCheckInGate><SemesterGate /><TermsGate /><ChatWidgetGate /></ChapterProvider></ToastProvider></body>
     </html>
   );
 }

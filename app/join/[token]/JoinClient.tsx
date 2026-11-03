@@ -6,6 +6,8 @@ import { APP_NAME } from "@/lib/domains";
 import { BrandMark } from "@/app/components/landing/DoodleSprite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { InviteDeadReason } from "@/lib/auth/invite-lookup";
+import { TERMS_VERSION } from "@/lib/terms";
+import { TermsLine } from "@/app/components/TermsLine";
 
 import type { JoinState } from "@/lib/auth/join-state";
 import { useJoinPolling, readJoinStatus, JoinPollError } from "@/app/hooks/useJoinPolling";
@@ -126,7 +128,8 @@ export function JoinClient({
       const res = await fetch("/api/auth/request-join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, name: name.trim() }),
+        // The version the line above this button showed; recorded with the request.
+        body: JSON.stringify({ token, name: name.trim(), termsVersion: TERMS_VERSION }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -219,7 +222,10 @@ export function JoinClient({
         {state === null ? (
           <div className="auth-btn-skel" aria-hidden />
         ) : state === "guest" ? (
-          <GoogleButton loading={busy} onClick={signIn} />
+          <>
+            <GoogleButton loading={busy} onClick={signIn} />
+            <TermsLine />
+          </>
         ) : state === "already_member" ? (
           <button
             onClick={() => window.location.assign(`/${orgSlug ?? ""}`)}
@@ -255,6 +261,7 @@ export function JoinClient({
             >
               {busy ? "Sending…" : "Request to join"}
             </button>
+            <TermsLine />
           </>
         )}
       </div>

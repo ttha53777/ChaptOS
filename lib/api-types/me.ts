@@ -80,6 +80,20 @@ export interface MeOrg {
 }
 
 /**
+ * Where the signed-in account stands with the Terms of Service. The client shows
+ * the in-app prompt when `acceptedVersion !== version`; before `acceptBy` it can
+ * be put off, from that day on the app waits for "I agree".
+ */
+export interface TermsStatus {
+  /** The current version (YYYY-MM-DD, the date it took effect). */
+  version: string;
+  /** The latest version this account agreed to; null when it never has. */
+  acceptedVersion: string | null;
+  /** YYYY-MM-DD. The first day a pending acceptance can no longer be put off. */
+  acceptBy: string;
+}
+
+/**
  * GET /api/auth/me — the signed-in person in the active org (picked by the
  * x-org-slug header, else the active_org cookie, else their first org).
  *
@@ -102,6 +116,7 @@ export interface MeResponse {
   /** Highest role rank; null on the wire means unbounded (org/platform admin). */
   maxRank: number | null;
   roles: MeRole[];
+  terms: TermsStatus;
 }
 
 /**

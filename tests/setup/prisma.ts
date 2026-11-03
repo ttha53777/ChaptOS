@@ -30,6 +30,9 @@ export async function resetDb(): Promise<void> {
       -- after the row is written), so nothing cascades it away for us and it has
       -- to be truncated explicitly or rows leak between test files.
       "OrphanedSubscription",
+      -- Global and keyed by the Google account; its org FK is SET NULL, so
+      -- truncating Organization never takes these rows with it.
+      "TermsAcceptance",
       "SalesLead",
       "Subscription",
       "OperationalEvent",

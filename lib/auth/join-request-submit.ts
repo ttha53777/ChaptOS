@@ -22,6 +22,9 @@ import { resolveInviteToken, DEAD_REASON_MESSAGE, type InviteDeadReason } from "
 import { JoinRequestStatus } from "@/lib/state";
 import { lockAdmissions, ADMISSION_TX_OPTIONS } from "@/lib/db/admission-lock";
 import { resolveJoinViewer } from "./join-viewer";
+import { recordTermsAcceptance } from "./terms-acceptance";
+import { TermsAcceptanceContext } from "@/lib/state";
+import type { TermsVersion } from "@/lib/terms";
 
 /** What the join screen should show after a submit attempt. */
 export type SubmitOutcome =
@@ -62,6 +65,10 @@ export async function submitJoinRequest(
   token: string,
   name: string,
   who: Submitter,
+  /** The Terms of Service version shown on the join screen. The route requires
+   *  it; recorded in the same transaction that files the request, and only then —
+   *  a refused or no-op submit agreed to nothing new. */
+  termsVersion?: TermsVersion,
 ): Promise<SubmitOutcome> {
   // Resolve only the boundary before locking. Re-read validity and capacity
   // under the lock: revoke or another submission may have won meanwhile.
@@ -100,6 +107,9 @@ export async function submitJoinRequest(
     // The transition and its fact commit together. Duplicate submits return
     // above without rewriting a name, a decision, or a second event.
     await recordJoinSubmission(tx, request);
+    if (termsVersion) {
+      await recordTermsAcceptance({ authUserId: who.authUserId, version: termsVersion, context: TermsAcceptanceContext.Join }, tx);
+    }
     return { ok: true, state: "pending", orgSlug };
   }, ADMISSION_TX_OPTIONS);
 }

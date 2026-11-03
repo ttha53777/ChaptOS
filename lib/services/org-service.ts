@@ -45,6 +45,9 @@ import { stripe, stripeEnabled } from "@/lib/stripe";
 import { uploadOrgLogoObject, removeOrgLogoObject } from "@/lib/supabase/org-logo";
 import { removeOrgReceipts } from "@/lib/supabase/receipts";
 import type { CreateOrgInput } from "@/lib/validation/org";
+import type { TermsVersion } from "@/lib/terms";
+import { TermsAcceptanceContext } from "@/lib/state";
+import { recordTermsAcceptance } from "@/lib/auth/terms-acceptance";
 import type { RequestContext } from "@/lib/context";
 
 export interface ProvisionedOrg {
@@ -291,6 +294,11 @@ export async function provisionOrg(
   input: CreateOrgInput,
   authUserId: string,
   email: string | null,
+  /** The Terms of Service version the founder ticked on /create. POST /api/orgs
+   *  requires it; optional here so internal callers (tests, scripts) needn't
+   *  invent an acceptance nobody gave. Recorded inside the transaction, so an
+   *  org never exists without its founder's agreement on file. */
+  terms?: { version: TermsVersion },
 ): Promise<ProvisionedOrg> {
   // Validate slug format + reserved-list against the SAME rules the live
   // slug-check endpoint uses. Keeps the two surfaces in lockstep.
@@ -589,6 +597,17 @@ export async function provisionOrg(
           },
         },
       });
+
+      // 8. The founder's Terms of Service acceptance, for themselves and on
+      //    behalf of the org they just created (section 2 of the terms).
+      if (terms) {
+        await recordTermsAcceptance({
+          authUserId,
+          version:        terms.version,
+          context:        TermsAcceptanceContext.Create,
+          organizationId: org.id,
+        }, tx);
+      }
 
       return { organizationId: org.id, slug: org.slug, brotherId };
     });

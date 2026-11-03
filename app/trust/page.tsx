@@ -22,6 +22,11 @@ import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
 import { APP_NAME } from "@/lib/domains";
 import { SUPPORT_EMAIL } from "@/lib/support";
+import {
+  LEGAL_ENTITY as LEGAL_ENTITY_NAME,
+  POSTAL_ADDRESS as LEGAL_POSTAL_ADDRESS,
+  GOVERNING_STATE as LEGAL_GOVERNING_STATE,
+} from "@/lib/legal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FILL THESE IN BEFORE THIS PAGE GOES LIVE.
@@ -31,13 +36,13 @@ import { SUPPORT_EMAIL } from "@/lib/support";
 // defective on its face. Anything left as a TODO renders as a loud dashed
 // placeholder so it cannot ship unnoticed.
 // ─────────────────────────────────────────────────────────────────────────────
-const TODO = null;
-
-const LEGAL_ENTITY: string | null = TODO;   // e.g. "ChaptOS Labs LLC"
+// The operator, address and governing law come from lib/legal.ts, shared with
+// /terms so the two pages can never name a different one.
+const LEGAL_ENTITY: string | null = LEGAL_ENTITY_NAME;
 // The one inbox a human reads (lib/support.ts), shared with /contact and /help.
 const PRIVACY_EMAIL: string | null = SUPPORT_EMAIL;
-const POSTAL_ADDRESS: string | null = TODO; // registered mailing address
-const GOVERNING_STATE: string | null = TODO; // e.g. "Texas, USA"
+const POSTAL_ADDRESS: string | null = LEGAL_POSTAL_ADDRESS;
+const GOVERNING_STATE: string | null = `${LEGAL_GOVERNING_STATE}, USA`;
 
 /** Effective date shown in the header. Bump whenever the substance changes. */
 const EFFECTIVE = "November 2, 2026";
@@ -96,7 +101,8 @@ export default function TrustPage() {
                 the effective date below. Where a protection is real, we name the mechanism.
                 Where it isn&apos;t built yet, we say so in <a href="#security">section 8</a>{" "}
                 rather than leave you to find out. It describes our practices; it isn&apos;t a
-                contract, and it will change as the product does.
+                contract (that&apos;s our <a href="/terms">Terms of service</a>), and it will
+                change as the product does.
               </p>
               {/* Separators are CSS ::before on each item after the first, not
                   standalone nodes — a wrapped row would otherwise strand a lone
@@ -327,6 +333,14 @@ export default function TrustPage() {
                     <tr>
                       <th>Email address</th>
                       <td>From your Google account. Used for identification, not marketing.</td>
+                    </tr>
+                    <tr>
+                      <th>Terms you agreed to</th>
+                      <td>
+                        Which version of the <a href="/terms">Terms of service</a>{" "}you accepted,
+                        when, and whether it was when creating an org, joining one, or in the app.
+                        Deleted with your account.
+                      </td>
                     </tr>
                     <tr>
                       <th>Profile photo</th>

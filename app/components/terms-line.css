@@ -1,0 +1,11 @@
+/* TermsLine — "By continuing, you agree…" under a sign-in button on the
+   .auth-scope screens (/login, /join). Sits on .auth-footnote for its size and
+   colour in both looks (globals.css, paper-doors.css); this only centres it under
+   the button and makes its two links read as links. */
+.auth-scope .auth-terms { margin-top: 10px; text-align: center; text-wrap: pretty; }
+.auth-scope .auth-terms a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.auth-scope .auth-terms a:hover { color: var(--ink); }
+
+html[data-aesthetic="paper"] .auth-scope .auth-terms { font-size: .78rem; }
+html[data-aesthetic="paper"] .auth-scope .auth-terms a { text-decoration-color: var(--line-2); }
+html[data-aesthetic="paper"] .auth-scope .auth-terms a:hover { text-decoration-color: currentColor; }

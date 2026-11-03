@@ -243,6 +243,14 @@ export const draftSchema = z.object({
   answers: answersSchema.default({}),
   thread:  z.array(threadLineSchema).max(160).default([]),
   term:    termSchema.nullable().default(null),
+  /**
+   * The Terms of Service version the founder ticked on the sign-in ticket, or
+   * null until they do. Lives in the draft because the tick happens BEFORE the
+   * Google round-trip and the POST happens after it (?resume=1), so it has to
+   * survive the redirect the same way every other answer does. Additive, like
+   * the three above. Validated against lib/terms.ts server-side, not here.
+   */
+  termsAccepted: z.string().max(20).nullable().default(null),
 });
 
 export type Draft = z.infer<typeof draftSchema>;
@@ -281,6 +289,7 @@ export function emptyDraft(): Draft {
     answers: {},
     thread: [],
     term: null,
+    termsAccepted: null,
   };
 }
 

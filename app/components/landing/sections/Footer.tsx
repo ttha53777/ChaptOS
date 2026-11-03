@@ -59,6 +59,9 @@ export function Footer() {
                 <a href="/trust">Trust &amp; privacy</a>
               </li>
               <li>
+                <a href="/terms">Terms of service</a>
+              </li>
+              <li>
                 <a href="/contact">Talk to a human</a>
               </li>
             </ul>

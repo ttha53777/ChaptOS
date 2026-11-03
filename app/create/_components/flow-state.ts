@@ -80,6 +80,7 @@ export type FlowAction =
   | { type: "interviewDone" }
   | { type: "goto"; step: CreateStep }
   | { type: "setSlug"; slug: string | null }
+  | { type: "setTermsAccepted"; version: string | null }
   | { type: "toggleWorkflow"; workflow: WorkflowId }
   | { type: "setVocab"; key: VocabKey; value: string | null }
   | { type: "renameSeat"; index: number; title: string }
@@ -283,6 +284,8 @@ export function flowReducer(draft: Draft, action: FlowAction): Draft {
     }
     case "setSlug":
       return { ...draft, slug: action.slug };
+    case "setTermsAccepted":
+      return { ...draft, termsAccepted: action.version };
     case "toggleWorkflow": {
       const workflows = new Set(draft.enabledWorkflows);
       if (workflows.has(action.workflow)) workflows.delete(action.workflow);
