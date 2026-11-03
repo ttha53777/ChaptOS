@@ -6,12 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { PaperIcon } from "../components/paper/PaperIcon";
 import { ARTICLES_BY_SLUG, CATEGORIES, articlesIn } from "./content";
 import { FindResults, RAIL_FIND_ID, useHelpSearch } from "./Search";
-import { ThemeSeg, applySavedHelpTheme } from "./ThemeSeg";
 
 /**
  * What every /help page shares besides the site bar and footer: the "/"
- * shortcut, and the phone help sheet (search, every topic, light/dark, a
- * human). The sheet is opened from the chip + search button at the head of an
+ * shortcut, and the phone help sheet (search, every topic, a human). The sheet is opened from the chip + search button at the head of an
  * article on phones (MobileHead), through openHelpSheet().
  *
  * "/" focuses the index's big search when it's on the page, the help card's
@@ -38,10 +36,6 @@ export function HelpShell() {
 
   const slug = pathname.startsWith("/help/") ? pathname.slice("/help/".length) : null;
   const current = slug ? ARTICLES_BY_SLUG.get(slug) : undefined;
-
-  // The boot script only runs on a full page load; arriving by client-side
-  // navigation skips it, so apply the saved choice here as well.
-  useEffect(applySavedHelpTheme, []);
 
   useEffect(() => {
     function onOpen(e: Event) {
@@ -141,7 +135,6 @@ export function HelpShell() {
           <Link href={slug ? `/contact?from=${encodeURIComponent(slug)}` : "/contact"} tabIndex={open ? 0 : -1}>
             <PaperIcon name="chat" className="hc-ic" />A human
           </Link>
-          <ThemeSeg />
         </div>
       </div>
     </div>

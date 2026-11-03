@@ -2,12 +2,11 @@ import Link from "next/link";
 import { PaperIcon } from "../components/paper/PaperIcon";
 import { ARTICLES, CATEGORIES, articlesIn, type Article, type Category } from "./content";
 import { RailSearch } from "./Search";
-import { ThemeSeg } from "./ThemeSeg";
 
 /**
  * The help card beside every article — the sidebar's jobs, now that /help wears
  * the site's top bar instead: home, search, this topic's articles (the one
- * you're reading highlighted), the other topics, light/dark and a human.
+ * you're reading highlighted), the other topics and a human.
  * Taped on in the topic's colour; sticky while the article scrolls. Below
  * 900px it's hidden and the article's MobileHead opens the sheet instead.
  */
@@ -49,7 +48,6 @@ export function HelpCard({ article, category, askHref }: { article: Article; cat
         </div>
       </div>
       <div className="hc-lr-foot">
-        <ThemeSeg />
         <Link className="hc-human" href={askHref}><PaperIcon name="chat" className="hc-ic" />Talk to a human</Link>
       </div>
     </aside>

@@ -11,7 +11,6 @@ import Link from "next/link";
 import { PaperIcon } from "../components/paper/PaperIcon";
 import { FieldGuide } from "./FieldGuide";
 import { HelpIndex } from "./HelpIndex";
-import { ThemeSeg } from "./ThemeSeg";
 import { ARTICLES, ARTICLES_BY_SLUG, JOURNEY, QUICK_PATHS } from "./content";
 import { APP_NAME } from "@/lib/domains";
 
@@ -29,12 +28,9 @@ export default function HelpIndexPage() {
       <HelpIndex
         head={
           <>
-            <div className="hc-idx-top">
-              <div className="hc-kick">
-                <span className="hc-chip">Help centre</span>
-                {`${ARTICLES.length} articles, each one checked against the app`}
-              </div>
-              <ThemeSeg />
+            <div className="hc-kick">
+              <span className="hc-chip">Help centre</span>
+              {`${ARTICLES.length} articles, each one checked against the app`}
             </div>
             <h1 className="hc-greet">
               {"What are you "}<span className="hc-hi">trying to do</span>?

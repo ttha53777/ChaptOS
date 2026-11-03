@@ -13,16 +13,11 @@ import { landingFontClass } from "../components/landing/fonts";
 import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
 import { HelpShell } from "./HelpShell";
-import { HELP_THEME_BOOT } from "./ThemeSeg";
 
 export default function HelpLayout({ children }: { children: ReactNode }) {
   return (
-    // suppressHydrationWarning: the boot script below stamps data-hc-theme
-    // before hydration, so the server's markup never carries it.
-    <div className={`hc ${landingFontClass}`} suppressHydrationWarning>
-      {/* Runs during parse, before paint, so a dark-paper reader never sees a
-          flash of light paper. Keyed to this root, not <html> (see help.css). */}
-      <script dangerouslySetInnerHTML={{ __html: HELP_THEME_BOOT }} />
+    // Light paper only, like every other public page.
+    <div className={`hc ${landingFontClass}`}>
       <PublicNav here="help" />
       {children}
       <Footer />

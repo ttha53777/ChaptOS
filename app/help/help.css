@@ -11,12 +11,8 @@
 
    EVERYTHING is scoped under .hc. Next keeps a route's stylesheet loaded after
    client navigation away from it, so a bare .btn / .card / .pill here would
-   restyle app pages. Night paper hangs off .hc[data-hc-theme="dark"], NOT
-   html[data-theme] — the root layout owns that attribute for the app's own
-   theme, and a signed-in dusk user shouldn't get a dark help centre they never
-   chose. The help centre's sun/moon toggles set it (ThemeSeg.tsx). The site
-   bar (site-nav.css) carries its own light tokens on .sn, so night paper
-   re-points them below.
+   restyle app pages. Light paper only, like every other public page: there is
+   no night theme, so a signed-in dusk user still gets the cream help centre.
 
    Fonts come from landingFontClass on the .hc root (--font-bricolage etc.);
    icons from the Paper sprite the root layout mounts.
@@ -46,24 +42,6 @@
   --mono:var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --ease-out:cubic-bezier(.22,.72,.24,1); --spring:cubic-bezier(.16,.9,.3,1.02);
   color-scheme:light;
-}
-.hc[data-hc-theme="dark"]{
-  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
-  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
-  --line:#2F271E; --line-2:#43382B;
-  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
-  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
-  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
-  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
-  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
-  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
-  --note-filter:brightness(.93) saturate(.85); --mark-op:.42;
-  --c-chapter:#8DB2EC; --c-party:#E598B7; --c-deadline:#FFB49A; --c-service:#6FC9BD; --c-fundy:#F0CC72;
-  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
-  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
-  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
-  --scrim:rgba(5,4,2,.6);
-  color-scheme:dark;
 }
 
 /* ---------- base ---------- */
@@ -96,11 +74,6 @@
 .hc .hc-btn .hc-ic{width:15px; height:15px}
 .hc .hc-btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--peach)}
 
-/* ---------- light / dark ---------- */
-.hc .hc-seg{display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:var(--card); border:1.5px solid var(--line)}
-.hc .hc-seg button{display:flex; align-items:center; gap:6px; border:0; background:none; padding:5px 10px; border-radius:999px; font-size:.76rem; font-weight:600; color:var(--ink-3)}
-.hc .hc-seg button .hc-ic{width:14px; height:14px}
-.hc .hc-seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
 
 /* ---------- page ---------- */
 .hc .hc-wrap{width:100%; max-width:1280px; margin:0 auto; padding:clamp(30px,3.6vw,48px) clamp(16px,3vw,32px) 110px}
@@ -250,7 +223,6 @@
 .hc .hc-note-s{position:relative; padding:12px 14px; color:var(--note-ink); background:var(--p); filter:var(--note-filter); border-radius:5px 12px 7px 10px; box-shadow:var(--sh-2); font-size:.8rem; line-height:1.4; transform:rotate(-1deg)}
 .hc .hc-tape{position:relative}
 .hc .hc-tape::after{content:''; position:absolute; left:50%; top:-8px; width:52px; height:15px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16)}
-.hc[data-hc-theme="dark"] .hc-tape::after{background:rgba(255,255,255,.14)}
 
 /* pins: the numbered markers shared by figures and steps */
 .hc .hc-pin{display:inline-grid; place-items:center; width:21px; height:21px; flex:none; border-radius:50%; background:var(--ink); color:var(--paper); font-family:var(--mono); font-style:normal; font-size:.68rem; font-weight:600; box-shadow:2px 2px 0 var(--butter); vertical-align:middle; line-height:1}
@@ -359,7 +331,6 @@
 .hc .hc-lede strong{color:var(--ink); font-weight:600}
 /* The root body is a flex column; the help centre fills it. */
 .hc{flex:1; width:100%; min-height:100vh}
-.hc .hc-sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
 
 /* ═══════════ top bar frame (_design/Help Centre Top Bar Mock.html) ═══════════ */
 
@@ -376,10 +347,8 @@
 
 /* ---------- one top bar only: the help centre's own navigation lives in the page ----------
    Index: the hero search + the topic shelf. Articles: a sticky "help card" rail on the
-   left (home, search, this topic, other topics, light/dark + a human). Phones: a chip
+   left (home, search, this topic, other topics + a human). Phones: a chip
    + search button at the head of each article, both opening the same help sheet. */
-.hc .hc-idx-top{display:flex; align-items:center; gap:12px; flex-wrap:wrap}
-.hc .hc-idx-top .hc-seg{margin-left:auto}
 
 /* the help card (article left rail) */
 .hc .hc-lrail{position:sticky; top:96px; max-height:calc(100vh - 112px); display:flex; flex-direction:column;
@@ -417,7 +386,6 @@
 .hc .hc-lr-other a .hc-n{margin-left:auto; font-family:var(--mono); font-size:.64rem; color:var(--ink-3)}
 .hc .hc-lr-other a:hover{background:var(--paper-2); color:var(--ink)}
 .hc .hc-lr-foot{display:flex; align-items:center; gap:8px; padding:9px 10px; border-top:1.5px solid var(--line)}
-.hc .hc-lr-foot .hc-seg button{padding:4px 8px}
 .hc .hc-human{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:.78rem; font-weight:600; color:var(--ink-2); text-decoration:none}
 .hc .hc-human:hover{color:var(--ink)}
 .hc .hc-human .hc-ic{width:15px; height:15px}
@@ -434,7 +402,7 @@
 .hc .hc-mfind{display:grid; place-items:center; width:40px; height:40px; margin-left:auto; flex:none; border-radius:13px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-2); padding:0}
 .hc .hc-mfind .hc-ic{width:17px; height:17px}
 
-/* the help sheet (phones): search + topics + light/dark + a human */
+/* the help sheet (phones): search + topics + a human */
 .hc .hc-hs{position:fixed; inset:0; z-index:85; display:flex; align-items:flex-end; background:var(--scrim); opacity:0; visibility:hidden; transition:opacity .22s var(--ease-out), visibility 0s .4s}
 .hc .hc-hs.hc-on{opacity:1; visibility:visible; transition:opacity .22s var(--ease-out)}
 .hc .hc-hs-p{width:100%; max-height:88vh; display:flex; flex-direction:column; background:var(--paper); border:1.5px solid var(--ink); border-bottom:0; border-radius:22px 22px 0 0; box-shadow:0 -5px 0 var(--lilac), var(--sh-3);
@@ -456,7 +424,6 @@
 .hc .hc-hs-foot{display:flex; align-items:center; gap:10px; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); border-top:1.5px solid var(--line); background:var(--paper-2)}
 .hc .hc-hs-foot a{display:inline-flex; align-items:center; gap:6px; font-size:.84rem; font-weight:600; color:var(--ink-2); text-decoration:none}
 .hc .hc-hs-foot a .hc-ic{width:15px; height:15px}
-.hc .hc-hs-foot .hc-seg{margin-left:auto}
 
 /* ---------- landing footer (landing.css §12) ---------- */
 .hc .foot{margin-top:auto; border-top:1.5px solid var(--line); padding:clamp(48px,6vw,76px) 0 40px; background:var(--paper-2)}
@@ -502,7 +469,6 @@
 .hc .hc-g-label{align-self:flex-start; display:inline-flex; align-items:center; gap:7px; font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.14em; padding:4px 11px 4px 9px; border:1.5px solid var(--note-ink); border-radius:999px; background:rgba(255,255,255,.7); box-shadow:2px 2px 0 var(--peach)}
 .hc .hc-g-label i{width:7px; height:7px; border-radius:2px; rotate:45deg; background:var(--lilac-ink)}
 .hc .hc-g-tape{position:absolute !important; left:50%; top:-7px; width:70px; height:17px; transform:translateX(-50%) rotate(-2.5deg); background:rgba(255,255,255,.55); border-inline:1px dashed rgba(38,33,27,.16); z-index:4}
-.hc[data-hc-theme="dark"] .hc-g-tape{background:rgba(255,255,255,.3)}
 .hc .hc-g-cover h2{margin-top:20px; font-family:var(--display); font-weight:700; font-size:2.35rem; line-height:.98; letter-spacing:-.04em; font-variation-settings:"opsz" 96}
 .hc .hc-g-cover h2 em{font-style:normal; position:relative; z-index:0}
 .hc .hc-g-cover h2 em::before{content:''; position:absolute; z-index:-1; left:-.08em; right:-.08em; bottom:.04em; height:.42em; background:var(--peach); border-radius:.4em .55em .38em .6em; transform:rotate(-1.2deg)}
@@ -596,18 +562,3 @@
 @media (max-width:1180px){ .hc .hc-art{grid-template-columns:226px minmax(0,1fr)} .hc .hc-rail{display:none} }
 @media (max-width:900px){ .hc .hc-art{grid-template-columns:minmax(0,1fr)} .hc .hc-lrail{display:none} .hc .hc-more{display:block} .hc .hc-mhead{display:flex} }
 
-/* ---------- the site bar at night ----------
-   site-nav.css declares light tokens on .sn itself; on night paper re-point
-   them, or the bar stays a cream strip over a dark page. */
-.hc[data-hc-theme="dark"] .sn{
-  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
-  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
-  --line:#2F271E; --line-2:#43382B;
-  --peach:#E5A28A; --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
-  --sky:#8DB2EC; --sky-ink:#AACBFF; --mint:#80CBA4; --mint-ink:#8FDDB6;
-  --butter:#E3BF66; --lilac:#A593EE; --lilac-ink:#C4B6FF; --rose:#E598B7;
-  --note-filter:brightness(.93) saturate(.85);
-  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
-  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
-  color-scheme:dark;
-}
