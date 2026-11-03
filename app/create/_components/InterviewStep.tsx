@@ -28,7 +28,7 @@ import {
   readMoneyAnswer,
   type InterviewBeat,
 } from "@/lib/onboarding/answers";
-import { ACTIVITY_IDS, activityPage, readActivities } from "@/lib/onboarding/activities";
+import { ACTIVITY_IDS, activityPage } from "@/lib/onboarding/activities";
 import { MAX_CUSTOM_METRICS, type DocsAnswer, type Draft, type MoneyAnswer, type ThreadLine } from "@/lib/onboarding/draft";
 import {
   BUILTIN_METRIC_IDS,
@@ -92,13 +92,13 @@ function activityRow(d: Draft, id: string): PageRow {
 }
 
 const MONEY_CHIPS: [MoneyAnswer, string][] = [["yes", "Yes — all the time"], ["some", "Now and then"], ["none", "No money"]];
-const DOCS_CHIPS: [DocsAnswer, string][] = [["yes", "Yes, a few things"], ["scattered", "Yes, but it’s scattered"], ["none", "Not really"]];
+const DOCS_CHIPS: [DocsAnswer, string][] = [["yes", "Yes"], ["none", "No, not really"]];
 
-const PLACEHOLDER: Record<InterviewBeat, string> = {
+// The month beat is tap-only, so it has no composer and no placeholder.
+const PLACEHOLDER: Record<Exclude<InterviewBeat, "month">, string> = {
   intro:   "Your name is plenty…",
   kind:    "Or describe it — “a pre-med frat”, “a club volleyball team”…",
   role:    "Or type your title…",
-  month:   "Or describe a normal month in your own words…",
   money:   "Or describe it in your own words…",
   docs:    "Or describe it in your own words…",
   metrics: "Add something to track per member…",
@@ -401,17 +401,6 @@ export function InterviewStep({
         const title = readFounderTitle(v);
         return title ? answerRole(title, v) : nudge(v, "What’s your title? “President”, “Captain”, “just helping” — anything works.");
       }
-      case "month": {
-        const read = readActivities(v);
-        if (!read) return nudge(v, "I couldn’t tell which of these happen — tap the ones that do, or say it another way.");
-        if (!read.confident) {
-          setPicks([...read.ids]);
-          const off = monthWords(draft, [...read.off]);
-          return nudge(v, `So everything except ${plain(listy(off))}? Untick anything that’s off, then tap ${bold("That’s our month")}.`);
-        }
-        setPicks([...read.ids]);
-        return answerMonth([...read.ids], v);
-      }
       case "money": {
         const m = readMoneyAnswer(v);
         return m ? answerMoney(m, v) : nudge(v, "No problem — tap whichever is closest. Treasury is one switch in Settings either way.");
@@ -671,7 +660,7 @@ export function InterviewStep({
         {stage === "recap" && <Recap draft={draft} founderFallback={founderFallback} onEdit={edit} onDone={onDone} />}
       </div>
 
-      {stage !== "recap" && (
+      {stage !== "recap" && stage !== "month" && (
         <form
           className={`compose${open ? "" : " off"}`}
           autoComplete="off"

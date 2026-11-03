@@ -652,7 +652,7 @@ export function useCreateTheme(): { theme: CrfTheme | null; toggle: () => void }
  * URL field, and (via draftSlug → draftToCreateOrgInput) the submitted payload.
  *
  * Delegates to suggestSlug rather than reimplementing it. The two used to differ
- * — this one had no NFKD pass, so "Café" showed as chaptos.app/caf on the sheet
+ * — this one had no NFKD pass, so "Café" showed as chaptos.com/caf on the sheet
  * while the payload sent "cafe" — and a founder can't act on a URL preview that
  * isn't the URL. One implementation also means the Greek romanization reaches
  * every surface at once.
@@ -706,8 +706,8 @@ export function gradIvory(name: string): string {
   return `linear-gradient(135deg, ${g[0]}, ${g[1]})`;
 }
 
-/** The host shown in URL previews (chaptos.app/<slug>). */
-export const DISPLAY_HOST = ROOT_DOMAIN === "localhost" ? "chaptos.app" : ROOT_DOMAIN;
+/** The host shown in URL previews (chaptos.com/<slug>). */
+export const DISPLAY_HOST = ROOT_DOMAIN === "localhost" ? "chaptos.com" : ROOT_DOMAIN;
 
 /** Enabled workflows as a Set — what the perm-area gates consume. */
 export function wfSet(draft: Draft): ReadonlySet<WorkflowId> {
