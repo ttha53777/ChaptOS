@@ -696,7 +696,7 @@ function DayDetail({
 // ─── EventDetail (rail, when a row is selected) ───────────────────────────────
 
 type AttendanceDetail = {
-  excused:   { brotherId: number; brotherName: string; reason: string; isRetroactive: boolean }[];
+  excused:   { brotherId: number; brotherName: string; reason: string | null; isRetroactive: boolean }[];
   unexcused: { brotherId: number; brotherName: string }[];
   attended:  { brotherId: number; brotherName: string }[];
   // Brother ids exempt from attendance this semester — excluded from the log form.
@@ -708,7 +708,7 @@ type AttendanceDetail = {
 function AttGroup({ label, tone, people, onOpenMember }: {
   label: string;
   tone: "ok" | "gold" | "rose";
-  people: { brotherId: number; brotherName: string; reason?: string }[];
+  people: { brotherId: number; brotherName: string; reason?: string | null }[];
   onOpenMember: (brotherId: number) => void;
 }) {
   const { brotherList, currentUser, avatarRevision } = useChapter();

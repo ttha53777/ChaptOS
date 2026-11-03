@@ -43,7 +43,7 @@ function catColor(types: Map<string, CalEventType>, category: string): string {
 }
 
 type AttendanceDetail = {
-  excused:   { brotherId: number; brotherName: string; reason: string }[];
+  excused:   { brotherId: number; brotherName: string; reason: string | null }[];
   unexcused: { brotherId: number; brotherName: string }[];
   attended:  { brotherId: number; brotherName: string }[];
 };

@@ -134,7 +134,7 @@ function dueLabel(iso: string) {
 // Per-event counts from GET /api/attendance/summary.
 type AttendanceSummaryRow = { calendarEventId: number; present: number; eligible: number; excused: number; expected: number };
 type AttendanceDetail = {
-  excused:   { brotherId: number; brotherName: string; reason: string }[];
+  excused:   { brotherId: number; brotherName: string; reason: string | null }[];
   unexcused: { brotherId: number; brotherName: string }[];
   attended:  { brotherId: number; brotherName: string }[];
 };
@@ -518,7 +518,7 @@ function AttendanceCard({ event, refresh, canTake, onTake, onOpenMember }: {
     return () => { live = false; };
   }, [event.id, event.mandatory, refresh]);
 
-  const groups: [string, "ok" | "gold" | "rose", { brotherId: number; brotherName: string; reason?: string }[]][] = detail
+  const groups: [string, "ok" | "gold" | "rose", { brotherId: number; brotherName: string; reason?: string | null }[]][] = detail
     ? [["Present", "ok", detail.attended], ["Excused", "gold", detail.excused], ["Absent", "rose", detail.unexcused]]
     : [];
   const any = groups.some(g => g[2].length);

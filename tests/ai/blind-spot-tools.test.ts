@@ -176,3 +176,45 @@ describe("summaries cover every match", () => {
     expect(out.members.map(m => [m.id, m.status])).toEqual([[1, "at_risk"], [2, "missing"]]);
   });
 });
+
+// An excuse's reason is often medical or personal; the excuses screen shows it
+// to attendance managers only, so the attendance tools must not hand it to
+// anyone else — except the member who wrote it.
+describe("excuse reasons", () => {
+  const MANAGER: ToolAccess = { ...MEMBER, permissions: PERMISSIONS.MANAGE_ATTENDANCE };
+  const EVENT = { id: 5, title: "Chapter", date: "2026-10-01" };
+  const EXCUSES = [
+    { brotherId: 1, status: "approved", reason: "hospital visit", calendarEventId: 5, brother: { name: "Rob Chen" }, calendarEvent: EVENT },
+    { brotherId: 2, status: "pending", reason: "exam", calendarEventId: 5, brother: { name: "Sam" }, calendarEvent: EVENT },
+  ];
+  const eventAttendance = async (access: ToolAccess) => {
+    const { scoped, orgId } = stub({ calendarEvent: EVENT, attendanceRecord: [], attendanceExcuse: EXCUSES }, nextOrg++);
+    const out = await runTool("get_event_attendance", { id: 5 }, scoped, orgId, undefined, access) as { excused: { name: string; reason?: string }[] };
+    return Object.fromEntries(out.excused.map(e => [e.name, e.reason]));
+  };
+  const brotherAttendance = async (access: ToolAccess, id: number) => {
+    const { scoped, orgId } = stub({
+      member: { id, name: id === 1 ? "Rob Chen" : "Sam", isGhost: false },
+      attendanceRecord: [], attendanceExcuse: EXCUSES.filter(e => e.brotherId === id),
+      attendanceExemption: { reason: "abroad", note: null },
+    }, nextOrg++);
+    return await runTool("get_brother_attendance", { id }, scoped, orgId, undefined, access) as { excuses: { reason?: string }[]; exemptThisSemester?: unknown };
+  };
+
+  it("get_event_attendance shows a plain member only their own reason", async () => {
+    expect(await eventAttendance(MEMBER)).toEqual({ "Rob Chen": undefined, Sam: "exam" });
+  });
+  it("get_event_attendance shows attendance managers and admins every reason", async () => {
+    for (const who of [MANAGER, ADMIN]) expect(await eventAttendance(who)).toEqual({ "Rob Chen": "hospital visit", Sam: "exam" });
+  });
+  it("get_brother_attendance hides another member's reasons and exemption", async () => {
+    const out = await brotherAttendance(MEMBER, 1);
+    expect(out.excuses).toHaveLength(1);
+    expect(out.excuses[0].reason).toBeUndefined();
+    expect(out.exemptThisSemester).toBeUndefined();
+  });
+  it("get_brother_attendance shows a member their own reasons, and a manager anyone's", async () => {
+    expect((await brotherAttendance(MEMBER, 2)).excuses[0].reason).toBe("exam");
+    expect((await brotherAttendance(MANAGER, 1)).excuses[0].reason).toBe("hospital visit");
+  });
+});

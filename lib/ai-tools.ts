@@ -444,7 +444,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: "get_brother_attendance",
       description:
-        "One brother's attendance detail this semester: counts of events attended / missed / excused, plus the list of missed events with any excuse reason. " +
+        "One brother's attendance detail this semester: counts of events attended / missed / excused, plus the list of missed events with any excuse (its reason only for attendance managers or the member themself). " +
         "Identify the brother by id or by a name fragment (same matching as get_brother). " +
         "Use for 'how many meetings has X missed?', 'what's X's attendance record?', 'is X's absence excused?'.",
       parameters: {
@@ -1974,7 +1974,12 @@ async function weeklyDigest(scoped: Scoped, orgId: number, now: Date = new Date(
   };
 }
 
-async function getEventAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
+/** Excuse and exemption reasons: attendance managers, and the member who wrote them. */
+function canSeeExcuseReason(access: ToolAccess | undefined, brotherId: number): boolean {
+  return canAccess(access, "MANAGE_ATTENDANCE") || access?.actorId === brotherId;
+}
+
+async function getEventAttendance(args: ToolArgs, scoped: Scoped, access?: ToolAccess): Promise<ToolResult> {
   const id = typeof args.id === "number" ? args.id : undefined;
   const name = typeof args.event_name === "string" ? args.event_name.trim() : undefined;
   const date = typeof args.date === "string" && DATE_RE.test(args.date) ? args.date : undefined;
@@ -2038,7 +2043,13 @@ async function getEventAttendance(args: ToolArgs, scoped: Scoped): Promise<ToolR
     counts: { attended: attended.length, absent: absent.length, excused: approvedIds.size },
     attended,
     absent,
-    excused: excuses.map(e => ({ name: e.brother.name, status: e.status, reason: e.reason })),
+    // An excuse's reason is often medical or personal. The excuses screen shows
+    // it to attendance managers only, so the assistant does the same: anyone
+    // else sees who was excused and the status, and the reason only on their own.
+    excused: excuses.map(e => ({
+      name: e.brother.name, status: e.status,
+      ...(canSeeExcuseReason(access, e.brotherId) ? { reason: e.reason } : {}),
+    })),
     ...(visible.length === 0 ? { note: "No attendance has been logged for this event yet." } : {}),
   };
 }
@@ -2100,7 +2111,7 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped, access?: Too
   // (lib/prisma.ts) for every call — so it's paid only when there's something
   // to explain, and only for whoever the app lets see exemptions: attendance
   // managers and the member themselves.
-  const seeExemption = canAccess(access, "MANAGE_ATTENDANCE") || access?.actorId === brother.id;
+  const seeExemption = canSeeExcuseReason(access, brother.id);
   const exemption = seeExemption && (missed.length > 0 || records.length === 0)
     ? await scoped.attendanceExemption.findFirst({
         where: { brotherId: brother.id, semester: { is: { isActive: true } } },
@@ -2122,7 +2133,10 @@ async function getBrotherAttendance(args: ToolArgs, scoped: Scoped, access?: Too
       date: r.calendarEvent.date,
       excuseStatus: excuseStatusByEvent.get(r.calendarEventId) ?? null,
     })),
-    excuses: excuses.map(e => ({ title: e.calendarEvent.title, date: e.calendarEvent.date, status: e.status, reason: e.reason })),
+    excuses: excuses.map(e => ({
+      title: e.calendarEvent.title, date: e.calendarEvent.date, status: e.status,
+      ...(canSeeExcuseReason(access, brother.id) ? { reason: e.reason } : {}),
+    })),
     ...(exemption ? { exemptThisSemester: { reason: exemption.reason, ...(exemption.note ? { note: exemption.note } : {}) } } : {}),
   };
 }
@@ -3551,7 +3565,7 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
   get_budget:              (_args, scoped) => getBudget(scoped),
   recent_activity:         (args, scoped) => recentActivity(args, scoped),
   weekly_digest:           (_args, scoped, orgId, now) => weeklyDigest(scoped, orgId, now),
-  get_event_attendance:    (args, scoped) => getEventAttendance(args, scoped),
+  get_event_attendance:    (args, scoped, _orgId, _now, access) => getEventAttendance(args, scoped, access),
   get_brother_attendance:  (args, scoped, _orgId, _now, access) => getBrotherAttendance(args, scoped, access),
   list_roles:              (args, scoped) => listRoles(args, scoped),
   list_service_events:     (args, scoped) => listServiceEvents(args, scoped),

@@ -4,6 +4,7 @@ import { toResponse, ValidationError } from "@/lib/errors";
 import { getActiveSemester } from "@/lib/attendance";
 import { ExcuseStatus } from "@/lib/state";
 import { logError } from "@/lib/observability";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
   const { ctx, error } = await buildContext({ rateLimit: false });
@@ -50,10 +51,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
       .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name }));
     const unexcused = records.filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
       .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name }));
+    // Every member can see who was excused; the reason (often medical or
+    // personal) only attendance managers and the member who wrote it.
+    const canSeeReasons = ctx.isOrgAdmin || ctx.isPlatformAdmin || hasPermission(ctx.permissions, "MANAGE_ATTENDANCE");
     const excused = excuses.map(e => ({
       brotherId: e.brotherId,
       brotherName: nameByBrotherId.get(e.brotherId) ?? e.brother.name,
-      reason: e.reason,
+      reason: canSeeReasons || e.brotherId === ctx.actorId ? e.reason : null,
       isRetroactive: e.isRetroactive,
     }));
 

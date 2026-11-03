@@ -808,7 +808,7 @@ export function MemberSpotlight({
       <h3 className="ms-h3">Needs attention</h3>
       {attention.slice(0, 3).map(r => {
         const pending = r.excuseStatus === "pending";
-        const meta = `${fmtEventDate(r.date)} · ${pending ? `excuse pending: “${r.excuseReason ?? ""}”`
+        const meta = `${fmtEventDate(r.date)} · ${pending ? (r.excuseReason ? `excuse pending: “${r.excuseReason}”` : "excuse pending")
           : r.excuseStatus === "rejected" ? `excuse not approved${r.excuseRejection ? ` (${r.excuseRejection})` : ""}`
           : "absent, no excuse"}`;
         const excuseKey = `excuse:${r.calendarEventId}`;

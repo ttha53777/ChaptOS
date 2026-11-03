@@ -3,6 +3,7 @@ import { buildContext } from "@/lib/context";
 import { toResponse, ValidationError } from "@/lib/errors";
 import { getActiveSemester } from "@/lib/attendance";
 import { logError } from "@/lib/observability";
+import { hasPermission } from "@/lib/permissions";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { ctx, error } = await buildContext({ rateLimit: false });
@@ -42,6 +43,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       const d = date.slice(0, 10);
       return d >= semester.startDate.slice(0, 10) && d <= semester.endDate.slice(0, 10);
     };
+    // An excuse's reason and an officer's rejection note are for attendance
+    // managers and the member themself; anyone else gets the status only.
+    const canSeeReasons = brotherId === ctx.actorId || ctx.isOrgAdmin || ctx.isPlatformAdmin
+      || hasPermission(ctx.permissions, "MANAGE_ATTENDANCE");
     const history = events.filter(event => inSemester(event.date) || recordMap.has(event.id) || excuseMap.has(event.id)).map(event => {
       const excuse = excuseMap.get(event.id);
       return {
@@ -51,9 +56,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         attended:        recordMap.get(event.id) ?? null,
         excused:         !!excuse && excuse.status === "approved",
         excuseId:        excuse?.id ?? null,
-        excuseReason:    excuse?.reason ?? null,
+        excuseReason:    canSeeReasons ? excuse?.reason ?? null : null,
         excuseStatus:    excuse?.status ?? null,
-        excuseRejection: excuse?.rejectionNote ?? null,
+        excuseRejection: canSeeReasons ? excuse?.rejectionNote ?? null : null,
       };
     });
 
