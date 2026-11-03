@@ -3,7 +3,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { assertSeatAvailable } from "@/lib/billing/guard";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
-import { ConflictError, NotFoundError, PaymentRequiredError } from "@/lib/errors";
+import { ConflictError, ForbiddenError, NotFoundError, PaymentRequiredError } from "@/lib/errors";
 import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
 import type { UpdateBrotherInput } from "@/lib/validation/brother";
 import { removeReceiptObjects } from "@/lib/supabase/receipts";
@@ -183,11 +183,42 @@ export async function getMemberProfile(ctx: RequestContext, brotherId: number): 
 // all of which were removed with it. See
 // prisma/migrations/20260807000001_drop_accountless_members.
 
+/**
+ * The roster's half of the rank hierarchy role-service already enforces: an
+ * officer may only edit or remove people strictly BELOW their own top role.
+ * Without it MANAGE_BROTHERS was a skeleton key — a rank-60 Coach could delete
+ * the rank-100 Captain, erasing their attendance and dues history here, even
+ * though role-service wouldn't let that Coach so much as revoke the Captain's role.
+ *
+ *   - Org and platform admins act on anyone (the last-admin guard still applies).
+ *   - Only an org admin may act on an org admin, whatever roles either holds.
+ *   - A target with no roles has no rank, so any MANAGE_BROTHERS holder may
+ *     manage them — that's the ordinary member, the common case.
+ *   - Your own row is exempt: self-edit is gated separately at the route.
+ *
+ * A missing target passes here; the caller's own lookup raises the 404.
+ */
+async function assertOutranks(ctx: RequestContext, brotherId: number, verb: string): Promise<void> {
+  if (ctx.isOrgAdmin || ctx.isPlatformAdmin || brotherId === ctx.actorId) return;
+  const [target, roles] = await Promise.all([
+    ctx.db.member.findByBrotherId(brotherId),
+    ctx.db.brotherRole.listWithRole([brotherId]),
+  ]);
+  if (!target) return;
+  if (target.isOrgAdmin) throw new ForbiddenError(`Only an org admin can ${verb} an org admin`);
+  const topRank = roles.reduce((m, r) => Math.max(m, r.role.rank), Number.NEGATIVE_INFINITY);
+  if (topRank >= ctx.maxRank) {
+    throw new ForbiddenError(`Cannot ${verb} someone at or above your own rank`);
+  }
+}
+
 export async function updateBrother(
   ctx: RequestContext,
   brotherId: number,
   input: UpdateBrotherInput,
 ) {
+  await assertOutranks(ctx, brotherId, "edit");
+
   // Every field here lands on the ROSTER ROW — this org's Membership — so an
   // edit made in one chapter never touches what another chapter records about
   // the same person. That includes the name: someone can be "Rob" here and
@@ -331,6 +362,7 @@ async function resolveMemberName(
 export async function deleteBrother(ctx: RequestContext, brotherId: number) {
   const target = await ctx.db.member.findRosterRow(brotherId, { fields: "contact" });
   if (!target) throw new NotFoundError("Brother");
+  await assertOutranks(ctx, brotherId, "remove");
 
   // The org's own admins, counted on this roster. isOrgAdmin is per-org, so a
   // multi-org member being an admin somewhere else does not keep this chapter

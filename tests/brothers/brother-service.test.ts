@@ -20,7 +20,7 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, rosterOf, accountOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import { updateBrother, deleteBrother, listVisibleBrothers } from "@/lib/services/brother-service";
-import { ConflictError, NotFoundError } from "@/lib/errors";
+import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/errors";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { CustomMemberFieldDef } from "@/lib/custom-member-fields";
 import type { RequestContext } from "@/lib/context";
@@ -112,6 +112,90 @@ describe("deleteBrother last-admin guard", () => {
     await expect(deleteBrother(adminCtx, foreign.id)).rejects.toThrow(NotFoundError);
     // The foreign brother is untouched.
     expect(await rosterOf(foreign.id)).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rank hierarchy: MANAGE_BROTHERS only reaches people below you
+// ---------------------------------------------------------------------------
+
+/** Raw-create a role and hand it to `brotherId` (bypasses the service guards). */
+async function giveRole(orgId: number, brotherId: number, rank: number) {
+  const role = await testPrisma.role.create({
+    data: { organizationId: orgId, name: `Rank ${rank} ${Math.random().toString(36).slice(2, 7)}`, rank, permissions: 0 },
+  });
+  await testPrisma.brotherRole.create({ data: { organizationId: orgId, brotherId, roleId: role.id } });
+  return role;
+}
+
+describe("rank hierarchy on edit and remove", () => {
+  /** A rank-60 officer holding MANAGE_BROTHERS — the Coach in the Athletics template. */
+  async function seedOfficer() {
+    const { org, admin, adminCtx } = await seedOrg();
+    const officer = await createBrother({ orgId: org.id });
+    await giveRole(org.id, officer.id, 60);
+    const officerCtx = ctxFor(org.id, officer.id, { permissions: PERMISSIONS.MANAGE_BROTHERS, maxRank: 60 });
+    return { org, admin, adminCtx, officer, officerCtx };
+  }
+
+  it("an officer cannot remove or edit someone who outranks them", async () => {
+    const { org, officerCtx } = await seedOfficer();
+    const captain = await createBrother({ orgId: org.id, gpa: 3.2 });
+    await giveRole(org.id, captain.id, 100);
+
+    await expect(deleteBrother(officerCtx, captain.id)).rejects.toThrow(ForbiddenError);
+    await expect(updateBrother(officerCtx, captain.id, { gpa: 1.0 })).rejects.toThrow(ForbiddenError);
+    await expect(updateBrother(officerCtx, captain.id, { archived: true })).rejects.toThrow(ForbiddenError);
+
+    const row = await rosterOf(captain.id);
+    expect(row).not.toBeNull();
+    expect(row!.gpa).toBe(3.2);
+    expect(row!.archivedAt).toBeNull();
+  });
+
+  it("an officer cannot remove a peer at their own rank", async () => {
+    const { org, officerCtx } = await seedOfficer();
+    const peer = await createBrother({ orgId: org.id });
+    await giveRole(org.id, peer.id, 60);
+
+    await expect(deleteBrother(officerCtx, peer.id)).rejects.toThrow(ForbiddenError);
+    expect(await rosterOf(peer.id)).not.toBeNull();
+  });
+
+  it("an officer cannot remove an org admin, even one with no roles", async () => {
+    const { org, officerCtx } = await seedOfficer();
+    // A second admin, so the last-admin guard can't be what stops it.
+    const secondAdmin = await createBrother({ orgId: org.id, isOrgAdmin: true });
+
+    await expect(deleteBrother(officerCtx, secondAdmin.id)).rejects.toThrow(ForbiddenError);
+    expect(await rosterOf(secondAdmin.id)).not.toBeNull();
+  });
+
+  it("an officer can still remove and edit people below them, and plain members", async () => {
+    const { org, officerCtx } = await seedOfficer();
+    const junior = await createBrother({ orgId: org.id });
+    await giveRole(org.id, junior.id, 50);
+    const member = await createBrother({ orgId: org.id });
+
+    await updateBrother(officerCtx, junior.id, { gpa: 3.9 });
+    expect((await rosterOf(junior.id))!.gpa).toBe(3.9);
+    await deleteBrother(officerCtx, member.id);
+    expect(await rosterOf(member.id)).toBeNull();
+  });
+
+  it("an officer can still edit their own row", async () => {
+    const { officer, officerCtx } = await seedOfficer();
+    await updateBrother(officerCtx, officer.id, { name: "Coach K" });
+    expect((await rosterOf(officer.id))!.name).toBe("Coach K");
+  });
+
+  it("an org admin can still remove a top-ranked officer", async () => {
+    const { org, adminCtx } = await seedOfficer();
+    const captain = await createBrother({ orgId: org.id });
+    await giveRole(org.id, captain.id, 100);
+
+    await deleteBrother(adminCtx, captain.id);
+    expect(await rosterOf(captain.id)).toBeNull();
   });
 });
 
