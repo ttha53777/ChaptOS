@@ -22,42 +22,30 @@ export function Footer() {
                 <a href="/#ask">Ask Chapt</a>
               </li>
               <li>
-                <a href="/#how">Treasury &amp; dues</a>
+                <a href="/#how">How it works</a>
               </li>
               <li>
-                <a href="/#how">Roster &amp; standing</a>
+                <a href="/#fit">Who it&apos;s for</a>
               </li>
               <li>
-                <a href="/#how">Timeline &amp; meetings</a>
-              </li>
-              <li>
-                <a href="/#how">Docs &amp; activity</a>
+                <a href="/create">Start your org</a>
               </li>
             </ul>
           </div>
-          {/* Each of these is a real page under app/for/. The labels are the
-              source of truth for AUDIENCES[].label in app/for/content.ts — if
-              one changes here, change it there so the two agree. */}
           <div>
-            <h5>For</h5>
+            <h5>Resources</h5>
             <ul>
               <li>
-                <a href="/for/fraternities-sororities">Fraternities &amp; sororities</a>
+                <a href="/help">Help center</a>
               </li>
               <li>
-                <a href="/for/club-teams">Club &amp; intramural teams</a>
+                <a href="/blog">Blog</a>
               </li>
               <li>
-                <a href="/for/service-orgs">Service &amp; volunteer orgs</a>
+                <a href="/#faq">FAQ</a>
               </li>
               <li>
-                <a href="/for/performing-arts">Bands, choirs &amp; theatre</a>
-              </li>
-              <li>
-                <a href="/for/student-government">Student government</a>
-              </li>
-              <li>
-                <a href="/for/custom">Custom &amp; anything else</a>
+                <a href="/login">Sign in</a>
               </li>
             </ul>
           </div>
@@ -65,16 +53,10 @@ export function Footer() {
             <h5>Company</h5>
             <ul>
               <li>
-                <a href="/trust">Trust &amp; privacy</a>
-              </li>
-              <li>
                 <a href="/pricing">Pricing</a>
               </li>
               <li>
-                <a href="/help">Help center</a>
-              </li>
-              <li>
-                <a href="/blog">Blog</a>
+                <a href="/trust">Trust &amp; privacy</a>
               </li>
               <li>
                 <a href="/contact">Talk to a human</a>

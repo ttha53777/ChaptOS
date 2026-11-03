@@ -15,6 +15,14 @@ const nextConfig: NextConfig = {
     // as raw tsc output without Next's route/page-specific code frames.
     useTypeScriptCli: true,
   },
+  // The per-org-type audience pages (/for, /for/<audience>) were removed.
+  // Send old links and search results to the landing page instead of a 404.
+  async redirects() {
+    return [
+      { source: "/for", destination: "/", permanent: true },
+      { source: "/for/:path*", destination: "/", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

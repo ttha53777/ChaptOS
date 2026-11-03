@@ -455,9 +455,9 @@ export function LandingPage() {
         <div className="wrap">
           <div className="ft">
             <div><a className="brand" href="#top" style={sx({ "padding": "0" })}><svg className="logo"><use href="#i-logo" /></svg>{APP_NAME}</a><p>One place for every student org that outgrew its group chat.</p></div>
-            <div><h5>Product</h5><a href="#ask">Ask Chapt</a><a href="#how">Treasury &amp; dues</a><a href="#how">Roster &amp; standing</a><a href="#how">Timeline &amp; meetings</a><a href="#how">Docs &amp; activity</a></div>
-            <div><h5>For</h5><a href="/for/fraternities-sororities">Fraternities &amp; sororities</a><a href="/for/club-teams">Club &amp; intramural teams</a><a href="/for/service-orgs">Service &amp; volunteer orgs</a><a href="/for/performing-arts">Bands, choirs &amp; theatre</a><a href="/for/student-government">Student government</a><a href="/for/custom">Custom &amp; anything else</a></div>
-            <div><h5>Company</h5><a href="/trust">Trust &amp; privacy</a><a href="/pricing">Pricing</a><a href="/help">Help center</a><a href="/blog">Blog</a><a href="/contact">Talk to a human</a></div>
+            <div><h5>Product</h5><a href="#ask">Ask Chapt</a><a href="#how">How it works</a><a href="#fit">Who it&apos;s for</a><a href="/create">Start your org</a></div>
+            <div><h5>Resources</h5><a href="/help">Help center</a><a href="/blog">Blog</a><a href="#faq">FAQ</a><a href="/login">Sign in</a></div>
+            <div><h5>Company</h5><a href="/pricing">Pricing</a><a href="/trust">Trust &amp; privacy</a><a href="/contact">Talk to a human</a></div>
           </div>
           <div className="ft-b"><span>© {new Date().getFullYear()} {APP_NAME} · chaptos.com</span><span>Made for meeting night, every week.</span></div>
         </div>

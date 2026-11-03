@@ -23,7 +23,7 @@
      5. ask scene   (scroll-scrubbed six-beat conversation — the pinned one)
      6. day dial    (a clock face; six moments, one product shot at a time)
      7. modules     (three surfaces a Tuesday can't show, one tab each + the rest)
-     8. blueprint   (the setup card — used by /for/<audience>, not the landing)
+     8. (retired: the blueprint setup card, last used by the /for pages)
      9. trust
     10. pricing    (one headcount slider that lands you on a band — not a plan
                     you pick; the page's deepest parallax stack sits behind it)
@@ -772,25 +772,10 @@ html:has(.lp) *::-webkit-scrollbar-thumb:hover{background:rgba(38,33,27,.26)}
 .lp .mod__rest a:hover{border-bottom-color:var(--ink)}
 .lp .mod__rest a svg{flex:none}
 
-/* ---------- 8. blueprint -------------------------------------------------- */
-/* The landing's own setup section is gone (its job moved to the CTA's first
-   step), but /for/<audience> still renders the blueprint card, so these stay. */
-.lp .bp{border:1.5px solid var(--line); border-radius:var(--r-lg); background:var(--card); box-shadow:var(--sh-2); overflow:hidden; transition:opacity .26s var(--ease-out)}
-.lp .bp.is-swap{opacity:.18}
-.lp .bp__hd{padding:15px 18px; border-bottom:1.5px solid var(--line); background:var(--paper-2); display:flex; align-items:center; gap:11px; flex-wrap:wrap}
-.lp .bp__hd .k{font-family:var(--display); font-size:1.16rem; font-weight:600; letter-spacing:-.028em}
-.lp .bp__hd .sub{font-size:.8rem; color:var(--ink-3)}
-.lp .bp__sec{padding:14px 18px; border-bottom:1px solid var(--paper-3)}
-.lp .bp__sec:last-child{border-bottom:0}
-.lp .bp__t{font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700}
-.lp .bp__chips{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px}
+/* ---------- 8. blueprint (retired) ---------------------------------------- */
 .lp .chip{display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:var(--r-pill); border:1.5px solid var(--line); background:var(--paper); font-size:.79rem; font-weight:550; color:var(--ink)}
 .lp .chip.off{opacity:.4; text-decoration:line-through; text-decoration-color:var(--line-2)}
 .lp .chip i.sw{width:9px;height:9px;border-radius:3px;background:var(--c,var(--line-2)); flex:none}
-.lp .bp__words{margin-top:10px; display:grid; gap:7px}
-.lp .wordrow{display:flex; align-items:center; gap:10px; font-size:.86rem}
-.lp .wordrow .from{font-family:var(--mono); font-size:.76rem; color:var(--ink-3)}
-.lp .wordrow .to{font-weight:650}
 .lp .seat{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--paper-3); font-size:.86rem}
 .lp .seat:last-child{border-bottom:0}
 .lp .seat .nm{font-weight:600}

@@ -6,8 +6,8 @@
 //   · the hero's small eyebrow is the <h1> (the search phrase), and the big
 //     animated display line becomes a styled <p>; it looks identical
 //   · How it works / handoff / fit carry the feature names people search for
-//   · a new #features section and a "for" link row add crawlable, internally
-//     linked copy per feature and per org type (help articles, /for pages)
+//   · a new #features section adds crawlable, internally linked copy per
+//     feature (help articles)
 //   · the FAQ is data, so the same answers render on the page and as FAQPage
 //     JSON-LD in ./page.tsx and can't drift apart
 //   · the footer's Product links point at real anchors and help articles
@@ -75,16 +75,6 @@ const FEATURES: { h: string; p: string; href: string; link: string; c: string; i
   { h: "Tasks & polls", p: "Assign work to a person, a role or the whole roster. Tasks given to a role pass to whoever holds it next.", href: "/help/tasks-and-polls", link: "Tasks & polls", c: "rose", icon: "i-pen" },
   { h: "Meeting minutes & docs", p: "Minutes with decisions and action items, plus a docs library that stays with the org after officers graduate.", href: "/help/docs-library", link: "The docs library", c: "butter", icon: "i-pen" },
   { h: "AI assistant", p: "Ask Chapt answers questions from your org's own records, and nothing it proposes changes until an officer approves it.", href: "/help/ask-basics", link: "Ask Chapt basics", c: "lilac", icon: "i-spark" },
-];
-
-/** Same six audiences, same order, as the footer's "For" column. */
-const FOR_LINKS: [string, string][] = [
-  ["/for/fraternities-sororities", "Fraternity & sorority management"],
-  ["/for/club-teams", "Club sports & intramural teams"],
-  ["/for/service-orgs", "Service & volunteer organizations"],
-  ["/for/performing-arts", "Bands, choirs & theatre groups"],
-  ["/for/student-government", "Student government"],
-  ["/for/custom", "Academic, cultural & every other club"],
 ];
 
 // With JS off everything is present and readable, just still: the reveals are
@@ -475,10 +465,6 @@ export function SeoLandingPage() {
             </div>
           </div>
           <p className="fx-foot" data-rv=""><b>Change it anytime.</b> Turning a page off hides it and never deletes a thing.</p>
-          <nav className="sp-for" aria-label="Setups by organization type" data-rv="">
-            <span className="sp-for-l">See the setup for</span>
-            {FOR_LINKS.map(([href, label]) => <a key={href} href={href}>{label}</a>)}
-          </nav>
         </div>
       </section>
 
@@ -541,7 +527,6 @@ export function SeoLandingPage() {
           <div className="ft">
             <div><a className="brand" href="#top" style={sx({ "padding": "0" })}><svg className="logo"><use href="#i-logo" /></svg>{APP_NAME}</a><p>Student organization management software for every club, chapter, team and council that outgrew its group chat.</p></div>
             <div><h5>Product</h5><a href="#features">All features</a><a href="/help/ask-basics">Ask Chapt, the AI assistant</a><a href="/help/attendance">Attendance tracking</a><a href="/help/dues">Dues &amp; treasury</a><a href="/help/timeline-and-events">Events &amp; calendar</a><a href="/help/roles-and-permissions">Roles &amp; permissions</a></div>
-            <div><h5>For</h5><a href="/for/fraternities-sororities">Fraternities &amp; sororities</a><a href="/for/club-teams">Club &amp; intramural teams</a><a href="/for/service-orgs">Service &amp; volunteer orgs</a><a href="/for/performing-arts">Bands, choirs &amp; theatre</a><a href="/for/student-government">Student government</a><a href="/for/custom">Custom &amp; anything else</a></div>
             <div><h5>Company</h5><a href="/trust">Trust &amp; privacy</a><a href="/pricing">Pricing</a><a href="/help">Help center</a><a href="/blog">Blog</a><a href="/contact">Talk to a human</a></div>
           </div>
           <div className="ft-b"><span>© {new Date().getFullYear()} {APP_NAME} · chaptos.com</span><span>Made for meeting night, every week.</span></div>

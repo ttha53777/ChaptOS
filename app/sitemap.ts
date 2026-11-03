@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/seo";
-import { AUDIENCES } from "./for/content";
 import { ARTICLES } from "./help/content";
 import { getPosts } from "./blog/posts";
 
@@ -11,8 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: url("/"), changeFrequency: "weekly", priority: 1 },
     { url: url("/pricing"), changeFrequency: "monthly", priority: 0.9 },
-    { url: url("/for"), changeFrequency: "monthly", priority: 0.8 },
-    ...AUDIENCES.map(a => ({ url: url(`/for/${a.slug}`), changeFrequency: "monthly" as const, priority: 0.8 })),
     { url: url("/help"), changeFrequency: "weekly", priority: 0.6 },
     ...ARTICLES.map(a => ({ url: url(`/help/${a.slug}`), changeFrequency: "monthly" as const, priority: 0.5 })),
     { url: url("/blog"), changeFrequency: "weekly", priority: 0.6 },

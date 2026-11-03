@@ -54,7 +54,7 @@ The app has two looks: **paper**, the default (cream paper, brown ink, hard offs
 
 ### Public site
 
-The marketing landing page (`/`), audience pages (`/for/[slug]`), `/pricing`, `/trust`, `/help`, `/contact`, and a Markdown **blog** at `/blog`, with posts in [content/blog/](content/blog/) and an RSS feed at `/blog/rss.xml`.
+The marketing landing page (`/`), `/pricing`, `/trust`, `/help`, `/contact`, and a Markdown **blog** at `/blog`, with posts in [content/blog/](content/blog/) and an RSS feed at `/blog/rss.xml`.
 
 ---
 

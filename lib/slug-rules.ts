@@ -44,8 +44,10 @@ const SYSTEM_ROUTES: readonly string[] = [
   // help centre's own slug ("help") is already reserved as an infra host below,
   // as is "support".
   "contact", "faq",
-  // "for" backs app/for/ (the six audience pages). Only three characters, so it
-  // clears MIN_SLUG_LEN and would otherwise be claimable.
+  // "for" backed the retired audience pages, which next.config.ts now
+  // redirects to "/". An org holding the slug would be unreachable behind that
+  // redirect, so it stays reserved. Only three characters, so it clears
+  // MIN_SLUG_LEN and would otherwise be claimable.
   "for",
   // "pricing" backs app/pricing/; "billing" is reserved alongside it because
   // /<slug>/billing is a real route and a top-level /billing page is the obvious

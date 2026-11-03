@@ -111,8 +111,6 @@ export async function proxy(request: NextRequest) {
  *   /trust     public disclosure copy, linked from the marketing footer
  *   /help      the help centre, plus /help/<article>
  *   /contact   "talk to a human"
- *   /for       who it's for, plus /for/<audience> — the six org-type pages the
- *              footer's "For" column links to
  *   /blog      the blog, plus /blog/<post> and /blog/rss.xml
  *   /seo-preview  the SEO landing-page mock (noindex, kept out of the sitemap)
  *   /robots.txt, /sitemap.xml  crawler files; bounced to /login they're useless
@@ -123,7 +121,7 @@ export async function proxy(request: NextRequest) {
  * "/helpdesk" does not start with "/help/".
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
-  "/", "/create", "/trust", "/help", "/contact", "/for", "/pricing",
+  "/", "/create", "/trust", "/help", "/contact", "/pricing",
   "/blog", "/seo-preview", "/robots.txt", "/sitemap.xml",
 ]);
 
@@ -131,7 +129,6 @@ function isPublicPath(pathname: string): boolean {
   return (
     PUBLIC_PATHS.has(pathname) ||
     pathname.startsWith("/help/") ||
-    pathname.startsWith("/for/") ||
     pathname.startsWith("/blog/")
   );
 }
