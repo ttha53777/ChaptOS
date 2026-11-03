@@ -350,6 +350,55 @@ html[data-aesthetic="paper"] .svc-pmd-l .h { font-family: var(--font-geist-mono)
 html[data-aesthetic="paper"] .svc-pmd-l li.early { color: var(--muted); font-style: italic; }
 html[data-aesthetic="paper"] .svc-pmd-none { font-size: .88rem; color: var(--muted); }
 
+/* ── day one (no service events): the Fundraisers day-one card ─────────────────
+   _design/Service Day One Paper Mock.html — three objects, three captions. */
+html[data-aesthetic="paper"] .psv-d1 {
+  margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); align-items: end;
+  padding: 30px 28px 26px; background: var(--card); border: 1.5px dashed var(--line-med); border-radius: 30px;
+}
+html[data-aesthetic="paper"] .psv-d1 figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 0 10px; }
+html[data-aesthetic="paper"] .psv-d1 figure > div { height: 150px; display: flex; align-items: flex-end; justify-content: center; width: 100%; }
+html[data-aesthetic="paper"] .psv-d1 figcaption b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 1.05rem; letter-spacing: -.015em; color: var(--ink); }
+html[data-aesthetic="paper"] .psv-d1 figcaption span { font-size: .82rem; color: var(--muted); }
+html[data-aesthetic="paper"] .psv-d1-cta { margin-top: 20px; display: flex; justify-content: center; }
+html[data-aesthetic="paper"] .psv-d1-note { margin-top: 14px; text-align: center; color: var(--muted); font-size: .88rem; }
+
+html[data-aesthetic="paper"] .psv-d1-cal {
+  display: block; width: 116px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 12px; overflow: hidden;
+  text-align: center; transform: rotate(-3deg); box-shadow: 3px 3px 0 var(--pp-sky); color: var(--ink);
+}
+html[data-aesthetic="paper"] .psv-d1-cal small {
+  display: block; padding: 4px 0 3px; background: var(--pp-sky); color: var(--pp-note-ink); filter: var(--pp-note-filter);
+  font-family: var(--font-geist-mono); font-size: .62rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+}
+html[data-aesthetic="paper"] .psv-d1-cal b { display: block; padding-top: 6px; font-family: var(--font-fraunces); font-weight: 600; font-size: 2.6rem; letter-spacing: -.04em; line-height: 1; }
+html[data-aesthetic="paper"] .psv-d1-cal span { display: block; margin-top: 8px; padding: 6px 8px 10px; border-top: 1px dashed var(--line-med); font-size: .72rem; font-weight: 600; color: var(--ink-soft); }
+
+html[data-aesthetic="paper"] .psv-d1-pad {
+  display: block; width: 156px; padding: 10px 12px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 4px 4px 10px 10px;
+  box-shadow: 3px 3px 0 var(--pp-lilac); transform: rotate(2deg); font-family: var(--font-geist-mono); font-size: .68rem; text-align: left; color: var(--ink);
+}
+html[data-aesthetic="paper"] .psv-d1-pad > span { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--pp-lilac-bd); }
+html[data-aesthetic="paper"] .psv-d1-pad > span:last-child { border-bottom: 0; border-top: 1.5px solid var(--ink); margin-top: 2px; font-weight: 600; }
+html[data-aesthetic="paper"] .psv-d1-pad i { font-style: normal; }
+
+html[data-aesthetic="paper"] .psv-d1-punch {
+  position: relative; display: block; width: 150px; padding: 12px; background: var(--pp-butter-soft); border: 1.5px solid var(--ink); border-radius: 10px;
+  box-shadow: 3px 3px 0 var(--pp-butter); transform: rotate(-3deg);
+}
+html[data-aesthetic="paper"] .psv-d1-punch small { display: block; text-align: left; font-family: var(--font-geist-mono); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .psv-d1-punch .h { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; margin-top: 10px; }
+html[data-aesthetic="paper"] .psv-d1-punch .h i { aspect-ratio: 1; border-radius: 50%; border: 1.4px dashed color-mix(in srgb, var(--ink) 32%, transparent); }
+html[data-aesthetic="paper"] .psv-d1-punch .h i.p { border: 1.5px solid var(--ink); background: var(--ink-soft); }
+html[data-aesthetic="paper"] .psv-d1-punch .plus {
+  position: absolute; right: -14px; top: -14px; padding: 2px 9px; border-radius: 999px; border: 1.5px solid var(--ink);
+  background: var(--pp-mint); color: var(--pp-note-ink); filter: var(--pp-note-filter);
+  font-family: var(--font-fraunces); font-weight: 700; font-size: .78rem; transform: rotate(6deg);
+}
+@media (max-width: 900px) {
+  html[data-aesthetic="paper"] .psv-d1 { grid-template-columns: minmax(0,1fr); gap: 26px; }
+}
+
 @media (max-width: 720px) {
   html[data-aesthetic="paper"] .svc-wide.cef-root,
   html[data-aesthetic="paper"] .svc-mine { grid-template-columns: minmax(0,1fr); }

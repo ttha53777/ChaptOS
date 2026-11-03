@@ -100,6 +100,48 @@ export function DeskDate({ date, up }: { date: string; up?: boolean }) {
 type Avatarish = { id: number; name: string; avatarUrl?: string | null };
 export type AvatarFn = (b: Avatarish, size?: "xs" | "sm" | "md") => ReactNode;
 
+/** Day one (no service events yet) — the Fundraisers day-one pattern: one line of
+ *  what this page does, then the three steps as the objects themselves. */
+function DayOne({ semesterLabel, goal, canService, onNew }: { semesterLabel: string | null; goal: number; canService: boolean; onNew: () => void }) {
+  const punched = Math.min(3, goal), holes = Math.max(punched, Math.min(goal, 10));
+  return (
+    <div className="psv-page">
+      <section className="psv-brief">
+        <div>
+          <p className="psv-kick">Service{semesterLabel && <span className="chip">{semesterLabel}</span>}</p>
+          <h1 className="psv-greet">Service hours, <span className="hi">the easy way</span></h1>
+          <p className="psv-digest"><span>Add the event. Afterwards, write down who came and for how long. We add it up and keep everyone’s hours for the term.</span></p>
+        </div>
+        {canService && <div className="psv-acts-top"><button className="psv-btn" onClick={onNew}><PaperIcon name="plus" />New service event</button></div>}
+      </section>
+
+      <section className="psv-d1" aria-label="How service works">
+        <figure>
+          <div><span className="psv-d1-cal" aria-hidden><small>Nov</small><b>7</b><span>Park cleanup</span></span></div>
+          <figcaption><b>1 · Add the event</b><span>What it is, and when.</span></figcaption>
+        </figure>
+        <figure>
+          <div><span className="psv-d1-pad" aria-hidden>
+            <span><i>Ava Chen</i><i>3h</i></span><span><i>Marcus Lee</i><i>3h</i></span><span><i>Leo Brandt</i><i>2h</i></span><span><i>Hours</i><i>8h</i></span>
+          </span></div>
+          <figcaption><b>2 · Write down who came</b><span>Names and hours, once it’s over.</span></figcaption>
+        </figure>
+        <figure>
+          <div><span className="psv-d1-punch" aria-hidden>
+            <span className="plus">+{punched}h</span><small>Service card</small>
+            <span className="h">{Array.from({ length: holes }, (_, i) => <i key={i} className={i < punched ? "p" : ""} />)}</span>
+          </span></div>
+          <figcaption><b>3 · Watch the cards fill</b><span>Every hour counts toward the {goal}h goal.</span></figcaption>
+        </figure>
+      </section>
+
+      {canService
+        ? <div className="psv-d1-cta"><button className="psv-btn" onClick={onNew}><PaperIcon name="plus" />Plan your first service event</button></div>
+        : <p className="psv-d1-note">Nothing planned yet. An officer can add the first one.</p>}
+    </div>
+  );
+}
+
 export function PaperService(props: {
   orgName: string;
   semesterLabel: string | null;
@@ -241,6 +283,12 @@ export function PaperService(props: {
       <p className="why">{why}</p>
     </div>
   );
+
+  if (!props.eventsLoading && !hasEvents) {
+    // Wait for the chapter (and so canService) before choosing officer vs member copy.
+    if (props.rosterLoading) return <div className="psv-page"><div className="psv-loading"><LoadingSpinner size="md" tone="dusk" label="Loading service" /></div></div>;
+    return <DayOne semesterLabel={props.semesterLabel} goal={goal} canService={canService} onNew={props.onNew} />;
+  }
 
   return (
     <div className="psv-page">
