@@ -21,6 +21,7 @@ import { landingFontClass } from "../components/landing/fonts";
 import { PublicNav } from "../components/landing/PublicChrome";
 import { Footer } from "../components/landing/sections/Footer";
 import { APP_NAME } from "@/lib/domains";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FILL THESE IN BEFORE THIS PAGE GOES LIVE.
@@ -33,12 +34,13 @@ import { APP_NAME } from "@/lib/domains";
 const TODO = null;
 
 const LEGAL_ENTITY: string | null = TODO;   // e.g. "ChaptOS Labs LLC"
-const PRIVACY_EMAIL: string | null = TODO;  // e.g. "privacy@chaptos.com"
+// The one inbox a human reads (lib/support.ts), shared with /contact and /help.
+const PRIVACY_EMAIL: string | null = SUPPORT_EMAIL;
 const POSTAL_ADDRESS: string | null = TODO; // registered mailing address
 const GOVERNING_STATE: string | null = TODO; // e.g. "Texas, USA"
 
 /** Effective date shown in the header. Bump whenever the substance changes. */
-const EFFECTIVE = "July 29, 2026";
+const EFFECTIVE = "November 2, 2026";
 
 function Fill({ value, label }: { value: string | null; label: string }) {
   if (value) return <>{value}</>;
@@ -224,8 +226,8 @@ export default function TrustPage() {
               </p>
               <p>
                 Separately, we are the controller of a narrow set of our own: the Google
-                account identity you sign in with, the email address on it, service logs, and
-                the signals we use to stop abuse.
+                account identity you sign in with, the email address on it, service logs, the
+                signals we use to stop abuse, and anything you send us when you ask for a quote.
               </p>
               <div className="tp__note">
                 <h5>What that means for you in practice</h5>
@@ -313,8 +315,8 @@ export default function TrustPage() {
                     <tr>
                       <th>Name</th>
                       <td>
-                        Typed by you when you join, or pre-seeded by an officer. You can also
-                        hold a different display name in each org you belong to.
+                        Typed by you on the join form. Each org keeps its own copy, so you can
+                        go by a different name in each org you belong to.
                       </td>
                     </tr>
                     <tr>
@@ -331,6 +333,23 @@ export default function TrustPage() {
                     <tr>
                       <th>Role / title text</th>
                       <td>Set by an officer, e.g. &ldquo;Treasurer&rdquo;.</td>
+                    </tr>
+                    <tr>
+                      <th>Join requests</th>
+                      <td>
+                        Opening an invite link files a request with your name, email, photo and
+                        account id <em>before</em>{" "}you are on any roster, so officers can review
+                        it. A rejected request is kept, so the same link can&apos;t queue you
+                        again; a new link from an officer reopens it.
+                      </td>
+                    </tr>
+                    <tr>
+                      <th>Quote requests</th>
+                      <td>
+                        If you ask us for a quote from the billing page, we keep your name,
+                        email, member count and message so we can reply. We keep this even if
+                        the org is later deleted.
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -359,7 +378,11 @@ export default function TrustPage() {
                     </tr>
                     <tr>
                       <th>Dues owed</th>
-                      <td>A balance. Changes only when a treasurer approves a payment.</td>
+                      <td>
+                        A balance built from the charges a treasurer hands out, minus the
+                        payments and waivers they record. A member&apos;s own payment request
+                        changes nothing until a treasurer approves it.
+                      </td>
                     </tr>
                     <tr>
                       <th>Service hours</th>
@@ -394,8 +417,9 @@ export default function TrustPage() {
                 <h5>Worth knowing before you write one</h5>
                 <p>
                   An absence reason is the most likely place in the whole product for someone
-                  to volunteer something medical or personal. Anyone holding the
-                  attendance-management permission can read it, and it is kept indefinitely.
+                  to volunteer something medical or personal. Only people holding the
+                  attendance-management permission can read it, in the app or through the
+                  assistant, along with the member who wrote it. It is kept indefinitely.
                   &ldquo;Family emergency&rdquo; is enough; the details are not required.
                 </p>
               </div>
@@ -404,39 +428,52 @@ export default function TrustPage() {
               <p>
                 A ledger of income and expenses (amount, category, description, date, the
                 payment-method word, and optionally which member it&apos;s attributed to),
-                dues payments and reimbursement requests with their approval status and any
-                rejection note, semester budgets, and party door revenue and expenses.
+                dues charges, waivers and payments, reimbursement requests with their approval
+                status and any rejection note, semester budgets, party door revenue and
+                expenses, and fundraisers (a goal, what came in, and a shopping list of
+                supplies with their costs).
               </p>
               <p>
                 Ledger entries are <strong>never hard-deleted</strong>{" "}— deleting one marks it
                 deleted and keeps the history, so the books can be audited and a mistake can be
                 undone.
               </p>
+              <p>
+                A reimbursement request can carry a <strong>receipt</strong>{" "}— a photo or
+                PDF, up to 4 MB. Receipts are kept in private storage: only the person who
+                asked, org admins and people holding the treasury permission can open one,
+                through a link that stops working after 60 seconds. A receipt often shows the
+                last digits of a card or an address; crop those out if you can.
+              </p>
 
               <h3>Governance and participation</h3>
               <p>
-                Roles and who holds them, permission assignments, tasks and who they&apos;re
-                assigned to, invite links and every redemption of them, and poll questions,
-                options and votes.
+                Roles and who holds them, permission assignments, tasks and who has completed
+                them, invite links, join requests and who approved or rejected them, and poll
+                questions, options and votes.
               </p>
               <div className="tp__note tp__note--flag">
                 <h5>Polls are not secret ballots</h5>
                 <p>
-                  Every vote records who cast it. That&apos;s deliberate — it&apos;s how a vote
-                  survives someone later being unassigned from the poll — but it means a poll
-                  in {APP_NAME}{" "}must not be used for anything that needs anonymity. Officers
-                  with database access could determine how any member voted.
+                  The app never shows anyone how another member voted: tallies stay hidden
+                  until results are released, and officers who manage polls only see who
+                  hasn&apos;t voted yet. But every vote is stored with the name of the person
+                  who cast it. The privacy comes from the app, not from the data, so
+                  don&apos;t use a {APP_NAME}{" "}poll for anything that needs true anonymity.
                 </p>
               </div>
 
               <h3>Content and events</h3>
               <p>
                 Calendar and programming events with descriptions, locations, owners, prep
-                checklists and wrap-up notes; meeting notes and the AI summaries generated from
-                them; community-service events and participation; a docs library of external
-                links with preview metadata fetched from those links; Instagram content plans;
-                pinned announcements; and party details including theme, collaborating org and
-                notes.
+                checklists and wrap-up notes; an event&apos;s &ldquo;more details&rdquo; (sign-up
+                sheets, a point of contact, getting-there notes, a head-count cap and similar),
+                which every member can read apart from its checklist and budget; meeting minutes,
+                written together live and saved with a revision history, the agenda templates
+                they start from, and the AI summaries and action items generated from them;
+                community-service events and participation; a docs library of external links
+                with preview metadata fetched from those links; Instagram content plans; pinned
+                announcements; and party details including theme, collaborating org and notes.
               </p>
 
               <h3>Audit and service logs</h3>
@@ -472,7 +509,8 @@ export default function TrustPage() {
                       <th>Assistant feedback</th>
                       <td>
                         When someone rates an answer helpful or not, we keep the rating{" "}
-                        <strong>and the question they asked, verbatim</strong>. This is the one
+                        <strong>and the question they asked, verbatim</strong>{" "}(up to 300
+                        characters). This is the one
                         thing on this page we collect for our own purposes — to fix bad
                         answers.
                       </td>
@@ -604,11 +642,11 @@ export default function TrustPage() {
                 </table>
               </div>
 
-              <h3>The fourteen permissions</h3>
+              <h3>The fifteen permissions</h3>
               <p>
                 Each role is a named bundle of these: manage members, treasury, events,
                 parties, Instagram, service, attendance, semesters, roles, docs, announcements,
-                settings, tasks, and polls. Roles also carry a rank, and{" "}
+                settings, tasks, polls, and fundraising. Roles also carry a rank, and{" "}
                 <strong>
                   an officer can only grant or edit roles ranked strictly below their own
                 </strong>
@@ -619,12 +657,15 @@ export default function TrustPage() {
                 <h5>The limit you should know about</h5>
                 <p>
                   These permissions gate <em>changing</em>{" "}things far more than{" "}
-                  <em>seeing</em>{" "}them. Ordinary members can see the roster and much of the
-                  dashboard. Anyone holding manage-members can see{" "}
-                  <strong>every member&apos;s GPA, dues balance and every custom field</strong>
-                  . There is no per-field privacy, and a member cannot hide a field from their
-                  own officers. If a field would be inappropriate for your whole exec board to
-                  read, don&apos;t create the field.
+                  <em>seeing</em>{" "}them.{" "}
+                  <strong>
+                    Every member of an org can read every other member&apos;s GPA, dues
+                    balance, service hours and custom fields.
+                  </strong>{" "}
+                  Some screens show these mostly to officers, but the data is sent to every
+                  member&apos;s browser, and the assistant will answer questions about it for
+                  any member. There is no per-field privacy. If a field would be inappropriate
+                  for your whole roster to read, don&apos;t create it.
                 </p>
               </div>
 
@@ -637,25 +678,27 @@ export default function TrustPage() {
               </p>
               <p>
                 Two things constrain it: those actions are written to{" "}
-                <strong>the same audit trail as an officer&apos;s</strong>, so they are visible
-                in your own logs rather than in a private one; and access requires our
-                production credentials, which are not shared outside the people who operate the
-                service.
+                <strong>the same audit trail as an officer&apos;s</strong>, under the staff
+                member&apos;s own name, so they show up in your own logs rather than a private
+                one; and the access is a flag on a few of our own sign-in accounts, set by us
+                directly in the database rather than anywhere in the app. Your logs don&apos;t
+                mark an entry as coming from staff.
               </p>
 
               <div className="tp__note tp__note--flag">
                 <h5>Hidden member records</h5>
                 <p>
-                  {APP_NAME}{" "}supports a member record flagged as hidden. It has ordinary
-                  member-level read access to the org, but it does not appear in your roster,
-                  in member counts, or in attendance rolls. It is created only through one
-                  specific sign-up path, and it is never granted admin authority.
+                  Older versions of {APP_NAME}{" "}could create a member record flagged as
+                  hidden: it can read the org like an ordinary member but doesn&apos;t appear
+                  in the roster, member counts or attendance rolls. Nothing can create one
+                  any more, but records made before that change still have their access.
                 </p>
                 <p>
-                  We disclose it because an account you cannot see in your own member list is
-                  precisely the sort of thing you are entitled to know exists. If you want
-                  written confirmation of whether any such record exists in your organization,{" "}
-                  <a href="#contact">ask us</a>{" "}and we will tell you.
+                  We disclose it because an account you can&apos;t see in your own member
+                  list is exactly the sort of thing you are entitled to know about. Anyone
+                  holding the manage-members permission sees these accounts listed on the
+                  members page. If you want written confirmation either way,{" "}
+                  <a href="#contact">ask us</a>.
                 </p>
               </div>
             </section>
@@ -710,7 +753,12 @@ export default function TrustPage() {
                 owe dues and roughly how much, average attendance and GPA, and the treasury
                 balance, all deliberately rounded.
               </p>
-              <p>Three other features use the same provider:</p>
+              <p>
+                The assistant can also look up the minutes your officers wrote, open join
+                requests, and your custom member fields, so any of those can be part of what
+                is sent.
+              </p>
+              <p>Four other features use the same provider:</p>
               <ul className="tp__list">
                 <li>
                   <strong>Meeting summaries</strong>{" "}— your raw meeting notes are sent, and the
@@ -719,6 +767,11 @@ export default function TrustPage() {
                 <li>
                   <strong>The weekly digest</strong>{" "}— this week&apos;s deadlines, events,
                   parties and at-risk members.
+                </li>
+                <li>
+                  <strong>Event ideas</strong>{" "}— when you open an event the assistant
+                  suggested, its title, why it was suggested and the question you had asked are
+                  sent, to explain the idea before you book it.
                 </li>
                 <li>
                   <strong>Setup help while creating an org</strong>{" "}— and this one runs{" "}
@@ -809,9 +862,9 @@ export default function TrustPage() {
                       <td>Subscription billing — what your org pays us</td>
                       <td>
                         Your card details, which go to Stripe directly and never reach our
-                        servers, plus the billing contact email and your member count (the
-                        subscription is priced on it). No chapter data — no roster, dues,
-                        attendance or documents.
+                        servers, plus the org&apos;s name and web address, the billing contact
+                        email, and your member count (the subscription is priced on it). No
+                        chapter data — no roster, dues, attendance or documents.
                       </td>
                     </tr>
                     <tr>
@@ -889,9 +942,10 @@ export default function TrustPage() {
                   hiding a button is never the security control.
                 </li>
                 <li>
-                  <strong>Money can&apos;t move without an approval.</strong>{" "}Dues payments and
-                  reimbursements are requests; no balance and no ledger entry changes until a
-                  treasurer approves, and then both change together or neither does.
+                  <strong>Members can&apos;t move money on their own.</strong>{" "}A member&apos;s
+                  dues payment or reimbursement is a request; no balance and no ledger entry
+                  changes until a treasurer approves, and then both change together or neither
+                  does. Charges, waivers and recorded payments need the treasury permission.
                 </li>
                 <li>
                   <strong>Link previews can&apos;t be used to probe our network.</strong>{" "}When
@@ -904,8 +958,10 @@ export default function TrustPage() {
                   executable when the CSV is opened in Excel.
                 </li>
                 <li>
-                  <strong>Uploads are constrained</strong>{" "}to images under 2 MB, and storage
-                  rules confine each person&apos;s writes to their own folder.
+                  <strong>Uploads are constrained.</strong>{" "}Profile photos and org logos are
+                  images under 2 MB, and storage rules confine each person&apos;s writes to their
+                  own folder. Receipts (images or PDF, under 4 MB) go to private storage that
+                  only our server can read or write, after it has checked who is asking.
                 </li>
                 <li>
                   <strong>Credentials never reach the browser.</strong>{" "}Database and AI keys are
@@ -913,6 +969,11 @@ export default function TrustPage() {
                   is inert in production — it is gated on a development-only environment check
                   and additionally requires a cryptographic signature, so a stray cookie
                   can&apos;t impersonate anyone even locally.
+                </li>
+                <li>
+                  <strong>Calendar subscription links are encrypted at rest</strong>, and any
+                  error report that mentions one is dropped before it reaches our error
+                  monitoring.
                 </li>
               </ul>
 
@@ -1026,9 +1087,9 @@ export default function TrustPage() {
             <section className="tp__sec" id="public">
               <h2>Public links and shareable secrets</h2>
               <p className="tp__lede">
-                Three things in {APP_NAME}{" "}are protected by a URL being hard to guess rather
+                Two things in {APP_NAME}{" "}are protected by a URL being hard to guess rather
                 than by a permission check. That is a normal engineering trade-off, and you
-                should know which three.
+                should know which two.
               </p>
 
               <h3>Profile photos and org logos are publicly reachable</h3>
@@ -1042,28 +1103,25 @@ export default function TrustPage() {
                 functionally it is.
               </p>
 
-              <h3>Invite links are bearer credentials</h3>
+              <h3>Your org&apos;s calendar feed</h3>
               <p>
-                Anyone with an invite link can join your organization until it expires or you
-                revoke it. A link can be set to <strong>never expire</strong>{" "}and to allow{" "}
-                <strong>unlimited uses</strong>, and the usage cap is approximate — two people
-                joining at the same instant can both get in on the last seat.
-              </p>
-              <p>
-                So: treat an invite link the way you&apos;d treat a door code. Prefer short
-                expiries, revoke links after rush, and check the redemption list — every join
-                through a link is recorded with who and when.
+                When an admin turns on calendar subscriptions, the org gets one private feed
+                link that every member can see and add to Apple, Google or any other calendar
+                app. <strong>Anyone holding that link can read the feed</strong>, signed in or
+                not: the titles, dates, times and locations of the events on your timeline,
+                and the titles of open task deadlines. It never carries descriptions, notes or
+                an event&apos;s more details. The calendar apps people subscribe with fetch the
+                feed regularly, so they receive it too. If the link leaks, an admin can issue a
+                new one, which stops the old one working, or turn the feed off.
               </p>
 
-              <h3>Joining by name match</h3>
+              <h3>Invite links don&apos;t let anyone in</h3>
               <p>
-                When officers pre-seed a roster, a person signs in and claims their row by
-                typing their name. That means{" "}
-                <strong>
-                  someone who knows a name on your unclaimed roster could claim that row
-                </strong>
-                . Officers should seed rosters only with people they expect, and review the
-                member list after a joining period.
+                An invite link only lets someone <em>ask</em>{" "}to join. Opening it files a
+                request, and nobody sees your roster or any of your data until an officer
+                with the manage-members permission approves them. A link can still be set to
+                never expire and to allow unlimited uses, so a leaked one mostly means more
+                requests to turn down — revoke it if that happens.
               </p>
 
               <h3>One outbound request you should know about</h3>
@@ -1089,8 +1147,9 @@ export default function TrustPage() {
                 An org admin can delete the whole workspace from settings, confirming by typing
                 its name. This removes members, attendance, the ledger and budgets, events,
                 tasks, polls, docs, roles, invites, announcements, the activity feed and the
-                audit trail — in one transaction, so it either all goes or none of it does. The
-                org&apos;s logo is removed from storage too.
+                audit trail — in one transaction, so it either all goes or none of it does. Any
+                paid subscription is cancelled first, and the org&apos;s logo and receipts are
+                removed from storage too.
               </p>
               <p>
                 One nuance worth stating, because the confirmation screen&apos;s member count
@@ -1108,23 +1167,32 @@ export default function TrustPage() {
                   orphaned.
                 </li>
                 <li>
-                  <strong>Unlink your account</strong>{" "}— disconnects your Google identity and
-                  signs you out. Be clear about what this does and doesn&apos;t do:{" "}
-                  <strong>your member record and its history stay with the organization</strong>
-                  , because they are the org&apos;s records rather than yours alone. It removes
-                  your ability to sign in, not the roster.
+                  <strong>Delete your account</strong>{" "}— from settings, in one step. It
+                  removes you from every org you belong to, along with your attendance,
+                  excuses, dues payments, reimbursements, votes, tasks and role grants in each,
+                  your join requests, your photo, and your sign-in itself. It is refused while
+                  you are the last admin of an org, so no org is left without one.
                 </li>
                 <li>
                   <strong>Remove your profile photo</strong>{" "}— deletes the stored image.
                 </li>
               </ul>
 
+              <h3>When an officer removes a member</h3>
+              <p>
+                Someone holding the manage-members permission can remove a member. Everything
+                that org holds about them goes — attendance, excuses, dues payments and
+                charges, reimbursements, votes, tasks, service records. If they belong to
+                another org too, only this org&apos;s records go; the other org keeps theirs.
+              </p>
+
               <h3>What survives a member being removed, and why</h3>
               <ul className="tp__list">
                 <li>
-                  <strong>Ledger entries stay, detached from the person.</strong>{" "}Removing
-                  someone from a roster must not erase the record that they paid their dues —
-                  that would let a roster edit silently rewrite the books.
+                  <strong>Ledger entries stay, detached from the person.</strong>{" "}Their dues
+                  payment records go, but the money those payments put in the books stays as
+                  ledger entries with no name on them — otherwise removing someone from a
+                  roster would silently rewrite the books.
                 </li>
                 <li>
                   <strong>Audit and activity entries keep their name.</strong>{" "}A log that can be
@@ -1136,17 +1204,6 @@ export default function TrustPage() {
                   they were at the time.
                 </li>
               </ul>
-              <div className="tp__note tp__note--warn">
-                <h5>A current limitation, stated plainly</h5>
-                <p>
-                  Removing a member who has any attendance history is not something the app can
-                  complete on its own yet — the records that depend on them block it, by
-                  design, to stop history being silently destroyed.{" "}
-                  <a href="#contact">Send us the request</a>{" "}and we will complete it by hand,
-                  and tell you exactly what was removed and what was kept and why. We are
-                  making this self-service.
-                </p>
-              </div>
             </section>
 
             {/* 12 ─ rights */}
@@ -1191,9 +1248,9 @@ export default function TrustPage() {
                     <tr>
                       <th>Delete it</th>
                       <td>
-                        See <a href="#retention">section 11</a>{" "}— self-service for orgs and
-                        memberships, manual for individual member records, with some audit and
-                        financial history deliberately retained.
+                        See <a href="#retention">section 11</a>{" "}— self-service for your
+                        account, your memberships and whole orgs, with some audit and financial
+                        history deliberately kept without your name.
                       </td>
                     </tr>
                     <tr>
