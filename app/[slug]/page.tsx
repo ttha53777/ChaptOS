@@ -2382,6 +2382,7 @@ export default function Home() {
       error={treasuryFailed}
       onRetry={retrySections}
       onLogTransaction={canTreasury ? () => router.push(orgPath("/treasury?tab=Transactions")) : undefined}
+      onOpenBooks={canTreasury ? () => router.push(orgPath("/treasury")) : undefined}
     />
   ), glance: (
     <TreasuryGlance balance={liveBalance} projected={liveProjected} trend={liveTrend} loading={!treasuryLoaded} error={treasuryFailed} />

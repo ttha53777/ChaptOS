@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Widget Day One</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (Dashboard Paper Mock) -------------------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --mark-op:.85;
+  --rule:rgba(38,33,27,.07);
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --mark-op:.42;
+  --rule:rgba(242,234,220,.06);
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out);
+}
+h1,h2,h3,p,ul{margin:0}
+ul{padding:0; list-style:none}
+button,input{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:16px; height:16px; flex:none}
+
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{
+  content:''; position:absolute; z-index:-1; left:-.1em; right:-.12em; bottom:.06em; height:.46em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-1deg); opacity:var(--mark-op);
+}
+
+/* ---------- mock chrome --------------------------------------------------- */
+.top{max-width:1120px; margin:0 auto; padding:34px 20px 8px; display:flex; flex-wrap:wrap; gap:16px 24px; align-items:flex-end; justify-content:space-between}
+.top .kick{font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.top h1{font-family:var(--display); font-weight:600; font-size:clamp(1.6rem,3.4vw,2.2rem); letter-spacing:-.035em; line-height:1.1; margin-top:6px}
+.top p{margin-top:8px; color:var(--ink-2); max-width:60ch; font-size:.95rem}
+.ctl{display:flex; gap:8px; align-items:center}
+.theme{width:38px; height:38px; display:grid; place-items:center; border-radius:12px; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-2)}
+.theme:hover{color:var(--ink); border-color:var(--ink-3)}
+
+.tabs{max-width:1120px; margin:18px auto 0; padding:0 20px; display:flex; gap:8px; overflow-x:auto; scrollbar-width:none}
+.tab{
+  flex:none; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:999px;
+  border:1.5px solid var(--line-2); background:transparent; color:var(--ink-2); font-size:.84rem; font-weight:600; white-space:nowrap;
+  transition:background .2s, color .2s, border-color .2s, box-shadow .2s;
+}
+.tab .n{font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.tab:hover{border-color:var(--ink-3); color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--card); color:var(--ink); border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--hs, var(--mint))}
+.tab[aria-selected="true"] .n{color:var(--ink)}
+
+.wrap{max-width:1120px; margin:0 auto; padding:22px 20px 80px}
+.scene{display:none}
+.scene.on{display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:28px; align-items:start; animation:fade .35s var(--ease-out)}
+@keyframes fade{from{opacity:0; transform:translateY(6px)}}
+
+/* faux dashboard: ghost main column + the real rail */
+.desk{
+  display:grid; grid-template-columns:minmax(0,1fr) 350px; gap:22px; align-items:start;
+  padding:22px; border-radius:30px; border:1.5px dashed var(--line-2); background:color-mix(in srgb, var(--paper-2) 60%, transparent);
+}
+.desk.two{grid-template-columns:repeat(2, minmax(0,350px)); justify-content:center}
+.ghost{display:grid; gap:22px}
+.ghost i{display:block; border-radius:22px; border:1.5px solid var(--line); background:var(--card); opacity:.5}
+.ghost i:nth-child(1){height:150px} .ghost i:nth-child(2){height:240px}
+.rail{display:grid; gap:22px; min-width:0}
+.rail .after{height:120px; border-radius:22px; border:1.5px solid var(--line); background:var(--card); opacity:.5}
+.cap{font-family:var(--mono); font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3); margin:0 0 -12px 4px}
+
+.why h3{font-family:var(--display); font-weight:600; font-size:1.15rem; letter-spacing:-.025em}
+.why p{margin-top:8px; font-size:.88rem; color:var(--ink-2)}
+.why ul{margin-top:14px; display:grid; gap:10px}
+.why li{position:relative; padding-left:18px; font-size:.84rem; color:var(--ink-2); line-height:1.5}
+.why li::before{content:''; position:absolute; left:2px; top:.55em; width:7px; height:7px; border-radius:50%; background:var(--dot, var(--mint))}
+.why li b{color:var(--ink); font-weight:600}
+.why.bad li{--dot:var(--peach)}
+.why code{font-family:var(--mono); font-size:.78rem; background:var(--paper-3); padding:1px 5px; border-radius:5px}
+
+/* ---------- dashboard card (paper-aesthetic.css 3b) ---------------------- */
+.card{background:var(--card); border:1.5px solid var(--line); border-radius:22px; box-shadow:var(--sh-1); min-width:0; overflow:hidden}
+.card-h{display:flex; align-items:center; gap:11px; padding:16px 18px 12px}
+.card-h h2{font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.022em}
+.card-h .sub{margin-left:auto; font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.tile{width:32px; height:32px; flex:none; border-radius:10px; display:grid; place-items:center; background:var(--mint-soft); border:1.5px solid var(--mint-bd); color:var(--mint-ink)}
+.chip{margin-left:auto; display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-size:.72rem; font-weight:600;
+  background:var(--butter-soft); color:var(--butter-ink); border:1px solid var(--butter-bd)}
+.chip::before{content:''; width:6px; height:6px; border-radius:50%; background:currentColor}
+.card-f{display:flex; align-items:center; gap:8px; padding:11px 18px; border-top:1.5px solid var(--line); background:var(--paper-2)}
+.card-f button{display:inline-flex; align-items:center; gap:6px; border:0; background:none; padding:0; font-size:.8rem; font-weight:600; color:var(--ink-2)}
+.card-f button:hover{color:var(--ink)}
+.card-f .ic{width:13px; height:13px}
+.card-f .ic:first-child{width:15px; height:15px; color:var(--ink-3); margin-right:2px}
+.card-f button .ic:last-child{transition:transform .2s var(--ease-spring)}
+.card-f button:hover .ic:last-child{transform:translateX(2px)}
+
+/* today's states, verbatim */
+.rail-empty{padding:2px 18px 18px; font-size:.86rem; color:var(--ink-2)}
+.rail-empty .a{display:inline-flex; margin-top:12px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--ink); background:var(--card); font-size:.8rem; font-weight:600; box-shadow:2.5px 2.5px 0 var(--butter)}
+.t-body{padding:0 18px 18px}
+.t-num{font-family:var(--display); font-weight:600; font-size:2.1rem; letter-spacing:-.045em; line-height:1}
+.t-note{margin-top:6px; font-size:.78rem; color:var(--ink-3)}
+.t-months{display:flex; justify-content:flex-end; margin-top:12px; font-family:var(--mono); font-size:.64rem; color:var(--mint-ink)}
+
+/* ---------- 01 · never opened (officer): a welcome, not a form ---------- */
+.wl{padding:0 22px 24px; text-align:center}
+.wl-art{display:block; width:228px; max-width:100%; height:auto; margin:2px auto 0; overflow:visible}
+.wl-art .pg{fill:var(--card); stroke:var(--ink); stroke-width:1.6; stroke-linejoin:round}
+.wl-art .sh{fill:var(--mint)}
+.wl-art .sp{stroke:var(--ink); stroke-width:1.6; stroke-linecap:round}
+.wl-art .rl{stroke:var(--line-2); stroke-width:1.5; stroke-linecap:round}
+.wl-art .hl{fill:var(--butter); opacity:var(--mark-op); transform-box:fill-box; transform-origin:left center}
+.wl-art .dl{font-family:var(--display); font-weight:700; font-size:15px; fill:var(--ink)}
+.wl-art .ink{stroke:var(--ink); stroke-width:1.5; stroke-linejoin:round}
+.wl-art .pe{fill:var(--peach)} .wl-art .er{fill:var(--rose)} .wl-art .wd{fill:var(--paper-3)} .wl-art .ld{fill:var(--ink)}
+.wl-art .cn{fill:var(--butter)} .wl-art .cn-t{fill:var(--butter-soft)}
+.wl-art .s1{fill:var(--lilac-ink)} .wl-art .s2{fill:var(--mint-ink)}
+.wl-art .pencil{transform-box:view-box; transform-origin:150px 104px}
+.wl-art .twk{transform-box:fill-box; transform-origin:center}
+.scene.on .wl-art .hl{animation:mark .9s var(--ease-out) .35s both}
+.scene.on .wl-art .pencil{animation:bob 3.6s ease-in-out 1s infinite}
+.scene.on .wl-art .twk{animation:twinkle 2.8s ease-in-out infinite}
+.scene.on .wl-art .twk.b{animation-delay:1.3s}
+@keyframes mark{from{transform:scaleX(0)}}
+@keyframes bob{50%{transform:translate(-2px,-3px) rotate(-2deg)}}
+@keyframes twinkle{50%{transform:scale(.55); opacity:.5}}
+
+.wl-h{margin-top:14px; font-family:var(--display); font-weight:600; font-size:1.42rem; letter-spacing:-.035em; line-height:1.15; --mark:var(--mint)}
+.wl-p{margin:8px auto 0; max-width:30ch; font-size:.88rem; color:var(--ink-2); line-height:1.5}
+.btn{
+  --hs:var(--mint);
+  display:inline-flex; align-items:center; gap:8px; margin-top:18px; padding:11px 20px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--ink); color:var(--paper); font-weight:600; font-size:.9rem; letter-spacing:-.01em; white-space:nowrap; text-decoration:none;
+  box-shadow:3px 3px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:5px 5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn .ic{width:15px; height:15px; transition:transform .2s var(--ease-spring)}
+.btn:hover .ic{transform:translateX(2px)}
+.wl-fine{margin-top:12px; font-size:.74rem; color:var(--ink-3)}
+
+.toast{position:fixed; left:50%; bottom:28px; transform:translate(-50%,16px); opacity:0; pointer-events:none;
+  padding:9px 16px; border-radius:999px; background:var(--ink); color:var(--paper); font-size:.8rem; font-weight:500;
+  box-shadow:3px 3px 0 var(--mint); transition:opacity .25s, transform .3s var(--ease-spring); white-space:nowrap}
+.toast code{font-family:var(--mono); font-size:.74rem; opacity:.8}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+/* ---------- 03 · opened, nothing logged ---------------------------------- */
+.op-num{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.op-num .big{font-family:var(--display); font-weight:600; font-size:2.1rem; letter-spacing:-.045em; line-height:1}
+.op-tag{display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:.7rem; font-weight:600;
+  background:var(--mint-soft); color:var(--mint-ink); border:1px solid var(--mint-bd)}
+.op-tag .ic{width:11px; height:11px}
+.op-note{margin-top:6px; font-size:.78rem; color:var(--ink-3)}
+.start{position:relative; margin-top:14px}
+.start svg{width:100%; height:36px; overflow:visible}
+.start .ln{stroke:var(--mint-ink); stroke-width:1.6; stroke-dasharray:3 5; opacity:.55; fill:none}
+.scene.on .start .ln{stroke-dashoffset:300; animation:draw 1.3s var(--ease-out) .25s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.start .dot{fill:var(--mint-ink)}
+.start .ring{fill:none; stroke:var(--mint-ink); stroke-width:1.4; opacity:.35; transform-origin:8px 18px; transform-box:view-box}
+.scene.on .start .ring{animation:pulse 2.4s var(--ease-out) .6s infinite}
+@keyframes pulse{from{transform:scale(.6); opacity:.5} to{transform:scale(2.2); opacity:0}}
+.start-lb{display:flex; justify-content:space-between; margin-top:2px; font-family:var(--mono); font-size:.64rem; color:var(--ink-3)}
+.start-lb b{font-weight:500; color:var(--mint-ink)}
+.op-next{margin-top:12px; padding:10px 12px; border-radius:14px; border:1.5px dashed var(--line-2); font-size:.8rem; color:var(--ink-2); line-height:1.45}
+.op-next b{color:var(--ink); font-weight:600}
+
+/* ---------- 04 · member --------------------------------------------------- */
+.mb{display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px; align-items:center; padding:2px 18px 20px}
+.book{width:64px; height:76px; position:relative}
+.book .cv{position:absolute; inset:0 6px 0 0; border-radius:6px 10px 10px 6px; background:var(--mint); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--mint-bd)}
+.book .pg{position:absolute; top:5px; bottom:5px; right:0; width:10px; border-radius:0 6px 6px 0; border:1.5px solid var(--ink); border-left:0;
+  background:repeating-linear-gradient(180deg, var(--card) 0 3px, var(--line-2) 3px 4px)}
+.book .bd{position:absolute; left:0; right:6px; top:30px; height:12px; background:var(--butter); border-top:1.5px solid var(--ink); border-bottom:1.5px solid var(--ink)}
+.book .lb{position:absolute; left:12px; top:10px; width:28px; height:12px; border-radius:3px; background:var(--card); border:1.2px solid var(--ink)}
+.mb h3{font-family:var(--display); font-weight:600; font-size:1.12rem; letter-spacing:-.025em; line-height:1.2}
+.mb p{margin-top:5px; font-size:.82rem; color:var(--ink-2); line-height:1.45}
+
+/* ---------- 04 · moved to the main column, before setup ------------------- */
+.scene.on.wide{grid-template-columns:minmax(0,1fr)}
+.scene.wide .why{max-width:72ch}
+.desk.main{grid-template-columns:minmax(0,1fr) 350px}
+.maincol{display:grid; gap:22px; min-width:0}
+.ghost.r i:nth-child(1){height:210px} .ghost.r i:nth-child(2){height:300px}
+.wm{display:grid; grid-template-columns:232px minmax(0,1fr); gap:30px; align-items:center; padding:6px 28px 26px}
+.wm .wl-art{margin:0}
+.wm .wl-h{margin-top:0; font-size:1.6rem}
+.wm .wl-p{margin:10px 0 0; max-width:44ch}
+.wm-act{display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin-top:20px}
+.wm-act .btn{margin-top:0}
+.wm-act .wl-fine{margin-top:0}
+.mbw{grid-template-columns:auto minmax(0,1fr); gap:22px; padding:6px 28px 26px}
+.mbw .book{transform:scale(1.15); transform-origin:left center; margin-right:10px}
+.mbw h3{font-size:1.3rem}
+.mbw p{max-width:52ch; font-size:.86rem}
+@media (max-width:760px){
+  .desk.main{grid-template-columns:minmax(0,1fr)}
+  .wm{grid-template-columns:minmax(0,1fr); justify-items:center; text-align:center; gap:16px; padding:0 20px 22px}
+  .wm .wl-p{margin:8px auto 0}
+  .wm-act{justify-content:center}
+  .mbw{gap:14px; padding:2px 18px 20px}
+  .mbw .book{transform:none; margin-right:0}
+  .mbw h3{font-size:1.12rem}
+}
+
+/* ---------- responsive ---------------------------------------------------- */
+@media (max-width:1060px){
+  .scene.on{grid-template-columns:minmax(0,1fr)}
+  .why{max-width:62ch}
+}
+@media (max-width:760px){
+  .desk{grid-template-columns:minmax(0,1fr); padding:14px; border-radius:22px}
+  .desk.two{grid-template-columns:minmax(0,1fr)}
+  .ghost{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="pp-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="pp-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="pp-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="pp-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="pp-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="pp-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+</svg>
+
+<header class="top">
+  <div>
+    <div class="kick">Dashboard · Treasury card · day one</div>
+    <h1>A treasury card that says hello</h1>
+    <p>On day one, the card greets a new treasurer and sends them to set up the Treasury page. Nothing is entered on the dashboard, and the setup steps live on the Treasury page.</p>
+  </div>
+  <div class="ctl">
+    <button class="theme" id="theme" type="button" aria-label="Toggle night paper"><svg class="ic"><use href="#pp-moon"/></svg></button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="States">
+  <button class="tab" role="tab" data-s="today" style="--hs:var(--peach)"><span class="n">00</span>Today</button>
+  <button class="tab" role="tab" data-s="open" aria-selected="true"><span class="n">01</span>Never opened · officer</button>
+  <button class="tab" role="tab" data-s="opened"><span class="n">02</span>Opened, nothing logged</button>
+  <button class="tab" role="tab" data-s="member" style="--hs:var(--butter)"><span class="n">03</span>Never opened · member</button>
+  <button class="tab" role="tab" data-s="main" style="--hs:var(--lilac)"><span class="n">04</span>Moved to main · before setup</button>
+</nav>
+
+<main class="wrap">
+
+  <!-- 00 · TODAY ---------------------------------------------------------- -->
+  <section class="scene" data-scene="today">
+    <div class="desk two">
+      <div class="rail">
+        <p class="cap">Never opened</p>
+        <section class="card">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2></div>
+          <div class="rail-empty">No transactions yet. The books start with your first entry.<br><button class="a" type="button">Log a transaction →</button></div>
+        </section>
+      </div>
+      <div class="rail">
+        <p class="cap">Opening balance set, nothing logged</p>
+        <section class="card">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2><span class="sub">Net balance</span></div>
+          <div class="t-body">
+            <div class="t-num">$1,240</div>
+            <p class="t-note">Projected $1,240 by end of period</p>
+            <div class="t-months"><span>PROJ</span></div>
+          </div>
+          <div class="card-f"><button type="button"><svg class="ic"><use href="#pp-pencil"/></svg>Log a transaction<svg class="ic"><use href="#pp-arrow-r"/></svg></button></div>
+        </section>
+      </div>
+    </div>
+    <aside class="why bad">
+      <h3>What's wrong with it</h3>
+      <ul>
+        <li><b>It reads like an error.</b> A grey sentence where the content should be, plus a small chip. It looks like nothing loaded.</li>
+        <li><b>It sends officers to the wrong step.</b> The button goes to Transactions, but the Treasury page's day one asks for the <b>opening balance</b> first (<code>TreasuryOpenBooks</code>). Two different first steps.</li>
+        <li><b>Once opened, the card looks broken.</b> "Projected $1,240" just repeats the balance, <code>MiniAreaChart</code> returns <code>null</code> for an empty trend, and the month row shows only "PROJ" under nothing.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 01 · NEVER OPENED, OFFICER ----------------------------------------- -->
+  <section class="scene on" data-scene="open">
+    <div class="desk">
+      <div class="ghost" aria-hidden="true"><i></i><i></i></div>
+      <div class="rail">
+        <section class="card" aria-label="Treasury">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2><span class="chip">New</span></div>
+          <div class="wl">
+            <svg class="wl-art" viewBox="0 0 220 132" aria-hidden="true">
+              <!-- open ledger: hard mint shadow, two pages, spine -->
+              <path class="sh" transform="translate(5 5)" d="M22 34C55 24 88 26 110 38C132 26 165 24 198 34V106C165 98 132 100 110 112C88 100 55 98 22 106Z"/>
+              <path class="pg" d="M22 34C55 24 88 26 110 38V112C88 100 55 98 22 106Z"/>
+              <path class="pg" d="M110 38C132 26 165 24 198 34V106C165 98 132 100 110 112Z"/>
+              <path class="sp" d="M110 38V112"/>
+              <!-- left page: blank rules -->
+              <path class="rl" d="M36 50L96 53M36 63L96 66M36 76L96 79M36 89L80 91"/>
+              <!-- right page: the first line, highlighted and waiting -->
+              <path class="hl" d="M122 50L186 46L186 57L122 61Z"/>
+              <text class="dl" x="126" y="59">$</text>
+              <path class="rl" d="M138 56.5L182 53.5" stroke-dasharray="2 4"/>
+              <path class="rl" d="M124 72L186 68M124 85L186 81M124 98L168 95"/>
+              <!-- coins -->
+              <g class="ink">
+                <path class="cn" d="M14 116v-5a15 5.4 0 0 1 30 0v5a15 5.4 0 0 1-30 0Z"/>
+                <ellipse class="cn-t" cx="29" cy="111" rx="15" ry="5.4"/>
+                <path class="cn" d="M17 108v-5a15 5.4 0 0 1 30 0v5a15 5.4 0 0 1-30 0Z"/>
+                <ellipse class="cn-t" cx="32" cy="103" rx="15" ry="5.4"/>
+              </g>
+              <!-- pencil resting on the right page -->
+              <g class="pencil"><g class="ink" transform="translate(150 118) rotate(-40)">
+                <rect class="er" x="-10" y="-5" width="9" height="10" rx="2.5"/>
+                <rect class="wd" x="-1.5" y="-5" width="5" height="10"/>
+                <rect class="pe" x="3.5" y="-5" width="52" height="10"/>
+                <path class="wd" d="M55.5 -5L69 0L55.5 5Z"/>
+                <path class="ld" d="M65 -1.5L69 0L65 1.5Z" stroke="none"/>
+              </g></g>
+              <!-- sparkles -->
+              <path class="s1 twk" d="M200 8c.6 4 2.6 6 6.6 6.6-4 .6-6 2.6-6.6 6.6-.6-4-2.6-6-6.6-6.6 4-.6 6-2.6 6.6-6.6Z"/>
+              <path class="s2 twk b" d="M12 16c.4 2.8 1.8 4.2 4.6 4.6-2.8.4-4.2 1.8-4.6 4.6-.4-2.8-1.8-4.2-4.6-4.6 2.8-.4 4.2-1.8 4.6-4.6Z"/>
+            </svg>
+            <h3 class="wl-h">Keep the chapter's <span class="hi">money</span> in one place.</h3>
+            <p class="wl-p">Dues, expenses and the bank balance, all on one page. To start, all you need is what's in the account today.</p>
+            <a class="btn js-setup" href="#">Set up the treasury<svg class="ic"><use href="#pp-arrow-r"/></svg></a>
+            <p class="wl-fine">About two minutes · you can change it later</p>
+          </div>
+        </section>
+        <div class="after" aria-hidden="true"></div>
+      </div>
+    </div>
+    <aside class="why">
+      <h3>A welcome with one way forward</h3>
+      <ul>
+        <li><b>One button, one place.</b> "Set up the treasury" goes to <code>/treasury</code>, where the opening-balance step (<code>TreasuryOpenBooks</code>) already runs. The dashboard and the page share one setup flow.</li>
+        <li><b>Beginner words.</b> It says what the page is for (dues, expenses, balance) and what you need to start. No "ledger" or "transactions" yet.</li>
+        <li><b>Low stakes.</b> "About two minutes · you can change it later" tells a first-time treasurer they can't get this wrong.</li>
+        <li><b>No numbers.</b> The illustration is an open book waiting for its first line, so there's no <code>$0</code> and no chart that hints at a direction.</li>
+        <li>Shown only with <code>MANAGE_TREASURY</code>. Everyone else sees state 03.</li>
+      </ul>
+    </aside>
+  </section>
+  <!-- 02 · OPENED, NOTHING LOGGED ---------------------------------------- -->
+  <section class="scene" data-scene="opened">
+    <div class="desk">
+      <div class="ghost" aria-hidden="true"><i></i><i></i></div>
+      <div class="rail">
+        <section class="card" aria-label="Treasury">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2><span class="sub">Net balance</span></div>
+          <div class="t-body">
+            <div class="op-num"><span class="big" id="opBig">$1,240</span><span class="op-tag"><svg class="ic"><use href="#pp-check"/></svg>Books open</span></div>
+            <p class="op-note" id="opNote">Opening balance · set Nov 3</p>
+            <div class="start" aria-hidden="true">
+              <svg viewBox="0 0 300 36" preserveAspectRatio="none">
+                <path class="ln" d="M8 18 H300"/>
+                <circle class="ring" cx="8" cy="18" r="6"/>
+                <circle class="dot" cx="8" cy="18" r="4"/>
+              </svg>
+              <div class="start-lb"><b id="opMon">NOV 3</b><span>next entry →</span></div>
+            </div>
+            <p class="op-next">The line starts moving with your <b>first entry</b>. The end-of-term projection appears once there's a trend to project.</p>
+          </div>
+          <div class="card-f"><button type="button"><svg class="ic"><use href="#pp-pencil"/></svg>Log the first transaction<svg class="ic"><use href="#pp-arrow-r"/></svg></button></div>
+        </section>
+        <div class="after" aria-hidden="true"></div>
+      </div>
+    </div>
+    <aside class="why">
+      <h3>A real number, honestly unfinished</h3>
+      <ul>
+        <li><b>The balance gets full ink.</b> The treasurer stated it, so it's a real figure, and a "Books open" tag confirms the step worked.</li>
+        <li><b>No projection.</b> With no entries, the projection equals the balance, so repeating it adds nothing. It comes back once <code>trend.length &gt; 0</code>.</li>
+        <li><b>A starting point, not a chart.</b> One dot on the opening date and a flat dashed hairline. It never draws a curve, because no data means no direction.</li>
+        <li>Once there's a first entry, the card becomes today's populated card with no changes.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <!-- 03 · NEVER OPENED, MEMBER ------------------------------------------ -->
+  <section class="scene" data-scene="member">
+    <div class="desk">
+      <div class="ghost" aria-hidden="true"><i></i><i></i></div>
+      <div class="rail">
+        <section class="card" aria-label="Treasury">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2></div>
+          <div class="mb">
+            <div class="book" aria-hidden="true"><span class="cv"></span><span class="pg"></span><span class="bd"></span><span class="lb"></span></div>
+            <div>
+              <h3>The books aren't open yet.</h3>
+              <p>Once an officer enters the opening balance, the chapter's balance and where it's heading will show up here.</p>
+            </div>
+          </div>
+        </section>
+        <div class="after" aria-hidden="true"></div>
+      </div>
+    </div>
+    <aside class="why">
+      <h3>Calm, with nothing to press</h3>
+      <ul>
+        <li><b>A closed book, not an empty one.</b> Members can't open the books, so the card says what's coming instead of giving them a button that won't work.</li>
+        <li>Uses the same words as the Treasury page's member state (<code>TreasuryLocked</code>): "The books aren't open yet."</li>
+        <li>No treasurer name. The roster DTO doesn't say who holds <code>MANAGE_TREASURY</code> (same gap <code>TreasuryLocked</code> documents), so the copy works without one.</li>
+      </ul>
+    </aside>
+  </section>
+  <!-- 04 · MOVED TO MAIN, BEFORE SETUP ------------------------------------ -->
+  <section class="scene wide" data-scene="main">
+    <div class="desk main">
+      <div class="maincol">
+        <p class="cap">Officer · main column</p>
+        <section class="card" aria-label="Treasury">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2><span class="chip">New</span></div>
+          <div class="wm">
+                <svg class="wl-art" viewBox="0 0 220 132" aria-hidden="true">
+                  <!-- open ledger: hard mint shadow, two pages, spine -->
+                  <path class="sh" transform="translate(5 5)" d="M22 34C55 24 88 26 110 38C132 26 165 24 198 34V106C165 98 132 100 110 112C88 100 55 98 22 106Z"/>
+                  <path class="pg" d="M22 34C55 24 88 26 110 38V112C88 100 55 98 22 106Z"/>
+                  <path class="pg" d="M110 38C132 26 165 24 198 34V106C165 98 132 100 110 112Z"/>
+                  <path class="sp" d="M110 38V112"/>
+                  <!-- left page: blank rules -->
+                  <path class="rl" d="M36 50L96 53M36 63L96 66M36 76L96 79M36 89L80 91"/>
+                  <!-- right page: the first line, highlighted and waiting -->
+                  <path class="hl" d="M122 50L186 46L186 57L122 61Z"/>
+                  <text class="dl" x="126" y="59">$</text>
+                  <path class="rl" d="M138 56.5L182 53.5" stroke-dasharray="2 4"/>
+                  <path class="rl" d="M124 72L186 68M124 85L186 81M124 98L168 95"/>
+                  <!-- coins -->
+                  <g class="ink">
+                    <path class="cn" d="M14 116v-5a15 5.4 0 0 1 30 0v5a15 5.4 0 0 1-30 0Z"/>
+                    <ellipse class="cn-t" cx="29" cy="111" rx="15" ry="5.4"/>
+                    <path class="cn" d="M17 108v-5a15 5.4 0 0 1 30 0v5a15 5.4 0 0 1-30 0Z"/>
+                    <ellipse class="cn-t" cx="32" cy="103" rx="15" ry="5.4"/>
+                  </g>
+                  <!-- pencil resting on the right page -->
+                  <g class="pencil"><g class="ink" transform="translate(150 118) rotate(-40)">
+                    <rect class="er" x="-10" y="-5" width="9" height="10" rx="2.5"/>
+                    <rect class="wd" x="-1.5" y="-5" width="5" height="10"/>
+                    <rect class="pe" x="3.5" y="-5" width="52" height="10"/>
+                    <path class="wd" d="M55.5 -5L69 0L55.5 5Z"/>
+                    <path class="ld" d="M65 -1.5L69 0L65 1.5Z" stroke="none"/>
+                  </g></g>
+                  <!-- sparkles -->
+                  <path class="s1 twk" d="M200 8c.6 4 2.6 6 6.6 6.6-4 .6-6 2.6-6.6 6.6-.6-4-2.6-6-6.6-6.6 4-.6 6-2.6 6.6-6.6Z"/>
+                  <path class="s2 twk b" d="M12 16c.4 2.8 1.8 4.2 4.6 4.6-2.8.4-4.2 1.8-4.6 4.6-.4-2.8-1.8-4.2-4.6-4.6 2.8-.4 4.2-1.8 4.6-4.6Z"/>
+                </svg>
+            <div>
+              <h3 class="wl-h">Keep the chapter's <span class="hi">money</span> in one place.</h3>
+              <p class="wl-p">Dues, expenses and the bank balance, all on one page. To start, all you need is what's in the account today.</p>
+              <div class="wm-act">
+                <a class="btn js-setup" href="#">Set up the treasury<svg class="ic"><use href="#pp-arrow-r"/></svg></a>
+                <p class="wl-fine">About two minutes · you can change it later</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <p class="cap">Member · main column</p>
+        <section class="card" aria-label="Treasury">
+          <div class="card-h"><span class="tile"><svg class="ic"><use href="#pp-receipt"/></svg></span><h2>Treasury</h2></div>
+          <div class="mb mbw">
+            <div class="book" aria-hidden="true"><span class="cv"></span><span class="pg"></span><span class="bd"></span><span class="lb"></span></div>
+            <div>
+              <h3>The books aren't open yet.</h3>
+              <p>Once an officer enters the opening balance, the chapter's balance and where it's heading will show up here.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="ghost r" aria-hidden="true"><i></i><i></i></div>
+    </div>
+    <aside class="why">
+      <h3>The same welcome, using the width</h3>
+      <ul>
+        <li><b>Same words, same single button.</b> Only the layout changes: the open book sits beside the copy instead of above it, so the card isn't a tall, narrow column with empty space on both sides.</li>
+        <li><b>The member card stays quiet.</b> Closed book and copy in a single row with nothing to press. The width doesn't need filling, because there's nothing for a member to do yet.</li>
+        <li>Below 760px both cards fall back to the rail layout (art on top, centred), since the main column and the rail are the same width on a phone.</li>
+      </ul>
+    </aside>
+  </section>
+</main>
+
+<script>
+(function(){
+  const $ = (s, r=document) => r.querySelector(s);
+  const tabs = [...document.querySelectorAll('.tab')];
+  const scenes = [...document.querySelectorAll('.scene')];
+  function show(id){
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.s === id)));
+    scenes.forEach(s => {
+      const on = s.dataset.scene === id;
+      s.classList.remove('on');
+      if (on) { void s.offsetWidth; s.classList.add('on'); }
+    });
+  }
+  tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.s)));
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input')) return;
+    const i = '01234'.indexOf(e.key);
+    if (i >= 0) show(tabs[i].dataset.s);
+    if (e.key === 't' || e.key === 'T') $('#theme').click();
+  });
+
+  const root = document.documentElement;
+  $('#theme').addEventListener('click', () => {
+    const dark = root.dataset.theme !== 'dark';
+    root.dataset.theme = dark ? 'dark' : 'light';
+    $('#theme use').setAttribute('href', dark ? '#pp-sun' : '#pp-moon');
+  });
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = 'Opens <code>/[slug]/treasury</code> · setup';
+  document.body.appendChild(toast);
+  let tt;
+  document.querySelectorAll('.js-setup').forEach(a => a.addEventListener('click', e => {
+    e.preventDefault();
+    toast.classList.add('on'); clearTimeout(tt);
+    tt = setTimeout(() => toast.classList.remove('on'), 1800);
+  }));
+})();
+</script>
+</body>
+</html>

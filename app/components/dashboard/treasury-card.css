@@ -1,0 +1,109 @@
+/* Dashboard Treasury card, day one — _design/Treasury Widget Day One Mock.html.
+   Class namespace tc-*. The card shell, header and footer come from the paper
+   dashboard rules in paper-aesthetic.css.
+
+   The card is a size container: in the rail the welcome stacks (art over copy);
+   moved into the main column or the top spot it lays the art beside the copy. */
+
+.dash .tc { container-type: inline-size; }
+
+.dash .tc-chip {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  font-size: .72rem; font-weight: 600; background: var(--pp-butter-soft); color: var(--pp-butter-ink); border: 1px solid var(--pp-butter-bd);
+}
+.dash .tc-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* ---- never opened, officer: a welcome, not a form ---- */
+.dash .tc-wl { padding: 0 22px 24px; text-align: center; }
+.dash .tc-art { display: block; width: 228px; max-width: 100%; height: auto; margin: 2px auto 0; overflow: visible; }
+.dash .tc-art .pg { fill: var(--card); stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; }
+.dash .tc-art .sh { fill: var(--pp-mint); }
+.dash .tc-art .sp { stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; }
+.dash .tc-art .rl { stroke: var(--line-med); stroke-width: 1.5; stroke-linecap: round; }
+.dash .tc-art .hl { fill: var(--pp-butter); opacity: .85; transform-box: fill-box; transform-origin: left center; animation: tc-mark .9s var(--pp-ease-out) .35s both; }
+.dash .tc-art .dl { font-family: var(--serif); font-weight: 700; font-size: 15px; fill: var(--ink); }
+.dash .tc-art .ink { stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; }
+.dash .tc-art .pe { fill: var(--pp-peach); }
+.dash .tc-art .er { fill: var(--pp-rose); }
+.dash .tc-art .wd { fill: var(--line); }
+.dash .tc-art .ld { fill: var(--ink); }
+.dash .tc-art .cn { fill: var(--pp-butter); }
+.dash .tc-art .cn-t { fill: var(--pp-butter-soft); }
+.dash .tc-art .s1 { fill: var(--pp-lilac-ink); }
+.dash .tc-art .s2 { fill: var(--pp-mint-ink); }
+.dash .tc-art .pencil { transform-box: view-box; transform-origin: 150px 104px; animation: tc-bob 3.6s ease-in-out 1s infinite; }
+.dash .tc-art .twk { transform-box: fill-box; transform-origin: center; animation: tc-twinkle 2.8s ease-in-out infinite; }
+.dash .tc-art .twk.b { animation-delay: 1.3s; }
+@keyframes tc-mark { from { transform: scaleX(0); } }
+@keyframes tc-bob { 50% { transform: translate(-2px, -3px) rotate(-2deg); } }
+@keyframes tc-twinkle { 50% { transform: scale(.55); opacity: .5; } }
+
+.dash .tc-wl-h { margin: 14px 0 0; font-family: var(--serif); font-weight: 600; font-size: 1.42rem; letter-spacing: -.035em; line-height: 1.15; color: var(--ink); text-wrap: balance; }
+.dash .tc-hi { position: relative; white-space: nowrap; z-index: 0; }
+.dash .tc-hi::before {
+  content: ""; position: absolute; z-index: -1; left: -.1em; right: -.12em; bottom: .06em; height: .46em;
+  background: var(--pp-mint); border-radius: .4em .55em .38em .6em; transform: rotate(-1deg); opacity: .85;
+}
+.dash .tc-wl-p { margin: 8px auto 0; max-width: 30ch; font-size: .88rem; color: var(--ink-soft); line-height: 1.5; }
+.dash .tc-wl-act { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 18px; }
+.dash .tc-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border-radius: 999px; border: 1.5px solid var(--ink);
+  background: var(--ink); color: var(--paper); font: inherit; font-weight: 600; font-size: .9rem; letter-spacing: -.01em; white-space: nowrap; cursor: pointer;
+  box-shadow: 3px 3px 0 var(--pp-mint); transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+.dash .tc-btn:hover { transform: translate(-1.5px, -1.5px); box-shadow: 5px 5px 0 var(--pp-mint); }
+.dash .tc-btn:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--pp-mint); }
+.dash .tc-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.dash .tc-btn svg { width: 15px; height: 15px; transition: transform .2s var(--pp-ease-spring); }
+.dash .tc-btn:hover svg { transform: translateX(2px); }
+.dash .tc-wl-fine { margin: 0; font-size: .74rem; color: var(--muted); }
+
+/* ---- never opened, member: a closed book, nothing to press ---- */
+.dash .tc-mb { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; padding: 2px 18px 20px; }
+.dash .tc-mb h3 { margin: 0; font-family: var(--serif); font-weight: 600; font-size: 1.12rem; letter-spacing: -.025em; line-height: 1.2; color: var(--ink); }
+.dash .tc-mb p { margin: 5px 0 0; font-size: .82rem; color: var(--ink-soft); line-height: 1.45; }
+.dash .tc-book { width: 64px; height: 76px; position: relative; }
+.dash .tc-book .cv { position: absolute; inset: 0 6px 0 0; border-radius: 6px 10px 10px 6px; background: var(--pp-mint); border: 1.5px solid var(--ink); box-shadow: 3px 3px 0 var(--pp-mint-bd); }
+.dash .tc-book .pg { position: absolute; top: 5px; bottom: 5px; right: 0; width: 10px; border-radius: 0 6px 6px 0; border: 1.5px solid var(--ink); border-left: 0;
+  background: repeating-linear-gradient(180deg, var(--card) 0 3px, var(--line-med) 3px 4px); }
+.dash .tc-book .bd { position: absolute; left: 0; right: 6px; top: 30px; height: 12px; background: var(--pp-butter); border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+.dash .tc-book .lb { position: absolute; left: 12px; top: 10px; width: 28px; height: 12px; border-radius: 3px; background: var(--card); border: 1.2px solid var(--ink); }
+
+/* ---- opened, nothing logged: a real number, honestly unfinished ---- */
+.dash .tc-op-num { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.dash .tc-op-num .big { font-family: var(--serif); font-weight: 600; font-size: 2.1rem; letter-spacing: -.045em; line-height: 1; }
+.dash .tc-op-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: .7rem; font-weight: 600;
+  background: var(--pp-mint-soft); color: var(--pp-mint-ink); border: 1px solid var(--pp-mint-bd);
+}
+.dash .tc-op-tag svg { width: 11px; height: 11px; }
+.dash .tc-start { margin-top: 14px; }
+.dash .tc-start-track { position: relative; height: 36px; }
+.dash .tc-start svg { display: block; height: 36px; overflow: visible; }
+.dash .tc-start-ln { width: 100%; }
+.dash .tc-start-pt { position: absolute; left: 0; top: 0; width: 16px; }
+.dash .tc-start .ln { stroke: var(--pp-mint-ink); stroke-width: 1.6; stroke-dasharray: 3 5; opacity: .55; fill: none; }
+.dash .tc-start .dot { fill: var(--pp-mint-ink); }
+.dash .tc-start .ring { fill: none; stroke: var(--pp-mint-ink); stroke-width: 1.4; opacity: .35; transform-box: fill-box; transform-origin: center; animation: tc-pulse 2.4s var(--pp-ease-out) .6s infinite; }
+@keyframes tc-pulse { from { transform: scale(.6); opacity: .5; } to { transform: scale(2.2); opacity: 0; } }
+.dash .tc-start-lb { display: flex; justify-content: space-between; margin-top: 2px; font-family: var(--mono); font-size: .64rem; color: var(--muted); }
+.dash .tc-start-lb b { font-weight: 500; color: var(--pp-mint-ink); }
+.dash .tc-op-next { margin: 12px 0 0; padding: 10px 12px; border-radius: 14px; border: 1.5px dashed var(--line-med); font-size: .8rem; color: var(--ink-soft); line-height: 1.45; }
+.dash .tc-op-next b { color: var(--ink); font-weight: 600; }
+
+/* ---- wide: moved to the main column or the top spot ---- */
+@container (min-width: 520px) {
+  .dash .tc-wl { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 30px; align-items: center; padding: 6px 28px 26px; text-align: left; }
+  .dash .tc-art { margin: 0; }
+  .dash .tc-wl-h { margin-top: 0; font-size: 1.6rem; }
+  .dash .tc-wl-p { margin: 10px 0 0; max-width: 44ch; }
+  .dash .tc-wl-act { flex-direction: row; flex-wrap: wrap; gap: 10px 16px; margin-top: 20px; }
+  .dash .tc-mb { gap: 22px; padding: 6px 28px 26px; }
+  .dash .tc-mb .tc-book { transform: scale(1.15); transform-origin: left center; margin-right: 10px; }
+  .dash .tc-mb h3 { font-size: 1.3rem; }
+  .dash .tc-mb p { max-width: 52ch; font-size: .86rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash .tc-art :is(.hl, .pencil, .twk), .dash .tc-start .ring { animation: none; }
+}
