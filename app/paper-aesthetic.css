@@ -821,7 +821,7 @@ html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-btn, .tb-actions button
 html[data-aesthetic="paper"] header.dash-toolbar :is(.tb-btn, .tb-actions button[aria-haspopup="menu"]):hover svg { color: var(--ink); }
 
 /* ── 3c. Timeline ──────────────────────────────────────────────────────────────
-   app/[slug]/timeline/page.tsx → the mock's #timeline. Rows/rail carry the paper
+   app/org/[slug]/timeline/page.tsx → the mock's #timeline. Rows/rail carry the paper
    category triplet inline (--pcc ink, --pcf fill, --pcs soft; catStyleOf). */
 html[data-aesthetic="paper"] .dash.dash-timeline { --dash-max-width: 1200px; }
 html[data-aesthetic="paper"] .dash-timeline h1.greeting em::before { background: var(--pp-sky); }
@@ -1470,7 +1470,7 @@ html[data-aesthetic="paper"] .dash .gd-add:hover { transform: translate(-1px,-1p
   html[data-aesthetic="paper"] .dash .tl-cal-ring.r { right: 16%; }
 }
 
-/* ── 3d. Brotherhood (app/[slug]/brothers) ──────────────────────────────────────
+/* ── 3d. Brotherhood (app/org/[slug]/brothers) ──────────────────────────────────────
    The mock's #brotherhood: join requests as calling cards on a dashed guest-book
    band → editorial header → five measure cards → Standing (ink-bordered bar,
    pill legend, a class photo ringed by standing) → the roster as a register.

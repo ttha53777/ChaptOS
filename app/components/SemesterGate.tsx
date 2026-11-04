@@ -17,6 +17,7 @@ import { todayISO } from "@/lib/dates";
 // body in a .dash container below.
 import "./dashboard/dashboard-ledger.css";
 import "./semester-gate.css";
+import { orgHref } from "@/lib/org-paths";
 
 /**
  * SemesterGate — the no-active-semester / semester-ended hard block.
@@ -126,7 +127,7 @@ export function SemesterGate() {
   // the onboarding wizard itself (a new org has no semester yet — let it finish
   // onboarding first). Gating on org alone would leak onto /welcome etc. where a
   // signed-in user can still have currentUser.org populated.
-  const isOnboarding = !!currentUser?.org?.slug && pathname === `/${currentUser.org.slug}/onboarding`;
+  const isOnboarding = !!currentUser?.org?.slug && pathname === orgHref(currentUser.org.slug, "/onboarding");
   const enabled = !!currentUser?.org?.slug && isDashboardRoute(pathname) && !isOnboarding;
 
   // Passed to useSemesters so disabled routes don't fire a failing GET /api/semesters.

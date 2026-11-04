@@ -27,37 +27,18 @@ import {
   englishRecommendedTransformers,
 } from "obscenity";
 
-// Next.js routes and infra hostnames. Anything under app/ becomes a path; if a
-// future page named app/foo/ exists, /foo as an org slug would shadow it.
-const SYSTEM_ROUTES: readonly string[] = [
-  "admin", "api", "app", "auth", "callback", "chapter", "create", "dashboard",
-  "docs", "login", "logout", "settings", "signin", "signout", "signup",
-  "welcome", "pending-access", "brothers", "timeline", "treasury",
-  "service", "parties", "instagram", "media", "fundraisers",
-  // "trust" backs the real page at app/trust/ (public disclosure copy) and
-  // "terms" backs app/terms/ (the Terms of Service). The other two are their
-  // conventional siblings — reserved ahead of being built so
-  // adding app/privacy/ later can't be shadowed by an org that already took the
-  // slug, which is unfixable without renaming someone's workspace.
-  "trust", "privacy", "terms", "legal",
-  // "contact" backs app/contact/ ("talk to a human"); "faq" is its conventional
-  // sibling, reserved ahead of being built for the same reason as above. The
-  // help centre's own slug ("help") is already reserved as an infra host below,
-  // as is "support".
-  "contact", "faq",
-  // "for" backed the retired audience pages, which next.config.ts now
-  // redirects to "/". An org holding the slug would be unreachable behind that
-  // redirect, so it stays reserved. Only three characters, so it clears
-  // MIN_SLUG_LEN and would otherwise be claimable.
-  "for",
-  // "pricing" backs app/pricing/; "billing" is reserved alongside it because
-  // /<slug>/billing is a real route and a top-level /billing page is the obvious
-  // future sibling. Same reasoning as trust/privacy/terms above — cheaper to
-  // reserve now than to rename someone's workspace later.
-  "pricing", "billing",
-  // "seo-preview" backs app/seo-preview/ (the landing-page SEO mock). A real
-  // app route would shadow an org that took the slug, so reserve it.
-  "seo-preview",
+// Words that read as part of the platform rather than someone's workspace.
+//
+// Orgs live under /org/<slug> (lib/org-paths.ts), so a slug can no longer
+// shadow a top-level page — this list used to grow with every public page
+// (/trust, /pricing, /seo-preview, …) and no longer has to. What remains is
+// what would look like ours if it showed up in a URL or a subdomain
+// (lib/domains.ts still resolves <slug>.chaptos.com), or would read as an
+// official account page: chaptos.com/org/login, admin.chaptos.com.
+const PLATFORM_WORDS: readonly string[] = [
+  "admin", "api", "app", "auth", "callback", "create", "dashboard",
+  "login", "logout", "settings", "signin", "signout", "signup", "welcome",
+  "billing", "pricing", "trust", "privacy", "terms", "legal", "contact",
 ];
 
 const INFRA_HOSTS: readonly string[] = [
@@ -71,7 +52,7 @@ const GENERIC_WORDS: readonly string[] = [
 ];
 
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
-  ...SYSTEM_ROUTES,
+  ...PLATFORM_WORDS,
   ...INFRA_HOSTS,
   ...GENERIC_WORDS,
 ]);

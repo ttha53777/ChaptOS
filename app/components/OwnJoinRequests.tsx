@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useJoinPolling, readJoinStatus } from "@/app/hooks/useJoinPolling";
+import { orgHref } from "@/lib/org-paths";
 
 type RequestNotice = { id: number; submittedName: string; status: string; org: { name: string; slug: string } };
 
@@ -22,7 +23,7 @@ export function OwnJoinRequests() {
       <p>{r.status === "pending" ? `Waiting for review — you asked as ${r.submittedName}.`
         : r.status === "approved" ? "Your request was approved."
         : "Your request wasn't approved. Ask an organizer for a fresh link if you think this is a mistake."}</p>
-      {r.status !== "rejected" && <Link className="auth-link vio" href={`/${encodeURIComponent(r.org.slug)}`}>{r.status === "approved" ? "Open organization" : "Check status"}</Link>}
+      {r.status !== "rejected" && <Link className="auth-link vio" href={orgHref(r.org.slug)}>{r.status === "approved" ? "Open organization" : "Check status"}</Link>}
     </div>)}
   </section>;
 }

@@ -10,7 +10,7 @@ import { Card } from "../dashboard/primitives";
 import { inputDuskCls } from "../dashboard/styles";
 import { AttachmentField } from "./AttachmentField";
 import { TxForm, type TxFormEvent } from "../treasury/TxForm";
-import type { Doc } from "@/app/[slug]/docs/lib";
+import type { Doc } from "@/app/org/[slug]/docs/lib";
 import { requestJson } from "../../lib/api";
 import { ownerLabel } from "@/lib/event-owner";
 import { fieldsFor, hasRequiredField, missingFor, type RequiredField } from "@/lib/programming";

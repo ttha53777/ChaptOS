@@ -5,7 +5,7 @@ import { requestJson } from "../../../lib/api";
 import { SectionError } from "./SectionError";
 import { PaperIcon, PaperTile, type PaperTone } from "../../paper/PaperIcon";
 import { relativeTime } from "../AnnouncementCard";
-import { hostOf, kindOf, KIND_LABEL, type Doc, type Kind } from "../../../[slug]/docs/lib";
+import { hostOf, kindOf, KIND_LABEL, type Doc, type Kind } from "../../../org/[slug]/docs/lib";
 import "../core-cards.css";
 
 const TONE: Record<Kind, PaperTone> = { doc: "sky", sheet: "mint", form: "lilac", drive: "butter", link: "peach" };

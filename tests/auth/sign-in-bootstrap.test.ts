@@ -45,7 +45,7 @@ describe("sign-in bootstrap", () => {
   it("resolves the verified account before org context exists and keeps session cookies", async () => {
     const res = await GET(new NextRequest("https://chaptos.com/auth/callback?code=valid"));
     expect(mocks.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { authUserId: account.id } }));
-    expect(res.headers.get("location")).toBe("https://chaptos.com/beta?toast=welcome");
+    expect(res.headers.get("location")).toBe("https://chaptos.com/org/beta?toast=welcome");
     expect(res.cookies.get("session")?.value).toBe("verified");
     expect(res.cookies.get("active_org_id")?.value).toBe("2");
   });

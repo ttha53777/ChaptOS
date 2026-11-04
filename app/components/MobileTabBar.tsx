@@ -11,6 +11,7 @@ import { REIMBURSE_EVENT, REIMBURSE_QUERY, visibleQuickActions, type QuickAction
 import { PaperIcon, PaperTile, type PaperIconName, type PaperTone } from "./paper/PaperIcon";
 import { BottomSheet } from "./BottomSheet";
 import "./mobile-shell.css";
+import { orgSubpath } from "@/lib/org-paths";
 
 /** What the Create sheet can start: the dashboard's quick actions, plus opening
  *  check-in and writing the pinned note. */
@@ -53,9 +54,7 @@ export function MobileTabBar({ onMore }: { onMore: () => void }) {
   const [createOpen, setCreateOpen] = useState(false);
 
   const subPath = (() => {
-    if (!pathname) return "/";
-    const rest = pathname.replace(/^\/[^/]+/, "");
-    return rest === "" ? "/" : rest;
+    return orgSubpath(pathname);
   })();
 
   const wf = currentUser?.org?.enabledWorkflows;

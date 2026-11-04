@@ -1,4 +1,4 @@
-/* ── Paper aesthetic: Programming (app/[slug]/events) ───────────────────────────
+/* ── Paper aesthetic: Programming (app/org/[slug]/events) ───────────────────────────
    The #programming page of _design/Dashboard Paper Mock.html, applied to the
    real board. Same rules as paper-aesthetic.css: everything hangs off
    html[data-aesthetic="paper"], which also out-specifies events-ledger.css (it

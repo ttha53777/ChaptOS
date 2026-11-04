@@ -19,6 +19,7 @@ import { useToast } from "../dashboard/Toast";
 import { apiErrorMessage, requestJson } from "../../lib/api";
 import { standingVerdict, toneAttendance, toneGpa } from "./spotlight-standing";
 import { DoneFoot, DraftInput, Hint, Icon, Pop, Row, SaveFoot, Stat, type EditApi } from "./spotlight-parts";
+import { orgHref } from "@/lib/org-paths";
 
 /*
   Member Spotlight — the card that opens when you click a member.
@@ -739,7 +740,7 @@ export function MemberSpotlight({
       ? `${fmt$(b.duesOwed)} owed${late ? `, ${duesSt!.lateDays} ${duesSt!.lateDays === 1 ? "day" : "days"} past due` : ""}.`
       : "Nothing owed.";
     const tabLink = orgSlug && (
-      <a className="ms-dues-link" href={`/${orgSlug}/treasury?tab=Dues&m=${b.id}`}>See {isSelf ? "your" : "their"} tab line by line →</a>
+      <a className="ms-dues-link" href={orgHref(orgSlug, `/treasury?tab=Dues&m=${b.id}`)}>See {isSelf ? "your" : "their"} tab line by line →</a>
     );
     stats.push(
       <Stat key="dues" id="dues" label={v("Dues")} edit={edit} align="right"

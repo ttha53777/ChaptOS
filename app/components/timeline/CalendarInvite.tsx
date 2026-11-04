@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import { requestJson } from "../../lib/api";
 import { AddToCalendarDialog, CalendarIcon, prefetchSubscription, readAdded } from "./CalendarSubscription";
 import "./calendar-invite.css";
+import { orgSlugFromPath } from "@/lib/org-paths";
 
 /** The org segment of the current URL (`/<slug>/…`). */
-function currentSlug() { return typeof window === "undefined" ? "" : window.location.pathname.split("/")[1] ?? ""; }
+function currentSlug() { return typeof window === "undefined" ? "" : orgSlugFromPath(window.location.pathname) ?? ""; }
 const dismissedKey = (slug: string) => `chaptos:calendar-invite-dismissed:${slug}`;
 function readDismissed(slug: string) { try { return localStorage.getItem(dismissedKey(slug)) !== null; } catch { return false; } }
 

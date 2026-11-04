@@ -5,7 +5,7 @@ import { apiErrorMessage } from "../../../lib/api";
 import { formatEventTime } from "@/lib/event-time";
 
 // No "use client" directive: ledger/* components inherit client-ness from
-// app/[slug]/page.tsx, which is itself "use client".
+// app/org/[slug]/page.tsx, which is itself "use client".
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';

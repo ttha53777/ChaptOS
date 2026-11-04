@@ -8,7 +8,7 @@
 
 import { useRef, useState } from "react";
 import type { Draft } from "@/lib/onboarding/draft";
-import { DISPLAY_HOST, draftSlug, type FlowAction } from "./flow-state";
+import { DISPLAY_ORG_BASE, draftSlug, type FlowAction } from "./flow-state";
 import { Mark } from "./Mark";
 import { Ic } from "./paper";
 import type { CreateSession } from "./useSession";
@@ -75,7 +75,7 @@ export function NameStep({
           "We’ll need a web address for this one — you’ll pick it on the charter."
         ) : (
           <>
-            {DISPLAY_HOST}/<b>{slug}</b>{" "}
+            {DISPLAY_ORG_BASE}/<b>{slug}</b>{" "}
             {check.kind === "ok" && (
               <span className="res">
                 <Ic name="check" />

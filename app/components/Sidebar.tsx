@@ -19,6 +19,7 @@ import { useSemesters } from "../hooks/useActiveSemester";
 import { useWrapUpsDue } from "../hooks/useWrapUpsDue";
 import { useFundraisersToWrap } from "../hooks/useFundraisersToWrap";
 import "./sidebar.css";
+import { orgSubpath } from "@/lib/org-paths";
 
 // ─── Icon paths ───────────────────────────────────────────────────────────────
 
@@ -231,12 +232,10 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
   };
   const display = (label: string) => NAV_DISPLAY[label] ?? label;
 
-  // Path *within* the org: "/lpe" → "/", "/lpe/treasury" → "/treasury". Strip by
+  // Path *within* the org: "/org/lpe" → "/", "/org/lpe/treasury" → "/treasury". Strip by
   // segment (not by the context slug) so it's right before /api/auth/me resolves.
   const subPath = (() => {
-    if (!pathname || pathname === "/") return "/";
-    const rest = pathname.replace(/^\/[^/]+/, "");
-    return rest === "" ? "/" : rest;
+    return orgSubpath(pathname);
   })();
 
   function goToDashboardSection(label: string) {

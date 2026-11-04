@@ -1,0 +1,1763 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import type { NotesEditorHandle, MentionTarget } from "@/app/components/meeting-notes/CollaborativeNotesEditor";
+import { NotesCollaborators } from "@/app/components/meeting-notes/NotesCollaborators";
+import type { Collaborator, NotesStatus } from "@/app/lib/collaboration/notes-session";
+import { notesSummaryStale, type NotesSnapshot } from "@/lib/collaboration/notes-protocol";
+import { parseMeetingSummary, type MeetingActionItem, type MeetingSummaryData } from "@/lib/meeting-summary";
+import "@/app/components/meeting-notes/notes-editor.css";
+import { Sidebar } from "../../../components/Sidebar";
+import { Modal, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../../components/dashboard/primitives";
+import { LogAttendanceForm } from "../../../components/dashboard/forms";
+import { useToast } from "../../../components/dashboard/Toast";
+import { MemberSpotlight } from "../../../components/members/MemberSpotlight";
+import { BrotherAvatar } from "../../../components/BrotherAvatar";
+import { PaperIcon } from "../../../components/paper/PaperIcon";
+import { useChapter } from "../../../context/ChapterContext";
+import { useVocab } from "../../../hooks/useVocab";
+import { useOrgPath } from "../../../hooks/useOrgPath";
+import { useActiveSemester } from "../../../hooks/useActiveSemester";
+import { CalendarEvent, fmtDate, roleTitle } from "../../../data";
+import { orgFetch } from "../../../lib/api";
+import { daysFromToday, todayStr } from "../../../lib/dates";
+import "../../../components/dashboard/dashboard-ledger.css";
+import "../../../components/dashboard/meetings-ledger.css";
+import "../../../components/timeline/calendar-event-form.css";
+import "../../../components/agenda-templates/agenda-templates.css";
+import { AgendaBody } from "../../../components/agenda-templates/AgendaBody";
+import { MeetingsDayOne } from "./DayOne";
+import { compareEvents, formatEventTime, isEventOver } from "@/lib/event-time";
+import { useNow } from "../../../hooks/useNow";
+import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../../components/timeline/ScheduleFields";
+import { REPEAT_OFF, RepeatFields, repeatSubmitLabel, resolveRepeat } from "../../../components/timeline/RepeatFields";
+import type { Repeat } from "@/lib/event-repeat";
+import { nextMeetingDraft, type MeetingDraft } from "../../../components/meeting-notes/meeting-defaults";
+import { agendaFieldsIn, agendaSections, hasMinutes, headingOf, minutesBeyondAgenda } from "@/lib/agenda-template";
+import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
+import { endInstant, scheduleDate, scheduleSchema, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
+import { orgSlugFromPath } from "@/lib/org-paths";
+
+const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+type HttpError = Error & { status: number };
+
+// Org-scoped JSON requests with HTTP status and server error details.
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await orgFetch(url, init);
+  if (!res.ok) {
+    let detail = "";
+    try { const b = await res.json(); detail = typeof b?.error === "string" ? `: ${b.error}` : ""; } catch { /* ignore */ }
+    const err = new Error(`${url} returned ${res.status}${detail}`) as HttpError;
+    err.status = res.status;
+    throw err;
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DOWS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const LOW_TURNOUT = 0.7;
+
+function localDate(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function fmtDateFull(dateStr: string) {
+  return localDate(dateStr).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+}
+
+// Date parts for the ledger date column ("Tue / 9 / Jun").
+function dateParts(dateStr: string) {
+  const dt = localDate(dateStr);
+  return { dow: DOWS[dt.getDay()], dnum: dt.getDate(), mon: MONTHS[dt.getMonth()] };
+}
+
+// Relative "In N days / Today / Tomorrow" label from a yyyy-mm-dd string.
+function relativeWhen(dateStr: string) {
+  const diff = daysFromToday(dateStr);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Tomorrow";
+  if (diff > 1) return `In ${diff} days`;
+  if (diff === -1) return "Yesterday";
+  return `${Math.abs(diff)} days ago`;
+}
+
+/** The start of an event's time ("7:30 PM" out of "7:30 PM – 9:00 PM"). */
+function startTimeOf(e: CalendarEvent) {
+  return formatEventTime(e.time, e.schedule)?.split(/\s*[–-]\s*/)[0] ?? null;
+}
+
+/** "tonight" / "today" / "tomorrow" / "on Wednesday" / "on Oct 14" — for prose. */
+function whenPhrase(e: CalendarEvent) {
+  const diff = daysFromToday(e.date);
+  if (diff === 0) return /PM/i.test(startTimeOf(e) ?? "") ? "tonight" : "today";
+  if (diff === 1) return "tomorrow";
+  if (diff > 1 && diff < 7) return `on ${DOWS_LONG[localDate(e.date).getDay()]}`;
+  return `on ${fmtDate(e.date)}`;
+}
+
+function andList(items: string[]) {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+// "Has minutes" means written beyond the agenda a template copied in — an
+// untouched agenda is still a meeting with no minutes (lib/agenda-template.ts).
+const hasNotes = (e: CalendarEvent) => hasMinutes(e);
+
+// One-line preview for the ledger row: the summary's gist, else the minutes' first lines.
+function notesPreview(event: CalendarEvent): string {
+  const data = parseMeetingSummary(event.notesSummaryData);
+  if (data?.gist) return data.gist;
+  const summary = (event.notesSummary ?? "").split("\n").map(l => l.replace(/^[-*]\s*/, "").replace(/\*\*/g, "").trim()).find(Boolean);
+  if (summary) return summary;
+  return minutesBeyondAgenda(event)
+    .split("\n")
+    .filter(l => !headingOf(l))
+    .map(l => l.replace(/^[-*•]\s*/, "").trim())
+    .filter(l => l && !/^(opened|closed|agenda|action items)\b/i.test(l))
+    .slice(0, 2)
+    .join(" · ");
+}
+
+/** "Oct 10" from a yyyy-mm-dd due date. */
+function dueLabel(iso: string) {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
+}
+
+// Per-event counts from GET /api/attendance/summary.
+type AttendanceSummaryRow = { calendarEventId: number; present: number; eligible: number; excused: number; expected: number };
+type AttendanceDetail = {
+  excused:   { brotherId: number; brotherName: string; reason: string | null }[];
+  unexcused: { brotherId: number; brotherName: string }[];
+  attended:  { brotherId: number; brotherName: string }[];
+};
+type LiveCheckIn = { event: { id: number }; state: "open" | "closing" | "closed"; presentCount: number; eligibleCount: number; msRemaining: number } | null;
+type PendingExcuse = { id: number; brotherName: string; calendarEventId: number };
+
+const taken = (row: AttendanceSummaryRow | undefined) => !!row && row.eligible > 0;
+
+// ─── MeetingForm (shared by add + edit) ───────────────────────────────────────
+// Built on the Timeline's cef-* vocabulary, so both aesthetics already dress it.
+
+/** What the calendar API takes. A structured schedule decides date/time server-side;
+ *  only a legacy "as written" time travels as free text. */
+type MeetingInput = { title: string; location: string; mandatory: boolean; schedule: Schedule | null; date: string; time: string | null; agendaTemplateId?: number | null; repeat?: Repeat };
+
+const formIcon = (children: React.ReactNode) => (
+  <svg className="cef-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{children}</svg>
+);
+
+function MeetingForm({
+  initial,
+  editing,
+  submitLabel,
+  minDate,
+  maxDate,
+  termLabel,
+  takenDates,
+  templates,
+  initialTemplateId,
+  onManageTemplates,
+  onSubmit,
+  onClose,
+}: {
+  initial: MeetingDraft;
+  editing: boolean;
+  submitLabel: string;
+  minDate?: string;
+  maxDate?: string;
+  /** The active term's name, for the Repeat switch's "End of term". */
+  termLabel?: string;
+  /** Dates that already have a chapter meeting (Repeat warns before doubling one). */
+  takenDates?: ReadonlySet<string>;
+  /** Agenda templates for a new meeting; null while loading. Omit when editing. */
+  templates?: AgendaTemplateDTO[] | null;
+  /** Preselect this template (from "Use for a new meeting"); else the default. */
+  initialTemplateId?: number | null;
+  onManageTemplates?: () => void;
+  onSubmit: (d: MeetingInput) => void | Promise<void>;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState<MeetingDraft>(initial);
+  // New meetings only: repeat weekly / every other week through the term.
+  const [repeatValue, setRepeatValue] = useState(REPEAT_OFF);
+  const repeat = resolveRepeat(repeatValue, form.when.date, maxDate);
+  const canRepeat = !editing && form.when.mode !== "legacy";
+  // The agenda: a template id, "" for blank, or null until the list has loaded.
+  const [agendaId, setAgendaId] = useState<number | "" | null>(null);
+  // The title follows the chosen template until the officer types their own.
+  const titleTouched = useRef(false);
+  const agendaList = templates ?? [];
+  const agenda = typeof agendaId === "number" ? agendaList.find(t => t.id === agendaId) ?? null : null;
+  const pickAgenda = useCallback((id: number | "") => {
+    setAgendaId(id);
+    if (titleTouched.current) return;
+    const t = typeof id === "number" ? (templates ?? []).find(x => x.id === id) : null;
+    setForm(f => ({ ...f, title: t ? t.name : initial.title }));
+  }, [templates, initial.title]);
+  useEffect(() => {
+    if (editing || !templates || agendaId !== null) return;
+    const wanted = templates.find(t => t.id === initialTemplateId) ?? templates.find(t => t.isDefault);
+    pickAgenda(wanted ? wanted.id : "");
+  }, [editing, templates, agendaId, initialTemplateId, pickAgenda]);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Guards the double-click: the submit handler is a network round-trip, so
+  // without this a second click fires a second POST and creates a second
+  // meeting. A ref, not just state, because two clicks in the same tick would
+  // both read the pre-render `false`.
+  const submitting = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scheduleError, setScheduleError] = useState("");
+
+  async function handleSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
+    if (submitting.current || !form.title.trim() || (canRepeat && !repeat.ok)) return;
+    const result = scheduleFromValue(form.when);
+    if ("error" in result) { setScheduleError(result.error); return; }
+    setScheduleError("");
+    const { schedule } = result;
+    submitting.current = true;
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        title: form.title.trim(),
+        location: form.location.trim(),
+        mandatory: form.mandatory,
+        schedule,
+        date: schedule ? scheduleDate(schedule) : form.when.date,
+        time: schedule ? scheduleTime(schedule) : form.when.legacyTime.trim() || null,
+        ...(editing ? {} : { agendaTemplateId: agenda?.id ?? null }),
+        ...(canRepeat && repeat.repeat ? { repeat: repeat.repeat } : {}),
+      });
+    } finally {
+      // On success the parent unmounts this form; on failure it stays open so
+      // the officer can retry, which needs the button live again.
+      submitting.current = false;
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="cef-root">
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        className="cef cef-sheet"
+        onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); formRef.current?.requestSubmit(); } }}
+      >
+        <div className="cef-head"><span className="cef-kicker">{editing ? "Edit meeting" : "New chapter meeting"}</span></div>
+        <label className="sr-only" htmlFor="meeting-title">Title</label>
+        <input id="meeting-title" className="cef-title" value={form.title} onChange={e => { titleTouched.current = true; setForm(f => ({ ...f, title: e.target.value })); }} placeholder="Meeting name" autoComplete="off" autoFocus required />
+        <div className="cef-rows">
+          <div className="cef-r">
+            {formIcon(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>)}
+            <div>
+              <ScheduleFields variant="inline" value={form.when} onChange={when => setForm(f => ({ ...f, when }))} minDate={minDate} maxDate={maxDate} />
+              {scheduleError ? <p role="alert" className="cef-hint sched-warn cef-r-note">{scheduleError}</p>
+                : <p className="cef-hint cef-r-note">Shows on the Timeline and in everyone&rsquo;s subscribed calendar.</p>}
+            </div>
+          </div>
+          {canRepeat && (
+            <RepeatFields
+              value={repeatValue}
+              onChange={setRepeatValue}
+              date={form.when.date}
+              termEnd={maxDate}
+              termLabel={termLabel}
+              takenDates={takenDates}
+              icon={formIcon(<><path d="M17 2l4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="M7 22l-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></>)}
+            />
+          )}
+          <div className="cef-r">
+            {formIcon(<><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></>)}
+            <div>
+              <label className="sr-only" htmlFor="meeting-location">Location</label>
+              <input id="meeting-location" className="cef-quiet" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Add location" />
+            </div>
+          </div>
+          <div className="cef-r">
+            {formIcon(<><path d="M9 11l2.5 2.5L16 9" /><rect x="3.5" y="3.5" width="17" height="17" rx="4" /></>)}
+            <label className="cef-req">
+              <span>
+                <span className="t">Required attendance</span>
+                <span className="s">{form.mandatory ? "Counts toward standing; excuses go to review." : "Optional: no roll is taken and it doesn’t touch anyone’s standing."}</span>
+              </span>
+              <span className="cef-sw">
+                <input type="checkbox" checked={form.mandatory} onChange={e => setForm(f => ({ ...f, mandatory: e.target.checked }))} />
+                <span className="track" aria-hidden />
+              </span>
+            </label>
+          </div>
+          {!editing && templates !== undefined && (
+            <div className="cef-r">
+              {formIcon(<><path d="M14 3H6a1 1 0 0 0-1 1v16h14V8l-5-5z" /><path d="M14 3v5h5M8 12h8M8 16h6" /></>)}
+              <div>
+                <div className="cef-agenda-head">
+                  <label className="t" htmlFor="meeting-agenda">Agenda</label>
+                  {onManageTemplates && <button type="button" className="cef-link" onClick={onManageTemplates}>{agendaList.length ? "Manage templates" : "Write a template"}</button>}
+                </div>
+                {templates === null ? (
+                  <p className="cef-hint cef-r-note">Loading templates…</p>
+                ) : agendaList.length === 0 ? (
+                  <p className="cef-hint cef-r-note">The notes start empty. Write your standing agenda once and every meeting can start from it.</p>
+                ) : (
+                  <>
+                    <select id="meeting-agenda" className="cef-input cef-tpl-select" value={agendaId ?? ""} onChange={e => pickAgenda(e.target.value ? Number(e.target.value) : "")}>
+                      {agendaList.map(t => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " ★ default" : ""}</option>)}
+                      <option value="">Blank — start the notes empty</option>
+                    </select>
+                    <p className="cef-hint cef-r-note">
+                      {agenda
+                        ? `${agenda.description ? `${agenda.description} ` : ""}${agendaSections(agenda.body).length} sections, copied into this meeting’s notes${agendaFieldsIn(agenda.body).length ? " — the date, time and location fill in from above" : ""}.`
+                        : "The notes start empty. Whoever takes minutes writes from scratch."}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="cef-foot">
+          <span className="cef-kbd"><kbd>⌘</kbd> <kbd>↵</kbd> to {editing ? "save" : "add"}</span>
+          <div className="cef-btns">
+            <button type="button" className="cef-btn ghost" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+            <button type="submit" className="cef-btn primary" disabled={isSubmitting || !form.title.trim() || (canRepeat && !repeat.ok)}>{isSubmitting ? "Saving…" : canRepeat ? repeatSubmitLabel(submitLabel, repeat) : submitLabel}</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── SummaryMarkdown ──────────────────────────────────────────────────────────
+// Renders a summary written before summaries were structured: **bold**, "- "
+// bullets, and bare bold-only lines as section headers.
+
+function renderInline(text: string, keyPrefix: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-[color:var(--ink)]">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+  });
+}
+
+function SummaryMarkdown({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let bullets: string[] = [];
+  const flushBullets = () => {
+    if (bullets.length === 0) return;
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} className="ml-5 list-disc space-y-1">
+        {bullets.map((b, i) => <li key={i}>{renderInline(b, `b-${blocks.length}-${i}`)}</li>)}
+      </ul>,
+    );
+    bullets = [];
+  };
+  lines.forEach((raw, i) => {
+    const line = raw.trimEnd();
+    if (!line.trim()) { flushBullets(); return; }
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    if (bullet) { bullets.push(bullet[1]); return; }
+    flushBullets();
+    const header = line.match(/^\*\*([^*]+)\*\*:?\s*$/);
+    if (header) {
+      blocks.push(<p key={`h-${i}`} className="mt-sum-h5">{header[1]}</p>);
+      return;
+    }
+    blocks.push(<p key={`p-${i}`} className="leading-relaxed">{renderInline(line, `p-${i}`)}</p>);
+  });
+  flushBullets();
+  return <div className="mt-sum-md space-y-2">{blocks}</div>;
+}
+
+// ─── SummaryCard (the minutes' margin column) ─────────────────────────────────
+
+function SummaryCard({
+  event,
+  running,
+  noteLines,
+  canEditNotes,
+  selfId,
+  onSummarize,
+  onToggle,
+  onHide,
+}: {
+  event: CalendarEvent;
+  running: boolean;
+  noteLines: number;
+  canEditNotes: boolean;
+  selfId: number | null;
+  onSummarize: () => void;
+  onToggle: (item: MeetingActionItem) => void;
+  /** Put the margin away; the pad takes the whole sheet again. */
+  onHide: () => void;
+}) {
+  const { brotherList } = useChapter();
+  const data = parseMeetingSummary(event.notesSummaryData);
+  const legacy = !data && (event.notesSummary ?? "").trim();
+  const chip = (label: string) => (
+    <span className="ai-chip"><span className="lg-only">AI</span><span className="pp-only"><PaperIcon name="spark" />{label}</span></span>
+  );
+  const hide = (
+    <button type="button" className="mt-sum-x" onClick={onHide} title="Hide the margin — the pad goes full width" aria-label="Hide summary">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+  );
+
+  if (running) {
+    return (
+      <div className="mt-sum">
+        <div className="hd">{chip("Summarizing")}{hide}</div>
+        <p className="mt-sum-run"><span className="spin" aria-hidden />Reading {noteLines} line{noteLines === 1 ? "" : "s"} of minutes for decisions and owners…</p>
+      </div>
+    );
+  }
+  if (!data && !legacy) {
+    return (
+      <div className="mt-sum empty">
+        <div className="hd">{chip("Summary")}{hide}</div>
+        <p>{hasNotes(event)
+          ? <>Not summarized yet. <b>Summarize</b> pulls out the decisions and who owes what.</>
+          : "Write the minutes, then Summarize pulls out the decisions and who owes what."}</p>
+      </div>
+    );
+  }
+
+  const stale = notesSummaryStale(event);
+  const today = todayStr();
+  const ownerName = (a: MeetingActionItem) => {
+    const b = a.brotherId != null ? brotherList.find(x => x.id === a.brotherId) : null;
+    return b ? b.name.split(" ")[0] : a.owner;
+  };
+  return (
+    <div className={`mt-sum${stale ? " stale" : ""}`}>
+      <div className="hd">
+        {chip("Summary")}
+        {event.notesSummaryAt && (
+          <span className="at">Generated {new Date(event.notesSummaryAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+        )}
+        {hide}
+      </div>
+      {stale && (
+        <p className="stl">Notes changed since — <button type="button" onClick={onSummarize}>Re-summarize</button></p>
+      )}
+      {legacy ? <SummaryMarkdown text={legacy} /> : data && (
+        <>
+          {data.gist && <p className="gist">{data.gist}</p>}
+          <h5>Decisions</h5>
+          {data.decisions.length
+            ? <ul className="dec">{data.decisions.map((d, i) => <li key={i}>{d}</li>)}</ul>
+            : <p className="none">None recorded.</p>}
+          <h5 className="acts-h">Action items</h5>
+          {data.actions.length ? (
+            <ul className="acts">
+              {data.actions.map(a => {
+                const late = !a.done && !!a.due && a.due < today;
+                const can = canEditNotes || (selfId != null && a.brotherId === selfId);
+                const who = ownerName(a);
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={`aitem${a.done ? " done" : ""}`}
+                      aria-pressed={a.done}
+                      disabled={!can}
+                      title={can ? (a.done ? "Mark not done" : "Mark done") : "Only an officer or the owner can tick this off"}
+                      onClick={() => onToggle(a)}
+                    >
+                      <span className="bx" aria-hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 13.2 9.4 18 19.5 6.4" /></svg></span>
+                      <span>
+                        <span className="tx">{a.text}</span>
+                        {(who || a.due) && (
+                          <small>
+                            {who ?? "Someone"}
+                            {a.due && <> · {late ? <span className="late">was due {dueLabel(a.due)}</span> : `by ${dueLabel(a.due)}`}</>}
+                          </small>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : <p className="none">None recorded.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── AttendanceCard (overlay margin column) ───────────────────────────────────
+
+function AttendanceCard({ event, refresh, canTake, onTake, onOpenMember }: {
+  event: CalendarEvent;
+  refresh: number;
+  canTake: boolean;
+  onTake: () => void;
+  onOpenMember: (id: number) => void;
+}) {
+  const { brotherList, currentUser, avatarRevision } = useChapter();
+  // undefined = still loading; null = the read failed.
+  const [detail, setDetail] = useState<AttendanceDetail | null | undefined>(undefined);
+  useEffect(() => {
+    if (!event.mandatory) return;
+    let live = true;
+    requestJson<AttendanceDetail>(`/api/attendance/${event.id}`)
+      .then(d => { if (live) setDetail(d); })
+      .catch(() => { if (live) setDetail(null); });
+    return () => { live = false; };
+  }, [event.id, event.mandatory, refresh]);
+
+  const groups: [string, "ok" | "gold" | "rose", { brotherId: number; brotherName: string; reason?: string | null }[]][] = detail
+    ? [["Present", "ok", detail.attended], ["Excused", "gold", detail.excused], ["Absent", "rose", detail.unexcused]]
+    : [];
+  const any = groups.some(g => g[2].length);
+  const over = isEventOver(event);
+  return (
+    <div className="mt-att">
+      <div className="hd">
+        <h5>Attendance</h5>
+        {canTake && event.mandatory && <button type="button" onClick={onTake}>{detail && detail.attended.length + detail.unexcused.length > 0 ? "Edit" : "Take"}</button>}
+      </div>
+      {!event.mandatory ? <p className="none">Optional meeting — no roll is taken.</p>
+        : detail === undefined ? <p className="none">Loading…</p>
+        : detail === null ? <p className="none">Couldn’t load attendance.</p>
+        : !any ? <p className="none">{over ? "No attendance recorded." : "Not taken yet."}</p>
+        : groups.map(([label, tone, people]) => people.length > 0 && (
+          <div key={label} className={`ev-att-group ${tone}`}>
+            <div className="gh">
+              <span className="d" style={{ background: `var(--${tone})` }} />
+              <span className="gl" style={{ color: `var(--${tone})` }}>{label}</span>
+              <span className="gc">{people.length}</span>
+            </div>
+            <div className="nms">
+              {people.map(p => {
+                const b = brotherList.find(x => x.id === p.brotherId);
+                return (
+                  <button key={p.brotherId} type="button" className="nm" title={p.reason ?? p.brotherName} onClick={() => onOpenMember(p.brotherId)}>
+                    {b && <span className="pp-only"><BrotherAvatar brother={b} selfId={currentUser?.id ?? null} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" /></span>}
+                    <span className="lg-only">{p.brotherName}</span>
+                    <span className="pp-only">{p.brotherName.split(" ")[0]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+// ─── Minutes export ───────────────────────────────────────────────────────────
+
+const escapeHtml = (t: string) => t.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+/** A plain printable page for the minutes: the markdown, set as a document. */
+function printMinutes(event: CalendarEvent, text: string) {
+  const w = window.open("", "_blank", "width=820,height=1000");
+  if (!w) return false;
+  const inline = (t: string) => escapeHtml(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?![*\w])/g, "$1<i>$2</i>");
+  const body = text.split("\n").map(line => {
+    const h = /^\s*#{1,3}(?:[ \t]+|(?=[^\s#\d]))(.*)$/.exec(line);
+    if (h) return `<h2>${inline(h[1])}</h2>`;
+    if (/^\s*-{3,}\s*$/.test(line)) return "<hr>";
+    const c = /^(?:[-*•][ \t]+)?\[( |x|X)\][ \t]?(.*)$/.exec(line);
+    if (c) return `<p class="li">${c[1] === " " ? "☐" : "☑"} ${inline(c[2])}</p>`;
+    const b = /^[-*•][ \t]+(.*)$/.exec(line);
+    if (b) return `<p class="li">• ${inline(b[1])}</p>`;
+    return line.trim() ? `<p>${inline(line)}</p>` : "";
+  }).join("\n");
+  const when = [fmtDateFull(event.date), formatEventTime(event.time, event.schedule), event.location].filter(Boolean).join(" · ");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(event.title)}</title><style>
+    body{font:15px/1.6 Georgia,serif;color:#222;max-width:680px;margin:48px auto;padding:0 24px}
+    h1{font-size:26px;margin:0 0 4px}.when{color:#666;font:13px system-ui,sans-serif;margin-bottom:28px}
+    h2{font-size:17px;margin:24px 0 6px}p{margin:4px 0}.li{padding-left:18px;text-indent:-14px}hr{border:0;border-top:1px dashed #bbb;margin:18px 0}
+  </style></head><body><h1>${escapeHtml(event.title)}</h1><div class="when">${escapeHtml(when)}</div>${body}</body></html>`);
+  w.document.close();
+  w.focus();
+  w.print();
+  return true;
+}
+
+/** "Started 7:00 · 0:38" while the meeting is on, else null. */
+function meetingClock(event: CalendarEvent, now: Date): string | null {
+  const parsed = event.schedule == null ? null : scheduleSchema.safeParse(event.schedule);
+  if (!parsed?.success || parsed.data.kind === "allDay") return null;
+  const start = new Date(parsed.data.start), end = endInstant(parsed.data);
+  if (now < start || now >= end) return null;
+  const mins = Math.floor((now.getTime() - start.getTime()) / 60_000);
+  return `Started ${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/, "")} · ${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
+}
+
+// ─── MeetingDetailOverlay (the minutes book) ──────────────────────────────────
+
+function MeetingDetailOverlay({
+  event,
+  notesDraft,
+  saveState,
+  summarizeState,
+  summarizeError,
+  attendanceRow,
+  attendanceRefresh,
+  onClose,
+  onNotesChange,
+  onEdit,
+  onDelete,
+  onSummarize,
+  onNotesSaved,
+  onToggleItem,
+  onTakeAttendance,
+  onOpenMember,
+  canEditNotes,
+  canManageEvents,
+  canTakeAttendance,
+  selfId,
+}: {
+  event: CalendarEvent;
+  notesDraft: string;
+  saveState: "idle" | "saving" | "saved" | "error";
+  summarizeState: "idle" | "running" | "error";
+  summarizeError: string | null;
+  attendanceRow: AttendanceSummaryRow | undefined;
+  attendanceRefresh: number;
+  onClose: () => void;
+  onNotesChange: (val: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onSummarize: () => void;
+  onNotesSaved: (value: NotesSnapshot) => void;
+  onToggleItem: (item: MeetingActionItem) => void;
+  onTakeAttendance: () => void;
+  onOpenMember: (id: number) => void;
+  canEditNotes: boolean;
+  canManageEvents: boolean;
+  canTakeAttendance: boolean;
+  selfId: number | null;
+}) {
+  const { brotherList } = useChapter();
+  const toast = useToast();
+  const editorRef = useRef<NotesEditorHandle>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const padRef = useRef<HTMLTextAreaElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [sharedStatus, setSharedStatus] = useState<NotesStatus>({ connection: "Connecting…", saving: "loading" });
+  const [sharedError, setSharedError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  // The pad has the whole sheet until Summarize (or the attendance chip) asks for the margin.
+  const [margin, setMargin] = useState(false);
+  const now = useNow(15_000);
+  const shared = !!event.notesCollaborationEnabled;
+  const sharedSave = sharedStatus.saving === "saved" ? "saved" : sharedStatus.saving === "error" ? "error" : "saving";
+  const slug = typeof window === "undefined" ? "" : orgSlugFromPath(window.location.pathname) ?? "";
+  useEffect(() => { if (sharedStatus.saving === "saved") setSavedAt(new Date()); }, [sharedStatus.saving]);
+
+  // Who the minutes can @mention: everyone on the roster, and every role someone holds.
+  const mentions = useMemo<MentionTarget[]>(() => {
+    const roster = [...brotherList].filter(b => b.name.trim()).sort((a, b) => a.name.localeCompare(b.name));
+    const people: MentionTarget[] = roster.map(b => {
+      const name = b.name.trim().replace(/\s+/g, " ");
+      return { kind: "person", name, label: name.split(" ")[0], initials: name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase(), tone: b.id % 6, sub: roleTitle(b) || "Member" };
+    });
+    const holders = new Map<string, string[]>();
+    for (const b of roster) for (const r of b.roles ?? []) holders.set(r.name, [...(holders.get(r.name) ?? []), b.name.trim().split(/\s+/)[0]]);
+    const roles: MentionTarget[] = [...holders].sort((a, b) => a[0].localeCompare(b[0])).map(([name, who]) => ({
+      kind: "role", name, label: name, initials: "", tone: 0,
+      sub: who.length === roster.length && who.length > 1 ? `All ${who.length} members` : who.length > 4 ? `${who.slice(0, 3).join(", ")} +${who.length - 3}` : who.join(", "),
+    }));
+    return [...people, ...roles];
+  }, [brotherList]);
+
+  const summary = parseMeetingSummary(event.notesSummaryData);
+  const hasSummary = !!summary || !!(event.notesSummary ?? "").trim();
+  const running = summarizeState === "running";
+  const summarize = async () => {
+    setSharedError(null);
+    setMargin(true);
+    try {
+      if (shared) {
+        if (!editorRef.current) throw new Error("Notes are still loading.");
+        await editorRef.current.flush();
+      }
+      onSummarize();
+    }
+    catch (error) { setSharedError(error instanceof Error ? error.message : "Save notes before summarizing."); }
+  };
+
+  const minutesText = () => (shared ? editorRef.current?.text() : null) ?? (shared ? event.description ?? "" : notesDraft);
+  const fileName = `${event.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "minutes"}-${event.date}.md`;
+  function exportAct(x: "copy" | "md" | "print") {
+    setMoreOpen(false);
+    const text = minutesText();
+    if (x === "copy") {
+      navigator.clipboard.writeText(text).then(() => toast.success("Minutes copied as text"), () => toast.error("Couldn’t reach the clipboard"));
+    } else if (x === "md") {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+      a.download = fileName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      toast.success(`Downloaded ${fileName}`);
+    } else if (!printMinutes(event, text)) toast.error("Allow pop-ups to print the minutes");
+  }
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = (e: MouseEvent) => { if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [moreOpen]);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = [...(panelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), summary, [contenteditable="true"], textarea, [tabindex="0"]') ?? [])].filter(el => el.offsetParent !== null);
+      const first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener("keydown", trap);
+    return () => { document.removeEventListener("keydown", trap); previous?.focus(); };
+  }, []);
+  useEffect(() => {
+    // Esc closes the open menu or popover first; the book only when nothing else is up.
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (moreOpen) { setMoreOpen(false); return; }
+      if (document.querySelector(".notes-pop")) return;
+      onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose, moreOpen]);
+  useEffect(() => {
+    if (shared) return;
+    const copy = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "c") { e.preventDefault(); exportAct("copy"); } };
+    document.addEventListener("keydown", copy);
+    return () => document.removeEventListener("keydown", copy);
+  });
+  // The legal pad grows with the minutes instead of scrolling inside itself.
+  useEffect(() => {
+    const t = padRef.current;
+    if (!t) return;
+    t.style.height = "auto";
+    t.style.height = `${Math.max(t.scrollHeight, window.innerHeight * 0.55)}px`;
+  }, [notesDraft]);
+
+  const time = formatEventTime(event.time, event.schedule);
+  const clockText = meetingClock(event, now);
+  const noteLines = notesDraft.split("\n").filter(l => l.trim()).length;
+  const canSummarize = !running && (shared ? sharedStatus.saving !== "loading" && sharedStatus.connection !== "Unavailable" : !!notesDraft.trim());
+  const attLabel = !event.mandatory ? "Optional — no roll"
+    : taken(attendanceRow) ? `${attendanceRow!.present} of ${attendanceRow!.eligible} present`
+    : canTakeAttendance ? "Take attendance" : "Attendance";
+  const itemCount = summary ? summary.decisions.length + summary.actions.length : 0;
+  const conn = sharedStatus.connection;
+  const live = conn === "Live" ? { cls: "on", label: "Live" }
+    : conn === "Offline" ? { cls: "off", label: "Offline" }
+    : conn === "Access unavailable" ? { cls: "off", label: "No access" }
+    : conn === "Live updates unavailable" ? { cls: "", label: "Not live" }
+    : conn === "Unavailable" ? { cls: "off", label: "Closed" }
+    : { cls: "", label: "Connecting" };
+  const savedText = sharedStatus.saving === "loading" || conn === "Unavailable" ? ""
+    : sharedStatus.saving === "error" ? "Not saved"
+    : sharedStatus.saving !== "saved" ? "Saving…"
+    : conn === "Offline" ? "On this device"
+    : savedAt ? `Saved · ${savedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Saved";
+  const icon = (d: React.ReactNode) => <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>;
+  const spark = (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
+    </svg>
+  );
+  const menuItem = (label: string, d: React.ReactNode, onClick: () => void, extra?: { danger?: boolean; kbd?: string }) => (
+    <button type="button" role="menuitem" className={extra?.danger ? "danger" : ""} onClick={onClick}>{icon(d)}{label}{extra?.kbd && <small>{extra.kbd}</small>}</button>
+  );
+
+  return (
+    <div className="dash mt-ov fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
+      <div className="mt-scrim absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" />
+
+      {/* Panel — stop propagation so clicks inside don't close */}
+      <div ref={panelRef} role="dialog" aria-modal="true" aria-label={event.title} className="mt-sheet relative flex w-full max-w-5xl flex-col bg-[color:var(--paper)]" onClick={e => e.stopPropagation()}>
+
+        {/* ── Bar ─────────────────────────────────────────────────────────── */}
+        <div className="mt-bar flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--paper)] px-4 sm:px-6">
+          <button onClick={onClose} className="mt-back flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink)]">
+            {icon(<path d="M15 19l-7-7 7-7" />)}
+            <span className="hidden sm:inline">Back</span>
+          </button>
+          <div className="mt-vr h-4 w-px bg-[rgba(var(--ink-rgb),0.1)]" />
+          <div className="mt-ttl flex min-w-0 flex-1 items-center gap-2">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--vio)]" />
+            <p className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{event.title}</p>
+          </div>
+          {shared && <span className={`mt-live ${live.cls}`} title={conn}><i /><span className="tx">{live.label}</span></span>}
+          {shared && <NotesCollaborators peers={collaborators} />}
+          <span className="mt-saved" aria-live="polite">{shared ? <span className={sharedStatus.saving === "error" ? "err" : ""}>{savedText}</span> : <SaveIndicator state={saveState} tone="dusk" />}</span>
+          <div className="flex items-center gap-1">
+            {hasSummary && !margin && !running ? (
+              <button onClick={() => setMargin(true)} title="Show the summary in the margin" className="mt-sumbtn ghost flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] sm:py-1.5">
+                {spark}<span className="hidden sm:inline">Summary</span>{summary && <span className="ct">{itemCount}</span>}
+              </button>
+            ) : (
+              <button
+                onClick={summarize}
+                disabled={!canSummarize}
+                title={!canSummarize && !running ? "Add notes first" : hasSummary ? "Run it again on the current minutes" : "Pull out decisions and action items"}
+                aria-label={hasSummary ? "Re-summarize notes" : "Summarize notes"}
+                className="mt-sumbtn flex items-center gap-1.5 rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--vio)] transition-colors hover:bg-[rgba(var(--vio-rgb),0.1)] hover:text-[color:var(--vio-hi)] disabled:cursor-not-allowed disabled:text-[color:var(--faint)] disabled:hover:bg-transparent sm:py-1.5"
+              >
+                {spark}
+                <span className="hidden sm:inline">{running ? "Summarizing…" : hasSummary ? "Re-summarize" : "Summarize"}</span>
+              </button>
+            )}
+            <div className="mt-more" ref={moreRef}>
+              <button onClick={() => setMoreOpen(o => !o)} aria-label="More" title="More" aria-haspopup="menu" aria-expanded={moreOpen} className={`mt-icon flex items-center rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink-soft)] sm:py-1.5${moreOpen ? " on" : ""}`}>
+                {icon(<><circle cx="5.5" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18.5" cy="12" r="1.3" /></>)}
+              </button>
+              {moreOpen && (
+                <div className="mt-menu" role="menu">
+                  {menuItem("Copy as text", <><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" /></>, () => exportAct("copy"), { kbd: "⌘⇧C" })}
+                  {menuItem("Download .md", <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />, () => exportAct("md"))}
+                  {menuItem("Print", <><path d="M7 9V3.5h10V9M7 17H5a2 2 0 01-2-2v-4a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2h-2" /><rect x="7" y="14" width="10" height="6.5" rx="1" /></>, () => exportAct("print"))}
+                  {canManageEvents && <>
+                    <hr />
+                    {menuItem("Edit meeting", <><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></>, () => { setMoreOpen(false); onEdit(); })}
+                    {menuItem("Delete meeting", <path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12.2A2 2 0 008.5 21h7a2 2 0 002-1.8L18.5 7M9.5 7V4.5a1 1 0 011-1h3a1 1 0 011 1V7" />, () => { setMoreOpen(false); onDelete(); }, { danger: true })}
+                  </>}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Meta strip ──────────────────────────────────────────────────── */}
+        <div className="mt-meta flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-[rgba(var(--ink-rgb),0.05)] bg-[rgba(var(--ink-rgb),0.02)] px-6 py-3 text-[12px] text-[color:var(--muted)]">
+          <span className="flex items-center gap-2"><PaperIcon name="cal" className="pp-ic pp-only" />{fmtDateFull(event.date)}</span>
+          {time && <span className="flex items-center gap-2"><PaperIcon name="clock" className="pp-ic pp-only" />{time}</span>}
+          {event.location && <span className="flex items-center gap-2"><PaperIcon name="pin" className="pp-ic pp-only" />{event.location}</span>}
+          <span className={`mt-req ${event.mandatory ? "on" : ""}`}>{event.mandatory ? "Required" : "Optional"}</span>
+          {/* The chip opens the margin, where the attendance card takes (or edits) the roll. */}
+          <button type="button" className={`mt-attchip${margin ? " on" : ""}`} aria-pressed={margin} onClick={() => setMargin(m => !m)} title={margin ? "Put the margin away" : "Show attendance in the margin"}>
+            <PaperIcon name="people" className="pp-ic pp-only" />{attLabel}
+          </button>
+          {clockText && <span className="mt-clock">{clockText.replace(/ · .*/, "")} · <b>{clockText.replace(/.* · /, "")}</b></span>}
+        </div>
+
+        {/* ── Body: the legal pad, and the margin column once it's asked for ── */}
+        <div className="mt-body flex-1 overflow-y-auto">
+          <div className="mt-grid" data-margin={margin ? "1" : "0"}>
+            <div className="mt-main">
+              {(summarizeError || sharedError) && <div className="mt-err">{summarizeError || sharedError}</div>}
+              {shared ? (
+                <div className="mt-pad shared">
+                  <CollaborativeNotesEditor
+                    key={event.id}
+                    ref={editorRef}
+                    eventId={event.id}
+                    slug={slug}
+                    onSaved={onNotesSaved}
+                    onState={setSharedStatus}
+                    onPeers={setCollaborators}
+                    mentions={mentions}
+                    fallback={event.description ?? ""}
+                    dateLabel={localDate(event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    fromAgenda={event.agendaTemplateId != null}
+                    onCopy={() => exportAct("copy")}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="mt-pad-h">
+                    <span className="lbl">Meeting minutes</span>
+                    {canEditNotes && <p className="hint">{event.notesInitialized ? "Shared editing is paused. These are the last saved minutes." : "Write action items as “- Dev to send the budget by Oct 10” and Summarize picks them up."}</p>}
+                  </div>
+                  <div className="mt-pad">
+                    {(!canEditNotes || !!event.notesInitialized) && notesDraft.trim() ? (
+                      // Nothing to type here, so show the minutes formatted — headings,
+                      // checklists, bullets — the way the Templates page reads an agenda.
+                      <div id="mt-notes" className="mt-pad-text mt-pad-read" role="document" aria-label="Meeting minutes">
+                        <AgendaBody body={notesDraft} />
+                      </div>
+                    ) : <>
+                    <label className="sr-only" htmlFor="mt-notes">Meeting minutes</label>
+                    <textarea
+                      id="mt-notes"
+                      ref={padRef}
+                      className="mt-pad-text"
+                      value={notesDraft}
+                      readOnly={!canEditNotes || !!event.notesInitialized}
+                      onChange={e => onNotesChange(e.target.value)}
+                      placeholder={canEditNotes ? "Start typing meeting minutes…" : "No minutes filed yet."}
+                      spellCheck
+                      autoFocus={canEditNotes && !hasNotes(event)}
+                    />
+                    </>}
+                  </div>
+                </>
+              )}
+            </div>
+            <aside className="mt-side" aria-label="Summary and attendance" inert={!margin}>
+              {(hasSummary || running) && (
+                <SummaryCard event={event} running={running} noteLines={noteLines} canEditNotes={canEditNotes} selfId={selfId} onSummarize={summarize} onToggle={onToggleItem} onHide={() => setMargin(false)} />
+              )}
+              <AttendanceCard event={event} refresh={attendanceRefresh} canTake={canTakeAttendance} onTake={onTakeAttendance} onOpenMember={onOpenMember} />
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+type PastFilter = "all" | "missing" | "low";
+
+export default function ChapterPage() {
+  const toast = useToast();
+  const router = useRouter();
+  const orgPath = useOrgPath();
+  const semester = useActiveSemester();
+  const { currentUser, can, brotherList, setBrotherList } = useChapter();
+  const v = useVocab();
+  const canAttendance = can("MANAGE_ATTENDANCE");
+  const canEvents = can("MANAGE_EVENTS");
+  const [sidebarOpen,   setSidebarOpen]   = useState(false);
+  const [events,        setEvents]        = useState<CalendarEvent[]>([]);
+  const [summary,       setSummary]       = useState<Record<number, AttendanceSummaryRow>>({});
+  const [live,          setLive]          = useState<LiveCheckIn>(null);
+  const [pending,       setPending]       = useState<PendingExcuse[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState<string | null>(null);
+  const [pageError,     setPageError]     = useState<string | null>(null);
+  const [deleteError,   setDeleteError]   = useState<string | null>(null);
+  const [selectedId,    setSelectedId]    = useState<number | null>(null);
+  const [notesDraft,    setNotesDraft]    = useState<Record<number, string>>({});
+  const [saveState,     setSaveState]     = useState<Record<number, "idle" | "saving" | "saved" | "error">>({});
+  const [showAddModal,  setShowAddModal]  = useState(false);
+  const [editTarget,    setEditTarget]    = useState<CalendarEvent | null>(null);
+  const [deleteTarget,  setDeleteTarget]  = useState<CalendarEvent | null>(null);
+  const [summarizeState, setSummarizeState] = useState<Record<number, "idle" | "running" | "error">>({});
+  const [summarizeError, setSummarizeError] = useState<Record<number, string | null>>({});
+  const [attendanceTarget, setAttendanceTarget] = useState<CalendarEvent | null>(null);
+  const [attendanceRefresh, setAttendanceRefresh] = useState(0);
+  const [filter,        setFilter]        = useState<PastFilter>("all");
+  const [freshId,       setFreshId]       = useState<number | null>(null);
+  const [spotlightId,   setSpotlightId]   = useState<number | null>(null);
+  const [agendaTemplates, setAgendaTemplates] = useState<AgendaTemplateDTO[] | null>(null);
+  const [addTemplateId, setAddTemplateId] = useState<number | null>(null);
+
+  const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const saveResetTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const savedValues = useRef<Record<number, string>>({});
+
+  // ── Fetch meetings + attendance summary ──────────────────────────────────────
+  const loadSummary = useCallback(() => {
+    requestJson<AttendanceSummaryRow[]>("/api/attendance/summary?category=chapter")
+      .then(rows => {
+        const map: Record<number, AttendanceSummaryRow> = {};
+        rows.forEach(r => { map[r.calendarEventId] = r; });
+        setSummary(map);
+      })
+      .catch(() => { /* counts are non-critical; ledger renders without them */ });
+  }, []);
+
+  useEffect(() => {
+    requestJson<CalendarEvent[]>("/api/calendar?category=chapter")
+      .then(meetings => {
+        setEvents(meetings);
+        meetings.forEach(e => { savedValues.current[e.id] = e.description ?? ""; });
+      })
+      .catch(() => setLoadError("Could not load meetings. Please refresh."))
+      .finally(() => setLoading(false));
+    loadSummary();
+    // An open check-in window takes over the On deck attendance block.
+    requestJson<LiveCheckIn>("/api/attendance/live").then(setLive).catch(() => { /* optional */ });
+  }, [loadSummary]);
+
+  // "Use for a new meeting" on the Templates page lands here with ?add=1. Read
+  // once from location (not useSearchParams, which would need a Suspense
+  // boundary) and dropped from the URL so a refresh doesn't reopen the form.
+  // Waits for the meetings: the form takes its defaults (usual weekday, time,
+  // room) once, on mount, from the list.
+  useEffect(() => {
+    if (!canEvents || loading) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("add") !== "1") return;
+    const tpl = Number(params.get("template"));
+    setAddTemplateId(Number.isInteger(tpl) && tpl > 0 ? tpl : null);
+    setShowAddModal(true);
+    params.delete("add");
+    params.delete("template");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+  }, [canEvents, loading]);
+
+  // Agenda templates for Add meeting. Officers only (the API is MANAGE_EVENTS);
+  // a failed load just means new meetings start blank.
+  useEffect(() => {
+    if (!canEvents) return;
+    requestJson<AgendaTemplateDTO[]>("/api/calendar/agenda-templates").then(setAgendaTemplates).catch(() => setAgendaTemplates([]));
+  }, [canEvents]);
+
+  // Officers see who's waiting on an excuse decision for the next meeting.
+  useEffect(() => {
+    if (!canAttendance) return;
+    requestJson<PendingExcuse[]>("/api/excuses?status=pending").then(setPending).catch(() => { /* optional */ });
+  }, [canAttendance]);
+
+  // Shared with the Dashboard's LogAttendanceForm flow — same endpoint, same
+  // brotherList refresh (attendance can affect dues/threshold-derived fields).
+  async function handleLogAttendance(attendedIds: number[], eventId: number) {
+    const updated = await requestJson<typeof brotherList>("/api/attendance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
+    });
+    setBrotherList(updated);
+    setAttendanceTarget(null);
+    setAttendanceRefresh(n => n + 1);
+    loadSummary();
+    toast.success(`Attendance saved — ${attendedIds.length} present.`);
+  }
+
+  // ── Cleanup pending timers on unmount ────────────────────────────────────────
+  useEffect(() => {
+    const t = timers.current;
+    const sr = saveResetTimers.current;
+    return () => {
+      Object.values(t).forEach(clearTimeout);
+      Object.values(sr).forEach(clearTimeout);
+    };
+  }, []);
+
+  // ── Autosave ─────────────────────────────────────────────────────────────────
+  const flushSave = useCallback(async (id: number, value: string) => {
+    if (value === savedValues.current[id]) return;
+    clearTimeout(timers.current[id]);
+    setSaveState(s => ({ ...s, [id]: "saving" }));
+    try {
+      const updated = await requestJson<CalendarEvent>(`/api/calendar/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: value }),
+      });
+      savedValues.current[id] = value;
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, description: value, notesUpdatedAt: updated.notesUpdatedAt ?? e.notesUpdatedAt, notesContentRevision: updated.notesContentRevision ?? e.notesContentRevision } : e));
+      setSaveState(s => ({ ...s, [id]: "saved" }));
+      clearTimeout(saveResetTimers.current[id]);
+      saveResetTimers.current[id] = setTimeout(() => setSaveState(s => ({ ...s, [id]: "idle" })), 2000);
+    } catch {
+      setSaveState(s => ({ ...s, [id]: "error" }));
+    }
+  }, []);
+
+  function handleNotesChange(id: number, value: string) {
+    setNotesDraft(d => ({ ...d, [id]: value }));
+    setSaveState(s => ({ ...s, [id]: "saving" }));
+    clearTimeout(timers.current[id]);
+    timers.current[id] = setTimeout(() => flushSave(id, value), 600);
+  }
+
+  // ── Open / close overlay ──────────────────────────────────────────────────────
+  function handleOpen(id: number) {
+    if (selectedId !== null && selectedId !== id) {
+      const pendingDraft = notesDraft[selectedId];
+      if (pendingDraft !== undefined) {
+        clearTimeout(timers.current[selectedId]);
+        flushSave(selectedId, pendingDraft);
+      }
+    }
+    setSelectedId(id);
+  }
+
+  const handleClose = useCallback(() => {
+    if (selectedId !== null) {
+      const pendingDraft = notesDraft[selectedId];
+      if (pendingDraft !== undefined) {
+        clearTimeout(timers.current[selectedId]);
+        flushSave(selectedId, pendingDraft);
+      }
+    }
+    setSelectedId(null);
+  }, [selectedId, notesDraft, flushSave]);
+
+  // ── Add meeting ───────────────────────────────────────────────────────────────
+  async function handleAdd(draft: MeetingInput) {
+    setPageError(null);
+    try {
+      const { series = [], ...created } = await requestJson<CalendarEvent & { series?: CalendarEvent[] }>("/api/calendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: draft.title,
+          schedule: draft.schedule,
+          date: draft.date,
+          time: draft.time,
+          location: draft.location || null,
+          category: "chapter",
+          mandatory: draft.mandatory,
+          description: "",
+          agendaTemplateId: draft.agendaTemplateId ?? null,
+          ...(draft.repeat ? { repeat: draft.repeat } : {}),
+        }),
+      });
+      // A templated meeting starts with its agenda as the notes (each repeat has its own copy).
+      for (const e of [created, ...series]) savedValues.current[e.id] = e.description ?? "";
+      setEvents(prev => [created, ...series, ...prev]);
+      setShowAddModal(false);
+      setAddTemplateId(null);
+      setFreshId(created.id);
+      loadSummary();
+      toast.success(series.length
+        ? `${series.length + 1} meetings added, ${fmtDate(created.date)} to ${fmtDate(series[series.length - 1].date)} — they’re on the Timeline too.`
+        : `Meeting added for ${fmtDate(created.date)} — it’s on the Timeline too.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create meeting.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
+  // ── Edit metadata ─────────────────────────────────────────────────────────────
+  async function handleEdit(draft: MeetingInput) {
+    if (!editTarget) return;
+    const id = editTarget.id;
+    setPageError(null);
+    try {
+      const updated = await requestJson<CalendarEvent>(`/api/calendar/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: draft.title,
+          schedule: draft.schedule,
+          date: draft.date,
+          time: draft.time,
+          location: draft.location || null,
+          mandatory: draft.mandatory,
+        }),
+      });
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, ...updated, description: e.description } : e));
+      setEditTarget(null);
+      loadSummary();
+      toast.success("Meeting updated.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update meeting.";
+      setPageError(message);
+      toast.error(message);
+    }
+  }
+
+  // ── Summarize notes via AI ───────────────────────────────────────────────────
+  async function handleSummarize(id: number) {
+    const pendingDraft = notesDraft[id];
+    if (pendingDraft !== undefined && pendingDraft !== savedValues.current[id]) {
+      clearTimeout(timers.current[id]);
+      await flushSave(id, pendingDraft);
+    }
+    setSummarizeError(s => ({ ...s, [id]: null }));
+    setSummarizeState(s => ({ ...s, [id]: "running" }));
+    try {
+      const res = await requestJson<{ id: number; notesSummary: string | null; notesSummaryData: unknown; notesSummaryAt: string | null; notesSummaryRevision: number | null; notesContentRevision: number }>(
+        "/api/ai/summarize-meeting",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        },
+      );
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, notesSummary: res.notesSummary, notesSummaryData: res.notesSummaryData, notesSummaryAt: res.notesSummaryAt, notesSummaryRevision: res.notesSummaryRevision, notesContentRevision: Math.max(e.notesContentRevision ?? 0, res.notesContentRevision) } : e));
+      setSummarizeState(s => ({ ...s, [id]: "idle" }));
+      const items = parseMeetingSummary(res.notesSummaryData)?.actions.length ?? 0;
+      toast.success(`Summary ready — ${items} action item${items === 1 ? "" : "s"}.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to summarize.";
+      setSummarizeState(s => ({ ...s, [id]: "error" }));
+      setSummarizeError(s => ({ ...s, [id]: message }));
+      toast.error(message);
+    }
+  }
+
+  // ── Tick an action item (optimistic) ─────────────────────────────────────────
+  async function handleToggleItem(id: number, item: MeetingActionItem) {
+    const patch = (fn: (d: MeetingSummaryData) => MeetingSummaryData) =>
+      setEvents(prev => prev.map(e => {
+        if (e.id !== id) return e;
+        const data = parseMeetingSummary(e.notesSummaryData);
+        return data ? { ...e, notesSummaryData: fn(data) } : e;
+      }));
+    const flip = (done: boolean) => (d: MeetingSummaryData) => ({ ...d, actions: d.actions.map(a => a.id === item.id ? { ...a, done } : a) });
+    patch(flip(!item.done));
+    try {
+      const data = await requestJson<MeetingSummaryData>(`/api/calendar/${id}/action-items`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id, done: !item.done }),
+      });
+      patch(() => data);
+    } catch (err) {
+      patch(flip(item.done));
+      toast.error(err instanceof Error ? err.message.replace(/^.*?: /, "") : "Couldn’t update that item.");
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────────
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    const titleAtDelete = deleteTarget.title;
+    setDeleteTarget(null);
+    setDeleteError(null);
+    try {
+      await requestJson<void>(`/api/calendar/${id}`, { method: "DELETE" });
+      setEvents(prev => prev.filter(e => e.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      setNotesDraft(d => { const c = { ...d }; delete c[id]; return c; });
+      setSaveState(s => { const c = { ...s }; delete c[id]; return c; });
+      clearTimeout(timers.current[id]);
+      clearTimeout(saveResetTimers.current[id]);
+      delete timers.current[id];
+      delete saveResetTimers.current[id];
+      delete savedValues.current[id];
+      toast.success(`Meeting "${titleAtDelete}" deleted.`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete meeting.";
+      setDeleteError(message);
+      toast.error(message);
+    }
+  }
+
+  const selectedEvent = selectedId !== null ? events.find(e => e.id === selectedId) ?? null : null;
+
+  // Next meeting = earliest chapter event that hasn't finished. Past = the ones
+  // that have, newest first. Later upcoming meetings live on the Timeline.
+  const today = todayStr();
+  const now = useNow();
+  const { nextMeeting, pastMeetings } = useMemo(() => {
+    const upcoming = events.filter(e => !isEventOver(e, now)).sort(compareEvents);
+    const past = events.filter(e => isEventOver(e, now)).sort((a, b) => compareEvents(b, a));
+    return { nextMeeting: upcoming[0] ?? null, pastMeetings: past };
+  }, [events, now]);
+
+  // This term's books, for the digest.
+  const term = useMemo(() => {
+    const inTerm = (e: CalendarEvent) => !semester || (e.date >= semester.startDate && e.date <= semester.endDate);
+    const held = pastMeetings.filter(inTerm);
+    const rows = held.map(e => summary[e.id]).filter(taken);
+    const present = rows.reduce((n, r) => n + r!.present, 0);
+    const eligible = rows.reduce((n, r) => n + r!.eligible, 0);
+    return {
+      held,
+      avg: eligible ? Math.round((present / eligible) * 100) : null,
+      missing: held.filter(e => !hasNotes(e)),
+    };
+  }, [pastMeetings, summary, semester]);
+
+  const missingAll = pastMeetings.filter(e => !hasNotes(e));
+  const lowAll = pastMeetings.filter(e => { const r = summary[e.id]; return taken(r) && r!.present / r!.eligible < LOW_TURNOUT; });
+  const shown = filter === "missing" ? missingAll : filter === "low" ? lowAll : pastMeetings;
+
+  const digest: React.ReactNode = events.length === 0
+    ? "No meetings on the calendar yet. Schedule the first one and this page becomes the chapter’s minute book: what was said, who was there, and who owes what."
+    : <>
+        {nextMeeting
+          ? <>Chapter meets <b>{whenPhrase(nextMeeting)}{startTimeOf(nextMeeting) ? ` at ${startTimeOf(nextMeeting)}` : ""}</b>{nextMeeting.location ? ` in ${nextMeeting.location}` : ""}. </>
+          : "Nothing is on deck. "}
+        {term.held.length
+          ? <>
+              <b>{term.held.length} meeting{term.held.length === 1 ? "" : "s"}</b> on the books this term
+              {term.avg != null && <>, turnout averaging <b>{term.avg}%</b></>}
+              {term.missing.length
+                ? term.missing.length <= 3
+                  ? <> — but <b>{andList(term.missing.map(e => fmtDate(e.date)))}</b> still {term.missing.length === 1 ? "has" : "have"} no minutes.</>
+                  : <> — but <b>{term.missing.length} of them</b> still have no minutes.</>
+                : ", every one with minutes."}
+            </>
+          : "This is the first one — its minutes start the book."}
+      </>;
+
+  const addDefaults = useMemo(() => nextMeetingDraft(events, semester, today), [events, semester, today]);
+  // No meetings at all yet: the page explains itself instead of showing an
+  // empty On deck and an empty ledger (see DayOne.tsx).
+  const dayOne = !loading && !loadError && events.length === 0;
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeSection="Chapter"
+        onNavClick={() => {}}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* ── Top bar (mobile/tablet only — hidden at lg+ where the sidebar is
+            static and "Add meeting" lives in the briefing below). ─────────────── */}
+        <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-[rgba(var(--ink-rgb),0.06)] bg-[color:var(--paper-2)] px-4 sm:px-6 lg:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[color:var(--muted)] hover:bg-[rgba(var(--ink-rgb),0.07)] lg:hidden"
+            aria-label="Open menu"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-semibold leading-tight text-[color:var(--ink)]">{v("Meetings")}</p>
+          </div>
+        </header>
+
+        {/* ── Error banners ───────────────────────────────────────────────────── */}
+        {pageError && (
+          <div className="flex items-center justify-between gap-3 border-b border-[rgba(var(--gold-rgb),0.2)] bg-[rgba(var(--gold-rgb),0.1)] px-5 py-2.5">
+            <p className="text-[12px] text-[color:var(--gold)]">{pageError}</p>
+            <button onClick={() => setPageError(null)} className="text-[color:var(--gold)] hover:text-[color:var(--ink)]" aria-label="Dismiss">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+        {deleteError && (
+          <div className="flex items-center justify-between gap-3 border-b border-[rgba(var(--rose-rgb),0.2)] bg-[rgba(var(--rose-rgb),0.1)] px-5 py-2.5">
+            <p className="text-[12px] text-[color:var(--rose)]">{deleteError}</p>
+            <button onClick={() => setDeleteError(null)} className="text-[color:var(--rose)] hover:text-[color:var(--ink)]" aria-label="Dismiss">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* ── Main ────────────────────────────────────────────────────────────── */}
+        <main className="page-ambient flex-1 overflow-y-auto">
+          <div className="dash dash-chapter" data-dashboard-theme="dusk">
+
+            {/* Briefing */}
+            <div className="briefing">
+              <div>
+                <p className="kicker">
+                  <span className="today">
+                    <span className="lg-only">{fmtDateFull(today)}</span>
+                    <span className="pp-only">{DOWS[localDate(today).getDay()]} · {fmtDate(today)}</span>
+                  </span>
+                  <span className="lg-only">&ensp;·&ensp;</span>Chapter Meetings
+                </p>
+                {dayOne ? <>
+                  <h1 className="greeting mt1-h">Every meeting, <em>written down</em>.</h1>
+                  <p className="mt1-sub">Add the meeting. While it happens, someone types the notes. Afterwards everyone can read what was decided, who came, and who owes what.</p>
+                </> : <>
+                  <h1 className="greeting">The <em>minutes</em>.</h1>
+                  <div className="digest">
+                    {!loading && (
+                      <span className="ai-chip">
+                        <span className="lg-only">AI</span>
+                        <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+                      </span>
+                    )}
+                    <p>{loading ? "" : digest}</p>
+                  </div>
+                </>}
+              </div>
+              <div className="ch-acts">
+                {canEvents && (
+                  <button className="mt-add-btn mt-tpl-btn" onClick={() => router.push(orgPath("/chapter/templates"))}>
+                    <PaperIcon name="sheet" />
+                    Templates
+                  </button>
+                )}
+                {canEvents && (
+                  <button className="mt-add-btn" onClick={() => setShowAddModal(true)}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                    Add meeting
+                  </button>
+                )}
+                {!dayOne && <button className="askbar pp-only" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "" } }))}>
+                  <PaperIcon name="spark" />Ask about past meetings<kbd>⌘K</kbd>
+                </button>}
+              </div>
+            </div>
+
+            {loading && <LoadingSpinner size="md" label="Loading meetings" className="py-24" tone="dusk" />}
+
+            {!loading && loadError && (
+              <div className="flex flex-col items-center gap-2 py-24 text-center">
+                <p className="text-[14px] text-[color:var(--rose)]">{loadError}</p>
+              </div>
+            )}
+
+            {dayOne && <MeetingsDayOne canManage={canEvents} known={currentUser != null} onAdd={() => setShowAddModal(true)} />}
+
+            {!loading && !loadError && !dayOne && (
+              <div className="mt-layout">
+                <div>
+                  {/* ── On deck ───────────────────────────────────────────────── */}
+                  <div className="sec-label">
+                    <h2>On deck</h2>
+                    <span className="rule" />
+                    <span className="cnt">{nextMeeting ? relativeWhen(nextMeeting.date) : "Nothing scheduled"}</span>
+                  </div>
+
+                  {nextMeeting ? (
+                    <OnDeckHero
+                      event={nextMeeting}
+                      summary={summary[nextMeeting.id]}
+                      live={live && live.event.id === nextMeeting.id && live.state !== "closed" ? live : null}
+                      pending={pending.filter(p => p.calendarEventId === nextMeeting.id)}
+                      canTakeAttendance={canAttendance}
+                      canEdit={canEvents}
+                      onTakeAttendance={() => setAttendanceTarget(nextMeeting)}
+                      onOpen={() => handleOpen(nextMeeting.id)}
+                      onEdit={() => setEditTarget(nextMeeting)}
+                      onReviewExcuses={() => router.push(orgPath("/timeline?review=1"))}
+                      onGoToCheckIn={() => router.push(orgPath("/"))}
+                    />
+                  ) : (
+                    <div className="ondeck empty">
+                      <span className="pp-tile pp-only pp-t-sky" aria-hidden><PaperIcon name="gavel" /></span>
+                      <div>
+                        <h3 className="pp-only">No chapter meeting on the calendar.</h3>
+                        <p>
+                          <span className="lg-only">No upcoming chapter meeting. Add one to start a fresh agenda.</span>
+                          <span className="pp-only">Add one and it lands here with a fresh page for minutes. Meetings are required by default, so attendance and excuses start counting.</span>
+                        </p>
+                        {canEvents && (
+                          <div className="actions" style={{ marginTop: 16 }}>
+                            <button className="btn-primary" onClick={() => setShowAddModal(true)}><PaperIcon name="plus" className="pp-ic pp-only" />Add meeting</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Past meetings ledger ─────────────────────────────── */}
+                  <div className="sec-label">
+                    <h2>Past meetings</h2>
+                    <span className="rule" />
+                    <span className="cnt">{pastMeetings.length} meeting{pastMeetings.length === 1 ? "" : "s"} · newest first</span>
+                  </div>
+
+                  {pastMeetings.length === 0 ? (
+                    <div className="ledger-list mt-ldg-empty">
+                      <div className="r-locked" style={{ padding: "22px 18px" }}>
+                        <span className="lg-only">No past meetings yet.</span>
+                        <span className="pp-only">Past meetings land here, newest first, each with its minutes and who showed up.</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-tabs" role="tablist" aria-label="Filter past meetings">
+                        {([["all", "All", pastMeetings.length], ["missing", "No minutes", missingAll.length], ["low", `Under ${LOW_TURNOUT * 100}%`, lowAll.length]] as const).map(([key, label, n]) => (
+                          <button key={key} role="tab" aria-selected={filter === key} className={filter === key ? "on" : ""} onClick={() => setFilter(key)}>
+                            {label} <span className="ct">{n}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="ledger-list">
+                        {shown.length === 0 && (
+                          <div className="r-locked" style={{ padding: "22px 18px" }}>{filter === "missing" ? "Every past meeting has minutes." : `No meeting dipped under ${LOW_TURNOUT * 100}%.`}</div>
+                        )}
+                        {shown.map(ev => {
+                          const dp = dateParts(ev.date);
+                          const preview = notesPreview(ev);
+                          const filed = hasNotes(ev);
+                          const row = summary[ev.id];
+                          const low = taken(row) && row!.present / row!.eligible < LOW_TURNOUT;
+                          const summarized = !!(ev.notesSummary ?? "").trim();
+                          return (
+                            <button key={ev.id} type="button" className={`led-row${filed ? "" : " missing"}${freshId === ev.id ? " fresh" : ""}`} onClick={() => handleOpen(ev.id)}>
+                              <div className="led-date">
+                                <div className="dow">{dp.dow}</div>
+                                <div className="dnum">{dp.dnum}</div>
+                                <div className="mon">{dp.mon}</div>
+                              </div>
+                              <div className="led-main">
+                                <div className="t">
+                                  <span className="vdot" />{ev.title}
+                                  {summarized && <span className="ai pp-only" title="Summarized"><PaperIcon name="spark" /></span>}
+                                  {!ev.mandatory && <span className="opt">Optional</span>}
+                                </div>
+                                {filed && preview ? (
+                                  <div className="sum">{preview}</div>
+                                ) : !filed ? (
+                                  <div className="sum empty">Minutes not filed — add notes before the next meeting.</div>
+                                ) : null}
+                              </div>
+                              <div className="led-stats">
+                                <span className={`tag ${filed ? "minutes" : "nominutes"}`}>{filed ? "Minutes" : "No minutes"}</span>
+                                <div className="stat">
+                                  <div className={`sv${taken(row) ? (low ? " lo" : "") : " none"}`}>
+                                    {taken(row) ? `${row!.present}/${row!.eligible}` : "—"}
+                                  </div>
+                                  <div className="sk">present</div>
+                                </div>
+                                <svg className="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 6l6 6-6 6" /></svg>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* ── Full-screen meeting detail overlay ─────────────────────────────────── */}
+      {selectedEvent && (
+        <MeetingDetailOverlay
+          key={selectedEvent.id}
+          canEditNotes={canEvents}
+          canManageEvents={canEvents}
+          canTakeAttendance={canAttendance}
+          selfId={currentUser?.id ?? null}
+          event={selectedEvent}
+          notesDraft={notesDraft[selectedEvent.id] ?? (selectedEvent.description ?? "")}
+          saveState={saveState[selectedEvent.id] ?? "idle"}
+          summarizeState={summarizeState[selectedEvent.id] ?? "idle"}
+          summarizeError={summarizeError[selectedEvent.id] ?? null}
+          attendanceRow={summary[selectedEvent.id]}
+          attendanceRefresh={attendanceRefresh}
+          onClose={handleClose}
+          onNotesChange={val => handleNotesChange(selectedEvent.id, val)}
+          onEdit={() => setEditTarget(selectedEvent)}
+          onDelete={() => setDeleteTarget(selectedEvent)}
+          onSummarize={() => handleSummarize(selectedEvent.id)}
+          onToggleItem={item => handleToggleItem(selectedEvent.id, item)}
+          onTakeAttendance={() => setAttendanceTarget(selectedEvent)}
+          onOpenMember={setSpotlightId}
+          onNotesSaved={value => setEvents(prev => prev.map(e => e.id === value.id ? { ...e, description: value.description, notesInitialized: true, notesUpdatedAt: value.notesUpdatedAt, notesContentRevision: Math.max(e.notesContentRevision ?? 0, value.notesContentRevision) } : e))}
+        />
+      )}
+
+      <MemberSpotlight
+        brotherId={spotlightId}
+        onNavigate={setSpotlightId}
+        onClose={() => setSpotlightId(null)}
+        onPayDues={() => router.push(orgPath("/treasury"))}
+        onLogServiceHours={() => router.push(orgPath("/service"))}
+      />
+
+      {/* Take attendance modal — same form Live Check-In's "Take attendance"
+          and the Dashboard's pick-event flow open (app/components/dashboard/forms.tsx). */}
+      {attendanceTarget && (
+        <Modal title="Log Attendance" tone="dusk" onClose={() => setAttendanceTarget(null)}>
+          <LogAttendanceForm event={attendanceTarget} bList={brotherList} onSubmit={handleLogAttendance} />
+        </Modal>
+      )}
+
+      {/* Add modal */}
+      {showAddModal && (
+        <Modal ariaLabel="New chapter meeting" hideHeader tone="dusk" maxWidthClass="max-w-[780px]" onClose={() => { setShowAddModal(false); setAddTemplateId(null); }}>
+          <MeetingForm
+            initial={addDefaults}
+            editing={false}
+            submitLabel="Add meeting"
+            minDate={semester?.startDate}
+            maxDate={semester?.endDate}
+            termLabel={semester?.label}
+            takenDates={new Set(events.map(e => e.date))}
+            templates={agendaTemplates}
+            initialTemplateId={addTemplateId}
+            onManageTemplates={() => router.push(orgPath("/chapter/templates"))}
+            onSubmit={handleAdd}
+            onClose={() => { setShowAddModal(false); setAddTemplateId(null); }}
+          />
+        </Modal>
+      )}
+
+      {/* Edit modal */}
+      {editTarget && (
+        <Modal ariaLabel="Edit meeting" hideHeader tone="dusk" maxWidthClass="max-w-[640px]" onClose={() => setEditTarget(null)}>
+          <MeetingForm
+            initial={{
+              title: editTarget.title,
+              when: initialSchedule(editTarget.schedule, { date: editTarget.date, time: editTarget.time, isNew: false }),
+              location: editTarget.location ?? "",
+              mandatory: editTarget.mandatory,
+            }}
+            editing
+            submitLabel="Save meeting"
+            minDate={semester?.startDate}
+            maxDate={semester?.endDate}
+            onSubmit={handleEdit}
+            onClose={() => setEditTarget(null)}
+          />
+        </Modal>
+      )}
+
+      {/* Delete confirm */}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete Meeting"
+          tone="dusk"
+          message={
+            <>
+              Delete <span className="font-semibold text-[color:var(--ink)]">&ldquo;{deleteTarget.title}&rdquo; on {fmtDate(deleteTarget.date)}</span>?
+              {" "}This will permanently remove the meeting, its minutes, attendance records, and excuse requests.
+            </>
+          }
+          confirmLabel="Delete"
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── OnDeckHero ───────────────────────────────────────────────────────────────
+
+function OnDeckHero({
+  event,
+  summary,
+  live,
+  pending,
+  canTakeAttendance,
+  canEdit,
+  onTakeAttendance,
+  onOpen,
+  onEdit,
+  onReviewExcuses,
+  onGoToCheckIn,
+}: {
+  event: CalendarEvent;
+  summary: AttendanceSummaryRow | undefined;
+  live: LiveCheckIn;
+  pending: PendingExcuse[];
+  canTakeAttendance: boolean;
+  canEdit: boolean;
+  onTakeAttendance: () => void;
+  onOpen: () => void;
+  onEdit: () => void;
+  onReviewExcuses: () => void;
+  onGoToCheckIn: () => void;
+}) {
+  const dp = dateParts(event.date);
+  const dt = localDate(event.date);
+  const isToday = daysFromToday(event.date) === 0;
+  const time = formatEventTime(event.time, event.schedule);
+  const wasTaken = taken(summary);
+  const present = summary?.present ?? 0;
+  const eligible = summary?.eligible ?? 0;
+  const excused = summary?.excused ?? 0;
+  const absent = Math.max(eligible - present, 0);
+  const pct = (n: number, of: number) => (of > 0 ? (n / of) * 100 : 0);
+
+  return (
+    <div className={`ondeck${isToday ? " live" : ""}`}>
+      <div className="od-cal pp-only" aria-hidden>
+        <span className="top">{DOWS[dt.getDay()]}</span>
+        <span className="n">{dt.getDate()}</span>
+        <span className="m">{MONTHS[dt.getMonth()]}</span>
+      </div>
+      <div className="od-body">
+        <div className="od-top">
+          <span className="pill">{isToday ? <><i className="dot pp-only" />{whenPhrase(event) === "tonight" ? "Tonight" : "Today"}</> : "Next meeting"}</span>
+          <span className="when">
+            <span className="lg-only">{dp.dow} · {fmtDate(event.date)}{time ? ` · ${time}` : ""}</span>
+            <span className="pp-only">{dp.dow} · {fmtDate(event.date)}{isToday ? "" : ` · ${relativeWhen(event.date).toLowerCase()}`}</span>
+          </span>
+        </div>
+        <h3>{event.title}</h3>
+        <p className="od-meta">
+          <span className="lg-only od-lg">
+            {event.location && <><span><b>{event.location}</b></span><span>·</span></>}
+            {event.mandatory ? <span><b>Mandatory</b> for all brothers</span> : <span><b>Optional</b> — no roll taken</span>}
+          </span>
+          {time && <span className="pp-only"><PaperIcon name="clock" />{time}</span>}
+          <span className="pp-only"><PaperIcon name="pin" />{event.location || "No location yet"}</span>
+          <span className="pp-only"><PaperIcon name="people" />{event.mandatory ? "Required for everyone" : "Optional"}</span>
+        </p>
+
+        <div className={`od-progress${!event.mandatory || (!live && !wasTaken) ? " none" : ""}`}>
+          {!event.mandatory ? (
+            <>
+              <div className="p-head"><span className="p-lbl">Attendance</span></div>
+              <p className="p-msg">Optional meeting — no roll is taken, and it doesn’t touch anyone’s standing.</p>
+            </>
+          ) : live ? (
+            <>
+              <div className="p-head">
+                <span className="p-lbl ok">Check-in open</span>
+                <span className="p-count"><b>{live.presentCount}</b> / {live.eligibleCount} here so far</span>
+              </div>
+              <div className="meter"><i className="fill-present" style={{ width: `${pct(live.presentCount, live.eligibleCount)}%` }} /></div>
+              <p className="p-msg">Anyone who hasn’t checked in when it closes is marked absent.</p>
+            </>
+          ) : wasTaken ? (
+            <>
+              <div className="p-head">
+                <span className="p-lbl">Attendance marked</span>
+                <span className="p-count"><b>{present}</b> / {eligible} present</span>
+              </div>
+              <div className="meter">
+                <i className="fill-present" style={{ width: `${pct(present, eligible)}%` }} />
+                <i className="fill-absent pp-only" style={{ width: `${pct(absent, eligible)}%` }} />
+              </div>
+              <div className="p-legend">
+                <span className="li"><span className="d" style={{ background: "var(--vio)" }} />Present {present}</span>
+                <span className="li"><span className="d" style={{ background: "var(--faint)" }} />{`Absent ${absent}`}</span>
+                {excused > 0 && <span className="li ex"><span className="d" style={{ background: "var(--gold)" }} />Excused {excused}</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="p-head">
+                <span className="p-lbl">Attendance not taken yet</span>
+                {(summary?.expected ?? 0) > 0 && <span className="p-count">{summary!.expected} expected</span>}
+              </div>
+              <p className="p-msg pp-only">{isToday ? "Mark who’s there once the meeting starts." : "Opens on the day. Excuses filed before then are already counted."}</p>
+            </>
+          )}
+        </div>
+
+        {pending.length > 0 && (
+          <button type="button" className="od-exc" onClick={onReviewExcuses}>
+            <PaperIcon name="flag" className="pp-ic pp-only" />
+            {pending.length} excuse{pending.length === 1 ? "" : "s"} waiting for review · {andList(pending.map(p => p.brotherName.split(" ")[0]))}
+            <PaperIcon name="arrow-r" className="pp-ic pp-only" />
+          </button>
+        )}
+
+        <div className="actions">
+          {event.mandatory && live && canTakeAttendance ? (
+            <button className="btn-primary" onClick={onGoToCheckIn}><PaperIcon name="people" className="pp-ic pp-only" />Go to check-in</button>
+          ) : event.mandatory && canTakeAttendance ? (
+            <button className="btn-primary" onClick={onTakeAttendance}>
+              <svg className="lg-only" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+              <PaperIcon name="check" className="pp-ic pp-only" />
+              {wasTaken ? "Edit attendance" : "Take attendance"}
+            </button>
+          ) : null}
+          <button className="btn-ghost" onClick={onOpen}>
+            <svg className="lg-only" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h10M4 18h7" /></svg>
+            <PaperIcon name="pencil" className="pp-ic pp-only" />
+            {hasNotes(event) ? "Open minutes" : "Start the minutes"}
+          </button>
+          {canEdit && <button className="btn-soft pp-only" onClick={onEdit}>Edit</button>}
+        </div>
+      </div>
+    </div>
+  );
+}

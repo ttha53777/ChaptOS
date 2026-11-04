@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { requestJson } from "../lib/api";
+import { orgSlugFromPath } from "@/lib/org-paths";
 
 export interface ActiveSemester {
   id: number;
@@ -41,7 +42,7 @@ export function invalidateSemesters() {
 
 function slugKey(): string {
   if (typeof window === "undefined") return "";
-  return window.location.pathname.split("/")[1] || "";
+  return orgSlugFromPath(window.location.pathname) ?? "";
 }
 
 function activeFrom(rows: SemesterRow[]): ActiveSemester | null {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { prismaPrivileged } from "@/lib/prisma-privileged";
 import { ACTIVE_ORG_COOKIE } from "@/lib/auth/require-user";
+import { fromLegacyOrgPath, isInsideOrg, orgHref } from "@/lib/org-paths";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -124,10 +125,14 @@ export async function GET(request: NextRequest) {
     // Prefer the original deep-link path if it was preserved AND lands inside
     // the org we resolved (so the cookie and URL agree). Otherwise the org
     // dashboard with the welcome toast.
-    if (safeNext && target && safeNext.startsWith(`/${target.organization.slug}`)) {
-      return redirectTo(`${origin}${safeNext}`);
+    if (safeNext && target) {
+      // A link from before orgs moved under /org (/<slug>/…) is still a deep
+      // link into this org — translate it rather than dropping it.
+      const slug = target.organization.slug;
+      const deepLink = fromLegacyOrgPath(safeNext, slug) ?? safeNext;
+      if (isInsideOrg(deepLink, slug)) return redirectTo(`${origin}${deepLink}`);
     }
-    const dest = target ? `/${target.organization.slug}?toast=welcome` : "/welcome";
+    const dest = target ? orgHref(target.organization.slug, "?toast=welcome") : "/welcome";
     return redirectTo(`${origin}${dest}`);
   }
 
@@ -153,7 +158,7 @@ export async function GET(request: NextRequest) {
     // This used to point at /pending-access, a name-match form that let anyone
     // matching an officer-typed roster row in with no review. Both the form and
     // the rows it matched are gone — every way in now goes through the queue.
-    return redirectTo(buildUrl(origin, `/${encodeURIComponent(orgSlug)}`, null));
+    return redirectTo(buildUrl(origin, orgHref(orgSlug), null));
   }
 
   // Unlinked and no org hint. If they came to create an org, return to the

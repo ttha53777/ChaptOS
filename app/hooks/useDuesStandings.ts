@@ -3,6 +3,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import type { DuesBoard, MemberDuesStanding } from "@/lib/api-types/dues";
 import { requestJson } from "../lib/api";
+import { orgSlugFromPath } from "@/lib/org-paths";
 
 /**
  * Where every member stands on dues — overdue and how late, owing but not yet
@@ -28,9 +29,9 @@ const emit = () => listeners.forEach(l => l());
 // own state, so it listens here instead of every writer having to know about it.
 const changeListeners = new Set<() => void>();
 
-/** The org in the URL (/<slug>/…): a member of two chapters must not see one's standings in the other. */
+/** The org in the URL (/org/<slug>/…): a member of two chapters must not see one's standings in the other. */
 function orgKey(): string {
-  return typeof window === "undefined" ? "" : window.location.pathname.split("/")[1] ?? "";
+  return typeof window === "undefined" ? "" : orgSlugFromPath(window.location.pathname) ?? "";
 }
 
 function load(key: string): Promise<void> {

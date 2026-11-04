@@ -30,6 +30,7 @@ import { countBillableMembers } from "@/lib/billing/seats";
 import { findLiveSubscription, flushPendingSeatSync, isMissingCustomer, reconcileSeats, refreshFromStripe, refreshIfStale, type SeatSyncResult } from "@/lib/billing/sync";
 import { BILLING_BANDS, SELF_SERVE_MAX, formatPrice, formatRange, tierForCount } from "@/lib/billing/tiers";
 import type { ChangePlanInput, OpenPortalInput, RequestQuoteInput, StartCheckoutInput } from "@/lib/validation/billing";
+import { orgHref } from "@/lib/org-paths";
 
 /**
  * Number of orgs one person must administer before we offer a group plan.
@@ -238,7 +239,7 @@ export async function startCheckout(
 
   customerId ??= await createCustomer(ctx, org);
 
-  const back = input.returnPath ?? `/${org.slug}/billing`;
+  const back = input.returnPath ?? orgHref(org.slug, "/billing");
   const session = await stripe().checkout.sessions.create({
     mode:     "subscription",
     customer: customerId,
@@ -314,7 +315,7 @@ export async function openPortal(
     throw new ValidationError("This organization has no billing account yet — start a subscription first.");
   }
 
-  const back = input.returnPath ?? `/${org?.slug ?? ""}/billing`;
+  const back = input.returnPath ?? (org ? orgHref(org.slug, "/billing") : "/");
   const session = await stripe().billingPortal.sessions.create({
     customer:   sub.stripeCustomerId,
     return_url: `${origin}${back}`,

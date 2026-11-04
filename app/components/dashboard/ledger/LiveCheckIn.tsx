@@ -8,7 +8,7 @@ import { formatEventTime } from "@/lib/event-time";
 import { landTicket } from "../ticket-flight";
 
 // No "use client" directive: ledger/* components inherit client-ness from
-// app/[slug]/page.tsx, which is itself "use client".
+// app/org/[slug]/page.tsx, which is itself "use client".
 
 /** "12 min ago" / "just now" — the window opened, not the event's own start. */
 function sinceLabel(iso: string, now: number): string {

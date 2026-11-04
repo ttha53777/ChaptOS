@@ -60,6 +60,7 @@ import type { Permission } from "@/lib/permissions";
 import { resolveLabel, type VocabKey } from "@/lib/vocab";
 import { ROOT_DOMAIN } from "@/lib/domains";
 import { suggestSlug } from "@/lib/slug-rules";
+import { ORG_ROUTE_PREFIX } from "@/lib/org-paths";
 
 /** Re-exported from lib/onboarding/draft (its new home, so the pure activity
     pickers can speak it too) — every existing importer reads it from here. */
@@ -711,6 +712,9 @@ export function gradIvory(name: string): string {
 
 /** The host shown in URL previews (chaptos.com/<slug>). */
 export const DISPLAY_HOST = ROOT_DOMAIN === "localhost" ? "chaptos.com" : ROOT_DOMAIN;
+
+/** Where an org's address starts in URL previews (chaptos.com/org/<slug>) — see lib/org-paths. */
+export const DISPLAY_ORG_BASE = `${DISPLAY_HOST}${ORG_ROUTE_PREFIX}`;
 
 /** Enabled workflows as a Set — what the perm-area gates consume. */
 export function wfSet(draft: Draft): ReadonlySet<WorkflowId> {

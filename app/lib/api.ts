@@ -1,20 +1,17 @@
-import { isDashboardRoute } from "./routes";
+import { orgSlugFromPath } from "@/lib/org-paths";
 
 /** Name of the header carrying the active org slug. Mirrors ORG_SLUG_HEADER server-side. */
 export const ORG_SLUG_HEADER = "x-org-slug";
 
 /**
- * The org slug from the current URL (/[slug]/...), or null outside an org route.
- * Only returns a slug on dashboard routes — platform paths like /welcome or
- * /login have reserved first segments that are not org slugs. Sent as a header
+ * The org slug from the current URL (/org/[slug]/...), or null outside an org
+ * route. Sent as a header
  * so the API resolves the org the user is *viewing*, independent of the
  * (possibly lagging) active_org cookie — see require-user.ts.
  */
 export function currentOrgSlug(): string | null {
   if (typeof window === "undefined") return null;
-  const pathname = window.location.pathname;
-  if (!isDashboardRoute(pathname)) return null;
-  return pathname.split("/")[1] || null;
+  return orgSlugFromPath(window.location.pathname);
 }
 
 /** Merge the x-org-slug header into existing init headers without clobbering them. */

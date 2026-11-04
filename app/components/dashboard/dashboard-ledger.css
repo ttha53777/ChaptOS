@@ -2,7 +2,7 @@
    Operations dashboard — "Chapter Ledger" redesign
    Ported from _design/Dashboard Redesign.html. Scoped under `.dash` so none of
    these tokens or component classes touch the sidebar, the cold drawers/modals,
-   the mobile view, or any other workflow page. Imported once by app/[slug]/page.tsx
+   the mobile view, or any other workflow page. Imported once by app/org/[slug]/page.tsx
    (mirroring how LandingPage.tsx imports landing.css under `.lp`).
 
    ISOLATION RULE: every selector in this file must begin with `.dash` (or the

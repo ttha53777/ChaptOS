@@ -16,7 +16,7 @@ import type { Draft } from "@/lib/onboarding/draft";
 import { BUILTIN_METRIC_IDS, BUILTIN_METRIC_LABEL } from "@/lib/onboarding/kinds";
 import { activeAreas, areaState } from "@/lib/onboarding/perm-areas";
 import { TERM_PERIOD_VOCAB } from "@/lib/onboarding/terms";
-import { DISPLAY_HOST, draftEventTypes, draftSlug, draftVocab, wfSet } from "./flow-state";
+import { DISPLAY_ORG_BASE, draftEventTypes, draftSlug, draftVocab, wfSet } from "./flow-state";
 import { Mark } from "./Mark";
 import { Ic, pageOn, pageRows, plural, seatTone, todayLong } from "./paper";
 
@@ -132,7 +132,7 @@ export function Charter({
           <div>
             <b>{name || <span className="ph">Your org</span>}</b>
             <small>
-              {DISPLAY_HOST}/{slug || "…"}
+              {DISPLAY_ORG_BASE}/{slug || "…"}
             </small>
           </div>
         </div>
@@ -247,7 +247,7 @@ export function Charter({
         <div className={`stamp${stamp === "slam" ? " slam" : ""}`} aria-hidden="true">
           <b>Chartered</b>
           <small>
-            {DISPLAY_HOST}/{slug}
+            {DISPLAY_ORG_BASE}/{slug}
           </small>
           <small>{todayLong().replace(",", " ·")}</small>
         </div>

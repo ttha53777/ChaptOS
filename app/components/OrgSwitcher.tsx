@@ -5,6 +5,7 @@ import { orgInitials } from "@/lib/org-initials";
 import { useChapter } from "../context/ChapterContext";
 import { SvgIcon } from "./SvgIcon";
 import { PaperIcon } from "./paper/PaperIcon";
+import { orgHref } from "@/lib/org-paths";
 
 const ICON_CHEV_UP_DOWN = "M8 9l4-4 4 4m0 6l-4 4-4-4";
 const ICON_CHECK = "M5 13l4 4L19 7";
@@ -90,7 +91,7 @@ export function OrgSwitcher({ termLabel }: { termLabel: string }) {
                   aria-current={active ? "true" : undefined}
                   onClick={() => {
                     setOpen(false);
-                    if (!active) window.location.assign(`/${m.orgSlug}`);
+                    if (!active) window.location.assign(orgHref(m.orgSlug));
                   }}
                 >
                   <OrgLogo name={m.orgName} logoUrl={m.orgLogoUrl} small />

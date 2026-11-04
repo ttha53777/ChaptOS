@@ -111,19 +111,19 @@ describe("allowlisted projection and serialization", () => {
         .replace(/\r\n /g, "").split("\r\n").find(l => l.startsWith("DESCRIPTION:"));
     const required = calendarProjection({ ...event, mandatory: true, description: "SECRET NOTES", notesSummary: "SECRET SUMMARY" } as typeof event)!;
     expect(required.mandatory).toBe(true);
-    expect(description(required)).toBe("DESCRIPTION:Required · attendance is taken\\nOpen in ChaptOS: https://example.com/org/timeline?event=5");
+    expect(description(required)).toBe("DESCRIPTION:Required · attendance is taken\\nOpen in ChaptOS: https://example.com/org/org/timeline?event=5");
     // Optional events omit the key entirely, so rows published before it existed keep their hash.
     expect(calendarProjection(event)).not.toHaveProperty("mandatory");
-    expect(description(calendarProjection(event)!)).toBe("DESCRIPTION:Open in ChaptOS: https://example.com/org/timeline?event=5");
+    expect(description(calendarProjection(event)!)).toBe("DESCRIPTION:Open in ChaptOS: https://example.com/org/org/timeline?event=5");
     expect(description(calendarProjection({ ...event, mandatory: true, time: "after dinner" })!))
-      .toBe("DESCRIPTION:Required · attendance is taken\\nTime to be confirmed in ChaptOS\\nOpen in ChaptOS: https://example.com/org/timeline?event=5");
+      .toBe("DESCRIPTION:Required · attendance is taken\\nTime to be confirmed in ChaptOS\\nOpen in ChaptOS: https://example.com/org/org/timeline?event=5");
     // The stored worker URL wins, and URL is still emitted alongside.
     const stored = { ...calendarProjection(event)!, url: "https://app.test/org/timeline?event=5" };
     const body = renderCalendar("Org", "org", [item({ published: stored as never })], "https://example.com", now).body.replace(/\r\n /g, "");
     expect(body).toContain("DESCRIPTION:Open in ChaptOS: https://app.test/org/timeline?event=5");
     expect(body).toContain("URL;VALUE=URI:https://app.test/org/timeline?event=5");
     const task = taskProjection({ title: "Apply", dueDate: "2026-10-02", status: "open" })!;
-    expect(description(task, { sourceType: "task", sourceId: 9 })).toBe("DESCRIPTION:Open in ChaptOS: https://example.com/org/tasks?task=9");
+    expect(description(task, { sourceType: "task", sourceId: 9 })).toBe("DESCRIPTION:Open in ChaptOS: https://example.com/org/org/tasks?task=9");
   });
   it("retains cancellations through the later retention boundary and excludes expired past entries", () => {
     const published = calendarProjection(event)!;
@@ -137,7 +137,7 @@ describe("allowlisted projection and serialization", () => {
 });
 describe("single-event copies (Add this event)", () => {
   const timed = calendarProjection({ ...event, location: "Room 1", schedule: { kind: "timed", start: "2026-10-01T23:00:00Z", end: "2026-10-02T02:00:00Z", timeZone: "America/New_York" } })!;
-  const link = "https://example.com/org/timeline?event=5";
+  const link = "https://example.com/org/org/timeline?event=5";
   const vevent = (body: string) => body.replace(/\r\n /g, "").split("\r\n").filter(l => /^(DTSTART|DTEND|SUMMARY|LOCATION|CATEGORIES|TRANSP|DESCRIPTION)[:;]/.test(l)).sort();
   it("carries exactly the feed's published fields, under its own stable UID", () => {
     for (const value of [calendarProjection(event)!, timed, calendarProjection({ ...event, time: "after dinner" })!]) {

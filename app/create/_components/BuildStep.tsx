@@ -23,10 +23,11 @@ import { ORG_SLUG_HEADER } from "@/app/lib/api";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { TERMS_VERSION } from "@/lib/terms";
 import { Charter } from "./Charter";
-import { DISPLAY_HOST, clearStoredDraft } from "./flow-state";
+import { DISPLAY_ORG_BASE, clearStoredDraft } from "./flow-state";
 import { Mark } from "./Mark";
 import { Ic, initials, orgName } from "./paper";
 import type { CreateSession } from "./useSession";
+import { orgHref } from "@/lib/org-paths";
 
 const FREE_BAND = BILLING_BANDS[0]!;
 const FIRST_PAID = BILLING_BANDS.find(b => (b.priceCents ?? 0) > 0) ?? BILLING_BANDS[1]!;
@@ -131,7 +132,7 @@ export function BuildStep({
     setStamp(false);
     const seatLine = draft.seats.map((s, i) => `${s.title}${i === 0 ? " (you)" : ""}`).join(", ");
     const all = [
-      `reserving ${DISPLAY_HOST}/${input.slug}`,
+      `reserving ${DISPLAY_ORG_BASE}/${input.slug}`,
       "creating your workspace + config",
       `starting ${draft.term?.label ?? "your first term"} — active`,
       `seeding roles — ${seatLine}`,
@@ -190,7 +191,7 @@ export function BuildStep({
           // storage unavailable — the app falls back to its default look
         }
         timers.current.push(
-          setTimeout(() => window.location.assign(slug ? `/${slug}/onboarding` : "/"), STAMP_HOLD_MS),
+          setTimeout(() => window.location.assign(slug ? orgHref(slug, "/onboarding") : "/"), STAMP_HOLD_MS),
         );
         return;
       }
@@ -199,7 +200,7 @@ export function BuildStep({
       if (res.status === 409) {
         fail(0);
         timers.current.push(
-          setTimeout(() => onSlugRejected(`${DISPLAY_HOST}/${input.slug} was claimed while you were signing in — pick another and we’ll pick up right where you were.`), 900),
+          setTimeout(() => onSlugRejected(`${DISPLAY_ORG_BASE}/${input.slug} was claimed while you were signing in — pick another and we’ll pick up right where you were.`), 900),
         );
         return;
       }
@@ -218,7 +219,7 @@ export function BuildStep({
         const onSlug = issues.some(i => Array.isArray(i.path) && i.path[0] === "slug");
         onSlugRejected(
           onSlug
-            ? `${DISPLAY_HOST}/${input.slug} isn’t a usable web address — pick another.`
+            ? `${DISPLAY_ORG_BASE}/${input.slug} isn’t a usable web address — pick another.`
             : "Something on the charter didn’t pass our checks — have a look and try again.",
         );
         return;

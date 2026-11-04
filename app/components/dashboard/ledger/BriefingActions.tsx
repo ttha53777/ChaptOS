@@ -6,7 +6,7 @@ import { PaperIcon } from "../../paper/PaperIcon";
  * The dashboard's primary action bar, in the warm "Chapter Ledger" (dusk) idiom.
  *
  * These controls used to live in the page's frosted top toolbar (the cold-slate
- * <header> in app/[slug]/page.tsx). With the toolbar removed at md+, they fold
+ * <header> in app/org/[slug]/page.tsx). With the toolbar removed at md+, they fold
  * into the briefing so the serif greeting becomes the page's command center:
  * "who you are → what's happening → what you can do" reads as one masthead block.
  *

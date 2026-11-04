@@ -4,7 +4,7 @@ import { formatEventTime } from "@/lib/event-time";
 import { PaperIcon } from "../../paper/PaperIcon";
 
 // No "use client" directive: ledger/* components inherit client-ness from
-// app/[slug]/page.tsx, which is itself "use client".
+// app/org/[slug]/page.tsx, which is itself "use client".
 
 /**
  * "Open check-in for…" in the paper look — the mock's ci-pick sheet

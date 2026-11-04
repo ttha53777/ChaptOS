@@ -1,6 +1,6 @@
 /**
  * Headless-browser screenshotter for visually inspecting the running app —
- * including authenticated /[slug]/* pages — without a real Supabase session.
+ * including authenticated /org/[slug]/* pages — without a real Supabase session.
  *
  * How it works:
  *   1. Picks an org-admin Brother from the dev DB (so every page renders).
@@ -16,7 +16,7 @@
  *
  * Usage:
  *   npm run screenshot                       # default route list
- *   npm run screenshot -- /lpe /lpe/timeline # specific routes
+ *   npm run screenshot -- /org/lpe /org/lpe/timeline # specific routes
  */
 import { config } from "dotenv";
 config({ path: ".env.local" });
@@ -35,10 +35,10 @@ const ORG_SLUG = process.env.SCREENSHOT_ORG_SLUG ?? "lpe";
 const OUT_DIR = resolve(process.cwd(), "_screenshots");
 
 const DEFAULT_ROUTES = [
-  `/${ORG_SLUG}`,
-  `/${ORG_SLUG}/timeline`,
-  `/${ORG_SLUG}/brothers`,
-  `/${ORG_SLUG}/settings`,
+  `/org/${ORG_SLUG}`,
+  `/org/${ORG_SLUG}/timeline`,
+  `/org/${ORG_SLUG}/brothers`,
+  `/org/${ORG_SLUG}/settings`,
 ];
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });

@@ -24,7 +24,7 @@ async function main() {
     import React from 'react'; import {createRoot} from 'react-dom/client';
     import {JoinClient} from '${root}/app/join/[token]/JoinClient';
     import {JoinRequestsPanel} from '${root}/app/components/dashboard/JoinRequestsPanel';
-    import {InvitationsSection} from '${root}/app/[slug]/settings/sections/InvitationsSection';
+    import {InvitationsSection} from '${root}/app/org/[slug]/settings/sections/InvitationsSection';
     const params = new URLSearchParams(location.search); const mode=params.get('view');
     const status = m => { document.getElementById('notice').textContent = m; };
     createRoot(document.getElementById('root')).render(mode === 'queue'
@@ -41,7 +41,7 @@ async function main() {
     } }], alias: { "@": root },
   });
   const css = await postcss([tailwind({ base: root })]).process(await readFile("app/globals.css", "utf8"), { from: resolve("app/globals.css") });
-  await writeFile(join(temp, "main.css"), css.css + await readFile("app/components/dashboard/dashboard-ledger.css", "utf8") + await readFile("app/components/dashboard/brotherhood-ledger.css", "utf8") + await readFile("app/[slug]/settings/settings-ledger.css", "utf8"));
+  await writeFile(join(temp, "main.css"), css.css + await readFile("app/components/dashboard/dashboard-ledger.css", "utf8") + await readFile("app/components/dashboard/brotherhood-ledger.css", "utf8") + await readFile("app/org/[slug]/settings/settings-ledger.css", "utf8"));
   const server = createServer(async (req, res) => {
     if (req.url === "/main.js" || req.url === "/main.css") {
       res.setHeader("Content-Type", req.url.endsWith("css") ? "text/css" : "text/javascript");

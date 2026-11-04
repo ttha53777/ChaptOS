@@ -9,6 +9,7 @@ import { requestJson, apiErrorMessage } from "../lib/api";
 import type { LiveCheckIn } from "@/lib/services/attendance-service";
 import "./dashboard/dashboard-ledger.css";
 import "./live-checkin-bar.css";
+import { orgHref } from "@/lib/org-paths";
 
 /**
  * LiveCheckInBar — the check-in window, following a member off the dashboard.
@@ -79,7 +80,7 @@ export function LiveCheckInBar() {
   // The dashboard already renders the full band directly under the briefing.
   // Two check-in surfaces stacked on one page reads as a bug, so the bar yields
   // there — this is the ONE place the big one is guaranteed to be.
-  const onDashboardHome = !!slug && pathname === `/${slug}`;
+  const onDashboardHome = !!slug && pathname === orgHref(slug);
 
   const state = data?.state;
   const actionable =
@@ -152,7 +153,7 @@ export function LiveCheckInBar() {
           <span className="lcb-sep">·</span>
           {/* The title is the way back to the full band — the tally, the excuse
               link and the officer controls all live there. */}
-          <a className="lcb-title" href={slug ? `/${slug}` : "#"}>{data.event.title}</a>
+          <a className="lcb-title" href={slug ? orgHref(slug) : "#"}>{data.event.title}</a>
         </p>
 
         {error && <span className="lcb-err" role="alert">{error}</span>}

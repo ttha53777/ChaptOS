@@ -16,7 +16,7 @@ it("shows the signed-in email when there is no linked membership", async () => {
 });
 it("routes a member to their organization before rendering", async () => {
   mocks.requireUser.mockResolvedValue({ orgId: 2, memberships: [{ organizationId: 2, orgSlug: "beta" }] });
-  await expect(WelcomePage({ searchParams: Promise.resolve({}) })).rejects.toThrow("redirect:/beta");
+  await expect(WelcomePage({ searchParams: Promise.resolve({}) })).rejects.toThrow("redirect:/org/beta");
 });
 it.each([{ new: "1" }, { requests: "1" }])("preserves an intentional welcome visit: %j", async params => {
   mocks.requireUser.mockResolvedValue({ email: "member@example.com", orgId: 2, memberships: [{ organizationId: 2, orgSlug: "beta" }] });

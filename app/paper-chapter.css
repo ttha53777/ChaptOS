@@ -1,4 +1,4 @@
-/* ── Paper aesthetic: Chapter (app/[slug]/chapter) ──────────────────────────────
+/* ── Paper aesthetic: Chapter (app/org/[slug]/chapter) ──────────────────────────────
    The #chapter page of _design/Dashboard Paper Mock.html on the real meetings
    page. Same contract as paper-aesthetic.css: everything hangs off
    html[data-aesthetic="paper"], which also out-specifies meetings-ledger.css

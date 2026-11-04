@@ -3,6 +3,7 @@ import { feedOrigin } from "./config";
 import { db } from "@/lib/db";
 import { settleRequestedValidation } from "./validation";
 import { calendarProjection, taskProjection, contentHash, cancellationRetention, type PublishedItem } from "./projection";
+import { orgHref } from "@/lib/org-paths";
 
 /** Same lock order for every worker. Read current rows AFTER locking work;
  * source transactions blocked on this slot enqueue a newer version on commit.
@@ -34,7 +35,7 @@ export async function refreshCalendarFeed(orgId: number, reconcile = false): Pro
         if (published) current.set(`task:${row.id}`, { sourceType: "task", sourceId: row.id, published });
       }
       const origin = feedOrigin();
-      for (const next of current.values()) next.published.url = `${origin}/${encodeURIComponent(org.slug)}/${next.sourceType === "task" ? "tasks" : "timeline"}?${next.sourceType === "task" ? "task" : "event"}=${next.sourceId}`;
+      for (const next of current.values()) next.published.url = `${origin}${orgHref(org.slug, next.sourceType === "task" ? "/tasks" : "/timeline")}?${next.sourceType === "task" ? "task" : "event"}=${next.sourceId}`;
       const now = new Date();
       for (const old of previous) {
         const key = `${old.sourceType}:${old.sourceId}`;

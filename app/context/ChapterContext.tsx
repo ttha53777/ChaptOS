@@ -37,6 +37,7 @@ function normalizeCurrentUser(me: CurrentUser): CurrentUser {
 // MembershipSummary stay importable from here for existing callers.
 export type { TransactionCategory, MembershipSummary } from "@/lib/api-types";
 import type { TreasuryData, TransactionCategory, MembershipSummary, DashboardLayout, TermsStatus } from "@/lib/api-types";
+import { orgSubpath } from "@/lib/org-paths";
 
 interface CurrentUserRole {
   id: number;
@@ -246,7 +247,7 @@ const SECTIONS_BY_PAGE: Record<string, readonly DataSection[]> = {
  */
 function sectionsForPath(pathname: string | null): readonly DataSection[] {
   if (!pathname || !isDashboardRoute(pathname)) return [];
-  const segment = pathname.split("/")[2] ?? "";
+  const segment = orgSubpath(pathname).split("/")[1] ?? "";
   const page = SECTIONS_BY_PAGE[segment];
   if (!page) return ALL_DATA_SECTIONS;
   return [...new Set([...ALWAYS_SECTIONS, ...page])];

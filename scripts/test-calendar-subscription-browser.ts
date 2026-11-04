@@ -36,7 +36,7 @@ import {CalendarEventForm} from '${root}/app/components/timeline/CalendarEventFo
 import {CalendarInviteCard, AddThisEvent} from '${root}/app/components/timeline/CalendarInvite';
 import '${root}/app/components/dashboard/dashboard-ledger.css';
 import '${root}/app/components/dashboard/timeline-ledger.css';
-import '${root}/app/[slug]/settings/settings-ledger.css';
+import '${root}/app/org/[slug]/settings/settings-ledger.css';
 window.actions=[];window.submitted=null;window.subscribed=0;
 // ?a3: the dashboard invite, the event sheet's one-off links and the admin message, inside the real .dash styles.
 createRoot(document.getElementById('root')).render(location.search==='?setup'

@@ -16,7 +16,7 @@ import { TERM_MODELS, TERM_MODEL_LABEL, suggestTerms } from "@/lib/onboarding/te
 import { todayISO } from "@/lib/dates";
 import type { VocabKey } from "@/lib/vocab";
 import { periodWord } from "./Charter";
-import { DISPLAY_HOST, draftEventTypes, draftSlug, draftVocab, slugify, wfSet, type FlowAction } from "./flow-state";
+import { DISPLAY_ORG_BASE, draftEventTypes, draftSlug, draftVocab, slugify, wfSet, type FlowAction } from "./flow-state";
 import { Mark } from "./Mark";
 import { AREA_META, Ic, fmtDay, orgName, pageOn, pageRows, pagesOn, seatTone } from "./paper";
 import { slugBlocks, type SlugState } from "./useSlugCheck";
@@ -125,7 +125,7 @@ export function CharterStep({
               <span className="n">ONE PER ORG</span>
             </div>
             <label className={`addr${pill.cls === "t-rose" || slugNotice ? " bad" : ""}`}>
-              <span className="host">{DISPLAY_HOST}/</span>
+              <span className="host">{DISPLAY_ORG_BASE}/</span>
               <input
                 value={slug}
                 spellCheck={false}

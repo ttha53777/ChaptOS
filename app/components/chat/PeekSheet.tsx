@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { orgFetch } from "../../lib/api";
 import { IcChev, KindGlyph } from "./icons";
 import { initialsOf, type AnswerRow, type EntityRef, type RefType } from "./types";
+import { orgHref } from "@/lib/org-paths";
 
 type PeekTone = "good" | "warn" | "risk" | "muted";
 
@@ -140,7 +141,7 @@ export function PeekSheet({ refr, seed, slug, onBack, onAsk }: {
 
       <div className="peek-ft">
         {slug && (
-          <a className="peek-link" href={`/${slug}/${page.path}`}>{page.label} ↗</a>
+          <a className="peek-link" href={orgHref(slug, page.path)}>{page.label} ↗</a>
         )}
         {/* The model's follow-up still has a home — as an explicit choice now,
             not as the only thing the row could do. */}

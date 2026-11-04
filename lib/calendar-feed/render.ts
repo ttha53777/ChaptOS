@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { CalendarFeedItem } from "@/app/generated/prisma/client";
 import type { PublishedItem } from "./projection";
 import { endInstant, timedEnd } from "./schedule";
+import { orgHref } from "@/lib/org-paths";
 
 // Normalize CR/control characters before serialization. The serializer handles
 // RFC TEXT escaping and UTF-8 octet-aware line folding (covered by tests).
@@ -11,7 +12,7 @@ export const calendarName = (name: string) => text(name).replace(/\n/g, " ").rep
 export const prodId = { company: "ChaptOS", product: "Calendar subscriptions", language: "EN" };
 /** Where an entry opens in ChaptOS. */
 export const entryLink = (origin: string, slug: string, sourceType: string, sourceId: number) =>
-  `${origin}/${encodeURIComponent(slug)}/${sourceType === "task" ? "tasks" : "timeline"}?${sourceType === "task" ? "task" : "event"}=${sourceId}`;
+  `${origin}${orgHref(slug, sourceType === "task" ? "/tasks" : "/timeline")}?${sourceType === "task" ? "task" : "event"}=${sourceId}`;
 /**
  * The only DESCRIPTION an entry ever carries: fixed, app-controlled lines. Source
  * notes and descriptions are never read, so the published-field allowlist holds.

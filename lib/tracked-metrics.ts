@@ -54,7 +54,7 @@ export function trackedCount(tracked: TrackedMetrics): number {
  * and judging those zeros greets the founder's first invitees with "at risk".
  * Anything reading a member's *standing* should take this, not `tracked`.
  *
- * Mirrors the dashboard's `measured` (app/[slug]/page.tsx), minus its treasury
+ * Mirrors the dashboard's `measured` (app/org/[slug]/page.tsx), minus its treasury
  * tiebreak for dues — that only matters for display, and a balance above zero is
  * a record in its own right, so standing never needs it. Pass `booksHaveEntries`
  * where the treasury is loaded to match the dashboard exactly.

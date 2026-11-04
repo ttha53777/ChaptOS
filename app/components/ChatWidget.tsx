@@ -47,6 +47,7 @@ import {
 } from "./chat/types";
 import "./chat-spotlight.css";
 import "./chat-phone.css";
+import { orgHref } from "@/lib/org-paths";
 
 const PULSE_SEEN_KEY = "chaptos_chat_seen_v1";
 const MAX_HISTORY = 50;
@@ -310,7 +311,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     const slug = currentUser?.org?.slug;
     if (!row.screen || !slug) return;
     closeSpotlight();
-    router.push(`/${slug}${row.screen.path}`);
+    router.push(orgHref(slug, row.screen.path));
   }, [currentUser?.org?.slug, closeSpotlight, router]);
 
   /**
@@ -327,7 +328,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     const slug = currentUser?.org?.slug;
     setIdea(null);
     closeSpotlight();
-    if (slug) router.push(`/${slug}/events`);
+    if (slug) router.push(orgHref(slug, "/events"));
   }, [currentUser?.org?.slug, closeSpotlight, router]);
 
   // ⌘K / Ctrl-K toggles; Esc closes. This is the app's one global Cmd+K owner.

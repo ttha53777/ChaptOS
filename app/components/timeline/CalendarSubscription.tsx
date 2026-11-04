@@ -7,6 +7,7 @@ import "./calendar-subscription.css";
 import type { ScheduleIssue } from "@/lib/calendar-feed/audit";
 import { validZone, type Schedule } from "@/lib/calendar-feed/schedule";
 import { ScheduleFields, initialSchedule, parseLegacyTime, scheduleFromValue, type ScheduleValue } from "./ScheduleFields";
+import { orgHref, orgSlugFromPath } from "@/lib/org-paths";
 
 type Health = { pending: boolean; failedAt: string | null; processedAt: string | null; failures: number };
 type MemberStatus = { state: "current" | "publishing" | "retrying" | "unknown"; updatedAt: string | null };
@@ -32,7 +33,7 @@ function ago(iso: string | null) {
 }
 function useSlug() {
   const [slug, setSlug] = useState("");
-  useEffect(() => { setSlug(window.location.pathname.split("/")[1] ?? ""); }, []);
+  useEffect(() => { setSlug(orgSlugFromPath(window.location.pathname) ?? ""); }, []);
   return slug;
 }
 
@@ -46,7 +47,7 @@ export const Tick = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 // The dialog opens from the last answer this page saw and refreshes behind it,
 // so it never sits on "Loading…". Buttons that open it warm this on mount.
 // Keyed by org slug: a client-side switch to another chapter must not reuse the link.
-const orgKey = () => typeof window === "undefined" ? "" : window.location.pathname.split("/")[1] ?? "";
+const orgKey = () => typeof window === "undefined" ? "" : orgSlugFromPath(window.location.pathname) ?? "";
 let memberCache: { org: string; data: Subscription } | null = null;
 let memberInflight: Promise<Subscription> | null = null;
 const cached = () => memberCache?.org === orgKey() ? memberCache.data : null;
@@ -123,7 +124,7 @@ function CalendarSettings() {
       {error && <p role="alert" className="sc-err">{error}</p>}
       {!data && !error && <p role="status" className="sc-note">Loading subscription…</p>}
       {data && !data.url && !data.admin && <p className="sc-note">Calendar subscriptions are off for your organization. An organization admin can turn them on here.</p>}
-      {data?.url && !data.admin && <p className="sc-note">Members add it from <a className="sched-link" href={slug ? `/${slug}/timeline?subscribe=1` : "#"}>Timeline → Add to my calendar</a>.</p>}
+      {data?.url && !data.admin && <p className="sc-note">Members add it from <a className="sched-link" href={slug ? orgHref(slug, "/timeline?subscribe=1") : "#"}>Timeline → Add to my calendar</a>.</p>}
       {data?.admin && <AdminReadiness data={data} busy={busy} change={change} reload={load} />}
       {data?.url && data.admin && slug && <TellMembers slug={slug} orgName={data.orgName} />}
     </section>
@@ -161,7 +162,7 @@ export function AddToCalendarDialog({ provider: requested, onClose }: { provider
         {error && <p role="alert" className="cal-err">{error}</p>}
         {data && !data.url && <p>{!data.available ? "Calendar subscriptions aren't available for your organization yet."
           : hadAdded ? "Your organization has paused calendar updates. Events already in your calendar stay there but won't change until an admin turns updates back on. You don't need to add the calendar again."
-          : data.admin ? <>Calendar subscriptions are off. <a className="sched-link" href={slug ? `/${slug}/settings?section=calendar` : "#"}>Turn them on in Settings</a>; it takes one click.</>
+          : data.admin ? <>Calendar subscriptions are off. <a className="sched-link" href={slug ? orgHref(slug, "/settings?section=calendar") : "#"}>Turn them on in Settings</a>; it takes one click.</>
           : "Calendar subscriptions are off. An organization admin can turn them on in Settings."}</p>}
         {(loading || data?.url) && <GuidedSetup data={data} requested={requested} />}
       </div>
@@ -233,7 +234,7 @@ function GuidedSetup({ data, requested }: { data: Subscription | null; requested
 
 function GoogleHandoff({ onComputer }: { onComputer: () => void }) {
   // Setup page, never the feed: this is safe to send to yourself.
-  const handoff = `${window.location.origin}/${window.location.pathname.split("/")[1]}/timeline?subscribe=google`;
+  const handoff = `${window.location.origin}${orgHref(orgSlugFromPath(window.location.pathname) ?? "", "/timeline?subscribe=google")}`;
   return (
     <div className="cal-go">
       <p className="cal-hint">Google only adds calendars from a computer. Open this link there. It then syncs to the app on your phone.</p>
@@ -343,7 +344,7 @@ function AdminReadiness({ data, busy, change, reload }: {
   const [turnOnFailed, setTurnOnFailed] = useState(false);
   const zones = useMemo(allZones, []);
   const slug = useSlug();
-  const href = (path: string) => slug ? `/${slug}${path}` : path;
+  const href = (path: string) => slug ? orgHref(slug, path) : path;
 
   // Poll while the worker settles a check; say so if a turn-on didn't take.
   const wasTurningOn = useRef(false);
@@ -527,7 +528,7 @@ function BlockingItem({ issue, href, reload }: { issue: ScheduleIssue; href: (pa
 function TellMembers({ slug, orgName }: { slug: string; orgName: string }) {
   const [state, setState] = useState<"" | "copied" | "failed">("");
   const box = useRef<HTMLParagraphElement>(null);
-  const link = `${window.location.origin}/${slug}/timeline?subscribe=1`;
+  const link = `${window.location.origin}${orgHref(slug, "/timeline?subscribe=1")}`;
   const message = `${orgName ? `${orgName}'s` : "Our"} calendar is now in ChaptOS. Add it to Google or Apple Calendar once and every meeting and deadline stays up to date on its own: ${link}`;
   async function copy() {
     try { await navigator.clipboard.writeText(message); setState("copied"); }

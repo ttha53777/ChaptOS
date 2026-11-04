@@ -19,7 +19,7 @@ async function main() {
   await writeFile(join(temp, "navigation.ts"), `export const usePathname=()=>location.pathname;`);
   await writeFile(join(temp, "sidebar.tsx"), `export const Sidebar=()=>null;`);
   await writeFile(join(temp, "toast.ts"), `const show=m=>document.getElementById('notice').textContent=m; export const useToast=()=>({success:show,error:show});`);
-  await build({ stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import Page from '${root}/app/[slug]/billing/page';createRoot(document.getElementById('root')).render(<Page/>);`, resolveDir: root, loader: "tsx" },
+  await build({ stdin: { contents: `import React from 'react';import {createRoot} from 'react-dom/client';import Page from '${root}/app/org/[slug]/billing/page';createRoot(document.getElementById('root')).render(<Page/>);`, resolveDir: root, loader: "tsx" },
     bundle: true, nodePaths: [join(root, "node_modules")], outfile: join(temp, "main.js"), jsx: "automatic", platform: "browser", format: "iife",
     define: { "process.env": "{}", "process.env.NODE_ENV": '"development"' }, alias: { "@": root },
     plugins: [{ name: "boundaries", setup(b) {

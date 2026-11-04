@@ -120,7 +120,7 @@ describe("durable projection", () => {
   it("publishes whether an event is required, and toggling it bumps SEQUENCE", async () => {
     const f = await fixture();
     const read = async () => (await (await GET(f.request(), { params: Promise.resolve(f.params) })).text()).replace(/\r\n /g, "");
-    const link = `https://example.com/one/timeline?event=${f.event.id}`;
+    const link = `https://example.com/org/one/timeline?event=${f.event.id}`;
     const [before] = await db(f.org.id).calendarFeedItem.list();
     expect(await read()).toContain(`DESCRIPTION:Required · attendance is taken\\nOpen in ChaptOS: ${link}`);
     await testPrisma.calendarEvent.update({ where: { id: f.event.id }, data: { mandatory: false } });

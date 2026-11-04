@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser, hasSession } from "@/lib/auth/require-user";
 import { LandingPage } from "./components/landing/LandingPage";
 import { APP_NAME } from "@/lib/domains";
+import { orgHref } from "@/lib/org-paths";
 
 export const metadata: Metadata = {
   title: `${APP_NAME} — the operating system for student orgs`,
@@ -37,5 +38,5 @@ export default async function RootPage() {
   const active = user.memberships.find(m => m.organizationId === user.orgId);
   const slug = active?.orgSlug ?? user.memberships[0]?.orgSlug ?? null;
 
-  redirect(slug ? `/${slug}` : "/welcome");
+  redirect(slug ? orgHref(slug) : "/welcome");
 }

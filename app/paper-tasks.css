@@ -1,4 +1,4 @@
-/* ── Paper aesthetic: Tasks (app/[slug]/tasks) ────────────────────────────────
+/* ── Paper aesthetic: Tasks (app/org/[slug]/tasks) ────────────────────────────────
    _design/Dashboard Paper Mock.html #tasks. The page body is PaperTasks.tsx,
    rendered in .pp-only beside the Ledger body, so every class here is ptk-
    namespaced and can't touch the Ledger page (tasks-ledger.css owns .tk-*).

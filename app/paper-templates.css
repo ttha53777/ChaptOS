@@ -1,4 +1,4 @@
-/* ── Paper aesthetic: Agenda templates (app/[slug]/chapter/templates) ──────────
+/* ── Paper aesthetic: Agenda templates (app/org/[slug]/chapter/templates) ──────────
    The #templates page of _design/Chapter Templates Paper Mock.html. Same
    contract as paper-aesthetic.css: everything hangs off html[data-aesthetic=
    "paper"], which also out-specifies the page's own agenda-templates.css (it

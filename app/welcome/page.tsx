@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/require-user";
 import { getJoinSession } from "@/lib/auth/join-session";
 import WelcomeClient from "./WelcomeClient";
+import { orgHref } from "@/lib/org-paths";
 
 export default async function WelcomePage({
   searchParams,
@@ -13,7 +14,7 @@ export default async function WelcomePage({
   if (params.new !== "1" && params.requests !== "1") {
     const active = user?.memberships.find(m => m.organizationId === user.orgId)
       ?? user?.memberships[0];
-    if (active) redirect(`/${active.orgSlug}`);
+    if (active) redirect(orgHref(active.orgSlug));
   }
   if (user) return <WelcomeClient email={user.email} />;
   const session = await getJoinSession();

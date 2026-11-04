@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/seo";
 
-// Org workspaces (/<slug>) already bounce signed-out crawlers to /login, so
-// only the platform's own non-public prefixes are listed here. /seo-preview is
+// Org workspaces bounce signed-out crawlers to /login anyway; now that they all
+// share /org/ they're listed too, so crawlers stop spending requests on them.
+// /seo-preview is
 // deliberately NOT disallowed: it carries `noindex`, and a crawler blocked by
 // robots.txt never gets to read that tag.
 export default function robots(): MetadataRoute.Robots {
@@ -10,7 +11,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/admin", "/auth/", "/join/", "/welcome", "/login"],
+      disallow: ["/api/", "/admin", "/auth/", "/join/", "/welcome", "/login", "/org/"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

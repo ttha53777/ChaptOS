@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DEV_IMPERSONATE_COOKIE, devBypassEnabled, verifyImpersonation } from "@/lib/auth/dev-bypass";
 import { isSameOrigin } from "@/lib/auth/same-origin";
 import { outdatedAppResponse } from "@/lib/mobile-config";
+import { orgSlugFromPath } from "@/lib/org-paths";
 
 /** Methods that mutate state and therefore need CSRF gating. */
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -18,7 +19,7 @@ const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
  *
  * It deliberately does NOT route by link status. Whether an authenticated user
  * has claimed a Brother row is the DB's truth, resolved by requireUser() in the
- * pages/layouts that need it ([slug]/layout.tsx, app/page.tsx). The old
+ * pages/layouts that need it (org/[slug]/layout.tsx, app/page.tsx). The old
  * brother_linked cookie + claim-flow bounce here duplicated that state and
  * has been removed — an authenticated-but-unlinked user is routed by
  * /auth/callback (to claim/create) and gated by the [slug] guard if they reach
@@ -116,10 +117,9 @@ export async function proxy(request: NextRequest) {
  *   /seo-preview  the SEO landing-page mock (noindex, kept out of the sitemap)
  *   /robots.txt, /sitemap.xml  crawler files; bounced to /login they're useless
  *
- * The /help articles and /for audiences are matched by prefix rather than
- * enumerated, but each prefix carries its trailing "/" so a future org slug like
- * "helpdesk" or "formal" can't be swept in — org routes are /<slug>, and
- * "/helpdesk" does not start with "/help/".
+ * The /help articles and /blog posts are matched by prefix rather than
+ * enumerated. Org workspaces live under /org/<slug>, so no slug can collide
+ * with a public path here.
  */
 const PUBLIC_PATHS: ReadonlySet<string> = new Set([
   "/", "/create", "/trust", "/terms", "/help", "/contact", "/pricing",
@@ -137,10 +137,8 @@ function isPublicPath(pathname: string): boolean {
 /**
  * Redirect an unauthenticated request to /login, preserving the destination:
  *   - ?next=<original path+query> so the callback can return them there.
- *   - ?org=<slug> when the request targets an org route, so the claim flow
- *     (for a not-yet-linked user) can target the right org.
- * The first path segment of an org route is the slug — except the platform-
- * level segments below, which aren't orgs.
+ *   - ?org=<slug> when the request targets an org route (/org/<slug>/…), so
+ *     the callback can land a not-yet-linked user on the right org.
  */
 function redirectToLogin(request: NextRequest) {
   const url = request.nextUrl.clone();
@@ -150,11 +148,8 @@ function redirectToLogin(request: NextRequest) {
 
   url.searchParams.set("next", original);
 
-  const firstSeg = request.nextUrl.pathname.split("/")[1] || "";
-  const PLATFORM_SEGMENTS = new Set(["welcome", "admin"]);
-  if (firstSeg && !PLATFORM_SEGMENTS.has(firstSeg)) {
-    url.searchParams.set("org", firstSeg);
-  }
+  const slug = orgSlugFromPath(request.nextUrl.pathname);
+  if (slug) url.searchParams.set("org", slug);
   return NextResponse.redirect(url);
 }
 

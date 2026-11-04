@@ -7,7 +7,7 @@ export const KIND_HOST: Record<Kind, string> = {
   doc: "docs.google.com", sheet: "docs.google.com", form: "forms.gle", drive: "drive.google.com", link: "docusign.net",
 };
 
-/** Kind glyphs, the paths app/[slug]/docs/lib.tsx draws. */
+/** Kind glyphs, the paths app/org/[slug]/docs/lib.tsx draws. */
 export const KIND_PATH: Record<Kind, string> = {
   doc: "M14 3v4a1 1 0 001 1h4M5 3h9l5 5v11a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z",
   sheet: "M4 5h16v14H4zM4 10h16M4 15h16M10 5v14",

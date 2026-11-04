@@ -36,7 +36,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: proc
     return r.fulfill({ json: SEM === "first" ? [] : [{ id: 1, label: "Spring 2026", startDate: "2026-01-12", endDate: "2026-05-10", isActive: true }] });
   });
   for (const [name, raw] of URLS) {
-    const path = raw === "wall" ? `/${other?.slug}` : raw;
+    const path = raw === "wall" ? `/org/${other?.slug}` : raw;
     await p.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
     await p.addStyleTag({ content: "nextjs-portal{display:none!important}" }).catch(() => {});
     const wait = process.env.WAIT ?? (SEM ? ".sg" : ".auth-col");

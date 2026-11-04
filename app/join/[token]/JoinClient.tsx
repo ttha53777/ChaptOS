@@ -12,6 +12,7 @@ import { TermsLine } from "@/app/components/TermsLine";
 import type { JoinState } from "@/lib/auth/join-state";
 import { useJoinPolling, readJoinStatus, JoinPollError } from "@/app/hooks/useJoinPolling";
 import { clearSessionStorage } from "@/app/lib/local-session";
+import { orgHref } from "@/lib/org-paths";
 
 interface Account { email: string | null; name: string | null; avatarUrl: string | null }
 
@@ -88,7 +89,7 @@ export function JoinClient({
   useEffect(() => {
     if (state === "pending") wasPending.current = true;
     if (state === "already_member" && wasPending.current && orgSlug) {
-      window.location.assign(`/${orgSlug}?toast=welcome`);
+      window.location.assign(orgHref(orgSlug, "?toast=welcome"));
     }
   }, [state, orgSlug]);
 
@@ -142,7 +143,7 @@ export function JoinClient({
       }
       if (data?.orgSlug) setOrgSlug(data.orgSlug);
       if (data?.state === "already_member") {
-        window.location.assign(`/${data.orgSlug}?toast=welcome`);
+        window.location.assign(orgHref(data.orgSlug, "?toast=welcome"));
         return;
       }
       setSubmittedName(name.trim());
@@ -228,7 +229,7 @@ export function JoinClient({
           </>
         ) : state === "already_member" ? (
           <button
-            onClick={() => window.location.assign(`/${orgSlug ?? ""}`)}
+            onClick={() => orgSlug && window.location.assign(orgHref(orgSlug))}
             disabled={!orgSlug}
             className="auth-btn-vio"
           >

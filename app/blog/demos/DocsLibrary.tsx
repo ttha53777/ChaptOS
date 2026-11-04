@@ -104,7 +104,7 @@ export function DocsLibrary() {
   );
 
   return <div ref={root} className={`bld bld-win ho-lib${held ? " holding" : ""}${officer ? "" : " as-member"}`}>
-    <WindowBar path="chaptos.com/alpha-beta/docs" />
+    <WindowBar path="chaptos.com/org/alpha-beta/docs" />
     <div className="ho-lib-in">
       <div className="ho-lib-head">
         <div>
