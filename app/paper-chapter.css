@@ -326,8 +326,12 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm .pp-only { display: inline-
   html[data-aesthetic="paper"] .dash-chapter .ch-acts { justify-content: flex-start; }
   html[data-aesthetic="paper"] .dash .ondeck { grid-template-columns: minmax(0,1fr); padding: 20px 18px 18px; box-shadow: 5px 5px 0 var(--pp-sky); }
   html[data-aesthetic="paper"] .dash .od-cal { display: none !important; }
-  html[data-aesthetic="paper"] .dash.mt-ov { padding: 0 !important; }
-  html[data-aesthetic="paper"] .dash.mt-ov .mt-sheet { height: 100vh; border-radius: 0; border: 0; box-shadow: none; }
+  /* Full-bleed and pinned to what's actually visible. 100vh is the toolbar-hidden
+     height, so a centered 100vh sheet hung its bar above the screen with nothing
+     to scroll it back; the keyboard made it worse. usePhoneSheet supplies the
+     visual viewport's box, 100dvh covers the first paint. */
+  html[data-aesthetic="paper"] .dash.mt-ov { padding: 0 !important; align-items: stretch; bottom: auto; top: var(--cs-vvt, 0px); height: var(--cs-vvh, 100dvh); }
+  html[data-aesthetic="paper"] .dash.mt-ov .mt-sheet { height: auto; min-height: 0; border-radius: 0; border: 0; box-shadow: none; }
   html[data-aesthetic="paper"] .dash.mt-ov .mt-meta .mt-attchip { margin-left: 0; }
   html[data-aesthetic="paper"] .dash.mt-ov .mt-sumbtn { padding: 7px 10px; }
 }

@@ -39,6 +39,7 @@ import { agendaFieldsIn, agendaSections, hasMinutes, headingOf, minutesBeyondAge
 import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
 import { endInstant, scheduleDate, scheduleSchema, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 import { orgSlugFromPath } from "@/lib/org-paths";
+import { usePhoneSheet } from "../../../components/chat/usePhoneSheet";
 
 const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
 
@@ -650,6 +651,11 @@ function MeetingDetailOverlay({
   const toast = useToast();
   const editorRef = useRef<NotesEditorHandle>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  // On a phone the book is sized to the visual viewport (--cs-vvh/--cs-vvt), so
+  // Safari's toolbar and the keyboard can't push the bar — Back, who's here —
+  // above the screen where nothing scrolls back to it.
+  usePhoneSheet(true, overlayRef);
   const padRef = useRef<HTMLTextAreaElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -789,7 +795,7 @@ function MeetingDetailOverlay({
   );
 
   return (
-    <div className="dash mt-ov fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
+    <div ref={overlayRef} className="dash mt-ov fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
       <div className="mt-scrim absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" />
 
       {/* Panel — stop propagation so clicks inside don't close */}
