@@ -1173,6 +1173,20 @@ export default function ChapterPage() {
     window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
   }, [canEvents, loading]);
 
+  // The dashboard's meeting peek lands here with ?minutes=<id> to start that
+  // meeting's minutes. Same read-once-and-drop as ?add=1; waits for the
+  // meetings so the overlay has its event to render.
+  useEffect(() => {
+    if (loading) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = Number(params.get("minutes"));
+    if (!params.has("minutes")) return;
+    if (Number.isInteger(id) && events.some(e => e.id === id)) setSelectedId(id);
+    params.delete("minutes");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+  }, [loading, events]);
+
   // Agenda templates for Add meeting. Officers only (the API is MANAGE_EVENTS);
   // a failed load just means new meetings start blank.
   useEffect(() => {

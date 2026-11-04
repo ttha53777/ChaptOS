@@ -2677,6 +2677,7 @@ export default function Home() {
           onClose={() => setWeekPeek(null)}
           onOpenEvent={(ev) => { setWeekPeek(null); router.push(orgPath(`/timeline?event=${ev.id}`)); }}
           onOpenTask={(t) => { setWeekPeek(null); router.push(orgPath(`/tasks?task=${t.id}`)); }}
+          onOpenMinutes={(ev) => { setWeekPeek(null); router.push(orgPath(`/chapter?minutes=${ev.id}`)); }}
           onOpenCheckIn={canAttendance && weekPeek.kind === "event" && weekPeek.event.id !== liveCheckIn?.event.id
             ? (ev) => { setWeekPeek(null); void handleOpenCheckIn(ev); }
             : undefined}

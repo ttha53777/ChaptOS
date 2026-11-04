@@ -74,6 +74,7 @@ export function WeekItemPeek({
   onClose,
   onOpenEvent,
   onOpenTask,
+  onOpenMinutes,
   onOpenCheckIn,
 }: {
   target: WeekPeekTarget;
@@ -84,6 +85,9 @@ export function WeekItemPeek({
   onClose: () => void;
   /** Jump to this event on the timeline. */
   onOpenEvent: (event: CalendarEvent) => void;
+  /** Open the Meetings page with this meeting's minutes started. Chapter
+   *  meetings use it in place of onOpenEvent when given. */
+  onOpenMinutes?: (event: CalendarEvent) => void;
   /** Jump to this deadline on the tasks page. */
   onOpenTask: (task: Task) => void;
   /** Starts a live check-in window for this event. Omit without
@@ -98,6 +102,8 @@ export function WeekItemPeek({
   const rel     = relWhen(date, today);
   const isToday = date === today;
   const isPast  = date < today;
+  // A chapter meeting's next step is its minutes, not its timeline entry.
+  const toMinutes = isEvent && target.event.category === "chapter" && onOpenMinutes != null;
 
   // Attendance is only meaningful for a mandatory event, and only worth fetching
   // for one — an optional coffee run has no roll to take.
@@ -235,9 +241,9 @@ export function WeekItemPeek({
           <button
             type="button"
             className="wpeek-primary"
-            onClick={() => (isEvent ? onOpenEvent(target.event) : onOpenTask(target.task))}
+            onClick={() => (toMinutes ? onOpenMinutes(target.event as CalendarEvent) : isEvent ? onOpenEvent(target.event) : onOpenTask(target.task))}
           >
-            {isEvent ? "Open in timeline" : "Open task"}
+            {toMinutes ? "Open minutes" : isEvent ? "Open in timeline" : "Open task"}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
