@@ -18,7 +18,7 @@
 
 import type { db } from "@/lib/db";
 import type { AnswerRow } from "@/lib/ai-tools";
-import { orgThresholds } from "@/lib/ai-tools";
+import { orgStanding } from "@/lib/ai-tools";
 import type { RefIndex } from "@/lib/ai-refs";
 import { DATE_RE, isValidCalendarDate, todayISO } from "@/lib/dates";
 import type { ShapeRequest } from "@/lib/ai-shape-request";
@@ -183,7 +183,8 @@ async function buildTally(req: ShapeRequest, evidence: ShapeEvidence, scoped: Sc
   if (!metric) return null;
   // The model may have read a filtered or limited list; a tally needs everyone,
   // so re-read the roster the same way list_brothers does (thresholds cached).
-  const [rows, thresholds] = await Promise.all([scoped.member.listRoster(), orgThresholds(scoped, orgId)]);
+  const rows = await scoped.member.listRoster();
+  const { thresholds, measured } = await orgStanding(scoped, orgId, rows);
   return tallyFromRoster(metric, rows.map(b => ({
     id: b.id,
     name: b.name,
@@ -191,7 +192,7 @@ async function buildTally(req: ShapeRequest, evidence: ShapeEvidence, scoped: Sc
     attendance: money(b.attendance),
     duesOwed: money(b.duesOwed),
     serviceHours: money(b.serviceHours),
-    status: getBrotherStatus(b as BrotherType, thresholds),
+    status: getBrotherStatus(b as BrotherType, thresholds, measured),
   })));
 }
 
@@ -608,9 +609,10 @@ export async function attachPeople(askback: AskBack, refs: RefIndex, scoped: Sco
   if (wanted.length === 0) return askback;
 
   try {
-    const [rows, thresholds] = await Promise.all([
+    // A few people, not the roster — so `measured` comes from the org-wide aggregate.
+    const [rows, { thresholds, measured }] = await Promise.all([
       scoped.member.listRoster({ where: { brotherId: { in: wanted } } }),
-      orgThresholds(scoped, orgId),
+      orgStanding(scoped, orgId),
     ]);
     const byId = new Map(rows.map(b => [b.id, b]));
     return {
@@ -620,7 +622,7 @@ export async function attachPeople(askback: AskBack, refs: RefIndex, scoped: Sco
         if (!ids || ids.some(id => !byId.has(id))) return q;
         const people = peopleCards(ids.map(id => {
           const b = byId.get(id)!;
-          return { id, name: b.name, role: b.role, attendance: money(b.attendance), status: getBrotherStatus(b as BrotherType, thresholds) };
+          return { id, name: b.name, role: b.role, attendance: money(b.attendance), status: getBrotherStatus(b as BrotherType, thresholds, measured) };
         }));
         return { ...q, people };
       }),

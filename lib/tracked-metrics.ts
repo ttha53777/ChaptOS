@@ -46,3 +46,36 @@ export function resolveTrackedMetrics(disabled: DisabledFeatures | null | undefi
 export function trackedCount(tracked: TrackedMetrics): number {
   return BUILTIN_METRIC_IDS.filter(id => tracked[id]).length;
 }
+
+/**
+ * Narrow `tracked` to the metrics with at least one record behind them anywhere
+ * on the roster. A stored 0 is not a measurement: on a brand-new org every
+ * member carries 0% attendance and a 0.00 GPA because nothing has been entered,
+ * and judging those zeros greets the founder's first invitees with "at risk".
+ * Anything reading a member's *standing* should take this, not `tracked`.
+ *
+ * Mirrors the dashboard's `measured` (app/[slug]/page.tsx), minus its treasury
+ * tiebreak for dues — that only matters for display, and a balance above zero is
+ * a record in its own right, so standing never needs it. Pass `booksHaveEntries`
+ * where the treasury is loaded to match the dashboard exactly.
+ *
+ * On any org that has recorded something this is identity.
+ */
+export function resolveMeasuredMetrics(
+  tracked: TrackedMetrics,
+  roster: ReadonlyArray<{ attendance: number; gpa: number; serviceHours: number; duesOwed: number }>,
+  opts: { booksHaveEntries?: boolean } = {},
+): TrackedMetrics {
+  return {
+    // > 0 also skips the exempt sentinel (-1).
+    attendance:   tracked.attendance   && roster.some(b => b.attendance > 0),
+    gpa:          tracked.gpa          && roster.some(b => b.gpa > 0),
+    duesOwed:     tracked.duesOwed     && (roster.some(b => b.duesOwed !== 0) || !!opts.booksHaveEntries),
+    serviceHours: tracked.serviceHours && roster.some(b => b.serviceHours > 0),
+  };
+}
+
+/** True when at least one tracked metric has a record behind it. */
+export function anyMeasured(measured: TrackedMetrics): boolean {
+  return BUILTIN_METRIC_IDS.some(id => measured[id]);
+}

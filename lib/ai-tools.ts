@@ -16,7 +16,9 @@ import type { RosterRow } from "@/lib/db/tenant";
 import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
 import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd as fmtMoney, money } from "@/lib/money";
-import { resolveThresholds, type Thresholds } from "@/lib/thresholds";
+import type { Thresholds } from "@/lib/thresholds";
+import { readStandingConfig, rosterMeasured, type StandingConfig } from "@/lib/member-standing";
+import { anyMeasured, resolveMeasuredMetrics, type TrackedMetrics } from "@/lib/tracked-metrics";
 import { netBalance } from "@/lib/treasury-balance";
 import { isProgrammingManagedType } from "@/lib/programming";
 import { ownerLabel, resolveOwner, type OwnerRow } from "@/lib/event-owner";
@@ -56,16 +58,52 @@ type Scoped = ReturnType<typeof db>;
  * them — caching drops a DB round trip from most chat turns. A threshold edit
  * takes ≤5 min to reach the assistant; the dashboard itself is unaffected.
  */
-const thresholdsCache = new Map<number, { value: Thresholds; expires: number }>();
+const standingCache = new Map<number, { value: StandingConfig; expires: number }>();
+
+/** Thresholds + tracked metrics, cached together — they share the config row. */
+export async function orgStandingConfig(scoped: Scoped, orgId: number): Promise<StandingConfig> {
+  const now = Date.now();
+  const cached = standingCache.get(orgId);
+  if (cached && cached.expires > now) return cached.value;
+  const value = await readStandingConfig(scoped);
+  standingCache.set(orgId, { value, expires: now + 5 * 60 * 1000 });
+  return value;
+}
 
 export async function orgThresholds(scoped: Scoped, orgId: number): Promise<Thresholds> {
-  const now = Date.now();
-  const cached = thresholdsCache.get(orgId);
-  if (cached && cached.expires > now) return cached.value;
-  const config = await scoped.organizationConfig.find();
-  const value = resolveThresholds(config?.thresholds);
-  thresholdsCache.set(orgId, { value, expires: now + 5 * 60 * 1000 });
-  return value;
+  return (await orgStandingConfig(scoped, orgId)).thresholds;
+}
+
+/**
+ * Status for every member is judged on `measured`, not on every metric: a new
+ * org's 0% attendance and 0.00 GPA are "nothing entered", and calling the first
+ * invitees "At Risk" off them is what the roster page stopped doing too. `measured`
+ * itself is never cached — it flips the moment the first record lands.
+ *
+ * Pass `roster` when the caller already read the whole roster; otherwise this
+ * costs one aggregate.
+ */
+export async function orgStanding(
+  scoped: Scoped,
+  orgId: number,
+  roster?: ReadonlyArray<{ attendance: number; gpa: number; serviceHours: number; duesOwed: number }>,
+): Promise<{ thresholds: Thresholds; measured: TrackedMetrics; unrecorded: string[] }> {
+  const { thresholds, tracked } = await orgStandingConfig(scoped, orgId);
+  const measured = roster ? resolveMeasuredMetrics(tracked, roster) : await rosterMeasured(scoped, tracked);
+  return { thresholds, measured, unrecorded: unrecordedMetrics(tracked, measured) };
+}
+
+/** Tracked metrics nobody has a record for yet — their 0s are not readings. */
+function unrecordedMetrics(tracked: TrackedMetrics, measured: TrackedMetrics): string[] {
+  return (["attendance", "gpa", "serviceHours"] as const).filter(k => tracked[k] && !measured[k]);
+}
+
+/** What the model is told when a metric has nothing behind it. */
+export function unrecordedNote(unrecorded: string[], measured: TrackedMetrics): string | undefined {
+  if (!unrecorded.length) return undefined;
+  const lead = anyMeasured(measured) ? "" : "Nothing has been recorded for anyone yet, so nobody has a standing. ";
+  return `${lead}No ${unrecorded.join(", ")} has been recorded for anyone yet: a 0 there means not entered, not a result. ` +
+    "Don't call anyone at risk, behind or lowest on it; say it hasn't been recorded.";
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1426,13 +1464,13 @@ async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Prom
   const orderDir = args.order === "desc" ? "desc" : "asc";
 
   // Rows + thresholds are independent — fetch together instead of serially.
-  const [rows, thresholds] = await Promise.all([
+  const rows = await
     // This org's roster rows, with each member's org-local name already
     // resolved — so a member of two chapters reports THIS chapter's dues, GPA
     // and attendance here, and the other chapter's numbers stay invisible.
-    scoped.member.listRoster({ orderBy: { [orderByField]: orderDir } }),
-    orgThresholds(scoped, orgId),
-  ]);
+    scoped.member.listRoster({ orderBy: { [orderByField]: orderDir } });
+  // Config is cached, and `measured` comes from the rows just read — no extra query.
+  const { thresholds, measured, unrecorded } = await orgStanding(scoped, orgId, rows);
   const owesOnly = args.owes_dues_only === true;
   const statusFilter = typeof args.status === "string" ? args.status : "Any";
 
@@ -1445,7 +1483,7 @@ async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Prom
       gpa: r2(b.gpa),
       duesOwed: r2(b.duesOwed),
       serviceHours: r2(b.serviceHours),
-      status: getBrotherStatus(b as BrotherType, thresholds),
+      status: getBrotherStatus(b as BrotherType, thresholds, measured),
       // Per-org admin authority (Membership.isOrgAdmin), not the legacy
       // platform-superuser flag that used to sit on the account row — being an
       // admin is something you are in a particular chapter.
@@ -1469,9 +1507,12 @@ async function listBrothers(args: ToolArgs, scoped: Scoped, orgId: number): Prom
       count: n,
       totalDuesOwed: r2(sum(b => b.duesOwed)),
       owingCount: mapped.filter(b => b.duesOwed > 0).length,
-      avgAttendance: r2(sum(b => b.attendance) / n),
-      avgGpa: r2(sum(b => b.gpa) / n),
+      // null, not 0, for a metric nobody has a record for — an "average GPA of
+      // 0.00" is a fabricated reading.
+      avgAttendance: unrecorded.includes("attendance") ? null : r2(sum(b => b.attendance) / n),
+      avgGpa: unrecorded.includes("gpa") ? null : r2(sum(b => b.gpa) / n),
       totalServiceHours: r2(sum(b => b.serviceHours)),
+      ...(unrecorded.length ? { notYetRecorded: unrecorded, note: unrecordedNote(unrecorded, measured) } : {}),
     },
     brothers: limited,
   };
@@ -1484,12 +1525,12 @@ async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promis
 
   // ID path → single record (thresholds fetched alongside, not before).
   if (id != null) {
-    const [thresholds, b] = await Promise.all([
-      orgThresholds(scoped, orgId),
+    const [standing, b] = await Promise.all([
+      orgStanding(scoped, orgId),
       scoped.member.findRosterRow(id, { fields: "contact" }),
     ]);
     if (!b || b.isGhost) return { error: "Brother not found." };
-    return formatBrotherDetail(b, thresholds, scoped);
+    return formatBrotherDetail(b, standing, scoped);
   }
 
   // Name path → fuzzy. Exact (case-insensitive) wins; otherwise fall back to
@@ -1497,8 +1538,8 @@ async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promis
   // thresholds) run in parallel — the wasted contains query when exact hits is
   // cheaper than a second serial round trip when it doesn't. Return multiple
   // matches if found so the model can disambiguate.
-  const [thresholds, exact, fuzzy] = await Promise.all([
-    orgThresholds(scoped, orgId),
+  const [standing, exact, fuzzy] = await Promise.all([
+    orgStanding(scoped, orgId),
     // Through member.search, which matches BOTH the org-local name and the
     // account name it falls back to. Matching only one of them silently misses
     // people — someone this chapter renamed, or someone it never renamed at all.
@@ -1515,12 +1556,12 @@ async function getBrother(args: ToolArgs, scoped: Scoped, orgId: number): Promis
       candidates: matches.map(b => ({ id: b.id, name: b.name, role: b.role })),
     };
   }
-  return formatBrotherDetail(matches[0], thresholds, scoped);
+  return formatBrotherDetail(matches[0], standing, scoped);
 }
 
 async function formatBrotherDetail(
   b: RosterRow,
-  thresholds: Thresholds,
+  { thresholds, measured, unrecorded }: Awaited<ReturnType<typeof orgStanding>>,
   scoped: Scoped,
 ) {
   // Relation-scoped: the wrapper ANDs calendarEvent.organizationId, so this bare
@@ -1535,10 +1576,11 @@ async function formatBrotherDetail(
     gpa: r2(b.gpa),
     duesOwed: r2(b.duesOwed),
     serviceHours: r2(b.serviceHours),
-    status: getBrotherStatus(b as BrotherType, thresholds),
+    status: getBrotherStatus(b as BrotherType, thresholds, measured),
     isAdmin: b.isOrgAdmin,
     email: b.email ?? null,
     eventsAttended: attendanceCount,
+    ...(unrecorded.length ? { notYetRecorded: unrecorded, note: unrecordedNote(unrecorded, measured) } : {}),
   };
 }
 
@@ -1954,15 +1996,15 @@ async function recentActivity(args: ToolArgs, scoped: Scoped): Promise<ToolResul
 async function weeklyDigest(scoped: Scoped, orgId: number, now: Date = new Date()): Promise<ToolResult> {
   const { start, end } = isoWeekBounds(now);
   const week = { gte: start, lte: end };
-  const [deadlines, ig, events, parties, brothers, thresholds] = await Promise.all([
+  const [deadlines, ig, events, parties, brothers] = await Promise.all([
     scoped.task.findMany({ where: { dueDate: week } }),
     scoped.instagramTask.findMany({ where: { dueDate: week } }),
     scoped.calendarEvent.findMany({ where: { mandatory: true, date: week } }),
     scoped.partyEvent.findMany({ where: { date: week } }),
     scoped.member.listRoster(),
-    orgThresholds(scoped, orgId),
   ]);
-  const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType, thresholds) === "At Risk").length;
+  const { thresholds, measured } = await orgStanding(scoped, orgId, brothers);
+  const atRiskCount = brothers.filter(b => getBrotherStatus(b as BrotherType, thresholds, measured) === "At Risk").length;
   return {
     weekRange: { start, end },
     deadlinesDue: deadlines.map(d => ({ id: d.id, title: d.title, dueDate: d.dueDate, status: d.status })),

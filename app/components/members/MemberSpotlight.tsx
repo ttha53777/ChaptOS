@@ -11,6 +11,7 @@ import { avatarDisplayUrl } from "@/lib/avatar";
 import { useChapter } from "../../context/ChapterContext";
 import { useThresholds } from "../../hooks/useThresholds";
 import { useTrackedMetrics } from "../../hooks/useTrackedMetrics";
+import { useMeasuredMetrics } from "../../hooks/useMeasuredMetrics";
 import { useVocab } from "../../hooks/useVocab";
 import { refreshDuesStandings, useDuesStandings } from "../../hooks/useDuesStandings";
 import type { DuesChargeIssued, DuesWaived } from "@/lib/api-types/dues";
@@ -113,6 +114,9 @@ export function MemberSpotlight({
   const { currentUser, brotherList, setBrotherList, can, avatarRevision, setSelfNameLocal } = useChapter();
   const thresholds = useThresholds();
   const tracked = useTrackedMetrics();
+  // What standing may be judged on: a metric nobody has a record for yet shows
+  // as not-yet, not as a red 0% / 0.00 on a brand-new org's first invitees.
+  const measured = useMeasuredMetrics();
   const v = useVocab();
   const appToast = useToast();
 
@@ -606,7 +610,7 @@ export function MemberSpotlight({
   // ── Derived display ──────────────────────────────────────────────────────
   const exempt = isAttendanceExempt(b.attendance);
   const duesSt = duesStandings?.get(b.id);
-  const verdict = standingVerdict(b, thresholds, tracked, {
+  const verdict = standingVerdict(b, thresholds, tracked, measured, {
     self: isSelf, duesLabel: v("Dues"), serviceLabel: v("Service"),
     duesLateDays: duesSt?.standing === "overdue" ? duesSt.lateDays : 0,
   });
@@ -637,9 +641,12 @@ export function MemberSpotlight({
   if (full && tracked.attendance) {
     stats.push(
       <Stat key="att" id="att" label="Attendance" edit={edit}
-        value={exempt ? "Exempt" : `${b.attendance}%`}
-        valueCls={exempt ? "none" : toneAttendance(b.attendance, thresholds)}
-        caption={exempt ? `no obligation this ${v("Period").toLowerCase()}` : history ? `${attendedCount} of ${counted.length} events` : `goal ${thresholds.attendanceWatch}%`}>
+        value={exempt ? "Exempt" : measured.attendance ? `${b.attendance}%` : "—"}
+        valueCls={exempt || !measured.attendance ? "none" : toneAttendance(b.attendance, thresholds)}
+        caption={exempt ? `no obligation this ${v("Period").toLowerCase()}`
+          : history && counted.length ? `${attendedCount} of ${counted.length} events`
+          : !measured.attendance ? "no meetings yet"
+          : history ? `${attendedCount} of ${counted.length} events` : `goal ${thresholds.attendanceWatch}%`}>
         {editing === "exempt" ? (
           <>
             <p className="ttl">Exempt from attendance</p>
@@ -698,7 +705,9 @@ export function MemberSpotlight({
   }
   if (full && tracked.gpa) {
     stats.push(
-      <Stat key="gpa" id="gpa" label="GPA" edit={edit} value={b.gpa.toFixed(2)} valueCls={toneGpa(b.gpa, thresholds)} caption={`goal ${thresholds.gpaWatch.toFixed(2)}`}>
+      <Stat key="gpa" id="gpa" label="GPA" edit={edit}
+        value={measured.gpa ? b.gpa.toFixed(2) : "—"} valueCls={measured.gpa ? toneGpa(b.gpa, thresholds) : "none"}
+        caption={measured.gpa ? `goal ${thresholds.gpaWatch.toFixed(2)}` : "not entered yet"}>
         {canBrothers ? (
           <>
             <p className="ttl">GPA</p>
@@ -792,7 +801,7 @@ export function MemberSpotlight({
     const met = b.serviceHours >= goal;
     stats.push(
       <Stat key="service" id="service" label={v("Service")} edit={edit} align="right"
-        value={`${b.serviceHours}h`} valueCls={met ? "" : "t-warn"} caption={met ? "goal met" : `of ${goal}h`}>
+        value={`${b.serviceHours}h`} valueCls={met || !measured.serviceHours ? "" : "t-warn"} caption={met ? "goal met" : `of ${goal}h`}>
         <p className="ttl">{v("Service")} · {b.serviceHours} of {goal}h</p>
         <p className="sm last">{canService ? "Hours come from service events. Log them against the event they were earned at." : `The ${v("Service").toLowerCase()} chair logs hours after each event.`}</p>
         <DoneFoot edit={edit} extra={canService

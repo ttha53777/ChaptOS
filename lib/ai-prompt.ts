@@ -78,6 +78,9 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
         _count: { _all: true },
         _sum: { duesOwed: true },
         _avg: { attendance: true, gpa: true },
+        // A max of 0 means nobody has a record yet: the average is "not entered",
+        // not 0% / 0.00, and the model must not read it as a chapter in trouble.
+        _max: { attendance: true, gpa: true },
       }),
       scoped.member.count({ where: { brother: { is: { isGhost: false } }, duesOwed: { gt: 0 } } }),
       scoped.partyEvent.aggregate({ _sum: { doorRevenue: true } }),
@@ -90,8 +93,8 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
     const count = (typeof agg._count === "object" && agg._count ? agg._count._all : 0) ?? 0;
     if (count > 0) {
       const totalDues = roundTo(agg._sum?.duesOwed ?? 0, 10);
-      const avgAtt = Math.round(agg._avg?.attendance ?? 0);
-      const avgGpa = roundTo(agg._avg?.gpa ?? 0, 0.05).toFixed(2);
+      const avgAtt = (agg._max?.attendance ?? 0) > 0 ? `~${Math.round(agg._avg?.attendance ?? 0)}%` : "none recorded yet";
+      const avgGpa = (agg._max?.gpa ?? 0) > 0 ? `~${roundTo(agg._avg?.gpa ?? 0, 0.05).toFixed(2)}` : "none entered yet";
       const income = txByType.find(g => g.type === "income")?._sum.amount ?? 0;
       const expense = txByType.find(g => g.type === "expense")?._sum.amount ?? 0;
       const balance = roundTo(netBalance({
@@ -103,7 +106,7 @@ async function getSnapshotLine(scoped: Scoped, orgId: number): Promise<string> {
       line =
         `Chapter snapshot (cached ≤5 min, approximate — call tools for exact/current figures or any list of names): ` +
         `${count} active brothers; ${owing} owe dues (~$${totalDues.toLocaleString("en-US")} total); ` +
-        `avg attendance ~${avgAtt}%; avg GPA ~${avgGpa}; treasury ~$${balance.toLocaleString("en-US")}.`;
+        `avg attendance ${avgAtt}; avg GPA ${avgGpa}; treasury ~$${balance.toLocaleString("en-US")}.`;
     }
   } catch { /* DB blip — the model still works without the snapshot */ }
   snapshotCache.set(orgId, { line, expires: now + 5 * 60 * 1000 });

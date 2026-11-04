@@ -29,6 +29,8 @@ import { apiErrorMessage, requestJson } from "../../lib/api";
 import { type SeatWall } from "../../lib/seat-wall";
 import { useIsOrgAdmin } from "../../hooks/useIsOrgAdmin";
 import { useTrackedMetrics } from "../../hooks/useTrackedMetrics";
+import { useMeasuredMetrics } from "../../hooks/useMeasuredMetrics";
+import { anyMeasured } from "@/lib/tracked-metrics";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../components/paper/PaperIcon";
 import { InviteLinkSheet, InviteLinkChip, useActiveInvites } from "../../components/members/InviteLinkSheet";
 import { todayStr } from "../../lib/dates";
@@ -80,6 +82,10 @@ const STATUS_TAG: Record<BrotherStatus, { cls: string; label: string }> = {
   "At Risk": { cls: "st-risk",  label: "AT RISK" },
 };
 
+// Before the org has recorded anything there is no standing to show, and "GOOD"
+// would be praise for a 0 nobody measured. Uses the neutral exempt chip look.
+const NOT_YET_TAG = { cls: "exempt", label: "NOT YET" };
+
 type SortKey = "attendance" | "gpa" | "serviceHours" | "duesOwed" | "name";
 
 // Sortable table header cell (mono caps, violet active arrow).
@@ -116,6 +122,11 @@ export default function BrothersPage() {
   // A metric the org switched off is a stored 0, not a measurement: no column,
   // no measure, and it never moves anyone's standing.
   const tracked = useTrackedMetrics();
+  // …and a tracked metric nobody has a record for yet is the same stored 0. On a
+  // new org every first invitee would otherwise land "At risk" off 0% / 0.00.
+  // Standing and the color of a number read `measured`; columns still follow `tracked`.
+  const measured = useMeasuredMetrics();
+  const nothingMeasured = !anyMeasured(measured);
   const duesStandings = useDuesStandings(tracked.duesOwed);
   const canBrothers = can("MANAGE_BROTHERS");
   const canTreasury = can("MANAGE_TREASURY");
@@ -262,25 +273,25 @@ export default function BrothersPage() {
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
     if (!brotherList.length) return null;
-    const attRisk  = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "At Risk").length;
-    const watching = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, tracked) === "Watch").length;
+    const attRisk  = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "At Risk").length;
+    const watching = brotherList.filter(b => getBrotherStatus(b, THRESHOLDS, measured) === "Watch").length;
     const duesTotal = brotherList.reduce((s, b) => s + b.duesOwed, 0);
     const svcMet   = brotherList.filter(b => b.serviceHours >= THRESHOLDS.serviceHoursGoal).length;
     return { avgAtt: avg(brotherList.map(b => b.attendance)), avgGpa: avg(brotherList.map(b => b.gpa)), attRisk, watching, duesTotal, svcMet, total: brotherList.length };
-  }, [brotherList, THRESHOLDS, tracked]);
+  }, [brotherList, THRESHOLDS, measured]);
 
   const statusCounts = useMemo(() => {
     const counts = { All: brotherList.length, Good: 0, Watch: 0, "At Risk": 0 };
-    brotherList.forEach(b => { counts[getBrotherStatus(b, THRESHOLDS, tracked)]++; });
+    brotherList.forEach(b => { counts[getBrotherStatus(b, THRESHOLDS, measured)]++; });
     return counts;
-  }, [brotherList, THRESHOLDS, tracked]);
+  }, [brotherList, THRESHOLDS, measured]);
 
   // ── Filtered + sorted list ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let result = brotherList.filter(b => {
       const q = search.toLowerCase();
       const matchQ = !q || b.name.toLowerCase().includes(q) || roleTitle(b).toLowerCase().includes(q);
-      const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, tracked) === statusFilter;
+      const matchS = statusFilter === "All" || getBrotherStatus(b, THRESHOLDS, measured) === statusFilter;
       return matchQ && matchS;
     });
     if (sortKey) {
@@ -291,7 +302,7 @@ export default function BrothersPage() {
       });
     }
     return result;
-  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, tracked]);
+  }, [brotherList, search, statusFilter, sortKey, sortDir, THRESHOLDS, measured]);
 
   // ── Mutations ─────────────────────────────────────────────────────────────
 
@@ -365,7 +376,7 @@ export default function BrothersPage() {
         b.gpa.toFixed(2),
         String(b.serviceHours),
         b.duesOwed.toFixed(2),
-        getBrotherStatus(b, THRESHOLDS, tracked),
+        getBrotherStatus(b, THRESHOLDS, measured),
       ]),
     ];
     const csv = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -398,7 +409,7 @@ export default function BrothersPage() {
   // Days late per member, from Treasury → Dues — the balance alone can't say since when.
   const duesLate = (id: number) => { const st = duesStandings?.get(id); return st?.standing === "overdue" ? st.lateDays : 0; };
   const duesOverdueCount = tracked.duesOwed && duesStandings ? brotherList.filter(b => b.duesOwed > 0 && duesLate(b.id) > 0).length : 0;
-  const belowAttend    = tracked.attendance ? brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length : 0;
+  const belowAttend    = measured.attendance ? brotherList.filter(b => b.attendance < THRESHOLDS.attendanceWatch).length : 0;
 
   // Day one: the founder is pinned to the roster at creation, so "nobody yet" is
   // a one-row roster, not an empty one. Standing for one person says nothing;
@@ -542,7 +553,8 @@ export default function BrothersPage() {
                 {kpis && (
                   <p className={`summary${dayOne ? " lg-only" : ""}`}>
                     {kpis.total} {v("Member", true).toLowerCase()} active.{" "}
-                    <b>{statusCounts["At Risk"]} at risk</b> and <b>{statusCounts.Watch} on watch</b>
+                    {nothingMeasured ? <>Nothing&rsquo;s been recorded yet, so nobody has a standing</>
+                      : <><b>{statusCounts["At Risk"]} at risk</b> and <b>{statusCounts.Watch} on watch</b></>}
                     {(duesOwingCount > 0 || belowAttend > 0) && <>
                       {" "}— {duesOwingCount > 0 && <>{duesOwingCount} owe {fmt$(kpis.duesTotal)} in {v("Dues").toLowerCase()}</>}
                       {duesOwingCount > 0 && belowAttend > 0 && " and "}
@@ -580,14 +592,14 @@ export default function BrothersPage() {
             ) : kpis && (
               <section className="ledger" style={{ marginTop: 22 }}>
                 {tracked.attendance && <Measure
-                  label="Attendance" value={kpis.avgAtt.toFixed(1)} unit="%"
-                  note={belowAttend > 0 ? `${belowAttend} below ${THRESHOLDS.attendanceWatch}%` : "all on track"}
-                  noteTone={belowAttend > 0 ? "warn" : "ok"}
+                  label="Attendance" value={measured.attendance ? kpis.avgAtt.toFixed(1) : "—"} unit={measured.attendance ? "%" : undefined}
+                  note={!measured.attendance ? "no meetings yet" : belowAttend > 0 ? `${belowAttend} below ${THRESHOLDS.attendanceWatch}%` : "all on track"}
+                  noteTone={!measured.attendance ? undefined : belowAttend > 0 ? "warn" : "ok"}
                   icon="check" color="var(--pp-mint-ink)" onClick={() => focusRoster("attendance")}
                 />}
                 {tracked.gpa && <Measure
-                  label={`${v("Meetings")} GPA`} value={kpis.avgGpa.toFixed(2)}
-                  note={`${brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length} below ${THRESHOLDS.gpaWatch.toFixed(1)}`}
+                  label={`${v("Meetings")} GPA`} value={measured.gpa ? kpis.avgGpa.toFixed(2) : "—"}
+                  note={measured.gpa ? `${brotherList.filter(b => b.gpa < THRESHOLDS.gpaWatch).length} below ${THRESHOLDS.gpaWatch.toFixed(1)}` : "none entered yet"}
                   icon="star" color="var(--pp-lilac-ink)" onClick={() => focusRoster("gpa")}
                 />}
                 {tracked.duesOwed && <Measure
@@ -598,13 +610,13 @@ export default function BrothersPage() {
                 />}
                 {tracked.serviceHours && <Measure
                   label={`${v("Service")} hours`} value={String(brotherList.reduce((s, b) => s + b.serviceHours, 0))} unit="h"
-                  note={`${kpis.svcMet} of ${kpis.total} on track`}
+                  note={measured.serviceHours ? `${kpis.svcMet} of ${kpis.total} on track` : "none logged yet"}
                   icon="heart" color="var(--pp-sky-ink)" onClick={() => focusRoster("serviceHours")}
                 />}
                 <Measure
-                  label="In good standing" value={String(statusCounts.Good)} unit={` / ${kpis.total}`}
-                  note={`${Math.round((statusCounts.Good / Math.max(1, kpis.total)) * 100)}% of ${memberPlural}`}
-                  noteTone="ok"
+                  label="In good standing" value={nothingMeasured ? "—" : String(statusCounts.Good)} unit={nothingMeasured ? undefined : ` / ${kpis.total}`}
+                  note={nothingMeasured ? "starts with the first record" : `${Math.round((statusCounts.Good / Math.max(1, kpis.total)) * 100)}% of ${memberPlural}`}
+                  noteTone={nothingMeasured ? undefined : "ok"}
                   icon="people" color="var(--pp-mint-ink)" onClick={() => focusRoster("good")}
                 />
               </section>
@@ -644,6 +656,9 @@ export default function BrothersPage() {
               <section className={`dist${dayOne ? " lg-only" : ""}`}>
                 <div className="dist-head">
                   <h2>Standing</h2>
+                  {nothingMeasured ? (
+                    <span className="hint">Starts once the first record is in. Until then nobody is judged on a 0.</span>
+                  ) : <>
                   <span className="hint lg-only">Click a band to filter</span>
                   <span className="hint pp-only">
                     Click a band or a face &mdash;{" "}
@@ -655,7 +670,9 @@ export default function BrothersPage() {
                     ].filter(Boolean).join(", ").replace(/, ([^,]*)$/, " or $1")}{" "}
                     puts someone on watch.
                   </span>
+                  </>}
                 </div>
+                {!nothingMeasured && <>
                 <div className="bh-seg">
                   {segments.filter(s => s.count > 0).map(s => (
                     <button
@@ -683,18 +700,20 @@ export default function BrothersPage() {
                     </button>
                   ))}
                 </div>
+                </>}
                 {/* Paper's class photo: every face, ringed by standing. A face opens
-                    that member's card; a band/legend filter dims everyone else. */}
+                    that member's card; a band/legend filter dims everyone else.
+                    Before anything is recorded there is no standing to ring. */}
                 <div className="bh-photo pp-only" aria-label={`Every ${v("Member").toLowerCase()}, ringed by standing`}>
                   {brotherList.map(b => {
-                    const st = getBrotherStatus(b, THRESHOLDS, tracked);
-                    const ring = st === "Good" ? "ph-good" : st === "Watch" ? "ph-watch" : "ph-risk";
+                    const st = getBrotherStatus(b, THRESHOLDS, measured);
+                    const ring = nothingMeasured ? "ph-none" : st === "Good" ? "ph-good" : st === "Watch" ? "ph-watch" : "ph-risk";
                     return (
                       <button
                         key={b.id}
                         type="button"
                         className={`${ring}${b.id === selfId ? " you" : ""}${statusFilter !== "All" && statusFilter !== st ? " dim" : ""}`}
-                        title={`${b.name} · ${STATUS_TAG[st].label.toLowerCase()}`}
+                        title={nothingMeasured ? b.name : `${b.name} · ${STATUS_TAG[st].label.toLowerCase()}`}
                         aria-label={`Open ${b.name}`}
                         onClick={() => setSelectedId(b.id)}
                       >
@@ -809,12 +828,12 @@ export default function BrothersPage() {
                       <tr className="empty-row"><td colSpan={colCount}>No {v("Member", true).toLowerCase()} match your filters.</td></tr>
                     ) : (
                       filtered.map(b => {
-                        const status = getBrotherStatus(b, THRESHOLDS, tracked);
-                        const tag = STATUS_TAG[status];
+                        const status = getBrotherStatus(b, THRESHOLDS, measured);
+                        const tag = nothingMeasured ? NOT_YET_TAG : STATUS_TAG[status];
                         const attCls = b.attendance >= THRESHOLDS.attendanceWatch ? "sage" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "gold" : "rose";
                         const attBar = b.attendance >= THRESHOLDS.attendanceWatch ? "bg-sage" : b.attendance >= THRESHOLDS.attendanceAtRisk ? "bg-gold" : "bg-rose";
                         const gpaCls = b.gpa < THRESHOLDS.gpaAtRisk ? "rose" : b.gpa < THRESHOLDS.gpaWatch ? "gold" : "";
-                        const svcCls = b.serviceHours < THRESHOLDS.serviceHoursGoal ? "gold" : "muted";
+                        const svcCls = measured.serviceHours && b.serviceHours < THRESHOLDS.serviceHoursGoal ? "gold" : "muted";
                         return (
                           <tr
                             key={b.id}
@@ -847,11 +866,11 @@ export default function BrothersPage() {
                             </td>
                             {tracked.attendance && <td className="c-att">
                               <div className="attb">
-                                <span className="track"><i className={attBar} style={{ width: `${clamp(b.attendance, 0, 100)}%` }} /></span>
-                                <span className={attCls}>{b.attendance}%</span>
+                                <span className="track">{measured.attendance && <i className={attBar} style={{ width: `${clamp(b.attendance, 0, 100)}%` }} />}</span>
+                                {measured.attendance ? <span className={attCls}>{b.attendance}%</span> : <span className="muted">—</span>}
                               </div>
                             </td>}
-                            {tracked.gpa && <td className="num c-gpa"><span className={`mono ${gpaCls}`}>{b.gpa.toFixed(2)}</span></td>}
+                            {tracked.gpa && <td className="num c-gpa">{measured.gpa ? <span className={`mono ${gpaCls}`}>{b.gpa.toFixed(2)}</span> : <span className="mono muted">—</span>}</td>}
                             {tracked.serviceHours && <td className="num c-svc"><span className={`mono ${svcCls}`}>{b.serviceHours}h</span></td>}
                             {tracked.duesOwed && <td className="num c-dues">
                               {b.duesOwed > 0 ? (
@@ -866,7 +885,7 @@ export default function BrothersPage() {
                                 <span className="mono muted">—</span>
                               )}
                             </td>}
-                            <td className="num"><span className={`status-tag ${tag.cls}`}>{tag.label}</span></td>
+                            <td className="num"><span className={`status-tag ${tag.cls}`} title={nothingMeasured ? "Nothing recorded yet" : undefined}>{tag.label}</span></td>
                             {customFieldDefs.map(f => (
                               <td key={f.id} className="num c-cf"><span className="mono muted">{b.customFields?.[f.id] != null ? String(b.customFields[f.id]) : "—"}</span></td>
                             ))}

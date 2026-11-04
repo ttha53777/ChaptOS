@@ -13,7 +13,9 @@
 
 import type { RequestContext } from "@/lib/context";
 import { NotFoundError, ValidationError } from "@/lib/errors";
-import { resolveThresholds, isAttendanceExempt, type Thresholds } from "@/lib/thresholds";
+import { isAttendanceExempt } from "@/lib/thresholds";
+import { readStandingConfig, rosterMeasured } from "@/lib/member-standing";
+import { ALL_TRACKED, anyMeasured, type TrackedMetrics } from "@/lib/tracked-metrics";
 import { getBrotherStatus, type Brother as BrotherType, type BrotherStatus } from "@/app/data";
 import { formatEventTime } from "@/lib/event-time";
 import { ExcuseStatus } from "@/lib/state";
@@ -83,10 +85,6 @@ function statusTone(status: BrotherStatus): PeekTone {
   return "good";
 }
 
-async function orgThresholds(ctx: RequestContext): Promise<Thresholds> {
-  const config = await ctx.db.organizationConfig.find();
-  return resolveThresholds(config?.thresholds);
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Member
@@ -96,11 +94,14 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
   // Everything the card needs, in one round of queries. Each scoped call is its
   // own BEGIN/SET LOCAL/COMMIT under RLS (lib/db/tenant), so serial awaits here
   // would stack real latency on a path whose whole point is being instant.
-  const [brother, thresholds, roleRows, records] = await Promise.all([
+  const [brother, { thresholds, tracked }, recorded, roleRows, records] = await Promise.all([
     // The roster row for THIS org, org-local name already resolved — so the
     // separate Membership name lookup this used to need is gone.
     ctx.db.member.findRosterRow(id),
-    orgThresholds(ctx),
+    readStandingConfig(ctx.db),
+    // Which metrics anyone has a record for, narrowed to `tracked` below — in
+    // parallel rather than after the config read, since it's the same answer.
+    rosterMeasured(ctx.db, ALL_TRACKED),
     ctx.db.brotherRole.listWithRole([id]),
     // Relation-scoped: the wrapper ANDs calendarEvent.organizationId, so this
     // bare brotherId filter can't reach another org's attendance.
@@ -112,19 +113,28 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
   ]);
   if (!brother) throw new NotFoundError("Member");
 
-  const status = getBrotherStatus(brother as BrotherType, thresholds);
+  // Judged on what's been recorded, like the roster: on a new org a 0% and a
+  // 0.00 are "not entered", and the card mustn't badge the member At Risk.
+  const measured = Object.fromEntries(
+    Object.entries(tracked).map(([k, on]) => [k, on && recorded[k as keyof TrackedMetrics]]),
+  ) as TrackedMetrics;
+  const status = getBrotherStatus(brother as BrotherType, thresholds, measured);
   const exempt = isAttendanceExempt(brother.attendance);
 
   // Relational roles are the truth; the roster row's `role` is stale free text on older rows.
   const roles = roleRows.map(r => r.role).sort((a, z) => z.rank - a.rank);
   const title = roles.length > 0 ? roles.map(r => r.name).join(" · ") : brother.role;
 
+  // Only what the org tracks (the roster's columns), and "—" for a metric
+  // nobody has a record for yet.
   const facts: PeekFact[] = [
-    { k: "Dues owed", v: usd(brother.duesOwed), mono: true, tone: brother.duesOwed > 0 ? "warn" : "good" },
-    { k: "Attendance", v: exempt ? "Exempt" : `${Math.round(brother.attendance)}%`, mono: !exempt },
-    { k: "GPA", v: brother.gpa.toFixed(2), mono: true },
-    { k: "Service hours", v: String(brother.serviceHours), mono: true },
-  ];
+    tracked.duesOwed && { k: "Dues owed", v: usd(brother.duesOwed), mono: true, tone: brother.duesOwed > 0 ? "warn" : "good" },
+    tracked.attendance && (exempt ? { k: "Attendance", v: "Exempt" }
+      : measured.attendance ? { k: "Attendance", v: `${Math.round(brother.attendance)}%`, mono: true }
+      : { k: "Attendance", v: "—", tone: "muted" }),
+    tracked.gpa && (measured.gpa ? { k: "GPA", v: brother.gpa.toFixed(2), mono: true } : { k: "GPA", v: "—", tone: "muted" }),
+    tracked.serviceHours && { k: "Service hours", v: String(brother.serviceHours), mono: true },
+  ].filter((f): f is PeekFact => !!f);
 
   // Most recent first. Excuse REASONS are deliberately absent — the state is
   // enough to explain the number, and the reason is the excuse review's business.
@@ -143,7 +153,7 @@ async function memberPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
     id: brother.id,
     title: brother.name,
     subtitle: title,
-    badge: { label: status, tone: statusTone(status) },
+    badge: anyMeasured(measured) ? { label: status, tone: statusTone(status) } : { label: "Not yet", tone: "muted" },
     facts,
     sections: [{ label: "Recent attendance", rows: recent, empty: "No attendance logged yet." }],
   };

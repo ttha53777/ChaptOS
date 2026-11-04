@@ -1650,6 +1650,7 @@ html[data-aesthetic="paper"] .dash .bh-photo button {
 html[data-aesthetic="paper"] .dash .bh-photo .ph-good  { --sb: var(--pp-mint); }
 html[data-aesthetic="paper"] .dash .bh-photo .ph-watch { --sb: var(--pp-butter); }
 html[data-aesthetic="paper"] .dash .bh-photo .ph-risk  { --sb: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .bh-photo .ph-none  { --sb: var(--line-med); }
 html[data-aesthetic="paper"] .dash .bh-photo button > * { width: 30px !important; height: 30px !important; border-radius: 50%; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--sb); }
 html[data-aesthetic="paper"] .dash .bh-photo button.you > * { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--sb), 0 0 0 5.5px var(--ink); }
 html[data-aesthetic="paper"] .dash .bh-photo button:hover { transform: translateY(-3px) scale(1.12); z-index: 2; }
