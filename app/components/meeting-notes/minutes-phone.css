@@ -11,8 +11,10 @@
 .mt-sub, .mt-who, .mt-chrome, .mt-dock, .mt-acc { display: none; }
 
 @media (max-width: 767px) {
+  /* min-height: .dash's 100% is the layout viewport, which the iOS keyboard
+     doesn't shrink; it held the sheet full-height with its bottom under the keys. */
   html[data-aesthetic] body .dash.mt-ov {
-    padding: 0 !important; align-items: stretch; bottom: auto;
+    padding: 0 !important; align-items: stretch; bottom: auto; min-height: 0;
     top: var(--cs-vvt, 0px); height: var(--cs-vvh, 100dvh);
   }
   html[data-aesthetic] body .dash.mt-ov .mt-sheet {

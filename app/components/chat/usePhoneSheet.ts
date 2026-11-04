@@ -51,15 +51,25 @@ export function usePhoneSheet(open: boolean, overlayRef: RefObject<HTMLDivElemen
     // `top` is laid out against the sheet's containing block, which is the
     // viewport only when no ancestor is transformed. Page roots are
     // (.main-route-transition), and iOS scrolls the document to reach a caret,
-    // carrying the page root and the sheet with it, so the sheet's bottom ended
-    // up under the keyboard. Measure where the box really is and correct it.
+    // carrying the page root and the sheet with it, so measure where the box
+    // really is and correct it. The target has to be read in the same
+    // coordinates as getBoundingClientRect, which are layout-viewport-relative
+    // in Chrome but visual-viewport-relative on iOS (comparing against bare
+    // offsetTop counted the pan twice there and dropped the sheet, opening a
+    // gap at the top). A body-level fixed probe marks the layout viewport's top
+    // in those coordinates; the visible top is offsetTop below it.
     const vv = window.visualViewport;
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none";
+    document.body.appendChild(probe);
     let top = 0;
     const syncBox = () => {
       if (!vv) return;
       el.style.setProperty("--cs-vvh", `${vv.height}px`);
-      top += vv.offsetTop - el.getBoundingClientRect().top;
-      el.style.setProperty("--cs-vvt", `${top}px`);
+      const want = probe.getBoundingClientRect().top + vv.offsetTop;
+      top += want - el.getBoundingClientRect().top;
+      el.style.setProperty("--cs-vvt", `${Math.round(top * 100) / 100}px`);
     };
     syncBox();
     vv?.addEventListener("resize", syncBox);
@@ -85,6 +95,7 @@ export function usePhoneSheet(open: boolean, overlayRef: RefObject<HTMLDivElemen
       vv?.removeEventListener("resize", syncBox);
       vv?.removeEventListener("scroll", syncBox);
       window.removeEventListener("scroll", syncBox);
+      probe.remove();
       el.removeEventListener("focusin", syncKeyboard);
       el.removeEventListener("focusout", onFocusOut);
       body.style.overflow = prevOverflow;
