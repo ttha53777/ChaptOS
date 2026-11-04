@@ -46,17 +46,30 @@ export function SiteNavMotion() {
     const spy = nls.flatMap(a => {
       const h = a.getAttribute("href") ?? "";
       const sec = h.length > 1 && h[0] === "#" ? document.querySelector<HTMLElement>(h) : null;
-      return sec ? [[a, sec] as const] : [];
+      return sec ? [{ a, sec, t: 0, b: 0 }] : [];
     });
-    const tick = () => {
-      nav.classList.toggle("scrolled", scrollY > 30);
-      const y = scrollY + innerHeight * .4;
-      spy.forEach(([a, sec]) => { const t = docTop(sec); a.classList.toggle("on", y >= t && y < t + sec.offsetHeight); });
+    // Section spans are measured when the layout changes, never on scroll: read there, after the
+    // class writes, they made the browser lay the page out again on every scroll event. Hidden links
+    // (the phone bar shows only the menu) have nothing to mark, so they're left alone.
+    let shown = false;
+    const measure = () => {
+      shown = links.offsetParent !== null;
+      spy.forEach(s => { s.t = docTop(s.sec); s.b = s.t + s.sec.offsetHeight; });
     };
-    tick();
+    const tick = () => {
+      const sy = scrollY;
+      nav.classList.toggle("scrolled", sy > 30);
+      if (!shown) return;
+      const y = sy + innerHeight * .4;
+      spy.forEach(s => s.a.classList.toggle("on", y >= s.t && y < s.b));
+    };
+    measure(); tick();
     addEventListener("scroll", tick, { passive: true, signal: ac.signal });
-    addEventListener("resize", tick, on);
-    return () => ac.abort();
+    addEventListener("resize", () => { measure(); tick(); }, on);
+    // anything that moves a section moves the page's height with it (the landing motion's phone cards, FAQ answers)
+    const ro = spy.length ? new ResizeObserver(() => { measure(); tick(); }) : null;
+    ro?.observe(document.body);
+    return () => { ac.abort(); ro?.disconnect(); };
   }, []);
   return <span ref={ref} hidden />;
 }

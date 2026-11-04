@@ -107,13 +107,6 @@ function mount(): () => void {
   }
   readWash();
 
-  /* the bottom bar on phones: up once the hero's done, down near the end (the top bar is <SiteNav>'s) */
-  const mbar = $("#mbar");
-  scenes.push({ update() {
-    const nearEnd = scrollY + H > document.documentElement.scrollHeight - 500;
-    mbar.classList.toggle("on", scrollY > $("#top").offsetHeight - H * .5 && !nearEnd);
-  }});
-
   /* word split + reveal. Rewrites the heading once; a remount finds it split. */
   $$("[data-split]").forEach(el => {
     if (el.dataset.split === "done") return;
@@ -166,7 +159,7 @@ function mount(): () => void {
   const dfNav = $("#dfNav"), oword = $("#oword"), brandMark = $("#df .df-org .mark");
   const renderNav = (o: OrgView) => { dfNav.innerHTML = o.nav.map(([l, c, m], i) => `<div class="df-it${i === 0 ? " on" : ""}${m ? " mod" : ""}" style="--d:${i * 40}ms"><i style="--c:var(--${c})"></i>${l}</div>`).join(""); };
   // eslint-disable-next-line prefer-const -- assigned below; rollWord needs it first
-  let hero: Scene & { measure(): void; pageY(): number; reswap(): void };
+  let hero: Scene & { measure(): void; refit(): void; pageY(): number; reswap(): void };
   function setOrg(t: string, user?: boolean) {
     if (user) autoOrg = false;
     if (t === orgType) return; orgType = t; const o = ORG[t];
@@ -200,7 +193,7 @@ function mount(): () => void {
     rollT = later(() => {
       $$(".ow.out", oword).forEach(e => e.remove()); oword.style.width = "";
       // a wider word can rewrap the headline, so the copy and the docked size are re-fit
-      hero.measure();
+      hero.refit();
     }, 560);
   }
   // a remount starts from the mock's opening state: one word, the club's dashboard
@@ -230,11 +223,13 @@ function mount(): () => void {
         w0: parseFloat(mi.style.width), h0: parseFloat(mi.style.height), pose: POSE[k], docked: false, ox: 0, oy: 0, w1: 0, h1: 0 };
     });
     // SH is the stage's own height, which follows a phone's browser bar (100dvh) while the rest of the page holds H
-    let SH = H, top = 0, len = 1, mob = false, k = 1, dfL = 0, dfT = 0, copyTop = 0, endDy = 0, endS = 1, s0 = 1, low = 0, wA = 0, wB = 0, lastCycle = 0, wordAt = 0;
+    let SH = H, top = 0, len = 1, mob = false, k = 1, dfL = 0, dfT = 0, copyTop = 0, endDy = 0, endS = 1, s0 = 1, low = 0, wA = 0, wB = 0, lastCycle = 0, wordAt = 0, h1At = 0, seenTo = 0;
     const api = {
       reswap() { swap.style.width = "auto"; wA = swA.offsetWidth; wB = swB.offsetWidth; },
       // the scroll position where the headline reads "runs on one page" and the dashboard has docked
       pageY() { return top + .84 * len; },
+      // only a headline that rewrapped moves anything: the copy's fit and the docked size hang off its height
+      refit() { if (h1.offsetHeight !== h1At) api.measure(); },
       measure() {
         SH = stage.clientHeight || H;
         top = absTop(sec); len = sec.offsetHeight - SH; mob = W < 760;
@@ -244,6 +239,8 @@ function mount(): () => void {
         dfL = (W - fw) / 2; dfT = Math.min(SH * (mob ? .33 : .3), SH - fh - 74);
         df.style.left = dfL + "px"; df.style.top = dfT + "px";
         ots.style.top = (dfT + fh + 18) + "px";
+        // the scroll position where the org types under the dashboard leave the top of the screen
+        seenTo = top + len + dfT + fh + 18 + ots.offsetHeight;
         const dr = df.getBoundingClientRect();
         pcs.forEach(pc => {
           const r = pc.slot.getBoundingClientRect();
@@ -257,7 +254,7 @@ function mount(): () => void {
         copyTop = Math.max(70, (SH - ch * s0) / 2 - (mob ? 0 : 10)); copy.style.top = copyTop + "px";
         // on a short phone the copy runs into the lower notes; drop them below it (the stage crops them)
         low = mob ? Math.max(0, copyTop + ch * s0 - SH * .84) : 0;
-        const h1H = h1.offsetHeight, h1Off = h1.offsetTop, bandT = 72, bandH = dfT - 14 - bandT;
+        const h1H = h1At = h1.offsetHeight, h1Off = h1.offsetTop, bandT = 72, bandH = dfT - 14 - bandT;
         endS = Math.min(mob ? .72 : .58, bandH / h1H);
         endDy = bandT + (bandH - h1H * endS) / 2 - copyTop - h1Off * endS;
       },
@@ -301,7 +298,9 @@ function mount(): () => void {
         // once it's one page: show the org types, and cycle them while the reader lingers
         const done = p > .8;
         ots.classList.toggle("on", done);
-        if (done && autoOrg && !RM) {
+        // and only while some of the stage is still on screen: scrolled past, every switch rewrote the
+        // dashboard and re-fit the hero for nobody, a hitch every 2.6 s wherever the reader was
+        if (done && autoOrg && !RM && y < seenTo) {
           if (!lastCycle) lastCycle = now;
           else if (now - lastCycle > 2600) { setOrg(ORDER[(ORDER.indexOf(orgType) + 1) % ORDER.length]); lastCycle = now; }
         } else lastCycle = 0;
@@ -340,8 +339,20 @@ function mount(): () => void {
     // where it sits on the way in, before the pin catches it
     race.pre = el => runTop + off(el);
     const tog = (el: Element, c: string, v: boolean) => el.classList.toggle(c, v);
+    // each footer holds the room of its longest line from the start: one that grew mid-scroll
+    // pushed the page down under the reader's thumb and set off a re-measure of everything
+    const reserve = (el: HTMLElement, all: string[]) => {
+      const was = el.innerHTML; el.style.minHeight = "";
+      const h = Math.max(...all.map(v => { el.innerHTML = v; return el.offsetHeight; }));
+      el.innerHTML = was; el.style.minHeight = h + "px";
+    };
     return {
       measure() {
+        reserve(fS, FOOT_S); reserve(fF, FOOT_F);
+        // and the writ's last row keeps the height it has beside "Approve": on a phone "Done" is narrow
+        // enough to unwrap the line next to it, and the card shrank as the stamp landed
+        const wrF = ok.parentNode as HTMLElement, label = ok.textContent;
+        wrF.style.minHeight = ""; ok.textContent = "Approve"; wrF.style.minHeight = wrF.offsetHeight + "px"; ok.textContent = label;
         const bh = box.offsetHeight;
         race.pinned = !RM && W > 860 && bh + 96 <= H;
         tog(run, "pin", race.pinned);
@@ -622,20 +633,27 @@ function mount(): () => void {
     // the knot, authored on a 1440 × 520 board and stretched across the close
     const KNOT: [string, ...number[]][] = [["M", -20, 120], ["C", 200, 40, 320, 260, 520, 180], ["S", 760, 20, 900, 160], ["S", 1060, 380, 1180, 250],
       ["C", 1260, 160, 1340, 200, 1300, 270], ["C", 1260, 340, 1190, 290, 1230, 230], ["C", 1290, 150, 1400, 210, 1470, 300]];
-    const STEP = 8;
-    let Lp = 1, Lk = 1, ymax: number[] = [], jy = 0, last = NaN;
-    const curve = (P: number[][]) => P.map((p, i) => {
-      if (!i) return `M${p[0]} ${p[1]}`;
-      const a = P[i - 2] || P[i - 1], b = P[i - 1], d = P[i + 1] || p;
-      return `C${b[0] + (p[0] - a[0]) / 6} ${b[1] + (p[1] - a[1]) / 6} ${p[0] - (d[0] - b[0]) / 6} ${p[1] - (d[1] - b[1]) / 6} ${p[0]} ${p[1]}`;
-    }).join("");
+    const SUB = 128;
+    // ymax[i]: the lowest the thread has reached by length lens[i]
+    let Lp = 1, Lk = 1, ymax: number[] = [], lens: number[] = [], jy = 0, last = NaN;
+    const curve = (P: number[][]) => {
+      const segs: number[][] = [];
+      const d = P.map((p, i) => {
+        if (!i) return `M${p[0]} ${p[1]}`;
+        const a = P[i - 2] || P[i - 1], b = P[i - 1], d = P[i + 1] || p;
+        const s = [b[0], b[1], b[0] + (p[0] - a[0]) / 6, b[1] + (p[1] - a[1]) / 6, p[0] - (d[0] - b[0]) / 6, p[1] - (d[1] - b[1]) / 6, p[0], p[1]];
+        segs.push(s);
+        return `C${s[2]} ${s[3]} ${s[4]} ${s[5]} ${p[0]} ${p[1]}`;
+      }).join("");
+      return { d, segs };
+    };
     const box = (id: string) => { const el = $(id); const t = docTop(el); return [t, t + el.offsetHeight]; };
     function lenAt(y: number) {
       let lo = 0, hi = ymax.length - 1;
       if (hi < 0 || y <= ymax[0]) return 0;
       if (y >= ymax[hi]) return Lp;
       while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ymax[m] < y) lo = m; else hi = m; }
-      return (lo + (y - ymax[lo]) / Math.max(1e-3, ymax[hi] - ymax[lo])) * STEP;
+      return lens[lo] + (y - ymax[lo]) / Math.max(1e-3, ymax[hi] - ymax[lo]) * (lens[hi] - lens[lo]);
     }
     function tip(path: SVGPathElement, l: number) {
       const p = path.getPointAtLength(l), q = path.getPointAtLength(Math.max(0, l - 4));
@@ -656,13 +674,27 @@ function mount(): () => void {
           [W * .62, (pa + pz) / 2],
           [L, qa + 80], [L + sw, (qa + qz) / 2], [L, qz - 60],
           [-20 * kx, jy]];
-        pg.setAttribute("d", curve(P));
+        const { d, segs } = curve(P);
+        pg.setAttribute("d", d);
         kn.setAttribute("d", KNOT.map(([c, ...n]) => c + n.map((v, i) => i % 2 ? v + ky : v * kx).join(" ")).join(""));
         svg.style.height = (ky + 560) + "px";
         Lp = pg.getTotalLength(); Lk = kn.getTotalLength();
         pg.style.strokeDasharray = String(Lp); kn.style.strokeDasharray = String(Lk);
-        ymax = []; let m = -Infinity;
-        for (let l = 0; l <= Lp; l += STEP) { m = Math.max(m, pg.getPointAtLength(l).y); ymax.push(m); }
+        // walked in plain maths off the same curves: sampling it with getPointAtLength every 8px
+        // took ~0.5 s on a phone, and ran on every re-measure, mid-scroll
+        let run = 0, m = P[0][1];
+        ymax = [m]; lens = [0];
+        for (const [x0, y0, x1, y1, x2, y2, x3, y3] of segs) {
+          let px = x0, py = y0;
+          for (let s = 1; s <= SUB; s++) {
+            const t = s / SUB, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, e = t * t * t;
+            const x = a * x0 + b * x1 + c * x2 + e * x3, yy = a * y0 + b * y1 + c * y2 + e * y3;
+            run += Math.hypot(x - px, yy - py); px = x; py = yy;
+            m = Math.max(m, yy); ymax.push(m); lens.push(run);
+          }
+        }
+        // the browser's own length is the one the dash is drawn against
+        const kL = Lp / run; lens = lens.map(l => l * kL);
         last = NaN;
       },
       update(y: number) {
@@ -810,10 +842,23 @@ function mount(): () => void {
     }
   });
 
+  /* the bottom bar on phones: up once the hero's done, down near the end (the top bar is <SiteNav>'s).
+     Measured last, once every scene above has settled the page's height. It reads the frame's own
+     scroll value: scrollY or a height read here, after the race has written its text, forced the
+     browser to lay the page out again every frame. */
+  const mbar = $("#mbar");
+  let heroH = 0, endY = 0;
+  scenes.push({
+    measure() { heroH = $("#top").offsetHeight; endY = document.documentElement.scrollHeight - 500; },
+    update(y: number) { mbar.classList.toggle("on", y > heroH - H * .5 && y + H <= endY); }
+  });
+
   /* ── loop ────────────────────────────────────────────────────────────── */
+  const main = $("main", root);
+  let mainH = -1;
   // on touch, H is the height the page loaded at (browser bar showing) until the width changes:
   // the bar sliding away mid-scroll would otherwise re-place every pinned scene under your thumb
-  function measureAll() { if (!alive) return; if (!TOUCH || innerWidth !== W) H = innerHeight; W = innerWidth; MOB = W < 760; readWash(); scenes.forEach(s => s.measure?.()); }
+  function measureAll() { if (!alive) return; if (!TOUCH || innerWidth !== W) H = innerHeight; W = innerWidth; MOB = W < 760; readWash(); scenes.forEach(s => s.measure?.()); mainH = main.offsetHeight; }
   addEventListener("pointermove", e => { mouse.tx = e.clientX / W * 2 - 1; mouse.ty = e.clientY / H * 2 - 1; }, { passive: true, signal: ac.signal });
   let rt = 0; const remeasure = () => { cancel(rt); rt = later(measureAll, 120); };
   // a height-only resize on touch is the browser bar: only the hero, whose stage tracks it, re-fits
@@ -822,8 +867,10 @@ function mount(): () => void {
     if (!TOUCH || innerWidth !== W) remeasure();
     else { cancel(ht); ht = later(() => { if (alive) hero.measure(); }, 80); }
   }, on);
-  // FAQ answers and the fit preview change the page's height; everything below has to re-measure
-  const ro = new ResizeObserver(remeasure); ro.observe($("main", root));
+  // FAQ answers and the fit preview change the page's height; everything below has to re-measure.
+  // A height the last measure already saw (the observer's first call, the phone cards measure() itself
+  // builds) needs nothing.
+  const ro = new ResizeObserver(() => { if (main.offsetHeight !== mainH) remeasure(); }); ro.observe(main);
   cleanups.push(() => ro.disconnect());
   function frame(t: number) {
     now = t;
@@ -836,7 +883,8 @@ function mount(): () => void {
     raf = requestAnimationFrame(frame);
   }
   measureAll();
-  (document.fonts ? document.fonts.ready : Promise.resolve()).then(measureAll);
+  // fonts still on their way re-flow the copy when they land; already loaded, there's nothing to redo
+  if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(measureAll);
   raf = requestAnimationFrame(frame);
   // the loose ends have their first pose once that frame runs; only then may they show
   requestAnimationFrame(() => requestAnimationFrame(() => { if (alive) root.classList.add("lm-live"); }));
