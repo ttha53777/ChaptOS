@@ -130,11 +130,22 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
     // the meeting pointing at a template that was already gone.
     const template = templateId == null ? null : await tx.agendaTemplate.findFirst({
       where: { id: templateId, organizationId: ctx.orgId, archivedAt: null },
-      select: { body: true },
+      select: { id: true, body: true },
     });
     if (templateId != null && !template) throw new ValidationError("That agenda template was deleted. Pick another one, or start the notes blank.");
+    // A chapter meeting added somewhere without an agenda picker (the Timeline,
+    // the dashboard, Ask Chapt) starts from the org's default agenda. Only when
+    // the field is omitted: the Meetings form sends null for "start blank".
+    const fallback = template == null && input.agendaTemplateId === undefined
+      && input.category === "chapter" && !(input.description ?? "").trim()
+      ? await tx.agendaTemplate.findFirst({
+          where: { organizationId: ctx.orgId, isDefault: true, archivedAt: null },
+          select: { id: true, body: true },
+        })
+      : null;
+    const seed = template ?? fallback;
     const rows = occurrences.map(one => {
-      const agenda = template ? fillAgendaFor(one, template.body) : null;
+      const agenda = seed ? fillAgendaFor(one, seed.body) : null;
       return {
         organizationId: ctx.orgId,
         schedule: one.schedule ?? Prisma.DbNull,
@@ -147,7 +158,7 @@ export async function createCalendar(ctx: RequestContext, input: CreateCalendarI
         location:    one.location ?? null,
         details:     one.details?.length ? one.details : Prisma.DbNull,
         // notesSeed is how "has minutes" tells this untouched agenda from real minutes.
-        ...(agenda != null ? { notesSeed: agenda, agendaTemplateId: templateId } : {}),
+        ...(agenda != null ? { notesSeed: agenda, agendaTemplateId: seed!.id } : {}),
       };
     });
     // A repeat is one statement, not one round trip per meeting.

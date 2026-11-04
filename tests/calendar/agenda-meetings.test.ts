@@ -91,6 +91,25 @@ describe("createCalendar with an agenda template", () => {
     await expect(createCalendar(ctx, { ...meeting(), agendaTemplateId: template.id })).rejects.toThrow(/deleted/);
     expect(await testPrisma.calendarEvent.count()).toBe(0);
   });
+
+  it("a meeting added without an agenda picker (Timeline) starts from the default agenda", async () => {
+    const { ctx } = await chapter();
+    const fallback = await createAgendaTemplate(ctx, { name: "Exec meeting", category: "meetings", body: "## Exec\n{{meeting_title}}", isDefault: true });
+
+    const event = await createCalendar(ctx, meeting());
+    expect(event.description).toBe("## Exec\nChapter meeting");
+    expect(event.notesSeed).toBe(event.description);
+    expect(event.agendaTemplateId).toBe(fallback.id);
+  });
+
+  it("the default agenda never overrides an explicit blank, typed notes, or a non-meeting", async () => {
+    const { ctx } = await chapter();
+    await createAgendaTemplate(ctx, { name: "Exec meeting", category: "meetings", body: "## Exec", isDefault: true });
+
+    expect((await createCalendar(ctx, { ...meeting(), agendaTemplateId: null })).agendaTemplateId).toBeNull();
+    expect((await createCalendar(ctx, meeting({ description: "My own notes" }))).description).toBe("My own notes");
+    expect((await createCalendar(ctx, meeting({ category: "party" }))).agendaTemplateId).toBeNull();
+  });
 });
 
 describe("minutes beyond the agenda", () => {
