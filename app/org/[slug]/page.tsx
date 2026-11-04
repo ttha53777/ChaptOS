@@ -1847,6 +1847,7 @@ export default function Home() {
       // Best local estimate of the denominator until the server answers. The
       // band renders `0/N`, so a placeholder 0 here would flash "0/0".
       eligibleCount: attendees.length,
+      recent:        [],
       me: { checkedIn: false, checkedInAt: null, excuse: null },
     });
     addActivity(`Check-in opened — ${event.title}`, "success");

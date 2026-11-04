@@ -132,6 +132,7 @@ describe("live check-in window", () => {
     expect(returned!.me).toEqual(read!.me);
     expect(returned!.closedAt).toBe(read!.closedAt);
     expect(returned!.closedByName).toBe(read!.closedByName);
+    expect(returned!.recent).toEqual(read!.recent);
   });
 
   it("its eligible count drops approved excuses and exempt members", async () => {
@@ -312,6 +313,70 @@ describe("live check-in window", () => {
     expect(live?.closedByName).toBe("Officer");
   });
 
+  // `recent` replaced a whole-roster fetch every paper tab made on each count
+  // change, so it has to stand in for that fetch exactly: same people, same order.
+
+  it("carries the newest arrivals, newest first, with names and times", async () => {
+    const { org, officer, present, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+
+    await openCheckIn(officerCtx, event.id);
+    expect((await getLiveCheckIn(officerCtx))!.recent).toEqual([]);
+
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+    await selfCheckIn(officerCtx, event.id);
+    // Pin the order rather than trusting two inserts a millisecond apart.
+    await testPrisma.attendanceRecord.updateMany({
+      where: { calendarEventId: event.id, brotherId: present.id },
+      data:  { loggedAt: new Date(Date.now() - 60_000) },
+    });
+
+    const live = await getLiveCheckIn(officerCtx);
+    expect(live!.recent.map(a => a.name)).toEqual(["Officer", "Present"]);
+    expect(live!.recent[0].brotherId).toBe(officer.id);
+    expect(Date.parse(live!.recent[0].at)).toBeGreaterThan(Date.parse(live!.recent[1].at));
+  });
+
+  it("caps arrivals at four and leaves out the absent", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    const extra = await Promise.all([1, 2, 3, 4, 5].map(n => createBrother({ orgId: org.id, name: `Extra ${n}` })));
+
+    await openCheckIn(officerCtx, event.id);
+    for (const b of extra) await selfCheckIn(ctxFor(org.id, b.id), event.id);
+    // The officer roll marks one of them absent — they must drop out of the faces.
+    await recordAttendance(officerCtx, { calendarEventId: event.id, attendedIds: extra.slice(1).map(b => b.id) });
+
+    const live = await getLiveCheckIn(officerCtx);
+    expect(live!.presentCount).toBe(4);
+    expect(live!.recent).toHaveLength(4);
+    expect(live!.recent.map(a => a.brotherId)).not.toContain(extra[0].id);
+  });
+
+  it("restamps the arrival time when a reopened window's absence turns present", async () => {
+    const { org, officer, present, absent, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+    await closeCheckIn(officerCtx, event.id);
+    // Age the close's absence row so a missing restamp can't hide in the same ms.
+    await testPrisma.attendanceRecord.updateMany({
+      where: { calendarEventId: event.id, brotherId: absent.id },
+      data:  { loggedAt: new Date(Date.now() - 30 * 60_000) },
+    });
+
+    // The picker's reopen (openCheckIn) keeps the absence rows, so this
+    // check-in UPDATES a row rather than creating one.
+    await openCheckIn(officerCtx, event.id);
+    const before = Date.now();
+    const live = await selfCheckIn(ctxFor(org.id, absent.id), event.id);
+
+    expect(live!.recent[0].brotherId).toBe(absent.id);
+    expect(Date.parse(live!.recent[0].at)).toBeGreaterThanOrEqual(before - 1000);
+    expect(Date.parse(live!.me.checkedInAt!)).toBeGreaterThanOrEqual(before - 1000);
+  });
+
   it("closes an expired window on the next read and records the no-shows", async () => {
     const { org, officer, present, absent, event } = await scenario();
     const officerCtx = ctxFor(org.id, officer.id);
@@ -447,6 +512,7 @@ describe("getLiveRoster", () => {
     expect(row.present).toBe(false);   // the excuse wins over the stale record
     expect(row.at).toBeNull();
     expect(attendees.filter(a => a.present).length).toBe(live!.presentCount);
+    expect(live!.recent.map(a => a.brotherId)).not.toContain(present.id);
 
     // The one place the sheet is deliberately LONGER than the denominator: an
     // excused member is listed (so you can see they're accounted for) but is

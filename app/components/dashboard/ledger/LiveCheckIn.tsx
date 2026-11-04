@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
-import type { LiveAttendee, LiveCheckIn as LiveCheckInData, LiveRoster } from "@/lib/services/attendance-service";
-import { apiErrorMessage, requestJson } from "../../../lib/api";
+import type { LiveCheckIn as LiveCheckInData } from "@/lib/services/attendance-service";
+import { apiErrorMessage } from "../../../lib/api";
 import { PaperIcon } from "../../paper/PaperIcon";
 import { WhosHere } from "./WhosHere";
 import { formatEventTime } from "@/lib/event-time";
@@ -77,10 +77,10 @@ export function LiveCheckIn({
   const [busy, setBusy] = useState<null | "checkin" | "undo" | "window">(null);
   const [error, setError] = useState<string | null>(null);
   // The "Who's here" sheet. Its roster is fetched on open, not carried by the
-  // 20s poll that feeds this card — see getLiveRoster.
+  // 12s poll that feeds this card — see getLiveRoster.
   const [rosterOpen, setRosterOpen] = useState(false);
   // Drives the "started N min ago" line and the draining rule between polls, so
-  // the band ages smoothly instead of jumping every 20s when the poll lands.
+  // the band ages smoothly instead of jumping every 12s when the poll lands.
   const [now, setNow] = useState(() => Date.now());
   // Opening check-in from Up next flies that card's ticket up here
   // (../ticket-flight.ts): land it before paint, once per event, so the band
@@ -108,28 +108,12 @@ export function LiveCheckIn({
     };
   }, [open]);
 
-  // Paper's "last in" stack: the newest arrivals' faces under the tally, as in
-  // the mock. Names don't ride on the 20s poll (see getLiveRoster), so the
-  // roster is fetched only when the count actually changes, and only in paper.
-  const eventId = data?.event.id ?? null;
-  const present = data?.presentCount ?? 0;
-  const [arrivals, setArrivals] = useState<LiveAttendee[] | null>(null);
-  useEffect(() => {
-    if (eventId == null || document.documentElement.dataset.aesthetic !== "paper") return;
-    if (present === 0) { setArrivals([]); return; }
-    let cancelled = false;
-    requestJson<LiveRoster>(`/api/attendance/${eventId}/roster`)
-      .then(r => {
-        if (cancelled) return;
-        setArrivals(r.attendees.filter(a => a.present).sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "")));
-      })
-      .catch(() => { /* decorative — the tally still stands */ });
-    return () => { cancelled = true; };
-  }, [eventId, present]);
-
   if (!data) return null;
 
-  const { event, state, me, presentCount, eligibleCount } = data;
+  // Paper's "last in" stack: the newest arrivals' faces under the tally, as in
+  // the mock. They ride on the poll itself (getLiveCheckIn's `recent`) — this
+  // used to fetch the whole roster on every count change, from every tab.
+  const { event, state, me, presentCount, eligibleCount, recent: arrivals } = data;
   const excuseApproved = me.excuse?.status === "approved";
   const excusePending  = me.excuse?.status === "pending";
   const closed = state === "closed";
@@ -292,7 +276,7 @@ export function LiveCheckIn({
 
         <div className="live-gap" />
 
-        {/* No aria-live here. It used to sit on this block, so every 20s poll
+        {/* No aria-live here. It used to sit on this block, so every 12s poll
             re-announced the tally to a screen reader — a number that changes on
             its own, read aloud over whatever the member was doing. The member's
             OWN state change is announced instead, from .live-said below. */}
@@ -303,7 +287,8 @@ export function LiveCheckIn({
             {closed && <span className="pp-only"> · {Math.max(0, eligibleCount - presentCount)} absent</span>}
           </p>
           <span className="track"><i style={{ width: `${pct}%` }} /></span>
-          {arrivals !== null && (
+          {/* Guarded: an old server instance mid-deploy answers without `recent`. */}
+          {arrivals && (
             <div className="live-stack pp-only">
               {arrivals.length === 0
                 ? (!closed && <span>Waiting for the first check-in…</span>)

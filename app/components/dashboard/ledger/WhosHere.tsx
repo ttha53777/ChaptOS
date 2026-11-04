@@ -30,7 +30,7 @@ type Filter = "here" | "expected";
  * "Who's here" — the roster behind the live band's tally.
  *
  * The list is fetched when this mounts, not polled by the dashboard: see
- * getLiveRoster's note on why the names don't ride along on the 20s poll. It
+ * getLiveRoster's note on why the names don't ride along on the 12s poll. It
  * DOES re-fetch while open, because the whole point is watching the room fill.
  */
 export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: () => void }) {

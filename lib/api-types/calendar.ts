@@ -57,6 +57,15 @@ export interface CalendarEvent {
   details?: EventDetail[];
 }
 
+/** One member who has checked in, as shown in the live band's "last in" stack. */
+export type LiveArrival = {
+  brotherId: number;
+  name:      string;
+  avatarUrl: string | null;
+  /** When they were marked present, ISO. */
+  at:        string;
+};
+
 /**
  * GET /api/attendance/live, POST|DELETE /api/attendance/[eventId]/check-in
  * (each answers `LiveCheckIn | null`).
@@ -81,6 +90,9 @@ export type LiveCheckIn = {
   msRemaining:   number;
   presentCount:  number;
   eligibleCount: number;
+  /** The newest arrivals, newest first, at most four — the faces under the
+   *  tally. Carried here so no client fetches the whole roster to show them. */
+  recent:        LiveArrival[];
   me: {
     checkedIn:   boolean;
     checkedInAt: string | null;

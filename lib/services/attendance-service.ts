@@ -186,11 +186,44 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
 // all. Without the close write every ratio would read 100%.
 
 // The wire shape lives in lib/api-types (shared with the native app).
-export type { LiveCheckIn } from "@/lib/api-types";
-import type { LiveCheckIn } from "@/lib/api-types";
+export type { LiveArrival, LiveCheckIn } from "@/lib/api-types";
+import type { LiveArrival, LiveCheckIn } from "@/lib/api-types";
 
 /** A closed window keeps showing its final tally for this long. */
 const CLOSED_LINGER_MS = 10 * 60 * 1000;
+
+/** How many arrivals ride on the live payload — the band's face stack shows four. */
+const RECENT_ARRIVALS = 4;
+
+/**
+ * The newest present-and-eligible arrivals, newest first, with names.
+ *
+ * This used to be the client's job: every paper dashboard fetched the whole
+ * roster (getLiveRoster) each time the count moved, to keep four faces — 60
+ * roster reads per arrival in a full room. Here it is one query for at most
+ * four rows, and none at all before the first check-in.
+ *
+ * `eligible` must be the same set presentCount is counted over, so the faces
+ * never include someone the number leaves out (an approved excuse, say).
+ */
+async function recentArrivals(
+  ctx: RequestContext,
+  records: { brotherId: number; attended: boolean; loggedAt: Date }[],
+  eligible: Set<number>,
+): Promise<LiveArrival[]> {
+  const latest = records
+    .filter(r => r.attended && eligible.has(r.brotherId))
+    .sort((a, b) => b.loggedAt.getTime() - a.loggedAt.getTime())
+    .slice(0, RECENT_ARRIVALS);
+  if (latest.length === 0) return [];
+
+  const rows = await ctx.db.member.listRoster({ where: { brotherId: { in: latest.map(r => r.brotherId) } } });
+  const byId = new Map(rows.map(m => [m.id, m]));
+  return latest.flatMap(r => {
+    const m = byId.get(r.brotherId);
+    return m ? [{ brotherId: r.brotherId, name: m.name, avatarUrl: m.avatarUrl, at: r.loggedAt.toISOString() }] : [];
+  });
+}
 
 /**
  * The live check-in widget's entire read. Returns null when this org has no
@@ -262,11 +295,12 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
     e => e.brotherId === ctx.actorId && e.status !== ExcuseStatus.Rejected,
   );
 
-  let closedByName: string | null = null;
-  if (event.checkInClosedById) {
-    const row = await ctx.db.member.findRosterRow(event.checkInClosedById);
-    closedByName = row?.name ?? null;
-  }
+  const [recent, closedByName] = await Promise.all([
+    recentArrivals(ctx, records, eligible),
+    event.checkInClosedById
+      ? ctx.db.member.findRosterRow(event.checkInClosedById).then(row => row?.name ?? null)
+      : null,
+  ]);
 
   return {
     event: {
@@ -285,6 +319,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
     msRemaining:   checkInMsRemaining(event, now),
     presentCount,
     eligibleCount: eligibleIds.length,
+    recent,
     me: {
       checkedIn:   !!mine?.attended,
       checkedInAt: mine?.attended ? mine.loggedAt.toISOString() : null,
@@ -316,9 +351,9 @@ export type LiveRoster = {
  * still missing.
  *
  * Deliberately NOT folded into getLiveCheckIn's payload. That read is polled
- * every 20s by every open dashboard in the room; this one is fetched only when
+ * every 12s by every open dashboard in the room; this one is fetched only when
  * a member actually opens the sheet, so a meeting of 60 people doesn't ship 60
- * names to 60 tabs three times a minute.
+ * names to 60 tabs five times a minute.
  *
  * No requirePerm: the tally is already visible to every member in the band, and
  * the room can see who is in it. Officer-only fields (dues, GPA) are not
@@ -451,7 +486,10 @@ export async function selfCheckIn(ctx: RequestContext, calendarEventId: number):
   await ctx.db.$transaction(async tx => {
     await tx.attendanceRecord.upsert({
       where:  { calendarEventId_brotherId: { calendarEventId, brotherId: ctx.actorId } },
-      update: { attended: true },
+      // loggedAt only defaults on create, so restamp it: flipping a reopened
+      // window's absence row to present would otherwise keep the close's time,
+      // and the member would show as arriving before they did.
+      update: { attended: true, loggedAt: new Date() },
       create: { calendarEventId, brotherId: ctx.actorId, semesterId: semester.id, attended: true },
     });
   });
@@ -561,6 +599,8 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
   const myExcuse = excuses.find(
     e => e.brotherId === ctx.actorId && e.status !== ExcuseStatus.Rejected,
   );
+  // Empty without a query for a fresh window; a reopened one keeps its arrivals.
+  const recent = await recentArrivals(ctx, records, eligible);
 
   return {
     event: {
@@ -581,6 +621,7 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
     msRemaining:   CHECKIN_WINDOW_MS,
     presentCount:  records.filter(r => r.attended && eligible.has(r.brotherId)).length,
     eligibleCount: eligibleIds.length,
+    recent,
     me: {
       checkedIn:   !!mine?.attended,
       checkedInAt: mine?.attended ? mine.loggedAt.toISOString() : null,
