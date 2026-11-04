@@ -28,7 +28,8 @@ export type NotesLegs = {
   /** IndexedDB couldn't be read (private window, blocked storage). */
   localFailed?: boolean;
 };
-export type Collaborator = { clientId: number; actorId: number; name: string; color: string; typing: boolean };
+/** `pos` is where their caret sits in the minutes, or null while they aren't in the pad. */
+export type Collaborator = { clientId: number; actorId: number; name: string; color: string; typing: boolean; pos: number | null };
 
 export class NotesSession {
   readonly doc = new Y.Doc();
@@ -273,8 +274,16 @@ export class NotesSession {
     return [...this.awareness.getStates()].filter(([id]) => id !== this.doc.clientID).flatMap(([clientId, state]) => {
       if (!state.user) return [];
       return [{ clientId, actorId: state.user.actorId as number, name: String(state.user.name).slice(0, 80), color: noteColor(state.user.actorId),
-        typing: !!state.typing && Date.now() - (this.latestTyping.get(clientId)?.received ?? 0) < 4000 }];
+        typing: !!state.typing && Date.now() - (this.latestTyping.get(clientId)?.received ?? 0) < 4000, pos: this.caretOf(state) }];
     });
+  }
+
+  /** The awareness cursor y-codemirror publishes, as an index into the minutes. */
+  private caretOf(state: Record<string, unknown>): number | null {
+    const head = (state.cursor as { head?: unknown } | null | undefined)?.head;
+    if (head == null) return null;
+    try { return Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(head), this.doc)?.index ?? null; }
+    catch { return null; }
   }
 
   private onVisibility = () => {

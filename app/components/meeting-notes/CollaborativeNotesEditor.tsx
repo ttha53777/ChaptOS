@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, useImperativeHandle, useMemo, type Ref } from "react";
+import { createPortal } from "react-dom";
 import { EditorState, Prec } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap } from "@codemirror/commands";
@@ -15,6 +16,12 @@ export interface NotesEditorHandle {
   flush(): Promise<NotesSnapshot>;
   /** The minutes as they stand in this tab (markdown), or null before they open. */
   text(): string | null;
+  /** Put the caret where the next minutes go — the first blank line under a section, else the end. */
+  write(): void;
+  /** Scroll to a spot in the minutes (a collaborator's caret) without raising the keyboard. */
+  jumpTo(pos: number): void;
+  /** Bring the caret back into view, e.g. once the phone keyboard has finished opening. */
+  reveal(): void;
 }
 export type { MentionTarget };
 
@@ -59,7 +66,7 @@ function countStats(doc: string, targets: MentionTarget[]) {
   return { words: (doc.match(/[^\s#*\-[\]@]\S*/g) ?? []).length, mentions, todos, done };
 }
 
-export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, onState, onPeers, mentions, fallback, dateLabel, fromAgenda, onCopy }: {
+export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, onState, onPeers, mentions, fallback, dateLabel, fromAgenda, onCopy, accessory }: {
   eventId: number; slug: string; ref?: Ref<NotesEditorHandle>;
   onSaved: (value: NotesSnapshot) => void;
   onState: (state: NotesStatus) => void;
@@ -73,12 +80,19 @@ export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, 
   /** The meeting started from an agenda template. */
   fromAgenda?: boolean;
   onCopy?: () => void;
+  /**
+   * On a phone: where the formatting bar goes (above the keyboard, outside the
+   * scroller). Blocks and @mentions then show as a strip on that bar instead of
+   * a popover at the caret, which the keyboard would cover.
+   */
+  accessory?: HTMLElement | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const sessionRef = useRef<NotesSession | null>(null);
   const callbacks = useRef({ onSaved, onState, onPeers, onCopy }); callbacks.current = { onSaved, onState, onPeers, onCopy };
   const mentionsRef = useRef(mentions); mentionsRef.current = mentions;
+  const accessoryRef = useRef(accessory); accessoryRef.current = accessory;
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<NotesStatus>({ saving: "loading", connection: "Connecting…" });
   const [legs, setLegs] = useState<NotesLegs>({ stage: "bootstrap" });
@@ -102,6 +116,26 @@ export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, 
       return sessionRef.current.flush();
     },
     text: () => sessionRef.current?.doc.getText("notes").toString() ?? null,
+    write: () => {
+      const v = viewRef.current;
+      if (!v) return;
+      const doc = v.state.doc;
+      let target = doc.length;
+      for (let n = 2; n <= doc.lines; n++) {
+        const line = doc.line(n);
+        if (!line.text.trim() && lineKind(doc.line(n - 1).text).kind === "h") { target = line.from; break; }
+      }
+      v.focus();
+      v.dispatch({ selection: { anchor: target }, effects: EditorView.scrollIntoView(target, { y: "center" }) });
+    },
+    jumpTo: pos => {
+      const v = viewRef.current;
+      if (v) v.dispatch({ effects: EditorView.scrollIntoView(Math.min(pos, v.state.doc.length), { y: "center" }) });
+    },
+    reveal: () => {
+      const v = viewRef.current;
+      if (v?.hasFocus) v.dispatch({ effects: EditorView.scrollIntoView(v.state.selection.main.head, { y: "nearest", yMargin: 48 }) });
+    },
   }), []);
 
   // ── the session ────────────────────────────────────────────────────────────
@@ -194,7 +228,8 @@ export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, 
     if (how === "read") return;
     setInking(true);
     setTimeout(() => setInking(false), 1100);
-    requestAnimationFrame(() => viewRef.current?.focus());
+    // On a phone, focusing raises the keyboard over the page before anyone asked to write.
+    if (!accessoryRef.current) requestAnimationFrame(() => viewRef.current?.focus());
   }
 
   // ── popovers: / blocks and @mentions ───────────────────────────────────────
@@ -408,7 +443,37 @@ export default function CollaborativeNotesEditor({ eventId, slug, ref, onSaved, 
       </>}
     </div>
 
-    {pop && (
+    {accessory && createPortal(
+      <div className="notes-acc" onMouseDown={e => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}>
+        {pop && !pop.toolbar && (
+          <div className="na-strip" role="listbox" aria-label={pop.type === "slash" ? "Insert block" : "Mention a person or role"}>
+            {!items.length && <span className="na-none">{pop.type === "slash" ? "No block called that." : "No one — and no role — by that name."}</span>}
+            {items.map((it, i) => (
+              <button key={i} type="button" role="option" aria-selected={i === idx} className={`na-opt${i === idx ? " sel" : ""}`} onClick={() => pick(i)}>
+                {it.kind === "block" ? <><span className="g">{blockGlyph(it.block.kind)}</span>{it.block.name}</>
+                  : it.target.kind === "person" ? <><span className={`av tone-${it.target.tone}`}>{it.target.initials}</span>{it.target.name}</>
+                  : <><span className="g role"><Ic d={ICON.people} /></span>{it.target.name}<small>{it.target.sub}</small></>}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="na-tools" role="toolbar" aria-label="Formatting">
+          <button type="button" className={`na-t${kind === "h" ? " on" : ""}`} disabled={!editable} onClick={() => run(v => setKind(v, "h"))} aria-label="Section heading"><b className="sec">§</b></button>
+          <button type="button" className={`na-t${kind === "li" ? " on" : ""}`} disabled={!editable} onClick={() => run(v => setKind(v, "li"))} aria-label="Bullet"><Ic d={ICON.list} /></button>
+          <button type="button" className={`na-t${kind === "todo" ? " on" : ""}`} disabled={!editable} onClick={() => run(v => setKind(v, "todo"))} aria-label="Checklist"><Ic d={ICON.check} /></button>
+          <button type="button" className={`na-t${pop?.type === "at" ? " on" : ""}`} disabled={!editable} onClick={mention} aria-label="Mention a person or role"><Ic d={ICON.at} /></button>
+          <span className="na-sep" />
+          <button type="button" className="na-t" disabled={!editable} onClick={() => run(v => wrap(v, "**"))} aria-label="Bold"><b>B</b></button>
+          <button type="button" className="na-t" disabled={!editable} onClick={() => run(v => wrap(v, "*"))} aria-label="Italic"><em>I</em></button>
+          <button type="button" className="na-done" onClick={() => viewRef.current?.contentDOM.blur()}>
+            <Ic d={<><rect x="3" y="4" width="18" height="11" rx="2" /><path d="M7 8h.01M11 8h.01M15 8h.01M8 11.5h8M9 19l3 2.5 3-2.5" /></>} />Done
+          </button>
+        </div>
+      </div>,
+      accessory,
+    )}
+
+    {pop && !(accessory && !pop.toolbar) && (
       <div
         className="notes-pop"
         role="listbox"

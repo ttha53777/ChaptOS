@@ -11,7 +11,7 @@ import { parseMeetingSummary, type MeetingActionItem, type MeetingSummaryData } 
 import "@/app/components/meeting-notes/notes-editor.css";
 import { Sidebar } from "../../../components/Sidebar";
 import { Modal, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../../components/dashboard/primitives";
-import { LogAttendanceForm } from "../../../components/dashboard/forms";
+import { LogAttendanceForm, type AttendanceChange } from "../../../components/dashboard/forms";
 import { useToast } from "../../../components/dashboard/Toast";
 import { MemberSpotlight } from "../../../components/members/MemberSpotlight";
 import { BrotherAvatar } from "../../../components/BrotherAvatar";
@@ -40,6 +40,8 @@ import type { AgendaTemplateDTO } from "@/lib/services/agenda-template-service";
 import { endInstant, scheduleDate, scheduleSchema, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 import { orgSlugFromPath } from "@/lib/org-paths";
 import { usePhoneSheet } from "../../../components/chat/usePhoneSheet";
+import { BottomSheet } from "../../../components/BottomSheet";
+import "../../../components/meeting-notes/minutes-phone.css";
 
 const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
 
@@ -602,6 +604,29 @@ function meetingClock(event: CalendarEvent, now: Date): string | null {
   return `Started ${start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/, "")} · ${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`;
 }
 
+/** How far into the meeting we are, for the phone ticket's clock bar. */
+function meetingProgress(event: CalendarEvent, now: Date): { mins: number; left: number; pct: number } | null {
+  const parsed = event.schedule == null ? null : scheduleSchema.safeParse(event.schedule);
+  if (!parsed?.success || parsed.data.kind === "allDay") return null;
+  const start = new Date(parsed.data.start).getTime(), end = endInstant(parsed.data).getTime();
+  if (now.getTime() < start || now.getTime() >= end) return null;
+  const mins = Math.floor((now.getTime() - start) / 60_000);
+  return { mins, left: Math.max(0, Math.ceil((end - now.getTime()) / 60_000)), pct: Math.round(((now.getTime() - start) / (end - start)) * 100) };
+}
+const fmtMins = (m: number) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
+
+/** The `## ` section a position in the minutes falls under. */
+function sectionAt(text: string, pos: number): string {
+  let section = "", at = 0;
+  for (const line of text.split("\n")) {
+    if (at > pos) break;
+    const m = /^##\s+(.*)/.exec(line);
+    if (m) section = m[1].trim();
+    at += line.length + 1;
+  }
+  return section;
+}
+
 // ─── MeetingDetailOverlay (the minutes book) ──────────────────────────────────
 
 function MeetingDetailOverlay({
@@ -655,7 +680,11 @@ function MeetingDetailOverlay({
   // On a phone the book is sized to the visual viewport (--cs-vvh/--cs-vvt), so
   // Safari's toolbar and the keyboard can't push the bar — Back, who's here —
   // above the screen where nothing scrolls back to it.
-  usePhoneSheet(true, overlayRef);
+  const { phone, keyboard } = usePhoneSheet(true, overlayRef);
+  // On a phone the margin column is a tab, and the formatting bar rides on the keyboard.
+  const [tab, setTab] = useState<"min" | "sum" | "att">("min");
+  const [sheet, setSheet] = useState<null | "who" | "more">(null);
+  const [accessory, setAccessory] = useState<HTMLDivElement | null>(null);
   const padRef = useRef<HTMLTextAreaElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -693,6 +722,7 @@ function MeetingDetailOverlay({
   const summarize = async () => {
     setSharedError(null);
     setMargin(true);
+    setTab("sum");
     try {
       if (shared) {
         if (!editorRef.current) throw new Error("Notes are still loading.");
@@ -743,6 +773,7 @@ function MeetingDetailOverlay({
     const handler = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       if (moreOpen) { setMoreOpen(false); return; }
+      if (document.documentElement.dataset.sheet) return; // the bottom sheet closes itself
       if (document.querySelector(".notes-pop")) return;
       onClose();
     };
@@ -763,8 +794,23 @@ function MeetingDetailOverlay({
     t.style.height = `${Math.max(t.scrollHeight, window.innerHeight * 0.55)}px`;
   }, [notesDraft]);
 
+  // The floating Ask Chapt launcher would sit on the dock's buttons; it steps aside while the book is open.
+  useEffect(() => {
+    if (!phone) return;
+    document.documentElement.dataset.minutes = "";
+    return () => { delete document.documentElement.dataset.minutes; };
+  }, [phone]);
+  // Typing on a phone means the Minutes tab, and the caret back in view once the keyboard is up.
+  useEffect(() => {
+    if (!keyboard) return;
+    setTab("min");
+    const t = setTimeout(() => editorRef.current?.reveal(), 350);
+    return () => clearTimeout(t);
+  }, [keyboard]);
+
   const time = formatEventTime(event.time, event.schedule);
   const clockText = meetingClock(event, now);
+  const progress = meetingProgress(event, now);
   const noteLines = notesDraft.split("\n").filter(l => l.trim()).length;
   const canSummarize = !running && (shared ? sharedStatus.saving !== "loading" && sharedStatus.connection !== "Unavailable" : !!notesDraft.trim());
   const attLabel = !event.mandatory ? "Optional — no roll"
@@ -783,6 +829,27 @@ function MeetingDetailOverlay({
     : sharedStatus.saving !== "saved" ? "Saving…"
     : conn === "Offline" ? "On this device"
     : savedAt ? `Saved · ${savedAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Saved";
+  // One row per person (a person can have the pad open in two tabs).
+  const people = [...new Map(collaborators.map(p => [p.actorId, {
+    ...p,
+    typing: collaborators.some(q => q.actorId === p.actorId && q.typing),
+    pos: collaborators.find(q => q.actorId === p.actorId && q.pos != null)?.pos ?? null,
+  }])).values()];
+  const minutesNow = phone && people.length ? minutesText() : "";
+  const placeOf = (pos: number | null) => pos == null ? "" : sectionAt(minutesNow, pos);
+  const writer = people.find(p => p.typing);
+  const subText = writer && (keyboard || tab !== "min")
+    ? `${writer.name.split(" ")[0]} is writing${placeOf(writer.pos) ? ` in ${placeOf(writer.pos)}` : ""}…`
+    : shared ? [live.label, savedText].filter(Boolean).join(" · ")
+    : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Not saved" : "";
+  const subTone = writer && (keyboard || tab !== "min") ? "typing" : shared ? live.cls : saveState === "error" ? "off" : "";
+  const initialsOf = (name: string) => name.split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+  const selfName = brotherList.find(b => b.id === selfId)?.name.trim() ?? "You";
+  const canWrite = shared || (canEditNotes && !event.notesInitialized);
+  const writeNow = () => { setTab("min"); if (shared) editorRef.current?.write(); else padRef.current?.focus(); };
+  const stale = !!summary && notesSummaryStale(event);
+  const openItems = summary ? summary.actions.filter(a => !a.done).length : 0;
+  const day = localDate(event.date);
   const icon = (d: React.ReactNode) => <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>;
   const spark = (
     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -795,7 +862,7 @@ function MeetingDetailOverlay({
   );
 
   return (
-    <div ref={overlayRef} className="dash mt-ov fixed inset-0 z-50 flex items-stretch justify-center" style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
+    <div ref={overlayRef} className={`dash mt-ov${keyboard ? " kb" : ""} fixed inset-0 z-50 flex items-stretch justify-center`} style={{ maxWidth: "none", margin: 0, padding: 0 }} onClick={onClose}>
       <div className="mt-scrim absolute inset-0 bg-[color:var(--scrim)] backdrop-blur-md" />
 
       {/* Panel — stop propagation so clicks inside don't close */}
@@ -810,10 +877,20 @@ function MeetingDetailOverlay({
           <div className="mt-vr h-4 w-px bg-[rgba(var(--ink-rgb),0.1)]" />
           <div className="mt-ttl flex min-w-0 flex-1 items-center gap-2">
             <span className="h-2 w-2 shrink-0 rounded-full bg-[color:var(--vio)]" />
-            <p className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{event.title}</p>
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{event.title}</p>
+              <small className={`mt-sub ${subTone}`} aria-live="polite"><i />{subText}</small>
+            </div>
           </div>
           {shared && <span className={`mt-live ${live.cls}`} title={conn}><i /><span className="tx">{live.label}</span></span>}
           {shared && <NotesCollaborators peers={collaborators} />}
+          {shared && (
+            <button type="button" className="mt-who" onClick={() => setSheet("who")} aria-label={`${people.length + 1} on this page`}>
+              {people.length ? people.slice(0, 3).map(p => <span key={p.actorId} className={`av${p.typing ? " typing" : ""}`} style={{ borderColor: p.color, color: p.color }}>{initialsOf(p.name)}</span>)
+                : <span className="av me">{initialsOf(selfName)}</span>}
+              {people.length > 0 && <span className="n">{people.length + 1}</span>}
+            </button>
+          )}
           <span className="mt-saved" aria-live="polite">{shared ? <span className={sharedStatus.saving === "error" ? "err" : ""}>{savedText}</span> : <SaveIndicator state={saveState} tone="dusk" />}</span>
           <div className="flex items-center gap-1">
             {hasSummary && !margin && !running ? (
@@ -833,7 +910,7 @@ function MeetingDetailOverlay({
               </button>
             )}
             <div className="mt-more" ref={moreRef}>
-              <button onClick={() => setMoreOpen(o => !o)} aria-label="More" title="More" aria-haspopup="menu" aria-expanded={moreOpen} className={`mt-icon flex items-center rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink-soft)] sm:py-1.5${moreOpen ? " on" : ""}`}>
+              <button onClick={() => phone ? setSheet("more") : setMoreOpen(o => !o)} aria-label="More" title="More" aria-haspopup="menu" aria-expanded={moreOpen} className={`mt-icon flex items-center rounded-lg px-2.5 py-2.5 text-[12px] text-[color:var(--muted)] transition-colors hover:bg-[rgba(var(--ink-rgb),0.06)] hover:text-[color:var(--ink-soft)] sm:py-1.5${moreOpen ? " on" : ""}`}>
                 {icon(<><circle cx="5.5" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="18.5" cy="12" r="1.3" /></>)}
               </button>
               {moreOpen && (
@@ -865,9 +942,40 @@ function MeetingDetailOverlay({
           {clockText && <span className="mt-clock">{clockText.replace(/ · .*/, "")} · <b>{clockText.replace(/.* · /, "")}</b></span>}
         </div>
 
+        {/* ── Phone: the meta strip as a ticket, and the margin as tabs. Both fold away while you type. ── */}
+        <div className="mt-chrome"><div>
+          <div className="mt-tk">
+            <div className="stub"><small>{day.toLocaleDateString("en-US", { month: "short" }).toUpperCase()}</small><b>{day.getDate()}</b></div>
+            <div className="tkb">
+              <div className="meta">
+                <span>{day.toLocaleDateString("en-US", { weekday: "short" })}{time ? ` · ${time}` : ""}</span>
+                {event.location && <span>{event.location}</span>}
+              </div>
+              <div className="row">
+                <span className={`stamp${event.mandatory ? " on" : ""}`}>{event.mandatory ? "Required" : "Optional"}</span>
+                {progress ? (
+                  <div className="clk">
+                    <small><span><b>{fmtMins(progress.mins)}</b> in</span><span>{fmtMins(progress.left)} left</span></small>
+                    <div className="bar"><i style={{ width: `${progress.pct}%` }} /></div>
+                  </div>
+                ) : <span className="att">{attLabel}</span>}
+              </div>
+            </div>
+          </div>
+          <div className="mt-tabs" role="tablist" aria-label="Minutes, summary and attendance">
+            {([
+              ["min", "Minutes", null],
+              ["sum", "Summary", running ? <span className="ct">…</span> : summary ? <span className={`ct${stale ? " w" : ""}`}>{stale ? "!" : openItems}</span> : null],
+              ["att", "Who came", taken(attendanceRow) ? <span className="ct g">{attendanceRow!.present}</span> : null],
+            ] as const).map(([k, label, badge]) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}{badge}</button>
+            ))}
+          </div>
+        </div></div>
+
         {/* ── Body: the legal pad, and the margin column once it's asked for ── */}
         <div className="mt-body flex-1 overflow-y-auto">
-          <div className="mt-grid" data-margin={margin ? "1" : "0"}>
+          <div className="mt-grid" data-margin={margin ? "1" : "0"} data-tab={tab}>
             <div className="mt-main">
               {(summarizeError || sharedError) && <div className="mt-err">{summarizeError || sharedError}</div>}
               {shared ? (
@@ -885,6 +993,7 @@ function MeetingDetailOverlay({
                     dateLabel={localDate(event.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     fromAgenda={event.agendaTemplateId != null}
                     onCopy={() => exportAct("copy")}
+                    accessory={phone ? accessory : null}
                   />
                 </div>
               ) : (
@@ -918,15 +1027,64 @@ function MeetingDetailOverlay({
                 </>
               )}
             </div>
-            <aside className="mt-side" aria-label="Summary and attendance" inert={!margin}>
-              {(hasSummary || running) && (
+            <aside className="mt-side" aria-label="Summary and attendance" inert={!margin && !phone}>
+              {(hasSummary || running || phone) && (
                 <SummaryCard event={event} running={running} noteLines={noteLines} canEditNotes={canEditNotes} selfId={selfId} onSummarize={summarize} onToggle={onToggleItem} onHide={() => setMargin(false)} />
               )}
               <AttendanceCard event={event} refresh={attendanceRefresh} canTake={canTakeAttendance} onTake={onTakeAttendance} onOpenMember={onOpenMember} />
             </aside>
           </div>
         </div>
+
+        {/* ── Phone: big buttons under the thumb while reading; the formatting bar on the keyboard while writing ── */}
+        {phone && !keyboard && (tab !== "att" || (canTakeAttendance && event.mandatory)) && (
+          <div className="mt-dock">
+            {tab === "att" ? (
+              <button type="button" className="mt-btn ink" onClick={onTakeAttendance}><PaperIcon name="people" />{taken(attendanceRow) ? "Edit attendance" : "Take attendance"}</button>
+            ) : <>
+              {tab === "min" && canWrite && <button type="button" className="mt-btn ink" onClick={writeNow}><PaperIcon name="pencil" />Write</button>}
+              {tab === "sum" && <button type="button" className="mt-btn ink fit" onClick={() => setTab("min")}><PaperIcon name="pencil" />Minutes</button>}
+              <button type="button" className={`mt-btn out${tab === "min" && canWrite ? " fit" : ""}`} onClick={summarize} disabled={!canSummarize}>
+                {spark}{running ? "Summarizing…" : hasSummary ? "Re-summarize" : "Summarize"}
+              </button>
+            </>}
+          </div>
+        )}
+        <div ref={setAccessory} className="mt-acc" hidden={!(phone && keyboard && shared)} />
       </div>
+
+      {phone && (
+        <div className="mt-sheets" onClick={e => e.stopPropagation()}>
+          <BottomSheet open={sheet === "who"} onClose={() => setSheet(null)} title="On this page" icon="people" tone="mint">
+            <ul className="mt-peers">
+              <li><span className="av">{initialsOf(selfName)}</span><div className="tx"><b>{selfName} <span>(you)</span></b><small><i />{keyboard ? "Writing" : "Here"}</small></div></li>
+              {people.map(p => (
+                <li key={p.actorId}>
+                  <span className="av" style={{ borderColor: p.color, color: p.color }}>{initialsOf(p.name)}</span>
+                  <div className="tx">
+                    <b>{p.name}</b>
+                    <small><i className={p.pos == null ? "v" : ""} />{p.typing ? `Writing${placeOf(p.pos) ? ` in ${placeOf(p.pos)}` : ""}` : p.pos != null ? (placeOf(p.pos) ? `In ${placeOf(p.pos)}` : "In the minutes") : "Viewing"}</small>
+                  </div>
+                  {p.pos != null && <button type="button" className="go" onClick={() => { const pos = p.pos!; setSheet(null); setTab("min"); setTimeout(() => editorRef.current?.jumpTo(pos), 60); }}>Jump to</button>}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-peers-note">Edits merge live — everyone writes on the same page.</p>
+          </BottomSheet>
+          <BottomSheet open={sheet === "more"} onClose={() => setSheet(null)} title={event.title} icon="cal" tone="sky">
+            <div className="mt-mrows">
+              <button type="button" onClick={() => { setSheet(null); exportAct("copy"); }}>{icon(<><rect x="8" y="8" width="12" height="12" rx="2.5" /><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" /></>)}Copy as text</button>
+              <button type="button" onClick={() => { setSheet(null); exportAct("md"); }}>{icon(<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />)}Download .md</button>
+              <button type="button" onClick={() => { setSheet(null); exportAct("print"); }}>{icon(<><path d="M7 9V3.5h10V9M7 17H5a2 2 0 01-2-2v-4a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2h-2" /><rect x="7" y="14" width="10" height="6.5" rx="1" /></>)}Print</button>
+              {canManageEvents && <>
+                <hr />
+                <button type="button" onClick={() => { setSheet(null); onEdit(); }}>{icon(<><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z" /><path d="M13.5 6.5l4 4" /></>)}Edit meeting</button>
+                <button type="button" className="danger" onClick={() => { setSheet(null); onDelete(); }}>{icon(<path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12.2A2 2 0 008.5 21h7a2 2 0 002-1.8L18.5 7M9.5 7V4.5a1 1 0 011-1h3a1 1 0 011 1V7" />)}Delete meeting</button>
+              </>}
+            </div>
+          </BottomSheet>
+        </div>
+      )}
     </div>
   );
 }
@@ -1030,17 +1188,17 @@ export default function ChapterPage() {
 
   // Shared with the Dashboard's LogAttendanceForm flow — same endpoint, same
   // brotherList refresh (attendance can affect dues/threshold-derived fields).
-  async function handleLogAttendance(attendedIds: number[], eventId: number) {
+  async function handleLogAttendance(changes: AttendanceChange[], eventId: number, presentCount: number) {
     const updated = await requestJson<typeof brotherList>("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
+      body: JSON.stringify({ calendarEventId: eventId, changes }),
     });
     setBrotherList(updated);
     setAttendanceTarget(null);
     setAttendanceRefresh(n => n + 1);
     loadSummary();
-    toast.success(`Attendance saved — ${attendedIds.length} present.`);
+    toast.success(`Attendance saved — ${presentCount} present.`);
   }
 
   // ── Cleanup pending timers on unmount ────────────────────────────────────────

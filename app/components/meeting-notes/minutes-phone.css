@@ -1,0 +1,192 @@
+/* The minutes book on a phone (_design/Minutes Mobile Paper Mock.html).
+
+   One column sized to the visual viewport (usePhoneSheet supplies --cs-vvh /
+   --cs-vvt). The header never scrolls: back, title + live line, who's here, ⋯.
+   The meta strip is a ticket and the margin column is three tabs, and both fold
+   away while the keyboard is up. Reading, the thumb gets a dock (Write ·
+   Summarize); writing, the editor's formatting bar rides on the keyboard.
+   Same breakpoint as usePhoneSheet's PHONE_QUERY; desktop never sees any of it.
+   Selectors lead with `html[data-aesthetic] body` to outrank paper-chapter.css. */
+
+.mt-sub, .mt-who, .mt-chrome, .mt-dock, .mt-acc { display: none; }
+
+@media (max-width: 767px) {
+  html[data-aesthetic] body .dash.mt-ov {
+    padding: 0 !important; align-items: stretch; bottom: auto;
+    top: var(--cs-vvt, 0px); height: var(--cs-vvh, 100dvh);
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-sheet {
+    height: auto; min-height: 0; max-width: none; border: 0; border-radius: 0; box-shadow: none; background: var(--paper);
+  }
+  html[data-aesthetic="paper"] .dash.mt-ov .mt-scrim { display: none; }
+
+  /* ── header ─────────────────────────────────────────────────────────────── */
+  html[data-aesthetic] body .dash.mt-ov .mt-bar {
+    gap: 4px; padding: calc(env(safe-area-inset-top) + 4px) 6px 8px 2px; height: auto;
+    background: var(--card); border-bottom: 1.5px solid var(--line);
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-back { width: 42px; height: 42px; padding: 0; justify-content: center; border-radius: 12px; flex: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-back svg { width: 20px; height: 20px; }
+  html[data-aesthetic] body .dash.mt-ov :is(.mt-vr, .mt-ttl > span, .mt-live, .mt-saved, .notes-people, .mt-sumbtn) { display: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-ttl { gap: 0; padding-left: 2px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-ttl p { font-family: var(--font-fraunces); font-weight: 600; font-size: 1.03rem; letter-spacing: -.025em; line-height: 1.2; }
+  html[data-aesthetic] body .dash.mt-ov .mt-sub {
+    display: flex; align-items: center; gap: 6px; min-height: 15px; margin-top: 1px;
+    font: 500 .69rem var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-sub i { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--pp-butter-ink); box-shadow: 0 0 0 3px var(--pp-butter-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-sub:is(.on, .typing) i { background: var(--pp-mint-ink); box-shadow: 0 0 0 3px var(--pp-mint-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-sub.off i { background: var(--pp-peach-ink); box-shadow: 0 0 0 3px var(--pp-peach-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-sub.typing { color: var(--ink-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-who { display: flex; align-items: center; height: 42px; padding: 0 6px 0 4px; border-radius: 12px; flex: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-who:active { background: var(--paper-2); }
+  html[data-aesthetic] body .dash.mt-ov .mt-who .av {
+    position: relative; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+    font: 700 .68rem var(--font-geist-sans); background: var(--card); border: 2px solid; box-shadow: 0 0 0 2px var(--card);
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-who .av + .av { margin-left: -8px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-who .av.typing::after {
+    content: ""; position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--pp-mint-ink); border: 2px solid var(--card);
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-who .av.me { border-color: var(--line-med); color: var(--ink-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-who .n { margin-left: 5px; font: 600 .74rem var(--mono); color: var(--muted); }
+  html[data-aesthetic] body .dash.mt-ov .mt-icon { width: 42px; height: 42px; border-radius: 12px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-icon svg { width: 20px; height: 20px; }
+
+  /* ── ticket + tabs (fold away while typing) ─────────────────────────────── */
+  html[data-aesthetic] body .dash.mt-ov .mt-meta { display: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-chrome { display: grid; flex: none; grid-template-rows: 1fr; transition: grid-template-rows .28s cubic-bezier(.38,.7,.125,1); }
+  html[data-aesthetic] body .dash.mt-ov .mt-chrome > div { min-height: 0; overflow: hidden; }
+  html[data-aesthetic] body .dash.mt-ov.kb .mt-chrome { grid-template-rows: 0fr; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk {
+    display: grid; grid-template-columns: 58px minmax(0,1fr); margin: 12px 14px 0;
+    border: 1.5px solid var(--ink); border-radius: 18px; background: var(--card); box-shadow: 4px 4px 0 var(--pp-sky); overflow: hidden;
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .stub { display: grid; place-content: center; text-align: center; padding: 8px 0; border-right: 1.5px dashed var(--line-med); background: var(--pp-sky-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .stub small { font: 700 .62rem var(--mono); letter-spacing: .1em; color: var(--pp-sky-ink); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .stub b { margin-top: 2px; font: 600 1.5rem/1 var(--font-fraunces); letter-spacing: -.04em; color: var(--ink); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .tkb { display: grid; gap: 7px; min-width: 0; padding: 10px 12px 11px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .meta { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: .82rem; color: var(--ink-soft); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .meta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .stamp { flex: none; padding: 3px 7px; border-radius: 6px; border: 1.5px solid var(--ink); font: 700 .6rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .stamp.on { background: var(--ink); color: var(--paper); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .att { min-width: 0; font: 500 .7rem var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .clk { flex: 1; min-width: 0; display: grid; gap: 4px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .clk small { display: flex; justify-content: space-between; font: 500 .66rem var(--mono); color: var(--muted); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .clk b { color: var(--ink); font-weight: 600; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .bar { height: 6px; border-radius: 4px; overflow: hidden; background: var(--line-soft); border: 1px solid var(--line); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tk .bar i { display: block; height: 100%; border-radius: 4px; background: var(--pp-sky-ink); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tabs { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); margin: 12px 14px 0; padding: 4px; border-radius: 14px; background: var(--paper-2); border: 1.5px solid var(--line); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tabs button { height: 36px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 10px; font-size: .84rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  html[data-aesthetic] body .dash.mt-ov .mt-tabs button[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--pp-sh-1); outline: 1.5px solid var(--line); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tabs .ct { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font: 600 .64rem/18px var(--mono); background: var(--pp-lilac-soft); color: var(--pp-lilac-ink); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tabs .ct.g { background: var(--pp-mint-soft); color: var(--pp-mint-ink); }
+  html[data-aesthetic] body .dash.mt-ov .mt-tabs .ct.w { background: var(--pp-butter-soft); color: var(--pp-butter-ink); }
+
+  /* ── body: one tab at a time ────────────────────────────────────────────── */
+  html[data-aesthetic] body .dash.mt-ov .mt-body { padding: 12px 14px 24px; -webkit-overflow-scrolling: touch; }
+  html[data-aesthetic] body .dash.mt-ov.kb .mt-body { padding-top: 8px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-grid[data-margin] { display: block; max-width: none; padding: 0; }
+  html[data-aesthetic] body .dash.mt-ov .mt-grid[data-margin][data-tab="min"] .mt-side,
+  html[data-aesthetic] body .dash.mt-ov .mt-grid[data-margin]:not([data-tab="min"]) .mt-main,
+  html[data-aesthetic] body .dash.mt-ov .mt-grid[data-margin][data-tab="sum"] .mt-att,
+  html[data-aesthetic] body .dash.mt-ov .mt-grid[data-margin][data-tab="att"] .mt-sum { display: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-grid[data-margin] .mt-side { display: block; position: static; width: auto; margin: 0; opacity: 1; transform: none; visibility: visible; pointer-events: auto; }
+  html[data-aesthetic] body .dash.mt-ov .mt-sum .hd .mt-sum-x { display: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-att .hd button { display: none; } /* the dock carries Take / Edit attendance */
+  html[data-aesthetic] body .dash.mt-ov :is(.mt-sum, .mt-att) { margin: 0; border-radius: 20px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-err { margin-bottom: 10px; }
+
+  /* the legal pad: narrower margin, 17px type (no iOS focus zoom), no desktop toolbar or footer */
+  html[data-aesthetic] body .dash.mt-ov :is(.notes-tools, .notes-foot) { display: none; }
+  html[data-aesthetic] body .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad) { border-radius: 20px; border-color: var(--line-med); }
+  html[data-aesthetic] body .dash.mt-ov.kb :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad) { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-sky); }
+  html[data-aesthetic] body .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad)::before { left: 33px; }
+  html[data-aesthetic] body .dash.mt-ov :is(.mt-pad:not(.shared), .mt-pad.shared .notes-pad)::after { left: 52px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-pad.shared .cm-editor { min-height: 50vh; font-size: 17px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-pad.shared .cm-content { min-height: 50vh; padding: 16px 14px 60px 46px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-pad.shared .notes-editor-host { min-height: 50vh; }
+  html[data-aesthetic] body .dash.mt-ov .mt-pad.shared :is(.cm-line.cm-md-h, .cm-line.cm-md-hr)::before { right: calc(100% + 17px); width: 28px; text-align: right; white-space: nowrap; }
+  html[data-aesthetic] body .dash.mt-ov .mt-pad.shared .cm-mention { font-size: .88rem; }
+  html[data-aesthetic] body .dash.mt-ov .mt-pad-text { min-height: 50vh; padding: 16px 14px 40px 46px; font-size: 17px; }
+  html[data-aesthetic] body .dash.mt-ov .notes-read { padding: 15px 14px 30px 46px; }
+  html[data-aesthetic] body .dash.mt-ov .notes-read .at-ps h3 .n { left: -42px; width: 30px; }
+  html[data-aesthetic] body .dash.mt-ov .notes-loader { inset: 0; }
+  html[data-aesthetic] body .dash.mt-ov .notes-loader .nl-skel { left: 46px; right: 18px; }
+  html[data-aesthetic] body .dash.mt-ov .notes-loader .nl-lc { width: calc(100% - 28px); top: 40px; padding: 18px 16px 16px; }
+
+  /* ── the dock: big targets under the thumb ──────────────────────────────── */
+  html[data-aesthetic] body .dash.mt-ov .mt-dock {
+    display: flex; gap: 10px; flex: none; padding: 10px 14px calc(env(safe-area-inset-bottom) + 10px);
+    background: var(--paper); border-top: 1.5px solid var(--line);
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn {
+    flex: 1; min-width: 0; height: 50px; padding: 0 16px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: .95rem; font-weight: 600; white-space: nowrap; transition: transform .12s, box-shadow .12s;
+  }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn svg { width: 19px; height: 19px; }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn.fit { flex: none; }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn.ink { background: var(--ink); color: var(--paper); box-shadow: 3px 3px 0 var(--pp-sky); }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn.ink:active { transform: translate(1.5px,1.5px); box-shadow: 1.5px 1.5px 0 var(--pp-sky); }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn.out { background: var(--card); border: 1.5px solid var(--ink); color: var(--pp-lilac-ink); box-shadow: 3px 3px 0 var(--pp-lilac); }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn.out:active { transform: translate(1.5px,1.5px); box-shadow: 1.5px 1.5px 0 var(--pp-lilac); }
+  html[data-aesthetic] body .dash.mt-ov .mt-btn.out:disabled { opacity: .45; box-shadow: none; transform: none; }
+
+  /* ── the formatting bar on the keyboard (CollaborativeNotesEditor portals into .mt-acc) ── */
+  html[data-aesthetic] body .dash.mt-ov .mt-acc { display: block; flex: none; background: var(--card); border-top: 1.5px solid var(--line); }
+  html[data-aesthetic] body .dash.mt-ov .mt-acc[hidden] { display: none; }
+  .mt-acc .na-tools { display: flex; align-items: center; gap: 2px; padding: 6px 6px 6px 8px; }
+  .mt-acc .na-t { height: 40px; min-width: 40px; padding: 0 8px; border-radius: 11px; display: grid; place-items: center; color: var(--ink-soft); }
+  .mt-acc .na-t .ic { width: 19px; height: 19px; }
+  .mt-acc .na-t .sec { font: 700 16px var(--mono); }
+  .mt-acc .na-t b { font: 700 16px var(--font-fraunces); }
+  .mt-acc .na-t em { font: italic 600 17px var(--font-fraunces); }
+  .mt-acc .na-t.on { background: var(--ink); color: var(--paper); }
+  .mt-acc .na-t:disabled { opacity: .35; }
+  .mt-acc .na-sep { width: 1.5px; height: 20px; margin: 0 3px; flex: none; background: var(--line); }
+  .mt-acc .na-done {
+    margin-left: auto; height: 36px; padding: 0 13px; display: flex; align-items: center; gap: 6px; border-radius: 11px;
+    border: 1.5px solid var(--ink); background: var(--paper); color: var(--ink); font-size: .84rem; font-weight: 650;
+  }
+  .mt-acc .na-done .ic { width: 16px; height: 16px; }
+  /* blocks and @mentions: a strip right above the tools, where the thumb already is */
+  .mt-acc .na-strip { display: flex; gap: 6px; padding: 8px 8px 2px; overflow-x: auto; scrollbar-width: none; }
+  .mt-acc .na-strip::-webkit-scrollbar { display: none; }
+  .mt-acc .na-opt {
+    flex: none; height: 38px; padding: 0 12px 0 4px; display: flex; align-items: center; gap: 7px; border-radius: 999px;
+    border: 1.5px solid var(--pp-lilac-bd); background: var(--pp-lilac-soft); color: var(--ink); font-size: .84rem; font-weight: 600; white-space: nowrap;
+  }
+  .mt-acc .na-opt.sel { border-color: var(--pp-lilac-ink); }
+  .mt-acc .na-opt small { font-weight: 500; color: var(--muted); }
+  .mt-acc .na-opt .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font: 700 10px var(--font-geist-sans); background: var(--t, var(--card)); color: var(--ink); }
+  .mt-acc .na-opt .g { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--card); border: 1.5px solid var(--pp-lilac-bd); color: var(--pp-lilac-ink); font: 700 13px var(--mono); }
+  .mt-acc .na-opt .g .ic { width: 14px; height: 14px; }
+  .mt-acc .na-none { padding: 9px 8px; font-size: .82rem; color: var(--muted); }
+  .mt-acc .na-opt .av.tone-0 { --t: var(--pp-rose); } .mt-acc .na-opt .av.tone-1 { --t: var(--pp-sky); }
+  .mt-acc .na-opt .av.tone-2 { --t: var(--pp-lilac); } .mt-acc .na-opt .av.tone-3 { --t: var(--pp-mint); }
+  .mt-acc .na-opt .av.tone-4 { --t: var(--pp-butter); } .mt-acc .na-opt .av.tone-5 { --t: var(--pp-peach); }
+
+  /* ── sheets: who's here, and ⋯ ──────────────────────────────────────────── */
+  .mt-sheets .mt-peers { list-style: none; margin: 0; padding: 0; }
+  .mt-sheets .mt-peers li { display: flex; align-items: center; gap: 12px; padding: 10px 2px; }
+  .mt-sheets .mt-peers li + li { border-top: 1.5px dashed var(--line); }
+  .mt-sheets .mt-peers .av { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line-med); background: var(--card); color: var(--ink-soft); font: 700 .8rem var(--font-geist-sans); }
+  .mt-sheets .mt-peers .tx { flex: 1; min-width: 0; }
+  .mt-sheets .mt-peers b { display: block; font-size: .95rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mt-sheets .mt-peers b span { font-weight: 500; color: var(--muted); }
+  .mt-sheets .mt-peers small { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); }
+  .mt-sheets .mt-peers small i { width: 7px; height: 7px; border-radius: 50%; background: var(--pp-mint-ink); flex: none; }
+  .mt-sheets .mt-peers small i.v { background: var(--line-med); }
+  .mt-sheets .mt-peers .go { flex: none; height: 34px; padding: 0 12px; border-radius: 999px; border: 1.5px solid var(--line-med); font-size: .8rem; font-weight: 600; color: var(--ink-soft); background: var(--paper); }
+  .mt-sheets .mt-peers-note { margin: 6px 2px 0; font-size: .78rem; color: var(--muted); }
+  .mt-sheets .mt-mrows { display: grid; }
+  .mt-sheets .mt-mrows button { display: flex; align-items: center; gap: 13px; height: 54px; padding: 0 8px; border-radius: 14px; font-size: .97rem; font-weight: 550; color: var(--ink); text-align: left; }
+  .mt-sheets .mt-mrows button:active { background: var(--paper-2); }
+  .mt-sheets .mt-mrows button svg { width: 20px; height: 20px; color: var(--muted); }
+  .mt-sheets .mt-mrows button.danger, .mt-sheets .mt-mrows button.danger svg { color: var(--pp-peach-ink); }
+  .mt-sheets .mt-mrows hr { border: 0; height: 1.5px; margin: 6px 8px; background: var(--line); }
+
+  html[data-minutes] .chat-launcher { visibility: hidden; }
+}
