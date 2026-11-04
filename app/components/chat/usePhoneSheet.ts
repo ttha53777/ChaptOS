@@ -48,15 +48,23 @@ export function usePhoneSheet(open: boolean, overlayRef: RefObject<HTMLDivElemen
 
     // Size the sheet to the visual viewport. iOS also pans the layout viewport
     // when a fixed element's field is focused, so the top follows offsetTop.
+    // `top` is laid out against the sheet's containing block, which is the
+    // viewport only when no ancestor is transformed. Page roots are
+    // (.main-route-transition), and iOS scrolls the document to reach a caret,
+    // carrying the page root and the sheet with it, so the sheet's bottom ended
+    // up under the keyboard. Measure where the box really is and correct it.
     const vv = window.visualViewport;
+    let top = 0;
     const syncBox = () => {
       if (!vv) return;
       el.style.setProperty("--cs-vvh", `${vv.height}px`);
-      el.style.setProperty("--cs-vvt", `${vv.offsetTop}px`);
+      top += vv.offsetTop - el.getBoundingClientRect().top;
+      el.style.setProperty("--cs-vvt", `${top}px`);
     };
     syncBox();
     vv?.addEventListener("resize", syncBox);
     vv?.addEventListener("scroll", syncBox);
+    window.addEventListener("scroll", syncBox, { passive: true });
 
     const syncKeyboard = () => setKeyboard(raisesKeyboard(document.activeElement) && el.contains(document.activeElement));
     // focusout fires before focus lands on the next field — read it a tick later
@@ -76,6 +84,7 @@ export function usePhoneSheet(open: boolean, overlayRef: RefObject<HTMLDivElemen
     return () => {
       vv?.removeEventListener("resize", syncBox);
       vv?.removeEventListener("scroll", syncBox);
+      window.removeEventListener("scroll", syncBox);
       el.removeEventListener("focusin", syncKeyboard);
       el.removeEventListener("focusout", onFocusOut);
       body.style.overflow = prevOverflow;

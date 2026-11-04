@@ -801,11 +801,14 @@ function MeetingDetailOverlay({
     return () => { delete document.documentElement.dataset.minutes; };
   }, [phone]);
   // Typing on a phone means the Minutes tab, and the caret back in view once the keyboard is up.
+  // Focus comes before the keyboard finishes opening, so reveal again each time the visible area shrinks.
   useEffect(() => {
     if (!keyboard) return;
     setTab("min");
-    const t = setTimeout(() => editorRef.current?.reveal(), 350);
-    return () => clearTimeout(t);
+    const reveal = () => editorRef.current?.reveal();
+    const t = setTimeout(reveal, 350);
+    window.visualViewport?.addEventListener("resize", reveal);
+    return () => { clearTimeout(t); window.visualViewport?.removeEventListener("resize", reveal); };
   }, [keyboard]);
 
   const time = formatEventTime(event.time, event.schedule);
