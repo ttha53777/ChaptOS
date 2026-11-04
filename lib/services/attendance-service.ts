@@ -126,7 +126,6 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
   // Eligible = this org's roster, minus per-event excused, minus semester-exempt.
   const eligible = brotherIds.filter(id => !excusedBrotherIds.has(id) && !exemptBrotherIds.has(id));
   const eligibleIds = eligible;
-  const attendedSet = new Set(input.attendedIds);
 
   // Existing rows for this event, so the write below can be a MERGE rather than
   // a wholesale replace. This matters now that members write their own rows via
@@ -139,9 +138,23 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
   });
   const existingByBrother = new Map(existing.map(r => [r.brotherId, r.attended]));
 
+  // What this save says about each member it covers. A `changes` save covers
+  // only the rows the officer flipped; anyone else — including a member who
+  // checked in after the sheet opened — is not part of it and keeps their row.
+  // A legacy `attendedIds` snapshot covers every eligible member: unlisted
+  // means absent. Excused and exempt members are never written either way.
+  const eligibleSet = new Set(eligible);
+  const desired = new Map<number, boolean>();
+  if (input.changes) {
+    for (const c of input.changes) if (eligibleSet.has(c.brotherId)) desired.set(c.brotherId, c.attended);
+  } else {
+    const listed = new Set(input.attendedIds);
+    for (const id of eligible) desired.set(id, listed.has(id));
+  }
+
   // Only the members whose value actually changes (or who have no row yet) get
   // rewritten. Rows that already say the right thing are left untouched.
-  const stale = eligible.filter(id => existingByBrother.get(id) !== attendedSet.has(id));
+  const stale = [...desired.keys()].filter(id => existingByBrother.get(id) !== desired.get(id));
 
   // Set-based writes: two statements regardless of roster size. A per-member
   // upsert loop here 500s (P2024 transaction timeout) once a chapter passes ~60
@@ -160,7 +173,7 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
         calendarEventId: input.calendarEventId,
         brotherId,
         semesterId:      semester.id,
-        attended:        attendedSet.has(brotherId),
+        attended:        desired.get(brotherId)!,
       })),
     });
   }, { timeout: 15_000 });
@@ -169,7 +182,7 @@ export async function recordAttendance(ctx: RequestContext, input: RecordAttenda
     calendarEventId: event.id,
     semesterId:      semester.id,
     eventTitle:      event.title,
-    presentCount:    input.attendedIds.length,
+    presentCount:    eligible.filter(id => desired.get(id) ?? existingByBrother.get(id)).length,
     eligibleCount:   eligible.length,
   });
 

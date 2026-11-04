@@ -65,75 +65,139 @@ export function AddIGTaskForm({ onSubmit, initial }: {
   );
 }
 
+/** One row the officer flipped on the attendance sheet. */
+export type AttendanceChange = { brotherId: number; attended: boolean };
+
+type AttendanceSheet = {
+  excused:      { brotherId: number }[];
+  attended:     { brotherId: number; at?: string }[];
+  unexcused:    { brotherId: number }[];
+  checkInOpen?: boolean;
+};
+
+/** While a check-in window is open the sheet re-reads the room this often. */
+const SHEET_POLL_MS = 5_000;
+
 export function LogAttendanceForm({ event, bList, onSubmit }: {
   event: CalendarEvent;
   bList: Brother[];
-  onSubmit: (attendedIds: number[], eventId: number) => Promise<void> | void;
+  onSubmit: (changes: AttendanceChange[], eventId: number, presentCount: number) => Promise<void> | void;
 }) {
   const [excusedIds, setExcusedIds] = useState<Set<number>>(new Set());
-  const [attended,   setAttended]   = useState<Set<number>>(new Set());
+  // What the server says right now (refreshed while a window is open), and
+  // when each present row landed. The sheet saves only its differences from
+  // this, so a member who checks in while it is open is never overwritten.
+  const [server,     setServer]     = useState<Map<number, boolean>>(new Map());
+  const [checkedAt,  setCheckedAt]  = useState<Map<number, string>>(new Map());
+  const [live,       setLive]       = useState(false);
+  // Rows the officer set by hand. Everything else follows the server.
+  const [edits,      setEdits]      = useState<Map<number, boolean>>(new Map());
   const [loading,    setLoading]    = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [query,      setQuery]      = useState("");
-  // Stable ref so the effect doesn't re-run just because the array object changed
-  const bListRef = React.useRef(bList);
-  bListRef.current = bList;
+
+  const load = React.useCallback((signal?: AbortSignal) =>
+    orgFetch(`/api/attendance/${event.id}`, { signal })
+      .then(r => r.json())
+      .then((data: AttendanceSheet) => {
+        setExcusedIds(new Set(data.excused.map(e => e.brotherId)));
+        setServer(new Map([
+          ...data.unexcused.map(r => [r.brotherId, false] as const),
+          ...data.attended.map(r => [r.brotherId, true] as const),
+        ]));
+        setCheckedAt(new Map(data.attended.flatMap(r => r.at ? [[r.brotherId, r.at] as const] : [])));
+        setLive(!!data.checkInOpen);
+      }), [event.id]);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    orgFetch(`/api/attendance/${event.id}`, { signal: controller.signal })
-      .then(r => r.json())
-      .then((data: { excused: { brotherId: number }[]; attended: { brotherId: number }[] }) => {
-        const excusedIds = new Set(data.excused.map((e: { brotherId: number }) => e.brotherId));
-        setExcusedIds(excusedIds);
-        // Pre-fill from existing log if available; otherwise default all eligible to attended
-        if (data.attended && data.attended.length > 0) {
-          setAttended(new Set(data.attended.map((e: { brotherId: number }) => e.brotherId)));
-        } else {
-          setAttended(new Set(bListRef.current.filter(b => !excusedIds.has(b.id)).map(b => b.id)));
-        }
-      })
-      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load excuses", err); })
+    setEdits(new Map());
+    load(controller.signal)
+      .catch(err => { if (err.name !== "AbortError") console.error("Failed to load attendance", err); })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [event.id]); // bList intentionally excluded — captured via ref
+  }, [load]);
 
-  function toggle(id: number) {
-    setAttended(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+  // Check-ins tick on while the officer has the sheet open.
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => { if (!document.hidden) load().catch(() => { /* next tick retries */ }); }, SHEET_POLL_MS);
+    return () => clearInterval(id);
+  }, [live, load]);
+
+  // With no window and no rows at all (logging after the meeting), start with
+  // everyone present: for a full room, unticking who missed is fastest. During
+  // a window an unticked row just means "not checked in yet" — closing the
+  // window writes those absences.
+  const defaultPresent = !live && server.size === 0;
+  const valueOf = (id: number) => edits.get(id) ?? server.get(id) ?? defaultPresent;
+
+  function setRows(ids: number[], value: boolean) {
+    setEdits(prev => {
+      const next = new Map(prev);
+      // A row set back to what the server already has stops being an edit, so
+      // it follows the room again.
+      for (const id of ids) {
+        const base = server.get(id) ?? (live ? false : defaultPresent);
+        if (value === base) next.delete(id); else next.set(id, value);
+      }
       return next;
     });
   }
 
-  function markAll(value: boolean) {
-    // Eligible (non-excused) only — excused brothers are never in the present set.
-    setAttended(value ? new Set(bList.filter(b => !excusedIds.has(b.id)).map(b => b.id)) : new Set());
-  }
+  const eligible = bList.filter(b => !excusedIds.has(b.id));
+  const excused  = bList.filter(b => excusedIds.has(b.id));
+
+  // Only rows whose value differs from the server. Outside a window a member
+  // with no row yet is always included, so the roll records them either way.
+  const changes: AttendanceChange[] = eligible.flatMap(b => {
+    const v = valueOf(b.id), base = server.get(b.id);
+    const changed = base === undefined ? (live ? v : true) : v !== base;
+    return changed ? [{ brotherId: b.id, attended: v }] : [];
+  });
+  const presentCount = eligible.filter(b => valueOf(b.id)).length;
+  const changedIds = new Set(changes.map(c => c.brotherId));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(Array.from(attended), event.id);
+      await onSubmit(changes, event.id, presentCount);
     } finally {
       setSubmitting(false);
     }
   }
 
-  const eligible = bList.filter(b => !excusedIds.has(b.id));
-  const excused  = bList.filter(b => excusedIds.has(b.id));
   const busy = loading || submitting;
   const q = query.trim().toLowerCase();
   const visibleEligible = q ? eligible.filter(b => b.name.toLowerCase().includes(q)) : eligible;
   const visibleExcused  = q ? excused.filter(b => b.name.toLowerCase().includes(q)) : excused;
+  const timeOf = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  function rowNote(b: Brother) {
+    if (edits.has(b.id) && changedIds.has(b.id)) return <span className="rounded-full bg-[color:var(--vio)]/10 px-2 py-0.5 text-[11px] font-semibold text-[color:var(--vio)]">Your change</span>;
+    if (live) {
+      const at = server.get(b.id) ? checkedAt.get(b.id) : undefined;
+      if (at) return <span className="rounded-full bg-[color:var(--ok)]/10 px-2 py-0.5 text-[11px] font-semibold text-[color:var(--ok)]">Here · {timeOf(at)}</span>;
+      if (!server.has(b.id)) return <span className="text-[11px] text-[color:var(--faint)]">Not checked in yet</span>;
+    }
+    return <span className="text-[11px] tabular-nums text-[color:var(--faint)]">{b.attendance}%</span>;
+  }
+
+  const saveLabel = submitting ? "Saving…"
+    : !live ? "Log Attendance"
+    : changes.length === 0 ? "No changes"
+    : `Save ${changes.length} change${changes.length === 1 ? "" : "s"}`;
 
   return (
     <form onSubmit={handleSubmit}>
       <p className="mb-1 text-[13px] font-semibold text-[color:var(--ink)]">{event.title}</p>
-      <p className="mb-4 text-[12px] text-[color:var(--muted)]">{event.date}{event.location ? ` · ${event.location}` : ""}</p>
+      <p className="mb-4 text-[12px] text-[color:var(--muted)]">
+        {event.date}{event.location ? ` · ${event.location}` : ""}
+        {live && <span className="mt-0.5 block font-medium text-[color:var(--ok)]">Check-in is open — ticks appear as members tap in</span>}
+      </p>
       {!loading && eligible.length > 0 && (
         <div className="mb-2 flex items-center gap-3">
           {eligible.length > 6 && (
@@ -145,12 +209,13 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
               className={`${inputDuskCls} flex-1`}
             />
           )}
-          <button type="button" onClick={() => markAll(true)} className="text-[11px] font-medium text-[color:var(--vio)] hover:text-[color:var(--ink)]">All present</button>
-          <button type="button" onClick={() => markAll(false)} className="text-[11px] font-medium text-[color:var(--muted)] hover:text-[color:var(--ink)]">Clear</button>
+          {/* Eligible (non-excused) only — excused brothers are never in the present set. */}
+          <button type="button" onClick={() => setRows(eligible.map(b => b.id), true)} className="text-[11px] font-medium text-[color:var(--vio)] hover:text-[color:var(--ink)]">All present</button>
+          <button type="button" onClick={() => setRows(eligible.map(b => b.id), false)} className="text-[11px] font-medium text-[color:var(--muted)] hover:text-[color:var(--ink)]">Clear</button>
         </div>
       )}
       {loading ? (
-        <p className="mb-4 text-[12px] text-[color:var(--faint)]">Loading excuses…</p>
+        <p className="mb-4 text-[12px] text-[color:var(--faint)]">Loading attendance…</p>
       ) : (
         <div className="mb-4 max-h-64 space-y-0.5 overflow-y-auto rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[color:var(--paper)] p-2">
           {q && visibleEligible.length === 0 && visibleExcused.length === 0 && (
@@ -158,9 +223,9 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
           )}
           {visibleEligible.map(b => (
             <label key={b.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-[rgba(var(--ink-rgb),0.05)] transition-colors">
-              <input type="checkbox" checked={attended.has(b.id)} onChange={() => toggle(b.id)} className="h-4 w-4 rounded border-[rgba(var(--ink-rgb),0.2)] bg-transparent text-[color:var(--vio)] focus:ring-[color:var(--vio)]/30" />
+              <input type="checkbox" checked={valueOf(b.id)} onChange={() => setRows([b.id], !valueOf(b.id))} className="h-4 w-4 rounded border-[rgba(var(--ink-rgb),0.2)] bg-transparent text-[color:var(--vio)] focus:ring-[color:var(--vio)]/30" />
               <span className="flex-1 text-[13px] font-medium text-[color:var(--ink)]">{b.name}</span>
-              <span className="text-[11px] tabular-nums text-[color:var(--faint)]">{b.attendance}%</span>
+              {rowNote(b)}
             </label>
           ))}
           {visibleExcused.map(b => (
@@ -173,12 +238,12 @@ export function LogAttendanceForm({ event, bList, onSubmit }: {
         </div>
       )}
       <div className="mb-4 flex gap-2 text-[11px] text-[color:var(--faint)]">
-        <span className="font-medium text-[color:var(--ink)]">{attended.size}</span> attending ·
-        <span className="font-medium text-[color:var(--ink)]">{eligible.length - attended.size}</span> absent ·
+        <span className="font-medium text-[color:var(--ink)]">{presentCount}</span> {live ? "here" : "attending"} ·
+        <span className="font-medium text-[color:var(--ink)]">{eligible.length - presentCount}</span> {live ? "not checked in" : "absent"} ·
         <span className="font-medium text-[color:var(--gold)]">{excused.length}</span> excused
       </div>
-      <button type="submit" disabled={busy} className={btnDuskPrimaryCls}>
-        {submitting ? "Saving…" : "Log Attendance"}
+      <button type="submit" disabled={busy || (live && changes.length === 0)} className={btnDuskPrimaryCls}>
+        {saveLabel}
       </button>
     </form>
   );

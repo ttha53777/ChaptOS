@@ -250,8 +250,10 @@ export function LiveCheckIn({
             {event.mandatory && <span className="live-req">Mandatory</span>}
 
             {onTakeAttendance && (
+              /* While the window is open the officer is correcting a mark or
+                 two (someone without a phone), not taking the roll again. */
               <button type="button" className="live-alt" onClick={onTakeAttendance}>
-                Take attendance
+                {closed ? "Take attendance" : "Fix a mark"}
               </button>
             )}
             {!closed && onClose && (

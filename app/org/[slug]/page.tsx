@@ -36,7 +36,7 @@ import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../../components/Side
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { useChapter } from "../../context/ChapterContext";
 import { useToast } from "../../components/dashboard/Toast";
-import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm } from "../../components/dashboard/forms";
+import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm, type AttendanceChange } from "../../components/dashboard/forms";
 import { TaskForm, type RoleOption, type TaskFormValue } from "../../components/dashboard/TaskForm";
 import { REIMBURSE_QUERY, type QuickActionKey } from "../../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../../components/treasury/TxForm";
@@ -1694,7 +1694,7 @@ export default function Home() {
     router.push(orgPath(`/tasks?task=${id}`));
   }
 
-  async function handleLogAttendance(attendedIds: number[], eventId: number) {
+  async function handleLogAttendance(changes: AttendanceChange[], eventId: number, presentCount: number) {
     // Abort any in-flight attendance request before starting a new one
     attendanceReqRef.current?.abort();
     const controller = new AbortController();
@@ -1703,12 +1703,12 @@ export default function Home() {
       const updated = await requestJson<Brother[]>("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
+        body: JSON.stringify({ calendarEventId: eventId, changes }),
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
       setBrotherList(updated);
-      addActivity(`Attendance logged — ${attendedIds.length} present`, "info");
+      addActivity(`Attendance logged — ${presentCount} present`, "info");
       setActiveModal(null);
       setSelectedEventForAttendance(null);
     } catch (err: unknown) {

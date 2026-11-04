@@ -288,6 +288,47 @@ describe("live check-in window", () => {
     expect(byBrother.get(officer.id)).toBe(false);
   });
 
+  it("a sheet save of changes keeps check-ins made while the sheet was open", async () => {
+    // The sheet opened before `present` tapped in, so its old full-list save
+    // left them out and flipped them to absent. A changes save only names the
+    // rows the officer flipped.
+    const { org, officer, present, absent, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id); // lands mid-edit
+    await recordAttendance(officerCtx, { calendarEventId: event.id, changes: [{ brotherId: absent.id, attended: true }] });
+
+    const rows = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: event.id } });
+    const byBrother = new Map(rows.map(r => [r.brotherId, r.attended]));
+    expect(byBrother.get(present.id)).toBe(true);
+    expect(byBrother.get(absent.id)).toBe(true);
+    // Not named, not checked in: no row yet, so closing still writes the absence.
+    expect(byBrother.has(officer.id)).toBe(false);
+    await closeCheckIn(officerCtx, event.id);
+    expect((await testPrisma.attendanceRecord.findFirst({ where: { calendarEventId: event.id, brotherId: officer.id } }))?.attended).toBe(false);
+  });
+
+  it("a changes save can un-mark a check-in, and skips excused members", async () => {
+    const { org, officer, present, absent, semester, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await testPrisma.attendanceExcuse.create({
+      data: { calendarEventId: event.id, brotherId: absent.id, semesterId: semester.id, reason: "Sick", status: "approved" },
+    });
+
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+    await recordAttendance(officerCtx, {
+      calendarEventId: event.id,
+      changes: [{ brotherId: present.id, attended: false }, { brotherId: absent.id, attended: true }],
+    });
+
+    const rows = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: event.id } });
+    const byBrother = new Map(rows.map(r => [r.brotherId, r.attended]));
+    expect(byBrother.get(present.id)).toBe(false);
+    expect(byBrother.has(absent.id)).toBe(false);
+  });
+
   it("getLiveCheckIn reports the room filling up and returns null when idle", async () => {
     const { org, officer, present, event } = await scenario();
     const officerCtx = ctxFor(org.id, officer.id);

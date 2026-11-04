@@ -5,6 +5,8 @@ import { getActiveSemester } from "@/lib/attendance";
 import { ExcuseStatus } from "@/lib/state";
 import { logError } from "@/lib/observability";
 import { hasPermission } from "@/lib/permissions";
+import { checkInState } from "@/lib/checkin";
+import { CheckInStatus } from "@/lib/state";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
   const { ctx, error } = await buildContext({ rateLimit: false });
@@ -18,9 +20,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     // No active semester is an empty state, not a client error: there's simply no
     // attendance to report yet. Return empty buckets so the rail renders its empty
     // state instead of the timeline logging a spurious 400.
-    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [], exempt: [] });
+    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [], exempt: [], checkInOpen: false });
 
-    const [records, excuses, exemptions] = await Promise.all([
+    const [event, records, excuses, exemptions] = await Promise.all([
+      ctx.db.calendarEvent.findUnique({
+        where: { id: calendarEventId },
+        select: { checkInOpenedAt: true, checkInClosedAt: true },
+      }),
       ctx.db.attendanceRecord.findMany({
         where: { calendarEventId, semesterId: semester.id },
         include: { brother: { select: { id: true, name: true } } },
@@ -48,7 +54,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     // (built from attended + unexcused) never lists them.
     const exemptBrotherIds = new Set(exemptions.map(e => e.brotherId));
     const attended = records.filter(r => r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
-      .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name }));
+      .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name, at: r.loggedAt.toISOString() }));
     const unexcused = records.filter(r => !r.attended && !excusedBrotherIds.has(r.brotherId) && !exemptBrotherIds.has(r.brotherId))
       .map(r => ({ brotherId: r.brotherId, brotherName: nameByBrotherId.get(r.brotherId) ?? r.brother.name }));
     // Every member can see who was excused; the reason (often medical or
@@ -61,7 +67,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
       isRetroactive: e.isRetroactive,
     }));
 
-    return Response.json({ excused, unexcused, attended, exempt: [...exemptBrotherIds] });
+    // While members can still tap themselves in, the officer's sheet starts from
+    // the real check-ins (not "everyone present") and keeps refreshing.
+    const status = event ? checkInState(event) : null;
+    const checkInOpen = status === CheckInStatus.Open || status === CheckInStatus.Closing;
+
+    return Response.json({ excused, unexcused, attended, exempt: [...exemptBrotherIds], checkInOpen });
   } catch (e) {
     logError(e, { route: "/api/attendance/[eventId]", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);
