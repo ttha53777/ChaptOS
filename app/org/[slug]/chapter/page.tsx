@@ -11,7 +11,7 @@ import { parseMeetingSummary, type MeetingActionItem, type MeetingSummaryData } 
 import "@/app/components/meeting-notes/notes-editor.css";
 import { Sidebar } from "../../../components/Sidebar";
 import { Modal, ConfirmDialog, SaveIndicator, LoadingSpinner } from "../../../components/dashboard/primitives";
-import { LogAttendanceForm, type AttendanceChange } from "../../../components/dashboard/forms";
+import { LogAttendanceForm } from "../../../components/dashboard/forms";
 import { useToast } from "../../../components/dashboard/Toast";
 import { MemberSpotlight } from "../../../components/members/MemberSpotlight";
 import { BrotherAvatar } from "../../../components/BrotherAvatar";
@@ -1188,17 +1188,17 @@ export default function ChapterPage() {
 
   // Shared with the Dashboard's LogAttendanceForm flow — same endpoint, same
   // brotherList refresh (attendance can affect dues/threshold-derived fields).
-  async function handleLogAttendance(changes: AttendanceChange[], eventId: number, presentCount: number) {
+  async function handleLogAttendance(attendedIds: number[], eventId: number) {
     const updated = await requestJson<typeof brotherList>("/api/attendance", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ calendarEventId: eventId, changes }),
+      body: JSON.stringify({ calendarEventId: eventId, attendedIds }),
     });
     setBrotherList(updated);
     setAttendanceTarget(null);
     setAttendanceRefresh(n => n + 1);
     loadSummary();
-    toast.success(`Attendance saved — ${presentCount} present.`);
+    toast.success(`Attendance saved — ${attendedIds.length} present.`);
   }
 
   // ── Cleanup pending timers on unmount ────────────────────────────────────────
