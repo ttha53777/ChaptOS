@@ -6,7 +6,6 @@ import { Modal } from "./dashboard/primitives";
 import { useChapter } from "../context/ChapterContext";
 import { isDashboardRoute } from "../lib/routes";
 import { requestJson } from "../lib/api";
-import { todayISO } from "@/lib/dates";
 import { TERMS_CHANGES, TERMS_EFFECTIVE_LABEL } from "@/lib/terms";
 import type { TermsStatus } from "@/lib/api-types";
 // Same body styles as SemesterGate (.sg-*): it mounts at the root too, so it
@@ -24,16 +23,14 @@ import "./terms-gate.css";
  * (lib/auth/terms-acceptance.ts), so they never see it for the version they
  * accepted.
  *
- * Until `terms.acceptBy` it can be put off with "Not now" (for this browser
- * session only). From that day on it's a hard wall like SemesterGate: section
- * 24 of the terms promises 30 days' notice, then waits for "I agree".
+ * It's a hard wall like SemesterGate from the first render: no "Not now", no
+ * scrim click, no Escape. Nothing on the page is usable until "I agree" saves.
+ * (`terms.acceptBy` stays on the wire for older clients but no longer gates.)
  *
  * Mounted once at the root (app/layout.tsx) after SemesterGate, so it sits on
  * top when both apply. Same two gates as SemesterGate: a resolved user AND a
  * /[slug]/… route, so it never lands on /terms itself or an auth screen.
  */
-
-const LATER_KEY = "chaptos:terms-later";
 
 const SUMMARY: readonly { section: string; text: string }[] = [
   { section: "§6", text: "Your organization is responsible for what it enters. ChaptOS doesn't verify GPA, service hours or attendance." },
@@ -42,32 +39,19 @@ const SUMMARY: readonly { section: string; text: string }[] = [
   { section: "§22", text: "Disputes go to individual arbitration. You can opt out by email within 30 days." },
 ];
 
-function readLater(version: string): boolean {
-  try { return window.sessionStorage.getItem(LATER_KEY) === version; } catch { return false; }
-}
-
-function shortDate(iso: string): string {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
-}
-
 export function TermsGate() {
   const { currentUser } = useChapter();
   const pathname = usePathname();
   // Local, so "I agree" closes the gate without refetching /api/auth/me.
   const [status, setStatus] = useState<TermsStatus | null>(null);
-  const [later, setLater] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const serverStatus = currentUser?.terms ?? null;
   useEffect(() => { setStatus(serverStatus); }, [serverStatus]);
-  useEffect(() => { if (status) setLater(readLater(status.version)); }, [status]);
 
   if (!currentUser || !status || !isDashboardRoute(pathname)) return null;
   if (status.acceptedVersion === status.version) return null;
-
-  const blocking = todayISO() >= status.acceptBy;
-  if (later && !blocking) return null;
 
   const isUpdate = status.acceptedVersion !== null && TERMS_CHANGES.length > 0;
   const rows = isUpdate ? TERMS_CHANGES : SUMMARY;
@@ -90,19 +74,13 @@ export function TermsGate() {
     }
   }
 
-  function putOff() {
-    if (!status) return;
-    try { window.sessionStorage.setItem(LATER_KEY, status.version); } catch { /* closes for this render either way */ }
-    setLater(true);
-  }
-
   const title = isUpdate
     ? <>Our terms are <em>changing</em>.</>
     : <>We&rsquo;ve published our <em>Terms of Service</em>.</>;
   const ariaLabel = isUpdate ? "Our terms are changing" : "We've published our Terms of Service";
 
   return (
-    <Modal tone="dusk" maxWidthClass="max-w-lg" dismissable={!blocking} hideHeader ariaLabel={ariaLabel} onClose={putOff} accent="peach">
+    <Modal tone="dusk" maxWidthClass="max-w-lg" dismissable={false} hideHeader ariaLabel={ariaLabel} onClose={() => {}} accent="peach">
       <div className="dash" data-dashboard-theme="dusk">
         <div className="sg tg">
           <div className="sg-head">
@@ -136,13 +114,7 @@ export function TermsGate() {
           <button type="button" className="sg-submit" onClick={() => void agree()} disabled={busy}>
             {busy ? "Saving…" : "I agree"}
           </button>
-          {blocking ? (
-            <p className="sg-note">ChaptOS needs your agreement to continue.</p>
-          ) : (
-            <button type="button" className="tg-later" onClick={putOff}>
-              Not now · you can keep using ChaptOS until {shortDate(status.acceptBy)}
-            </button>
-          )}
+          <p className="sg-note">ChaptOS needs your agreement to continue.</p>
         </div>
       </div>
     </Modal>
