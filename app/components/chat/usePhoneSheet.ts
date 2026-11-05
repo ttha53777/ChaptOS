@@ -64,19 +64,38 @@ export function usePhoneSheet(open: boolean, overlayRef: RefObject<HTMLDivElemen
     probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none";
     document.body.appendChild(probe);
     let top = 0;
-    const syncBox = () => {
-      if (!vv) return;
-      el.style.setProperty("--cs-vvh", `${vv.height}px`);
-      const want = probe.getBoundingClientRect().top + vv.offsetTop;
+    const place = (offsetTop: number, height: number) => {
+      el.style.setProperty("--cs-vvh", `${height}px`);
+      const want = probe.getBoundingClientRect().top + offsetTop;
       top += want - el.getBoundingClientRect().top;
       el.style.setProperty("--cs-vvt", `${Math.round(top * 100) / 100}px`);
+    };
+    // When the keyboard goes away, iOS only reports the full viewport once its
+    // slide-down ends (~a second), so following visualViewport left the sheet
+    // short, with the dock floating mid-screen, until then. We already know
+    // where it's going: the full screen it had before the keyboard opened. Snap
+    // there on blur (the keyboard is drawn over the page, so it uncovers a
+    // finished layout as it slides away), and for a moment ignore the stale
+    // short readings that still arrive.
+    let kbUp = false, fullH = vv?.height ?? window.innerHeight, settleUntil = 0;
+    const KEYBOARD_PX = 120;
+    const syncBox = () => {
+      if (!vv) return;
+      if (Date.now() < settleUntil && vv.height < fullH - KEYBOARD_PX) return;
+      if (!kbUp) fullH = vv.height;
+      place(vv.offsetTop, vv.height);
     };
     syncBox();
     vv?.addEventListener("resize", syncBox);
     vv?.addEventListener("scroll", syncBox);
     window.addEventListener("scroll", syncBox, { passive: true });
 
-    const syncKeyboard = () => setKeyboard(raisesKeyboard(document.activeElement) && el.contains(document.activeElement));
+    const syncKeyboard = () => {
+      const up = raisesKeyboard(document.activeElement) && el.contains(document.activeElement);
+      if (kbUp && !up && vv) { settleUntil = Date.now() + 1000; place(0, fullH); }
+      kbUp = up;
+      setKeyboard(up);
+    };
     // focusout fires before focus lands on the next field — read it a tick later
     // so moving between fields doesn't drop and raise the layout.
     const onFocusOut = () => setTimeout(syncKeyboard, 0);
