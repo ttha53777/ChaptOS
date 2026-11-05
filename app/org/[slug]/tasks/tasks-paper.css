@@ -1,13 +1,13 @@
 /* ---------- tasks (app/org/[slug]/tasks) -----------------------------------------
    Ported rule-for-rule from _design/Tasks Simple Paper Mock.html. Two piles and
-   nothing else: Overdue (rose) on top, Upcoming (sky) below, soonest first with
+   nothing else: Overdue (peach, the At risk colour) on top, Upcoming (sky) below, soonest first with
    undated tasks last. Every row ends in a tear-off calendar stub, so "when" reads
    without a colour key. Done + Votes sit in a side column once there's room.
    tks-* keeps every class off the global namespace (.tk-* is the Ledger page's). */
 .tks-scope {
   --display:var(--font-fraunces),sans-serif; --sans:var(--font-geist-sans),sans-serif; --mono:var(--font-geist-mono),monospace;
   --ink-2:var(--ink-soft); --ink-3:var(--muted); --paper-3:var(--card-3); --line-2:var(--line-med);
-  --rose:var(--pp-rose,#FFD6E6); --rose-soft:var(--pp-rose-soft,#FFEDF4); --rose-ink:var(--pp-rose-ink,#C23C77);
+  --rose:var(--pp-rose,#FFD6E6); --rose-soft:var(--pp-rose-soft,#FFEDF4); --rose-ink:var(--pp-rose-ink,#C23C77); --peach:var(--pp-peach,#FFD5C4); --peach-soft:var(--pp-peach-soft,#FFEDE5); --peach-ink:var(--pp-peach-ink,#C9542D);
   --lilac:var(--pp-lilac,#E1D8FF); --lilac-soft:var(--pp-lilac-soft,#F1EDFF); --lilac-ink:var(--pp-lilac-ink,#6244CC);
   --sky:var(--pp-sky,#CFE2FF); --sky-soft:var(--pp-sky-soft,#EAF2FF); --sky-ink:var(--pp-sky-ink,#2A66C7);
   --butter:var(--pp-butter,#FFE5A0); --butter-soft:var(--pp-butter-soft,#FFF6DC);
@@ -72,7 +72,7 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 
 /* ---------- the two piles ----------------------------------------------- */
 .tks-pile{background:var(--card); border:1.5px solid var(--ink); border-radius:22px; box-shadow:4px 4px 0 var(--pc); margin-top:18px; overflow:hidden}
-.tks-pile.over{--pc:var(--rose); --ph:var(--rose-soft)}
+.tks-pile.over{--pc:var(--peach); --ph:var(--peach-soft)}
 .tks-pile.up{--pc:var(--sky); --ph:var(--sky-soft)}
 /* pile headers carry their colour, so the two piles read apart at a glance;
    rows stay white so the tasks themselves are what you read */
@@ -80,14 +80,14 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 .tks-pile-h .tile{width:34px; height:34px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--pc); border:1.5px solid var(--note-ink); color:var(--note-ink); transform:rotate(-4deg); filter:var(--note-filter)}
 .tks-pile-h h2{font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.024em; line-height:1.1}
 .tks-pile-h p{font-size:.82rem; color:var(--ink-3)}
-.tks-pile.over .tks-pile-h h2{color:var(--rose-ink)}
-.tks-pile.over .tks-pile-h p{color:color-mix(in srgb, var(--rose-ink) 70%, var(--ink-3))}
+.tks-pile.over .tks-pile-h h2{color:var(--peach-ink)}
+.tks-pile.over .tks-pile-h p{color:color-mix(in srgb, var(--peach-ink) 70%, var(--ink-3))}
 .tks-pile.up .tks-pile-h p{color:color-mix(in srgb, var(--sky-ink) 60%, var(--ink-3))}
 .tks-pile-h .n{margin-left:auto; min-width:40px; height:40px; padding:0 10px; display:grid; place-items:center; border-radius:12px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--pc); font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.04em; line-height:1}
-.tks-pile.over .tks-pile-h .n{color:var(--rose-ink)}
+.tks-pile.over .tks-pile-h .n{color:var(--peach-ink)}
 .tks-pile-h + ul > .tks-tk:first-child{border-top:0}
 
-/* clear-overdue line, when the rose card has nothing in it */
+/* clear-overdue line, when the peach card has nothing in it */
 .tks-clear{margin-top:18px; display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:18px; border:1.5px dashed var(--mint-ink); background:var(--mint-soft); color:var(--ink-2); font-size:.92rem}
 .tks-clear .tile{width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--mint); border:1.5px solid var(--note-ink); color:var(--note-ink); filter:var(--note-filter)}
 .tks-clear .tile .ptk-ic{width:14px; height:14px}
@@ -132,12 +132,12 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 /* right side: words + tear-off calendar stub */
 .tks-when{display:flex; align-items:center; gap:12px}
 .tks-when-d{font-family:var(--mono); font-size:.72rem; font-weight:600; color:var(--ink-3); white-space:nowrap; text-align:right}
-.over .tks-when-d, .over .tks-when-m{color:var(--rose-ink)}
+.over .tks-when-d, .over .tks-when-m{color:var(--peach-ink)}
 .tks-stub{width:46px; flex:none; border-radius:9px; border:1.5px solid var(--ink); background:var(--card); overflow:hidden; text-align:center; box-shadow:2px 2px 0 var(--sc, var(--line-2))}
 .tks-stub small{display:block; padding:1px 0; background:var(--sc, var(--paper-3)); color:var(--note-ink); border-bottom:1.5px solid var(--ink); font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.1em; filter:var(--note-filter)}
 .tks-stub b{display:block; padding:2px 0 3px; font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.04em; line-height:1.15}
 .up .tks-stub{--sc:var(--sky)}
-.over .tks-stub{--sc:var(--rose)}
+.over .tks-stub{--sc:var(--peach)}
 .tks-stub.none{border-style:dashed; border-color:var(--line-2); box-shadow:none}
 .tks-stub.none small{background:transparent; color:var(--ink-3); border-bottom:1.5px dashed var(--line-2)}
 .tks-stub.none b{color:var(--ink-3)}
@@ -204,7 +204,7 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 .tks-d1 .mini div{display:flex; align-items:center; gap:9px; margin-top:8px; font-size:.82rem; font-weight:600}
 .tks-d1 .mini div i{width:16px; height:16px; flex:none; border-radius:50%; border:1.5px solid var(--ink)}
 .tks-d1 .mini div em{margin-left:auto; font-style:normal; font-family:var(--mono); font-size:.62rem; color:var(--ink-3)}
-.tks-d1 .mini.over div em{color:var(--rose-ink)}
+.tks-d1 .mini.over div em{color:var(--peach-ink)}
 .tks-d1 h2{margin-top:26px; font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.025em}
 .tks-d1 > p{margin:6px auto 0; max-width:46ch; color:var(--ink-3); font-size:.92rem}
 .tks-d1 .tks-btn{margin-top:18px}
@@ -284,7 +284,7 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 .tks-sp-scrim.on{opacity:1}
 .tks-spot{
   --spc:var(--sky); --spi:var(--sky-ink); --sps:var(--sky-soft);
-  --peach-ink:var(--pp-peach-ink,#C9542D); --sky-bd:var(--pp-sky-bd,#CCDFFB); --rose-bd:var(--pp-rose-bd,#F8CEE0); --butter-bd:var(--pp-butter-bd,#F4DFA6);
+  --peach:var(--pp-peach,#FFD5C4); --peach-soft:var(--pp-peach-soft,#FFEDE5); --peach-ink:var(--pp-peach-ink,#C9542D); --peach-bd:var(--pp-peach-bd,#F8D2C2); --sky-bd:var(--pp-sky-bd,#CCDFFB); --rose-bd:var(--pp-rose-bd,#F8CEE0); --butter-bd:var(--pp-butter-bd,#F4DFA6);
   position:fixed; z-index:56; left:50%; top:50%;
   width:min(760px, calc(100vw - 64px)); max-height:min(820px, calc(100dvh - 64px));
   display:flex; flex-direction:column;
@@ -293,7 +293,7 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
   transition:opacity .22s var(--ease-out), transform .38s var(--ease-spring);
 }
 .tks-spot.on{opacity:1; transform:translate(-50%,-50%)}
-.tks-spot.over{--spc:var(--rose); --spi:var(--rose-ink); --sps:var(--rose-soft)}
+.tks-spot.over{--spc:var(--peach); --spi:var(--peach-ink); --sps:var(--peach-soft)}
 .tks-spot.done{--spc:var(--mint); --spi:var(--mint-ink); --sps:var(--mint-soft)}
 .tks-spot .grab{display:none}
 .tks-spot .sp-scroll{overflow-y:auto; overscroll-behavior:contain; min-height:0}
@@ -328,7 +328,7 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 .tks-spot.done h2{color:var(--ink-2)}
 .tks-spot .sp-when{margin-top:8px; font-size:1.04rem; color:var(--ink-2)}
 .tks-spot .sp-when b{color:var(--ink); font-weight:600}
-.tks-spot .sp-when em{font-style:normal; color:var(--rose-ink); font-weight:600}
+.tks-spot .sp-when em{font-style:normal; color:var(--peach-ink); font-weight:600}
 .tks-spot .sp-go{margin-top:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
 .tks-spot .sp-go .hint{display:inline-flex; align-items:center; gap:6px; font-size:.86rem; color:var(--ink-3)}
 .tks-spot .sp-go .hint .ptk-ic{width:14px; height:14px}
@@ -383,12 +383,12 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 .tks-spot .dc.gone i{color:var(--ink-3)}
 .tks-spot .dc.gone::after{content:''; position:absolute; inset:9px 7px; background:linear-gradient(to top right, transparent calc(50% - 1px), color-mix(in srgb, var(--ink-3) 55%, transparent) calc(50% - 1px) calc(50% + .6px), transparent calc(50% + .6px)); pointer-events:none}
 .tks-spot .dc.left{background:var(--sky-soft); border-color:var(--sky-bd)}
-.tks-spot .dc.late{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 5px, color-mix(in srgb, var(--rose) 55%, var(--card)) 5px 9px); border-color:var(--rose-bd)}
-.tks-spot .dc.late i{color:var(--rose-ink)}
+.tks-spot .dc.late{background:repeating-linear-gradient(-45deg, var(--peach-soft) 0 5px, color-mix(in srgb, var(--peach) 55%, var(--card)) 5px 9px); border-color:var(--peach-bd)}
+.tks-spot .dc.late i{color:var(--peach-ink)}
 .tks-spot .dc.as{border:1.6px solid var(--ink); box-shadow:2px 2px 0 var(--butter)}
 .tks-spot .dc.today{border:2px solid var(--peach-ink); border-radius:50% 46% 52% 44% / 48% 54% 46% 52%; transform:rotate(-3deg); background:var(--card)}
 .tks-spot .dc.today i{color:var(--peach-ink); font-weight:700}
-.tks-spot .dc.today.late{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 5px, color-mix(in srgb, var(--rose) 55%, var(--card)) 5px 9px)}
+.tks-spot .dc.today.late{background:repeating-linear-gradient(-45deg, var(--peach-soft) 0 5px, color-mix(in srgb, var(--peach) 55%, var(--card)) 5px 9px)}
 .tks-spot .dc.due{background:var(--spc); border:1.6px solid var(--ink); box-shadow:2px 2px 0 var(--ink); filter:var(--note-filter)}
 .tks-spot.up .dc.due{background:var(--sky)}
 .tks-spot .dc.due i{color:var(--note-ink); font-weight:700}
@@ -411,13 +411,13 @@ div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
 .tks-spot .dc-k .k-du::before{background:var(--spc)}
 .tks-spot.up .dc-k .k-du::before{background:var(--sky)}
 .tks-spot .dc-k .k-dn::before{background:var(--mint); border-radius:50%}
-.tks-spot .dc-k .k-late::before{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 3px, var(--rose) 3px 5px); border-color:var(--rose-bd)}
+.tks-spot .dc-k .k-late::before{background:repeating-linear-gradient(-45deg, var(--peach-soft) 0 3px, var(--peach) 3px 5px); border-color:var(--peach-bd)}
 .tks-spot .dc-k .k-left::before{background:var(--sky-soft); border-color:var(--sky-bd)}
 .tks-spot .count{justify-self:stretch; text-align:center; padding:18px 12px 16px; border-radius:20px; border:1.5px solid var(--ink); background:var(--card); box-shadow:4px 4px 0 var(--cc, var(--sky)); transform:rotate(1.5deg)}
-.tks-spot .count.late{--cc:var(--rose)}
+.tks-spot .count.late{--cc:var(--peach)}
 .tks-spot .count.fin{--cc:var(--mint)}
 .tks-spot .count b{display:block; font-family:var(--display); font-weight:600; font-size:3.6rem; letter-spacing:-.06em; line-height:.95; color:var(--cci, var(--sky-ink))}
-.tks-spot .count.late b{--cci:var(--rose-ink)}
+.tks-spot .count.late b{--cci:var(--peach-ink)}
 .tks-spot .count.fin b{--cci:var(--mint-ink)}
 .tks-spot .count span{display:block; margin-top:4px; font-weight:700; font-size:.95rem}
 .tks-spot .count small{display:block; margin-top:6px; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}

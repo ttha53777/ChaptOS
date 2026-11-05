@@ -405,7 +405,7 @@ export function PaperTasks({
         </header>
         <section className="tks-d1">
           <div className="piles">
-            <div className="mini over" style={{ ["--pc" as string]: "var(--rose)" }}><p>Overdue</p><div><i />Past its date<em>2 days late</em></div></div>
+            <div className="mini over" style={{ ["--pc" as string]: "var(--peach)" }}><p>Overdue</p><div><i />Past its date<em>2 days late</em></div></div>
             <div className="mini" style={{ ["--pc" as string]: "var(--sky)" }}><p>Upcoming</p><div><i />Still ahead<em>Fri</em></div></div>
           </div>
           <h2>Two piles. That’s the whole page.</h2>
@@ -425,7 +425,7 @@ export function PaperTasks({
         <div>
           {kick}
           <h1 className="tks-greet">{over.length
-            ? <><span className="tks-hi" style={{ ["--mark" as string]: "var(--rose)" }}>{over.length} overdue</span>{forYou}, {up.length} coming up</>
+            ? <><span className="tks-hi" style={{ ["--mark" as string]: "var(--peach)" }}>{over.length} overdue</span>{forYou}, {up.length} coming up</>
             : <>Nothing overdue{forYou}. <span className="tks-hi">{up.length} coming up</span></>}</h1>
           <p className="tks-sub">{over.length
             ? "Start with the overdue pile, then work down. Tick a task when it’s done."
