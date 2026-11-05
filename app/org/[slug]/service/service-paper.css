@@ -406,6 +406,17 @@ html[data-aesthetic="paper"] .psv-d1-punch .plus {
   html[data-aesthetic="paper"] .svc-foot { flex-wrap: wrap; }
   html[data-aesthetic="paper"] .svc-foot .note { flex-basis: 100%; }
 }
+/* Event motion (PaperService): a new card is laid on the desk, an edited one is
+   re-inked. Delete and the reflow glide are Web Animations in the component. */
+html[data-aesthetic="paper"] .psv-ev.psv-in { animation: psv-in .52s cubic-bezier(.2,.9,.3,1.15) both, psv-glow 1.5s ease-out both; }
+@keyframes psv-in { from { opacity: 0; transform: translateY(-18px) rotate(-1.2deg) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes psv-glow { 0%, 35% { border-color: var(--ink); box-shadow: 4px 4px 0 var(--pp-mint); } }
+html[data-aesthetic="paper"] .psv-ev.psv-reink { animation: psv-reink 1.35s ease-out both; }
+@keyframes psv-reink { 0%, 25% { border-color: var(--ink); box-shadow: 4px 4px 0 var(--pp-butter); background: color-mix(in srgb, var(--pp-butter) 22%, var(--card)); } }
+html[data-aesthetic="paper"] .psv-ev:is(.psv-in, .psv-reink) .psv-cal { animation: psv-thunk .5s cubic-bezier(.3,1.6,.5,1) .08s both; }
+@keyframes psv-thunk { 0% { scale: 1; } 40% { scale: 1.14; } 100% { scale: 1; } }
+
 @media (prefers-reduced-motion: reduce) {
   html[data-aesthetic="paper"] :is(.psv-page, .svc-wide) * { transition: none !important; }
+  html[data-aesthetic="paper"] .psv-ev, html[data-aesthetic="paper"] .psv-ev .psv-cal { animation: none !important; }
 }

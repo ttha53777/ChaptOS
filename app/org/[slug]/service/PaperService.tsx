@@ -10,7 +10,7 @@
  * the goal, punched as hours land.
  */
 
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { BrotherAvatar } from "../../../components/BrotherAvatar";
 import { LoadingSpinner } from "../../../components/dashboard/primitives";
 import { PaperIcon, type PaperIconName } from "../../../components/paper/PaperIcon";
@@ -97,6 +97,23 @@ export function DeskDate({ date, up }: { date: string; up?: boolean }) {
   );
 }
 
+/** What an edit can change — a differing signature means the card was re-inked. */
+function sig(e: PsvEvent): string {
+  return JSON.stringify([e.title, e.date, e.location, e.notes, e.time ?? null, e.schedule ?? null]);
+}
+
+function reducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** One-shot CSS animation class; a timer rather than animationend, which children bubble. */
+function flashClass(el: HTMLElement, cls: string, ms: number) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  window.setTimeout(() => el.classList.remove(cls), ms);
+}
+
 type Avatarish = { id: number; name: string; avatarUrl?: string | null };
 export type AvatarFn = (b: Avatarish, size?: "xs" | "sm" | "md") => ReactNode;
 
@@ -172,6 +189,93 @@ export function PaperService(props: {
   const today = localToday();
   const q = search.trim().toLowerCase();
 
+  // Card motion. Every commit records where each card and section header sits
+  // (relative to the page, so scrolling doesn't count); when the events list itself
+  // changes, new cards drop in, edited ones re-ink, and everything that shifted
+  // glides from where it was (FLIP). Expanding a card or searching only re-records —
+  // those changes stay instant. Keys: "e<id>" for cards, "s:<section>" for headers.
+  const pageRef = useRef<HTMLDivElement>(null);
+  const els = useRef(new Map<string, HTMLElement>());
+  const tops = useRef(new Map<string, number>());
+  const seen = useRef<{ arr: PsvEvent[]; byId: Map<number, string> } | null>(null);
+  const track = (key: string) => (el: HTMLElement | null) => { if (el) els.current.set(key, el); else els.current.delete(key); };
+
+  function measure() {
+    const top0 = pageRef.current?.getBoundingClientRect().top ?? 0;
+    const m = new Map<string, number>();
+    els.current.forEach((el, k) => m.set(k, el.getBoundingClientRect().top - top0));
+    return m;
+  }
+
+  useLayoutEffect(() => {
+    const now = measure();
+    const s = seen.current;
+    if (!props.eventsLoading && s && s.arr !== events && !reducedMotion()) {
+      const evById = new Map(events.map(e => [e.id, e]));
+      els.current.forEach((el, key) => {
+        const from = tops.current.get(key), to = now.get(key);
+        const ev = key[0] === "e" ? evById.get(Number(key.slice(1))) : undefined;
+        if (ev && !s.byId.has(ev.id)) {
+          flashClass(el, "psv-in", 1600);
+          el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          return;
+        }
+        if (from === undefined) {
+          // A section header that just appeared.
+          el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, delay: 120, easing: "ease-out", fill: "backwards" });
+        } else if (to !== undefined && Math.abs(from - to) > 1) {
+          // Longer trips take a little longer, so nothing whips across the page.
+          el.animate([{ transform: `translateY(${from - to}px)` }, { transform: "none" }],
+            { duration: Math.min(620, 340 + Math.abs(from - to) * 0.7), easing: "cubic-bezier(.3,.7,.25,1)" });
+        }
+        if (ev && s.byId.get(ev.id) !== sig(ev)) {
+          flashClass(el, "psv-reink", 1400);
+          el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
+      });
+    }
+    tops.current = now;
+    if (!props.eventsLoading) seen.current = { arr: events, byId: new Map(events.map(e => [e.id, sig(e)])) };
+  });
+
+  /** Slide the card off the desk and close its gap — taking its section header
+   *  along when it was the last card under it — then hand it to the page's
+   *  (optimistic) delete. Positions are re-recorded first, so the FLIP after the
+   *  delete starts from the collapsed layout instead of replaying the collapse. */
+  function remove(ev: PsvEvent) {
+    const el = els.current.get(`e${ev.id}`);
+    if (!el || reducedMotion()) { props.onDelete(ev); return; }
+    if (el.dataset.leaving) return;
+    el.dataset.leaving = "1";
+    const sec = el.parentElement?.childElementCount === 1 && el.parentElement.previousElementSibling?.classList.contains("psv-sec")
+      ? el.parentElement.previousElementSibling as HTMLElement : null;
+    const timing: KeyframeAnimationOptions = { duration: 500, fill: "forwards" };
+    const off = "translateX(36px) rotate(1.5deg)";
+    const box = (n: HTMLElement) => {
+      const cs = getComputedStyle(n);
+      return { height: `${n.offsetHeight}px`, marginTop: cs.marginTop, marginBottom: cs.marginBottom, borderTopWidth: cs.borderTopWidth, borderBottomWidth: cs.borderBottomWidth };
+    };
+    const shut = { height: "0px", marginTop: "0px", marginBottom: "0px", borderTopWidth: "0px", borderBottomWidth: "0px" };
+    for (const n of [el, sec]) if (n) { n.style.overflow = "hidden"; n.style.pointerEvents = "none"; }
+    // Lift away (ease-in), then close the gap (ease-in-out).
+    const b = box(el);
+    const a = el.animate([
+      { ...b, opacity: 1, transform: "none", easing: "cubic-bezier(.5,0,.75,0)" },
+      { ...b, opacity: 0, transform: off, offset: 0.4, easing: "cubic-bezier(.45,0,.2,1)" },
+      { ...shut, opacity: 0, transform: off },
+    ], timing);
+    if (sec) {
+      const sb = box(sec);
+      sec.animate([
+        { ...sb, opacity: 1, easing: "linear" },
+        { ...sb, opacity: 0, offset: 0.4, easing: "cubic-bezier(.45,0,.2,1)" },
+        { ...shut, opacity: 0 },
+      ], timing);
+    }
+    a.onfinish = () => { tops.current = measure(); props.onDelete(ev); };
+  }
+
+
   const total = roster.reduce((s, b) => s + b.serviceHours, 0);
   const onTrack = roster.filter(b => b.serviceHours >= goal).length;
   const behind = roster.length - onTrack;
@@ -190,6 +294,7 @@ export function PaperService(props: {
   const todayP = parts(today);
   const ask = () => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "Who's behind on service hours?" } }));
 
+
   function sum(id: number) {
     const rows = partByEvent[id];
     return rows ? { n: rows.length, h: rows.reduce((s, p) => s + p.hours, 0) } : null;
@@ -202,7 +307,8 @@ export function PaperService(props: {
     const t = timeLabel(ev);
     const rows = [...(partByEvent[ev.id] ?? [])].sort((a, b) => a.brother.name.localeCompare(b.brother.name));
     return (
-      <div key={ev.id} className={`psv-ev${isUp ? " up" : ""}${open ? " open" : ""}`}>
+      <div key={ev.id} ref={track(`e${ev.id}`)}
+        className={`psv-ev${isUp ? " up" : ""}${open ? " open" : ""}`}>
         <button className="psv-head" onClick={() => props.toggleExpand(ev.id)} aria-expanded={open}>
           <DeskDate date={ev.date} up={isUp} />
           <span className="psv-main">
@@ -260,7 +366,7 @@ export function PaperService(props: {
               <div className="psv-acts">
                 <button className="psv-btn sm" onClick={() => props.onLog(ev)}><PaperIcon name="clock" />Log hours</button>
                 <button className="psv-btn sm soft" onClick={() => props.onEdit(ev)}><PaperIcon name="pencil" />Edit</button>
-                <button className="psv-btn sm soft del" onClick={() => props.onDelete(ev)}><PaperIcon name="trash" />Delete</button>
+                <button className="psv-btn sm soft del" onClick={() => remove(ev)}><PaperIcon name="trash" />Delete</button>
               </div>
             )}
           </div>
@@ -291,7 +397,7 @@ export function PaperService(props: {
   }
 
   return (
-    <div className="psv-page">
+    <div className="psv-page" ref={pageRef}>
       <section className="psv-brief">
         <div>
           <p className="psv-kick">
@@ -370,11 +476,11 @@ export function PaperService(props: {
         ) : (
           <>
             {up.length > 0 && <>
-              <div className="psv-sec"><h2>Coming up</h2><span className="rule" /><span className="cnt">{up.length}</span></div>
+              <div className="psv-sec" ref={track("s:up")}><h2>Coming up</h2><span className="rule" /><span className="cnt">{up.length}</span></div>
               <div>{up.map(eventCard)}</div>
             </>}
             {past.length > 0 && <>
-              <div className="psv-sec"><h2>Logged</h2><span className="rule" /><span className="cnt">{past.length} · newest first</span></div>
+              <div className="psv-sec" ref={track("s:past")}><h2>Logged</h2><span className="rule" /><span className="cnt">{past.length} · newest first</span></div>
               <div>{past.map(eventCard)}</div>
             </>}
           </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useMemo, startTransition, type ReactNode } from "react";
 import { Sidebar } from "../../../components/Sidebar";
 import { BrotherAvatar } from "../../../components/BrotherAvatar";
 import { Modal, FieldLabel, LoadingSpinner } from "../../../components/dashboard/primitives";
@@ -14,6 +14,7 @@ import { Brother, fmtDate } from "../../../data";
 import { requestJson } from "../../../lib/api";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../../components/timeline/ScheduleFields";
 import { scheduleDate, type Schedule } from "@/lib/calendar-feed/schedule";
+import { APP_AESTHETIC } from "@/lib/aesthetic";
 import "../../../components/dashboard/dashboard-ledger.css";
 import "./service-ledger.css";
 import "./service-paper.css";
@@ -169,7 +170,9 @@ export default function ServicePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        setServiceEvents(prev => [...prev, saved].sort((a, b) => b.date.localeCompare(a.date)));
+        // A transition, so the list re-render yields instead of dropping a frame
+        // at the start of PaperService's add/edit/delete motion.
+        startTransition(() => setServiceEvents(prev => [...prev, saved].sort((a, b) => b.date.localeCompare(a.date))));
         toast.success(`Added "${saved.title}".`);
       } catch (err) {
         handleSemesterError(err, msg => toast.error(msg), "Could not add the service event.");
@@ -177,7 +180,7 @@ export default function ServicePage() {
     } else if (eventModal === "edit" && editingEvent) {
       const snapshot = editingEvent;
       const updated = { ...snapshot, ...body };
-      setServiceEvents(list => list.map(e => e.id === snapshot.id ? updated : e).sort((a, b) => b.date.localeCompare(a.date)));
+      startTransition(() => setServiceEvents(list => list.map(e => e.id === snapshot.id ? updated : e).sort((a, b) => b.date.localeCompare(a.date))));
       setEventModal(null);
       setEditingEvent(null);
       try {
@@ -195,7 +198,7 @@ export default function ServicePage() {
   }
 
   async function handleDeleteEvent(ev: ServiceEvent) {
-    setServiceEvents(prev => prev.filter(e => e.id !== ev.id));
+    startTransition(() => setServiceEvents(prev => prev.filter(e => e.id !== ev.id)));
     setPartByEvent(prev => { const next = { ...prev }; delete next[ev.id]; return next; });
     try {
       await requestJson(`/api/service-events/${ev.id}`, { method: "DELETE" });
@@ -370,7 +373,10 @@ export default function ServicePage() {
                 onDelete={handleDeleteEvent} onRemove={removeAttendee} onMember={openMemberDetail}
               />
             </div>
-            <div className="lg-only">
+            {/* Paper is the only look (lib/aesthetic.ts), so the hidden Ledger body
+                isn't rendered at all — it doubled the cost of every re-render and put a
+                dropped frame at the start of each add/edit/delete animation. */}
+            {APP_AESTHETIC !== "paper" && <div className="lg-only">
 
             {/* ── Briefing ── */}
             <section className="svc-briefing" aria-label="Service log">
@@ -547,7 +553,7 @@ export default function ServicePage() {
                 </div>
               )
             )}
-            </div>
+            </div>}
           </div>
         </main>
       </div>
