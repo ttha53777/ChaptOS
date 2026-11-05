@@ -52,24 +52,30 @@ html[data-aesthetic="paper"] .dash .ondeck {
 html[data-aesthetic="paper"] .dash .ondeck::before { display: none; }
 html[data-aesthetic="paper"] .dash .ondeck .od-body { min-width: 0; }
 
-/* the desk-calendar page, torn off and set down a little crooked */
+/* the desk-calendar page, torn off and taped down a little crooked (Tasks' spotlight page):
+   month on the band, the day, the weekday, and the start time hanging off the bottom */
 html[data-aesthetic="paper"] .dash .od-cal {
-  display: block; width: 104px; align-self: start; border-radius: 14px; background: var(--card); border: 1.5px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--pp-peach); transform: rotate(-3deg); overflow: hidden; text-align: center; line-height: 1;
+  --cc: var(--pp-sky);
+  position: relative; display: block; width: 112px; align-self: start; border-radius: 16px; background: var(--card); border: 1.8px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--cc); transform: rotate(-3deg); text-align: center; line-height: 1;
 }
+html[data-aesthetic="paper"] .dash .ondeck.live .od-cal { --cc: var(--pp-butter); }
+html[data-aesthetic="paper"] .dash .od-cal::before {
+  content: ""; position: absolute; left: 50%; top: -9px; width: 54px; height: 17px; transform: translateX(-50%) rotate(4deg); z-index: 1;
+  background: color-mix(in srgb, var(--pp-butter) 75%, transparent); border-inline: 1.5px dashed rgba(38,33,27,.18); filter: var(--pp-note-filter);
+}
+html[data-aesthetic="paper"] .dash .ondeck.live .od-cal::before { background: color-mix(in srgb, var(--pp-peach) 80%, transparent); }
 html[data-aesthetic="paper"] .dash .od-cal span { display: block; }
 html[data-aesthetic="paper"] .dash .od-cal .top {
-  position: relative; background: var(--pp-sky); color: var(--pp-note-ink); filter: var(--pp-note-filter); padding: 13px 0 7px;
-  font-family: var(--mono); font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; border-bottom: 1.5px solid var(--ink);
+  background: var(--cc); color: var(--pp-note-ink); filter: var(--pp-note-filter); padding: 5px 0 4px; border-radius: 14px 14px 0 0;
+  font-family: var(--mono); font-size: .72rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; border-bottom: 1.8px solid var(--ink);
 }
-html[data-aesthetic="paper"] .dash .od-cal .top::before,
-html[data-aesthetic="paper"] .dash .od-cal .top::after {
-  content: ""; position: absolute; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--ink);
+html[data-aesthetic="paper"] .dash .od-cal .n { padding: 8px 0 2px; font-family: var(--font-fraunces); font-weight: 600; font-size: 3.2rem; letter-spacing: -.05em; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .od-cal .m { padding: 0 0 12px; font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+html[data-aesthetic="paper"] .dash .od-cal .tm {
+  position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%) rotate(3deg); padding: 1px 9px; border-radius: 7px; white-space: nowrap;
+  border: 1.5px solid var(--ink); background: var(--card); color: var(--ink); font-family: var(--mono); font-size: .66rem; font-weight: 700; letter-spacing: .04em;
 }
-html[data-aesthetic="paper"] .dash .od-cal .top::before { left: 24px; }
-html[data-aesthetic="paper"] .dash .od-cal .top::after { right: 24px; }
-html[data-aesthetic="paper"] .dash .od-cal .n { padding: 12px 0 2px; font-family: var(--font-fraunces); font-weight: 600; font-size: 3rem; letter-spacing: -.05em; color: var(--ink); }
-html[data-aesthetic="paper"] .dash .od-cal .m { padding: 0 0 12px; font-family: var(--mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 
 html[data-aesthetic="paper"] .dash .ondeck .od-top { gap: 10px; flex-wrap: wrap; }
 html[data-aesthetic="paper"] .dash .ondeck .pill {
@@ -138,7 +144,7 @@ html[data-aesthetic="paper"] .dash .mt-tabs .ct { font-family: var(--mono); font
 
 html[data-aesthetic="paper"] .dash-chapter .ledger-list { display: grid; gap: 8px; border: 0; border-radius: 0; background: none; box-shadow: none; overflow: visible; }
 html[data-aesthetic="paper"] .dash .led-row {
-  grid-template-columns: 58px minmax(0,1fr) auto; gap: 16px; padding: 12px 14px 12px 12px;
+  grid-template-columns: auto minmax(0,1fr) auto; gap: 16px; padding: 12px 14px 12px 14px;
   border-radius: 16px; border: 1.5px solid var(--line); background: var(--card); box-shadow: var(--pp-sh-1);
   transition: transform .2s var(--pp-ease-spring), box-shadow .2s var(--pp-ease-spring), border-color .2s;
 }
@@ -148,9 +154,22 @@ html[data-aesthetic="paper"] .dash .led-row.missing { border-style: dashed; bord
 html[data-aesthetic="paper"] .dash .led-row.missing:last-child { border-bottom-style: dashed; border-bottom-color: var(--pp-peach-bd); }
 html[data-aesthetic="paper"] .dash .led-row.fresh { animation: pp-fresh 2.6s var(--pp-ease-out); }
 @keyframes pp-fresh { from { background: var(--pp-butter-soft); border-color: var(--pp-butter-ink); } }
-html[data-aesthetic="paper"] .dash .led-date { text-align: center; border: 1.5px solid var(--line); border-radius: 12px; padding: 5px 0 6px; background: var(--paper); line-height: 1.05; }
-html[data-aesthetic="paper"] .dash .led-date :is(.dow, .mon) { font-family: var(--mono); font-size: .58rem; font-weight: 600; letter-spacing: .08em; color: var(--muted); margin: 0; }
-html[data-aesthetic="paper"] .dash .led-date .dnum { font-family: var(--font-fraunces); font-size: 1.35rem; font-weight: 600; letter-spacing: -.03em; color: var(--ink); margin: 0; }
+/* the date is Tasks' tear-off stub: month on a coloured band, the day, the weekday.
+   The DOM is dow/dnum/mon (the dusk look reads it in that order), so order puts the month on top. */
+html[data-aesthetic="paper"] .dash .led-date {
+  --sc: var(--pp-sky);
+  display: flex; flex-direction: column; width: 50px; text-align: center; line-height: 1.1; overflow: hidden;
+  border: 1.5px solid var(--ink); border-radius: 10px; background: var(--card); box-shadow: 2px 2px 0 var(--sc);
+  transition: transform .25s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .dash .led-row.missing .led-date { --sc: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .led-row:hover .led-date { transform: rotate(-3deg); }
+html[data-aesthetic="paper"] .dash .led-date .mon {
+  order: -1; margin: 0; padding: 1px 0; background: var(--sc); color: var(--pp-note-ink); filter: var(--pp-note-filter); border-bottom: 1.5px solid var(--ink);
+  font-family: var(--mono); font-size: .56rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+}
+html[data-aesthetic="paper"] .dash .led-date .dnum { margin: 0; padding: 3px 0 0; font-family: var(--font-fraunces); font-size: 1.3rem; font-weight: 600; letter-spacing: -.04em; line-height: 1.1; color: var(--ink); }
+html[data-aesthetic="paper"] .dash .led-date .dow { order: 1; margin: 0; padding: 0 0 4px; font-family: var(--mono); font-size: .5rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 html[data-aesthetic="paper"] .dash .led-main .t { font-size: .95rem; font-weight: 600; letter-spacing: -.01em; gap: 8px; }
 html[data-aesthetic="paper"] .dash .led-main .t .vdot { display: none; }
 html[data-aesthetic="paper"] .dash .led-main .t .ai { display: inline-flex; color: var(--pp-lilac-ink); }
@@ -324,8 +343,20 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm .pp-only { display: inline-
 @media (max-width: 700px) {
   html[data-aesthetic="paper"] .dash-chapter .briefing { grid-template-columns: minmax(0,1fr); }
   html[data-aesthetic="paper"] .dash-chapter .ch-acts { justify-content: flex-start; }
-  html[data-aesthetic="paper"] .dash .ondeck { grid-template-columns: minmax(0,1fr); padding: 20px 18px 18px; box-shadow: 5px 5px 0 var(--pp-sky); }
-  html[data-aesthetic="paper"] .dash .od-cal { display: none !important; }
+  html[data-aesthetic="paper"] .dash .ondeck { grid-template-columns: auto minmax(0,1fr); gap: 0 16px; padding: 22px 18px 18px; box-shadow: 5px 5px 0 var(--pp-sky); }
+  /* phone: a smaller page beside the pill + title; everything under them runs full width */
+  html[data-aesthetic="paper"] .dash .ondeck .od-body { display: contents; }
+  html[data-aesthetic="paper"] .dash .ondeck .od-body > * { grid-column: 1 / -1; }
+  html[data-aesthetic="paper"] .dash .ondeck .od-body > :is(.od-top, h3) { grid-column: 2; }
+  html[data-aesthetic="paper"] .dash .ondeck .od-body > .od-top { align-self: end; }
+  html[data-aesthetic="paper"] .dash .ondeck .od-body > h3 { align-self: start; font-size: 1.4rem; }
+  html[data-aesthetic="paper"] .dash .ondeck .od-body > .od-meta { margin-top: 18px; }
+  html[data-aesthetic="paper"] .dash .od-cal { grid-column: 1; grid-row: 1 / span 2; width: 76px; border-radius: 13px; }
+  html[data-aesthetic="paper"] .dash .od-cal .top { border-radius: 11px 11px 0 0; font-size: .62rem; padding: 3px 0; }
+  html[data-aesthetic="paper"] .dash .od-cal .n { font-size: 2.2rem; padding-top: 5px; }
+  html[data-aesthetic="paper"] .dash .od-cal .m { font-size: .56rem; padding-bottom: 10px; }
+  html[data-aesthetic="paper"] .dash .od-cal .tm { font-size: .56rem; padding: 0 6px; bottom: -10px; }
+  html[data-aesthetic="paper"] .dash .od-cal::before { width: 40px; height: 13px; top: -7px; }
   /* Full-bleed and pinned to what's actually visible. 100vh is the toolbar-hidden
      height, so a centered 100vh sheet hung its bar above the screen with nothing
      to scroll it back; the keyboard made it worse. usePhoneSheet supplies the
@@ -336,7 +367,9 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm .pp-only { display: inline-
   html[data-aesthetic="paper"] .dash.mt-ov .mt-sumbtn { padding: 7px 10px; }
 }
 @media (max-width: 520px) {
-  html[data-aesthetic="paper"] .dash .led-row { grid-template-columns: 48px minmax(0,1fr); gap: 12px; }
+  html[data-aesthetic="paper"] .dash .led-row { grid-template-columns: auto minmax(0,1fr); gap: 12px; padding: 11px 12px; }
+  html[data-aesthetic="paper"] .dash .led-date { grid-row: 1 / span 2; align-self: start; width: 46px; }
+  html[data-aesthetic="paper"] .dash .led-date .dnum { font-size: 1.2rem; }
   html[data-aesthetic="paper"] .dash .led-stats { grid-column: 2; justify-content: flex-start; }
   html[data-aesthetic="paper"] .dash .led-stats .stat { text-align: left; display: flex; gap: 6px; align-items: baseline; }
   html[data-aesthetic="paper"] .dash .led-row .chev { display: none; }

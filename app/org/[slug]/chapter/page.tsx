@@ -1848,9 +1848,10 @@ function OnDeckHero({
   return (
     <div className={`ondeck${isToday ? " live" : ""}`}>
       <div className="od-cal pp-only" aria-hidden>
-        <span className="top">{DOWS[dt.getDay()]}</span>
+        <span className="top">{MONTHS[dt.getMonth()]}</span>
         <span className="n">{dt.getDate()}</span>
-        <span className="m">{MONTHS[dt.getMonth()]}</span>
+        <span className="m">{DOWS[dt.getDay()]}</span>
+        {time && <span className="tm">{time}</span>}
       </div>
       <div className="od-body">
         <div className="od-top">
