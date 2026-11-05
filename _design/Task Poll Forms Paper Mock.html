@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Task &amp; Poll Forms</title>
+<!--
+  New task + New poll, redrawn around one question: WHO.
+  Three picture tiles pick the kind of answer: People (faces), Roles (name tags), Everyone (the
+  whole roster). Everyone carries one small switch:
+    Task   Everyone does it  (12 separate ticks, Task.everyone = "each")
+           Just one person   (one shared tick, whoever gets there first, Task.everyone = "any")
+    Poll   Everyone has to vote (12 ballots to collect; closes early once all are in)
+           Anyone can vote      (optional ballots, nobody gets chased)
+  The crowd strip under the switch acts the rule out: faces each get their own tick, or bunch up
+  around a single one. The footer shows the row as it will land in the list.
+  MOCK dock: Task / Poll · Night (T). Same tokens as the Dashboard Paper Mock. Fictional roster.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (Dashboard Paper Mock) -------------------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;
+  --note-ink:#26211B; --note-filter:none;
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A;
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF;
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;
+  --note-filter:brightness(.93) saturate(.85);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:hidden; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,p,ol,ul{margin:0}
+ol,ul{padding:0; list-style:none}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:16px; height:16px; flex:none}
+[hidden]{display:none !important}
+
+/* ---------- backdrop (the page under the sheet) --------------------------- */
+.bg{max-width:820px; margin:0 auto; padding:44px 32px 140px; transition:filter .45s var(--ease-out), opacity .45s var(--ease-out)}
+body.sheet .bg{opacity:.55; filter:blur(1.5px); pointer-events:none; user-select:none}
+.bg-head{display:flex; align-items:flex-end; gap:16px; margin-bottom:26px}
+.bg-head .kick{font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.bg-head h1{font-family:var(--display); font-weight:600; font-size:2.6rem; letter-spacing:-.04em; line-height:1.05; margin-top:6px}
+.bg-head .btn{margin-left:auto}
+.pile{border:1.5px solid var(--ink); border-radius:22px; background:var(--card); overflow:hidden; box-shadow:4px 4px 0 var(--pc)}
+.pile + .pile{margin-top:22px}
+.pile[data-p="over"]{--pc:var(--rose); --ps:var(--rose-soft); --pi:var(--rose-ink)}
+.pile[data-p="up"]{--pc:var(--sky); --ps:var(--sky-soft); --pi:var(--ink)}
+.pile-h{display:flex; align-items:center; gap:10px; padding:12px 18px; background:var(--ps); border-bottom:1.5px solid var(--ink)}
+.pile-h h2{font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.02em; color:var(--pi)}
+.pile-h .n{min-width:26px; height:24px; padding:0 7px; display:grid; place-items:center; border-radius:7px; border:1.5px solid var(--ink); background:var(--card); font-family:var(--mono); font-size:.74rem; font-weight:600}
+.pile-h .n.bump{animation:bump .5s var(--ease-spring)}
+@keyframes bump{40%{transform:scale(1.35) rotate(-6deg); background:var(--butter)}}
+.tk{position:relative; display:flex; align-items:center; gap:14px; padding:13px 18px; background:var(--card)}
+.tk + .tk{border-top:1.5px dashed var(--line-2)}
+.tk .tc{width:22px; height:22px; flex:none; border-radius:50%; border:1.7px solid var(--ink-2)}
+.tk .mid{flex:1; min-width:0}
+.tk .mid b{display:block; font-size:.95rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tk .meta{display:flex; align-items:center; gap:6px; margin-top:4px; flex-wrap:wrap}
+.tk .stub{width:44px}
+.tk .stub b{font-size:1.15rem}
+.pile[data-p="over"] .tk .stub{--sc:var(--rose)}
+.pile[data-p="over"] .tk .late{font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--rose-ink)}
+/* the incoming row: a gap opens, the card flies in, then it gets inked */
+.tk.landed{animation:landbg 2.6s var(--ease-out)}
+@keyframes landbg{0%,35%{background:var(--butter-soft)} 100%{background:var(--card)}}
+.tk.landed .mid b{position:relative; z-index:0; display:inline-block; max-width:100%}
+.tk.landed .mid b::before{content:''; position:absolute; z-index:-1; left:-.15em; right:-.1em; bottom:.08em; height:.5em; background:var(--butter); border-radius:.4em .55em .38em .6em; transform-origin:left; transform:rotate(-.8deg) scaleX(0); animation:mark 2.6s var(--ease-out) forwards}
+@keyframes mark{12%{transform:rotate(-.8deg) scaleX(0)} 30%{transform:rotate(-.8deg) scaleX(1); opacity:.9} 80%{opacity:.9} 100%{transform:rotate(-.8deg) scaleX(1); opacity:0}}
+.tape{position:absolute; top:-7px; left:24px; padding:1px 10px; background:color-mix(in srgb, var(--butter) 82%, transparent); color:var(--note-ink); font-family:var(--mono); font-size:.6rem; font-weight:700; letter-spacing:.14em; transform:rotate(-4deg); filter:var(--note-filter); clip-path:polygon(3% 0, 97% 4%, 100% 50%, 96% 100%, 2% 96%, 0 50%); animation:tape 3s var(--ease-out) forwards; pointer-events:none; z-index:2}
+@keyframes tape{0%{opacity:0; transform:rotate(-14deg) scale(1.5)} 10%{opacity:1; transform:rotate(-4deg) scale(1)} 80%{opacity:1} 100%{opacity:0}}
+.pile[data-p="up"] .tk:first-child .tape{top:4px}
+/* the flying card */
+/* X and Y ride separate layers with different easings, so the path is one smooth curve */
+.fly-x, .fly-y{position:fixed; left:0; top:0; z-index:96; pointer-events:none; will-change:transform}
+.fly-y{position:static}
+.flyer{position:relative; overflow:hidden; border:1.5px solid var(--ink); border-radius:16px; background:var(--card); box-shadow:5px 6px 0 var(--butter), var(--sh-2); transform-origin:50% 50%; will-change:transform, width}
+.flyer .tk{position:static; border-radius:15px}
+/* the row inside is laid out at its final width, so nothing re-wraps while the card stretches */
+.flyer .tk .stub{position:absolute; right:18px; top:50%; margin-top:-23px; background:var(--card)}
+@media (max-width:600px){ .flyer .tk .stub{right:14px} }
+.puff{position:fixed; z-index:97; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:var(--pc, var(--butter)); border:1.2px solid var(--note-ink); pointer-events:none}
+
+/* ---------- buttons ------------------------------------------------------- */
+.btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--butter);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; letter-spacing:-.01em; white-space:nowrap;
+  box-shadow:2.5px 2.5px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.btn .ic{width:15px; height:15px}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.btn.soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.btn.soft:hover{border-color:var(--ink-3); color:var(--ink); transform:translateY(-1px)}
+
+.avatar{
+  width:32px; height:32px; flex:none; border-radius:50%; display:grid; place-items:center; position:relative;
+  background:var(--av, var(--peach)); color:var(--note-ink); border:1.5px solid var(--note-ink); filter:var(--note-filter);
+  font-family:var(--display); font-size:.72rem; font-weight:700; letter-spacing:-.01em;
+}
+
+/* ---------- sheet --------------------------------------------------------- */
+.scrim{position:fixed; inset:0; z-index:90; background:color-mix(in srgb, var(--ink) 26%, transparent); display:grid; place-items:center; padding:20px 20px 86px; opacity:0; pointer-events:none; transition:opacity .22s}
+.scrim.on{opacity:1; pointer-events:auto}
+.modal{
+  --tone:var(--butter);
+  position:relative; width:min(640px, 100%); max-height:calc(100vh - 106px); overflow:auto; overscroll-behavior:contain; border-radius:26px;
+  background:var(--card); border:1.5px solid var(--ink); box-shadow:6px 6px 0 var(--tone);
+  transform:translateY(12px) scale(.98); transition:transform .32s var(--ease-spring); scrollbar-width:thin;
+}
+.modal.poll{--tone:var(--lilac)}
+.scrim.on .modal{transform:none}
+.grab{display:none}
+.mh{display:flex; align-items:center; gap:12px; padding:18px 22px 14px; border-bottom:1.5px dashed var(--line-2)}
+.mh .tile{width:36px; height:36px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--tone); border:1.5px solid var(--note-ink); color:var(--note-ink); transform:rotate(-4deg); filter:var(--note-filter)}
+.mh h2{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.024em}
+.mh .x{margin-left:auto; width:34px; height:34px; display:grid; place-items:center; border-radius:10px; border:1.5px solid transparent; background:none; color:var(--ink-3)}
+.mh .x:hover{border-color:var(--line); color:var(--ink)}
+.mb{padding:18px 22px 8px; display:grid; gap:20px}
+.fld{display:grid; gap:9px; min-width:0}
+.lab{font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.lab i{font-style:normal; font-weight:500; letter-spacing:0; text-transform:none}
+.inp{width:100%; padding:10px 13px; border-radius:12px; border:1.5px solid var(--line-2); background:var(--paper); font-size:.92rem; outline:none; transition:border-color .18s, box-shadow .18s}
+.inp:focus{border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--tone)}
+.inp.big{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.02em}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chips button{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper); font-size:.82rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.chips button small{font-family:var(--mono); font-size:.66rem; font-weight:500; color:var(--ink-3)}
+.chips button[aria-pressed="true"]{border-color:var(--ink); color:var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--tone)}
+.addline{justify-self:start; display:inline-flex; align-items:center; gap:6px; padding:0; border:0; background:none; font-size:.84rem; font-weight:600; color:var(--ink-2)}
+.addline:hover{color:var(--ink)}
+.addline .ic{width:14px; height:14px}
+
+/* due: a day row and a time row */
+.when{display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px 12px; align-items:center}
+.when > i{align-self:start; padding-top:7px; font-style:normal; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); min-width:34px}
+.when [data-trow]{animation:pin .25s var(--ease-out)}
+.chips button.ghost{border-style:dashed; background:transparent; color:var(--ink-3)}
+.chips button.ghost[aria-pressed="true"]{border-style:solid}
+.chips button input{border:0; background:none; padding:0; font:inherit; color:inherit; outline:none; width:auto; min-width:0}
+.chips button input[type=date]{width:118px}
+.tpick{display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 11px; border-radius:999px; border:1.5px dashed var(--line-2); background:transparent; color:var(--ink-3); font-size:.82rem; font-weight:600; cursor:pointer}
+.tpick[aria-pressed="true"]{border-style:solid; border-color:var(--ink); color:var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--tone)}
+.tpick input{border:0; background:none; padding:2px 0; font:inherit; color:inherit; outline:none; width:104px; cursor:pointer}
+.tpick:focus-within{border-color:var(--ink)}
+.tpick input::-webkit-calendar-picker-indicator{display:none}
+.tpick input{width:84px}
+.at{margin-left:4px; display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:.66rem; color:var(--ink-2); font-weight:600}
+
+/* note: a legal-pad strip */
+textarea.inp.note{resize:vertical; min-height:84px; line-height:26px; padding:8px 13px 8px 44px; background-color:var(--butter-soft);
+  background-image:linear-gradient(90deg, transparent 32px, color-mix(in srgb, var(--rose-ink) 45%, transparent) 32px, color-mix(in srgb, var(--rose-ink) 45%, transparent) 33.5px, transparent 33.5px), repeating-linear-gradient(transparent 0 25px, var(--line-2) 25px 26px);
+  background-attachment:local; background-position:0 8px; animation:pin .25s var(--ease-out)}
+.nt{display:inline-flex; align-items:center; gap:4px; font-size:.68rem; color:var(--ink-3); font-weight:600}
+.nt .ic{width:12px; height:12px}
+
+/* poll choices */
+.opts{display:grid; gap:7px}
+.opt{display:flex; align-items:center; gap:10px}
+.opt .bx{width:18px; height:18px; flex:none; border-radius:5px; border:1.5px solid var(--ink-3)}
+.opt .inp{padding:8px 12px}
+.opt .rm{width:30px; height:30px; flex:none; display:grid; place-items:center; border-radius:9px; border:0; background:none; color:var(--ink-3)}
+.opt .rm:hover{color:var(--rose-ink); background:var(--rose-soft)}
+.opt .rm .ic{width:14px; height:14px}
+
+/* ---------- WHO: the three picture tiles ---------------------------------- */
+.who-h{display:flex; align-items:baseline; gap:10px}
+.who-h .say{margin-left:auto; font-size:.8rem; color:var(--ink-2); font-weight:500; text-align:right}
+.who-h .say b{font-weight:700; color:var(--ink)}
+.modes{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px}
+.mode{
+  position:relative; display:grid; justify-items:center; gap:2px; padding:14px 8px 11px; border-radius:18px;
+  border:1.5px solid var(--line-2); background:var(--paper); text-align:center;
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), border-color .2s, background .2s;
+}
+.mode:hover{border-color:var(--ink-3); transform:translateY(-1px)}
+.mode[aria-checked="true"]{border-color:var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--mc); transform:translate(-1px,-1px)}
+.mode b{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em; margin-top:8px}
+.mode small{font-size:.74rem; color:var(--ink-3); font-weight:500; min-height:1.2em}
+.mode[aria-checked="true"] small{color:var(--ink-2)}
+.mode .ok{position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; background:var(--ink); color:var(--paper); transform:scale(0); transition:transform .25s var(--ease-spring)}
+.mode .ok .ic{width:11px; height:11px}
+.mode[aria-checked="true"] .ok{transform:scale(1)}
+.mode[data-m="people"]{--mc:var(--peach)}
+.mode[data-m="roles"]{--mc:var(--mint)}
+.mode[data-m="all"]{--mc:var(--sky)}
+/* the little pictures */
+.pic{height:40px; display:flex; align-items:center; justify-content:center}
+.pic .avatar{width:30px; height:30px; font-size:.62rem}
+.pic-people .avatar + .avatar{margin-left:-8px}
+.pic-people .avatar:first-child{transform:rotate(-6deg)}
+.pic-people .avatar:last-child{transform:rotate(5deg) translateY(2px)}
+.pic-roles{flex-direction:column; gap:3px}
+.tagmini{display:inline-flex; align-items:center; gap:5px; padding:2px 8px 2px 6px; border-radius:6px; border:1.4px solid var(--note-ink); background:var(--tc); color:var(--note-ink); font-size:.6rem; font-weight:700; letter-spacing:.02em; filter:var(--note-filter); white-space:nowrap}
+.tagmini::before{content:''; width:5px; height:5px; border-radius:50%; background:var(--card); border:1.2px solid var(--note-ink)}
+.tagmini:first-child{transform:rotate(-4deg)}
+.tagmini:last-child{transform:rotate(3deg) translateX(6px)}
+.pic-all{display:grid; grid-template-columns:repeat(6, 10px); gap:3px}
+.pic-all i{width:10px; height:10px; border-radius:50%; background:var(--av); border:1.2px solid var(--note-ink); filter:var(--note-filter)}
+
+/* ---------- WHO: the panel under the tiles -------------------------------- */
+.panel{
+  position:relative; border-radius:18px; border:1.5px solid var(--ink); background:var(--paper-2); padding:14px;
+  animation:pin .32s var(--ease-out);
+}
+/* little notch pointing up at the chosen tile */
+.panel.solo::before{display:none}
+.panel.solo .crowd{margin-top:4px}
+.panel::before{
+  content:''; position:absolute; top:-8.5px; left:var(--nx, 16.6%); width:14px; height:14px; margin-left:-7px;
+  background:var(--paper-2); border-left:1.5px solid var(--ink); border-top:1.5px solid var(--ink); transform:rotate(45deg); transition:left .3s var(--ease-spring);
+}
+@keyframes pin{from{opacity:0; transform:translateY(-4px)}}
+
+/* people */
+.find{position:relative}
+.find .ic{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--ink-3); width:15px; height:15px}
+.find .inp{padding-left:36px; background:var(--card)}
+.tray{display:flex; align-items:center; gap:8px; min-height:36px; margin:2px 0 12px; flex-wrap:wrap}
+.tray .none{font-size:.84rem; color:var(--ink-3)}
+.tray .pk{display:inline-flex; align-items:center; gap:6px; padding:3px 5px 3px 3px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); font-size:.8rem; font-weight:600; animation:pop .3s var(--ease-spring)}
+.tray .pk .avatar{width:24px; height:24px; font-size:.54rem; border-width:1.2px}
+.tray .pk button{width:20px; height:20px; display:grid; place-items:center; border-radius:50%; border:0; background:none; color:var(--ink-3); padding:0}
+.tray .pk button:hover{background:var(--rose-soft); color:var(--rose-ink)}
+.tray .pk .ic{width:11px; height:11px}
+.tray .clr{margin-left:auto; border:0; background:none; font-size:.78rem; font-weight:600; color:var(--ink-3); padding:4px}
+.tray .clr:hover{color:var(--ink)}
+@keyframes pop{from{transform:scale(.7); opacity:0}}
+.faces{display:grid; grid-template-columns:repeat(auto-fill, minmax(132px, 1fr)); gap:6px; margin-top:10px; max-height:236px; overflow:auto; padding:2px 4px 4px 2px; scrollbar-width:thin}
+.face{display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:13px; border:1.5px solid transparent; background:var(--card); text-align:left; min-width:0; transition:border-color .15s, box-shadow .15s, transform .15s var(--ease-spring)}
+.face:hover{border-color:var(--line-2)}
+.face .avatar{width:30px; height:30px; font-size:.62rem}
+.face .avatar::after{content:''; position:absolute; right:-4px; bottom:-4px; width:15px; height:15px; border-radius:50%; background:var(--ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 13l4.4 4.4L19 7' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/9px no-repeat; border:1.5px solid var(--card); transform:scale(0); transition:transform .22s var(--ease-spring)}
+.face span{min-width:0}
+.face b{display:block; font-size:.84rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.face small{display:block; font-size:.7rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.face[aria-pressed="true"]{border-color:var(--ink); box-shadow:2px 2px 0 var(--peach)}
+.face[aria-pressed="true"] .avatar::after{transform:scale(1)}
+.faces .empty{grid-column:1/-1; padding:14px; text-align:center; font-size:.84rem; color:var(--ink-3)}
+
+/* roles: name tags */
+.tags{display:grid; grid-template-columns:repeat(auto-fill, minmax(176px, 1fr)); gap:8px}
+.tag{
+  position:relative; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:4px 10px; padding:10px 12px 10px 10px;
+  border-radius:14px; border:1.5px solid var(--line-2); background:var(--card); text-align:left; overflow:hidden;
+  transition:border-color .15s, box-shadow .15s, transform .18s var(--ease-spring);
+}
+.tag:hover{border-color:var(--ink-3)}
+.tag .sw{grid-row:span 2; width:30px; height:38px; border-radius:7px 7px 7px 7px; background:var(--tc); border:1.5px solid var(--note-ink); filter:var(--note-filter); position:relative}
+.tag .sw::before{content:''; position:absolute; top:5px; left:50%; width:7px; height:7px; margin-left:-3.5px; border-radius:50%; background:var(--card); border:1.3px solid var(--note-ink)}
+.tag b{font-size:.86rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tag .hold{display:flex; align-items:center; gap:6px; min-width:0}
+.tag .hold .stk{display:flex}
+.tag .hold .avatar{width:18px; height:18px; font-size:.42rem; border-width:1.1px}
+.tag .hold .avatar + .avatar{margin-left:-6px}
+.tag .hold small{font-size:.7rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tag[aria-pressed="true"]{border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--mint); transform:translate(-1px,-1px)}
+.tag .ok{position:absolute; top:7px; right:7px; width:18px; height:18px; border-radius:50%; display:grid; place-items:center; background:var(--ink); color:var(--paper); transform:scale(0); transition:transform .22s var(--ease-spring)}
+.tag .ok .ic{width:10px; height:10px}
+.tag[aria-pressed="true"] .ok{transform:scale(1)}
+.tag.group{grid-column:1/-1}
+.reach{display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1.5px dashed var(--line-2); font-size:.84rem; color:var(--ink-2); min-height:44px; flex-wrap:wrap}
+.reach .stk{display:flex}
+.reach .avatar{width:26px; height:26px; font-size:.56rem; animation:pop .3s var(--ease-spring) both}
+.reach .avatar + .avatar{margin-left:-7px}
+.reach b{color:var(--ink); font-weight:700}
+
+/* everyone: the switch + the crowd */
+.sw-row{display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap}
+.sw-lab{display:inline-flex; align-items:center; gap:7px; border:0; background:none; padding:6px 4px; font-size:.9rem; font-weight:600; color:var(--ink-3); transition:color .2s}
+.sw-lab .ic{width:17px; height:17px}
+.sw-lab.on{color:var(--ink)}
+.sw{
+  position:relative; width:54px; height:30px; flex:none; border-radius:999px; border:1.5px solid var(--ink); padding:0;
+  background:var(--paper-3); transition:background .25s;
+}
+.sw i{position:absolute; top:2.5px; left:2.5px; width:22px; height:22px; border-radius:50%; background:var(--mint); border:1.5px solid var(--note-ink); filter:var(--note-filter); transition:transform .32s var(--ease-spring), background .25s}
+.sw[aria-checked="true"] i{transform:translateX(24px); background:var(--sky)}
+.crowd{
+  --gap:6px; position:relative; display:flex; align-items:flex-start; justify-content:center; margin:16px auto 0; min-height:74px; padding:0 4px;
+}
+.crowd .ppl{display:flex; flex-wrap:wrap; justify-content:center; gap:10px 0; padding:6px 10px; border-radius:999px; border:1.5px dashed transparent; transition:border-color .35s, background .35s, padding .35s}
+.crowd .f{display:grid; justify-items:center; gap:6px; margin-left:var(--gap); transition:margin .45s var(--ease-spring)}
+.crowd .f:first-child{margin-left:0}
+.crowd .f .avatar{width:30px; height:30px; font-size:.6rem; transition:transform .45s var(--ease-spring)}
+.crowd .f .t{width:20px; height:20px; border-radius:6px; border:1.6px solid var(--ink-2); background:var(--card); transition:transform .3s var(--ease-spring), opacity .2s; transition-delay:calc(var(--i) * 28ms)}
+.crowd.poll .f .t{border-radius:4px; width:18px; height:22px; position:relative}
+.crowd.poll .f .t::after{content:''; position:absolute; left:3px; right:3px; top:5px; height:1.5px; background:var(--ink-3); box-shadow:0 4px 0 var(--ink-3), 0 8px 0 var(--ink-3)}
+.crowd .one{display:grid; justify-items:center; gap:4px; width:0; opacity:0; overflow:hidden; transform:scale(.6); transition:opacity .25s, transform .4s var(--ease-spring), width .4s var(--ease-spring)}
+.crowd .one .t{width:34px; height:34px; border-radius:10px; border:2px solid var(--ink); background:var(--card); box-shadow:2.5px 2.5px 0 var(--sky); display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:1rem}
+.crowd .one small{font-family:var(--mono); font-size:.6rem; letter-spacing:.06em; color:var(--ink-3); text-transform:uppercase; white-space:nowrap}
+.crowd .arrow{width:0; opacity:0; overflow:hidden; color:var(--ink-3); align-self:center; margin-top:-14px; transition:width .4s var(--ease-spring), opacity .25s}
+/* "any": the faces bunch up around one shared tick */
+.crowd.any .f{margin-left:-13px}
+.crowd.any .f:first-child{margin-left:0}
+.crowd.any .f .t{transform:scale(0); opacity:0; transition-delay:0ms}
+.crowd.any .ppl{border-color:var(--ink-3); background:var(--card); padding:6px 14px; align-self:center; margin-top:-14px}
+.crowd.any .f{gap:0}
+.crowd.any .f .t{height:0; width:0; border-width:0}
+.crowd.any .arrow{width:34px; opacity:1}
+.crowd.any .one{width:84px; opacity:1; transform:none}
+/* poll "any": ballots stay, but they go dashed (optional) */
+.crowd.poll.any .f{margin-left:var(--gap)}
+.crowd.poll.any .f:first-child{margin-left:0}
+.crowd.poll.any .f{gap:6px}
+.crowd.poll.any .f .t{transform:none; opacity:1; width:18px; height:22px; border-width:1.6px; border-style:dashed; border-color:var(--ink-3); background:transparent}
+.crowd.poll.any .f .t::after{opacity:.35}
+.crowd.poll.any .ppl{border-color:transparent; background:none; padding:6px 10px; margin-top:0}
+.crowd.poll.any .arrow, .crowd.poll.any .one{width:0; opacity:0}
+.crowd.poll.any .f .avatar{transform:none}
+.crowd.poll.any .f:nth-child(3n+2) .avatar{opacity:.5}
+.crowd.poll.any .f:nth-child(3n+2) .t{opacity:.4}
+.ev-say{margin:14px auto 0; max-width:46ch; text-align:center; font-size:.86rem; color:var(--ink-2); line-height:1.5; min-height:2.6em}
+.ev-say b{color:var(--ink); font-weight:700}
+.ev-say .k{font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+
+/* ---------- footer: the row as it will land ------------------------------- */
+.mf{display:flex; align-items:center; gap:10px; padding:14px 22px 20px; flex-wrap:wrap; border-top:1.5px dashed var(--line-2); margin-top:14px}
+.mf .acts{display:flex; gap:10px; margin-left:auto}
+.land{flex:1 1 280px; min-width:0}
+.land .lk{font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-bottom:6px}
+.prow{display:flex; align-items:center; gap:11px; padding:9px 10px 9px 12px; border-radius:14px; border:1.5px solid var(--line-2); background:var(--paper); min-width:0}
+.prow .tc{width:20px; height:20px; flex:none; border-radius:50%; border:1.6px solid var(--ink-2)}
+.prow .tc.bx{border-radius:5px}
+.prow .mid{flex:1; min-width:0}
+.prow .mid b{display:block; font-size:.86rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.prow .mid b.ph{color:var(--ink-3); font-weight:500}
+.prow .mid span{display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap}
+.who{display:inline-flex; align-items:center; gap:5px; padding:1px 8px 1px 6px; border-radius:999px; border:1.3px solid var(--line-2); background:var(--card); font-size:.7rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.who .ic{width:12px; height:12px}
+.who.each{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
+.who.any{background:var(--sky-soft); border-color:var(--sky-ink); color:var(--sky-ink)}
+.who .avatar{width:16px; height:16px; font-size:.38rem; border-width:1px}
+.who .avatar + .avatar{margin-left:-5px}
+.prog{display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.prog i{width:34px; height:5px; border-radius:3px; background:var(--paper-3); border:1px solid var(--line-2)}
+.stub{width:38px; flex:none; border-radius:8px; border:1.5px solid var(--ink); background:var(--card); overflow:hidden; text-align:center; box-shadow:2px 2px 0 var(--sc, var(--sky))}
+.stub small{display:block; padding:1px 0; background:var(--sc, var(--sky)); color:var(--note-ink); border-bottom:1.5px solid var(--ink); font-family:var(--mono); font-size:.5rem; font-weight:600; letter-spacing:.1em; filter:var(--note-filter)}
+.stub b{display:block; padding:1px 0 2px; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.04em; line-height:1.15}
+.stub.none{border-style:dashed; border-color:var(--line-2); box-shadow:none}
+.stub.none small{background:transparent; color:var(--ink-3); border-bottom:1.5px dashed var(--line-2)}
+.stub.none b{color:var(--ink-3)}
+.stub.today{--sc:var(--butter)}
+.err{margin:0 22px; padding:8px 12px; border-radius:10px; background:var(--rose-soft); color:var(--rose-ink); font-size:.82rem; font-weight:600}
+.shake{animation:shake .38s}
+@keyframes shake{20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-3px)} 80%{transform:translateX(2px)}}
+
+/* toast + dock */
+.toast{position:fixed; left:50%; bottom:84px; transform:translate(-50%,10px); z-index:95; display:flex; align-items:center; gap:10px; padding:9px 16px 9px 12px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--mint); font-size:.86rem; font-weight:500; opacity:0; pointer-events:none; transition:opacity .2s, transform .3s var(--ease-spring); max-width:calc(100vw - 32px)}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+.toast .ic{width:15px; height:15px; color:var(--mint-ink)}
+.dock{position:fixed; z-index:99; left:50%; bottom:18px; transform:translateX(-50%); display:flex; align-items:center; gap:4px; padding:5px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); box-shadow:4px 4px 0 var(--lilac); max-width:calc(100vw - 24px); overflow-x:auto; scrollbar-width:none}
+.dock button{display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:999px; border:0; background:none; font-size:.8rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.dock button:hover{background:var(--paper-2); color:var(--ink)}
+.dock button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.dock .sep{width:1.5px; height:18px; background:var(--line-2); margin:0 3px; flex:none}
+
+/* ---------- phone: bottom sheet ------------------------------------------ */
+@media (max-width:600px){
+  .bg{padding:26px 16px 120px}
+  .bg-head h1{font-size:2rem}
+  .bg-head .btn{padding:8px 13px}
+  .tk{padding:12px 14px; gap:11px}
+  .pile-h{padding:11px 14px}
+  .scrim{place-items:end stretch; padding:0}
+  .modal{width:100%; max-height:calc(100dvh - 24px); border-radius:24px 24px 0 0; border-bottom:0; box-shadow:0 -3px 0 var(--tone); transform:translateY(40px); padding-bottom:76px}
+  .grab{display:block; width:40px; height:4.5px; border-radius:3px; background:var(--line-2); margin:9px auto 0}
+  .mh{padding:10px 16px 12px}
+  .mb{padding:16px 16px 6px}
+  .mf{padding:14px 16px 18px}
+  .mf .acts{width:100%}
+  .mf .acts .btn{flex:1}
+  .err{margin:0 16px}
+  .modes{gap:7px}
+  .mode{padding:11px 4px 9px; border-radius:15px}
+  .mode b{font-size:.92rem; margin-top:6px}
+  .mode small{font-size:.68rem}
+  .mode .ok{top:6px; right:6px}
+  .who-h .say{display:none}
+  .panel{padding:12px}
+  .faces{grid-template-columns:repeat(2, minmax(0,1fr)); max-height:220px}
+  .tags{grid-template-columns:minmax(0,1fr)}
+  .crowd .f .avatar{width:26px; height:26px; font-size:.52rem}
+  .crowd .ppl{gap:9px 0}
+  .crowd .f{margin-left:4px}
+  .crowd.any .f{margin-left:-12px}
+  .crowd.any .one{width:70px}
+  .crowd.any .arrow{width:22px}
+  .sw-row{display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:8px}
+  .sw-lab{flex-direction:column; gap:3px; font-size:.8rem; line-height:1.2; text-align:center}
+  .crowd .ppl{max-width:224px}
+  .crowd .f{margin-left:8px}
+  .crowd .f:nth-child(6n+1){margin-left:0}
+  .crowd.poll.any .f{margin-left:8px}
+  .crowd.poll.any .f:nth-child(6n+1){margin-left:0}
+  .crowd.any:not(.poll) .f:nth-child(6n+1){margin-left:-12px}
+  .crowd.any .f:first-child{margin-left:0}
+  .crowd .one small{white-space:normal; text-align:center; line-height:1.2}
+  .crowd.any .one{width:58px}
+  .pic-all{grid-template-columns:repeat(6, 8px); gap:3px}
+  .pic-all i{width:8px; height:8px}
+  .mode .ok{width:17px; height:17px; top:5px; right:5px}
+  .dock{bottom:12px}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="pp-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol><symbol id="pp-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-x" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-updown" viewBox="0 0 24 24"><path d="m7.6 9.4 4.4-4.4 4.4 4.4M7.6 14.6 12 19l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol><symbol id="pp-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.6 6.4V4.4h4.8v2M6.6 6.8l.9 12.4c.1.8.7 1.4 1.5 1.4h6c.8 0 1.4-.6 1.5-1.4l.9-12.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.2 10.6v6M13.8 10.6v6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-chev-d" viewBox="0 0 24 24"><path d="m5.6 9.4 6.4 6.4 6.4-6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol><symbol id="pp-jar" viewBox="0 0 24 24"><path d="M7.4 3.4h9.2v3.2H7.4z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8 6.6c-2 1.1-3.2 2.9-3.2 5.2v6.4c0 1.3 1.1 2.4 2.4 2.4h9.6c1.3 0 2.4-1.1 2.4-2.4v-6.4c0-2.3-1.2-4.1-3.2-5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 4.9h4M8.6 14.4h6.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="pp-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol><symbol id="pp-cup" viewBox="0 0 24 24"><path d="M6.4 7.6h11.2l-1.4 12.2c-.1.9-.9 1.6-1.8 1.6H9.6c-.9 0-1.7-.7-1.8-1.6L6.4 7.6ZM5.4 7.6h13.2M12.6 7.4l2-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-alert" viewBox="0 0 24 24"><path d="M12 3.6 21.2 19.6H2.8L12 3.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M12 9.6v4.4" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.2" fill="currentColor"/></symbol></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="pp-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 7.4V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="pp-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.4" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m15.6 15.6 4.6 4.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+  <symbol id="pp-user" viewBox="0 0 24 24"><circle cx="12" cy="8.2" r="3.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M4.8 20.4c.5-4 3.4-6.4 7.2-6.4s6.7 2.4 7.2 6.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+  <symbol id="pp-arrow" viewBox="0 0 24 24"><path d="M3 12h16M14 6.6 19.4 12 14 17.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="3 3"/></symbol>
+  <symbol id="pp-ballot" viewBox="0 0 24 24"><rect x="4" y="9.6" width="16" height="10.8" rx="2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 9.6 10 3.6h4.6l-1 6M8 14.4h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<main class="bg" id="page">
+  <div class="bg-head">
+    <div><div class="kick" id="bgKick">Tasks</div><h1>What’s on the list</h1></div>
+    <button class="btn" data-show="task" type="button"><svg class="ic"><use href="#pp-plus"/></svg>New task</button>
+  </div>
+  <section class="pile" data-p="over"><div class="pile-h"><h2>Overdue</h2><span class="n" data-n>0</span></div><ul data-list></ul></section>
+  <section class="pile" data-p="up"><div class="pile-h"><h2>Upcoming</h2><span class="n" data-n>0</span></div><ul data-list></ul></section>
+</main>
+
+<!-- ================= New task ================= -->
+<div class="scrim" id="tScrim" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t-h">
+    <span class="grab" aria-hidden="true"></span>
+    <div class="mh">
+      <span class="tile"><svg class="ic"><use href="#pp-box"/></svg></span>
+      <h2 id="t-h">New task</h2>
+      <button class="x" data-close aria-label="Close"><svg class="ic"><use href="#pp-x"/></svg></button>
+    </div>
+    <form id="t-form" novalidate>
+      <div class="mb">
+        <div class="fld"><label class="lab" for="t-title">What needs doing</label><input class="inp big" id="t-title" placeholder="Book the room for chapter" autocomplete="off"></div>
+        <div class="fld">
+          <div class="who-h"><span class="lab">When it’s due</span><span class="say" id="t-due"></span></div>
+          <div class="when">
+            <i>Day</i><div class="chips" id="t-day"></div>
+            <i data-trow>Time</i><div class="chips" id="t-time" data-trow></div>
+          </div>
+        </div>
+        <div class="fld" id="t-who"></div>
+        <button type="button" class="addline" id="t-addnote"><svg class="ic"><use href="#pp-plus"/></svg>Add a note</button>
+        <div class="fld" id="t-notewrap" hidden>
+          <div class="who-h"><label class="lab" for="t-note">Note <i>· optional</i></label><button type="button" class="addline" id="t-rmnote" style="margin-left:auto;font-size:.78rem;color:var(--ink-3)">Remove</button></div>
+          <textarea class="inp note" id="t-note" rows="3" placeholder="Links, details, what “done” looks like…"></textarea>
+        </div>
+      </div>
+      <p class="err" id="t-err" hidden></p>
+      <div class="mf">
+        <div class="land"><div class="lk">How it’ll look on the list</div><div id="t-prev"></div></div>
+        <div class="acts"><button type="button" class="btn soft" data-close>Cancel</button><button type="submit" class="btn">Add task</button></div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= New poll ================= -->
+<div class="scrim" id="pScrim" aria-hidden="true">
+  <div class="modal poll" role="dialog" aria-modal="true" aria-labelledby="p-h">
+    <span class="grab" aria-hidden="true"></span>
+    <div class="mh">
+      <span class="tile"><svg class="ic"><use href="#pp-bars"/></svg></span>
+      <h2 id="p-h">New poll</h2>
+      <button class="x" data-close aria-label="Close"><svg class="ic"><use href="#pp-x"/></svg></button>
+    </div>
+    <form id="p-form" novalidate>
+      <div class="mb">
+        <div class="fld"><label class="lab" for="p-q">What are you asking</label><input class="inp big" id="p-q" placeholder="Where should we hold spring formal?" autocomplete="off"></div>
+        <div class="fld">
+          <span class="lab">The choices <i>· 2 to 10</i></span>
+          <div class="opts" id="p-opts"></div>
+          <button type="button" class="addline" id="p-add"><svg class="ic"><use href="#pp-plus"/></svg>Add a choice</button>
+        </div>
+        <div class="fld" id="p-who"></div>
+        <div class="fld"><span class="lab">When it closes</span><div class="chips" id="p-close"></div></div>
+      </div>
+      <p class="err" id="p-err" hidden></p>
+      <div class="mf">
+        <div class="land"><div class="lk">How it’ll look in Votes</div><div id="p-prev"></div></div>
+        <div class="acts"><button type="button" class="btn soft" data-close>Cancel</button><button type="submit" class="btn" style="--hs:var(--lilac)">Open the vote</button></div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"><svg class="ic"><use href="#pp-check"/></svg><span></span></div>
+
+<nav class="dock" aria-label="Mock controls">
+  <button data-show="task" aria-pressed="true"><svg class="ic"><use href="#pp-box"/></svg>New task</button>
+  <button data-show="poll" aria-pressed="false"><svg class="ic"><use href="#pp-bars"/></svg>New poll</button>
+  <span class="sep"></span>
+  <button id="theme" aria-pressed="false"><svg class="ic"><use href="#pp-moon"/></svg>Night</button>
+</nav>
+
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var ic = function (n) { return '<svg class="ic" aria-hidden="true"><use href="#pp-' + n + '"/></svg>'; };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+
+  // ---------- roster (fictional) --------------------------------------------
+  var ME = "ps";
+  var PEOPLE = [
+    ["ps", "Priya Shah", "President", "peach"], ["ar", "Arjun Rao", "Vice president", "sky"],
+    ["mo", "Mia Ortiz", "Treasurer", "mint"], ["jp", "Jordan Park", "Secretary", "butter"],
+    ["so", "Sam Okafor", "Service chair", "lilac"], ["nk", "Nina Kim", "Social chair", "rose"],
+    ["mp", "Marcus Price", "Social chair", "sky"], ["eb", "Eli Brooks", "Member", "butter"],
+    ["zc", "Zoe Chen", "Member", "lilac"], ["oh", "Omar Haddad", "Member", "peach"],
+    ["rl", "Rae Lin", "Member", "rose"], ["tw", "Theo Walsh", "Member", "mint"]
+  ].map(function (r) { return { id: r[0], n: r[1], r: r[2], av: "var(--" + r[3] + ")", ini: r[1].split(" ").map(function (w) { return w[0]; }).join("") }; });
+  var P = {}; PEOPLE.forEach(function (p) { P[p.id] = p; });
+  var N = PEOPLE.length;
+  var first = function (id) { return id === ME ? "You" : P[id].n.split(" ")[0]; };
+  var ROLES = [
+    { id: "officers", n: "All officers", c: "var(--butter)", group: true },
+    { id: "President", c: "var(--peach)" }, { id: "Vice president", c: "var(--sky)" },
+    { id: "Treasurer", c: "var(--mint)" }, { id: "Secretary", c: "var(--butter)" },
+    { id: "Social chair", c: "var(--rose)" }, { id: "Service chair", c: "var(--lilac)" }
+  ];
+  ROLES.forEach(function (r) {
+    r.n = r.n || r.id;
+    r.who = PEOPLE.filter(function (p) { return r.group ? p.r !== "Member" : p.r === r.id; }).map(function (p) { return p.id; });
+  });
+  var R = {}; ROLES.forEach(function (r) { R[r.id] = r; });
+  function av(id, cls) { var p = P[id]; return '<span class="avatar' + (cls ? " " + cls : "") + '" style="--av:' + p.av + '" title="' + esc(p.n) + '">' + p.ini + '</span>'; }
+  function names(ids) {
+    var f = ids.map(first);
+    if (f.length <= 2) return f.join(" and ");
+    return f.slice(0, 2).join(", ") + " and " + (f.length - 2) + " more";
+  }
+
+  // ---------- the WHO picker, shared by both sheets --------------------------
+  // kind: "task" | "poll". state: { m: people|roles|all, people:[], roles:[], ev: each|any }
+  var COPY = {
+    task: {
+      label: "Who’s on it",
+      each: { lab: "Everyone does it", icon: "people", say: '<b>' + N + ' separate ticks.</b> Each person ticks their own. It’s done when all ' + N + ' have. <span class="k">New members get it too.</span>' },
+      any: { lab: "Just one person", icon: "user", say: '<b>One tick for the whole chapter.</b> Whoever gets to it first ticks it, and it’s off everyone’s list.' }
+    },
+    poll: {
+      label: "Who votes",
+      each: { lab: "Everyone has to vote", icon: "people", say: '<b>The whole chapter votes.</b> All ' + N + ' ballots get collected. It sits on everyone’s plate until they vote, and closes early once all ' + N + ' are in.' },
+      any: { lab: "Anyone can vote", icon: "user", say: '<b>Voting is optional.</b> Anyone can cast a ballot, nobody gets chased, and it closes on the date you pick.' }
+    }
+  };
+
+  function Who(root, kind, onChange) {
+    this.root = root; this.kind = kind; this.onChange = onChange;
+    this.s = { m: "all", people: [], roles: [], ev: "each", q: "" };
+    this.draw();
+  }
+  Who.prototype.ids = function () {
+    var s = this.s;
+    if (s.m === "all") return PEOPLE.map(function (p) { return p.id; });
+    if (s.m === "people") return s.people.slice();
+    var seen = {}, out = [];
+    s.roles.forEach(function (r) { R[r].who.forEach(function (id) { if (!seen[id]) { seen[id] = 1; out.push(id); } }); });
+    return out;
+  };
+  Who.prototype.sub = function (m) {
+    var s = this.s;
+    if (m === "people") return s.people.length ? s.people.length + " picked" : "Pick names";
+    if (m === "roles") return s.roles.length ? s.roles.length + (s.roles.length === 1 ? " role" : " roles") : "By title";
+    return "All " + N;
+  };
+  Who.prototype.draw = function () {
+    var self = this, s = this.s, c = COPY[this.kind];
+    var tile = function (m, pic, title) {
+      return '<button type="button" class="mode" role="radio" data-m="' + m + '" aria-checked="' + (s.m === m) + '">' +
+        '<span class="ok">' + ic("check") + '</span><span class="pic pic-' + m + '">' + pic + '</span><b>' + title + '</b><small>' + self.sub(m) + '</small></button>';
+    };
+    var picPeople = av("mo") + av("ar");
+    var picRoles = '<span class="tagmini" style="--tc:var(--mint)">Treasurer</span><span class="tagmini" style="--tc:var(--rose)">Social chair</span>';
+    var picAll = PEOPLE.map(function (p) { return '<i style="--av:' + p.av + '"></i>'; }).join("");
+    // polls are whole-chapter only: no People/Roles tiles, just the Everyone panel and its switch
+    var allOnly = this.kind === "poll";
+    this.root.innerHTML =
+      '<div class="who-h"><span class="lab">' + c.label + '</span><span class="say" data-say></span></div>' +
+      (allOnly ? "" : '<div class="modes" role="radiogroup" aria-label="' + c.label + '">' + tile("people", picPeople, "People") + tile("roles", picRoles, "Roles") + tile("all", picAll, "Everyone") + '</div>') +
+      '<div class="panel' + (allOnly ? " solo" : "") + '" data-panel></div>';
+    $$(".mode", this.root).forEach(function (b) {
+      b.addEventListener("click", function () { if (s.m !== b.dataset.m) { s.m = b.dataset.m; self.draw(); self.changed(); } });
+    });
+    this.drawPanel();
+    this.say();
+  };
+  Who.prototype.refreshTiles = function () {
+    var self = this;
+    $$(".mode", this.root).forEach(function (b) { $("small", b).textContent = self.sub(b.dataset.m); });
+    this.say();
+  };
+  Who.prototype.say = function () {
+    var s = this.s, ids = this.ids(), el = $("[data-say]", this.root), t;
+    if (s.m === "all") t = this.kind === "poll"
+      ? (s.ev === "each" ? 'All <b>' + N + '</b> must vote' : 'Open to all <b>' + N + '</b>, optional')
+      : (s.ev === "each" ? '<b>' + N + '</b> people, each on their own' : 'Any <b>one</b> of ' + N);
+    else if (!ids.length) t = "Nobody yet";
+    else t = '<b>' + ids.length + '</b> ' + (ids.length === 1 ? "person" : "people");
+    el.innerHTML = t;
+  };
+  Who.prototype.changed = function () { this.refreshTiles(); this.onChange && this.onChange(); };
+  Who.prototype.drawPanel = function () {
+    var self = this, s = this.s, pn = $("[data-panel]", this.root);
+    pn.style.setProperty("--nx", s.m === "people" ? "16.6%" : s.m === "roles" ? "50%" : "83.3%");
+    if (s.m === "people") {
+      pn.innerHTML = '<div class="find">' + ic("search") + '<input class="inp" placeholder="Find someone" data-q value="' + esc(s.q) + '" autocomplete="off"></div>' +
+        '<div class="faces" data-faces></div><div class="tray" data-tray></div>';
+      var q = $("[data-q]", pn);
+      q.addEventListener("input", function () { s.q = q.value; self.drawFaces(); });
+      this.drawFaces(); this.drawTray();
+    } else if (s.m === "roles") {
+      pn.innerHTML = '<div class="tags">' + ROLES.map(function (r) {
+        var hold = r.who.slice(0, 4).map(function (id) { return av(id); }).join("");
+        var nm = r.group ? r.who.length + " people" : r.who.map(first).join(", ");
+        return '<button type="button" class="tag' + (r.group ? " group" : "") + '" data-r="' + esc(r.id) + '" aria-pressed="' + (s.roles.indexOf(r.id) > -1) + '" style="--tc:' + r.c + '">' +
+          '<span class="ok">' + ic("check") + '</span><span class="sw"></span><b>' + esc(r.n) + '</b><span class="hold"><span class="stk">' + hold + '</span><small>' + esc(nm) + '</small></span></button>';
+      }).join("") + '</div><div class="reach" data-reach></div>';
+      $$(".tag", pn).forEach(function (b) {
+        b.addEventListener("click", function () {
+          var id = b.dataset.r, i = s.roles.indexOf(id);
+          if (i > -1) s.roles.splice(i, 1); else s.roles.push(id);
+          b.setAttribute("aria-pressed", i < 0);
+          self.drawReach(); self.changed();
+        });
+      });
+      this.drawReach();
+    } else {
+      var c = COPY[this.kind], each = s.ev === "each";
+      // polls are always mandatory for everyone, so they get no switch
+      var noSwitch = this.kind === "poll";
+      pn.innerHTML = (noSwitch ? "" :
+        '<div class="sw-row">' +
+          '<button type="button" class="sw-lab' + (each ? " on" : "") + '" data-ev="each">' + ic(c.each.icon) + c.each.lab + '</button>' +
+          '<button type="button" class="sw" role="switch" aria-checked="' + !each + '" aria-label="' + c.any.lab + '"><i></i></button>' +
+          '<button type="button" class="sw-lab' + (each ? "" : " on") + '" data-ev="any">' + ic(c.any.icon) + c.any.lab + '</button>' +
+        '</div>') +
+        '<div class="crowd ' + (this.kind === "poll" ? "poll " : "") + s.ev + '" data-crowd>' +
+          '<div class="ppl">' + PEOPLE.map(function (p, i) { return '<span class="f" style="--i:' + i + '">' + av(p.id) + '<span class="t"></span></span>'; }).join("") + '</div>' +
+          '<span class="arrow">' + ic("arrow") + '</span>' +
+          '<span class="one"><span class="t">1</span><small>first one in</small></span>' +
+        '</div>' +
+        '<p class="ev-say" data-evsay>' + c[s.ev].say + '</p>';
+      var set = function (ev) {
+        if (s.ev === ev) return;
+        s.ev = ev;
+        $("[data-crowd]", pn).className = "crowd " + (self.kind === "poll" ? "poll " : "") + ev;
+        $(".sw", pn).setAttribute("aria-checked", ev === "any");
+        $$(".sw-lab", pn).forEach(function (l) { l.classList.toggle("on", l.dataset.ev === ev); });
+        var say = $("[data-evsay]", pn);
+        say.style.opacity = 0;
+        setTimeout(function () { say.innerHTML = c[ev].say; say.style.transition = "opacity .25s"; say.style.opacity = 1; }, 120);
+        self.changed();
+      };
+      if (noSwitch) return;
+      $(".sw", pn).addEventListener("click", function () { set(s.ev === "each" ? "any" : "each"); });
+      $$(".sw-lab", pn).forEach(function (l) { l.addEventListener("click", function () { set(l.dataset.ev); }); });
+    }
+  };
+  Who.prototype.drawFaces = function () {
+    var self = this, s = this.s, box = $("[data-faces]", this.root), q = s.q.trim().toLowerCase();
+    var list = PEOPLE.filter(function (p) { return !q || (p.n + " " + p.r).toLowerCase().indexOf(q) > -1; });
+    box.innerHTML = list.length ? list.map(function (p) {
+      return '<button type="button" class="face" data-p="' + p.id + '" aria-pressed="' + (s.people.indexOf(p.id) > -1) + '">' + av(p.id) +
+        '<span><b>' + (p.id === ME ? "You" : esc(p.n)) + '</b><small>' + esc(p.r) + '</small></span></button>';
+    }).join("") : '<p class="empty">No one called “' + esc(s.q) + '”</p>';
+    $$(".face", box).forEach(function (b) {
+      b.addEventListener("click", function () {
+        var id = b.dataset.p, i = s.people.indexOf(id);
+        if (i > -1) s.people.splice(i, 1); else s.people.push(id);
+        b.setAttribute("aria-pressed", i < 0);
+        self.drawTray(); self.changed();
+      });
+    });
+  };
+  Who.prototype.drawTray = function () {
+    var self = this, s = this.s, tray = $("[data-tray]", this.root);
+    tray.innerHTML = s.people.length
+      ? s.people.map(function (id) { return '<span class="pk">' + av(id) + first(id) + '<button type="button" data-un="' + id + '" aria-label="Remove ' + esc(P[id].n) + '">' + ic("x") + '</button></span>'; }).join("") +
+        (s.people.length > 1 ? '<button type="button" class="clr" data-clr>Clear</button>' : "")
+      : '<span class="none">Tap faces above to pick people.</span>';
+    $$("[data-un]", tray).forEach(function (b) {
+      b.addEventListener("click", function () { s.people.splice(s.people.indexOf(b.dataset.un), 1); self.drawFaces(); self.drawTray(); self.changed(); });
+    });
+    var clr = $("[data-clr]", tray);
+    if (clr) clr.addEventListener("click", function () { s.people = []; self.drawFaces(); self.drawTray(); self.changed(); });
+  };
+  Who.prototype.drawReach = function () {
+    var ids = this.ids(), el = $("[data-reach]", this.root);
+    el.innerHTML = ids.length
+      ? '<span class="stk">' + ids.slice(0, 8).map(function (id, i) { return av(id).replace('class="avatar"', 'class="avatar" style="animation-delay:' + i * 30 + 'ms;--av:' + P[id].av + '"'); }).join("") + '</span><span>Right now that’s <b>' + ids.length + (ids.length === 1 ? " person" : " people") + '</b>: ' + esc(names(ids)) + '</span>'
+      : '<span style="color:var(--ink-3)">Pick one or more roles. Everyone holding them gets it.</span>';
+  };
+  Who.prototype.check = function () {
+    var s = this.s;
+    if (s.m === "people" && !s.people.length) return "Pick at least one person, or choose Roles or Everyone.";
+    if (s.m === "roles" && !s.roles.length) return "Pick at least one role.";
+    return "";
+  };
+  // the chip that shows on the list row
+  Who.prototype.chip = function () {
+    var s = this.s, ids = this.ids(), poll = this.kind === "poll";
+    if (s.m === "all") {
+      if (s.ev === "each") return '<span class="who each">' + ic("people") + (poll ? "Everyone votes" : "Everyone") + '</span><span class="prog"><i></i>0 of ' + N + '</span>';
+      return '<span class="who any">' + ic("user") + (poll ? "Open to all " + N : "Anyone · one tick") + '</span>';
+    }
+    if (!ids.length) return '<span class="who" style="border-style:dashed;color:var(--ink-3)">Nobody yet</span>';
+    var stk = ids.slice(0, 3).map(function (id) { return av(id); }).join("");
+    var lab = s.m === "roles" ? s.roles.map(function (r) { return R[r].n; }).join(", ") : names(ids);
+    return '<span class="who">' + stk + esc(lab) + '</span>' + (poll && ids.length > 1 ? '<span class="prog"><i></i>0 of ' + ids.length + '</span>' : "");
+  };
+
+  // ---------- dates (fixed today so the mock reads the same every day) -------
+  var TODAY = new Date(2026, 10, 5);
+  var MON = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  var DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var plus = function (n) { return new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() + n); };
+  var nextDow = function (d) { var n = (d - TODAY.getDay() + 7) % 7 || 7; return plus(n); };
+
+  // ---------- New task -------------------------------------------------------
+  // Day: three quick picks, a date picker, or no date. Time: optional, only once there's a day.
+  var T = { day: "tom", date: null, time: null };
+  var DAYS = [["today", "Today"], ["tom", "Tomorrow"], ["week", "Next week"]];
+  function dueDate() {
+    if (T.day === "today") return plus(0);
+    if (T.day === "tom") return plus(1);
+    if (T.day === "week") return plus(7);
+    if (T.day === "pick" && T.date) { var a = T.date.split("-").map(Number); return new Date(a[0], a[1] - 1, a[2]); }
+    return null;
+  }
+  function fmtTime(t) {
+    var h = +t.slice(0, 2), m = t.slice(3), ap = h < 12 ? "AM" : "PM";
+    if (t === "12:00") return "Noon";
+    return (h % 12 || 12) + (m === "00" ? "" : ":" + m) + " " + ap;
+  }
+  var pickIso = function () { var d = plus(3), p = function (n) { return String(n).padStart(2, "0"); }; return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()); };
+  function drawWhen() {
+    $("#t-day").innerHTML = DAYS.map(function (d) { return '<button type="button" data-d="' + d[0] + '" aria-pressed="' + (T.day === d[0]) + '">' + d[1] + '</button>'; }).join("") +
+      (T.day === "pick"
+        ? '<button type="button" data-d="pick" aria-pressed="true">' + ic("cal") + '<input type="date" id="t-date" value="' + (T.date || "") + '"></button>'
+        : '<button type="button" data-d="pick" aria-pressed="false">' + ic("cal") + 'Pick a date</button>') +
+      '<button type="button" class="ghost" data-d="none" aria-pressed="' + (T.day === "none") + '">No date</button>';
+    $$("#t-day [data-d]").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        if (e.target.tagName === "INPUT") return;
+        var d = b.dataset.d; if (d === T.day) return;
+        T.day = d; if (d === "pick" && !T.date) T.date = pickIso();
+        if (d === "none") T.time = null;
+        drawWhen(); tPrev();
+        if (d === "pick") { var i = $("#t-date"); i.focus(); try { i.showPicker(); } catch (_) {} }
+      });
+    });
+    var di = $("#t-date"); if (di) di.addEventListener("change", function () { T.date = di.value || pickIso(); tPrev(); });
+    $$("[data-trow]").forEach(function (el) { el.hidden = T.day === "none"; });
+    // Any time, or a real time picker. The picker is always there; using it selects it.
+    $("#t-time").innerHTML = '<button type="button" data-t="any" aria-pressed="' + !T.time + '">Any time</button>' +
+      '<label class="tpick" aria-pressed="' + !!T.time + '">' + ic("clock") + '<input type="time" id="t-clock" value="' + (T.time || "") + '" step="900" aria-label="Due time"></label>';
+    $('#t-time [data-t="any"]').addEventListener("click", function () { if (!T.time) return; T.time = null; drawWhen(); tPrev(); });
+    var ci = $("#t-clock");
+    ci.addEventListener("input", function () {
+      T.time = ci.value || null;
+      $('#t-time [data-t="any"]').setAttribute("aria-pressed", !T.time); $("#t-time .tpick").setAttribute("aria-pressed", !!T.time); tPrev();
+    });
+    ci.addEventListener("click", function () { try { ci.showPicker(); } catch (_) {} });
+  }
+  drawWhen();
+  var tWho = new Who($("#t-who"), "task", tPrev);
+  function tPrev() {
+    var title = $("#t-title").value.trim(), d = dueDate();
+    T.d = d;
+    $("#t-due").innerHTML = d ? 'Due <b>' + DOW[d.getDay()] + ', ' + MON[d.getMonth()].charAt(0) + MON[d.getMonth()].slice(1).toLowerCase() + ' ' + d.getDate() + '</b>' + (T.time ? ' at <b>' + fmtTime(T.time) + '</b>' : "") : "No due date";
+    var noteTxt = $("#t-note").value.trim();
+    var nt = noteTxt ? '<span class="nt">' + ic("doc") + 'Note</span>' : "";
+    var at = d && T.time ? '<span class="at">by ' + fmtTime(T.time) + '</span>' : "";
+    var stub = d ? '<span class="stub' + (T.day === "today" ? " today" : "") + '"><small>' + MON[d.getMonth()] + '</small><b>' + d.getDate() + '</b></span>' : '<span class="stub none"><small>ANY</small><b>—</b></span>';
+    $("#t-prev").innerHTML = '<div class="prow"><span class="tc"></span><span class="mid"><b' + (title ? "" : ' class="ph"') + '>' + esc(title || "Your task") + '</b><span>' + tWho.chip() + at + nt + '</span></span>' + stub + '</div>';
+    $("#t-err").hidden = true;
+  }
+  $("#t-title").addEventListener("input", tPrev);
+  $("#t-note").addEventListener("input", tPrev);
+  $("#t-addnote").addEventListener("click", function () { $("#t-addnote").hidden = true; $("#t-notewrap").hidden = false; $("#t-note").focus(); });
+  $("#t-rmnote").addEventListener("click", function () { $("#t-note").value = ""; $("#t-notewrap").hidden = true; $("#t-addnote").hidden = false; tPrev(); });
+  $("#t-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (flying) return;
+    var err = !$("#t-title").value.trim() ? "Give the task a name." : tWho.check();
+    if (err) return fail("#t-err", err);
+    var s = tWho.s;
+    var msg = s.m === "all" ? (s.ev === "each" ? "Added for everyone. " + N + " separate ticks." : "Added. One tick, anyone can take it.") : "Added for " + names(tWho.ids()) + ".";
+    fly(msg);
+  });
+
+  // ---------- the Tasks page behind the sheet ---------------------------------
+  function stubOf(d, over) {
+    return d ? '<span class="stub' + (!over && +d === +plus(0) ? " today" : "") + '"><small>' + MON[d.getMonth()] + '</small><b>' + d.getDate() + '</b></span>' : '<span class="stub none"><small>ANY</small><b>—</b></span>';
+  }
+  function rowHtml(t) {
+    var over = t.d && t.d < plus(0);
+    return '<span class="tc"></span><span class="mid"><b>' + esc(t.t) + '</b><span class="meta">' + t.meta +
+      (over ? '<span class="late">' + Math.round((plus(0) - t.d) / 864e5) + ' days late</span>' : "") + '</span></span>' + stubOf(t.d, over);
+  }
+  var whoP = function (ids) { return '<span class="who">' + ids.map(function (id) { return av(id); }).join("") + esc(names(ids)) + '</span>'; };
+  var SEED = [
+    { t: "Send October minutes", d: plus(-3), meta: whoP(["jp"]) },
+    { t: "Reimburse Eli for pizza", d: plus(-2), meta: whoP(["mo"]) },
+    { t: "Sign up for a service shift", d: plus(3), meta: '<span class="who each">' + ic("people") + 'Everyone</span><span class="prog"><i></i>7 of 12</span>' },
+    { t: "Confirm the DJ for formal", d: plus(5), meta: '<span class="who">' + av("nk") + av("mp") + 'Social chair</span>' },
+    { t: "Pay fall dues", d: plus(15), meta: '<span class="who each">' + ic("people") + 'Everyone</span><span class="prog"><i></i>9 of 12</span>' },
+    { t: "Update the bylaws doc", d: null, meta: whoP(["ar"]) }
+  ];
+  var listOf = function (p) { return $('.pile[data-p="' + p + '"] [data-list]'); };
+  function seed() {
+    SEED.forEach(function (t) {
+      var li = document.createElement("li"); li.className = "tk"; li.dataset.due = t.d ? +t.d : "";
+      li.innerHTML = rowHtml(t); listOf(t.d && t.d < plus(0) ? "over" : "up").appendChild(li);
+    });
+    count();
+  }
+  function count(bump) {
+    $$(".pile").forEach(function (p) {
+      var n = $("[data-n]", p), v = $$(".tk:not(.gap)", p).length;
+      if (bump && p.dataset.p === bump) { n.classList.remove("bump"); void n.offsetWidth; n.classList.add("bump"); }
+      n.textContent = v;
+    });
+  }
+  seed();
+
+  // ---------- the flight: preview row lifts off the sheet and files into the pile
+  var flying = false;
+  var REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  function fly(msg) {
+    flying = true;
+    var d = T.d, t = { t: $("#t-title").value.trim(), d: d, meta: tWho.chip() + (d && T.time ? '<span class="at">by ' + fmtTime(T.time) + '</span>' : "") + ($("#t-note").value.trim() ? '<span class="nt">' + ic("doc") + 'Note</span>' : "") };
+    var list = listOf("up");
+    // where it files: soonest first, undated last
+    var key = d ? +d : Infinity, before = null;
+    $$(".tk", list).some(function (li) { var k = li.dataset.due ? +li.dataset.due : Infinity; if (k > key) { before = li; return true; } });
+    var li = document.createElement("li"); li.className = "tk"; li.dataset.due = d ? +d : ""; li.innerHTML = rowHtml(t);
+    li.style.visibility = "hidden";
+    list.insertBefore(li, before);
+
+    // bring the pile into view first (instant, so the measurements below hold)
+    var pr = list.closest(".pile").getBoundingClientRect();
+    if (pr.top < 0 || pr.top > innerHeight * .55) window.scrollTo(0, scrollY + pr.top - 90);
+
+    // measure the landing spot at full height, then collapse it; rows above don't move, so r1 holds
+    var src = $("#t-prev .prow"), r0 = src.getBoundingClientRect();
+    var r1 = li.getBoundingClientRect(), h = r1.height;
+    var cs = getComputedStyle(li), padT = cs.paddingTop, padB = cs.paddingBottom;
+    Object.assign(li.style, { height: "0px", paddingTop: "0px", paddingBottom: "0px", overflow: "hidden" });
+
+    var finish = function () {
+      li.style.visibility = ""; li.style.overflow = "";
+      fx.remove(); src.style.visibility = "";
+      li.classList.add("landed");
+      var tape = document.createElement("span"); tape.className = "tape"; tape.textContent = "NEW"; li.appendChild(tape);
+      setTimeout(function () { tape.remove(); li.classList.remove("landed"); }, 3100);
+      count("up"); toast(msg); resetTask(); flying = false;
+    };
+    if (REDUCED) {
+      Object.assign(li.style, { height: "", paddingTop: "", paddingBottom: "" });
+      show(null); return finish();
+    }
+
+    // the flying card: sits at the landing spot, starts offset back onto the sheet
+    var fx = document.createElement("div"); fx.className = "fly-x";
+    var fy = document.createElement("div"); fy.className = "fly-y";
+    var card = document.createElement("div"); card.className = "flyer";
+    var inner = document.createElement("div"); inner.className = "tk"; inner.innerHTML = rowHtml(t); inner.style.width = r1.width + "px";
+    card.appendChild(inner); fy.appendChild(card); fx.appendChild(fy); document.body.appendChild(fx);
+    fx.style.transform = "translate(" + r1.left + "px," + r1.top + "px)";
+    card.style.width = r0.width + "px";
+    src.style.visibility = "hidden";
+
+    var dx = r0.left - r1.left, dy = r0.top - r1.top, up = dy > 0;
+    var LIFT = 170, FLIGHT = 700, TOTAL = LIFT + FLIGHT;
+    var smooth = "cubic-bezier(.65,0,.35,1)";
+
+    setTimeout(function () { show(null); }, 60);
+
+    // the pile opens its gap while the card is in the air, finishing just before it lands
+    li.animate([{ height: "0px", paddingTop: "0px", paddingBottom: "0px" }, { height: h + "px", paddingTop: padT, paddingBottom: padB }],
+      { duration: 520, delay: 160, easing: "cubic-bezier(.22,.72,.24,1)", fill: "forwards" });
+
+    // path: X eases in-out; Y eases out when climbing and in when dropping, which bends it into an arc
+    fx.animate([{ transform: "translate(" + (r1.left + dx) + "px," + r1.top + "px)" }, { transform: "translate(" + r1.left + "px," + r1.top + "px)" }],
+      { duration: FLIGHT, delay: LIFT, easing: "cubic-bezier(.5,0,.3,1)", fill: "both" });
+    fy.animate([{ transform: "translateY(" + dy + "px)" }, { transform: "translateY(0)" }],
+      { duration: FLIGHT, delay: LIFT, easing: up ? "cubic-bezier(.25,.1,.25,1)" : "cubic-bezier(.55,-0.45,.6,1)", fill: "both" });
+
+    // the card: lifts and tilts, stretches to the list width mid-air, levels out to land
+    var fly = card.animate([
+      { width: r0.width + "px", transform: "translateY(0) rotate(0deg) scale(1)", boxShadow: "2px 2px 0 var(--butter), 0 0 0 transparent", easing: "cubic-bezier(.3,.7,.4,1)" },
+      { width: r0.width + "px", transform: "translateY(-12px) rotate(-2deg) scale(1.035)", boxShadow: "6px 8px 0 var(--butter), 0 18px 34px -12px rgba(38,33,27,.28)", offset: LIFT / TOTAL, easing: smooth },
+      { transform: "translateY(-4px) rotate(1deg) scale(1.03)", boxShadow: "7px 9px 0 var(--butter), 0 22px 38px -12px rgba(38,33,27,.3)", offset: .62, easing: "cubic-bezier(.4,0,.2,1)" },
+      { width: r1.width + "px", transform: "translateY(0) rotate(0deg) scale(1)", boxShadow: "3px 3px 0 var(--butter), 0 4px 10px -6px rgba(38,33,27,.2)" }
+    ], { duration: TOTAL, fill: "forwards" });
+
+    fly.finished.then(function () {
+      puffs(r1);
+      // settle: a soft press, the shadow and border melt into the row
+      return card.animate([
+        { transform: "scale(1)", boxShadow: "3px 3px 0 var(--butter), 0 4px 10px -6px rgba(38,33,27,.2)", borderColor: "var(--ink)", borderRadius: "16px" },
+        { transform: "scale(1.008, .975)", boxShadow: "1px 1px 0 var(--butter), 0 0 0 transparent", offset: .35, easing: "cubic-bezier(.3,.7,.4,1)" },
+        { transform: "scale(1)", boxShadow: "0 0 0 transparent, 0 0 0 transparent", borderColor: "transparent", borderRadius: "0px" }
+      ], { duration: 280, easing: "ease-out", fill: "forwards" }).finished;
+    }).then(function () {
+      Object.assign(li.style, { height: "", paddingTop: "", paddingBottom: "" });
+      li.getAnimations().forEach(function (a) { a.cancel(); });
+      finish();
+    });
+  }
+  function puffs(r) {
+    var C = ["var(--butter)", "var(--sky)", "var(--peach)", "var(--mint)", "var(--lilac)", "var(--rose)"];
+    for (var i = 0; i < 10; i++) {
+      var p = document.createElement("span"); p.className = "puff"; p.style.setProperty("--pc", C[i % C.length]);
+      var left = i < 5, x = left ? r.left + 6 : r.right - 6, y = r.top + r.height * (.25 + Math.random() * .5);
+      Object.assign(p.style, { left: x + "px", top: y + "px" }); document.body.appendChild(p);
+      var dx = (left ? -1 : 1) * (26 + Math.random() * 40), dy = (Math.random() - .6) * 56;
+      p.animate([{ transform: "translate(0,0) scale(.4)", opacity: 0 }, { transform: "translate(" + dx * .35 + "px," + dy * .35 + "px) scale(1)", opacity: 1, offset: .2 }, { transform: "translate(" + dx + "px," + dy + "px) scale(.3) rotate(" + (dx * 4) + "deg)", opacity: 0 }],
+        { duration: 620 + Math.random() * 220, delay: Math.random() * 60, easing: "cubic-bezier(.22,.72,.24,1)", fill: "backwards" }).finished.then(p.remove.bind(p));
+    }
+  }
+  function resetTask() {
+    $("#t-title").value = ""; $("#t-note").value = ""; $("#t-notewrap").hidden = true; $("#t-addnote").hidden = false;
+    T.day = "tom"; T.date = null; T.time = null; drawWhen(); tPrev();
+  }
+
+  // ---------- New poll -------------------------------------------------------
+  var PF = { opts: ["The house", "Lakeside pavilion", ""], close: 1 };
+  var CLOSE = [["Tomorrow", plus(1)], [DOW[nextDow(5).getDay()], nextDow(5)], ["Next week", plus(7)], ["When I close it", null]];
+  function drawOpts() {
+    $("#p-opts").innerHTML = PF.opts.map(function (o, i) {
+      return '<div class="opt"><span class="bx"></span><input class="inp" data-o="' + i + '" value="' + esc(o) + '" placeholder="Choice ' + (i + 1) + '" autocomplete="off">' +
+        (PF.opts.length > 2 ? '<button type="button" class="rm" data-rm="' + i + '" aria-label="Remove choice">' + ic("x") + '</button>' : "") + '</div>';
+    }).join("");
+    $("#p-add").hidden = PF.opts.length >= 10;
+    $$("#p-opts [data-o]").forEach(function (inp) {
+      inp.addEventListener("input", function () { PF.opts[+inp.dataset.o] = inp.value; pPrev(); });
+      inp.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); if (PF.opts.length < 10) { PF.opts.splice(+inp.dataset.o + 1, 0, ""); drawOpts(); $('#p-opts [data-o="' + (+inp.dataset.o + 1) + '"]').focus(); } }
+      });
+    });
+    $$("#p-opts [data-rm]").forEach(function (b) { b.addEventListener("click", function () { PF.opts.splice(+b.dataset.rm, 1); drawOpts(); pPrev(); }); });
+  }
+  $("#p-add").addEventListener("click", function () { PF.opts.push(""); drawOpts(); $$("#p-opts [data-o]").pop().focus(); });
+  $("#p-close").innerHTML = CLOSE.map(function (w, i) {
+    return '<button type="button" data-c="' + i + '" aria-pressed="' + (i === PF.close) + '">' + w[0] + (w[1] ? ' <small>' + MON[w[1].getMonth()].slice(0, 3) + ' ' + w[1].getDate() + '</small>' : "") + '</button>';
+  }).join("");
+  $$("#p-close button").forEach(function (b) {
+    b.addEventListener("click", function () { PF.close = +b.dataset.c; $$("#p-close button").forEach(function (x) { x.setAttribute("aria-pressed", x === b); }); pPrev(); });
+  });
+  var pWho = new Who($("#p-who"), "poll", pPrev);
+  function pPrev() {
+    var q = $("#p-q").value.trim(), d = CLOSE[PF.close][1];
+    var n = PF.opts.filter(function (o) { return o.trim(); }).length;
+    var stub = d ? '<span class="stub" style="--sc:var(--lilac)"><small>' + MON[d.getMonth()] + '</small><b>' + d.getDate() + '</b></span>' : '<span class="stub none"><small>OPEN</small><b>—</b></span>';
+    $("#p-prev").innerHTML = '<div class="prow"><span class="tc bx"></span><span class="mid"><b' + (q ? "" : ' class="ph"') + '>' + esc(q || "Your question") + '</b><span>' + pWho.chip() +
+      '<span class="prog">' + n + ' choice' + (n === 1 ? "" : "s") + '</span></span></span>' + stub + '</div>';
+    $("#p-err").hidden = true;
+  }
+  $("#p-q").addEventListener("input", pPrev);
+  $("#p-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var opts = PF.opts.map(function (o) { return o.trim().toLowerCase(); }).filter(Boolean);
+    var err = !$("#p-q").value.trim() ? "Ask a question first." : opts.length < 2 ? "Add at least two choices." :
+      opts.some(function (o, i) { return opts.indexOf(o) !== i; }) ? "Two choices say the same thing." : pWho.check();
+    if (err) return fail("#p-err", err);
+    var s = pWho.s;
+    toast(s.m === "all" ? (s.ev === "each" ? "Vote open. All " + N + " ballots will be collected." : "Vote open. Anyone can weigh in.") : "Vote open for " + names(pWho.ids()) + ".");
+  });
+  drawOpts();
+
+  // ---------- shared ---------------------------------------------------------
+  function fail(sel, msg) {
+    var el = $(sel); el.textContent = msg; el.hidden = false;
+    el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
+  }
+  var tt;
+  function toast(msg) {
+    var t = $("#toast"); $("span", t).textContent = msg; t.classList.add("on");
+    clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("on"); }, 2600);
+  }
+  var cur = "task";
+  function show(which) {
+    cur = which;
+    $("#tScrim").classList.toggle("on", which === "task"); $("#tScrim").setAttribute("aria-hidden", which !== "task");
+    $("#pScrim").classList.toggle("on", which === "poll"); $("#pScrim").setAttribute("aria-hidden", which !== "poll");
+    $$(".dock [data-show]").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.show === which); });
+    document.body.classList.toggle("sheet", !!which);
+  }
+  $$("[data-show]").forEach(function (b) { b.addEventListener("click", function () { show(b.dataset.show); }); });
+  $$("[data-close]").forEach(function (b) { b.addEventListener("click", function () { show(null); }); });
+  ["#tScrim", "#pScrim"].forEach(function (s) { $(s).addEventListener("click", function (e) { if (e.target === e.currentTarget) show(null); }); });
+  function theme() {
+    var dark = document.documentElement.dataset.theme !== "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    $("#theme").setAttribute("aria-pressed", dark);
+    $("#theme").innerHTML = ic(dark ? "sun" : "moon") + (dark ? "Day" : "Night");
+  }
+  $("#theme").addEventListener("click", theme);
+  document.addEventListener("keydown", function (e) {
+    if (e.target.matches("input, textarea")) return;
+    if (e.key === "t" || e.key === "T") theme();
+    if (e.key === "Escape") show(null);
+  });
+  var q = new URLSearchParams(location.search);
+  if (q.get("theme") === "dark") theme();
+  tPrev(); pPrev();
+  show(q.get("show") === "poll" ? "poll" : "task");
+})();
+</script>
+</body>
+</html>

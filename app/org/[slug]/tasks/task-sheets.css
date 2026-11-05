@@ -1,0 +1,237 @@
+/* ---------- task + poll sheets (TaskSheets.tsx) ------------------------------------
+   Ported from _design/Task Poll Forms Paper Mock.html. Rides on the .tks-sheet
+   base in tasks-paper.css (header, fields, chips, choices, buttons) and adds the
+   who tiles, the everyone switch + crowd strip, the day/time rows, the legal-pad
+   note and the live preview row. Everything is under .tsh. */
+.tsh{--peach:var(--pp-peach,#FFD5C4); --tone:var(--butter); --face-bd:var(--note-ink)}
+.tsh.poll{--tone:var(--lilac)}
+.tsh .mb{gap:20px}
+.tsh .ptk-av{border-color:var(--face-bd)}
+.tsh-h{display:flex; align-items:baseline; gap:10px; min-width:0}
+.tsh-h .lab, .tsh-h label.lab{font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.tsh-h .say{margin-left:auto; font-size:.8rem; color:var(--ink-2); font-weight:500; text-align:right}
+.tsh-h .say b{font-weight:700; color:var(--ink)}
+.tsh-rm{margin-left:auto; border:0; background:none; padding:0; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.tsh-rm:hover{color:var(--ink)}
+.tks-sheet .tks-btn:disabled{opacity:.6; cursor:progress; transform:none}
+
+/* when: a day row and a time row */
+.tsh-when{display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px 12px; align-items:start}
+.tsh .tsh-when > i{padding-top:7px; min-width:34px; font-style:normal; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.tks-sheet .chips button.ghost{border-style:dashed; background:transparent; color:var(--ink-3)}
+.tks-sheet .chips button.ghost[aria-pressed="true"]{border-style:solid; color:var(--ink)}
+.tsh-pick{display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 11px; border-radius:999px; border:1.5px dashed var(--line-2); background:transparent; color:var(--ink-3); font-size:.82rem; font-weight:600; cursor:pointer}
+.tsh-pick .ptk-ic{width:14px; height:14px}
+.tsh-pick.on{border-style:solid; border-color:var(--ink); color:var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--tone)}
+.tsh-pick:focus-within{border-color:var(--ink)}
+.tks-sheet .tsh-pick input{border:0; border-radius:0; background:none; box-shadow:none; padding:2px 0; min-height:0; height:auto; font:inherit; color:inherit; outline:none; cursor:pointer; color-scheme:inherit}
+.tks-sheet .tsh-pick input[type=time]{width:84px}
+.tks-sheet .tsh-pick input[type=date]{width:122px}
+.tks-sheet .tsh-pick input::-webkit-calendar-picker-indicator{display:none}
+
+/* who: three picture tiles */
+.tsh-modes{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px}
+.tsh .mode{
+  position:relative; display:grid; justify-items:center; gap:2px; padding:14px 8px 11px; border-radius:18px;
+  border:1.5px solid var(--line-2); background:var(--paper); text-align:center; color:var(--ink);
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), border-color .2s, background .2s;
+}
+.tsh .mode:hover{border-color:var(--ink-3); transform:translateY(-1px)}
+.tsh .mode[aria-checked="true"]{border-color:var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--mc); transform:translate(-1px,-1px)}
+.tsh .mode b{font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em; margin-top:8px}
+.tsh .mode small{font-size:.74rem; color:var(--ink-3); font-weight:500; min-height:1.2em}
+.tsh .mode[aria-checked="true"] small{color:var(--ink-2)}
+.tsh .mode .ok, .tsh .tag .ok{position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:50%; display:grid; place-items:center; background:var(--ink); color:var(--paper); transform:scale(0); transition:transform .25s var(--ease-spring)}
+.tsh .mode .ok .ptk-ic, .tsh .tag .ok .ptk-ic{width:11px; height:11px}
+.tsh .mode[aria-checked="true"] .ok, .tsh .tag[aria-pressed="true"] .ok{transform:scale(1)}
+.tsh .mode[data-m="people"]{--mc:var(--peach)}
+.tsh .mode[data-m="roles"]{--mc:var(--mint)}
+.tsh .mode[data-m="all"]{--mc:var(--sky)}
+.tsh .pic{height:40px; display:flex; align-items:center; justify-content:center; max-width:100%}
+.tsh .pic-people .ptk-av{width:30px; height:30px; font-size:.62rem}
+.tsh .pic-people .ptk-av + .ptk-av{margin-left:-8px}
+.tsh .pic-people .ptk-av:first-child{transform:rotate(-6deg)}
+.tsh .pic-people .ptk-av:last-child{transform:rotate(5deg) translateY(2px)}
+.tsh .pic-roles{flex-direction:column; gap:3px; min-width:0}
+.tsh .tagmini{display:inline-flex; align-items:center; gap:5px; max-width:100%; padding:2px 8px 2px 6px; border-radius:6px; border:1.4px solid var(--note-ink); background:color-mix(in srgb, var(--tc) 55%, white); color:var(--note-ink); font-size:.6rem; font-weight:700; filter:var(--note-filter); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tsh .tagmini::before{content:''; flex:none; width:5px; height:5px; border-radius:50%; background:var(--card); border:1.2px solid var(--note-ink)}
+.tsh .tagmini:first-child{transform:rotate(-4deg)}
+.tsh .tagmini:last-child{transform:rotate(3deg) translateX(6px)}
+.tsh .pic-all{display:grid; grid-template-columns:repeat(6, 10px); gap:3px; align-content:center}
+.tsh .pic-all i{width:10px; height:10px; border-radius:50%; background:var(--av); border:1.2px solid var(--note-ink); filter:var(--note-filter)}
+
+/* the panel under the chosen tile, notched toward it */
+.tsh-panel{position:relative; border-radius:18px; border:1.5px solid var(--ink); background:var(--paper-2); padding:14px; animation:tsh-pin .32s var(--ease-out)}
+.tsh-panel::before{content:''; position:absolute; top:-8.5px; left:var(--nx, 16.6%); width:14px; height:14px; margin-left:-7px; background:var(--paper-2); border-left:1.5px solid var(--ink); border-top:1.5px solid var(--ink); transform:rotate(45deg)}
+.tsh-panel.solo::before{display:none}
+@keyframes tsh-pin{from{opacity:0; transform:translateY(-4px)}}
+@keyframes tsh-pop{from{transform:scale(.7); opacity:0}}
+
+/* people */
+.tsh-find{position:relative; margin-bottom:10px}
+.tsh-find .ptk-ic{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--ink-3); width:15px; height:15px}
+.tsh-find .inp{padding-left:36px; background:var(--card)}
+.tsh-faces{display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:6px; max-height:236px; overflow:auto; padding:2px 4px 4px 2px; scrollbar-width:thin}
+.tsh .face{display:flex; align-items:center; gap:9px; padding:7px 9px; border-radius:13px; border:1.5px solid transparent; background:var(--card); text-align:left; min-width:0; color:var(--ink); transition:border-color .15s, box-shadow .15s}
+.tsh .face:hover{border-color:var(--line-2)}
+.tsh .face.wait{height:46px; background:var(--paper-3); animation:tks-breathe 1.4s ease-in-out infinite alternate}
+.tsh .face .av{position:relative; flex:none}
+.tsh .face .ptk-av{width:30px; height:30px; font-size:.62rem}
+.tsh .face .av::after{content:''; position:absolute; right:-4px; bottom:-4px; width:15px; height:15px; border-radius:50%; background:var(--ink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 13l4.4 4.4L19 7' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/9px no-repeat; border:1.5px solid var(--card); transform:scale(0); transition:transform .22s var(--ease-spring)}
+.tsh .face .nm{min-width:0}
+.tsh .face b{display:block; font-size:.84rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tsh .face small{display:block; font-size:.7rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tsh .face[aria-pressed="true"]{border-color:var(--ink); box-shadow:2px 2px 0 var(--peach)}
+.tsh .face[aria-pressed="true"] .av::after{transform:scale(1)}
+.tsh-faces .empty{grid-column:1/-1; padding:14px; text-align:center; font-size:.84rem; color:var(--ink-3)}
+.tsh-tray{display:flex; align-items:center; gap:8px; min-height:36px; margin-top:10px; flex-wrap:wrap}
+.tsh-tray .none{font-size:.84rem; color:var(--ink-3)}
+.tsh-tray .pk{display:inline-flex; align-items:center; gap:6px; padding:3px 4px 3px 3px; border-radius:999px; background:var(--card); border:1.5px solid var(--ink); font-size:.8rem; font-weight:600; animation:tsh-pop .3s var(--ease-spring)}
+.tsh-tray .pk .ptk-av{width:22px; height:22px; font-size:.5rem}
+.tsh-tray .pk button{width:20px; height:20px; display:grid; place-items:center; border-radius:50%; border:0; background:none; color:var(--ink-3); padding:0}
+.tsh-tray .pk button:hover{background:var(--rose-soft); color:var(--rose-ink)}
+.tsh-tray .pk .ptk-ic{width:11px; height:11px}
+.tsh-tray .clr{margin-left:auto; border:0; background:none; font-size:.78rem; font-weight:600; color:var(--ink-3); padding:4px}
+.tsh-tray .clr:hover{color:var(--ink)}
+.tsh-empty{font-size:.86rem; color:var(--ink-3); text-align:center; padding:8px}
+
+/* roles: name tags */
+.tsh-tags{display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px}
+.tsh .tag{position:relative; display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:4px 10px; padding:10px 12px 10px 10px; border-radius:14px; border:1.5px solid var(--line-2); background:var(--card); text-align:left; color:var(--ink); transition:border-color .15s, box-shadow .15s, transform .18s var(--ease-spring)}
+.tsh .tag:hover{border-color:var(--ink-3)}
+.tsh .tag .ok{top:7px; right:7px; width:18px; height:18px}
+.tsh .tag .sw{grid-row:span 2; width:30px; height:38px; border-radius:7px; background:color-mix(in srgb, var(--tc) 60%, white); border:1.5px solid var(--note-ink); filter:var(--note-filter); position:relative}
+.tsh .tag .sw::before{content:''; position:absolute; top:5px; left:50%; width:7px; height:7px; margin-left:-3.5px; border-radius:50%; background:var(--card); border:1.3px solid var(--note-ink)}
+.tsh .tag b{font-size:.86rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:18px}
+.tsh .tag .hold{display:flex; align-items:center; gap:6px; min-width:0}
+.tsh .tag .hold .stk{display:flex; flex:none}
+.tsh .tag .hold .ptk-av{width:18px; height:18px; font-size:.42rem; border-width:1.1px}
+.tsh .tag .hold .ptk-av + .ptk-av{margin-left:-6px}
+.tsh .tag .hold small{font-size:.7rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tsh .tag[aria-pressed="true"]{border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--mint); transform:translate(-1px,-1px)}
+.tsh-reach{display:flex; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1.5px dashed var(--line-2); font-size:.84rem; color:var(--ink-2); min-height:44px; flex-wrap:wrap}
+.tsh-reach .stk{display:flex}
+.tsh-reach .stk > span{animation:tsh-pop .3s var(--ease-spring) both}
+.tsh-reach .stk > span + span{margin-left:-7px}
+.tsh-reach .ptk-av{width:26px; height:26px; font-size:.56rem}
+.tsh-reach b{color:var(--ink); font-weight:700}
+.tsh-reach .none{color:var(--ink-3)}
+
+/* everyone: the switch + the crowd strip that acts the rule out */
+.tsh-sw-row{display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap}
+.tsh .sw-lab{display:inline-flex; align-items:center; gap:7px; border:0; background:none; padding:6px 4px; font-size:.9rem; font-weight:600; color:var(--ink-3); transition:color .2s}
+.tsh .sw-lab .ptk-ic{width:17px; height:17px}
+.tsh .sw-lab.on{color:var(--ink)}
+.tsh .sw{position:relative; width:54px; height:30px; flex:none; border-radius:999px; border:1.5px solid var(--ink); padding:0; background:var(--paper-3)}
+.tsh .sw i{position:absolute; top:2.5px; left:2.5px; width:22px; height:22px; border-radius:50%; background:var(--mint); border:1.5px solid var(--note-ink); filter:var(--note-filter); transition:transform .32s var(--ease-spring), background .25s}
+.tsh .sw[aria-checked="true"] i{transform:translateX(24px); background:var(--sky)}
+.tsh-crowd{--gap:6px; position:relative; display:flex; align-items:flex-start; justify-content:center; margin:16px auto 0; min-height:74px; padding:0 4px}
+.tsh-panel.solo .tsh-crowd{margin-top:4px}
+.tsh-crowd .ppl{display:flex; flex-wrap:wrap; justify-content:center; gap:10px 0; padding:6px 10px; border-radius:999px; border:1.5px dashed transparent; transition:border-color .35s, background .35s, padding .35s, margin .35s}
+.tsh-crowd .f{display:grid; justify-items:center; gap:6px; margin-left:var(--gap); transition:margin .45s var(--ease-spring), gap .3s}
+.tsh-crowd .f:first-child{margin-left:0}
+.tsh-crowd .f .ptk-av{width:30px; height:30px; font-size:.6rem; box-shadow:0 0 0 2px var(--paper-2)}
+.tsh-crowd .f .ptk-av.more{background:var(--card); color:var(--ink-2); font-family:var(--mono); font-size:.58rem}
+.tsh-crowd .f .t{width:20px; height:20px; border-radius:6px; border:1.6px solid var(--ink-2); background:var(--card); transition:transform .3s var(--ease-spring), opacity .2s, width .3s, height .3s, border-width .3s; transition-delay:calc(var(--i, 0) * 28ms)}
+.tsh-crowd.poll .f .t{border-radius:4px; width:18px; height:22px; position:relative}
+.tsh-crowd.poll .f .t::after{content:''; position:absolute; left:3px; right:3px; top:5px; height:1.5px; background:var(--ink-3); box-shadow:0 4px 0 var(--ink-3), 0 8px 0 var(--ink-3)}
+.tsh-crowd .one{display:grid; justify-items:center; gap:4px; width:0; opacity:0; overflow:hidden; transform:scale(.6); transition:opacity .25s, transform .4s var(--ease-spring), width .4s var(--ease-spring)}
+.tsh-crowd .one .t{width:34px; height:34px; border-radius:10px; border:2px solid var(--ink); background:var(--card); box-shadow:2.5px 2.5px 0 var(--sky); display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:1rem}
+.tsh-crowd .one small{font-family:var(--mono); font-size:.6rem; letter-spacing:.06em; color:var(--ink-3); text-transform:uppercase; white-space:nowrap}
+.tsh-crowd .arrow{width:0; opacity:0; overflow:hidden; color:var(--ink-3); align-self:center; margin-top:-14px; display:grid; place-items:center; transition:width .4s var(--ease-spring), opacity .25s}
+.tsh-crowd.any .f{margin-left:-13px; gap:0}
+.tsh-crowd.any .f:first-child{margin-left:0}
+.tsh-crowd.any .f .t{transform:scale(0); opacity:0; width:0; height:0; border-width:0; transition-delay:0ms}
+.tsh-crowd.any .ppl{border-color:var(--ink-3); background:var(--card); padding:6px 14px; align-self:center; margin-top:-14px}
+.tsh-crowd.any .f .ptk-av{box-shadow:0 0 0 2px var(--card)}
+.tsh-crowd.any .arrow{width:34px; opacity:1}
+.tsh-crowd.any .one{width:84px; opacity:1; transform:none}
+.tsh-ev-say{margin:14px auto 0; max-width:46ch; text-align:center; font-size:.86rem; color:var(--ink-2); line-height:1.5}
+.tsh-panel.solo .tsh-ev-say:only-child{margin:0 auto}
+.tsh-ev-say b{color:var(--ink); font-weight:700}
+.tsh-ev-say .k{font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+
+/* note: a strip of legal pad */
+.tks-sheet textarea.inp.tsh-note{resize:vertical; min-height:84px; line-height:26px; padding:8px 13px 8px 44px; background-color:var(--butter-soft);
+  background-image:linear-gradient(90deg, transparent 32px, color-mix(in srgb, var(--rose-ink) 45%, transparent) 32px, color-mix(in srgb, var(--rose-ink) 45%, transparent) 33.5px, transparent 33.5px), repeating-linear-gradient(transparent 0 25px, var(--line-2) 25px 26px);
+  background-attachment:local; background-position:0 8px; animation:tsh-pin .25s var(--ease-out)}
+
+/* footer: the row as it will land */
+.tsh .mf{border-top:1.5px dashed var(--line-2); margin-top:14px}
+.tsh .mf .acts{display:flex; gap:10px; margin-left:auto}
+.tsh-land{flex:1 1 280px; min-width:0}
+.tsh-land .lk{font-family:var(--mono); font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:600; margin-bottom:6px}
+.tsh-prow{display:flex; align-items:center; gap:11px; padding:9px 10px 9px 12px; border-radius:14px; border:1.5px solid var(--line-2); background:var(--paper); min-width:0}
+.tsh-prow .tc{width:20px; height:20px; flex:none; border-radius:50%; border:1.6px solid var(--ink-2)}
+.tsh-prow .tc.bx{border-radius:5px}
+.tsh-prow .mid{flex:1; min-width:0}
+.tsh-prow .mid > b{display:block; font-size:.86rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tsh-prow .mid > b.ph{color:var(--ink-3); font-weight:500}
+.tsh-prow .meta{display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap}
+.tsh-prow .tks-stub{width:38px}
+.tsh-prow .tks-stub b{font-size:1rem}
+.tsh-prow.up .tks-stub:not(.today):not(.none){--sc:var(--sky)}
+.tsh-prow.over .tks-stub:not(.none){--sc:var(--rose)}
+.tsh .tks-stub.lilac{--sc:var(--lilac)}
+.tsh-who.each{background:var(--mint-soft); border-color:var(--mint-ink); color:var(--mint-ink)}
+.tsh-who.any{background:var(--sky-soft); border-color:var(--sky-ink); color:var(--sky-ink)}
+.tsh-who.none{border-style:dashed; color:var(--ink-3)}
+.tsh-prog, .tks-tk .tsh-prog{display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.tsh-prog i{width:34px; height:5px; border-radius:3px; background:var(--paper-3); border:1px solid var(--line-2)}
+.tsh-at{display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:.66rem; color:var(--ink-2); font-weight:600}
+.tsh-nt{display:inline-flex; align-items:center; gap:4px; font-size:.68rem; color:var(--ink-3); font-weight:600}
+.tsh-nt .ptk-ic{width:12px; height:12px}
+
+/* the filing flight (task-fly.ts): X and Y on separate layers, the card on top */
+.tsh-fly-x{position:fixed; left:0; top:0; z-index:1000; pointer-events:none; will-change:transform}
+.tsh-fly-y{will-change:transform}
+.tsh-flyer{position:relative; overflow:hidden; border:1.5px solid var(--ink); border-radius:16px; background:var(--card); box-shadow:5px 6px 0 var(--butter); will-change:transform, width}
+.tsh-flyer ul{margin:0; padding:0; list-style:none}
+.tsh-flyer .tks-tk{position:static; border-top:0; background:var(--card); transform:none}
+.tsh-flyer .tks-swipe{display:none}
+/* the row inside keeps its final width; the stub stays pinned to the card's edge */
+.tsh-flyer .tks-when{position:absolute; right:20px; top:50%; transform:translateY(-50%); background:var(--card)}
+.tsh-flyer .tks-when-d{display:none}
+.tsh-puff{position:fixed; z-index:1001; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; border:1.2px solid #26211B; pointer-events:none}
+li.tks-tk.tsh-landed{position:relative; animation:tsh-land-bg 2.6s var(--ease-out)}
+@keyframes tsh-land-bg{0%,35%{background:var(--butter-soft)} 100%{background:var(--card)}}
+.tks-tk.tsh-landed .tks-t{position:relative; z-index:0; width:fit-content; max-width:100%}
+.tks-tk.tsh-landed .tks-t::before{content:''; position:absolute; z-index:-1; left:-.15em; right:-.1em; bottom:.08em; height:.5em; background:var(--butter); border-radius:.4em .55em .38em .6em; transform-origin:left; transform:rotate(-.8deg) scaleX(0); animation:tsh-mark 2.6s var(--ease-out) forwards}
+@keyframes tsh-mark{12%{transform:rotate(-.8deg) scaleX(0)} 30%{transform:rotate(-.8deg) scaleX(1); opacity:.9} 80%{opacity:.9} 100%{transform:rotate(-.8deg) scaleX(1); opacity:0}}
+.tsh-tape{position:absolute; top:-6px; left:44px; z-index:2; padding:1px 10px; background:color-mix(in srgb, var(--butter) 82%, transparent); color:#26211B; font-family:var(--mono); font-size:.6rem; font-weight:700; letter-spacing:.14em; transform:rotate(-4deg); filter:var(--note-filter); clip-path:polygon(3% 0, 97% 4%, 100% 50%, 96% 100%, 2% 96%, 0 50%); animation:tsh-tape 3s var(--ease-out) forwards; pointer-events:none}
+.tks-tk:first-child .tsh-tape{top:3px}
+@keyframes tsh-tape{0%{opacity:0; transform:rotate(-14deg) scale(1.5)} 10%{opacity:1; transform:rotate(-4deg) scale(1)} 80%{opacity:1} 100%{opacity:0}}
+
+@media (max-width:600px){
+  .tsh-flyer .tks-when{right:14px}
+  .tsh-h .say{display:none}
+  .tsh-modes{gap:7px}
+  .tsh .mode{padding:11px 4px 9px; border-radius:15px}
+  .tsh .mode b{font-size:.92rem; margin-top:6px}
+  .tsh .mode small{font-size:.68rem}
+  .tsh .mode .ok{width:17px; height:17px; top:5px; right:5px}
+  .tsh .pic-all{grid-template-columns:repeat(6, 8px)}
+  .tsh .pic-all i{width:8px; height:8px}
+  .tsh-panel{padding:12px}
+  .tsh-faces{grid-template-columns:repeat(2, minmax(0,1fr)); max-height:220px}
+  .tsh-tags{grid-template-columns:minmax(0,1fr)}
+  .tsh-sw-row{display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:8px}
+  .tsh .sw-lab{flex-direction:column; gap:3px; font-size:.8rem; line-height:1.2; text-align:center}
+  .tsh-crowd .ppl{max-width:224px}
+  .tsh-crowd .f .ptk-av{width:26px; height:26px; font-size:.52rem}
+  .tsh-crowd .f{margin-left:8px}
+  .tsh-crowd .f:nth-child(6n+1){margin-left:0}
+  .tsh-crowd.any .f:nth-child(6n+1){margin-left:-12px}
+  .tsh-crowd.any .f{margin-left:-12px}
+  .tsh-crowd.any .f:first-child{margin-left:0}
+  .tsh-crowd .one small{white-space:normal; text-align:center; line-height:1.2}
+  .tsh-crowd.any .one{width:58px}
+  .tsh-crowd.any .arrow{width:22px}
+  .tsh .mf .acts{width:100%}
+  .tsh .mf .acts .tks-btn{flex:1}
+}
+@media (prefers-reduced-motion: reduce){
+  .tsh-panel, .tsh-tray .pk, .tsh-reach .stk > span, .tks-sheet textarea.inp.tsh-note{animation:none}
+  .tsh-crowd *, .tsh .sw i{transition:none !important}
+  .tks-tk.tsh-landed, .tks-tk.tsh-landed .tks-t::before, .tsh-tape{animation-duration:1ms}
+}

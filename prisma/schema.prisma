@@ -568,6 +568,7 @@ model Task {
   organizationId Int
   title          String
   dueDate        String? // ISO YYYY-MM-DD; null = undated to-do
+  dueTime        String? // "HH:MM" 24h on dueDate; null = any time that day (CHECK task_due_time_shape)
   status         String    @default("open") // TaskStatus union in @/lib/state: "open" | "done"
   // Live "Everyone" target (TaskEveryone in @/lib/state), resolved to the roster
   // at READ time like role targets, so members who join later get it too. null =
@@ -637,6 +638,10 @@ model Poll {
   organizationId Int
   question       String
   closeDate      String? // ISO YYYY-MM-DD; null = no date (mirrors Task.dueDate)
+  // Whole active roster, resolved at READ time (no PollAssignment rows), so later
+  // joiners get the vote. Every poll created since 2026-11 is one; older polls
+  // keep their assignment audience.
+  everyone       Boolean   @default(false)
   status         String    @default("open") // PollStatus: "open" | "closed"
   createdById    Int?
   closedById     Int?

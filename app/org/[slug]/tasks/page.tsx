@@ -9,7 +9,9 @@ import type { PollFormValue, RoleOption, TaskFormValue } from "./task-forms";
 import { CREATE_EVENT } from "../../../components/MobileTabBar";
 import { useChapter } from "../../../context/ChapterContext";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
-import { PaperTasks, PaperTaskSheet, PaperPollSheet, PaperBallot } from "./PaperTasks";
+import { PaperTasks, PaperBallot } from "./PaperTasks";
+import { PaperTaskSheet, PaperPollSheet } from "./TaskSheets";
+import { armTaskFlight } from "./task-fly";
 import { TaskSpotlight } from "./TaskSpotlight";
 import type { Task, Poll } from "../../../data";
 import { requestJson } from "../../../lib/api";
@@ -55,6 +57,8 @@ export default function TasksPage() {
   // { kind: "add" } for a fresh create.
   const [modal, setModal] = useState<{ kind: "add" } | { kind: "edit"; task: Task; fromSpot?: boolean } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // A sheet's request is in flight: its buttons hold.
+  const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ id: number; title: string } | null>(null);
 
   // Poll modal + delete-confirm, mirroring the task pair above.
@@ -81,8 +85,9 @@ export default function TasksPage() {
   const openEditPoll = useCallback((p: Poll) => { setPollFormError(null); setPollModal({ kind: "edit", poll: p }); }, []);
   const openPollView = useCallback((p: Poll) => { setError(null); setPollViewId(p.id); }, []);
 
-  // Whether the current user may vote on a poll (assigned directly or via a held role).
-  const canVote = useCallback((p: Poll) => p.assignments.some(a =>
+  // Whether the current user may vote on a poll: everyone can on a whole-chapter
+  // poll; on an older targeted one, assigned directly or via a held role.
+  const canVote = useCallback((p: Poll) => p.everyone || p.assignments.some(a =>
     (a.brotherId != null && a.brotherId === selfId) || (a.roleId != null && myRoleIds.has(a.roleId)),
   ), [selfId, myRoleIds]);
 
@@ -140,6 +145,7 @@ export default function TasksPage() {
   // The sheet validates title, date and assignees; here we just persist.
   async function submitForm(value: TaskFormValue) {
     setFormError(null);
+    setSaving(true);
     const base = {
       title: value.title,
       assigneeBrotherIds: value.assigneeBrotherIds,
@@ -153,10 +159,16 @@ export default function TasksPage() {
         // sent against this semester, which would refuse a rename of a task that
         // keeps last term's date.
         const dateChanged = value.dueDate !== (modal.task.dueDate ?? "");
+        const timeChanged = value.dueTime !== (modal.task.dueTime ?? "");
         const saved = await requestJson<Task>(`/api/tasks/${modal.task.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...base, everyone: value.everyone, ...(dateChanged ? { dueDate: value.dueDate || null } : {}), notes: value.notes || null }),
+          body: JSON.stringify({
+            ...base, everyone: value.everyone,
+            ...(dateChanged ? { dueDate: value.dueDate || null } : {}),
+            ...(timeChanged && value.dueDate ? { dueTime: value.dueTime || null } : {}),
+            notes: value.notes || null,
+          }),
         });
         setTaskList(prev => prev.map(x => x.id === saved.id ? saved : x));
         markFresh(saved.id);
@@ -165,14 +177,22 @@ export default function TasksPage() {
         const saved = await requestJson<Task>("/api/tasks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...base, everyone: value.everyone ?? undefined, dueDate: value.dueDate || undefined, notes: value.notes || undefined }),
+          body: JSON.stringify({
+            ...base, everyone: value.everyone ?? undefined,
+            dueDate: value.dueDate || undefined, dueTime: value.dueDate && value.dueTime ? value.dueTime : undefined,
+            notes: value.notes || undefined,
+          }),
         });
+        // The sheet is still up, so its preview row can take off from where it sits.
+        armTaskFlight(saved.id);
         setTaskList(prev => [...prev, saved]);
         markFresh(saved.id);
       }
       setModal(null);
     } catch {
       setFormError("Could not save the task. Please try again.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -207,11 +227,10 @@ export default function TasksPage() {
   // ── Poll mutations (optimistic, mirroring the task handlers above) ───────────
   async function submitPollForm(value: PollFormValue) {
     setPollFormError(null);
-    const base = {
-      question: value.question,
-      assigneeBrotherIds: value.assigneeBrotherIds,
-      assigneeRoleIds: value.assigneeRoleIds,
-    };
+    setSaving(true);
+    // No audience: every new poll goes to the whole chapter, and an edit leaves
+    // an older poll's audience as it was.
+    const base = { question: value.question };
     try {
       if (pollModal?.kind === "edit") {
         // Options only sent when still editable (the form locks them once voting
@@ -238,6 +257,8 @@ export default function TasksPage() {
       setPollModal(null);
     } catch {
       setPollFormError("Could not save the poll. Please try again.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -365,9 +386,11 @@ export default function TasksPage() {
             editing={modal.kind === "edit"}
             peopleLoading={!loadedSections.has("brothers")}
             error={formError}
+            saving={saving}
             initial={modal.kind === "edit" ? {
               title: modal.task.title,
               dueDate: modal.task.dueDate ?? "",
+              dueTime: modal.task.dueTime ?? "",
               notes: modal.task.notes ?? "",
               brotherIds: modal.task.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
               roleIds: modal.task.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
@@ -403,20 +426,20 @@ export default function TasksPage() {
         <Modal ariaLabel={pollModal.kind === "edit" ? "Edit poll" : "New poll"} tone="dusk" hideHeader maxWidthClass="max-w-[620px]" accent="lilac" onClose={() => setPollModal(null)}>
           <PaperPollSheet
             brothers={brotherList}
-            roles={roles}
             selfId={selfId}
             today={today}
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
             editing={pollModal.kind === "edit"}
             error={pollFormError}
+            saving={saving}
             optionsLocked={pollModal.kind === "edit" && pollModal.poll.totalVotes > 0}
             initial={pollModal.kind === "edit" ? {
               question: pollModal.poll.question,
               closeDate: pollModal.poll.closeDate ?? "",
               options: pollModal.poll.options.map(o => o.label),
-              brotherIds: pollModal.poll.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
-              roleIds: pollModal.poll.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+              everyone: pollModal.poll.everyone,
+              assigneeCount: pollModal.poll.assigneeCount,
             } : undefined}
             onSubmit={submitPollForm}
             onCancel={() => setPollModal(null)}

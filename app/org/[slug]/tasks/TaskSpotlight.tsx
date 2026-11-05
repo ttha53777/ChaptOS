@@ -17,6 +17,7 @@ import { fmtDate, type Brother, type Task } from "../../../data";
 import type { TaskDetail, TaskHistoryEntry } from "@/lib/api-types";
 import { requestJson } from "../../../lib/api";
 import { Ic, MON, PAvatar, burst, dFrom, dateOf, first, plusDays, type Me } from "./PaperTasks";
+import { fmtDueTime } from "./task-forms";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FULLDOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -45,6 +46,7 @@ function editedWhat(fields: string[] | null): string {
   const has = (f: string) => fields?.includes(f);
   if (has("title")) said.push("renamed it");
   if (has("dueDate")) said.push("changed the due date");
+  else if (has("dueTime")) said.push("changed the due time");
   if (has("notes")) said.push("edited the note");
   if (has("assignees") || has("everyone")) said.push("changed who’s on it");
   return said.length ? andList(said) : "edited it";
@@ -126,6 +128,7 @@ export function TaskSpotlight({ task, today, me, brothers, canComplete, canManag
   const each = task.everyone === "each";
   const done = task.status === "done";
   const due = task.dueDate ? dateOf(task.dueDate) : null;
+  const at = due && task.dueTime ? `, by ${fmtDueTime(task.dueTime)}` : "";
   const n = task.dueDate ? dFrom(task.dueDate, today) : null;
   const late = !done && n != null && n < 0;
   const tone = done ? "done" : late ? "over" : "up";
@@ -145,9 +148,9 @@ export function TaskSpotlight({ task, today, me, brothers, canComplete, canManag
   } else if (!due || n == null) {
     when = <>No date. It waits at the bottom of <b>Upcoming</b> until someone gets to it.</>;
   } else if (late) {
-    when = <>Was due <b>{FULLDOW[due.getDay()]}, {shortD(due)}</b>. <em>{n === -1 ? "Yesterday" : `${-n} days ago`}.</em></>;
+    when = <>Was due <b>{FULLDOW[due.getDay()]}, {shortD(due)}{at}</b>. <em>{n === -1 ? "Yesterday" : `${-n} days ago`}.</em></>;
   } else {
-    when = <>Due <b>{n === 0 ? "today " : n === 1 ? "tomorrow " : ""}{FULLDOW[due.getDay()]}, {shortD(due)}</b>{n === 0 ? ", by the end of the day." : n === 1 ? "." : `, in ${n} days.`}</>;
+    when = <>Due <b>{n === 0 ? "today " : n === 1 ? "tomorrow " : ""}{FULLDOW[due.getDay()]}, {shortD(due)}{at}</b>{n === 0 ? (at ? "." : ", by the end of the day.") : n === 1 ? "." : `, in ${n} days.`}</>;
   }
 
   // ── who it's for ──

@@ -166,13 +166,13 @@ export const brothers: Brother[] = [
 // Mock seed tasks (all dated → all "deadlines"). Assignments are empty in the
 // mock layer; the live app resolves real member/role assignees server-side.
 export const tasks: Task[] = [
-  { id: 1, title: "Nationals Chapter Fee Deadline",   dueDate: "2026-06-01", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
-  { id: 2, title: "Risk Management Form Submission",  dueDate: "2026-05-16", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
-  { id: 3, title: "Spring Roster Update",             dueDate: "2026-05-25", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
-  { id: 4, title: "Banquet Planning Final Submission",dueDate: "2026-05-14", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
-  { id: 5, title: "Brotherhood Event Proposal",       dueDate: "2026-06-10", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
-  { id: 6, title: "Academic Standing Report",         dueDate: "2026-05-13", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
-  { id: 7, title: "IFC Chapter Report",               dueDate: "2026-06-15", status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 1, title: "Nationals Chapter Fee Deadline",   dueDate: "2026-06-01", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 2, title: "Risk Management Form Submission",  dueDate: "2026-05-16", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 3, title: "Spring Roster Update",             dueDate: "2026-05-25", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 4, title: "Banquet Planning Final Submission",dueDate: "2026-05-14", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 5, title: "Brotherhood Event Proposal",       dueDate: "2026-06-10", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 6, title: "Academic Standing Report",         dueDate: "2026-05-13", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
+  { id: 7, title: "IFC Chapter Report",               dueDate: "2026-06-15", dueTime: null, status: "open", notes: null, createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01", assignments: [], everyone: null, doneCount: null, memberCount: null },
 ];
 
 export const instagramTasks: InstagramTask[] = [

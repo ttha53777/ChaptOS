@@ -6,14 +6,15 @@
  * date stub on every row, and a side column holding the collapsed Done line and
  * the open votes. Every mutation goes through the page's own handlers.
  *
- * Also here: the task and poll sheets (create/edit) and the ballot sheet, which
- * the page mounts inside its <Modal>. The dashboard's quick actions open the
- * same task sheet. The task spotlight is TaskSpotlight.tsx.
+ * Also here: the ballot sheet, which the page mounts inside its <Modal>. The
+ * task and poll sheets (create/edit) are TaskSheets.tsx; the task spotlight is
+ * TaskSpotlight.tsx.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { PaperIcon, type PaperIconName } from "../../../components/paper/PaperIcon";
-import type { PollFormInitial, PollFormValue, RoleOption, TaskEveryoneMode, TaskFormInitial, TaskFormValue } from "./task-forms";
+import { fmtDueTime } from "./task-forms";
+import { takeTaskFlight } from "./task-fly";
 import { fmtDate, type Brother, type Poll, type Task } from "../../../data";
 import { avatarDisplayUrl } from "@/lib/avatar";
 import "./tasks-paper.css";
@@ -83,7 +84,7 @@ export function burst(x: number, y: number) {
 
 export type Me = { selfId: number | null; myRoleIds: Set<number> };
 
-type RowTask = Pick<Task, "id" | "title" | "status" | "dueDate" | "notes" | "assignments" | "everyone" | "doneCount" | "memberCount">;
+type RowTask = Pick<Task, "id" | "title" | "status" | "dueDate" | "dueTime" | "notes" | "assignments" | "everyone" | "doneCount" | "memberCount">;
 
 // ── the list: _design/Tasks Simple Paper Mock.html ───────────────────────────
 // Two piles and nothing else: Overdue (past its date) on top, Upcoming (soonest
@@ -162,7 +163,8 @@ function TaskRow({ task, today, me, ticked, fresh, canToggle, onOpen, onTick }: 
   onOpen?: () => void;
   onTick?: (el: HTMLElement) => void;
 }) {
-  const when = rowWhen(task.dueDate, today);
+  // A due time rides on the day words: "Tomorrow · by 5 PM".
+  const when = rowWhen(task.dueDate, today) + (task.dueDate && task.dueTime ? ` · by ${fmtDueTime(task.dueTime)}` : "");
   const title = task.title;
   const liRef = useRef<HTMLLIElement>(null);
   const ckRef = useRef<HTMLButtonElement>(null);
@@ -355,11 +357,15 @@ export function PaperTasks({
   }, [pollList, mineOnly, canVote, canManagePolls]);
   const openPolls = polls.filter(p => p.status === "open").length;
 
-  // A freshly saved task scrolls into view and glows once.
+  // A task just added from the sheet flies into its slot (task-fly.ts); any
+  // other freshly saved task scrolls into view and glows once.
   useEffect(() => {
     if (freshId == null) return;
-    const id = window.setTimeout(() => document.getElementById(`ptk-row-${freshId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
-    return () => window.clearTimeout(id);
+    const raf = window.requestAnimationFrame(() => {
+      const li = document.getElementById(`ptk-row-${freshId}`);
+      if (!takeTaskFlight(freshId, li)) window.setTimeout(() => li?.scrollIntoView({ block: "center", behavior: "smooth" }), 60);
+    });
+    return () => window.cancelAnimationFrame(raf);
   }, [freshId]);
 
   function tick(t: Task, el: HTMLElement) {
@@ -520,408 +526,6 @@ export function PaperTasks({
 // styled by tasks-paper.css under .tks-sheet.
 
 /** The quick date chips: today, tomorrow, the coming Friday, a week out. */
-function quickDays(today: Date): { label: string; iso: string }[] {
-  const fri = (5 - today.getDay() + 7) % 7 || 7;
-  return [
-    { label: "Today", iso: isoOf(today) },
-    { label: "Tomorrow", iso: isoOf(plusDays(today, 1)) },
-    { label: DOW[plusDays(today, fri).getDay()], iso: isoOf(plusDays(today, fri)) },
-    { label: "Next week", iso: isoOf(plusDays(today, 7)) },
-  ].filter((q, i, all) => all.findIndex(x => x.iso === q.iso) === i);
-}
-const chipDate = (iso: string) => fmtDate(iso);
-
-/** Chips for every member (you first) and role, with a find box once the roster is long. */
-function WhoPicker({ brothers, roles, selfId, brotherIds, roleIds, onBrothers, onRoles, extra, loading }: {
-  brothers: Brother[];
-  roles: RoleOption[];
-  selfId: number | null;
-  brotherIds: number[];
-  roleIds: number[];
-  onBrothers: (ids: number[]) => void;
-  onRoles: (ids: number[]) => void;
-  extra?: React.ReactNode;
-  /** The roster is still on its way: hold its place rather than offer only roles. */
-  loading?: boolean;
-}) {
-  const [q, setQ] = useState("");
-  const members = useMemo(() => [...brothers].sort((a, b) => (a.id === selfId ? -1 : b.id === selfId ? 1 : a.name.localeCompare(b.name))), [brothers, selfId]);
-  // Two people who share a first name get an initial so the chips stay apart.
-  const firstCount = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const b of brothers) m.set(first(b.name), (m.get(first(b.name)) ?? 0) + 1);
-    return m;
-  }, [brothers]);
-  const label = (b: Brother) => {
-    if (b.id === selfId) return "Me";
-    const f = first(b.name);
-    const last = b.name.trim().split(/\s+/)[1];
-    return (firstCount.get(f) ?? 0) > 1 && last ? `${f} ${last[0]}.` : f;
-  };
-  const long = brothers.length + roles.length > 14;
-  const needle = q.trim().toLowerCase();
-  const showB = members.filter(b => !needle || b.name.toLowerCase().includes(needle) || brotherIds.includes(b.id));
-  const showR = roles.filter(r => !needle || r.name.toLowerCase().includes(needle) || roleIds.includes(r.id));
-  const holders = (roleId: number) => brothers.filter(b => b.roles?.some(r => r.id === roleId)).length;
-  const toggle = (list: number[], id: number) => list.includes(id) ? list.filter(x => x !== id) : [...list, id];
-  if (loading && brothers.length === 0) {
-    return <div className="chips people" aria-busy="true" aria-label="Loading people">{[64, 82, 70, 90, 76].map((w, i) => <span key={i} className="chip-wait" style={{ width: w }} />)}</div>;
-  }
-  return (
-    <>
-      {long && (
-        <input className="inp find" type="search" value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Find a person or role" aria-label="Find a person or role" autoComplete="off" />
-      )}
-      <div className="chips people">
-        {showB.map(b => (
-          <button key={`b${b.id}`} type="button" aria-pressed={brotherIds.includes(b.id)} onClick={() => onBrothers(toggle(brotherIds, b.id))}>
-            <PAvatar id={b.id} name={b.name} url={b.avatarUrl} size="xs" />{label(b)}
-          </button>
-        ))}
-        {showR.map(r => (
-          <button key={`r${r.id}`} type="button" className="role" style={{ ["--rc" as string]: r.color ?? "var(--paper-3)" }}
-            aria-pressed={roleIds.includes(r.id)} onClick={() => onRoles(toggle(roleIds, r.id))}
-            title={`Whoever holds ${r.name}, now and later`}>
-            {r.name}<small>{holders(r.id)}</small>
-          </button>
-        ))}
-        {extra}
-        {needle && showB.length + showR.length === 0 && <span className="none">No one called “{q.trim()}”.</span>}
-      </div>
-    </>
-  );
-}
-
-export function PaperTaskSheet({
-  brothers, roles, selfId, today, minDate, maxDate, initial, editing, error, onSubmit, onDelete, onCancel, peopleLoading,
-}: {
-  brothers: Brother[];
-  roles: RoleOption[];
-  selfId: number | null;
-  today: Date;
-  minDate?: string;
-  maxDate?: string;
-  initial?: TaskFormInitial;
-  editing: boolean;
-  error?: string | null;
-  onSubmit: (value: TaskFormValue) => void;
-  onDelete?: () => void;
-  onCancel: () => void;
-  /** Opened before the roster loaded (the dashboard's quick actions). */
-  peopleLoading?: boolean;
-}) {
-  const init = initial ?? { title: "", dueDate: "", notes: "", brotherIds: [], roleIds: [], everyone: null };
-  const quick = quickDays(today);
-  const [title, setTitle] = useState(init.title);
-  // null = not chosen yet; "none" = deliberately undated; else an ISO date.
-  const [due, setDue] = useState<string | null>(editing ? (init.dueDate || "none") : null);
-  const [picking, setPicking] = useState(!!init.dueDate && !quick.some(q => q.iso === init.dueDate));
-  const [brotherIds, setBrotherIds] = useState<number[]>(init.everyone ? [] : init.brotherIds);
-  const [roleIds, setRoleIds] = useState<number[]>(init.everyone ? [] : init.roleIds);
-  const [everyone, setEveryone] = useState(!!init.everyone);
-  const [ev, setEv] = useState<TaskEveryoneMode | null>(init.everyone ?? null);
-  const [notes, setNotes] = useState(init.notes);
-  const [showNote, setShowNote] = useState(!!init.notes);
-  const [local, setLocal] = useState<string | null>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
-
-  const inTerm = (iso: string) => (!minDate || iso >= minDate) && (!maxDate || iso <= maxDate);
-  const dated = due && due !== "none" ? due : null;
-
-  function submit() {
-    let err: string | null = null;
-    if (!title.trim()) err = "Say what needs doing.";
-    else if (due == null) err = "Pick when it’s due, or No date.";
-    else if (dated && dated !== init.dueDate && !inTerm(dated)) err = "That date is outside this semester.";
-    else if (!everyone && brotherIds.length + roleIds.length === 0) err = "Pick who’s on it.";
-    else if (everyone && !ev) err = "Does each person do it, or one person for everyone?";
-    setLocal(err);
-    if (err) { if (!title.trim()) titleRef.current?.focus(); return; }
-    onSubmit({
-      title: title.trim(),
-      dueDate: dated ?? "",
-      notes: notes.trim(),
-      assigneeBrotherIds: everyone ? [] : brotherIds,
-      assigneeRoleIds: everyone ? [] : roleIds,
-      everyone: everyone ? ev : null,
-    });
-  }
-
-  let lands: React.ReactNode;
-  if (due == null) lands = <span>Pick when it’s due.</span>;
-  else if (!dated) lands = <><span className="tks-stub none" aria-hidden><small>ANY</small><b>—</b></span><span>Goes to the bottom of <b>Upcoming</b>.</span></>;
-  else {
-    const d = dateOf(dated), past = dFrom(dated, today) < 0;
-    lands = (
-      <>
-        <span className={past ? "over" : "up"}><span className="tks-stub" aria-hidden><small>{MON[d.getMonth()]}</small><b>{d.getDate()}</b></span></span>
-        <span>{past ? <>Goes in <b>Overdue</b> — that date has passed.</> : <>Goes in <b>Upcoming</b>, due {DOW[d.getDay()]}, {fmtDate(dated)}.</>}</span>
-      </>
-    );
-  }
-  const shown = local ?? error ?? null;
-
-  return (
-    <form className="ptk-sheet tks-scope tks-sheet" noValidate onSubmit={e => { e.preventDefault(); submit(); }}
-      onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); } }}>
-      <div className="mh">
-        <span className="tile"><Ic name="box" /></span>
-        <h2>{editing ? "Edit task" : "New task"}</h2>
-      </div>
-      <div className="mb">
-        <div className="fld">
-          <label htmlFor="tks-f-title">What needs doing</label>
-          <input id="tks-f-title" ref={titleRef} className="inp big" value={title} autoFocus autoComplete="off" maxLength={200}
-            placeholder="Book the room for chapter" onChange={e => { setTitle(e.target.value); setLocal(null); }} />
-        </div>
-
-        <div className="fld">
-          <span className="lab">When it’s due</span>
-          <div className="chips" role="group" aria-label="When it’s due">
-            {quick.map(q => (
-              <button key={q.iso} type="button" aria-pressed={!picking && due === q.iso} disabled={!inTerm(q.iso)}
-                title={inTerm(q.iso) ? undefined : "Outside this semester"}
-                onClick={() => { setDue(q.iso); setPicking(false); setLocal(null); }}>
-                {q.label} <small>{chipDate(q.iso)}</small>
-              </button>
-            ))}
-            <button type="button" aria-pressed={picking} onClick={() => { setPicking(true); setDue(dated && !quick.some(q => q.iso === dated) ? dated : isoOf(plusDays(today, 14))); setLocal(null); }}>
-              <Ic name="cal" />Pick a date
-            </button>
-            {picking && (
-              <input className="inp date" type="date" value={dated ?? ""} min={minDate} max={maxDate} aria-label="Exact date"
-                onChange={e => { if (e.target.value) setDue(e.target.value); }} />
-            )}
-            <button type="button" aria-pressed={due === "none"} onClick={() => { setDue("none"); setPicking(false); setLocal(null); }}>No date</button>
-          </div>
-        </div>
-
-        <div className="fld">
-          <span className="lab">Who’s on it</span>
-          <WhoPicker brothers={brothers} roles={roles} selfId={selfId} loading={peopleLoading}
-            brotherIds={everyone ? [] : brotherIds} roleIds={everyone ? [] : roleIds}
-            onBrothers={ids => { setBrotherIds(ids); setEveryone(false); setLocal(null); }}
-            onRoles={ids => { setRoleIds(ids); setEveryone(false); setLocal(null); }}
-            extra={
-              <button type="button" aria-pressed={everyone} onClick={() => { setEveryone(!everyone); setLocal(null); }}>
-                <Ic name="people" />Everyone
-              </button>
-            } />
-          {everyone && (
-            <div className="chips ev" role="group" aria-label="Who has to finish it">
-              <button type="button" aria-pressed={ev === "each"} onClick={() => { setEv("each"); setLocal(null); }}>Each person does it</button>
-              <button type="button" aria-pressed={ev === "any"} onClick={() => { setEv("any"); setLocal(null); }}>One person, for everyone</button>
-            </div>
-          )}
-          {everyone && <p className="hint">{ev === "each"
-            ? `All ${brothers.length} members tick their own part, and anyone who joins later gets it too.`
-            : ev === "any" ? "Anyone can pick it up. The first to finish ticks it off for the chapter."
-            : `All ${brothers.length} members, and anyone who joins later.`}</p>}
-        </div>
-
-        {showNote ? (
-          <div className="fld">
-            <label htmlFor="tks-f-note">Note <i>· optional</i></label>
-            <textarea id="tks-f-note" className="inp" rows={3} maxLength={2000} value={notes} autoFocus={!init.notes}
-              placeholder="Links, details, what “done” means…" onChange={e => setNotes(e.target.value)} />
-          </div>
-        ) : (
-          <button type="button" className="addnote" onClick={() => setShowNote(true)}><Ic name="plus" />Add a note</button>
-        )}
-      </div>
-
-      {shown && <p className="err" role="alert">{shown}</p>}
-
-      <div className="mf">
-        <span className="lands">{lands}</span>
-        {editing && onDelete && <button type="button" className="tks-btn soft danger" onClick={onDelete}><Ic name="trash" />Delete</button>}
-        <button type="button" className="tks-btn soft" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="tks-btn">{editing ? "Save" : "Add task"}</button>
-      </div>
-    </form>
-  );
-}
-
-type CloseKey = string | "none" | null; // an ISO date, "none" (when I close it), or not chosen
-
-export function PaperPollSheet({
-  brothers, roles, selfId, today, minDate, maxDate, initial, editing, optionsLocked, error, onSubmit, onCancel,
-}: {
-  brothers: Brother[];
-  roles: RoleOption[];
-  selfId: number | null;
-  today: Date;
-  minDate?: string;
-  maxDate?: string;
-  initial?: PollFormInitial;
-  editing: boolean;
-  optionsLocked: boolean;
-  error?: string | null;
-  onSubmit: (value: PollFormValue) => void;
-  onCancel: () => void;
-}) {
-  const fri = (5 - today.getDay() + 7) % 7 || 7;
-  const quick = [
-    { label: "Tomorrow", iso: isoOf(plusDays(today, 1)) },
-    { label: DOW[plusDays(today, fri).getDay()], iso: isoOf(plusDays(today, fri)) },
-    { label: "Next week", iso: isoOf(plusDays(today, 7)) },
-  ].filter((q, i, all) => all.findIndex(x => x.iso === q.iso) === i);
-  const inTerm = (iso: string) => (!minDate || iso >= minDate) && (!maxDate || iso <= maxDate);
-  const allIds = brothers.map(b => b.id);
-  const initAll = !initial || (initial.roleIds.length === 0 && allIds.length > 0 && allIds.every(id => initial.brotherIds.includes(id)));
-
-  const [question, setQuestion] = useState(initial?.question ?? "");
-  const [opts, setOpts] = useState<string[]>(initial?.options.length ? initial.options : ["", ""]);
-  const [all, setAll] = useState(initAll);
-  const [brotherIds, setBrotherIds] = useState<number[]>(initAll ? [] : initial?.brotherIds ?? []);
-  const [roleIds, setRoleIds] = useState<number[]>(initAll ? [] : initial?.roleIds ?? []);
-  const defaultClose = quick.find(q => q.label !== "Tomorrow" && inTerm(q.iso))?.iso ?? null;
-  const [close, setClose] = useState<CloseKey>(initial ? (initial.closeDate || "none") : defaultClose);
-  const [picking, setPicking] = useState(!!initial?.closeDate && !quick.some(q => q.iso === initial.closeDate));
-  const [local, setLocal] = useState<string | null>(null);
-  const qRef = useRef<HTMLInputElement>(null);
-  const optRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const focusNext = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (focusNext.current == null) return;
-    optRefs.current[focusNext.current]?.focus();
-    focusNext.current = null;
-  }, [opts.length]);
-
-  const filled = opts.map(o => o.trim()).filter(Boolean);
-  // Who it reaches: everyone, or the picked people plus whoever holds the picked roles.
-  const reach = useMemo(() => {
-    if (all) return brothers.length;
-    const ids = new Set(brotherIds);
-    for (const b of brothers) if (b.roles?.some(r => roleIds.includes(r.id))) ids.add(b.id);
-    return ids.size;
-  }, [all, brothers, brotherIds, roleIds]);
-
-  function setOpt(i: number, v: string) { setOpts(o => o.map((x, j) => j === i ? v : x)); setLocal(null); }
-  function addOpt() { if (opts.length >= 10) return; focusNext.current = opts.length; setOpts(o => [...o, ""]); }
-  function removeOpt(i: number) { setOpts(o => o.filter((_, j) => j !== i)); }
-
-  function submit() {
-    const labels = opts.map(o => o.trim()).filter(Boolean);
-    const lower = labels.map(l => l.toLowerCase());
-    const closeIso = close && close !== "none" ? close : "";
-    let err: string | null = null;
-    if (!question.trim()) err = "Write the question.";
-    else if (labels.length < 2) err = "Give at least two choices.";
-    else if (lower.some((l, i) => lower.indexOf(l) !== i)) err = "Two choices say the same thing.";
-    else if (!all && brotherIds.length + roleIds.length === 0) err = "Pick who votes.";
-    else if (close == null) err = "Pick when it closes.";
-    else if (closeIso && !inTerm(closeIso)) err = "That date is outside this semester.";
-    setLocal(err);
-    if (err) { if (!question.trim()) qRef.current?.focus(); return; }
-    onSubmit({
-      question: question.trim(),
-      closeDate: closeIso,
-      options: labels,
-      assigneeBrotherIds: all ? allIds : brotherIds,
-      assigneeRoleIds: all ? [] : roleIds,
-    });
-  }
-
-  const shown = local ?? error ?? null;
-  const who = all ? `All ${brothers.length} members` : reach === 1 ? "1 person" : `${reach} people`;
-
-  return (
-    <form className="ptk-sheet tks-scope tks-sheet poll" noValidate onSubmit={e => { e.preventDefault(); submit(); }}
-      onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); } }}>
-      <div className="mh">
-        <span className="tile"><Ic name="bars" /></span>
-        <h2>{editing ? "Edit poll" : "New poll"}</h2>
-      </div>
-      <div className="mb">
-        <div className="fld">
-          <label htmlFor="tks-p-q">What are you asking</label>
-          <input id="tks-p-q" ref={qRef} className="inp big" value={question} autoFocus autoComplete="off" maxLength={300}
-            placeholder="Where should we hold spring formal?" onChange={e => { setQuestion(e.target.value); setLocal(null); }} />
-        </div>
-
-        <div className="fld">
-          <span className="lab">The choices <i>· 2 to 10</i></span>
-          {optionsLocked ? (
-            <>
-              <div className="popts">
-                {opts.map((o, i) => <div key={i} className="popt two"><span className="bx" aria-hidden /><span className="inp locked">{o}</span></div>)}
-              </div>
-              <p className="hint"><Ic name="lock" />Votes are in, so the choices are locked.</p>
-            </>
-          ) : (
-            <>
-              <div className="popts">
-                {opts.map((o, i) => (
-                  <div key={i} className={`popt${opts.length > 2 ? "" : " two"}`}>
-                    <span className="bx" aria-hidden />
-                    <input ref={el => { optRefs.current[i] = el; }} className="inp" value={o} maxLength={120} autoComplete="off"
-                      placeholder={`Choice ${i + 1}`} aria-label={`Choice ${i + 1}`}
-                      onChange={e => setOpt(i, e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key !== "Enter" || e.metaKey || e.ctrlKey) return;
-                        e.preventDefault();
-                        if (i === opts.length - 1) { if (o.trim() && opts.length < 10) addOpt(); }
-                        else optRefs.current[i + 1]?.focus();
-                      }} />
-                    {opts.length > 2 && (
-                      <button type="button" className="rm" onClick={() => removeOpt(i)} aria-label={`Remove choice ${i + 1}`}><Ic name="x" /></button>
-                    )}
-                  </div>
-                ))}
-              </div>
-              {opts.length < 10 && <button type="button" className="addnote" onClick={addOpt}><Ic name="plus" />Add a choice</button>}
-            </>
-          )}
-        </div>
-
-        <div className="fld">
-          <span className="lab">Who votes</span>
-          <div className="chips" role="group" aria-label="Who votes">
-            <button type="button" aria-pressed={all} onClick={() => { setAll(true); setLocal(null); }}><Ic name="people" />Everyone <small>{brothers.length}</small></button>
-            <button type="button" aria-pressed={!all} onClick={() => { setAll(false); setLocal(null); }}>Pick people or roles</button>
-          </div>
-          {!all && (
-            <WhoPicker brothers={brothers} roles={roles} selfId={selfId} brotherIds={brotherIds} roleIds={roleIds}
-              onBrothers={ids => { setBrotherIds(ids); setLocal(null); }} onRoles={ids => { setRoleIds(ids); setLocal(null); }} />
-          )}
-        </div>
-
-        <div className="fld">
-          <span className="lab">When it closes</span>
-          <div className="chips" role="group" aria-label="When it closes">
-            {quick.map(q => (
-              <button key={q.iso} type="button" aria-pressed={!picking && close === q.iso} disabled={!inTerm(q.iso)}
-                title={inTerm(q.iso) ? undefined : "Outside this semester"}
-                onClick={() => { setClose(q.iso); setPicking(false); setLocal(null); }}>
-                {q.label} <small>{chipDate(q.iso)}</small>
-              </button>
-            ))}
-            <button type="button" aria-pressed={picking} onClick={() => { setPicking(true); setClose(close && close !== "none" && !quick.some(q => q.iso === close) ? close : isoOf(plusDays(today, 14))); setLocal(null); }}>
-              <Ic name="cal" />Pick a date
-            </button>
-            {picking && (
-              <input className="inp date" type="date" value={close && close !== "none" ? close : ""} min={minDate} max={maxDate} aria-label="Close date"
-                onChange={e => { if (e.target.value) setClose(e.target.value); }} />
-            )}
-            <button type="button" aria-pressed={close === "none"} onClick={() => { setClose("none"); setPicking(false); setLocal(null); }}>When I close it</button>
-          </div>
-        </div>
-      </div>
-
-      {shown && <p className="err" role="alert">{shown}</p>}
-
-      <div className="mf">
-        <span className="lands"><span>{who} {reach === 1 && !all ? "gets" : "get"} it on their plate{filled.length >= 2 ? ` with ${filled.length} choices` : ""}. Anonymous.</span></span>
-        <button type="button" className="tks-btn soft" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="tks-btn lilac">{editing ? "Save" : "Open the vote"}</button>
-      </div>
-    </form>
-  );
-}
-
 // ── ballot sheet ─────────────────────────────────────────────────────────────
 export function PaperBallot({ poll, today, brothers, canManage, canVote, onVote, onClosePoll, onReopen, onEdit, onDelete, onDone }: {
   poll: Poll;
@@ -950,10 +554,10 @@ export function PaperBallot({ poll, today, brothers, canManage, canVote, onVote,
   const counted = poll.options.every(o => o.voteCount != null);
   const lead = leaderOf(poll);
 
-  const roleOnly = poll.assignments.length > 0 && poll.assignments.every(a => a.roleId != null);
+  const roleOnly = !poll.everyone && poll.assignments.length > 0 && poll.assignments.every(a => a.roleId != null);
   const whoLabel = roleOnly
     ? `${andList(poll.assignments.map(a => a.role?.name ?? "").filter(Boolean))} vote`
-    : poll.assigneeCount >= brothers.length && brothers.length > 1 ? "Everyone votes" : `${plural(poll.assigneeCount, "voter")}`;
+    : poll.everyone || (poll.assigneeCount >= brothers.length && brothers.length > 1) ? "Everyone votes" : `${plural(poll.assigneeCount, "voter")}`;
 
   async function cast() {
     if (pick == null || casting) return;

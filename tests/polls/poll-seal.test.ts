@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester } from "../setup/factories";
 import { db } from "@/lib/db";
-import { createPoll, castVote, closePoll, listPolls } from "@/lib/services/poll-service";
+import { createPoll, castVote, closePoll, listPolls, updatePoll } from "@/lib/services/poll-service";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { RequestContext } from "@/lib/context";
 
@@ -63,6 +63,25 @@ function createRole(orgId: number, name = "Voters") {
 function grantRole(orgId: number, brotherId: number, roleId: number) {
   return testPrisma.brotherRole.create({ data: { organizationId: orgId, brotherId, roleId } });
 }
+/**
+ * A poll from before everyone-only polls: addressed to picked members/roles via
+ * PollAssignment rows. createPoll can't make one any more, so seed it directly.
+ */
+async function legacyPoll(orgId: number, createdById: number, to: { brotherIds?: number[]; roleIds?: number[] }) {
+  const poll = await testPrisma.poll.create({
+    data: { organizationId: orgId, question: "Q", status: "open", createdById, everyone: false },
+  });
+  await testPrisma.pollOption.createMany({
+    data: ["A", "B"].map((label, i) => ({ organizationId: orgId, pollId: poll.id, label, position: i })),
+  });
+  await testPrisma.pollAssignment.createMany({
+    data: [
+      ...(to.brotherIds ?? []).map(brotherId => ({ organizationId: orgId, pollId: poll.id, brotherId, roleId: null })),
+      ...(to.roleIds ?? []).map(roleId => ({ organizationId: orgId, pollId: poll.id, brotherId: null, roleId })),
+    ],
+  });
+  return poll;
+}
 function one<T>(list: T[]): T {
   if (list.length !== 1) throw new Error(`expected exactly one, got ${list.length}`);
   return list[0];
@@ -76,17 +95,14 @@ describe("blind ballot — regular voter", () => {
   it("withholds per-option counts until the voter casts, then reveals them", async () => {
     const { org, adminCtx } = await seedOrg();
     const voter = await createBrother({ orgId: org.id });
-    const poll = await createPoll(adminCtx, {
-      question: "What's the theme?", options: ["Arcade", "Luau"],
-      assigneeBrotherIds: [voter.id], assigneeRoleIds: [],
-    });
+    const poll = await createPoll(adminCtx, { question: "What's the theme?", options: ["Arcade", "Luau"] });
 
     const voterCtx = ctxFor(org.id, voter.id);
     const before = one(await listPolls(voterCtx, { mine: true }));
     expect(before.sealed).toBe(true);
     expect(before.options.every(o => o.voteCount === null)).toBe(true);
     expect(before.totalVotes).toBe(0);       // the "N sealed" count still ships
-    expect(before.assigneeCount).toBe(1);
+    expect(before.assigneeCount).toBe(2); // the whole roster: admin + voter
     expect(before.myVoteOptionId).toBeNull();
     expect(before.pendingVoters).toBeUndefined();
 
@@ -104,9 +120,7 @@ describe("blind ballot — regular voter", () => {
     const { org, adminCtx } = await seedOrg();
     const voter = await createBrother({ orgId: org.id });
     const bystander = await createBrother({ orgId: org.id }); // can read, not assigned
-    const poll = await createPoll(adminCtx, {
-      question: "Q", options: ["A", "B"], assigneeBrotherIds: [voter.id], assigneeRoleIds: [],
-    });
+    const poll = await legacyPoll(org.id, adminCtx.actorId, { brotherIds: [voter.id] });
     await castVote(ctxFor(org.id, voter.id), poll.id, one(await listPolls(ctxFor(org.id, voter.id), { mine: true })).options[0].id);
 
     const bystanderCtx = ctxFor(org.id, bystander.id);
@@ -135,9 +149,7 @@ describe("manager visibility (MANAGE_POLLS)", () => {
     await grantRole(org.id, alice.id, role.id);
     await grantRole(org.id, bob.id, role.id);
 
-    const poll = await createPoll(adminCtx, {
-      question: "Q", options: ["A", "B"], assigneeBrotherIds: [], assigneeRoleIds: [role.id],
-    });
+    const poll = await legacyPoll(org.id, adminCtx.actorId, { roleIds: [role.id] });
 
     // Alice votes; Bob does not.
     const aliceCtx = ctxFor(org.id, alice.id);
@@ -161,9 +173,7 @@ describe("manager visibility (MANAGE_POLLS)", () => {
   it("reports an empty pendingVoters roster once everyone has voted", async () => {
     const { org, adminCtx } = await seedOrg();
     const voter = await createBrother({ orgId: org.id });
-    const poll = await createPoll(adminCtx, {
-      question: "Q", options: ["A", "B"], assigneeBrotherIds: [voter.id], assigneeRoleIds: [],
-    });
+    const poll = await legacyPoll(org.id, adminCtx.actorId, { brotherIds: [voter.id] });
     const voterCtx = ctxFor(org.id, voter.id);
     await castVote(voterCtx, poll.id, one(await listPolls(voterCtx, { mine: true })).options[0].id);
 
@@ -182,14 +192,69 @@ describe("tenancy", () => {
   it("a manager in another org sees none of this org's polls", async () => {
     const { org, adminCtx } = await seedOrg("org-a");
     const voter = await createBrother({ orgId: org.id });
-    await createPoll(adminCtx, {
-      question: "Ours", options: ["A", "B"], assigneeBrotherIds: [voter.id], assigneeRoleIds: [],
-    });
+    await createPoll(adminCtx, { question: "Ours", options: ["A", "B"], assigneeBrotherIds: [voter.id] });
 
     const otherOrg = await createOrg("Other", "org-b");
     const otherMgr = await createBrother({ orgId: otherOrg.id });
     const otherMgrCtx = ctxFor(otherOrg.id, otherMgr.id, { permissions: PERMISSIONS.MANAGE_POLLS });
 
     expect(await listPolls(otherMgrCtx)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Everyone polls: every new poll goes to the whole chapter, and all must vote
+// ---------------------------------------------------------------------------
+
+describe("everyone polls", () => {
+  it("ignores any audience a client sends and addresses the whole roster", async () => {
+    const { org, adminCtx } = await seedOrg();
+    const a = await createBrother({ orgId: org.id });
+    const b = await createBrother({ orgId: org.id });
+    const poll = await createPoll(adminCtx, { question: "Q", options: ["A", "B"], assigneeBrotherIds: [a.id] });
+
+    expect(poll.everyone).toBe(true);
+    expect(poll.assignments).toEqual([]);
+    expect(await testPrisma.pollAssignment.count({ where: { pollId: poll.id } })).toBe(0);
+    // b was never named, yet it's on their plate and they can vote.
+    const bCtx = ctxFor(org.id, b.id);
+    const mine = one(await listPolls(bCtx, { mine: true }));
+    expect(mine.id).toBe(poll.id);
+    await castVote(bCtx, poll.id, mine.options[0].id);
+    expect(one(await listPolls(bCtx, { mine: true })).myVoteOptionId).toBe(mine.options[0].id);
+  });
+
+  it("reaches members who join after it opened, and leaves out archived ones", async () => {
+    const { org, adminCtx } = await seedOrg();
+    const leaver = await createBrother({ orgId: org.id });
+    const poll = await createPoll(adminCtx, { question: "Q", options: ["A", "B"] });
+
+    const late = await createBrother({ orgId: org.id });
+    await testPrisma.membership.updateMany({ where: { organizationId: org.id, brotherId: leaver.id }, data: { archivedAt: new Date() } });
+
+    expect(one(await listPolls(ctxFor(org.id, late.id), { mine: true })).id).toBe(poll.id);
+    const view = one(await listPolls(adminCtx));
+    expect(view.assigneeCount).toBe(2); // admin + late, not the archived leaver
+    expect(view.pendingVoters?.map(v => v.brotherId).sort()).toEqual([adminCtx.actorId, late.id].sort());
+  });
+
+  it("refuses to narrow an everyone poll's audience", async () => {
+    const { org, adminCtx } = await seedOrg();
+    const a = await createBrother({ orgId: org.id });
+    const poll = await createPoll(adminCtx, { question: "Q", options: ["A", "B"] });
+    await expect(updatePoll(adminCtx, poll.id, { assigneeBrotherIds: [a.id] })).rejects.toThrow(/whole chapter/);
+    // Other edits still go through.
+    expect((await updatePoll(adminCtx, poll.id, { question: "Q2" })).question).toBe("Q2");
+  });
+
+  it("keeps an older targeted poll's audience as it was", async () => {
+    const { org, adminCtx } = await seedOrg();
+    const voter = await createBrother({ orgId: org.id });
+    const bystander = await createBrother({ orgId: org.id });
+    const poll = await legacyPoll(org.id, adminCtx.actorId, { brotherIds: [voter.id] });
+
+    expect(await listPolls(ctxFor(org.id, bystander.id), { mine: true })).toHaveLength(0);
+    await expect(castVote(ctxFor(org.id, bystander.id), poll.id, one(await listPolls(adminCtx)).options[0].id)).rejects.toThrow();
+    expect(one(await listPolls(adminCtx)).everyone).toBe(false);
   });
 });

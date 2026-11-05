@@ -39,7 +39,7 @@ import { useChapter } from "../../context/ChapterContext";
 import { useToast } from "../../components/dashboard/Toast";
 import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm, type AttendanceChange } from "../../components/dashboard/forms";
 import type { RoleOption, TaskFormValue } from "./tasks/task-forms";
-import { PaperTaskSheet } from "./tasks/PaperTasks";
+import { PaperTaskSheet } from "./tasks/TaskSheets";
 import { REIMBURSE_QUERY, type QuickActionKey } from "../../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
@@ -1605,6 +1605,7 @@ export default function Home() {
         body: JSON.stringify({
           title: value.title,
           dueDate: value.dueDate || undefined,
+          dueTime: value.dueDate && value.dueTime ? value.dueTime : undefined,
           notes: value.notes || undefined,
           assigneeBrotherIds: value.assigneeBrotherIds,
           assigneeRoleIds: value.assigneeRoleIds,

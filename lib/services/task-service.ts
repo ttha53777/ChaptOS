@@ -182,6 +182,7 @@ export async function createTask(ctx: RequestContext, input: CreateTaskInput) {
         organizationId: orgId,
         title:       input.title,
         dueDate:     input.dueDate ?? null,
+        dueTime:     input.dueDate ? input.dueTime ?? null : null,
         notes:       input.notes ?? null,
         everyone,
         status:      TaskStatus.Open,
@@ -218,6 +219,7 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
   const editsFields =
     input.title !== undefined ||
     input.dueDate !== undefined ||
+    input.dueTime !== undefined ||
     input.notes !== undefined ||
     input.assigneeBrotherIds !== undefined ||
     input.assigneeRoleIds !== undefined ||
@@ -255,6 +257,12 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
   // whole form, and the task's history (getTaskDetail) reads changedFields back.
   if (input.title !== undefined)   { data.title = input.title; if (input.title !== existing.title) changedFields.push("title"); }
   if (input.dueDate !== undefined) { data.dueDate = input.dueDate; if (input.dueDate !== existing.dueDate) changedFields.push("dueDate"); }
+  // A time rides on the date: clearing the date clears it, and one can't be set
+  // on a task left undated (CHECK task_due_time_shape would refuse it anyway).
+  const nextDate = input.dueDate !== undefined ? input.dueDate : existing.dueDate;
+  const nextTime = nextDate == null ? null : input.dueTime !== undefined ? input.dueTime : existing.dueTime;
+  if (input.dueTime != null && nextDate == null) throw new ValidationError("A due time needs a due date");
+  if (nextTime !== existing.dueTime) { data.dueTime = nextTime; changedFields.push("dueTime"); }
   if (input.notes !== undefined)   { data.notes = input.notes; if ((input.notes || null) !== (existing.notes || null)) changedFields.push("notes"); }
   if (changesStatus) {
     data.status = input.status;

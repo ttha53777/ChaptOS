@@ -54,6 +54,8 @@ export interface PollDTO {
   createdAt: string;
   options: PollOptionDTO[];
   assignments: PollAssignmentDTO[];
+  /** Whole active roster, resolved at read time; `assignments` is then empty. */
+  everyone: boolean;
   totalVotes: number;
   /** Number of members who can vote (direct assignees ∪ current role holders). */
   assigneeCount: number;
@@ -132,8 +134,13 @@ async function buildDTOs(ctx: RequestContext, rows: PollRow[], tx?: Tx): Promise
     }
   }
 
+  // An Everyone poll resolves to the active roster (not ghosts, not archived),
+  // the same set an Everyone task does, so later joiners get the vote too.
+  const roster = rows.some(r => r.everyone) ? await db.member.listIds({ archivedAt: null }) : [];
+
   // The concrete set of members who can vote on a poll.
   const assigneeIdsOf = (row: PollRow): Set<number> => {
+    if (row.everyone) return new Set(roster);
     const ids = new Set<number>();
     for (const a of row.assignments) {
       if (a.brotherId != null) ids.add(a.brotherId);
@@ -184,6 +191,7 @@ async function buildDTOs(ctx: RequestContext, rows: PollRow[], tx?: Tx): Promise
       assignments: row.assignments.map(a => ({
         id: a.id, brotherId: a.brotherId, roleId: a.roleId, brother: a.brother, role: a.role,
       })),
+      everyone:       row.everyone,
       totalVotes:     row.votes.length,
       assigneeCount:  assigneeIdsOf(row).size,
       myVoteOptionId: myVote ? myVote.optionId : null,
@@ -231,6 +239,7 @@ async function actorRoleIds(ctx: RequestContext, tx?: Tx): Promise<Set<number>> 
  * granting someone a role gives them the vote on that role's open polls.
  */
 function isAssignee(poll: PollRow, actorId: number, heldRoleIds: Set<number>): boolean {
+  if (poll.everyone) return true; // the actor is a member of this org by construction
   return poll.assignments.some(a =>
     (a.brotherId != null && a.brotherId === actorId) ||
     (a.roleId != null && heldRoleIds.has(a.roleId)),
@@ -278,10 +287,10 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
 
   if (input.closeDate) await assertWithinActiveSemester(ctx, input.closeDate);
 
-  const { brotherIds, roleIds } = await resolveAssignees(ctx, input.assigneeBrotherIds, input.assigneeRoleIds);
+  // Every new poll is an Everyone poll: no assignment rows, the whole active
+  // roster votes. Any assignee ids an older client sends are ignored.
 
-  // Raw `tx` client commits the poll, its options, and its assignments
-  // atomically. The tx client is NOT org-scoped (see lib/db/tenant.ts), so
+  // Raw `tx` client commits the poll and its options atomically. The tx client is NOT org-scoped (see lib/db/tenant.ts), so
   // every write inside carries organizationId explicitly.
   const orgId = ctx.orgId;
   const created = await ctx.db.$transaction(async (tx) => {
@@ -290,6 +299,7 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
         organizationId: orgId,
         question:    input.question,
         closeDate:   input.closeDate ?? null,
+        everyone:    true,
         status:      PollStatus.Open,
         createdById: ctx.actorId,
       },
@@ -297,19 +307,13 @@ export async function createPoll(ctx: RequestContext, input: CreatePollInput): P
     await tx.pollOption.createMany({
       data: input.options.map((label, i) => ({ organizationId: orgId, pollId: poll.id, label, position: i })),
     });
-    await tx.pollAssignment.createMany({
-      data: [
-        ...brotherIds.map(brotherId => ({ organizationId: orgId, pollId: poll.id, brotherId, roleId: null })),
-        ...roleIds.map(roleId => ({ organizationId: orgId, pollId: poll.id, brotherId: null, roleId })),
-      ],
-    });
     return poll;
   });
 
   await emit(ctx, "poll.created", { type: "Poll", id: created.id }, {
     question: created.question,
     closeDate: created.closeDate,
-    assigneeCount: brotherIds.length + roleIds.length,
+    assigneeCount: (await ctx.db.member.listIds({ archivedAt: null })).length,
   });
 
   const [row] = await loadPolls(ctx, { ids: [created.id] });
@@ -363,6 +367,9 @@ export async function updatePoll(ctx: RequestContext, id: number, input: UpdateP
   // absent array keeps the existing rows for that side.
   const reassigning = input.assigneeBrotherIds !== undefined || input.assigneeRoleIds !== undefined;
   let nextAssignees: { brotherIds: number[]; roleIds: number[] } | null = null;
+  if (reassigning && existing.everyone) {
+    throw new ValidationError("This poll goes to the whole chapter; its voters can't be changed");
+  }
   if (reassigning) {
     nextAssignees = await resolveAssignees(
       ctx,

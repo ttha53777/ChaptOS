@@ -410,6 +410,32 @@ describe("dueDate validation", () => {
   });
 });
 
+describe("dueTime", () => {
+  it("validates the HH:MM shape and needs a date", () => {
+    const base = { title: "x", assigneeBrotherIds: [1] };
+    expect(createTaskInput.safeParse({ ...base, dueDate: "2026-06-30", dueTime: "17:30" }).success).toBe(true);
+    expect(createTaskInput.safeParse({ ...base, dueDate: "2026-06-30", dueTime: "24:00" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ ...base, dueDate: "2026-06-30", dueTime: "5pm" }).success).toBe(false);
+    expect(createTaskInput.safeParse({ ...base, dueTime: "17:30" }).success).toBe(false);
+  });
+
+  it("stores the time, keeps it across other edits, and drops it with the date", async () => {
+    const { admin, adminCtx } = await seedOrg();
+    const t = await createTask(adminCtx, { title: "Book room", dueDate: "2026-06-30", dueTime: "17:30", assigneeBrotherIds: [admin.id], assigneeRoleIds: [] });
+    expect(t.dueTime).toBe("17:30");
+
+    expect((await updateTask(adminCtx, t.id, { title: "Book the room" })).dueTime).toBe("17:30");
+    expect((await updateTask(adminCtx, t.id, { dueTime: "09:00" })).dueTime).toBe("09:00");
+    expect((await updateTask(adminCtx, t.id, { dueTime: null })).dueTime).toBeNull();
+
+    await updateTask(adminCtx, t.id, { dueTime: "12:00" });
+    const undated = await updateTask(adminCtx, t.id, { dueDate: null });
+    expect(undated.dueDate).toBeNull();
+    expect(undated.dueTime).toBeNull();
+    await expect(updateTask(adminCtx, t.id, { dueTime: "12:00" })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Events are best-effort and post-commit: a telemetry failure must not roll
 // back or fail the business write.

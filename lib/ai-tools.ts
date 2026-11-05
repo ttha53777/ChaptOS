@@ -1621,6 +1621,7 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
     id: r.id,
     title: r.title,
     dueDate: r.dueDate,
+    ...(r.dueTime ? { dueTime: r.dueTime } : {}),
     status: r.status,
     assignees: r.everyone === "each" ? "Everyone (each member does their own)"
       : r.everyone === "any" ? "Anyone (one person does it for the chapter)"
@@ -2577,7 +2578,7 @@ async function listPolls(args: ToolArgs, scoped: Scoped, orgId: number, access?:
       orderBy: { createdAt: "desc" },
       take: clampLimit(args.limit, 10, 50),
       select: {
-        id: true, question: true, status: true, closeDate: true,
+        id: true, question: true, status: true, closeDate: true, everyone: true,
         options: { orderBy: { position: "asc" }, select: { id: true, label: true } },
         votes: { select: { brotherId: true, optionId: true } },
         assignments: {
@@ -2591,9 +2592,11 @@ async function listPolls(args: ToolArgs, scoped: Scoped, orgId: number, access?:
     }),
     rosterNames(scoped, orgId),
   ]);
+  // Everyone polls vote as the whole active roster (poll-service buildDTOs).
+  const activeRoster = manager && polls.some(p => p.everyone) ? await scoped.member.listIds({ archivedAt: null }) : [];
 
   const mapped = polls.map(p => {
-    const assignees = new Set<number>();
+    const assignees = new Set<number>(p.everyone ? activeRoster : []);
     for (const a of p.assignments as { brotherId: number | null; role?: { brothers: { brotherId: number }[] } | null }[]) {
       if (a.brotherId != null) assignees.add(a.brotherId);
       for (const h of a.role?.brothers ?? []) assignees.add(h.brotherId);
@@ -3458,7 +3461,7 @@ async function proposeCastVote(args: ToolArgs, scoped: Scoped, pctx: ProposalCtx
       orderBy: { createdAt: "desc" },
       take: 50,
       select: {
-        id: true, question: true,
+        id: true, question: true, everyone: true,
         options: { orderBy: { position: "asc" }, select: { id: true, label: true } },
         assignments: { select: { brotherId: true, roleId: true } },
         votes: { where: { brotherId: pctx.actorId }, select: { optionId: true } },
@@ -3467,7 +3470,7 @@ async function proposeCastVote(args: ToolArgs, scoped: Scoped, pctx: ProposalCtx
     actorHeldRoleIds(scoped, pctx.actorId),
   ]);
   // Only polls the asker may vote on (castVote's assignee rule) are candidates.
-  const mine = open.filter(p => assignedTo(p.assignments, pctx.actorId, held));
+  const mine = open.filter(p => p.everyone || assignedTo(p.assignments, pctx.actorId, held));
   if (mine.length === 0) return badProposal("There are no open polls assigned to you.");
 
   let candidates = words ? bestMatches(mine, words, p => p.question) : mine;

@@ -18,7 +18,7 @@ function brother(over: Partial<Brother> & { id: number; name: string }): Brother
 }
 function task(over: Partial<Task> & { id: number }): Task {
   return {
-    title: "Task", dueDate: TODAY, status: "open", notes: null,
+    title: "Task", dueDate: TODAY, dueTime: null, status: "open", notes: null,
     createdById: null, completedById: null, completedAt: null, createdAt: "2026-05-01",
     assignments: [], everyone: null, doneCount: null, memberCount: null, ...over,
   };
@@ -29,7 +29,7 @@ function poll(over: Partial<Poll> & { id: number }): Poll {
   return {
     question: "Partner?", closeDate: null, status: "open", createdById: null, closedById: null, closedAt: null,
     createdAt: "2026-06-01", options: [{ id: 2, label: "B", position: 1, voteCount: null }, { id: 1, label: "A", position: 0, voteCount: null }],
-    assignments: [], totalVotes: 0, assigneeCount: 10, myVoteOptionId: null, sealed: true, ...over,
+    assignments: [], everyone: false, totalVotes: 0, assigneeCount: 10, myVoteOptionId: null, sealed: true, ...over,
   };
 }
 function reimb(over: Partial<Reimbursement> & { id: number }): Reimbursement {

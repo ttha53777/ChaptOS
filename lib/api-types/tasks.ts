@@ -22,6 +22,8 @@ export interface Task {
   id: number;
   title: string;
   dueDate: string | null;
+  /** "HH:MM" 24h on dueDate; null = any time that day (always null when undated). */
+  dueTime: string | null;
   status: "open" | "done";
   notes: string | null;
   createdById: number | null;
@@ -87,6 +89,9 @@ export interface Poll {
   createdAt: string;
   options: PollOption[];
   assignments: PollAssignment[];
+  /** The whole active roster votes, resolved live (`assignments` is then empty).
+   *  Every poll created since 2026-11 is one; older polls keep their assignments. */
+  everyone: boolean;
   totalVotes: number;
   // Members who can vote (direct assignees ∪ current role holders).
   assigneeCount: number;
