@@ -115,7 +115,8 @@ async function onlyRosterWho(ctx: RequestContext, details: EventDetail[]): Promi
 export async function createCalendar(ctx: RequestContext, input: CreateCalendarInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   if (input.details?.length) input = { ...input, details: await onlyRosterWho(ctx, input.details) };
-  if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
+  // A schedule's time is 24-hour ("10:00"); only typed text must say AM/PM.
+  if (!input.schedule && !timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   const templateId = input.agendaTemplateId ?? null;
   if (templateId != null) {
     if (input.category !== "chapter") throw new ValidationError("Agenda templates are for chapter meetings.");
@@ -243,7 +244,7 @@ export async function updateCalendar(ctx: RequestContext, id: number, input: Upd
     }
     guardLegacyNotes(locked, input);
     // Only a time being changed must say AM/PM, so older events stay editable.
-    if (input.time && input.time.trim() !== (locked.time ?? "").trim() && !timeIsClear(input.time)) throw new ValidationError(UNCLEAR_TIME);
+    if (!input.schedule && input.time && input.time.trim() !== (locked.time ?? "").trim() && !timeIsClear(input.time)) throw new ValidationError(UNCLEAR_TIME);
     if (input.date != null && input.schedule === undefined && input.time === undefined) {
       const followed = followDateChange(locked.schedule, input.date);
       if (followed) { data.schedule = followed.schedule; data.time = followed.time; }

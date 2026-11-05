@@ -311,7 +311,8 @@ async function assertOwnerInOrg(
 
 export async function createProgrammingTask(ctx: RequestContext, input: CreateProgrammingTaskInput) {
   if (input.schedule) input = { ...input, dueDate: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
-  if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
+  // A schedule's time is 24-hour ("10:00"); only typed text must say AM/PM.
+  if (!input.schedule && !timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   const types = await managedTypes(ctx);
   requireManagedCategory(types, input.category);
   await assertOwnerInOrg(ctx, input.ownerBrotherId, input.ownerRoleId);
@@ -350,7 +351,7 @@ export async function updateProgrammingTask(ctx: RequestContext, id: number, inp
   if (input.schedule) input = { ...input, dueDate: scheduleDate(input.schedule), time: scheduleTime(input.schedule) };
   const { row: existing, types } = await requireProgrammingEvent(ctx, id);
   // Only a time being changed must say AM/PM, so older events stay editable.
-  if (input.time && input.time.trim() !== (existing.time ?? "").trim() && !timeIsClear(input.time)) throw new ValidationError(UNCLEAR_TIME);
+  if (!input.schedule && input.time && input.time.trim() !== (existing.time ?? "").trim() && !timeIsClear(input.time)) throw new ValidationError(UNCLEAR_TIME);
 
   if (stageIsPublished(existing.stage)) {
     const frozen = FROZEN_WHEN_PUBLISHED.filter(f => input[f] !== undefined);

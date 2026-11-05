@@ -25,7 +25,8 @@ export async function listServiceEvents(ctx: RequestContext) {
 
 export async function createServiceEvent(ctx: RequestContext, input: CreateServiceEventInput) {
   if (input.schedule) input = { ...input, date: scheduleDate(input.schedule), time: scheduleTime(input.schedule) ?? undefined };
-  if (!timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
+  // A schedule's time is 24-hour ("10:00"); only typed text must say AM/PM.
+  if (!input.schedule && !timeIsClear(input.time ?? "")) throw new ValidationError(UNCLEAR_TIME);
   // Guard before the transaction so neither the CalendarEvent nor the
   // ServiceEvent row is written when the date is out of the active semester.
   await assertWithinActiveSemester(ctx, input.date);
