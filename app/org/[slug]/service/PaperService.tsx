@@ -26,6 +26,10 @@ export interface PsvEvent {
   createdAt: string;
   schedule?: Schedule | null;
   time?: string | null;
+  /** Stable across the swap from a temporary id to the saved one. */
+  clientKey?: string;
+  /** Added here but not saved yet: shown, but nothing can open or act on it. */
+  pending?: boolean;
 }
 
 export interface PsvParticipation {
@@ -100,6 +104,12 @@ export function DeskDate({ date, up }: { date: string; up?: boolean }) {
 /** What an edit can change — a differing signature means the card was re-inked. */
 function sig(e: PsvEvent): string {
   return JSON.stringify([e.title, e.date, e.location, e.notes, e.time ?? null, e.schedule ?? null]);
+}
+
+/** A card's identity for keys and motion: an added card keeps its client key
+ *  once saved, so getting its real id isn't a second arrival. */
+function rowKey(e: PsvEvent): string {
+  return e.clientKey ?? String(e.id);
 }
 
 function reducedMotion(): boolean {
@@ -197,7 +207,9 @@ export function PaperService(props: {
   const pageRef = useRef<HTMLDivElement>(null);
   const els = useRef(new Map<string, HTMLElement>());
   const tops = useRef(new Map<string, number>());
-  const seen = useRef<{ arr: PsvEvent[]; byId: Map<number, string> } | null>(null);
+  // Signature by rowKey; null while pending, so the saved copy (whose schedule
+  // comes back key-reordered from jsonb) isn't mistaken for an edit.
+  const seen = useRef<{ arr: PsvEvent[]; byKey: Map<string, string | null> } | null>(null);
   const track = (key: string) => (el: HTMLElement | null) => { if (el) els.current.set(key, el); else els.current.delete(key); };
 
   function measure() {
@@ -211,11 +223,11 @@ export function PaperService(props: {
     const now = measure();
     const s = seen.current;
     if (!props.eventsLoading && s && s.arr !== events && !reducedMotion()) {
-      const evById = new Map(events.map(e => [e.id, e]));
+      const evByKey = new Map(events.map(e => [rowKey(e), e]));
       els.current.forEach((el, key) => {
         const from = tops.current.get(key), to = now.get(key);
-        const ev = key[0] === "e" ? evById.get(Number(key.slice(1))) : undefined;
-        if (ev && !s.byId.has(ev.id)) {
+        const ev = key[0] === "e" ? evByKey.get(key.slice(1)) : undefined;
+        if (ev && !s.byKey.has(rowKey(ev))) {
           flashClass(el, "psv-in", 1600);
           el.scrollIntoView({ block: "nearest", behavior: "smooth" });
           return;
@@ -228,14 +240,15 @@ export function PaperService(props: {
           el.animate([{ transform: `translateY(${from - to}px)` }, { transform: "none" }],
             { duration: Math.min(620, 340 + Math.abs(from - to) * 0.7), easing: "cubic-bezier(.3,.7,.25,1)" });
         }
-        if (ev && s.byId.get(ev.id) !== sig(ev)) {
+        const was = ev && s.byKey.get(rowKey(ev));
+        if (ev && was != null && was !== sig(ev)) {
           flashClass(el, "psv-reink", 1400);
           el.scrollIntoView({ block: "nearest", behavior: "smooth" });
         }
       });
     }
     tops.current = now;
-    if (!props.eventsLoading) seen.current = { arr: events, byId: new Map(events.map(e => [e.id, sig(e)])) };
+    if (!props.eventsLoading) seen.current = { arr: events, byKey: new Map(events.map(e => [rowKey(e), e.pending ? null : sig(e)])) };
   });
 
   /** Slide the card off the desk and close its gap — taking its section header
@@ -243,7 +256,7 @@ export function PaperService(props: {
    *  (optimistic) delete. Positions are re-recorded first, so the FLIP after the
    *  delete starts from the collapsed layout instead of replaying the collapse. */
   function remove(ev: PsvEvent) {
-    const el = els.current.get(`e${ev.id}`);
+    const el = els.current.get(`e${rowKey(ev)}`);
     if (!el || reducedMotion()) { props.onDelete(ev); return; }
     if (el.dataset.leaving) return;
     el.dataset.leaving = "1";
@@ -307,9 +320,9 @@ export function PaperService(props: {
     const t = timeLabel(ev);
     const rows = [...(partByEvent[ev.id] ?? [])].sort((a, b) => a.brother.name.localeCompare(b.brother.name));
     return (
-      <div key={ev.id} ref={track(`e${ev.id}`)}
-        className={`psv-ev${isUp ? " up" : ""}${open ? " open" : ""}`}>
-        <button className="psv-head" onClick={() => props.toggleExpand(ev.id)} aria-expanded={open}>
+      <div key={rowKey(ev)} ref={track(`e${rowKey(ev)}`)}
+        className={`psv-ev${isUp ? " up" : ""}${open ? " open" : ""}${ev.pending ? " pending" : ""}`} aria-busy={ev.pending || undefined}>
+        <button className="psv-head" onClick={() => props.toggleExpand(ev.id)} aria-expanded={open} disabled={ev.pending}>
           <DeskDate date={ev.date} up={isUp} />
           <span className="psv-main">
             <span className="t">

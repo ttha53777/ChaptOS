@@ -13,7 +13,7 @@ import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler"
 import { Brother, fmtDate } from "../../../data";
 import { requestJson } from "../../../lib/api";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../../components/timeline/ScheduleFields";
-import { scheduleDate, type Schedule } from "@/lib/calendar-feed/schedule";
+import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
 import { APP_AESTHETIC } from "@/lib/aesthetic";
 import "../../../components/dashboard/dashboard-ledger.css";
 import "./service-ledger.css";
@@ -32,6 +32,11 @@ interface ServiceEvent {
   /** From the linked calendar entry: structured start/end, else legacy free text. */
   schedule?: Schedule | null;
   time?: string | null;
+  /** Set on an event added on this page: keeps its card (and its animation)
+   *  the same row once the temporary id is swapped for the saved one. */
+  clientKey?: string;
+  /** Shown before the server has confirmed it; nothing can act on it yet. */
+  pending?: boolean;
 }
 
 interface Participation {
@@ -90,11 +95,23 @@ export default function ServicePage() {
   const [memberDetail, setMemberDetail] = useState<Brother | null>(null);
 
   // ── Load service events ──────────────────────────────────────────────────────
+  // Each row's "here · hours" needs its sheet, so every event's participation
+  // comes along in one request, fired alongside the events rather than after.
   useEffect(() => {
-    requestJson<ServiceEvent[]>("/api/service-events")
+    const events = requestJson<ServiceEvent[]>("/api/service-events");
+    const parts = requestJson<Participation[]>("/api/service-participation").catch(() => null);
+    events
       .then(setServiceEvents)
       .catch(() => toast.error("Could not load service events."))
       .finally(() => setEventsLoading(false));
+    Promise.all([events, parts]).then(([evs, rows]) => {
+      // Rows open their sheets one by one (loadParticipation) if this fails.
+      if (!rows) { toast.error("Could not load attendees."); return; }
+      const byEvent: Record<number, Participation[]> = Object.fromEntries(evs.map(e => [e.id, []]));
+      for (const r of rows) (byEvent[r.serviceEventId] ??= []).push(r);
+      // A sheet already fetched or logged in the meantime is newer; keep it.
+      setPartByEvent(prev => ({ ...byEvent, ...prev }));
+    }).catch(() => { /* events' own catch already said so */ });
   }, [toast]);
 
   function loadParticipation(eventId: number) {
@@ -103,13 +120,6 @@ export default function ServicePage() {
       .then(rows => setPartByEvent(prev => ({ ...prev, [eventId]: rows })))
       .catch(() => toast.error("Could not load attendees."));
   }
-
-  // Each row's "here · hours" needs its sheet, so fetch them all once the list lands
-  // rather than showing dashes until a row is opened.
-  useEffect(() => {
-    if (eventsLoading) return;
-    for (const ev of serviceEvents) loadParticipation(ev.id);
-  }, [eventsLoading]);
 
   function toggleExpand(eventId: number) {
     setExpandedId(prev => (prev === eventId ? null : eventId));
@@ -164,17 +174,29 @@ export default function ServicePage() {
     const body = { ...eventForm, ...timing };
     if (eventModal === "add") {
       setEventModal(null);
+      // On the desk now, inert until the save lands, so adding doesn't wait on
+      // the round trip. The temporary id is negative and never sent anywhere.
+      const clientKey = `new-${Date.now()}`;
+      const draft: ServiceEvent = {
+        id: -Date.now(), title: eventForm.title, date: timing.date,
+        location: eventForm.location, notes: eventForm.notes, createdAt: new Date().toISOString(),
+        schedule: result.schedule ?? null, time: result.schedule ? scheduleTime(result.schedule) : null,
+        clientKey, pending: true,
+      };
+      // A transition, so the list re-render yields instead of dropping a frame
+      // at the start of PaperService's add/edit/delete motion.
+      startTransition(() => setServiceEvents(prev => [...prev, draft].sort((a, b) => b.date.localeCompare(a.date))));
       try {
         const saved = await requestJson<ServiceEvent>("/api/service-events", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        // A transition, so the list re-render yields instead of dropping a frame
-        // at the start of PaperService's add/edit/delete motion.
-        startTransition(() => setServiceEvents(prev => [...prev, saved].sort((a, b) => b.date.localeCompare(a.date))));
+        setPartByEvent(prev => ({ ...prev, [saved.id]: [] }));
+        startTransition(() => setServiceEvents(prev => prev.map(e => e.clientKey === clientKey ? { ...saved, clientKey } : e)));
         toast.success(`Added "${saved.title}".`);
       } catch (err) {
+        startTransition(() => setServiceEvents(prev => prev.filter(e => e.clientKey !== clientKey)));
         handleSemesterError(err, msg => toast.error(msg), "Could not add the service event.");
       }
     } else if (eventModal === "edit" && editingEvent) {
@@ -254,7 +276,7 @@ export default function ServicePage() {
 
   // ── Log my hours (self-service) ──────────────────────────────────────────────
   function openLogMine() {
-    const recent = [...serviceEvents].sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+    const recent = serviceEvents.filter(e => !e.pending).sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
     setLogMineEventId(recent?.id ?? null);
     setLogMineHours("");
     setLogMineOpen(true);
@@ -325,7 +347,7 @@ export default function ServicePage() {
   // Make sure every event's participation is loaded before opening a member drawer
   // so the contributing-events list is complete.
   function openMemberDetail(b: Brother) {
-    for (const ev of serviceEvents) loadParticipation(ev.id);
+    for (const ev of serviceEvents) if (!ev.pending) loadParticipation(ev.id);
     setMemberDetail(b);
   }
 
@@ -644,7 +666,7 @@ export default function ServicePage() {
             <div className="svc-mine-pick">
               <p className="svc-mine-k">Which event?</p>
               <div className="svc-mine-list" role="radiogroup" aria-label="Service event">
-                {[...serviceEvents].sort((a, b) => b.date.localeCompare(a.date)).map(ev => {
+                {serviceEvents.filter(e => !e.pending).sort((a, b) => b.date.localeCompare(a.date)).map(ev => {
                   const mineH = (partByEvent[ev.id] ?? []).find(p => p.brotherId === selfId)?.hours;
                   return (
                     <button key={ev.id} type="button" role="radio" aria-checked={logMineEventId === ev.id}
@@ -690,7 +712,7 @@ export default function ServicePage() {
                 value={logMineEventId ?? ""}
                 onChange={e => setLogMineEventId(e.target.value ? Number(e.target.value) : null)}
               >
-                {[...serviceEvents].sort((a, b) => b.date.localeCompare(a.date)).map(ev => (
+                {serviceEvents.filter(e => !e.pending).sort((a, b) => b.date.localeCompare(a.date)).map(ev => (
                   <option key={ev.id} value={ev.id}>{ev.title} · {fmtDate(ev.date)}</option>
                 ))}
               </select>
@@ -727,7 +749,7 @@ export default function ServicePage() {
             {(() => {
               const logged = memberEvents.reduce((s, x) => s + x.hours, 0);
               // Until every event's sheet has loaded, the remainder would read as "before tracking".
-              const loaded = serviceEvents.every(e => partByEvent[e.id]);
+              const loaded = serviceEvents.every(e => e.pending || partByEvent[e.id]);
               if (!loaded) return <p className="svc-pmd-none">Reading the sign-in sheets…</p>;
               const early = Math.round((memberDetail.serviceHours - logged) * 10) / 10;
               if (memberEvents.length === 0 && early <= 0) return <p className="svc-pmd-none">No event-logged hours yet.</p>;

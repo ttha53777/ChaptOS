@@ -25,11 +25,25 @@ export async function listParticipationForEvent(ctx: RequestContext, serviceEven
     include: PARTICIPATION_INCLUDE,
     orderBy: { brother: { name: "asc" } },
   }) as ParticipationRow[];
+  return onRosterWithNames(ctx, rows);
+}
+
+/** Every participation row in the org, for the service page's first paint: one
+ *  request instead of one per event. Same roster filter and names as above. */
+export async function listParticipationForOrg(ctx: RequestContext) {
+  const rows = await ctx.db.serviceParticipation.findMany({
+    include: PARTICIPATION_INCLUDE,
+    orderBy: { brother: { name: "asc" } },
+  }) as ParticipationRow[];
+  return onRosterWithNames(ctx, rows);
+}
+
+async function onRosterWithNames(ctx: RequestContext, rows: ParticipationRow[]) {
   // Only people on this org's roster. logParticipation used to accept any
   // brotherId, so a row may exist for someone outside the org — and the
   // Brother.name fallback below would hand their account name and avatar to
   // whoever reads this list.
-  const onRoster = new Set(await ctx.db.member.listIds({ brotherId: { in: rows.map(r => r.brotherId) } }));
+  const onRoster = new Set(await ctx.db.member.listIds({ brotherId: { in: [...new Set(rows.map(r => r.brotherId))] } }));
   const members = rows.filter(r => onRoster.has(r.brotherId));
   // Org-local display name (Membership.name), same fallback rule as the roster.
   // Without this, a member who renamed themselves in this org would still show
