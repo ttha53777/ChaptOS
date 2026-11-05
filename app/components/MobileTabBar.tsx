@@ -44,7 +44,11 @@ const FACE: Partial<Record<CreateKey, { label: string; icon: PaperIconName; tone
  * every other page. Rendered by Sidebar, so it exists on every org page and
  * nowhere else.
  */
-export function MobileTabBar({ onMore }: { onMore: () => void }) {
+export function MobileTabBar({ onMore, moreBadge = 0 }: {
+  onMore: () => void;
+  /** The viewer's overdue tasks: Tasks lives behind More on phones, so its count does too. */
+  moreBadge?: number;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const orgPath = useOrgPath();
@@ -85,7 +89,7 @@ export function MobileTabBar({ onMore }: { onMore: () => void }) {
       else router.push(`${orgPath("/treasury")}${REIMBURSE_QUERY}`);
       return;
     }
-    if (subPath === "/") {
+    if (subPath === "/" || (subPath === "/tasks" && key === "task")) {
       window.dispatchEvent(new CustomEvent(CREATE_EVENT, { detail: { key } }));
     } else {
       router.push(`${orgPath("/")}?${CREATE_PARAM}=${key}`);
@@ -108,8 +112,8 @@ export function MobileTabBar({ onMore }: { onMore: () => void }) {
           <PaperIcon name="plus" />
         </button>
         {showRoster && tab("/brothers", v("Member", true), "people", subPath.startsWith("/brothers"), joins)}
-        <button type="button" className="mtb-tab" onClick={onMore} aria-label="More pages">
-          <span className="mtb-ic"><PaperIcon name="menu" /></span>
+        <button type="button" className="mtb-tab" onClick={onMore} aria-label={moreBadge > 0 ? `More pages, ${moreBadge} overdue ${moreBadge === 1 ? "task" : "tasks"}` : "More pages"}>
+          <span className="mtb-ic"><PaperIcon name="menu" />{moreBadge > 0 && <b className="mtb-badge rose">{moreBadge > 9 ? "9+" : moreBadge}</b>}</span>
           <span className="mtb-lbl">More</span>
         </button>
       </nav>

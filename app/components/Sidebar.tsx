@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkflowId } from "@/lib/org-types";
 import { NAV_GROUPS, NAV_LABELS, applyNavOrder } from "@/lib/nav-order";
@@ -169,7 +169,7 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
   const pathname = usePathname();
   const router   = useRouter();
   const orgPath  = useOrgPath();
-  const { currentUser, reimbursementList, loadedSections, can, setNavOrderLocal } = useChapter();
+  const { currentUser, reimbursementList, taskList, loadedSections, can, setNavOrderLocal } = useChapter();
   const v = useVocab();
   const { rail, setRail } = useSidebarRail();
   const { open: needsOpen, setOpen: setNeedsOpen } = useNeedsOpen();
@@ -187,6 +187,23 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
     : loadedSections.has("reimbursements")
       ? reimbursementList.filter(r => r.status === "pending").length
       : currentUser?.org?.pendingReimbursementCount ?? 0;
+
+  // The viewer's own overdue tasks — the count on the Tasks item (and on More,
+  // on phones). Read from the task list when this page loaded it, so a tick
+  // lands at once; otherwise from /me's candidates. Both judged by local today.
+  const myOverdueTasks = useMemo(() => {
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (loadedSections.has("deadlines")) {
+      const me = currentUser?.id;
+      const myRoles = new Set((currentUser?.roles ?? []).map(r => r.id));
+      // `status` on an Everyone · each task is already the viewer's own part.
+      return taskList.filter(t => t.status !== "done" && t.dueDate != null && t.dueDate < today && (
+        t.everyone != null || t.assignments.some(a => (a.brotherId != null && a.brotherId === me) || (a.roleId != null && myRoles.has(a.roleId)))
+      )).length;
+    }
+    return (currentUser?.org?.myTasksDue ?? []).filter(t => t.dueDate < today).length;
+  }, [loadedSections, taskList, currentUser]);
 
   // People waiting on an officer to let them in. The server already zeroes it
   // for anyone without MANAGE_BROTHERS.
@@ -362,7 +379,9 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
       ? (label === "Timeline" ? subPath === route : subPath.startsWith(route))
       : subPath === "/" && activeSection === label;
     const text = display(label);
-    const dot = queuePages.has(label) ? <span className="sb-dot" aria-label="needs review" /> : null;
+    const dot = label === "Tasks" && myOverdueTasks > 0
+      ? <span className="sb-count" aria-label={`${myOverdueTasks} overdue for you`} title="Overdue for you">{myOverdueTasks > 9 ? "9+" : myOverdueTasks}</span>
+      : queuePages.has(label) ? <span className="sb-dot" aria-label="needs review" /> : null;
     const content = (
       <>
         <SvgIcon d={NAV_ICONS[label] ?? ""} className="i lg-only" />
@@ -466,7 +485,7 @@ export function Sidebar({ open: pageOpen, onClose: pageClose, activeSection, onN
 
   return (
     <>
-      <MobileTabBar onMore={() => setMoreOpen(true)} />
+      <MobileTabBar onMore={() => setMoreOpen(true)} moreBadge={visibleNavSet.has("Tasks") ? myOverdueTasks : 0} />
       {open && <div className="sb-scrim" onClick={onClose} />}
       <aside
         ref={asideRef}

@@ -9,7 +9,7 @@ import { seatCapacity } from "@/lib/billing/plans";
 import { countBillableMembers } from "@/lib/billing/seats";
 import { ALL_WORKFLOWS } from "@/lib/org-types";
 import { SubscriptionStatus } from "@/lib/state/subscription-status";
-import { ReimbursementStatus, JoinRequestStatus } from "@/lib/state";
+import { ReimbursementStatus, JoinRequestStatus, TaskEveryone, TaskStatus } from "@/lib/state";
 import { computePermissions, hasPermission } from "@/lib/permissions";
 import { resolveThresholds } from "@/lib/thresholds";
 import { normalizeDashboardLayout } from "@/lib/dashboard-layout";
@@ -81,10 +81,11 @@ export async function GET() {
     // Awaited below; this only stops a rejection that lands while the
     // transaction is still running from being reported as unhandled.
     acceptedTermsPromise.catch(() => {});
-    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows } =
+    const heldRoleIds = roles.map(r => r.id);
+    const { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows, myTaskRows } =
       await db(user.orgId).$transaction(async tx => {
         const scoped = db(user.orgId);
-        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows] = await Promise.all([
+        const [brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows, myTaskRows] = await Promise.all([
           scoped.identity.onTx(tx).findByBrotherId(user.id),
           scoped.organization.onTx(tx).findUnique({
             where: { id: user.orgId },
@@ -162,8 +163,25 @@ export async function GET() {
                 take: 50,
               })
             : [],
+          // The viewer's own dated tasks that are due (or about to be) — the
+          // sidebar's Tasks badge on every page, where the task list itself only
+          // loads on a few. Same ride-along argument and horizon slack as above.
+          scoped.task.onTx(tx).findMany({
+            where: {
+              status: TaskStatus.Open,
+              dueDate: { not: null, lte: wrapUpHorizon },
+              OR: [
+                { everyone: TaskEveryone.Any },
+                { everyone: TaskEveryone.Each, completions: { none: { brotherId: user.id } } },
+                { assignments: { some: { brotherId: user.id } } },
+                ...(heldRoleIds.length ? [{ assignments: { some: { roleId: { in: heldRoleIds } } } }] : []),
+              ],
+            },
+            select: { id: true, dueDate: true },
+            take: 50,
+          }),
         ]);
-        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows };
+        return { brother, org, metricDefinitionCount, pendingReimbursementCount, pendingJoinRequestCount, subscription, wrapUpRows, billableMembers, fundraiserRows, myTaskRows };
       });
 
     const perms = await resolvePermissions(user);
@@ -289,6 +307,9 @@ export async function GET() {
             fundraisersToWrap: fundraiserRows
               .map(r => ({ id: r.id, name: r.calendarEvent.title, date: r.calendarEvent.date }))
               .sort((a, b) => a.date.localeCompare(b.date)),
+            // The viewer's due-ish tasks. Candidates — the sidebar counts the ones
+            // before the viewer's local today.
+            myTasksDue: myTaskRows.map(r => ({ id: r.id, dueDate: r.dueDate as string })),
             // Whether the founder has finished the setup wizard. Drives the
             // dashboard "finish setting up" checklist (shown only once setup is
             // complete) and is the same signal the server onboarding guard gates

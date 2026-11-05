@@ -72,6 +72,10 @@ export interface MeOrg {
   wrapUpsDue: { id: number; title: string; dueDate: string | null; schedule: Schedule | null; stage: "confirmed" }[];
   /** Server-emptied without MANAGE_FUNDRAISING. Unwrapped fundraisers that may be over — filter against the viewer's local date. */
   fundraisersToWrap: { id: number; name: string; date: string }[];
+  /** The viewer's own open dated tasks due by about tomorrow (assigned to them,
+   *  a role they hold, or Everyone and their part not done) — the sidebar's
+   *  Tasks badge. Candidates: count the ones before the viewer's local today. */
+  myTasksDue: { id: number; dueDate: string }[];
   onboardingComplete: boolean;
   /** Null for anyone who isn't an org/platform admin. */
   billingAlert: "past_due" | "unpaid" | "canceled" | null;

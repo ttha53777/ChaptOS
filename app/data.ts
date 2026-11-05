@@ -359,8 +359,8 @@ export function calcHealthScore(
   // which also guarantees `parts` is never empty and the divisor never zero.
   // Penalize open, dated tasks that are overdue — the computed equivalent of the
   // old stored "Urgent" status.
-  const urgentPenalty = dList.filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < today).length * 15;
-  parts.push({ key: "Deadlines", value: Math.max(0, 100 - urgentPenalty) });
+  const overduePenalty = dList.filter(d => d.status !== "done" && d.dueDate != null && d.dueDate < today).length * 15;
+  parts.push({ key: "Deadlines", value: Math.max(0, 100 - overduePenalty) });
 
   const totalWeight = parts.reduce((s, p) => s + HEALTH_WEIGHTS[p.key], 0);
   const score = Math.min(100, Math.max(0, Math.round(

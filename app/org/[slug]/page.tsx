@@ -38,7 +38,8 @@ import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { useChapter } from "../../context/ChapterContext";
 import { useToast } from "../../components/dashboard/Toast";
 import { AddIGTaskForm, AddRevenueForm, LogAttendanceForm, ExcuseForm, type AttendanceChange } from "../../components/dashboard/forms";
-import { TaskForm, type RoleOption, type TaskFormValue } from "../../components/dashboard/TaskForm";
+import type { RoleOption, TaskFormValue } from "./tasks/task-forms";
+import { PaperTaskSheet } from "./tasks/PaperTasks";
 import { REIMBURSE_QUERY, type QuickActionKey } from "../../components/dashboard/QuickActionsMenu";
 import { TxForm } from "../../components/treasury/TxForm";
 import { CalendarEventForm, type CalendarDraft, type CategoryOption } from "../../components/timeline/CalendarEventForm";
@@ -557,7 +558,7 @@ function WidgetDetailDrawer({
           GPA:        "25% weight — scaled from 2.0–4.0 range",
           Dues:       "20% weight — % of brothers fully paid up",
           Service:    "15% weight — % of brothers at service hour goal",
-          Deadlines:  "10% weight — −15 pts per urgent deadline",
+          Deadlines:  "10% weight — −15 pts per overdue deadline",
         };
         return (
           <>
@@ -588,7 +589,7 @@ function WidgetDetailDrawer({
               {health.score >= 80
                 ? "Chapter is performing well across all metrics."
                 : health.score >= 60
-                ? `Some areas need attention — address urgent deadlines and at-risk ${v("Member", true).toLowerCase()}.`
+                ? `Some areas need attention — address overdue deadlines and at-risk ${v("Member", true).toLowerCase()}.`
                 : "Immediate action required — multiple metrics are critically low."
               }
             </div>
@@ -666,17 +667,16 @@ function WidgetDetailDrawer({
         const urgencyOf = (d: Task): TaskUrgency => taskUrgency(d.dueDate);
         const buckets: { key: string; label: string; tone: string; items: Task[] }[] = [
           { key: "overdue",  label: "Overdue",  tone: "rose", items: open.filter(d => urgencyOf(d) === "overdue") },
-          { key: "urgent",   label: "Urgent",   tone: "rose", items: open.filter(d => urgencyOf(d) === "urgent") },
           { key: "upcoming", label: "Upcoming", tone: "",     items: open.filter(d => urgencyOf(d) === "upcoming") },
           { key: "none",     label: "No date",  tone: "",     items: open.filter(d => urgencyOf(d) === "none") },
           { key: "done",     label: "Done",     tone: "ok",   items: done },
         ];
         const overdueCt = buckets[0].items.length;
-        const urgentCt = buckets[1].items.length;
+        const upcomingCt = buckets[1].items.length;
         return (
           <>
             <div className="dd-stats c4">
-              {([["Overdue", overdueCt, "rose"], ["Urgent", urgentCt, "rose"], ["Open", open.length, ""], ["Done", done.length, "ok"]] as const).map(([label, count, tone]) => (
+              {([["Overdue", overdueCt, "rose"], ["Upcoming", upcomingCt, ""], ["Open", open.length, ""], ["Done", done.length, "ok"]] as const).map(([label, count, tone]) => (
                 <div key={label} className="dd-stat"><p className={`n ${tone}`}>{count}</p><p className="l">{label}</p></div>
               ))}
             </div>
@@ -870,7 +870,6 @@ export default function Home() {
   const [weekPeek,       setWeekPeek]       = useState<WeekPeekTarget | null>(null);
   // Org roles for the "New task" modal's assignee picker (mirrors the tasks page).
   const [roles,          setRoles]          = useState<RoleOption[]>([]);
-  const [rolesLoaded,    setRolesLoaded]    = useState(false);
   const [activeDrawer,   setActiveDrawer]   = useState<KPIDrawerKey | null>(null);
   const [widgetDrawer,   setWidgetDrawer]   = useState<WidgetDrawerKey | null>(null);
   const [activitySpot,   setActivitySpot]   = useState<{ origin: DOMRect | null } | null>(null);
@@ -1195,7 +1194,7 @@ export default function Home() {
   // gating the fetch behind it meant the request only started once the button
   // was already clickable, racing the modal open.
   useEffect(() => {
-    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([])).finally(() => setRolesLoaded(true));
+    requestJson<RoleOption[]>("/api/roles").then(setRoles).catch(() => setRoles([]));
   }, []);
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -1593,7 +1592,7 @@ export default function Home() {
 
   // ── Task quick actions ────────────────────────────────────────────────────
   // The dashboard surfaces tasks (dated = deadlines) read-mostly: complete and
-  // delete act inline. Creating a task happens in-place via the shared TaskForm
+  // delete act inline. Creating a task happens in-place via the Tasks page's sheet
   // modal (below); editing still routes to the dedicated /tasks page.
   // Create a task from the dashboard's "New task" modal. Mirrors the tasks page
   // submit: POST, then append the saved row to the shared taskList.
@@ -2731,31 +2730,20 @@ export default function Home() {
           <CalendarEventForm submitLabel="Add event" onCancel={() => { setEventFormPage(1); closeModal(); }} onSubmit={draft => { setEventFormPage(1); handleAddCalendarEvent(draft); }} categoryOptions={eventCategoryOptions} minDate={activeSemester?.startDate} maxDate={activeSemester?.endDate} detailMembers={detailMembers} onPageChange={setEventFormPage} />
         </Modal>
       )}
-      {activeModal === "deadline" && canTasks && (
-        <Modal title="New deadline" tone="dusk" maxWidthClass="max-w-[512px]" onClose={closeModal}>
-          <TaskForm
+      {(activeModal === "task" || activeModal === "deadline") && canTasks && (
+        // "Add deadline" is a task with a date — the same sheet as "Add task".
+        <Modal ariaLabel="New task" hideHeader tone="dusk" maxWidthClass="max-w-[620px]" accent="butter" onClose={closeModal}>
+          <PaperTaskSheet
             brothers={brotherList}
             roles={roles}
-            brothersLoading={!rosterLoaded}
-            rolesLoading={!rolesLoaded}
+            selfId={selfId}
+            today={new Date(`${todayISO}T00:00:00`)}
             minDate={activeSemester?.startDate}
             maxDate={activeSemester?.endDate}
-            submitLabel="Create deadline"
+            editing={false}
+            peopleLoading={!rosterLoaded}
             onSubmit={handleAddDeadline}
-          />
-        </Modal>
-      )}
-      {activeModal === "task" && canTasks && (
-        <Modal title="New task" tone="dusk" onClose={closeModal}>
-          <TaskForm
-            brothers={brotherList}
-            roles={roles}
-            brothersLoading={!rosterLoaded}
-            rolesLoading={!rolesLoaded}
-            minDate={activeSemester?.startDate}
-            maxDate={activeSemester?.endDate}
-            submitLabel="Create task"
-            onSubmit={handleAddDeadline}
+            onCancel={closeModal}
           />
         </Modal>
       )}

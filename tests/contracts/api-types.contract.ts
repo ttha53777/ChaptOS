@@ -21,11 +21,11 @@
  */
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
-  MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, Transaction, TransactionCategory,
+  MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
 } from "@/lib/api-types";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { publicBrother } from "@/lib/brother-avatar";
-import type { listTasks, updateTask } from "@/lib/services/task-service";
+import type { getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
 import type { listCalendar } from "@/lib/services/calendar-service";
 import type { listEventTypes } from "@/lib/services/calendar-event-type-service";
@@ -70,6 +70,7 @@ export const memberProfile: Widen<MemberProfile> = served<Served<typeof getMembe
 
 export const tasks: Widen<Task[]> = served<Served<typeof listTasks>>();
 export const taskUpdate: Widen<Task> = served<Served<typeof updateTask>>();
+export const taskDetail: Widen<TaskDetail> = served<Served<typeof getTaskDetail>>();
 
 export const polls: Widen<Poll[]> = served<Served<typeof listPolls>>();
 export const vote: Widen<Poll> = served<Served<typeof castVote>>();

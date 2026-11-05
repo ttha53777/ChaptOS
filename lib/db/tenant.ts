@@ -831,6 +831,9 @@ function scopedTask(orgId: number, run: Run) {
       return run(p => p.task.delete({ where: { id } }));
     },
     count:      (args?: Prisma.TaskCountArgs)     => run(p => p.task.count({ ...args, where: org(args?.where) })),
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedTask(orgId, fn => fn(tx as P)),
   };
 }
 
@@ -2184,6 +2187,13 @@ export function db(orgId: number) {
     // Note on double-wrap: this $transaction path is independent of the `run`
     // wrapper above — it sets SET LOCAL itself, so there is no double-wrapping
     // even when RLS_SET_ORG_ID=1.
+    //
+    // Note on limits: same defaults as `run` (see RLS_TX_TIMEOUT_MS). Prisma's
+    // own maxWait of 2s is shorter than one wrapped round-trip under a page
+    // load's burst on the 2-connection pool, so a read like listPolls failed
+    // with "Unable to start a transaction in the given time" — a 500 where the
+    // single-query reads beside it, already on these limits, merely waited.
+    // Callers that pass their own limits keep them.
     $transaction: ((
       fn: Parameters<typeof prisma.$transaction>[0],
       opts?: Parameters<typeof prisma.$transaction>[1],
@@ -2195,7 +2205,7 @@ export function db(orgId: number) {
         // explicitly so the safety is local to this line, not action-at-a-distance.
         await tx.$executeRawUnsafe(`SET LOCAL app.org_id = '${Math.trunc(orgId)}'`);
         return fn(tx);
-      }, opts);
+      }, { timeout: RLS_TX_TIMEOUT_MS, maxWait: RLS_TX_MAX_WAIT_MS, ...opts });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any as typeof prisma.$transaction,
   };

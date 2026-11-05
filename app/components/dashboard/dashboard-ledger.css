@@ -413,7 +413,7 @@
    Because it comes and goes under the reader, both transitions are explicit —
    it fades in rather than popping, and folds its own height away on exit so
    This Week slides up instead of jumping. Borrows the ballot vocabulary of the
-   /tasks vote modal (.db-poll in tasks-ledger.css) at rail scale: same violet
+   /tasks vote modal at rail scale: same violet
    radio, same bar-and-percent tally, tighter type. */
 .dash .ballot { animation: ballot-in .34s ease both; }
 @keyframes ballot-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: none; } }

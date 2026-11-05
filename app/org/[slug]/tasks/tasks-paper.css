@@ -1,0 +1,581 @@
+/* ---------- tasks (app/org/[slug]/tasks) -----------------------------------------
+   Ported rule-for-rule from _design/Tasks Simple Paper Mock.html. Two piles and
+   nothing else: Overdue (rose) on top, Upcoming (sky) below, soonest first with
+   undated tasks last. Every row ends in a tear-off calendar stub, so "when" reads
+   without a colour key. Done + Votes sit in a side column once there's room.
+   tks-* keeps every class off the global namespace (.tk-* is the Ledger page's). */
+.tks-scope {
+  --display:var(--font-fraunces),sans-serif; --sans:var(--font-geist-sans),sans-serif; --mono:var(--font-geist-mono),monospace;
+  --ink-2:var(--ink-soft); --ink-3:var(--muted); --paper-3:var(--card-3); --line-2:var(--line-med);
+  --rose:var(--pp-rose,#FFD6E6); --rose-soft:var(--pp-rose-soft,#FFEDF4); --rose-ink:var(--pp-rose-ink,#C23C77);
+  --lilac:var(--pp-lilac,#E1D8FF); --lilac-soft:var(--pp-lilac-soft,#F1EDFF); --lilac-ink:var(--pp-lilac-ink,#6244CC);
+  --sky:var(--pp-sky,#CFE2FF); --sky-soft:var(--pp-sky-soft,#EAF2FF); --sky-ink:var(--pp-sky-ink,#2A66C7);
+  --butter:var(--pp-butter,#FFE5A0); --butter-soft:var(--pp-butter-soft,#FFF6DC);
+  --mint:var(--pp-mint,#C7EFDA); --mint-soft:var(--pp-mint-soft,#E6F8EF); --mint-ink:var(--pp-mint-ink,#1B815B);
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85;
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02); --ease-out:cubic-bezier(.22,.72,.24,1);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; color:var(--ink);
+  -webkit-font-smoothing:antialiased;
+}
+html[data-theme="dusk"] .tks-scope{--note-filter:brightness(.93) saturate(.85); --mark-op:.42}
+:where(.tks-scope) :where(h1,h2,h3,p,ul,ol){margin:0}
+:where(.tks-scope) :where(ul,ol){padding:0; list-style:none}
+:where(.tks-scope) :where(button){font:inherit; color:inherit; letter-spacing:normal; cursor:pointer}
+:where(.tks-scope) :where(svg){display:block}
+:where(.tks-scope) :where(:focus-visible){outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.tks-scope .ptk-ic{width:16px; height:16px; flex:none}
+
+/* the page: piles on the left, Done + Votes in a sticky side column when it fits */
+div.tks-scope{max-width:1200px; margin:0 auto; container-type:inline-size}
+.tks-cols{display:grid; grid-template-columns:minmax(0,1fr); gap:0 28px; align-items:start}
+@container (min-width:840px){
+  .tks-cols{grid-template-columns:minmax(0,1fr) 340px}
+  .tks-col-side{position:sticky; top:24px; padding-top:18px}
+  .tks-col-side > :first-child{margin-top:0}
+  .tks-col-side .tks-sec{margin-top:28px}
+  .tks-col-side .tks-done-list .tks-tk{padding:9px 6px}
+  .tks-col-side .tks-done-list .tks-when-d{display:none}
+}
+
+.tks-hi{position:relative; white-space:nowrap; z-index:0; margin-right:.08em}
+.tks-hi::before{
+  content:''; position:absolute; z-index:-1; left:-.1em; right:-.04em; bottom:.05em; height:.48em;
+  background:var(--mark, var(--mint)); border-radius:.4em .55em .38em .6em;
+  transform:rotate(-.8deg); opacity:var(--mark-op);
+}
+
+.tks-brief{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:end}
+.tks-kick{display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.tks-kick .chip{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2); text-transform:none; letter-spacing:0}
+.tks-greet{font-family:var(--display); font-weight:600; letter-spacing:-.032em; line-height:1.06; font-size:clamp(2rem,3.6vw,2.8rem); margin-top:14px}
+.tks-sub{margin-top:10px; color:var(--ink-2); font-size:1rem; max-width:56ch}
+.tks-head-btns{display:flex; gap:10px; flex-wrap:wrap}
+
+.tks-btn{
+  --bg:var(--ink); --fg:var(--paper); --hs:var(--butter);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 17px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.88rem; letter-spacing:-.01em; white-space:nowrap;
+  box-shadow:2.5px 2.5px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring);
+}
+.tks-btn .ptk-ic{width:15px; height:15px}
+.tks-btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.tks-btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.tks-btn.soft{--bg:transparent; --fg:var(--ink-2); border-color:var(--line-2); box-shadow:none}
+.tks-btn.soft:hover{border-color:var(--ink-3); color:var(--ink); transform:translateY(-1px)}
+.tks-btn.sm{padding:6px 12px; font-size:.8rem}
+
+/* whose tasks */
+.tks-ctl{display:flex; align-items:center; justify-content:space-between; gap:12px; margin:30px 0 14px; flex-wrap:wrap}
+.tks-seg{display:inline-flex; gap:4px; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card)}
+.tks-seg button{padding:6px 14px; border:0; border-radius:999px; background:none; font-size:.84rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.tks-seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+
+/* ---------- the two piles ----------------------------------------------- */
+.tks-pile{background:var(--card); border:1.5px solid var(--ink); border-radius:22px; box-shadow:4px 4px 0 var(--pc); margin-top:18px; overflow:hidden}
+.tks-pile.over{--pc:var(--rose); --ph:var(--rose-soft)}
+.tks-pile.up{--pc:var(--sky); --ph:var(--sky-soft)}
+/* pile headers carry their colour, so the two piles read apart at a glance;
+   rows stay white so the tasks themselves are what you read */
+.tks-pile-h{display:flex; align-items:center; gap:12px; padding:16px 20px 12px; background:var(--ph); border-bottom:1.5px solid var(--ink)}
+.tks-pile-h .tile{width:34px; height:34px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--pc); border:1.5px solid var(--note-ink); color:var(--note-ink); transform:rotate(-4deg); filter:var(--note-filter)}
+.tks-pile-h h2{font-family:var(--display); font-weight:600; font-size:1.25rem; letter-spacing:-.024em; line-height:1.1}
+.tks-pile-h p{font-size:.82rem; color:var(--ink-3)}
+.tks-pile.over .tks-pile-h h2{color:var(--rose-ink)}
+.tks-pile.over .tks-pile-h p{color:color-mix(in srgb, var(--rose-ink) 70%, var(--ink-3))}
+.tks-pile.up .tks-pile-h p{color:color-mix(in srgb, var(--sky-ink) 60%, var(--ink-3))}
+.tks-pile-h .n{margin-left:auto; min-width:40px; height:40px; padding:0 10px; display:grid; place-items:center; border-radius:12px; border:1.5px solid var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--pc); font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.04em; line-height:1}
+.tks-pile.over .tks-pile-h .n{color:var(--rose-ink)}
+.tks-pile-h + ul > .tks-tk:first-child{border-top:0}
+
+/* clear-overdue line, when the rose card has nothing in it */
+.tks-clear{margin-top:18px; display:flex; align-items:center; gap:12px; padding:14px 18px; border-radius:18px; border:1.5px dashed var(--mint-ink); background:var(--mint-soft); color:var(--ink-2); font-size:.92rem}
+.tks-clear .tile{width:30px; height:30px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--mint); border:1.5px solid var(--note-ink); color:var(--note-ink); filter:var(--note-filter)}
+.tks-clear .tile .ptk-ic{width:14px; height:14px}
+.tks-clear b{color:var(--ink)}
+
+/* ---------- a task row --------------------------------------------------- */
+.tks-tk{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; column-gap:14px; padding:12px 20px; border-top:1.5px solid var(--line); transition:background .2s, opacity .3s}
+.tks-tk:hover{background:color-mix(in srgb, var(--paper-2) 70%, transparent)}
+.tks-tk.fresh{animation:tks-fresh 1.8s var(--ease-out)}
+@keyframes tks-fresh{0%,35%{background:var(--butter-soft)} 100%{background:transparent}}
+.tks-tk.empty{grid-template-columns:minmax(0,1fr); padding:16px 20px}
+.tks-tk.empty p{color:var(--ink-3); font-size:.9rem}
+
+.tks-ck{width:30px; height:30px; flex:none; border-radius:50%; border:1.8px solid var(--ink); background:var(--card); display:grid; place-items:center; color:transparent; padding:0; transition:background .2s, color .2s, transform .2s var(--ease-spring)}
+.tks-ck .ptk-ic{width:15px; height:15px}
+.tks-ck:hover{background:var(--mint-soft); color:var(--mint-ink)}
+.tks-ck:active{transform:scale(.9)}
+.tks-ck:disabled{border-style:dashed; border-color:var(--line-2); cursor:not-allowed; background:transparent}
+.tks-ck:disabled:hover{color:transparent}
+.tks-tk.ticked .tks-ck{background:var(--mint); color:var(--note-ink); transform:scale(1.08); filter:var(--note-filter)}
+.tks-tk.ticked .tks-t{text-decoration:line-through; text-decoration-thickness:2px; color:var(--ink-3)}
+
+.tks-m{min-width:0}
+.tks-t{display:block; width:100%; padding:0; border:0; background:none; text-align:left; font-weight:600; font-size:.98rem; letter-spacing:-.012em; line-height:1.3; color:var(--ink)}
+.tks-t:hover{text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.tks-meta{display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:5px}
+.tks-meta:empty{display:none}
+.tks-who{display:inline-flex; align-items:center; gap:5px; padding:1px 9px 1px 2px; border-radius:999px; border:1.3px solid var(--line); background:var(--paper); font-size:.74rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.tks-who .ptk-av{width:20px; height:20px; font-size:.5rem; border-width:1.2px}
+.tks-who.role{padding-left:8px}
+.tks-who.role::before{content:''; width:7px; height:7px; border-radius:2px; background:var(--rc); border:1.2px solid var(--ink)}
+.tks-who.you{border-color:var(--ink); color:var(--ink)}
+.tks-who.all{padding-left:8px; border-color:var(--ink); color:var(--ink)}
+.tks-who.all .ptk-ic{width:12px; height:12px}
+.tks-prog{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+.tks-prog i{width:44px; height:5px; border-radius:3px; background:var(--paper-3); overflow:hidden; position:relative}
+.tks-prog i::after{content:''; position:absolute; inset:0 auto 0 0; width:calc(var(--w) * 1%); background:var(--mint-ink); border-radius:3px}
+.tks-has-note{display:inline-flex; color:var(--ink-3)}
+.tks-has-note .ptk-ic{width:13px; height:13px}
+.tks-when-m{display:none}
+
+/* right side: words + tear-off calendar stub */
+.tks-when{display:flex; align-items:center; gap:12px}
+.tks-when-d{font-family:var(--mono); font-size:.72rem; font-weight:600; color:var(--ink-3); white-space:nowrap; text-align:right}
+.over .tks-when-d, .over .tks-when-m{color:var(--rose-ink)}
+.tks-stub{width:46px; flex:none; border-radius:9px; border:1.5px solid var(--ink); background:var(--card); overflow:hidden; text-align:center; box-shadow:2px 2px 0 var(--sc, var(--line-2))}
+.tks-stub small{display:block; padding:1px 0; background:var(--sc, var(--paper-3)); color:var(--note-ink); border-bottom:1.5px solid var(--ink); font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.1em; filter:var(--note-filter)}
+.tks-stub b{display:block; padding:2px 0 3px; font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.04em; line-height:1.15}
+.up .tks-stub{--sc:var(--sky)}
+.over .tks-stub{--sc:var(--rose)}
+.tks-stub.none{border-style:dashed; border-color:var(--line-2); box-shadow:none}
+.tks-stub.none small{background:transparent; color:var(--ink-3); border-bottom:1.5px dashed var(--line-2)}
+.tks-stub.none b{color:var(--ink-3)}
+.tks-stub.today{--sc:var(--butter)}
+
+/* ---------- done line ---------------------------------------------------- */
+.tks-done-bar{margin-top:18px; display:flex; align-items:center; gap:12px; width:100%; padding:13px 18px; border-radius:18px; border:1.5px solid var(--line-2); background:transparent; text-align:left; color:var(--ink-2); font-size:.9rem; font-weight:600}
+.tks-done-bar:hover{border-color:var(--ink-3); color:var(--ink)}
+.tks-done-bar .tile{width:28px; height:28px; flex:none; border-radius:50%; display:grid; place-items:center; background:var(--mint); border:1.5px solid var(--note-ink); color:var(--note-ink); filter:var(--note-filter)}
+.tks-done-bar .tile .ptk-ic{width:13px; height:13px}
+.tks-done-bar .chev{margin-left:auto; color:var(--ink-3); transition:transform .25s var(--ease-spring)}
+.tks-done-bar[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.tks-done-list{margin-top:6px}
+.tks-done-list .tks-tk{border-top:1.5px dashed var(--line); padding:9px 18px}
+.tks-done-list .tks-tk:first-child{border-top:0}
+.tks-done-list .tks-ck{background:var(--mint); color:var(--note-ink); border-color:var(--ink); filter:var(--note-filter); width:26px; height:26px}
+.tks-done-list .tks-ck:hover{background:var(--card); color:var(--ink-3)}
+.tks-done-list .tks-ck:disabled{border-style:solid; border-color:var(--ink); background:var(--mint); color:var(--note-ink); cursor:default}
+.tks-done-list .tks-t{text-decoration:line-through; text-decoration-color:var(--ink-3); color:var(--ink-3); font-weight:500}
+.tks-done-list .tks-when-d{font-weight:500}
+.tks-done-more{margin:4px 0 0 6px; padding:4px 0; border:0; background:none; font-size:.82rem; font-weight:600; color:var(--ink-3); text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.tks-done-more:hover{color:var(--ink)}
+
+/* ---------- votes, kept small ------------------------------------------- */
+.tks-sec{display:flex; align-items:baseline; gap:12px; margin:40px 0 12px}
+.tks-sec h2{font-family:var(--display); font-weight:600; font-size:1.15rem; letter-spacing:-.022em; white-space:nowrap}
+.tks-sec .rule{flex:1; height:1.5px; background:var(--line); align-self:center}
+.tks-sec .cnt{font-family:var(--mono); font-size:.72rem; color:var(--ink-3); white-space:nowrap}
+.tks-sec-btn{align-self:center; display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; border:1.5px solid var(--ink); background:var(--card); font-size:.8rem; font-weight:600; color:var(--ink); white-space:nowrap; box-shadow:2px 2px 0 var(--lilac); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.tks-sec-btn .ptk-ic{width:13px; height:13px}
+.tks-sec-btn:hover{transform:translate(-1px,-1px); box-shadow:3px 3px 0 var(--lilac)}
+.tks-vote{padding:16px 20px; border-radius:20px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--lilac)}
+.tks-vote + .tks-vote{margin-top:14px}
+.tks-vote.closed{border-color:var(--line-2); box-shadow:none}
+.tks-vote.empty{border-style:dashed; border-color:var(--line-2); box-shadow:none; display:grid; gap:10px; justify-items:start; color:var(--ink-3); font-size:.9rem}
+.tks-vote-h{display:flex; align-items:baseline; gap:4px 10px; flex-wrap:wrap}
+.tks-vote-h .q{padding:0; border:0; background:none; text-align:left; font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.02em; line-height:1.25; color:var(--ink)}
+.tks-vote-h .q:hover{text-decoration:underline; text-decoration-color:var(--line-2); text-underline-offset:3px}
+.tks-vote-h span{font-size:.8rem; color:var(--ink-3)}
+.tks-vote-o{display:grid; gap:8px; margin-top:12px}
+.tks-vote-o button{position:relative; overflow:hidden; display:flex; align-items:center; gap:10px; padding:9px 13px; border-radius:12px; border:1.5px solid var(--line-2); background:var(--paper); text-align:left; font-size:.9rem; font-weight:550}
+.tks-vote-o button:hover:not(:disabled){border-color:var(--ink)}
+.tks-vote-o button:disabled{cursor:default}
+.tks-vote-o[aria-busy="true"] button{cursor:progress}
+.tks-vote-o .bx{width:16px; height:16px; flex:none; border-radius:4px; border:1.6px solid var(--ink); display:grid; place-items:center; position:relative; z-index:1}
+.tks-vote-o .bx .ptk-ic{width:11px; height:11px; opacity:0}
+.tks-vote-o .lb{position:relative; z-index:1; min-width:0}
+.tks-vote-o .pct{position:relative; z-index:1; margin-left:auto; font-family:var(--mono); font-size:.74rem; color:var(--ink-3)}
+.tks-vote-o .fill{position:absolute; inset:0 auto 0 0; width:0; background:var(--lilac-soft); transition:width .7s var(--ease-spring)}
+.tks-vote-o button.mine{border-color:var(--ink)}
+.tks-vote-o button.mine .bx{background:var(--lilac); filter:var(--note-filter)}
+.tks-vote-o button.mine .bx .ptk-ic{opacity:1; color:var(--note-ink)}
+.tks-vote-o button.win{border-color:var(--ink)}
+.tks-vote-o button.win .lb{font-weight:700}
+.tks-vote-f{margin-top:10px; font-size:.8rem; color:var(--ink-3)}
+
+/* ---------- day one ------------------------------------------------------ */
+.tks-d1{margin-top:26px; padding:34px 28px 30px; background:var(--card); border:1.5px dashed var(--line-2); border-radius:28px; text-align:center}
+.tks-d1 .piles{display:flex; justify-content:center; gap:18px; flex-wrap:wrap}
+.tks-d1 .mini{width:230px; text-align:left; background:var(--card); border:1.5px solid var(--ink); border-radius:14px; box-shadow:3px 3px 0 var(--pc); padding:10px 12px}
+.tks-d1 .mini:first-child{transform:rotate(-2deg)}
+.tks-d1 .mini:last-child{transform:rotate(2deg)}
+.tks-d1 .mini p{font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.tks-d1 .mini div{display:flex; align-items:center; gap:9px; margin-top:8px; font-size:.82rem; font-weight:600}
+.tks-d1 .mini div i{width:16px; height:16px; flex:none; border-radius:50%; border:1.5px solid var(--ink)}
+.tks-d1 .mini div em{margin-left:auto; font-style:normal; font-family:var(--mono); font-size:.62rem; color:var(--ink-3)}
+.tks-d1 .mini.over div em{color:var(--rose-ink)}
+.tks-d1 h2{margin-top:26px; font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.025em}
+.tks-d1 > p{margin:6px auto 0; max-width:46ch; color:var(--ink-3); font-size:.92rem}
+.tks-d1 .tks-btn{margin-top:18px}
+
+/* ---------- loading: the page's shape, quietly, until the lists arrive ---- */
+.tks-wait{border-radius:14px; background:var(--paper-2); animation:tks-breathe 1.4s ease-in-out infinite alternate}
+.tks-wait.greet{height:44px; width:min(460px,80%); margin-top:16px}
+.tks-wait.sub{height:16px; width:min(380px,60%); margin-top:14px; border-radius:8px}
+.tks-wait.pile{height:220px; margin-top:62px; max-width:calc(100% - 368px); border-radius:22px}
+.tks-wait.pile.short{height:150px; margin-top:18px}
+@container (max-width:839px){ .tks-wait.pile{max-width:none} }
+@keyframes tks-breathe{to{opacity:.55}}
+
+/* ---------- phone -------------------------------------------------------- */
+@media (max-width:600px){
+  .tks-brief{grid-template-columns:minmax(0,1fr); gap:16px}
+  .tks-greet{font-size:1.85rem; margin-top:10px}
+  .tks-sub{font-size:.92rem}
+  .tks-ctl{margin:18px 0 6px}
+  .tks-seg{display:flex; width:100%}
+  .tks-seg button{flex:1; padding:8px 10px}
+  .tks-pile{margin-top:14px; border-radius:20px; box-shadow:3px 3px 0 var(--pc)}
+  .tks-pile-h{padding:13px 14px 10px; gap:10px}
+  .tks-pile-h .tile{width:30px; height:30px}
+  .tks-pile-h h2{font-size:1.12rem}
+  .tks-pile-h p{font-size:.76rem}
+  .tks-clear{margin-top:14px; padding:12px 14px; font-size:.86rem}
+  .tks-tk{padding:13px 14px; column-gap:12px}
+  .tks-ck{width:34px; height:34px}
+  .tks-t{font-size:.95rem}
+  .tks-when-d{display:none}
+  .tks-when-m{display:inline; font-family:var(--mono); font-size:.68rem; font-weight:600; color:var(--ink-3)}
+  .tks-stub{width:40px}
+  .tks-stub b{font-size:1.05rem}
+  .tks-done-bar{margin-top:14px; padding:12px 14px}
+  .tks-done-list .tks-tk{padding:10px 8px}
+  .tks-done-list .tks-when-d{display:none}
+  .tks-sec{margin-top:30px}
+  .tks-vote{padding:14px 16px}
+  .tks-d1{padding:26px 18px 24px}
+}
+/* swipe left to finish (phones): the row slides over a mint "Done" strip
+   that darkens once it's past the line */
+.tks-swipe{display:none}
+@media (max-width:600px){
+  .tks-tk{position:relative; background:var(--card); touch-action:pan-y; transition:background .2s, opacity .3s, transform .28s var(--ease-spring)}
+  .tks-tk:hover{background:var(--card)}
+  .tks-tk.swiping{transition:none; user-select:none}
+  .tks-swipe{display:flex; position:absolute; left:100%; top:0; bottom:0; width:170px; align-items:center; gap:7px; padding-left:20px; background:var(--mint); color:var(--note-ink); font-size:.86rem; font-weight:700; filter:var(--note-filter)}
+  .tks-swipe .ptk-ic{width:16px; height:16px}
+  .tks-tk.armed .tks-swipe{background:var(--mint-ink); color:#fff; filter:none}
+  .tks-head-btns{display:grid; grid-auto-flow:column; grid-auto-columns:1fr}
+}
+
+/* the New task / New poll sheets ride up from the bottom on a phone */
+@media (max-width:600px){
+  .ui-modal:has(.tks-sheet){align-items:flex-end; padding:0}
+  html[data-aesthetic="paper"] .ui-modal:has(.tks-sheet) .ui-modal-panel{max-width:none; max-height:92dvh; border-radius:24px 24px 0 0; border-bottom:0; box-shadow:0 -3px 0 var(--acc); animation:tks-sheet-up .34s var(--pp-ease-out, ease-out) both}
+  .ui-modal:has(.tks-sheet) .ui-modal-panel::before{content:''; position:absolute; top:8px; left:50%; width:40px; height:5px; margin-left:-20px; border-radius:3px; background:var(--line-med); z-index:2}
+  .tks-sheet{padding-bottom:env(safe-area-inset-bottom,0px)}
+  .tks-sheet .chips.people{flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:0 -18px; padding:2px 18px 4px}
+}
+@keyframes tks-sheet-up{from{transform:translateY(100%)}}
+
+@media (prefers-reduced-motion:reduce){
+  .tks-tk.fresh, .tks-wait{animation:none}
+  .ui-modal:has(.tks-sheet) .ui-modal-panel{animation:none !important}
+  .tks-vote-o .fill{transition:none}
+}
+
+/* ---------- task spotlight ----------------------------------------------
+   One column, read top to bottom: what + when + the button → start/due and a
+   desk calendar with the one number → the note → everyone's part → who it's
+   for and from, quietly → history, folded. Every inner class is scoped under
+   .tks-spot. A centred card on desktop, a bottom sheet on phones. */
+.tks-sp-scrim{position:fixed; inset:0; z-index:55; background:color-mix(in srgb, var(--ink) 30%, transparent); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); opacity:0; transition:opacity .28s cubic-bezier(.22,.72,.24,1)}
+.tks-sp-scrim.on{opacity:1}
+.tks-spot{
+  --spc:var(--sky); --spi:var(--sky-ink); --sps:var(--sky-soft);
+  --peach-ink:var(--pp-peach-ink,#C9542D); --sky-bd:var(--pp-sky-bd,#CCDFFB); --rose-bd:var(--pp-rose-bd,#F8CEE0); --butter-bd:var(--pp-butter-bd,#F4DFA6);
+  position:fixed; z-index:56; left:50%; top:50%;
+  width:min(760px, calc(100vw - 64px)); max-height:min(820px, calc(100dvh - 64px));
+  display:flex; flex-direction:column;
+  background:var(--card); border:1.5px solid var(--ink); border-radius:30px; box-shadow:8px 8px 0 var(--spc), var(--pp-sh-2, 0 10px 26px -8px rgba(38,33,27,.14));
+  overflow:hidden; opacity:0; transform:translate(-50%,-47%) scale(.97); outline:none;
+  transition:opacity .22s var(--ease-out), transform .38s var(--ease-spring);
+}
+.tks-spot.on{opacity:1; transform:translate(-50%,-50%)}
+.tks-spot.over{--spc:var(--rose); --spi:var(--rose-ink); --sps:var(--rose-soft)}
+.tks-spot.done{--spc:var(--mint); --spi:var(--mint-ink); --sps:var(--mint-soft)}
+.tks-spot .grab{display:none}
+.tks-spot .sp-scroll{overflow-y:auto; overscroll-behavior:contain; min-height:0}
+
+/* top bar: state on the left, tools on the right, on the state's tint */
+.tks-spot .sp-top{display:flex; align-items:center; gap:8px; padding:16px 18px 4px 26px; position:relative; z-index:2; background:var(--sps)}
+.tks-spot .sp-chip{display:inline-flex; align-items:center; gap:6px; padding:3px 11px; border-radius:999px; background:var(--card); color:var(--spi); border:1.3px solid color-mix(in srgb, var(--spi) 30%, transparent); font-size:.76rem; font-weight:700}
+.tks-spot .sp-chip i{width:7px; height:7px; border-radius:50%; background:currentColor}
+.tks-spot .sp-tool{width:36px; height:36px; border-radius:11px; display:grid; place-items:center; border:1.5px solid transparent; background:none; color:var(--ink-3); transition:border-color .15s, color .15s, background .15s}
+.tks-spot .sp-tool:first-of-type{margin-left:auto}
+.tks-spot .sp-tool:hover{border-color:var(--line-2); color:var(--ink); background:var(--card)}
+.tks-spot .sp-tool.x{border-color:var(--line-2); color:var(--ink-2)}
+
+/* hero: the big calendar page + what and when + the one button */
+.tks-spot .sp-hero{display:grid; grid-template-columns:auto minmax(0,1fr); gap:26px; align-items:center; position:relative; padding:12px 28px 26px;
+  background-color:var(--sps); background-image:repeating-linear-gradient(to bottom, transparent 0 27px, color-mix(in srgb, var(--spi) 9%, transparent) 27px 28px);
+  border-bottom:1.5px solid var(--line)}
+.tks-spot .cal{position:relative; width:118px; border-radius:16px; border:1.8px solid var(--ink); background:var(--card); text-align:center; box-shadow:4px 4px 0 var(--spc); transform:rotate(-3deg); animation:tks-calin .5s var(--ease-spring) .05s both}
+@keyframes tks-calin{from{transform:translateY(-14px) rotate(-9deg); opacity:0}}
+.tks-spot .cal::before{content:''; position:absolute; left:50%; top:-9px; width:54px; height:17px; transform:translateX(-50%) rotate(4deg); background:color-mix(in srgb, var(--butter) 75%, transparent); border-inline:1.5px dashed rgba(38,33,27,.18); z-index:2; filter:var(--note-filter)}
+.tks-spot .cal small{display:block; padding:4px 0 3px; background:var(--spc); color:var(--note-ink); border-bottom:1.8px solid var(--ink); border-radius:14px 14px 0 0; font-family:var(--mono); font-size:.72rem; font-weight:600; letter-spacing:.14em; filter:var(--note-filter)}
+.tks-spot .cal b{display:block; padding:6px 0 0; font-family:var(--display); font-weight:600; font-size:3.3rem; letter-spacing:-.05em; line-height:1}
+.tks-spot .cal span{display:block; padding:2px 0 9px; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.12em; color:var(--ink-3)}
+.tks-spot .cal.none{border-style:dashed; border-color:var(--line-2); box-shadow:none; transform:none}
+.tks-spot .cal.none::before{display:none}
+.tks-spot .cal.none small{background:transparent; color:var(--ink-3); border-bottom:1.8px dashed var(--line-2)}
+.tks-spot .cal.none b{color:var(--ink-3)}
+.tks-spot.done .cal::after, .tks-spot.stamping .cal::after{content:'DONE'; position:absolute; right:-26px; bottom:6px; transform:rotate(12deg); padding:2px 10px; border-radius:6px; border:2px solid var(--mint-ink); color:var(--mint-ink); background:var(--card); font-family:var(--mono); font-size:.9rem; font-weight:700; letter-spacing:.14em}
+.tks-spot.stamping .cal::after{animation:tks-slam .42s var(--ease-spring) both}
+@keyframes tks-slam{0%{transform:scale(2.4) rotate(-30deg); opacity:0} 60%{transform:scale(.92) rotate(10deg); opacity:1} 100%{transform:scale(1) rotate(12deg)}}
+.tks-spot h2{font-family:var(--display); font-weight:600; font-size:2rem; letter-spacing:-.032em; line-height:1.08; overflow-wrap:anywhere}
+.tks-spot.done h2{color:var(--ink-2)}
+.tks-spot .sp-when{margin-top:8px; font-size:1.04rem; color:var(--ink-2)}
+.tks-spot .sp-when b{color:var(--ink); font-weight:600}
+.tks-spot .sp-when em{font-style:normal; color:var(--rose-ink); font-weight:600}
+.tks-spot .sp-go{margin-top:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap}
+.tks-spot .sp-go .hint{display:inline-flex; align-items:center; gap:6px; font-size:.86rem; color:var(--ink-3)}
+.tks-spot .sp-go .hint .ptk-ic{width:14px; height:14px}
+
+/* the big tick: the list's circle, grown up */
+.tks-spot .bigtick{display:inline-flex; align-items:center; gap:13px; padding:7px 20px 7px 7px; border-radius:999px; border:1.8px solid var(--ink); background:var(--card); text-align:left; box-shadow:3px 3px 0 var(--mint); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.tks-spot .bigtick:hover{transform:translate(-1.5px,-1.5px); box-shadow:5px 5px 0 var(--mint)}
+.tks-spot .bigtick:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--mint)}
+.tks-spot .bigtick .o{width:44px; height:44px; flex:none; border-radius:50%; display:grid; place-items:center; border:1.8px solid var(--ink); background:var(--card); color:transparent; transition:background .2s, color .2s, transform .25s var(--ease-spring)}
+.tks-spot .bigtick .o .ptk-ic{width:22px; height:22px}
+.tks-spot .bigtick:hover .o{background:var(--mint-soft); color:var(--mint-ink)}
+.tks-spot .bigtick.on .o, .tks-spot.stamping .bigtick .o{background:var(--mint); color:var(--note-ink); filter:var(--note-filter)}
+.tks-spot.stamping .bigtick .o{transform:scale(1.08)}
+.tks-spot .bigtick.on:hover .o{background:var(--card); color:var(--ink-3); filter:none}
+.tks-spot .bigtick .tx b{display:block; font-family:var(--display); font-weight:600; font-size:1.08rem; letter-spacing:-.02em; line-height:1.15}
+.tks-spot .bigtick .tx small{display:block; font-size:.74rem; color:var(--ink-3)}
+
+.tks-spot .sp-sec{padding:20px 28px; border-top:1.5px dashed var(--line-2)}
+.tks-spot .sp-lab{margin-bottom:12px; font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.tks-spot .nodate{display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; border:1.5px dashed var(--line-2); color:var(--ink-2); font-size:.9rem}
+.tks-spot .nodate .ptk-ic{color:var(--ink-3)}
+.tks-spot .nodate b{color:var(--ink)}
+
+/* start → due bookends */
+.tks-spot .ends{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:14px; padding:18px 28px 0; border-top:0}
+.tks-spot .end{display:inline-flex; align-items:center; gap:10px; padding:8px 14px 8px 8px; border-radius:14px; border:1.6px solid var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--ec)}
+.tks-spot .end.s{--ec:var(--butter)}
+.tks-spot .end.d{--ec:var(--spc)}
+.tks-spot.up .end.d{--ec:var(--sky)}
+.tks-spot .end i{width:30px; height:30px; flex:none; border-radius:9px; display:grid; place-items:center; background:var(--ec); border:1.5px solid var(--note-ink); color:var(--note-ink); filter:var(--note-filter)}
+.tks-spot .end.s i::after{content:''; width:10px; height:10px; border-radius:50%; background:var(--card); border:1.6px solid var(--note-ink)}
+.tks-spot .end i .ptk-ic{width:15px; height:15px}
+.tks-spot .end small{display:block; font-family:var(--mono); font-size:.6rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+.tks-spot .end b{display:block; font-weight:600; font-size:.92rem; white-space:nowrap}
+.tks-spot .len{position:relative; display:flex; justify-content:center; align-items:center; height:24px}
+.tks-spot .len::before{content:''; position:absolute; left:0; right:8px; top:50%; border-top:2px dashed var(--line-2)}
+.tks-spot .len::after{content:''; position:absolute; right:0; top:50%; width:9px; height:9px; border-top:2px solid var(--ink-3); border-right:2px solid var(--ink-3); transform:translateY(-50%) rotate(45deg)}
+.tks-spot .len span{position:relative; padding:2px 10px; border-radius:999px; background:var(--card); border:1.3px solid var(--line-2); font-family:var(--mono); font-size:.68rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+
+/* desk calendar + the one number */
+.tks-spot .when-sec{display:grid; grid-template-columns:minmax(0,1fr) 180px; gap:26px; align-items:center; padding:18px 28px 24px; border-top:0}
+.tks-spot .desk-cal{min-width:0}
+.tks-spot .dc-m{display:flex; align-items:baseline; gap:10px; margin-bottom:10px; font-family:var(--display); font-weight:600; font-size:1rem; letter-spacing:-.02em}
+.tks-spot .dc-m span{font-family:var(--mono); font-size:.66rem; font-weight:500; color:var(--ink-3); letter-spacing:0}
+.tks-spot .dc-g{display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:10px 4px}
+.tks-spot .dc-h{text-align:center; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; color:var(--ink-3); padding-bottom:2px}
+.tks-spot .dc{position:relative; height:40px; border-radius:9px; border:1.3px solid var(--line); background:var(--card); display:flex; align-items:flex-start; justify-content:flex-start; padding:4px 6px}
+.tks-spot .dc i{font-style:normal; font-family:var(--mono); font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.tks-spot .dc.out{border-color:transparent; background:transparent}
+.tks-spot .dc.out i{color:color-mix(in srgb, var(--ink-3) 45%, transparent); font-weight:400}
+.tks-spot .dc.gone{background:var(--paper-2)}
+.tks-spot .dc.gone i{color:var(--ink-3)}
+.tks-spot .dc.gone::after{content:''; position:absolute; inset:9px 7px; background:linear-gradient(to top right, transparent calc(50% - 1px), color-mix(in srgb, var(--ink-3) 55%, transparent) calc(50% - 1px) calc(50% + .6px), transparent calc(50% + .6px)); pointer-events:none}
+.tks-spot .dc.left{background:var(--sky-soft); border-color:var(--sky-bd)}
+.tks-spot .dc.late{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 5px, color-mix(in srgb, var(--rose) 55%, var(--card)) 5px 9px); border-color:var(--rose-bd)}
+.tks-spot .dc.late i{color:var(--rose-ink)}
+.tks-spot .dc.as{border:1.6px solid var(--ink); box-shadow:2px 2px 0 var(--butter)}
+.tks-spot .dc.today{border:2px solid var(--peach-ink); border-radius:50% 46% 52% 44% / 48% 54% 46% 52%; transform:rotate(-3deg); background:var(--card)}
+.tks-spot .dc.today i{color:var(--peach-ink); font-weight:700}
+.tks-spot .dc.today.late{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 5px, color-mix(in srgb, var(--rose) 55%, var(--card)) 5px 9px)}
+.tks-spot .dc.due{background:var(--spc); border:1.6px solid var(--ink); box-shadow:2px 2px 0 var(--ink); filter:var(--note-filter)}
+.tks-spot.up .dc.due{background:var(--sky)}
+.tks-spot .dc.due i{color:var(--note-ink); font-weight:700}
+.tks-spot .dc.dn{background:var(--mint); border:1.6px solid var(--ink); filter:var(--note-filter)}
+.tks-spot .dc.dn i{color:var(--note-ink)}
+.tks-spot .dc .tickm{position:absolute; left:50%; top:52%; transform:translate(-50%,-30%); width:20px; height:20px; border-radius:50%; display:grid; place-items:center; background:var(--card); border:1.4px solid var(--ink); color:var(--mint-ink)}
+.tks-spot .dc .tickm .ptk-ic{width:11px; height:11px}
+.tks-spot .dc .tag{position:absolute; left:50%; bottom:-7px; transform:translateX(-50%); padding:0 5px; border-radius:5px; border:1.3px solid var(--ink); font-family:var(--mono); font-size:.5rem; font-weight:700; letter-spacing:.08em; line-height:1.5; white-space:nowrap; z-index:1; color:var(--note-ink); filter:var(--note-filter)}
+.tks-spot .dc .tag.s{background:var(--butter)}
+.tks-spot .dc .tag.d{background:var(--card); color:var(--ink); filter:none}
+.tks-spot .dc.as .tag.s + .tag.d{display:none}
+.tks-spot .dc-gap{grid-column:1 / -1; position:relative; display:flex; justify-content:center; height:14px; margin:-2px 0}
+.tks-spot .dc-gap::before{content:''; position:absolute; left:0; right:0; top:50%; border-top:2px dotted var(--line-2)}
+.tks-spot .dc-gap span{position:relative; padding:0 10px; background:var(--card); font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.04em; color:var(--ink-3); line-height:14px}
+.tks-spot .dc-k{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:12px; font-size:.74rem; color:var(--ink-3)}
+.tks-spot .dc-k span{display:inline-flex; align-items:center; gap:6px}
+.tks-spot .dc-k span::before{content:''; width:12px; height:12px; border-radius:4px; border:1.3px solid var(--ink)}
+.tks-spot .dc-k .k-as::before{background:var(--butter)}
+.tks-spot .dc-k .k-td::before{border:2px solid var(--peach-ink); border-radius:50%}
+.tks-spot .dc-k .k-du::before{background:var(--spc)}
+.tks-spot.up .dc-k .k-du::before{background:var(--sky)}
+.tks-spot .dc-k .k-dn::before{background:var(--mint); border-radius:50%}
+.tks-spot .dc-k .k-late::before{background:repeating-linear-gradient(-45deg, var(--rose-soft) 0 3px, var(--rose) 3px 5px); border-color:var(--rose-bd)}
+.tks-spot .dc-k .k-left::before{background:var(--sky-soft); border-color:var(--sky-bd)}
+.tks-spot .count{justify-self:stretch; text-align:center; padding:18px 12px 16px; border-radius:20px; border:1.5px solid var(--ink); background:var(--card); box-shadow:4px 4px 0 var(--cc, var(--sky)); transform:rotate(1.5deg)}
+.tks-spot .count.late{--cc:var(--rose)}
+.tks-spot .count.fin{--cc:var(--mint)}
+.tks-spot .count b{display:block; font-family:var(--display); font-weight:600; font-size:3.6rem; letter-spacing:-.06em; line-height:.95; color:var(--cci, var(--sky-ink))}
+.tks-spot .count.late b{--cci:var(--rose-ink)}
+.tks-spot .count.fin b{--cci:var(--mint-ink)}
+.tks-spot .count span{display:block; margin-top:4px; font-weight:700; font-size:.95rem}
+.tks-spot .count small{display:block; margin-top:6px; font-family:var(--mono); font-size:.68rem; color:var(--ink-3)}
+
+/* the note, on a taped legal pad */
+.tks-spot .pad{position:relative; margin-top:4px; padding:12px 16px 12px 46px; border-radius:6px 14px 10px 12px; border:1.5px solid var(--butter-bd); color:var(--ink); font-size:.96rem; line-height:26px; white-space:pre-wrap; overflow-wrap:anywhere;
+  background:var(--butter-soft) repeating-linear-gradient(to bottom, transparent 0 25px, color-mix(in srgb, var(--sky-ink) 18%, transparent) 25px 26px); background-position:0 11px}
+.tks-spot .pad::before{content:''; position:absolute; left:32px; top:0; bottom:0; width:1.5px; background:color-mix(in srgb, var(--rose-ink) 45%, transparent)}
+.tks-spot .pad::after{content:''; position:absolute; right:22px; top:-8px; width:46px; height:15px; transform:rotate(-5deg); background:color-mix(in srgb, var(--rose) 70%, transparent); border-inline:1.5px dashed rgba(38,33,27,.16); filter:var(--note-filter)}
+.tks-spot .addn{display:inline-flex; align-items:center; gap:6px; padding:0; border:0; background:none; font-size:.86rem; font-weight:600; color:var(--ink-2)}
+.tks-spot .addn:hover{color:var(--ink)}
+.tks-spot .addn .ptk-ic{width:14px; height:14px}
+
+/* everyone's part: a ring and every face */
+.tks-spot .parts{display:grid; grid-template-columns:auto minmax(0,1fr); gap:18px; align-items:center}
+.tks-spot .ring{width:84px; height:84px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(var(--mint-ink) calc(var(--p) * 1%), var(--paper-3) 0); position:relative}
+.tks-spot .ring::before{content:''; position:absolute; inset:9px; border-radius:50%; background:var(--card); border:1.5px solid var(--line)}
+.tks-spot .ring b{position:relative; font-family:var(--display); font-weight:600; font-size:1.35rem; letter-spacing:-.04em; line-height:1}
+.tks-spot .ring b small{font-size:.8rem; color:var(--ink-3); letter-spacing:0}
+.tks-spot .faces{display:flex; flex-wrap:wrap; gap:6px}
+.tks-spot .faces.wait{height:32px; border-radius:16px; background:var(--paper-2); max-width:280px}
+.tks-spot .face{display:inline-flex; border-radius:50%}
+.tks-spot .face .ptk-av{width:32px; height:32px; font-size:.6rem}
+.tks-spot .face.todo .ptk-av{opacity:.42; filter:grayscale(1)}
+.tks-spot .face.todo{outline:1.5px dashed var(--line-2); outline-offset:1px}
+.tks-spot .face.me{outline:2.5px solid var(--butter); outline-offset:2px}
+.tks-spot .parts p{margin-top:10px; font-size:.84rem; color:var(--ink-3)}
+.tks-spot .parts p b{color:var(--ink-2); font-weight:600}
+
+/* who: one quiet line, not a feature */
+.tks-spot .who-line{display:flex; flex-wrap:wrap; gap:10px 22px; font-size:.86rem; color:var(--ink-2)}
+.tks-spot .who-line > span{display:inline-flex; align-items:center; flex-wrap:wrap; gap:7px; min-width:0}
+.tks-spot .who-line small{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.tks-spot .who-line .ptk-av{width:22px; height:22px; font-size:.52rem; border-width:1.2px}
+.tks-spot .who-line .pp{display:inline-flex; align-items:center; gap:6px}
+.tks-spot .who-line .rl{display:inline-flex; align-items:center; gap:5px; font-weight:600; color:var(--ink)}
+.tks-spot .who-line .rl::before{content:''; width:8px; height:8px; border-radius:2px; background:var(--rc); border:1.2px solid var(--ink)}
+.tks-spot .who-line .q{color:var(--ink-3)}
+
+/* history, folded */
+.tks-spot .hist-d summary{list-style:none; display:flex; align-items:center; gap:8px; cursor:pointer; font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.tks-spot .hist-d summary::-webkit-details-marker{display:none}
+.tks-spot .hist-d summary .ptk-ic{width:14px; height:14px; margin-left:auto; transition:transform .25s var(--ease-spring)}
+.tks-spot .hist-d[open] summary .ptk-ic{transform:rotate(180deg)}
+.tks-spot .hist-d summary:hover{color:var(--ink)}
+.tks-spot .hist-msg{margin-top:12px; font-size:.86rem; color:var(--ink-3)}
+.tks-spot .hist{position:relative; display:grid; gap:11px; margin-top:14px; padding-left:18px}
+.tks-spot .hist::before{content:''; position:absolute; left:4px; top:6px; bottom:6px; width:1.5px; background:var(--line-2)}
+.tks-spot .hist li{position:relative; display:flex; gap:10px; justify-content:space-between; font-size:.86rem; color:var(--ink-2)}
+.tks-spot .hist li::before{content:''; position:absolute; left:-18px; top:5px; width:9px; height:9px; border-radius:50%; background:var(--hcl, var(--card)); border:1.4px solid var(--ink)}
+.tks-spot .hist li b{color:var(--ink); font-weight:600}
+.tks-spot .hist li time{flex:none; font-family:var(--mono); font-size:.68rem; color:var(--ink-3); padding-top:2px}
+.tks-spot .hist li.c{--hcl:var(--butter)}
+.tks-spot .hist li.d{--hcl:var(--mint)}
+.tks-spot .hist li.e{--hcl:var(--sky)}
+.tks-spot .hist li.r{--hcl:var(--rose)}
+
+@media (max-width:600px){
+  .tks-spot{left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 10px); bottom:0; width:auto; max-height:none; border-radius:24px 24px 0 0; border-bottom:0; box-shadow:0 -3px 0 var(--spc);
+    opacity:1; transform:translateY(104%); transition:transform .36s var(--ease-out)}
+  .tks-spot.on{transform:none}
+  .tks-spot .grab{display:block; flex:none; width:40px; height:5px; margin:9px auto 0; border-radius:3px; background:var(--line-2); position:relative; z-index:3}
+  .tks-spot .grab + .sp-top{margin-top:-14px; padding-top:18px}
+  .tks-spot .sp-top{padding:4px 12px 4px 18px}
+  .tks-spot .sp-hero{padding:10px 18px 22px; grid-template-columns:auto minmax(0,1fr); gap:16px; align-items:start}
+  .tks-spot .sp-hero > div:last-child{display:contents}
+  .tks-spot .sp-hero h2{grid-column:2; align-self:center; font-size:1.4rem}
+  .tks-spot .sp-when, .tks-spot .sp-go{grid-column:1 / -1; margin-top:0}
+  .tks-spot .cal{width:84px}
+  .tks-spot .cal b{font-size:2.3rem}
+  .tks-spot .bigtick{width:100%}
+  .tks-spot .sp-sec{padding:18px}
+  .tks-spot .ends{grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px 10px; padding:16px 18px 0}
+  .tks-spot .end{justify-self:stretch; min-width:0; padding:7px 10px 7px 7px; gap:8px}
+  .tks-spot .end > span{min-width:0}
+  .tks-spot .end b{font-size:.84rem; overflow:hidden; text-overflow:ellipsis}
+  .tks-spot .end i{width:26px; height:26px}
+  .tks-spot .end.d{grid-column:2; grid-row:1}
+  .tks-spot .len{grid-column:1 / -1; height:20px}
+  .tks-spot .when-sec{grid-template-columns:minmax(0,1fr); padding:18px; gap:16px}
+  .tks-spot .count{display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; column-gap:14px; text-align:left; padding:12px 16px; transform:none}
+  .tks-spot .count b{grid-row:1 / span 2; font-size:2.6rem}
+  .tks-spot .count span{margin-top:0}
+  .tks-spot .count small{margin-top:2px}
+  .tks-spot .dc{height:36px; padding:3px 5px}
+  .tks-spot .parts{grid-template-columns:minmax(0,1fr); justify-items:start}
+  .tks-spot .sp-scroll{padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+@media (prefers-reduced-motion:reduce){
+  .tks-spot, .tks-sp-scrim{transition:none}
+  .tks-spot .cal, .tks-spot.stamping .cal::after{animation:none}
+}
+
+/* ---------- New task / New poll sheets -----------------------------------
+   Inside the page's <Modal hideHeader>: .ptk-sheet zeroes the modal body's
+   padding (paper-tasks.css) and the modal's own ✕ floats top-right. */
+.tks-sheet{display:block; --butter-bd:var(--pp-butter-bd,#F4DFA6)}
+.tks-sheet .mh{display:flex; align-items:center; gap:12px; padding:18px 60px 14px 22px; border-bottom:1.5px dashed var(--line-2)}
+.tks-sheet .mh .tile{width:36px; height:36px; flex:none; border-radius:11px; display:grid; place-items:center; background:var(--butter); border:1.5px solid var(--note-ink); color:var(--note-ink); transform:rotate(-4deg); filter:var(--note-filter)}
+.tks-sheet.poll .mh .tile{background:var(--lilac)}
+.tks-sheet .mh h2{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.024em}
+.tks-sheet .mb{padding:18px 22px 6px; display:grid; gap:18px}
+.tks-sheet .fld{display:grid; gap:8px; min-width:0}
+.tks-sheet .fld > label, .tks-sheet .fld > .lab{font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.tks-sheet .fld i{font-style:normal; font-weight:500; letter-spacing:0; text-transform:none}
+.tks-sheet .inp{width:100%; padding:10px 13px; border-radius:12px; border:1.5px solid var(--line-2); background:var(--paper); color:var(--ink); font:inherit; font-size:.92rem; outline:none; transition:border-color .18s, box-shadow .18s}
+.tks-sheet .inp::placeholder{color:var(--ink-3)}
+.tks-sheet .inp:focus{border-color:var(--ink); box-shadow:2.5px 2.5px 0 var(--butter)}
+.tks-sheet.poll .inp:focus{box-shadow:2.5px 2.5px 0 var(--lilac)}
+.tks-sheet .inp.big{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.02em}
+.tks-sheet textarea.inp{resize:vertical; min-height:70px; line-height:1.5}
+.tks-sheet .inp.find{padding:7px 12px; font-size:.84rem; max-width:300px}
+.tks-sheet .chips{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.tks-sheet .chips button{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper); font-size:.82rem; font-weight:600; color:var(--ink-2); white-space:nowrap; transition:border-color .15s, color .15s, box-shadow .15s}
+.tks-sheet .chips button:hover:not(:disabled){border-color:var(--ink-3); color:var(--ink)}
+.tks-sheet .chips button:disabled{opacity:.45; cursor:not-allowed}
+.tks-sheet .chips button small{font-family:var(--mono); font-size:.66rem; font-weight:500; color:var(--ink-3)}
+.tks-sheet .chips button .ptk-ic{width:14px; height:14px}
+.tks-sheet .chips button[aria-pressed="true"]{border-color:var(--ink); color:var(--ink); background:var(--card); box-shadow:2px 2px 0 var(--butter)}
+.tks-sheet.poll .chips button[aria-pressed="true"]{box-shadow:2px 2px 0 var(--lilac)}
+.tks-sheet .chips button .ptk-av{width:20px; height:20px; font-size:.5rem; border-width:1.2px; margin-left:-6px}
+.tks-sheet .chips button.role::before{content:''; width:8px; height:8px; border-radius:2px; background:var(--rc); border:1.2px solid var(--ink)}
+.tks-sheet .chips .inp.date{width:auto; padding:5px 10px; border-radius:999px; font-size:.82rem}
+.tks-sheet .chips .chip-wait{height:33px; border-radius:999px; background:var(--paper-2); animation:tks-breathe 1.4s ease-in-out infinite alternate}
+.tks-sheet .chips .none{font-size:.84rem; color:var(--ink-3)}
+.tks-sheet .chips.ev{margin-top:2px}
+.tks-sheet .hint{display:flex; align-items:center; gap:6px; font-size:.8rem; color:var(--ink-3)}
+.tks-sheet .hint .ptk-ic{width:13px; height:13px}
+.tks-sheet .addnote{justify-self:start; display:inline-flex; align-items:center; gap:6px; padding:0; border:0; background:none; font-size:.84rem; font-weight:600; color:var(--ink-2)}
+.tks-sheet .addnote:hover{color:var(--ink)}
+.tks-sheet .addnote .ptk-ic{width:14px; height:14px}
+.tks-sheet .err{padding:0 22px; color:var(--rose-ink); font-size:.82rem; font-weight:600}
+.tks-sheet .mf{display:flex; align-items:center; gap:10px; padding:14px 22px 20px; flex-wrap:wrap}
+.tks-sheet .mf .lands{margin-right:auto; flex:1 1 220px; min-width:0; display:inline-flex; align-items:center; gap:8px; font-size:.82rem; color:var(--ink-2)}
+.tks-sheet .mf .lands b{color:var(--ink)}
+.tks-sheet .mf .lands .tks-stub{width:34px; box-shadow:none}
+.tks-sheet .mf .lands .tks-stub small{font-size:.46rem}
+.tks-sheet .mf .lands .tks-stub b{font-size:.9rem}
+.tks-sheet .tks-btn.danger{--fg:var(--rose-ink); border-color:color-mix(in srgb, var(--rose-ink) 45%, transparent)}
+.tks-sheet .tks-btn.danger:hover{border-color:var(--rose-ink); color:var(--rose-ink)}
+.tks-sheet .tks-btn.lilac{--hs:var(--lilac)}
+
+/* poll choices: a ballot box per line */
+.tks-sheet .popts{display:grid; gap:8px}
+.tks-sheet .popt{display:grid; grid-template-columns:auto minmax(0,1fr) 30px; align-items:center; gap:10px}
+.tks-sheet .popt.two{grid-template-columns:auto minmax(0,1fr)}
+.tks-sheet .popt .bx{width:18px; height:18px; border-radius:4px; border:1.6px solid var(--ink)}
+.tks-sheet .popt .inp{padding:9px 12px}
+.tks-sheet .popt .inp.locked{color:var(--ink-2); background:var(--paper-2)}
+.tks-sheet .popt .rm{width:30px; height:30px; display:grid; place-items:center; border-radius:9px; border:1.5px solid transparent; background:none; color:var(--ink-3)}
+.tks-sheet .popt .rm:hover{border-color:var(--line-2); color:var(--rose-ink)}
+.tks-sheet .popt .rm .ptk-ic{width:14px; height:14px}
+
+@media (max-width:600px){
+  .tks-sheet .mh{padding:16px 56px 12px 18px}
+  .tks-sheet .mb{padding:16px 18px 6px}
+  .tks-sheet .err{padding:0 18px}
+  .tks-sheet .mf{padding:12px 18px 18px}
+  .tks-sheet .mf .lands{flex-basis:100%}
+  .tks-sheet .mf .tks-btn{flex:1}
+}

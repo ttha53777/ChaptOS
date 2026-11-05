@@ -67,6 +67,7 @@
   display: grid; place-items: center; font-size: .6rem; font-weight: 700; font-style: normal;
   background: var(--pp-peach, var(--rose)); color: var(--pp-note-ink, #26211B); border: 1.5px solid var(--paper);
 }
+.mtb-badge.rose { background: var(--pp-rose, var(--rose)); }
 .mtb-create {
   justify-self: center; display: grid; place-items: center; width: 50px; height: 42px; margin-top: 1px;
   border-radius: 14px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer;

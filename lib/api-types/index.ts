@@ -41,6 +41,7 @@
  *   GET    /api/excuses/mine                   MyExcuseItem[]
  *   POST   /api/excuses                        (file an excuse)
  *   GET    /api/tasks                          Task[]
+ *   GET    /api/tasks/[id]                     TaskDetail              (each-task ticks + history)
  *   PATCH  /api/tasks/[id]                     Task                    (an assignee may tick it)
  *   GET    /api/polls                          Poll[]
  *   POST   /api/polls/[id]/vote                Poll

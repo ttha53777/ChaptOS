@@ -1588,7 +1588,7 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
   const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
   const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
   // Status is now binary open/done; an "open_only" flag (or any non-done status)
-  // narrows to incomplete tasks. Urgency (overdue/urgent/upcoming) is computed from the
+  // narrows to incomplete tasks. Urgency (overdue/upcoming) is computed from the
   // due date, not a stored status, so a date window is the way to ask for it.
   const status = typeof args.status === "string" ? args.status : undefined;
   const openOnly = args.open_only === true;

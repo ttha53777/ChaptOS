@@ -1,5 +1,5 @@
 // Task completion status. Deliberately binary — a task is open until someone
-// marks it done. "Urgency" (overdue / urgent / upcoming) is NOT a stored
+// marks it done. "Urgency" (overdue / upcoming) is NOT a stored
 // status; it's computed from the task's dueDate at render time. See
 // taskUrgency() in @/lib/tasks/urgency.
 export const TaskStatus = {

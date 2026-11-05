@@ -50,7 +50,7 @@ html[data-aesthetic="paper"] .ui-modal-body { font-size: .9rem; }
 
 /* ── Form controls ──────────────────────────────────────────────────────────── */
 html[data-aesthetic="paper"] .ui-inp,
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea):not(.cef-title, .cef-quiet, .ev-ni-title, .pc-question, .pc-opt-input, .sr-only, .edt-bare),
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"]), select, textarea):not(.cef-title, .cef-quiet, .ev-ni-title, .sr-only, .edt-bare),
 html[data-aesthetic="paper"] .cef-input, html[data-aesthetic="paper"] .cef-textarea,
 html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-section .sc-select, .set-section .sc-textarea) {
   border-radius: 10px; border: 1.5px solid var(--line-med); background-color: var(--paper); color: var(--ink);
@@ -58,7 +58,7 @@ html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-sectio
   transition: border-color .15s, box-shadow .15s;
 }
 html[data-aesthetic="paper"] .ui-inp:focus,
-html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input, select, textarea):not(.cef-title, .cef-quiet, .pc-question, .pc-opt-input, .edt-bare):focus,
+html[data-aesthetic="paper"] :is(.ui-modal-body, .ev-panel, .wpeek-root) :is(input, select, textarea):not(.cef-title, .cef-quiet, .edt-bare):focus,
 html[data-aesthetic="paper"] .cef-input:focus, html[data-aesthetic="paper"] .cef-textarea:focus,
 html[data-aesthetic="paper"] :is(.svc-input, .set-section .sc-input, .set-section .sc-select, .set-section .sc-textarea):focus {
   border-color: var(--ink); box-shadow: 2px 2px 0 var(--acc, var(--pp-lilac)); outline: none;
@@ -85,10 +85,10 @@ html[data-aesthetic="paper"] .ui-label[style] { color: var(--ink-soft) !importan
 html[data-aesthetic="paper"] .ui-modal-body :is(input, select, textarea) { min-width: 0; max-width: 100%; }
 
 /* labels: the mock's .fld > span — sentence case, sans, semibold */
-html[data-aesthetic="paper"] :is(.ui-label, .cef-label, .pc-label, .sg-label, .jr-label, .ev-ov-lbl, .ev-ni-lbl, .dd-field-label, .tk-group-label, .sg-card-label) {
+html[data-aesthetic="paper"] :is(.ui-label, .cef-label, .sg-label, .jr-label, .ev-ov-lbl, .ev-ni-lbl, .dd-field-label, .tk-group-label, .sg-card-label) {
   font-family: var(--font-geist-sans); font-size: .74rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
 }
-html[data-aesthetic="paper"] .cef-label .opt, html[data-aesthetic="paper"] .tk-form .tk-opt { color: var(--muted); font-weight: 500; letter-spacing: 0; }
+html[data-aesthetic="paper"] .cef-label .opt { color: var(--muted); font-weight: 500; letter-spacing: 0; }
 html[data-aesthetic="paper"] .cef-hint { font-family: var(--font-geist-sans); font-style: normal; font-size: .78rem; color: var(--muted); }
 
 /* ── Buttons: the mock's .btn family ──────────────────────────────────────── */
@@ -134,14 +134,12 @@ html[data-aesthetic="paper"] .ms-overlay .ms-btn { padding: 7px 13px; font-size:
 html[data-aesthetic="paper"] .ms-overlay .ms-btn.ghost { border-color: transparent; }
 
 /* chips / segmented choices: the mock's .seg and .cats */
-html[data-aesthetic="paper"] .tk-form .tk-pick-chip,
 html[data-aesthetic="paper"] .cef-chip {
   border: 1.5px solid var(--line-med); border-radius: 999px; padding: 6px 12px; background: transparent;
   font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 550; letter-spacing: 0; text-transform: none; color: var(--ink-soft);
 }
-html[data-aesthetic="paper"] .tk-form .tk-pick-chip:hover, html[data-aesthetic="paper"] .cef-chip:hover { border-color: var(--muted); color: var(--ink); }
-html[data-aesthetic="paper"] .tk-form .tk-pick-chip.on,
-html[data-aesthetic="paper"] .tk-form .tk-pick-chip.role.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .cef-chip:hover { border-color: var(--muted); color: var(--ink); }
+
 html[data-aesthetic="paper"] .cef-cat {
   border: 1.5px solid var(--line-med); padding: 6px 12px; font-size: .82rem; font-weight: 550; color: var(--ink-soft);
   transition: background .15s, border-color .15s, box-shadow .15s;
@@ -155,14 +153,6 @@ html[data-aesthetic="paper"] .cef-chip.on {
 }
 
 /* segmented toggle (.ui-seg): the mock's .tabs */
-html[data-aesthetic="paper"] .ui-seg.pc-seg { display: inline-flex; }
-html[data-aesthetic="paper"] .ui-seg { gap: 3px; padding: 3px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--paper-2); overflow: visible; }
-html[data-aesthetic="paper"] .ui-seg > button {
-  padding: 5px 13px; border-radius: 999px; font-family: var(--font-geist-sans); font-size: .8rem; font-weight: 550; letter-spacing: 0; text-transform: none;
-  background: none; color: var(--muted);
-}
-html[data-aesthetic="paper"] .ui-seg > button:hover { background: none; color: var(--ink); }
-html[data-aesthetic="paper"] .ui-seg > button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--pp-sh-1); }
 
 /* switch: the mock's .sw */
 html[data-aesthetic="paper"] .cef-sw { font-size: .82rem; font-weight: 550; color: var(--ink-soft); }
@@ -211,25 +201,6 @@ html[data-aesthetic="paper"] .cef-kbd { font-family: var(--font-geist-sans); fon
 html[data-aesthetic="paper"] .cef-kbd kbd { font-family: var(--mono); font-size: .68rem; border: 1px solid var(--line-med); border-radius: 6px; padding: 1px 6px; background: var(--paper-2); color: var(--muted); }
 html[data-aesthetic="paper"] .sched-dur { font-family: var(--mono); color: var(--muted); }
 html[data-aesthetic="paper"] .sched-repeat { border: 1.5px solid var(--line-med); border-radius: 12px; }
-
-/* ── Poll composer (PollForm) — the mock's ballot sheet ─────────────────── */
-html[data-aesthetic="paper"] .pc-kicker { font-family: var(--mono); font-size: .66rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-html[data-aesthetic="paper"] .pc-question {
-  width: 100%; background: none; border: 0; border-bottom: 1.5px dashed var(--line-med); border-radius: 0; outline: none; box-shadow: none;
-  padding: 4px 0 10px; font-family: var(--font-fraunces); font-style: normal; font-weight: 600; font-size: 1.6rem; letter-spacing: -.032em; color: var(--ink);
-}
-html[data-aesthetic="paper"] .pc-question::placeholder { color: var(--line-med); font-style: normal; }
-html[data-aesthetic="paper"] .pc-question:focus { border-bottom-color: var(--ink); }
-html[data-aesthetic="paper"] .pc-opt {
-  padding: 4px 6px 4px 12px; margin-bottom: 8px; border: 1.5px solid var(--line-med); border-radius: 10px; background: var(--paper);
-  transition: border-color .15s, box-shadow .15s;
-}
-html[data-aesthetic="paper"] .pc-opt:focus-within { border-color: var(--ink); box-shadow: 2px 2px 0 var(--pp-lilac); }
-html[data-aesthetic="paper"] .pc-opt-input { background: none; border: 0; outline: none; box-shadow: none; font-family: var(--font-geist-sans); font-size: .92rem; font-weight: 550; color: var(--ink); }
-html[data-aesthetic="paper"] .pc-radio { border: 2px solid var(--ink-soft); border-radius: 4px; }
-html[data-aesthetic="paper"] .pc-add-lbl { color: var(--pp-lilac-ink); font-weight: 600; }
-html[data-aesthetic="paper"] .pc-note { font-family: var(--font-geist-sans); font-style: normal; font-size: .78rem; color: var(--muted); }
-html[data-aesthetic="paper"] .pc-label { display: flex; align-items: baseline; gap: 6px; }
 
 /* ── Drawers (.dash-drawer): KPI / widget / custom metric ───────────────────── */
 html[data-aesthetic="paper"] .dash-drawer-backdrop { background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); }

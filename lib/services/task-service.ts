@@ -251,9 +251,11 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
 
   const changedFields: string[] = [];
   const data: Record<string, unknown> = {};
-  if (input.title !== undefined)   { data.title = input.title; changedFields.push("title"); }
-  if (input.dueDate !== undefined) { data.dueDate = input.dueDate; changedFields.push("dueDate"); }
-  if (input.notes !== undefined)   { data.notes = input.notes; changedFields.push("notes"); }
+  // A field counts as changed only when its value does: the edit sheet sends the
+  // whole form, and the task's history (getTaskDetail) reads changedFields back.
+  if (input.title !== undefined)   { data.title = input.title; if (input.title !== existing.title) changedFields.push("title"); }
+  if (input.dueDate !== undefined) { data.dueDate = input.dueDate; if (input.dueDate !== existing.dueDate) changedFields.push("dueDate"); }
+  if (input.notes !== undefined)   { data.notes = input.notes; if ((input.notes || null) !== (existing.notes || null)) changedFields.push("notes"); }
   if (changesStatus) {
     data.status = input.status;
     changedFields.push("status");
@@ -309,7 +311,12 @@ export async function updateTask(ctx: RequestContext, id: number, input: UpdateT
           ...roleIds.map(roleId => ({ organizationId: orgId, taskId: id, brotherId: null, roleId })),
         ],
       });
-      changedFields.push("assignees");
+      const key = (b: number[], r: number[]) => [...b.map(x => `b${x}`), ...r.map(x => `r${x}`)].sort().join(",");
+      const before = key(
+        existing.assignments.filter(a => a.brotherId != null).map(a => a.brotherId!),
+        existing.assignments.filter(a => a.roleId != null).map(a => a.roleId!),
+      );
+      if (existing.everyone != null || key(brotherIds, roleIds) !== before) changedFields.push("assignees");
     }
   });
 
@@ -384,6 +391,41 @@ async function setMyPart(ctx: RequestContext, task: TaskRow, done: boolean) {
   }
 
   await emit(ctx, done ? "task.completed" : "task.reopened", { type: "Task", id: task.id }, { title: task.title });
+}
+
+const HISTORY_ACTIONS = ["task.created", "task.updated", "task.completed", "task.reopened"];
+
+/**
+ * The task spotlight's extras: every member's tick on an Everyone · each task,
+ * and the task's history read back from the event log (emit() records every
+ * create / edit / tick / reopen above). Any member may read it, as with the list.
+ */
+export async function getTaskDetail(ctx: RequestContext, id: number) {
+  const task = await ctx.db.task.findUnique({ where: { id }, select: { id: true, everyone: true } });
+  if (!task) throw new NotFoundError("Task");
+  const each = task.everyone === TaskEveryone.Each;
+  const completions = each
+    ? await ctx.db.taskCompletion.findMany({ where: { taskId: id }, orderBy: { completedAt: "asc" }, select: { brotherId: true, completedAt: true } })
+    : [];
+  const events = await ctx.db.operationalEvent.findMany({
+    where: { subjectType: "Task", subjectId: id, action: { in: HISTORY_ACTIONS } },
+    orderBy: { occurredAt: "asc" },
+    take: 200,
+    select: { action: true, actorId: true, occurredAt: true, metadata: true },
+  });
+  return {
+    id: task.id,
+    parts: each ? completions.map(c => ({ brotherId: c.brotherId, completedAt: c.completedAt })) : null,
+    history: events.map(e => {
+      const fields = (e.metadata as { changedFields?: unknown } | null)?.changedFields;
+      return {
+        action: e.action,
+        actorId: e.actorId,
+        at: e.occurredAt,
+        changedFields: e.action === "task.updated" && Array.isArray(fields) ? fields.filter((f): f is string => typeof f === "string") : null,
+      };
+    }),
+  };
 }
 
 export function completeTask(ctx: RequestContext, id: number) {

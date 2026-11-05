@@ -315,6 +315,7 @@ html[data-aesthetic="paper"] .sb .sb-item[aria-current="page"] {
 html[data-aesthetic="paper"] .sb .sb-item[aria-current="page"] .i { color: var(--ink); }
 html[data-aesthetic="paper"] .sb .sb-item[aria-current="page"]::before { display: none; }
 html[data-aesthetic="paper"] .sb .sb-dot { width: 7px; height: 7px; background: var(--pp-rose-ink); box-shadow: 0 0 0 3px var(--pp-rose-soft); }
+html[data-aesthetic="paper"] .sb .sb-count { background: var(--pp-rose); color: var(--pp-note-ink); border: 1.3px solid var(--pp-note-ink); font-family: var(--font-geist-mono); font-weight: 600; filter: var(--pp-note-filter); }
 html[data-aesthetic="paper"] .sb .sb-drop { background: var(--ink); }
 @media (max-width: 1023.98px) { html[data-aesthetic="paper"] .sb .sb-item { height: 42px; } }
 

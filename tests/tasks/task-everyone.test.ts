@@ -2,7 +2,7 @@
  * "Everyone" tasks: a live target (not a roster snapshot) with a rule for who
  * finishes it. "any" = one person ticks it off for the chapter; "each" = every
  * member ticks their own, the viewer sees their own status, and the task closes
- * once all current members have. Plus the four urgency buckets (no "due soon").
+ * once all current members have. Plus the three urgency buckets (no "urgent").
  */
 
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -39,10 +39,10 @@ async function seed() {
 
 describe("urgency buckets", () => {
   const today = new Date(2026, 9, 5); // Oct 5
-  it("is overdue / urgent (today, tomorrow) / upcoming / none — no due-soon band", () => {
+  it("is overdue / upcoming / none — today and tomorrow are just upcoming", () => {
     expect(taskUrgency("2026-10-04", today)).toBe("overdue");
-    expect(taskUrgency("2026-10-05", today)).toBe("urgent");
-    expect(taskUrgency("2026-10-06", today)).toBe("urgent");
+    expect(taskUrgency("2026-10-05", today)).toBe("upcoming");
+    expect(taskUrgency("2026-10-06", today)).toBe("upcoming");
     expect(taskUrgency("2026-10-07", today)).toBe("upcoming");
     expect(taskUrgency("2026-10-12", today)).toBe("upcoming");
     expect(taskUrgency(null, today)).toBe("none");

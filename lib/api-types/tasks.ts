@@ -38,6 +38,29 @@ export interface Task {
   memberCount: number | null;
 }
 
+// What the task spotlight adds to a row: who has done their part of an
+// Everyone · each task, and the task's history. Names and faces come from the
+// roster the client already holds (GET /api/brothers), so only ids travel here;
+// an actor who has since left the chapter simply has no roster entry.
+export interface TaskPart { brotherId: number; completedAt: string }
+export interface TaskHistoryEntry {
+  /** "task.created" | "task.updated" | "task.completed" | "task.reopened". */
+  action: string;
+  actorId: number | null;
+  at: string;
+  /** "task.updated" only: which fields changed ("title", "dueDate", "notes",
+   *  "assignees", "everyone", "status"). null on every other action. */
+  changedFields: string[] | null;
+}
+/** GET /api/tasks/[id]. */
+export interface TaskDetail {
+  id: number;
+  /** Everyone · each tasks only: every member's tick, oldest first. null otherwise. */
+  parts: TaskPart[] | null;
+  /** Oldest first. Tasks migrated from legacy Deadlines may have no "task.created". */
+  history: TaskHistoryEntry[];
+}
+
 // A poll is task-shaped (members/roles + optional date) with a question and 2-10
 // options that attached members vote on. Single-choice. It's a BLIND ballot: the
 // server withholds per-option `voteCount` (null) until the viewer has voted, the

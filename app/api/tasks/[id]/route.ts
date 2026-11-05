@@ -2,8 +2,24 @@ import { NextRequest } from "next/server";
 import { buildContext } from "@/lib/context";
 import { toResponse, ValidationError } from "@/lib/errors";
 import { updateTaskInput } from "@/lib/validation/task";
-import { deleteTask, updateTask } from "@/lib/services/task-service";
+import { deleteTask, getTaskDetail, updateTask } from "@/lib/services/task-service";
 import { logError } from "@/lib/observability";
+
+// The task spotlight: each-task ticks + history. Any member may read, as with
+// GET /api/tasks.
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { ctx, error } = await buildContext();
+  if (error) return error;
+  try {
+    const { id } = await params;
+    const numId = Number(id);
+    if (!Number.isInteger(numId) || numId <= 0) throw new ValidationError("Invalid ID");
+    return Response.json(await getTaskDetail(ctx, numId));
+  } catch (e) {
+    logError(e, { route: "/api/tasks/[id]", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
+    return toResponse(e);
+  }
+}
 
 // PATCH gates on VIEW only (no requirePerm): an assignee without MANAGE_TASKS
 // must be able to flip their own task's status to done. The service splits the
