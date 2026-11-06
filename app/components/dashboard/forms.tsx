@@ -265,6 +265,18 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
   const [reason,    setReason]    = useState("");
   const [submitting,setSubmitting]= useState(false);
   const [error,     setError]     = useState<string | null>(null);
+  // Members marked present at this event — nothing to excuse, so not offered.
+  const [presentIds, setPresentIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    const ac = new AbortController();
+    orgFetch(`/api/attendance/${event.id}`, { signal: ac.signal })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: AttendanceSheet) => setPresentIds(new Set(data.attended.map(r => r.brotherId))))
+      .catch(() => undefined);
+    return () => ac.abort();
+  }, [isAdmin, event.id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -311,7 +323,7 @@ export function ExcuseForm({ event, bList, isAdmin, selfBrotherId, onDone }: {
           <FieldLabel tone="dusk">Brother</FieldLabel>
           <select value={brotherId} onChange={e => setBrotherId(e.target.value)} className={inputDuskCls} required>
             <option value="">Select…</option>
-            {bList.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            {bList.filter(b => !presentIds.has(b.id)).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         </div>
       )}

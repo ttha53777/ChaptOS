@@ -147,6 +147,8 @@ export async function submitExcuse(
   if (!semester)       throw new ValidationError("No active semester");
   if (!brother)        throw new NotFoundError("Brother");
   if (!calendarEvent)  throw new NotFoundError("Event");
+  // Present is present: an excuse only ever covers an absence.
+  if (existingRecord?.attended) throw new ValidationError("Marked present at this event — there's nothing to excuse.");
 
   const isRetroactive = !!existingRecord;
   const status = autoApproved ? ExcuseStatus.Approved : ExcuseStatus.Pending;

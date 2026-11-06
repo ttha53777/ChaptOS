@@ -21,7 +21,7 @@
  */
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
-  MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, Transaction, TransactionCategory,
+  MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, Transaction, TransactionCategory,
 } from "@/lib/api-types";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { publicBrother } from "@/lib/brother-avatar";
@@ -29,7 +29,7 @@ import type { listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
 import type { listCalendar } from "@/lib/services/calendar-service";
 import type { listEventTypes } from "@/lib/services/calendar-event-type-service";
-import type { getLiveCheckIn, selfCheckIn, undoSelfCheckIn } from "@/lib/services/attendance-service";
+import type { getLiveCheckIn, listMyAttendance, selfCheckIn, undoSelfCheckIn } from "@/lib/services/attendance-service";
 import type { listMyExcuses } from "@/lib/services/excuse-service";
 import type { listRecentActivity } from "@/lib/services/activity-service";
 import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
@@ -80,6 +80,7 @@ export const eventTypes: Widen<CalEventType[]> = served<Served<typeof listEventT
 export const liveCheckIn: Widen<LiveCheckIn | null> = served<Served<typeof getLiveCheckIn>>();
 export const checkIn: Widen<LiveCheckIn | null> = served<Served<typeof selfCheckIn>>();
 export const undoCheckIn: Widen<LiveCheckIn | null> = served<Served<typeof undoSelfCheckIn>>();
+export const myAttendance: Widen<MyAttendance> = served<Served<typeof listMyAttendance>>();
 export const myExcuses: Widen<MyExcuseItem[]> = served<Served<typeof listMyExcuses>>();
 
 export const activity: Widen<ActivityEntry[]> = served<Served<typeof listRecentActivity>>();

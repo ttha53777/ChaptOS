@@ -37,6 +37,7 @@
  *   PATCH  /api/calendar/[id]/details          (claim a "who's bringing what" item)
  *   GET    /api/attendance/live                LiveCheckIn | null
  *   POST   /api/attendance/[eventId]/check-in  LiveCheckIn | null      (DELETE undoes)
+ *   GET    /api/attendance/mine                MyAttendance
  *   GET    /api/excuses/mine                   MyExcuseItem[]
  *   POST   /api/excuses                        (file an excuse)
  *   GET    /api/tasks                          Task[]

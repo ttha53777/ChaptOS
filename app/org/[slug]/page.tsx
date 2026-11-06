@@ -13,6 +13,7 @@ import {
   taskAssigneeLabel,
   getBrotherStatus, roleTitle, calcHealthScore, avg, fmt$, fmtDate, fmtRange, isoWeekBounds,
 } from "../../data";
+import type { MyAttendance } from "@/lib/api-types";
 import { useRouter } from "next/navigation";
 import { useOrgPath } from "../../hooks/useOrgPath";
 import { useActiveSemester } from "../../hooks/useActiveSemester";
@@ -855,6 +856,8 @@ export default function Home() {
   const [sidebarOpen,    setSidebarOpen]    = useState(false);
   const [activeModal,    setActiveModal]    = useState<"deadline" | "task" | "revenue" | "ig" | "attendance" | "pick-event" | "edit-deadline" | "expense" | "excuse" | "event" | "pick-event-for-excuse" | "pick-event-for-checkin" | null>(null);
   const [selectedEventForAttendance, setSelectedEventForAttendance] = useState<CalendarEvent | null>(null);
+  // Events the viewer was marked present at (GET /api/attendance/mine).
+  const [myAttendedIds, setMyAttendedIds] = useState<Set<number>>(new Set());
   const [calendarList,   setCalendarList]   = useState<CalendarEvent[]>([]);
   const [calendarLoaded, setCalendarLoaded] = useState(false);
   // The calendar is fetched by this page, not by ChapterContext, so it has no
@@ -1888,6 +1891,16 @@ export default function Home() {
     }
   }
 
+  // "Log excuse" offers required events the viewer wasn't marked present at.
+  // Officers excuse on others' behalf, so their own attendance hides nothing
+  // here — ExcuseForm drops the present members from its picker instead.
+  const excusableEvents = useMemo(
+    () => calendarList
+      .filter(e => e.mandatory && (canAttendance || !myAttendedIds.has(e.id)))
+      .sort(compareEvents),
+    [calendarList, canAttendance, myAttendedIds],
+  );
+
   /**
    * The events an officer could open a window on, nearest-first.
    *
@@ -2004,6 +2017,11 @@ export default function Home() {
       orgFetch("/api/calendar")
         .then(r => r.ok ? r.json() : Promise.reject())
         .then((data: CalendarEvent[]) => setCalendarList(data))
+        .catch(() => undefined);
+      // ...and drop the ones the member was marked present at.
+      orgFetch("/api/attendance/mine")
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then((data: MyAttendance) => setMyAttendedIds(new Set(data.attendedEventIds)))
         .catch(() => undefined);
       setActiveModal("pick-event-for-excuse");
       return;
@@ -2760,10 +2778,12 @@ export default function Home() {
         <Modal title="Select Event to Excuse" tone="dusk" onClose={closeModal}>
           <p className="mb-3 text-[12px] text-[color:var(--muted)]">Pick a required event you (or, if you&rsquo;re an admin, another brother) need an excuse for.</p>
           <div className="max-h-72 space-y-1 overflow-y-auto">
-            {calendarList.filter(e => e.mandatory).length === 0 && (
-              <p className="text-[12px] text-[color:var(--faint)]">No required events found.</p>
+            {excusableEvents.length === 0 && (
+              <p className="text-[12px] text-[color:var(--faint)]">
+                {calendarList.some(e => e.mandatory) ? "Nothing to excuse — you were at every required event." : "No required events found."}
+              </p>
             )}
-            {calendarList.filter(e => e.mandatory).sort(compareEvents).map(e => (
+            {excusableEvents.map(e => (
               <button key={e.id} onClick={() => { setSelectedEventForAttendance(e); setActiveModal("excuse"); }}
                 className="w-full rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 text-left transition-colors hover:border-[color:var(--vio)]/30 hover:bg-[color:var(--vio)]/10">
                 <p className="text-[13px] font-medium text-[color:var(--ink)]">{e.title}</p>

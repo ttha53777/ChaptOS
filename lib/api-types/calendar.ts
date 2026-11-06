@@ -104,6 +104,11 @@ export type LiveCheckIn = {
   };
 };
 
+/** GET /api/attendance/mine — the events the caller was marked present at. */
+export interface MyAttendance {
+  attendedEventIds: number[];
+}
+
 /** GET /api/excuses/mine — the caller's own excuses for the active semester, newest first. */
 export interface MyExcuseItem {
   id:              number;

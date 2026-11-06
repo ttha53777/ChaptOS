@@ -1001,3 +1001,17 @@ export async function restoreCheckIn(ctx: RequestContext, calendarEventId: numbe
 
   return getLiveCheckIn(ctx);
 }
+
+/**
+ * The events the caller was marked present at. Pinned to ctx.actorId, so any
+ * member may read it — it powers the "Log excuse" picker, which has no reason
+ * to offer an event they attended. Absences stay out: excusing one after the
+ * roll was taken is the retroactive path submitExcuse supports.
+ */
+export async function listMyAttendance(ctx: RequestContext): Promise<{ attendedEventIds: number[] }> {
+  const rows = await ctx.db.attendanceRecord.findMany({
+    where:  { brotherId: ctx.actorId, attended: true },
+    select: { calendarEventId: true },
+  });
+  return { attendedEventIds: rows.map(r => r.calendarEventId) };
+}
