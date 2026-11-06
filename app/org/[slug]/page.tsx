@@ -1796,6 +1796,22 @@ export default function Home() {
     addActivity(`Check-in closed — ${liveCheckIn.event.title}`, "info");
   }
 
+  // "It didn't happen": nothing is recorded, and any earlier rows for the event
+  // come off too, so ratios on screen are refreshed like after a close.
+  async function handleCancelCheckIn() {
+    if (!liveCheckIn) return;
+    const title = liveCheckIn.event.title;
+    await checkInAction(`/api/attendance/${liveCheckIn.event.id}/window`, "POST", { action: "cancel" });
+    await refreshChapterData();
+    addActivity(`Check-in cancelled — ${title}`, "info");
+  }
+
+  async function handleRestoreCheckIn() {
+    if (!liveCheckIn) return;
+    await checkInAction(`/api/attendance/${liveCheckIn.event.id}/window`, "POST", { action: "restore" });
+    await refreshChapterData();
+  }
+
   async function handleReopenCheckIn() {
     if (!liveCheckIn) return;
     await checkInAction(`/api/attendance/${liveCheckIn.event.id}/window`, "POST", { action: "reopen" });
@@ -1842,6 +1858,7 @@ export default function Home() {
       openedAt:      new Date().toISOString(),
       closedAt:      null,
       closedByName:  null,
+      cancelledAt:   null,
       msRemaining:   CHECKIN_WINDOW_MS,
       presentCount:  0,
       // Best local estimate of the denominator until the server answers. The
@@ -2617,6 +2634,9 @@ export default function Home() {
               onUndo={handleUndoCheckIn}
               onClose={canAttendance ? handleCloseCheckIn : undefined}
               onReopen={canAttendance ? handleReopenCheckIn : undefined}
+              onCancel={canAttendance ? handleCancelCheckIn : undefined}
+              onRestore={canAttendance ? handleRestoreCheckIn : undefined}
+              onOpenAnother={canAttendance ? () => void openCheckInPicker() : undefined}
               onTakeAttendance={canAttendance && liveCheckIn
                 ? () => openAttendanceLog(calendarList.find(e => e.id === liveCheckIn.event.id))
                 : undefined}

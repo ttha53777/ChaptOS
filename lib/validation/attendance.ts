@@ -19,7 +19,7 @@ export type RecordAttendanceInput = z.infer<typeof recordAttendanceInput>;
 
 // Officer control of the live check-in window. The event id comes from the path.
 export const checkInWindowInput = z.object({
-  action: z.enum(["open", "close", "reopen"]),
+  action: z.enum(["open", "close", "reopen", "cancel", "restore"]),
 });
 export type CheckInWindowInput = z.infer<typeof checkInWindowInput>;
 

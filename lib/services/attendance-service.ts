@@ -1,4 +1,5 @@
 import type { RequestContext } from "@/lib/context";
+import { Prisma } from "@/app/generated/prisma/client";
 import { emit } from "@/lib/events";
 import { ConflictError, NotFoundError, ValidationError } from "@/lib/errors";
 import { CheckInStatus, ExcuseStatus } from "@/lib/state";
@@ -252,7 +253,10 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
 
   // Most recently opened window, ignoring anything long finished. Auto-closed
   // windows carry closedAt = their expiry, so they linger like a manual close.
-  const event = await ctx.db.calendarEvent.findFirst({
+  // An open window outranks a lingering tally even when that tally's window
+  // was opened later — undoing a cancel restores the original start time, so
+  // the window people can check in to may be the older one.
+  const candidates = await ctx.db.calendarEvent.findMany({
     where: {
       mandatory: true,
       OR: [
@@ -271,6 +275,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
     },
     orderBy: { checkInOpenedAt: "desc" },
   });
+  const event = candidates.find(e => e.checkInClosedAt === null) ?? candidates[0];
   if (!event || !event.checkInOpenedAt) return null;
 
   const state = checkInState(event, now);
@@ -301,7 +306,12 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
   const eligibleIds = brotherIds.filter(id => !approvedExcused.has(id) && !exempt.has(id));
   const eligible = new Set(eligibleIds);
 
-  const presentCount = records.filter(r => r.attended && eligible.has(r.brotherId)).length;
+  // A cancelled window has no records left — they moved into the snapshot — so
+  // its tally is how many check-ins the cancel threw out, and no faces show.
+  const cancelled = event.checkInCancelledAt !== null;
+  const presentCount = cancelled
+    ? cancelledRecords(event.checkInCancelledRecords).filter(r => r.attended && eligible.has(r.brotherId)).length
+    : records.filter(r => r.attended && eligible.has(r.brotherId)).length;
 
   const mine = records.find(r => r.brotherId === ctx.actorId);
   const myExcuse = excuses.find(
@@ -309,7 +319,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
   );
 
   const [recent, closedByName] = await Promise.all([
-    recentArrivals(ctx, records, eligible),
+    cancelled ? [] : recentArrivals(ctx, records, eligible),
     event.checkInClosedById
       ? ctx.db.member.findRosterRow(event.checkInClosedById).then(row => row?.name ?? null)
       : null,
@@ -329,6 +339,7 @@ export async function getLiveCheckIn(ctx: RequestContext): Promise<LiveCheckIn |
     openedAt:      event.checkInOpenedAt.toISOString(),
     closedAt:      event.checkInClosedAt?.toISOString() ?? null,
     closedByName,
+    cancelledAt:   event.checkInCancelledAt?.toISOString() ?? null,
     msRemaining:   checkInMsRemaining(event, now),
     presentCount,
     eligibleCount: eligibleIds.length,
@@ -540,6 +551,30 @@ export async function undoSelfCheckIn(ctx: RequestContext, calendarEventId: numb
 }
 
 /**
+ * One window at a time. getLiveCheckIn shows only the most recently opened
+ * window, so a second one would hide the first from every screen — and the
+ * hidden one would still expire an hour later and record everyone absent for
+ * it. The officer's own page closes its window before opening another, but a
+ * second officer's page may not know one is open, so the server refuses
+ * instead. Refusing (not closing it for them) matters: the window already open
+ * may be on the wrong event, and closing it would write those absences.
+ */
+async function assertNoOtherOpenWindow(ctx: RequestContext, calendarEventId: number): Promise<void> {
+  const other = await ctx.db.calendarEvent.findFirst({
+    where: {
+      id:              { not: calendarEventId },
+      mandatory:       true,
+      checkInClosedAt: null,
+      checkInOpenedAt: { not: null, gte: new Date(Date.now() - CHECKIN_WINDOW_MS) },
+    },
+    select: { title: true },
+  });
+  if (other) {
+    throw new ConflictError(`Check-in is already open for ${other.title}. Close it before opening another.`);
+  }
+}
+
+/**
  * Officer opens the window. Now is the start time — see the note in lib/checkin.ts.
  *
  * This is the one check-in write with a room waiting on it, so it does not end
@@ -565,6 +600,7 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
   if (acceptsCheckIns(checkInState(event))) {
     throw new ConflictError("Check-in is already open for this event");
   }
+  await assertNoOtherOpenWindow(ctx, calendarEventId);
 
   const semester = await getActiveSemester(ctx.db);
   if (!semester) throw new ValidationError("No active semester");
@@ -582,6 +618,10 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
         // Clear any prior close so reopening an old window starts a fresh one.
         checkInClosedAt:   null,
         checkInClosedById: null,
+        // …and any prior cancel: its records are gone for good once a new
+        // window starts collecting its own.
+        checkInCancelledAt:      null,
+        checkInCancelledRecords: Prisma.DbNull,
       },
     }),
     ctx.db.attendanceRecord.findMany({
@@ -631,6 +671,7 @@ export async function openCheckIn(ctx: RequestContext, calendarEventId: number):
     openedAt:      openedAt.toISOString(),
     closedAt:      null,
     closedByName:  null,
+    cancelledAt:   null,
     msRemaining:   CHECKIN_WINDOW_MS,
     presentCount:  records.filter(r => r.attended && eligible.has(r.brotherId)).length,
     eligibleCount: eligibleIds.length,
@@ -803,7 +844,11 @@ export async function reopenCheckIn(ctx: RequestContext, calendarEventId: number
   ]);
   if (!event)                 throw new NotFoundError("Event");
   if (!event.checkInClosedAt) throw new ValidationError("Check-in is not closed for this event");
+  // Reopening deletes absences and keeps check-ins; a cancelled window has
+  // neither (they're in the snapshot), so reopening it would silently drop them.
+  if (event.checkInCancelledAt) throw new ValidationError("Check-in was cancelled for this event. Undo the cancel instead");
   if (!semester)              throw new ValidationError("No active semester");
+  await assertNoOtherOpenWindow(ctx, calendarEventId);
 
   await ctx.db.$transaction(async tx => {
     // Only the absences. An attended: true row is somebody's real check-in (or
@@ -834,6 +879,122 @@ export async function reopenCheckIn(ctx: RequestContext, calendarEventId: number
   }, { activity: false });
 
   await emit(ctx, "checkin.reopened", { type: "CalendarEvent", id: event.id }, {
+    calendarEventId: event.id,
+    eventTitle:      event.title,
+  });
+
+  return getLiveCheckIn(ctx);
+}
+
+/** One AttendanceRecord as a cancel snapshots it — everything needed to put it back. */
+type CancelledRecord = { brotherId: number; semesterId: number; attended: boolean; loggedAt: string };
+
+function cancelledRecords(value: Prisma.JsonValue | null): CancelledRecord[] {
+  return Array.isArray(value) ? (value as unknown as CancelledRecord[]) : [];
+}
+
+/**
+ * Officer cancels an open window: the event didn't happen, or the window was
+ * opened on the wrong one. Nothing is recorded — no absences — and the check-ins
+ * already taken are removed too, since they belong to a meeting that isn't
+ * being counted. Every AttendanceRecord for the event moves into the snapshot
+ * column, so restoreCheckIn can undo this exactly.
+ *
+ * closedAt is stamped as well, so every other reader (auto-expiry, the picker,
+ * self check-in) sees an ordinary closed window without knowing about cancels.
+ */
+export async function cancelCheckIn(ctx: RequestContext, calendarEventId: number): Promise<LiveCheckIn | null> {
+  const event = await ctx.db.calendarEvent.findUnique({ where: { id: calendarEventId } });
+  if (!event)                 throw new NotFoundError("Event");
+  if (!event.checkInOpenedAt) throw new ValidationError("Check-in was never opened for this event");
+  if (!acceptsCheckIns(checkInState(event))) throw new ConflictError("Check-in is already closed for this event");
+
+  const now = new Date();
+  const result = await ctx.db.$transaction(async tx => {
+    // Claim the window first, exactly as writeClose does, so a cancel racing a
+    // close (or the auto-expiry) can only ever have one winner.
+    const claimed = await tx.calendarEvent.updateMany({
+      where: { id: calendarEventId, organizationId: ctx.orgId, checkInClosedAt: null },
+      data:  { checkInClosedAt: now, checkInClosedById: ctx.actorId, checkInCancelledAt: now },
+    });
+    if (claimed.count === 0) return null;
+    const rows = await tx.attendanceRecord.findMany({
+      where:  { calendarEventId, calendarEvent: { organizationId: ctx.orgId } },
+      select: { id: true, brotherId: true, semesterId: true, attended: true, loggedAt: true },
+    });
+    const snapshot: CancelledRecord[] = rows.map(r => ({
+      brotherId: r.brotherId, semesterId: r.semesterId, attended: r.attended, loggedAt: r.loggedAt.toISOString(),
+    }));
+    await tx.calendarEvent.updateMany({
+      where: { id: calendarEventId, organizationId: ctx.orgId },
+      data:  { checkInCancelledRecords: snapshot as unknown as Prisma.InputJsonValue },
+    });
+    // By id, not by event: a row that lands after the read above is a check-in
+    // the snapshot doesn't hold, and deleting it would lose it for good.
+    if (rows.length > 0) await tx.attendanceRecord.deleteMany({ where: { id: { in: rows.map(r => r.id) } } });
+    return snapshot;
+  }, { timeout: 15_000 });
+  if (!result) throw new ConflictError("Check-in is already closed for this event");
+
+  // Earlier rows for this event (a reopened window's absences, say) may just
+  // have been removed, so ratios are recomputed like any other attendance write.
+  const semesterIds = [...new Set(result.map(r => r.semesterId))];
+  for (const semesterId of semesterIds) {
+    await emit(ctx, "attendance.recorded", { type: "CalendarEvent", id: event.id }, {
+      calendarEventId: event.id, semesterId, eventTitle: event.title, presentCount: 0, eligibleCount: 0,
+    }, { activity: false });
+  }
+  await emit(ctx, "checkin.cancelled", { type: "CalendarEvent", id: event.id }, {
+    calendarEventId: event.id,
+    eventTitle:      event.title,
+    discardedCount:  result.filter(r => r.attended).length,
+  });
+
+  return getLiveCheckIn(ctx);
+}
+
+/**
+ * Undo a cancel: the snapshot goes back into AttendanceRecord and the window
+ * reopens with its original start time, so it is the same window it was — the
+ * same clock, the same arrivals. One already past its hour closes (and records)
+ * on the next read, as it would have without the cancel.
+ */
+export async function restoreCheckIn(ctx: RequestContext, calendarEventId: number): Promise<LiveCheckIn | null> {
+  const event = await ctx.db.calendarEvent.findUnique({ where: { id: calendarEventId } });
+  if (!event)                    throw new NotFoundError("Event");
+  if (!event.checkInCancelledAt) throw new ValidationError("Check-in was not cancelled for this event");
+  await assertNoOtherOpenWindow(ctx, calendarEventId);
+
+  const snapshot = cancelledRecords(event.checkInCancelledRecords);
+  const restored = await ctx.db.$transaction(async tx => {
+    const claimed = await tx.calendarEvent.updateMany({
+      where: { id: calendarEventId, organizationId: ctx.orgId, checkInCancelledAt: { not: null } },
+      data:  {
+        checkInClosedAt: null, checkInClosedById: null,
+        checkInCancelledAt: null, checkInCancelledRecords: Prisma.DbNull,
+      },
+    });
+    if (claimed.count === 0) return false;
+    if (snapshot.length > 0) {
+      // skipDuplicates: anyone the officer marked by hand since the cancel keeps
+      // that newer mark.
+      await tx.attendanceRecord.createMany({
+        data: snapshot.map(r => ({
+          calendarEventId, brotherId: r.brotherId, semesterId: r.semesterId, attended: r.attended, loggedAt: new Date(r.loggedAt),
+        })),
+        skipDuplicates: true,
+      });
+    }
+    return true;
+  }, { timeout: 15_000 });
+  if (!restored) throw new ConflictError("Check-in was already restored");
+
+  for (const semesterId of new Set(snapshot.map(r => r.semesterId))) {
+    await emit(ctx, "attendance.recorded", { type: "CalendarEvent", id: event.id }, {
+      calendarEventId: event.id, semesterId, eventTitle: event.title, presentCount: 0, eligibleCount: 0,
+    }, { activity: false });
+  }
+  await emit(ctx, "checkin.restored", { type: "CalendarEvent", id: event.id }, {
     calendarEventId: event.id,
     eventTitle:      event.title,
   });

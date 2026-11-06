@@ -14,12 +14,14 @@ import { testPrisma, resetDb } from "../setup/prisma";
 import { createOrg, createBrother, createSemester, createCalendarEvent, rosterOf } from "../setup/factories";
 import { db } from "@/lib/db";
 import {
+  cancelCheckIn,
   closeCheckIn,
   getLiveCheckIn,
   getLiveRoster,
   openCheckIn,
   recordAttendance,
   reopenCheckIn,
+  restoreCheckIn,
   selfCheckIn,
   undoSelfCheckIn,
 } from "@/lib/services/attendance-service";
@@ -202,6 +204,44 @@ describe("live check-in window", () => {
     expect(await testPrisma.attendanceRecord.count({
       where: { calendarEventId: event.id, brotherId: present.id },
     })).toBe(1);
+  });
+
+  it("refuses to open a second window while another is still open", async () => {
+    const { org, officer, event } = await scenario();
+    const other = await createCalendarEvent({ orgId: org.id, mandatory: true, title: "Wrong Event" });
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, other.id);
+
+    await expect(openCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ConflictError);
+    expect((await getLiveCheckIn(officerCtx))?.event.id).toBe(other.id);
+
+    // Once it's closed, or has aged out, the next one opens.
+    await closeCheckIn(officerCtx, other.id);
+    await expect(openCheckIn(officerCtx, event.id)).resolves.toBeTruthy();
+  });
+
+  it("refuses to reopen a closed window while another is open", async () => {
+    const { org, officer, event } = await scenario();
+    const other = await createCalendarEvent({ orgId: org.id, mandatory: true });
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    await closeCheckIn(officerCtx, event.id);
+    await openCheckIn(officerCtx, other.id);
+
+    await expect(reopenCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("an expired window does not block opening another", async () => {
+    const { org, officer, event } = await scenario();
+    const other = await createCalendarEvent({ orgId: org.id, mandatory: true });
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, other.id);
+    await testPrisma.calendarEvent.update({
+      where: { id: other.id },
+      data: { checkInOpenedAt: new Date(Date.now() - CHECKIN_WINDOW_MS - 1000) },
+    });
+
+    await expect(openCheckIn(officerCtx, event.id)).resolves.toBeTruthy();
   });
 
   it("refuses a check-in when the window was never opened", async () => {
@@ -596,5 +636,174 @@ describe("getLiveRoster", () => {
     await expect(
       getLiveRoster(ctxFor(other.id, otherOfficer.id), event.id),
     ).rejects.toThrow(NotFoundError);
+  });
+});
+
+// "It didn't happen" — the window opened on the wrong event, or a test. Cancel
+// must record nothing, and its undo must put back exactly what it took.
+describe("cancelling a live window", () => {
+  it("records no absences and removes the check-ins it took", async () => {
+    const { org, officer, present, absent, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+
+    const live = await cancelCheckIn(officerCtx, event.id);
+
+    expect(await testPrisma.attendanceRecord.count({ where: { calendarEventId: event.id } })).toBe(0);
+    expect(live?.state).toBe("closed");
+    expect(live?.cancelledAt).not.toBeNull();
+    expect(live?.closedByName).toBe("Officer");
+    // The tally is what was thrown out, and no faces ride on a void window.
+    expect(live?.presentCount).toBe(1);
+    expect(live?.recent).toEqual([]);
+
+    // Members can't check in to it any more.
+    await expect(selfCheckIn(ctxFor(org.id, absent.id), event.id)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("leaves the semester's ratios as if the event never happened", async () => {
+    const { org, officer, present, absent, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    // A real meeting first: present 100%, absent 0%.
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+    await selfCheckIn(officerCtx, event.id);
+    await closeCheckIn(officerCtx, event.id);
+    expect((await rosterOf(absent.id, org.id))?.attendance).toBe(0);
+
+    // Then the wrong event, where only `absent` checked in.
+    const wrong = await createCalendarEvent({ orgId: org.id, mandatory: true, title: "Wrong" });
+    await openCheckIn(officerCtx, wrong.id);
+    await selfCheckIn(ctxFor(org.id, absent.id), wrong.id);
+    await cancelCheckIn(officerCtx, wrong.id);
+    expect((await rosterOf(absent.id, org.id))?.attendance).toBe(0);
+    expect((await rosterOf(present.id, org.id))?.attendance).toBe(100);
+
+    // Undo puts the check-in back, and the ratio moves with it.
+    await restoreCheckIn(officerCtx, wrong.id);
+    expect((await rosterOf(absent.id, org.id))?.attendance).toBe(50);
+  });
+
+  it("undo restores the same window: its check-ins, its clock, open again", async () => {
+    const { org, officer, present, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    const opened = await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+    const before = await testPrisma.attendanceRecord.findFirstOrThrow({ where: { calendarEventId: event.id } });
+    await cancelCheckIn(officerCtx, event.id);
+
+    const live = await restoreCheckIn(officerCtx, event.id);
+
+    expect(live?.state).toBe("open");
+    expect(live?.cancelledAt).toBeNull();
+    expect(live?.openedAt).toBe(opened?.openedAt);
+    expect(live?.presentCount).toBe(1);
+    const after = await testPrisma.attendanceRecord.findMany({ where: { calendarEventId: event.id } });
+    expect(after.map(r => [r.brotherId, r.attended, r.loggedAt.toISOString()]))
+      .toEqual([[before.brotherId, true, before.loggedAt.toISOString()]]);
+    const row = await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: event.id } });
+    expect(row.checkInCancelledRecords).toBeNull();
+
+    // Undo is one-shot.
+    await expect(restoreCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("is refused once the window is closed, and closing is refused once cancelled", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await expect(cancelCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ValidationError);
+
+    await openCheckIn(officerCtx, event.id);
+    await closeCheckIn(officerCtx, event.id);
+    await expect(cancelCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ConflictError);
+    await expect(restoreCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ValidationError);
+
+    const other = await createCalendarEvent({ orgId: org.id, mandatory: true });
+    await openCheckIn(officerCtx, other.id);
+    await cancelCheckIn(officerCtx, other.id);
+    await expect(closeCheckIn(officerCtx, other.id)).rejects.toBeInstanceOf(ConflictError);
+    // Reopen would silently drop the snapshot; it points at undo instead.
+    await expect(reopenCheckIn(officerCtx, other.id)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("a cancel and a close racing each other have one winner", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+
+    const results = await Promise.allSettled([cancelCheckIn(officerCtx, event.id), closeCheckIn(officerCtx, event.id)]);
+    expect(results.filter(r => r.status === "fulfilled")).toHaveLength(1);
+    const row = await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: event.id } });
+    const absences = await testPrisma.attendanceRecord.count({ where: { calendarEventId: event.id, attended: false } });
+    // Either it was cancelled and nothing was written, or closed and recorded.
+    if (row.checkInCancelledAt) expect(absences).toBe(0);
+    else expect(absences).toBeGreaterThan(0);
+  });
+
+  it("the auto-expiry never records a cancelled window", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    await cancelCheckIn(officerCtx, event.id);
+    await testPrisma.calendarEvent.update({
+      where: { id: event.id },
+      data: { checkInOpenedAt: new Date(Date.now() - CHECKIN_WINDOW_MS - 60_000) },
+    });
+
+    await getLiveCheckIn(officerCtx);
+    expect(await testPrisma.attendanceRecord.count({ where: { calendarEventId: event.id } })).toBe(0);
+  });
+
+  it("opening check-in on it again starts clean and drops the snapshot", async () => {
+    const { org, officer, present, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    await selfCheckIn(ctxFor(org.id, present.id), event.id);
+    await cancelCheckIn(officerCtx, event.id);
+
+    const live = await openCheckIn(officerCtx, event.id);
+    expect(live?.presentCount).toBe(0);
+    expect(live?.cancelledAt).toBeNull();
+    const row = await testPrisma.calendarEvent.findUniqueOrThrow({ where: { id: event.id } });
+    expect(row.checkInCancelledAt).toBeNull();
+    expect(row.checkInCancelledRecords).toBeNull();
+    await expect(restoreCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("undo is refused while another window is open", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    await cancelCheckIn(officerCtx, event.id);
+    const right = await createCalendarEvent({ orgId: org.id, mandatory: true, title: "Right" });
+    await openCheckIn(officerCtx, right.id);
+
+    await expect(restoreCheckIn(officerCtx, event.id)).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it("an undone window shows over a later window's lingering tally", async () => {
+    const { org, officer, event } = await scenario();
+    const officerCtx = ctxFor(org.id, officer.id);
+    await openCheckIn(officerCtx, event.id);
+    await cancelCheckIn(officerCtx, event.id);
+    const other = await createCalendarEvent({ orgId: org.id, mandatory: true, title: "Other" });
+    await openCheckIn(officerCtx, other.id);
+    await closeCheckIn(officerCtx, other.id);
+
+    // `event` keeps its original (earlier) openedAt; it must still be the band.
+    const live = await restoreCheckIn(officerCtx, event.id);
+    expect(live?.event.id).toBe(event.id);
+    expect(live?.state).toBe("open");
+  });
+
+  it("cannot reach another org's window", async () => {
+    const { org, officer, event } = await scenario();
+    await openCheckIn(ctxFor(org.id, officer.id), event.id);
+    const other = await createOrg("Other Org", "other-org");
+    const outsider = await createBrother({ orgId: other.id, isOrgAdmin: true, name: "Outsider" });
+
+    await expect(cancelCheckIn(ctxFor(other.id, outsider.id), event.id)).rejects.toBeInstanceOf(NotFoundError);
+    expect((await getLiveCheckIn(ctxFor(org.id, officer.id)))?.state).toBe("open");
   });
 });

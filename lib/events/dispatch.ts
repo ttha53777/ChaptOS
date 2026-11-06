@@ -121,6 +121,10 @@ export function formatActivityMessage(ctx: RequestContext, action: Action, m: an
       return `${who} closed check-in for ${m.eventTitle}: ${m.presentCount}/${m.eligibleCount} present`;
     case "checkin.reopened":
       return `${who} reopened check-in for ${m.eventTitle}`;
+    case "checkin.cancelled":
+      return `${who} cancelled check-in for ${m.eventTitle}: nothing recorded`;
+    case "checkin.restored":
+      return `${who} undid cancelling check-in for ${m.eventTitle}`;
     case "transaction.created":
       return `${who} added a $${Number(m.amount).toFixed(2)} ${m.type} for ${m.category}: ${m.description}`;
     case "transaction.updated":

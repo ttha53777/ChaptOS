@@ -67,6 +67,8 @@ export interface EventMetadata {
   "checkin.opened":     { calendarEventId: number; eventTitle: string };
   "checkin.closed":     { calendarEventId: number; eventTitle: string; presentCount: number; eligibleCount: number };
   "checkin.reopened":   { calendarEventId: number; eventTitle: string };
+  "checkin.cancelled":  { calendarEventId: number; eventTitle: string; discardedCount: number };
+  "checkin.restored":   { calendarEventId: number; eventTitle: string };
 
   // Transactions / Budget
   "transaction.created":      { type: "income" | "expense"; category: string; amount: number; description: string };
@@ -285,7 +287,7 @@ export type Action = keyof EventMetadata;
 const KNOWN_ACTIONS = new Set<Action>([
   "excuse.submitted", "excuse.approved", "excuse.rejected", "attendance.recorded", "exemption.changed",
   "attendance.self_checked_in", "attendance.self_checkin_undone",
-  "checkin.opened", "checkin.closed", "checkin.reopened",
+  "checkin.opened", "checkin.closed", "checkin.reopened", "checkin.cancelled", "checkin.restored",
   "transaction.created", "transaction.updated", "transaction.soft_deleted", "budget.upserted",
   "transaction_category.created", "transaction_category.updated", "transaction_category.hidden", "transaction_category.deleted",
   "treasury.opening_balance.set",

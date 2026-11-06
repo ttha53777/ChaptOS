@@ -168,6 +168,199 @@ html[data-aesthetic="paper"] .dash section.live.closing .live-btn:not(.ghost) { 
   html[data-aesthetic="paper"] .dash .live-act .live-btn { width: 100%; justify-content: center; }
 }
 
+/* ── Ending: did it happen? (EndCheckIn.tsx, .lce-*) ───────────────────────────
+   _design/Check-In Cancel Mock.html. "End check-in…" slides a fork out of the
+   band's bottom edge — two answers, each previewing the roster as it will be
+   filed. A phone gets the same two answers as a bottom sheet. */
+html[data-aesthetic="paper"] .dash section.live.ending { --ci-s: var(--line-med); }
+html[data-aesthetic="paper"] .dash section.live.ending .live-dot { animation: none !important; box-shadow: none; }
+/* while the fork is open the stub runs down beside it */
+html[data-aesthetic="paper"] .dash section.live.has-stub .live-stub { grid-row: 1 / span 2; }
+/* The full column, on the card's own background, so the draining rule stops at
+   the band instead of running on down beside the question. */
+html[data-aesthetic="paper"] .lce-fork {
+  grid-column: 2; position: relative; z-index: 2; background: var(--card); border-radius: 0 0 20.5px 0;
+  padding: 18px 22px 22px 32px;
+  animation: lce-fork .38s var(--pp-ease-out) both;
+}
+html[data-aesthetic="paper"] .lce-fork::before { content: ""; position: absolute; top: 0; left: 32px; right: 22px; border-top: 1.5px dashed var(--line-med); }
+@keyframes lce-fork { from { opacity: 0; transform: translateY(-8px); } }
+html[data-aesthetic="paper"] .lce-fork-h { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
+html[data-aesthetic="paper"] .lce-fork-h h3 { margin: 0; font-family: var(--font-fraunces); font-weight: 600; font-size: 19px; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .lce-fork-h p { font-size: 13px; color: var(--muted); }
+html[data-aesthetic="paper"] .lce-fork-h .lce-keep { margin-left: auto; color: var(--ink-soft); }
+
+html[data-aesthetic="paper"] .lce-slips { margin-top: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+html[data-aesthetic="paper"] .lce-slip {
+  --c: var(--pp-mint-ink); --cs: var(--pp-mint); --cb: var(--pp-mint-soft);
+  position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 14px; border-radius: 18px;
+  border: 1.5px solid var(--line); background: var(--paper);
+  transition: transform .22s var(--pp-ease-spring), box-shadow .22s var(--pp-ease-spring), border-color .2s;
+  animation: lce-slip .4s var(--pp-ease-spring) both;
+}
+html[data-aesthetic="paper"] .lce-slip.cancel { --c: var(--pp-rose-ink); --cs: var(--pp-rose); --cb: var(--pp-rose-soft); animation-delay: .06s; }
+html[data-aesthetic="paper"] .lce-slip.suggest { border-color: var(--ink); box-shadow: 4px 4px 0 var(--cs); }
+@media (hover: hover) {
+  html[data-aesthetic="paper"] .lce-slip:hover { border-color: var(--ink); box-shadow: 4px 4px 0 var(--cs); transform: translate(-1px, -1px); }
+}
+@keyframes lce-slip { from { opacity: 0; transform: translateY(10px); } }
+html[data-aesthetic="paper"] .lce-slip .top { display: flex; align-items: center; gap: 10px; }
+html[data-aesthetic="paper"] .lce-slip .top > div { flex: 1; min-width: 0; }
+html[data-aesthetic="paper"] .lce-slip .ic {
+  width: 34px; height: 34px; flex: none; border-radius: 11px; display: grid; place-items: center;
+  background: var(--cb); color: var(--c); border: 1.5px solid color-mix(in srgb, var(--c) 30%, transparent);
+}
+html[data-aesthetic="paper"] .lce-slip .ic svg { width: 17px; height: 17px; }
+html[data-aesthetic="paper"] .lce-slip h4 { margin: 0; font-size: 15.5px; font-weight: 650; letter-spacing: -.01em; color: var(--ink); }
+html[data-aesthetic="paper"] .lce-slip .when { font-size: 12.5px; line-height: 1.3; color: var(--muted); }
+html[data-aesthetic="paper"] .lce-slip .tag {
+  align-self: flex-start; flex: none; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 650; white-space: nowrap;
+  color: var(--pp-butter-ink); background: var(--pp-butter-soft); border: 1px solid var(--pp-butter-bd);
+}
+html[data-aesthetic="paper"] .lce-slip .tag.warn { color: var(--pp-peach-ink); background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); }
+
+/* the roster as each answer would file it: one dot per eligible member */
+html[data-aesthetic="paper"] .lce-slip .sheet { position: relative; padding: 12px; border-radius: 12px; background: var(--card); border: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .lce-dots { display: grid; grid-template-columns: repeat(auto-fill, minmax(14px, 1fr)); gap: 5px; }
+html[data-aesthetic="paper"] .lce-dots i { display: block; aspect-ratio: 1; border-radius: 50%; }
+html[data-aesthetic="paper"] :is(.lce-dots, .lce-slip .legend) i.p { background: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] :is(.lce-dots, .lce-slip .legend) i.a { position: relative; background: var(--pp-peach-soft); box-shadow: inset 0 0 0 1.5px var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .lce-dots i.a::after { content: ""; position: absolute; inset: 28% 46%; background: var(--pp-peach-ink); transform: rotate(45deg); border-radius: 1px; }
+html[data-aesthetic="paper"] :is(.lce-dots, .lce-slip .legend) i.n { box-shadow: inset 0 0 0 1.5px var(--line-med); }
+html[data-aesthetic="paper"] :is(.lce-dots, .lce-slip .legend) i.gone {
+  box-shadow: inset 0 0 0 1.5px var(--line-med); background: repeating-linear-gradient(135deg, var(--line-med) 0 1.5px, transparent 1.5px 4px);
+}
+html[data-aesthetic="paper"] .lce-slip .vs { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+html[data-aesthetic="paper"] .lce-slip .vs span {
+  padding: 3px 9px; border: 2px solid var(--pp-rose-ink); border-radius: 6px; transform: rotate(-8deg);
+  font-family: var(--font-geist-mono); font-size: 11px; font-weight: 700; letter-spacing: .14em; color: var(--pp-rose-ink);
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+}
+html[data-aesthetic="paper"] .lce-slip .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .lce-slip .legend span { display: inline-flex; align-items: center; gap: 6px; }
+html[data-aesthetic="paper"] .lce-slip .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+html[data-aesthetic="paper"] .lce-slip .legend b { font-family: var(--font-geist-mono); font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .lce-slip .fx { font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .lce-slip .fx b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .lce-slip .go {
+  margin-top: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); font-size: 14.5px; font-weight: 600; cursor: pointer;
+  box-shadow: 2.5px 2.5px 0 var(--cs); transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .lce-slip .go:hover:not(:disabled) { transform: translate(-1.5px, -1.5px); box-shadow: 4px 4px 0 var(--cs); }
+html[data-aesthetic="paper"] .lce-slip .go:disabled { opacity: .55; cursor: default; }
+html[data-aesthetic="paper"] .lce-slip.cancel .go { background: var(--card); color: var(--pp-rose-ink); border-color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .lce-slip .go svg { width: 15px; height: 15px; }
+
+/* the closing-soon nudge's way out */
+html[data-aesthetic="paper"] .lce-nudge-cancel {
+  border: 0; background: none; padding: 0; font: inherit; font-weight: 650; color: var(--ink-soft);
+  text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+
+/* ── Cancelled: a voided ticket ──────────────────────────────────────────── */
+html[data-aesthetic="paper"] .dash section.live.void {
+  --ci: var(--pp-rose-ink); --ci-s: var(--pp-rose-soft); border-color: var(--line-med); border-style: dashed; box-shadow: var(--pp-sh-1);
+}
+html[data-aesthetic="paper"] .dash section.live.void .live-stub { filter: grayscale(1); opacity: .55; }
+html[data-aesthetic="paper"] .dash section.live.void .live-dot { animation: none !important; box-shadow: none; background: none !important; border: 1.5px solid var(--pp-rose-ink); width: 9px; height: 9px; }
+html[data-aesthetic="paper"] .dash section.live.void .live-title { position: relative; display: inline-block; color: var(--muted); }
+html[data-aesthetic="paper"] .lce-strike {
+  position: absolute; left: -4px; right: -4px; top: 52%; height: 3px; border-radius: 2px; background: var(--pp-rose-ink);
+  transform: rotate(-1.2deg); transform-origin: left; animation: lce-strike .45s var(--pp-ease-out) .15s both;
+}
+@keyframes lce-strike { from { transform: rotate(-1.2deg) scaleX(0); } }
+html[data-aesthetic="paper"] .dash section.live.void .live-count .n { color: var(--muted); }
+html[data-aesthetic="paper"] .lce-void-stamp {
+  position: absolute; z-index: 4; left: 10px; top: 50%; padding: 5px 10px 4px; border: 2.5px solid var(--pp-rose-ink); border-radius: 7px;
+  font-family: var(--font-geist-mono); font-size: .95rem; font-weight: 700; letter-spacing: .16em; line-height: 1.1; color: var(--pp-rose-ink);
+  background: color-mix(in srgb, var(--card) 80%, transparent); transform: translateY(-50%) rotate(-14deg); pointer-events: none;
+  animation: lce-stamp .45s var(--pp-ease-spring) both;
+}
+html[data-aesthetic="paper"] .lce-void-stamp small { display: block; margin-top: 1px; font-size: .5rem; font-weight: 600; letter-spacing: .14em; }
+@keyframes lce-stamp { from { opacity: 0; transform: translateY(-50%) rotate(-14deg) scale(1.9); } }
+html[data-aesthetic="paper"] .lce-undo-row { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .lce-undo-row .lce-undo { color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .lce-ring { width: 18px; height: 18px; flex: none; }
+html[data-aesthetic="paper"] .lce-ring circle { fill: none; stroke-width: 2.5; }
+html[data-aesthetic="paper"] .lce-ring .bg { stroke: var(--line); }
+html[data-aesthetic="paper"] .lce-ring .fg { stroke: var(--pp-rose-ink); stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; transition: stroke-dashoffset 1s linear; }
+html[data-aesthetic="paper"] .dash .live-check.lce-x { background: var(--card); color: var(--pp-rose-ink); box-shadow: inset 0 0 0 1.5px var(--pp-rose-ink); }
+
+/* ── Phone: the fork as a bottom sheet, undo above the tab bar ─────────────── */
+/* Both are portaled to <body> (the page's main column is its own stacking
+   context, which put the Ask Chapt launcher on top of them), so these rules —
+   and the slip rules above, which the sheet reuses — are not scoped to .dash. */
+html[data-aesthetic="paper"] .lce-scrim {
+  position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end;
+  background: var(--scrim); backdrop-filter: blur(3px); animation: lce-fade .25s both;
+}
+@keyframes lce-fade { from { opacity: 0; } }
+html[data-aesthetic="paper"] .lce-psheet {
+  width: 100%; max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 16px calc(20px + env(safe-area-inset-bottom)); border-radius: 26px 26px 0 0;
+  border: 1.5px solid var(--ink); border-bottom: 0; background: var(--card); box-shadow: 0 -5px 0 var(--line-med);
+  animation: lce-up .38s var(--pp-ease-spring) both;
+}
+@keyframes lce-up { from { transform: translateY(100%); } }
+html[data-aesthetic="paper"] .lce-psheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line-med); margin: 0 auto 12px; }
+html[data-aesthetic="paper"] .lce-ev { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: var(--paper-2); border: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .lce-ev .d {
+  width: 38px; flex: none; text-align: center; line-height: 1.05; padding: 3px 0; border-radius: 9px;
+  background: var(--pp-sky-soft); color: var(--pp-sky-ink); border: 1.5px solid var(--line);
+}
+html[data-aesthetic="paper"] .lce-ev .d small { display: block; font-family: var(--font-geist-mono); font-size: 8.5px; font-weight: 600; letter-spacing: .08em; }
+html[data-aesthetic="paper"] .lce-ev .d b { font-family: var(--font-fraunces); font-size: 17px; font-weight: 600; }
+html[data-aesthetic="paper"] .lce-ev .mid { min-width: 0; flex: 1; }
+html[data-aesthetic="paper"] .lce-ev .t { font-weight: 650; font-size: 14.5px; line-height: 1.2; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-aesthetic="paper"] .lce-ev .m { font-size: 12px; color: var(--muted); }
+html[data-aesthetic="paper"] .lce-ev .n { display: flex; align-items: center; gap: 6px; font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; color: var(--pp-mint-ink); white-space: nowrap; }
+html[data-aesthetic="paper"] .lce-live-dot { --ci-s: var(--pp-mint); width: 8px; height: 8px; border-radius: 50%; background: var(--pp-mint-ink); animation: ci-pulse 1.8s ease-out infinite; }
+html[data-aesthetic="paper"] .lce-psheet h3 { margin: 12px 2px 2px; font-family: var(--font-fraunces); font-weight: 600; font-size: 22px; letter-spacing: -.03em; line-height: 1.15; }
+html[data-aesthetic="paper"] .lce-psheet .sub { margin: 0 2px; font-size: 13px; color: var(--muted); }
+/* both answers on one screen: the roster runs as two long rows, the explainer
+   line drops, and the tags ride the slip's top edge */
+html[data-aesthetic="paper"] .lce-psheet .lce-slips { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip { padding: 12px; gap: 9px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .ic { width: 30px; height: 30px; border-radius: 9px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip h4 { font-size: 14.5px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .when { font-size: 12px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .tag { position: absolute; top: -9px; right: 12px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .sheet { padding: 8px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-dots { grid-template-columns: repeat(auto-fill, minmax(8px, 1fr)); gap: 3px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .vs span { font-size: 9.5px; padding: 2px 7px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .legend { font-size: 12px; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .fx { display: none; }
+html[data-aesthetic="paper"] .lce-psheet .lce-slip .go { padding: 12px 16px; font-size: 15px; }
+html[data-aesthetic="paper"] .lce-keep2 {
+  display: block; width: 100%; margin-top: 14px; padding: 12px; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--line-med); background: var(--paper); font-size: 14.5px; font-weight: 600; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .lce-snack {
+  position: fixed; z-index: 80; left: 12px; right: 12px;
+  /* above the tab bar AND the Ask Chapt launcher (50px at --mtb-space + 12px) */
+  bottom: calc(var(--mtb-space, 0px) + 74px);
+  display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 16px;
+  background: var(--ink); color: var(--paper); font-size: 13.5px; line-height: 1.3;
+  box-shadow: 3px 3px 0 var(--pp-rose); animation: lce-snack .35s var(--pp-ease-spring) both;
+}
+@keyframes lce-snack { from { opacity: 0; transform: translateY(16px); } }
+html[data-aesthetic="paper"] .lce-snack .lce-ring .bg { stroke: rgba(var(--paper-rgb), .2); }
+html[data-aesthetic="paper"] .lce-snack .lce-ring .fg { stroke: var(--pp-rose); }
+html[data-aesthetic="paper"] .lce-snack p { flex: 1; min-width: 0; }
+html[data-aesthetic="paper"] .lce-snack p small { display: block; opacity: .7; font-size: 12px; }
+html[data-aesthetic="paper"] .lce-snack button {
+  border: 0; padding: 8px 14px; border-radius: 999px; background: var(--pp-rose); color: var(--pp-note-ink); font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  html[data-aesthetic="paper"] .lce-fork { grid-column: 1 / -1; padding: 18px 16px 16px; border-radius: 0 0 20.5px 20.5px; }
+  html[data-aesthetic="paper"] .lce-fork::before { left: 16px; right: 16px; }
+  html[data-aesthetic="paper"] .lce-slips { grid-template-columns: minmax(0, 1fr); }
+  html[data-aesthetic="paper"] .lce-fork-h .lce-keep { margin-left: 0; }
+  html[data-aesthetic="paper"] .lce-void-stamp { left: 2px; font-size: .7rem; padding: 4px 6px 3px; }
+}
+
 /* ── Hero chip while a window is live ──────────────────────────────────────── */
 html[data-aesthetic="paper"] .dash .ba-chip.checkin-live {
   order: 1; --hs: var(--pp-mint); background: var(--card); color: var(--ink); border: 1.5px dashed var(--pp-mint-ink); gap: 9px;
@@ -329,4 +522,5 @@ html[data-aesthetic="paper"] .dash .lcb.closing .lcb-btn:hover { background: var
 
 @media (prefers-reduced-motion: reduce) {
   html[data-aesthetic="paper"] .dash :is(.live-stamp, section.live.landed .live-stub > *, section.live.landed .live-body > *) { animation: none; }
+  html[data-aesthetic="paper"] :is(.lce-fork, .lce-slip, .lce-void-stamp, .lce-strike, .lce-psheet, .lce-snack, .lce-scrim) { animation: none; }
 }

@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CHECKIN_WINDOW_MS } from "@/lib/checkin";
 import type { LiveCheckIn as LiveCheckInData } from "@/lib/services/attendance-service";
 import { apiErrorMessage } from "../../../lib/api";
@@ -6,6 +7,16 @@ import { PaperIcon } from "../../paper/PaperIcon";
 import { WhosHere } from "./WhosHere";
 import { formatEventTime } from "@/lib/event-time";
 import { landTicket } from "../ticket-flight";
+import { CANCEL_UNDO_MS, EndFork, EndSheet, UndoRing, UndoSnack, VoidIcon } from "./EndCheckIn";
+import { PHONE_QUERY } from "../../chat/usePhoneSheet";
+
+/** The tab-bar breakpoint: below it, ending check-in is a bottom sheet. */
+function subscribePhone(cb: () => void) {
+  const mq = window.matchMedia(PHONE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+const usePhone = () => useSyncExternalStore(subscribePhone, () => window.matchMedia(PHONE_QUERY).matches, () => false);
 
 // No "use client" directive: ledger/* components inherit client-ness from
 // app/org/[slug]/page.tsx, which is itself "use client".
@@ -49,6 +60,9 @@ export function LiveCheckIn({
   onUndo,
   onClose,
   onReopen,
+  onCancel,
+  onRestore,
+  onOpenAnother,
   onTakeAttendance,
   onFileExcuse,
   tone,
@@ -65,6 +79,12 @@ export function LiveCheckIn({
    *  the failure mode this convention exists to prevent. */
   onClose?: () => Promise<void>;
   onReopen?: () => Promise<void>;
+  /** "It didn't happen": ends the window without recording anything. */
+  onCancel?: () => Promise<void>;
+  /** Undo a cancel. */
+  onRestore?: () => Promise<void>;
+  /** Opens the event picker — a cancelled window was usually the wrong event. */
+  onOpenAnother?: () => void;
   onTakeAttendance?: () => void;
   /** Opens the excuse form. Undefined hides the link. */
   onFileExcuse?: () => void;
@@ -79,6 +99,12 @@ export function LiveCheckIn({
   // The "Who's here" sheet. Its roster is fetched on open, not carried by the
   // 12s poll that feeds this card — see getLiveRoster.
   const [rosterOpen, setRosterOpen] = useState(false);
+  // "End check-in…" opens the did-it-happen fork; the window stays open (and
+  // keeps taking check-ins) until the officer picks an answer.
+  const [ending, setEnding] = useState(false);
+  const [endBusy, setEndBusy] = useState<null | "record" | "cancel">(null);
+  const keepOpen = useCallback(() => { if (!endBusy) setEnding(false); }, [endBusy]);
+  const phone = usePhone();
   // Drives the "started N min ago" line and the draining rule between polls, so
   // the band ages smoothly instead of jumping every 12s when the poll lands.
   const [now, setNow] = useState(() => Date.now());
@@ -108,7 +134,29 @@ export function LiveCheckIn({
     };
   }, [open]);
 
+  // The undo countdown after a cancel ticks every second, and only while it runs.
+  const cancelledAtMs = data?.cancelledAt ? Date.parse(data.cancelledAt) : null;
+  useEffect(() => {
+    if (cancelledAtMs === null) return;
+    setNow(Date.now());
+    if (Date.now() - cancelledAtMs >= CANCEL_UNDO_MS) return;
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() - cancelledAtMs >= CANCEL_UNDO_MS) clearInterval(t);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [cancelledAtMs]);
+
+  // Another officer (or the clock) can end the window while this fork is up.
+  useEffect(() => { if (!open) setEnding(false); }, [open]);
+
   if (!data) return null;
+
+  const cancelled = cancelledAtMs !== null;
+  const undoLeft = cancelled ? Math.max(0, CANCEL_UNDO_MS - (now - cancelledAtMs)) : 0;
+  // A member has nothing to do with a cancelled window once the undo passes:
+  // it never reaches their record, so the band simply goes away.
+  if (cancelled && !onCancel && undoLeft === 0) return null;
 
   // Paper's "last in" stack: the newest arrivals' faces under the tally, as in
   // the mock. They ride on the poll itself (getLiveCheckIn's `recent`) — this
@@ -122,7 +170,9 @@ export function LiveCheckIn({
   // accounted for (checked in / excused) outranks the window's urgency, because
   // there is nothing left for this member to hurry about.
   const toneClass =
-    excuseApproved      ? "excused"
+    cancelled           ? "void"
+    : ending            ? "ending"
+    : excuseApproved    ? "excused"
     : me.checkedIn      ? "done"
     : closed            ? "done"
     : state === "closing" ? "closing"
@@ -149,8 +199,26 @@ export function LiveCheckIn({
     }
   }
 
+  async function end(kind: "record" | "cancel") {
+    const action = kind === "record" ? onClose : onCancel;
+    if (!action) return;
+    setEndBusy(kind);
+    setError(null);
+    try {
+      await action();
+      setEnding(false);
+    } catch (e) {
+      setError(apiErrorMessage(e, kind === "record" ? "Could not close check-in." : "Could not cancel check-in."));
+    } finally {
+      setEndBusy(null);
+    }
+  }
+
+  const discarded = presentCount;
   const kicker =
-    closed          ? "Check-in closed"
+    cancelled       ? "Check-in cancelled"
+    : ending        ? "Ending check-in"
+    : closed        ? "Check-in closed"
     : excuseApproved ? "You're excused"
     : me.checkedIn  ? "You're checked in"
     : state === "closing" ? "Check-in closing"
@@ -165,8 +233,10 @@ export function LiveCheckIn({
         <small>{WD[stubDate.getUTCDay()]}</small>
         <b>{stubDate.getUTCDate()}</b>
         <small>{MON[stubDate.getUTCMonth()]}</small>
-        <span className={`live-stamp${closed ? " shut" : ""}`}>{closed ? "CHECK-IN CLOSED" : "CHECK-IN OPEN"}</span>
+        {!cancelled && <span className={`live-stamp${closed ? " shut" : ""}`}>{closed ? "CHECK-IN CLOSED" : "CHECK-IN OPEN"}</span>}
       </div>
+      {/* Outside the stub, which greys out under it, so the stamp keeps its ink. */}
+      {cancelled && <span className="lce-void-stamp pp-only" aria-hidden="true">VOID<small>NOT RECORDED</small></span>}
 
       <div className="live-rule">
         <i style={{ transform: `scaleY(${remaining.toFixed(3)})` }} />
@@ -187,7 +257,11 @@ export function LiveCheckIn({
             <span>{kicker}</span>
             <span className="live-sep">·</span>
             <span className="live-elapsed">
-              {closed
+              {cancelled
+                ? onCancel ? "nothing recorded" : `by ${data.closedByName ?? "an officer"}`
+                : ending
+                ? "still open while you decide"
+                : closed
                 ? data.closedAt
                   ? `ended ${clockLabel(data.closedAt)}${data.closedByName ? ` by ${data.closedByName}` : ""}`
                   : `ended ${whenLabel(Date.parse(data.openedAt) + CHECKIN_WINDOW_MS, now)}`
@@ -195,11 +269,31 @@ export function LiveCheckIn({
             </span>
           </p>
 
-          <h2 className="live-title">{event.title}</h2>
+          <h2 className="live-title">{event.title}{cancelled && <span className="lce-strike" aria-hidden="true" />}</h2>
 
           {/* The receipt sits UNDER the title, which stays put — the card must
               not change identity at the moment you most need to be sure it's
               the same event. */}
+          {/* After a cancel: the officer's undo (inline on a wide screen, the
+              snackbar on a phone), and the member's "not counted". */}
+          {cancelled && onCancel && !phone && (
+            <div className="lce-undo-row">
+              {undoLeft > 0 && <UndoRing left={undoLeft} />}
+              <span>{discarded} {discarded === 1 ? "check-in" : "check-ins"} thrown out · nobody&rsquo;s attendance changed</span>
+              {undoLeft > 0 && onRestore && (
+                <button type="button" className="live-alt lce-undo" disabled={busy !== null} onClick={() => run("window", onRestore, "Could not undo the cancel.")}>
+                  {busy === "window" ? "Undoing…" : "Undo"}
+                </button>
+              )}
+            </div>
+          )}
+          {cancelled && !onCancel && (
+            <div className="live-receipt">
+              <span className="live-check lce-x"><VoidIcon /></span>
+              <p className="r-t"><b>Not counted</b> — this check-in was cancelled, so it won&rsquo;t show on anyone&rsquo;s attendance.</p>
+            </div>
+          )}
+
           {me.checkedIn && !closed && (
             <div className="live-receipt">
               <span className="live-check"><CheckIcon /></span>
@@ -235,9 +329,10 @@ export function LiveCheckIn({
           {/* The officer nudge: the window closes itself on the clock and
               records whoever hasn't checked in as absent, so say so before it
               happens to whoever could still close or extend it. */}
-          {onClose && !closed && state === "closing" && (
+          {onClose && !closed && state === "closing" && !ending && (
             <p className="live-nudge">
               Closing soon — <b>anyone who hasn&rsquo;t checked in will be marked absent</b> when it ends.
+              {onCancel && <> Wrong event? <button type="button" className="lce-nudge-cancel" onClick={() => setEnding(true)}>Cancel it instead</button>.</>}
             </p>
           )}
 
@@ -249,19 +344,26 @@ export function LiveCheckIn({
             {event.location && <><span><b>{event.location}</b></span><span className="dotsep">·</span></>}
             {event.mandatory && <span className="live-req">Mandatory</span>}
 
-            {onTakeAttendance && (
+            {onTakeAttendance && !cancelled && (
               /* While the window is open the officer is correcting a mark or
                  two (someone without a phone), not taking the roll again. */
               <button type="button" className="live-alt" onClick={onTakeAttendance}>
                 {closed ? "Take attendance" : "Fix a mark"}
               </button>
             )}
-            {!closed && onClose && (
+            {/* Ending asks first whether the event happened — only the officer
+                knows, and "closed" writes every no-show as an absence. Without
+                cancel permission wired, it closes directly as before. */}
+            {!closed && onClose && !ending && (onCancel ? (
+              <button type="button" className="live-alt live-close" disabled={busy !== null} onClick={() => setEnding(true)}>
+                End check-in…
+              </button>
+            ) : (
               <button type="button" className="live-alt live-close" disabled={busy !== null} onClick={() => run("window", onClose, "Could not close check-in.")}>
                 {busy === "window" ? "Closing…" : "Close & record attendance"}
               </button>
-            )}
-            {closed && onReopen && (
+            ))}
+            {closed && !cancelled && onReopen && (
               <button type="button" className="live-alt live-close" disabled={busy !== null} onClick={() => run("window", onReopen, "Could not reopen check-in.")}>
                 {busy === "window" ? "Reopening…" : "Reopen check-in"}
               </button>
@@ -285,12 +387,12 @@ export function LiveCheckIn({
         <div className="live-count">
           <p className="n">{presentCount}<small>/{eligibleCount}</small></p>
           <p className="k">
-            {closed ? "final tally" : "here now"}
-            {closed && <span className="pp-only"> · {Math.max(0, eligibleCount - presentCount)} absent</span>}
+            {cancelled ? "not counted" : closed ? "final tally" : "here now"}
+            {closed && !cancelled && <span className="pp-only"> · {Math.max(0, eligibleCount - presentCount)} absent</span>}
           </p>
-          <span className="track"><i style={{ width: `${pct}%` }} /></span>
+          <span className="track"><i style={{ width: cancelled ? "0%" : `${pct}%` }} /></span>
           {/* Guarded: an old server instance mid-deploy answers without `recent`. */}
-          {arrivals && (
+          {arrivals && !cancelled && (
             <div className="live-stack pp-only">
               {arrivals.length === 0
                 ? (!closed && <span>Waiting for the first check-in…</span>)
@@ -316,7 +418,14 @@ export function LiveCheckIn({
             card keeps one action at every stage rather than going inert the
             moment a member has done their part. */}
         <div className="live-act">
-          {!closed && !me.checkedIn && !excuseApproved ? (
+          {cancelled ? (
+            onOpenAnother && (
+              <button type="button" className="live-btn" onClick={onOpenAnother}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                Open the right event
+              </button>
+            )
+          ) : !closed && !me.checkedIn && !excuseApproved ? (
             <button type="button" className="live-btn" disabled={busy !== null} onClick={() => run("checkin", onCheckIn, "Could not check you in.")}>
               <CheckIcon />
               {busy === "checkin" ? "Checking in…" : "I'm here"}
@@ -329,7 +438,23 @@ export function LiveCheckIn({
           )}
         </div>
       </div>
+
+      {ending && !phone && open && (
+        <EndFork data={data} busy={endBusy} onRecord={() => void end("record")} onCancel={() => void end("cancel")} onKeep={keepOpen} />
+      )}
     </section>
+
+    {/* Portaled to <body>: inside the page, the main column's stacking context
+        put the Ask Chapt launcher over the sheet's buttons. `phone` is only
+        ever true in the browser, so document exists here. */}
+    {ending && phone && open && createPortal(
+      <EndSheet data={data} busy={endBusy} onRecord={() => void end("record")} onCancel={() => void end("cancel")} onKeep={keepOpen} />,
+      document.body,
+    )}
+    {cancelled && onCancel && phone && undoLeft > 0 && onRestore && createPortal(
+      <UndoSnack discarded={discarded} left={undoLeft} busy={busy === "window"} onUndo={() => void run("window", onRestore, "Could not undo the cancel.")} />,
+      document.body,
+    )}
 
     {rosterOpen && <WhosHere live={data} onClose={() => setRosterOpen(false)} />}
     </>

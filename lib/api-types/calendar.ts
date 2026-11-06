@@ -87,6 +87,10 @@ export type LiveCheckIn = {
   openedAt:      string;
   closedAt:      string | null;
   closedByName:  string | null;
+  /** Set when an officer cancelled the window instead of closing it: state is
+   *  "closed", nothing was recorded, and presentCount is how many check-ins were
+   *  thrown out. closedByName is who cancelled it. */
+  cancelledAt:   string | null;
   msRemaining:   number;
   presentCount:  number;
   eligibleCount: number;

@@ -863,6 +863,12 @@ model CalendarEvent {
   checkInOpenedById Int?
   checkInClosedAt   DateTime?
   checkInClosedById Int?
+  // Set when an officer CANCELS the window instead of closing it ("it didn't
+  // happen"): closedAt/closedById are stamped too, no absences are written, and
+  // every AttendanceRecord for the event moves into checkInCancelledRecords so
+  // an undo can put them back. Opening check-in on the event again clears both.
+  checkInCancelledAt      DateTime?
+  checkInCancelledRecords Json?
   // "More details" from the event form: an ordered list of typed details
   // (checklist, budget, who's bringing what, contact, …). Shape and parse live in
   // lib/event-details.ts; every read goes through parseEventDetails.
