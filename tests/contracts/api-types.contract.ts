@@ -22,7 +22,9 @@
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
+  ChatAttachmentInfo, AttachmentUnit,
 } from "@/lib/api-types";
+import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { publicBrother } from "@/lib/brother-avatar";
 import type { getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
@@ -97,3 +99,7 @@ export const duesChargePreview: Widen<DuesChargePreview> = served<Served<typeof 
 export const duesChargeIssued: Widen<DuesChargeIssued> = served<Served<typeof issueDuesCharge>>();
 export const duesWaived: Widen<DuesWaived> = served<Served<typeof waiveDues>>();
 export const duesWaiverVoided: Widen<DuesWaived> = served<Served<typeof voidDuesWaiver>>();
+
+export const chatAttachments: Widen<ChatAttachmentInfo[]> = served<Served<typeof listAttachments>>();
+export const chatAttachmentUploaded: Widen<ChatAttachmentInfo> = served<Served<typeof uploadAttachment>>();
+export const chatAttachmentUnit: Widen<AttachmentUnit> = served<Served<typeof getAttachmentUnit>>();

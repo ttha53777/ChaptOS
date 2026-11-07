@@ -45,6 +45,7 @@ export type SubjectType =
   | "Reimbursement"
   | "DuesPayment"
   | "ChatApproval"
+  | "ChatAttachment"
   | "Subscription"
   | "SalesLead";
 
@@ -249,6 +250,9 @@ export interface EventMetadata {
   // members should never see in the feed.
   "assistant.proposal_approved": { action: string; kind: string; permission: string; subjectType: string | null; subjectId: number | null };
   "assistant.feedback":          { helpful: boolean; question: string; answerKind: string };
+  // Ask Chapt attachments. Never a filename or any file text — sizes and kinds only.
+  "chat_attachment.uploaded":    { kind: string; sizeBytes: number; charCount: number };
+  "chat_attachment.removed":     { count: number };
 
   // ── Platform billing ──────────────────────────────────────────────────────
   // What the org pays US. Nothing here touches the dues/treasury books.
@@ -319,6 +323,7 @@ const KNOWN_ACTIONS = new Set<Action>([
   "dues.charge_issued", "dues.charge_updated", "dues.charge_voided", "dues.line_voided", "dues.waived", "dues.waiver_voided",
   "dues_payment.submitted", "dues_payment.rejected",
   "assistant.proposal_approved", "assistant.feedback",
+  "chat_attachment.uploaded", "chat_attachment.removed",
   "billing.plan_changed", "billing.checkout_started", "billing.subscription_activated", "billing.tier_changed",
   "billing.payment_failed", "billing.payment_action_required", "billing.dispute_opened",
   "billing.subscription_canceled", "billing.seats_blocked",

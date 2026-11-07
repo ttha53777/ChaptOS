@@ -11,7 +11,8 @@ import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
 import { logError, logTiming } from "@/lib/observability";
-import type { ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
+import type { ChatAvailability, ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
+import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS } from "@/lib/files/limits";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
@@ -515,6 +516,12 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  // Lightweight enabled probe so the client can hide the floating button when no key.
-  return Response.json({ enabled: aiEnabled() });
+  // Lightweight enabled probe so the client can hide the floating button when no
+  // key, and the paperclip when attachments are off.
+  const enabled = aiEnabled();
+  const files = enabled && filesEnabled();
+  const body: ChatAvailability = files
+    ? { enabled, files, fileLimits: { maxBytes: FILE_MAX_BYTES, maxFiles: FILES_PER_THREAD, extensions: FILE_EXTENSIONS } }
+    : { enabled };
+  return Response.json(body);
 }

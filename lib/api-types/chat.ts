@@ -1,4 +1,5 @@
 // Ask Chapt (POST /api/ai/chat) wire shapes. Type-only: see lib/api-types/index.ts for the rules.
+import type { FileLimits } from "./chat-attachments";
 //
 // The response is a server-sent-event stream: `event: <name>\ndata: <json>\n\n`.
 // ChatStreamEvents maps every event name to its JSON payload; the route's
@@ -19,7 +20,13 @@ export interface ChatRequest {
  * off for the deployment (Content-Type: application/json, not text/event-stream).
  * GET /api/ai/chat answers the same shape as a cheap probe.
  */
-export interface ChatAvailability { enabled: boolean }
+export interface ChatAvailability {
+  enabled: boolean;
+  /** GET only: members may attach files (the paperclip shows). Absent or false means they can't. */
+  files?: boolean;
+  /** GET only, when `files` is true. */
+  fileLimits?: FileLimits;
+}
 
 export type RefType = "member" | "event" | "task";
 

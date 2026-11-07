@@ -42,6 +42,7 @@ export async function resetDb(): Promise<void> {
       "BudgetAllocation",
       "Budget",
       "TransactionCalendarEvent",
+      "ChatAttachment",
       "Reimbursement",
       "DuesWaiver",
       "DuesChargeLine",

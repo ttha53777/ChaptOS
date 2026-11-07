@@ -69,6 +69,7 @@ model Organization {
   fundraiserSupplies        FundraiserSupply[]
   duesWaivers               DuesWaiver[]
   chatApprovals             ChatApproval[]
+  chatAttachments           ChatAttachment[]
   budgets                   Budget[]
   activityLogs              ActivityLog[]
   announcements             ChapterAnnouncement[]
@@ -286,6 +287,7 @@ model Brother {
   duesChargeLines       DuesChargeLine[]
   duesWaivers           DuesWaiver[]
   chatApprovals         ChatApproval[]
+  chatAttachments       ChatAttachment[]
   // Ledger rows attributed to this member — dues payments. Without this link,
   // "does the roster agree with the ledger?" is a question the DB cannot answer.
   transactions          Transaction[]
@@ -1535,6 +1537,40 @@ model ChatApproval {
 
   @@index([organizationId, approvedAt(sort: Desc)])
   @@index([approvedById])
+}
+
+// A file a member attached to an Ask Chapt conversation. Only the extracted
+// content is kept — the original bytes are never stored. Private to ownerId:
+// every read goes through ctx.db.chatAttachment.forOwner(actorId), and org
+// admins get no bypass. Removal nulls content and blanks filename at once; the
+// row stays as a tombstone so the daily upload quota still counts it.
+model ChatAttachment {
+  id             Int       @id @default(autoincrement())
+  publicId       String    @unique // randomUUID(); the only id clients see
+  organizationId Int
+  ownerId        Int // Brother.id of the uploader
+  threadId       String // client-generated conversation id
+  filename       String // display only; "" once removed
+  // AttachmentKind (lib/state/attachment-kind.ts) — CHECK-constrained in the DB.
+  kind           String
+  sizeBytes      Int
+  sha256         String
+  unitCount      Int
+  charCount      Int
+  truncated      Boolean   @default(false)
+  content        Json? // AttachmentContent (lib/files/types.ts); null once removed
+  digest         Json? // reserved for large-document digests (plan phase 7)
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime  @default(now())
+  expiresAt      DateTime
+  removedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        Brother      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, ownerId, threadId])
+  @@index([organizationId, ownerId, createdAt])
+  @@index([expiresAt])
 }
 
 model Budget {

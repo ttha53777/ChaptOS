@@ -48,6 +48,11 @@
  *   GET    /api/activity                       ActivityEntry[]
  *   GET    /api/announcement                   Announcement
  *   POST   /api/ai/chat                        SSE: ChatStreamEvents   (or ChatAvailability JSON when off)
+ *   GET    /api/ai/chat                        ChatAvailability        (files/fileLimits present when attachments are on)
+ *   POST   /api/ai/attachments                 ChatAttachmentInfo      (multipart `file` + `threadId`; 400 → details.code)
+ *   GET    /api/ai/attachments?threadId=       ChatAttachmentInfo[]    (DELETE ?threadId= → { ok, removed })
+ *   DELETE /api/ai/attachments/[id]            { ok: true }
+ *   GET    /api/ai/attachments/[id]/units/[ref] AttachmentUnit         (ref: p7, s2, l3, sh1, sh1!B2:D9)
  *   GET    /api/treasury                       TreasuryData
  *   GET    /api/transactions                   Transaction[]
  *   GET    /api/reimbursements                 Reimbursement[]
@@ -70,5 +75,6 @@ export type * from "./treasury";
 export type * from "./dues";
 export type * from "./activity";
 export type * from "./chat";
+export type * from "./chat-attachments";
 export type * from "./mobile";
 export type * from "./fundraisers";

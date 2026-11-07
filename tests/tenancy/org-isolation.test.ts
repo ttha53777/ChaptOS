@@ -1253,3 +1253,44 @@ describe("tenancy: ChatApproval", () => {
     expect(leak).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// ChatAttachment — private to the uploader within one org
+// ---------------------------------------------------------------------------
+describe("tenancy: ChatAttachment", () => {
+  const data = (threadId: string) => ({
+    publicId: randomUUID(), threadId, filename: "f.txt", kind: "txt", sizeBytes: 1, sha256: randomUUID(),
+    unitCount: 1, charCount: 10, content: { type: "text", units: [] }, expiresAt: new Date(Date.now() + 86_400_000),
+  });
+
+  it("create injects organizationId and ownerId; reads stay inside org and owner", async () => {
+    const orgA = await createOrg("Alpha", "alpha");
+    const orgB = await createOrg("Beta", "beta");
+    const ann = await createBrother({ orgId: orgA.id });
+    const bo = await createBrother({ orgId: orgA.id });
+    const made = await db(orgA.id).chatAttachment.forOwner(ann.id).create(data("t"));
+    const row = await testPrisma.chatAttachment.findUniqueOrThrow({ where: { id: made.id } });
+    expect([row.organizationId, row.ownerId]).toEqual([orgA.id, ann.id]);
+
+    expect(await db(orgA.id).chatAttachment.forOwner(ann.id).listMeta("t")).toHaveLength(1);
+    expect(await db(orgA.id).chatAttachment.forOwner(bo.id).listMeta("t")).toEqual([]);
+    expect(await db(orgB.id).chatAttachment.forOwner(ann.id).listMeta("t")).toEqual([]);
+    expect(await db(orgB.id).chatAttachment.forOwner(ann.id).content(made.id)).toBeNull();
+    expect(await db(orgB.id).chatAttachment.forOwner(ann.id).remove(made.publicId)).toBe(0);
+    expect(await db(orgB.id).chatAttachment.orgActiveChars()).toBe(0);
+  });
+
+  it("meta reads never carry the content", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    const ann = await createBrother({ orgId: org.id });
+    const made = await db(org.id).chatAttachment.forOwner(ann.id).create(data("t"));
+    const [meta] = await db(org.id).chatAttachment.forOwner(ann.id).metaByPublicIds([made.publicId]);
+    expect(meta).not.toHaveProperty("content");
+    expect(meta).not.toHaveProperty("digest");
+  });
+
+  it("forOwner refuses a non-positive owner id", async () => {
+    const org = await createOrg("Alpha", "alpha");
+    expect(() => db(org.id).chatAttachment.forOwner(0)).toThrow();
+  });
+});

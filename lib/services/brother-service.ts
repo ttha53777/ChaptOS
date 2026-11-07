@@ -467,6 +467,8 @@ async function eraseOrgScopedRecords(ctx: RequestContext, brotherId: number): Pr
     await tx.brotherRole.deleteMany({ where: scoped });
     // ChatApproval names the approver, not a member: its FK is approvedById.
     await tx.chatApproval.deleteMany({ where: { approvedById: brotherId, organizationId: orgId } });
+    // Files they attached to Ask Chapt here. Keyed by ownerId, like ChatApproval.
+    await tx.chatAttachment.deleteMany({ where: { ownerId: brotherId, organizationId: orgId } });
 
     // InviteRedemption has no organizationId of its own — reach the org through
     // the invite it redeemed.

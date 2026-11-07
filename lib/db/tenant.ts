@@ -1827,6 +1827,93 @@ function scopedChatApproval(orgId: number, run: Run) {
 }
 
 /**
+ * Files a member attached to Ask Chapt. Private to the uploader, so there is
+ * deliberately no generic findMany/findFirst: every per-row method hangs off
+ * forOwner(ownerId) and filters by org AND owner AND not-removed AND
+ * not-expired in the same WHERE. Org admins get no bypass — callers pass
+ * ctx.actorId, never an id from a request. The meta reads use a fixed select
+ * that leaves out `content` and `digest`; content is fetched by id only.
+ */
+export const CHAT_ATTACHMENT_META = {
+  id: true, publicId: true, threadId: true, filename: true, kind: true, sizeBytes: true,
+  unitCount: true, charCount: true, truncated: true, createdAt: true, lastUsedAt: true, expiresAt: true,
+} as const;
+
+export type ChatAttachmentMeta = Prisma.ChatAttachmentGetPayload<{ select: typeof CHAT_ATTACHMENT_META }>;
+
+/** Advisory-lock namespace for per-member upload serialization (see 734921/734922 for orgs). */
+const CHAT_ATTACHMENT_LOCK_NS = 734923;
+
+function scopedChatAttachment(orgId: number, run: Run) {
+  type W = Prisma.ChatAttachmentWhereInput;
+  const removed = { removedAt: new Date(), content: Prisma.DbNull, digest: Prisma.DbNull, filename: "" };
+
+  return {
+    forOwner(ownerId: number) {
+      if (!Number.isInteger(ownerId) || ownerId <= 0) {
+        throw new Error(`chatAttachment.forOwner(): ownerId must be a positive integer, got ${JSON.stringify(ownerId)}`);
+      }
+      const mine = (w?: W): W => ({ ...w, organizationId: orgId, ownerId });
+      const live = (w?: W): W => mine({ ...w, removedAt: null, expiresAt: { gt: new Date() } });
+      return {
+        listMeta: (threadId: string) =>
+          run(p => p.chatAttachment.findMany({ where: live({ threadId }), orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: CHAT_ATTACHMENT_META })) as Promise<ChatAttachmentMeta[]>,
+        metaByPublicIds: (publicIds: string[]) =>
+          run(p => p.chatAttachment.findMany({ where: live({ publicId: { in: publicIds } }), orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: CHAT_ATTACHMENT_META })) as Promise<ChatAttachmentMeta[]>,
+        findBySha: (threadId: string, sha256: string) =>
+          run(p => p.chatAttachment.findFirst({ where: live({ threadId, sha256 }), select: CHAT_ATTACHMENT_META })) as Promise<ChatAttachmentMeta | null>,
+        /** The extracted content of one live file, by internal id (already resolved from a meta read). */
+        content: async (id: number): Promise<unknown> => {
+          const row = await run(p => p.chatAttachment.findFirst({ where: live({ id }), select: { content: true } }));
+          return row?.content ?? null;
+        },
+        /** Meta plus content for one live file, by its public id. */
+        withContent: (publicId: string) =>
+          run(p => p.chatAttachment.findFirst({ where: live({ publicId }), select: { ...CHAT_ATTACHMENT_META, content: true } })),
+        create: (data: Omit<Prisma.ChatAttachmentUncheckedCreateInput, "organizationId" | "ownerId">) =>
+          run(p => p.chatAttachment.create({ data: { ...data, organizationId: orgId, ownerId }, select: CHAT_ATTACHMENT_META })) as Promise<ChatAttachmentMeta>,
+        /** Content, digest and filename are wiped in the same statement that marks the row removed. */
+        remove: async (publicId: string): Promise<number> =>
+          (await run(p => p.chatAttachment.updateMany({ where: mine({ publicId, removedAt: null }), data: removed }))).count,
+        removeThread: async (threadId: string): Promise<number> =>
+          (await run(p => p.chatAttachment.updateMany({ where: mine({ threadId, removedAt: null }), data: removed }))).count,
+        /**
+         * Mark files used now: lastUsedAt = now, expiresAt = the sooner of the
+         * hard cap from upload and the idle window from now (lib/files/limits).
+         */
+        touch: (ids: number[], idleMs: number, maxMs: number) =>
+          ids.length === 0 ? Promise.resolve(0) : run(p => p.$executeRaw`
+            UPDATE "ChatAttachment"
+               SET "lastUsedAt" = now(),
+                   "expiresAt"  = LEAST("createdAt" + ${maxMs} * interval '1 millisecond', now() + ${idleMs} * interval '1 millisecond')
+             WHERE "organizationId" = ${orgId} AND "ownerId" = ${ownerId}
+               AND "id" = ANY(${ids}::integer[]) AND "removedAt" IS NULL AND "expiresAt" > now()`),
+        countActiveInThread: (threadId: string) => run(p => p.chatAttachment.count({ where: live({ threadId }) })),
+        /** Every upload since `since`, removed tombstones included — that's what the daily quota counts. */
+        countCreatedSince: (since: Date) => run(p => p.chatAttachment.count({ where: mine({ createdAt: { gte: since } }) })),
+        /** Serialize this member's uploads. Only meaningful on a transaction client (onTx). */
+        lock: () => run(p => p.$executeRaw`SELECT pg_advisory_xact_lock(${CHAT_ATTACHMENT_LOCK_NS}::integer, ${ownerId}::integer)`),
+      };
+    },
+    /** Extracted characters held by this org's live attachments (the storage ceiling). */
+    orgActiveChars: async (): Promise<number> => {
+      const agg = await run(p => p.chatAttachment.aggregate({
+        where: { organizationId: orgId, removedAt: null, expiresAt: { gt: new Date() } },
+        _sum: { charCount: true },
+      }));
+      return agg._sum.charCount ?? 0;
+    },
+    /** Physically delete this org's expired rows (expired content is already unreadable). */
+    purgeExpired: async (): Promise<number> =>
+      (await run(p => p.chatAttachment.deleteMany({ where: { organizationId: orgId, expiresAt: { lte: new Date() } } }))).count,
+
+    /** The same delegate bound to a transaction client — see member.onTx. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onTx: (tx: any) => scopedChatAttachment(orgId, fn => fn(tx as P)),
+  };
+}
+
+/**
  * The join-request queue: people who opened an invite link and are waiting on an
  * officer.
  *
@@ -2141,6 +2228,7 @@ export function db(orgId: number) {
     duesChargeLine:      scopedDuesChargeLine(orgId, run),
     duesWaiver:          scopedDuesWaiver(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
+    chatAttachment:      scopedChatAttachment(orgId, run),
     joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
     salesLead:           scopedSalesLead(orgId, run),
@@ -2272,6 +2360,7 @@ export function _dbWithClient(orgId: number, client: P) {
     duesChargeLine:      scopedDuesChargeLine(orgId, run),
     duesWaiver:          scopedDuesWaiver(orgId, run),
     chatApproval:        scopedChatApproval(orgId, run),
+    chatAttachment:      scopedChatAttachment(orgId, run),
     joinRequest:         scopedJoinRequest(orgId, run),
     subscription:        scopedSubscription(orgId, run),
     salesLead:           scopedSalesLead(orgId, run),

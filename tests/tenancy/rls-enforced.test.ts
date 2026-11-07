@@ -255,3 +255,49 @@ describe("Phase 2: db() wrapper with SET LOCAL (RLS_SET_ORG_ID=1 path)", () => {
     expect(fromA.map((r: { description: string }) => r.description)).toEqual(["A tx"]);
   });
 });
+
+describe("RLS: ChatAttachment (Ask Chapt files)", () => {
+  async function seedFiles() {
+    const a = await createOrg("Alpha", "alpha");
+    const b = await createOrg("Beta", "beta");
+    const ownerA = await createBrother({ orgId: a.id });
+    const ownerB = await createBrother({ orgId: b.id });
+    const row = (orgId: number, ownerId: number, filename: string) => ({
+      publicId: crypto.randomUUID(), organizationId: orgId, ownerId, threadId: "t", filename, kind: "txt",
+      sizeBytes: 1, sha256: filename, unitCount: 1, charCount: 1, content: { type: "text", units: [] },
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await testPrisma.chatAttachment.create({ data: row(a.id, ownerA.id, "a.txt") });
+    await testPrisma.chatAttachment.create({ data: row(b.id, ownerB.id, "b.txt") });
+    return { a, b, ownerA, ownerB, row };
+  }
+
+  it("a raw read with no WHERE sees only the active org's files", async () => {
+    const { a } = await seedFiles();
+    const fromA = await asOrg(a.id, tx => tx.chatAttachment.findMany({ select: { filename: true } }));
+    expect(fromA.map(r => r.filename)).toEqual(["a.txt"]);
+    expect(await asOrg(null, tx => tx.chatAttachment.count())).toBe(0);
+  });
+
+  it("WITH CHECK blocks inserting a file into another org", async () => {
+    const { a, b, ownerB, row } = await seedFiles();
+    await expect(asOrg(a.id, tx => tx.chatAttachment.create({ data: row(b.id, ownerB.id, "sneak.txt") }))).rejects.toThrow();
+  });
+
+  it("the scoped delegate reads and writes under enforcing RLS", async () => {
+    const { a, b, ownerA, ownerB } = await seedFiles();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbA = _dbWithClient(a.id, appPrisma as any);
+    expect((await dbA.chatAttachment.forOwner(ownerA.id).listMeta("t")).map(r => r.filename)).toEqual(["a.txt"]);
+    // B's owner id in A's org: nothing, by both the owner filter and RLS.
+    expect(await dbA.chatAttachment.forOwner(ownerB.id).listMeta("t")).toEqual([]);
+    const created = await dbA.chatAttachment.forOwner(ownerA.id).create({
+      publicId: crypto.randomUUID(), threadId: "t", filename: "new.txt", kind: "txt", sizeBytes: 1, sha256: "n",
+      unitCount: 1, charCount: 1, content: { type: "text", units: [] }, expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    expect(created.filename).toBe("new.txt");
+    expect(await dbA.chatAttachment.orgActiveChars()).toBe(2);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await _dbWithClient(b.id, appPrisma as any).chatAttachment.orgActiveChars()).toBe(1);
+  });
+});

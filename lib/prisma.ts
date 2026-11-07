@@ -16,7 +16,7 @@ declare global {
 }
 
 /** Bump when Prisma schema changes so `next dev` hot reload gets a fresh client. */
-const PRISMA_SCHEMA_REVISION = "selected-billing-plans-20260924";
+const PRISMA_SCHEMA_REVISION = "chat-attachments-20261109";
 /** Bump when pool options change so `next dev` hot reload picks up new config. */
 const POOL_REVISION = "serverless-transaction-pool-20260916";
 
@@ -32,6 +32,7 @@ function clientSupportsCurrentSchema(client: PrismaClient | undefined): boolean 
     && "email" in Prisma.BrotherScalarFieldEnum
     && "isGhost" in Prisma.BrotherScalarFieldEnum
     && "id" in Prisma.DocScalarFieldEnum
+    && "publicId" in Prisma.ChatAttachmentScalarFieldEnum
     // Phase 0: tenancy models
     && "id" in Prisma.OrganizationScalarFieldEnum
     && "id" in Prisma.MembershipScalarFieldEnum

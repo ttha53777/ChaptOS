@@ -96,3 +96,20 @@ export const eventIdeaInput = z.object({
   question: z.string().trim().max(300).optional(),
 });
 export type EventIdeaInput = z.infer<typeof eventIdeaInput>;
+
+// ── Ask Chapt file attachments ──────────────────────────────────────────────
+
+/** The client-generated conversation id a file belongs to. */
+export const attachmentThreadId = z.uuid();
+
+/** A ChatAttachment's public id — the only id a client ever sees. */
+export const attachmentPublicId = z.uuid();
+
+/**
+ * A citation target inside one file: a document unit ("p7", "s2", "l3"), a whole
+ * sheet ("sh1"), or a range on one ("sh1!B2:D9").
+ */
+export const attachmentUnitRef = z.string().regex(/^(?:[psl]\d{1,4}|sh\d{1,2}(?:![A-Z]{1,3}\d{1,7}(?::[A-Z]{1,3}\d{1,7})?)?)$/);
+
+/** POST /api/ai/chat `attachmentIds`: every file currently attached to the thread. */
+export const chatAttachmentIds = z.array(attachmentPublicId).max(5);
