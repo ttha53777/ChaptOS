@@ -37,3 +37,4 @@ export * from "./agenda-template-category";
 export * from "./dues-audience";
 export * from "./fundraiser-kind";
 export * from "./terms-acceptance-context";
+export * from "./attachment-kind";
