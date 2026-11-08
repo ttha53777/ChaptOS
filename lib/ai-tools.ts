@@ -36,6 +36,11 @@ import { compareLines } from "@/lib/dues-ledger";
 import { ExcuseStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
 import { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
+import { noteTerms, noteExcerpts } from "@/lib/ai-text";
+import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool } from "@/lib/ai-file-tools";
+import type { FileToolContext } from "@/lib/ai-files";
+
+export { noteTerms, noteExcerpts };
 
 /**
  * Org-scoped data accessor (the same shape as ctx.db). Every tool handler reads
@@ -1383,7 +1388,7 @@ type JsonSchema = {
 };
 
 function getToolSchema(name: string): JsonSchema | null {
-  for (const t of TOOLS) {
+  for (const t of [...TOOLS, ...FILE_TOOLS]) {
     if (t.type === "function" && t.function.name === name) {
       return (t.function.parameters as JsonSchema) ?? null;
     }
@@ -1707,40 +1712,6 @@ const CALENDAR_DESCRIPTION_PREVIEW = 400;
 const NOTES_RESULT_BUDGET = 14_000;
 const NOTES_MEETING_MAX = 7_000;
 const NOTES_CANDIDATES = 60;
-const NOTES_STOPWORDS = new Set(["the", "and", "for", "about", "what", "did", "was", "were", "with", "that", "this", "our", "who", "when", "meeting", "meetings", "minutes", "notes", "chapter"]);
-
-function noteTerms(query: string): string[] {
-  const words = query.toLowerCase().split(/[^\p{L}\p{N}$]+/u).filter(w => w.length >= 2 && !NOTES_STOPWORDS.has(w));
-  return [...new Set(words)].slice(0, 6);
-}
-
-/**
- * The lines of `text` that mention a term, each with the line before and
- * after and the heading it sits under, joined in document order with "…"
- * marking the gaps. Clipped to `budget` characters.
- */
-export function noteExcerpts(text: string, terms: string[], budget: number): string {
-  const lines = text.split("\n");
-  const keep = new Set<number>();
-  let heading = -1;
-  lines.forEach((line, i) => {
-    if (/^\s*#{1,3}/.test(line)) heading = i;
-    const lower = line.toLowerCase();
-    if (!terms.some(t => lower.includes(t))) return;
-    if (heading >= 0) keep.add(heading);
-    for (let j = Math.max(0, i - 1); j <= Math.min(lines.length - 1, i + 1); j++) keep.add(j);
-  });
-  let out = "";
-  let prev = -1;
-  for (const i of [...keep].sort((a, b) => a - b)) {
-    const piece = (prev >= 0 && i > prev + 1 ? "…\n" : "") + lines[i] + "\n";
-    if (out.length + piece.length > budget) { out += "…"; break; }
-    out += piece;
-    prev = i;
-  }
-  return out.trimEnd();
-}
-
 async function searchMeetingNotes(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
   const query = typeof args.query === "string" ? args.query.trim() : "";
   const terms = noteTerms(query);
@@ -2366,6 +2337,11 @@ export interface ToolAccess {
   permissions: number;
   isOrgAdmin: boolean;
   isPlatformAdmin: boolean;
+  /**
+   * The request's attached files, already validated as the caller's own. Present
+   * only on requests that carry attachments; the file tools refuse without it.
+   */
+  files?: FileToolContext;
 }
 
 /** Mirrors buildContext({ requirePerm }): org/platform admins pass every gate. */
@@ -3643,6 +3619,11 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
  */
 export async function runTool(name: string, args: ToolArgs, scoped: Scoped, orgId: number, now?: Date, access?: ToolAccess): Promise<ToolResult> {
   const handler = READ_HANDLERS[name];
+  if (!handler && FILE_TOOL_NAMES.has(name)) {
+    const v = validateArgs(name, args);
+    if (!v.ok) return { error: v.error };
+    return runFileTool(name, args, access?.files);
+  }
   if (!handler) return { error: `Unknown tool: ${name}` };
   const v = validateArgs(name, args);
   if (!v.ok) return { error: v.error };
@@ -3656,7 +3637,19 @@ export async function runTool(name: string, args: ToolArgs, scoped: Scoped, orgI
 
 /** True when the tool name is one the server should execute (read tool). */
 export function isReadTool(name: string): boolean {
-  return name in READ_HANDLERS;
+  return name in READ_HANDLERS || FILE_TOOL_NAMES.has(name);
+}
+
+/**
+ * The tool list for a request that carries attachments: every ordinary tool,
+ * then the file tools. Ordinary requests send TOOLS itself, untouched, so their
+ * prompt-cache prefix and tool selection can't move (ADR-8).
+ */
+export const FILE_MODE_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [...TOOLS, ...FILE_TOOLS];
+
+/** The tools a chat request sends: TOOLS itself (same reference) unless it carries files. */
+export function chatToolsFor(hasFiles: boolean): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  return hasFiles ? FILE_MODE_TOOLS : TOOLS;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -3674,6 +3667,11 @@ export function isReadTool(name: string): boolean {
 export interface ToolUiMeta {
   verb: string;
   source?: string;
+  /**
+   * A source label derived from the result, used instead of `source` when it
+   * returns one ("File · Constitution.pdf"). Null adds nothing to Sources.
+   */
+  sourceOf?: (result: unknown, args: ToolArgs) => string | null;
   finding?: (result: unknown, args: ToolArgs) => string | null;
 }
 
@@ -3869,4 +3867,6 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
   // Terminal answer tool — the client renders its own standing "Composing the
   // answer" step, but keep the verb here so nothing falls back to a raw name.
   compose_answer: { verb: "Composing the answer" },
+  // Ask Chapt file tools (lib/ai-file-tools.ts) — only offered on requests that carry attachments.
+  ...FILE_TOOL_UI,
 };

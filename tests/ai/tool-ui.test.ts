@@ -16,6 +16,7 @@
 import { describe, it, expect } from "vitest";
 import {
   TOOLS,
+  FILE_MODE_TOOLS,
   TOOL_UI,
   PROPOSAL_META,
   isReadTool,
@@ -31,6 +32,8 @@ import type { db } from "@/lib/db";
 type Scoped = ReturnType<typeof db>;
 
 const toolNames = TOOLS.flatMap(t => (t.type === "function" ? [t.function.name] : []));
+// Every tool the model can ever be offered: the file tools join only on requests with attachments.
+const allToolNames = FILE_MODE_TOOLS.flatMap(t => (t.type === "function" ? [t.function.name] : []));
 
 describe("TOOL_UI / PROPOSAL_META completeness", () => {
   it("every tool has a ledger verb", () => {
@@ -53,7 +56,8 @@ describe("TOOL_UI / PROPOSAL_META completeness", () => {
   });
 
   it("no orphan entries name tools that don't exist", () => {
-    for (const n of Object.keys(TOOL_UI)) expect(toolNames, `TOOL_UI.${n}`).toContain(n);
+    for (const n of allToolNames) expect(TOOL_UI[n]?.verb, n).toBeTruthy();
+    for (const n of Object.keys(TOOL_UI)) expect(allToolNames, `TOOL_UI.${n}`).toContain(n);
     for (const n of Object.keys(PROPOSAL_META)) expect(toolNames, `PROPOSAL_META.${n}`).toContain(n);
   });
 

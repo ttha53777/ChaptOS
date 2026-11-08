@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
-import { TOOLS, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
+import { chatToolsFor, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { createShapeEvidence, buildShape, attachPeople } from "@/lib/ai-shapes";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
@@ -12,7 +12,11 @@ import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/a
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
 import { logError, logTiming } from "@/lib/observability";
 import type { ChatAvailability, ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
-import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS } from "@/lib/files/limits";
+import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS, CHAT_FILE_CHARS_BUDGET } from "@/lib/files/limits";
+import { chatAttachmentIds } from "@/lib/validation/ai";
+import { listActiveByPublicIds, loadAttachmentContent, touchAttachments, type ChatAttachmentMeta } from "@/lib/services/chat-attachment-service";
+import { createFileContext, shouldBlockProposal, BLOCKED_FILE_CONTEXT, type FileToolContext } from "@/lib/ai-files";
+import { buildPreseed } from "@/lib/ai-file-tools";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
@@ -88,9 +92,17 @@ export async function POST(req: NextRequest) {
   const limited = checkMutationRate(ctx.actorId, 20, 60_000);
   if (limited) return limited;
 
-  const body = await req.json().catch(() => null) as { messages?: ClientMessage[] } | null;
+  const body = await req.json().catch(() => null) as { messages?: ClientMessage[]; attachmentIds?: unknown } | null;
   if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
     return Response.json({ error: "Invalid request: messages required" }, { status: 400 });
+  }
+  // Every file currently attached to the thread, by public id. Ignored entirely
+  // while the feature flag is off; otherwise a malformed list is a 400.
+  let attachmentIds: string[] = [];
+  if (filesEnabled() && body.attachmentIds !== undefined) {
+    const parsed = chatAttachmentIds.safeParse(body.attachmentIds);
+    if (!parsed.success) return Response.json({ error: "Invalid request: attachmentIds" }, { status: 400 });
+    attachmentIds = parsed.data;
   }
 
   // Truncate to last N for safety; the client also caps but trust nothing.
@@ -128,7 +140,14 @@ export async function POST(req: NextRequest) {
   // supplied). Assistant turns are excluded — the model can't vouch for itself.
   const userText = history.filter(m => m.role === "user").map(m => m.content).join("\n");
 
-  const systemPromptPromise = buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName });
+  // The caller's own live files among the ids sent — unknown, removed, expired,
+  // another member's or another org's simply don't come back (forOwner). Started
+  // now, awaited in the stream, like the prompt.
+  const attachmentsPromise: Promise<ChatAttachmentMeta[]> = attachmentIds.length
+    ? listActiveByPublicIds(ctx, attachmentIds).catch(() => [])
+    : Promise.resolve([]);
+  const systemPromptPromise = attachmentsPromise.then(files =>
+    buildSystemPrompt(ctx.db, ctx.orgId, { id: ctx.actorId, name: ctx.actorName }, undefined, files.length ? { files: true } : {}));
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -170,12 +189,26 @@ export async function POST(req: NextRequest) {
       const evidence = createShapeEvidence();
       let shapeType: string | null = null;
       let shapeMs: number | null = null;
+      // Token usage summed over the request's model calls (stream_options.include_usage).
+      let promptTokens = 0, cachedTokens = 0, completionTokens = 0;
+      let fileCtx: FileToolContext | undefined;
+      let attachmentCount = 0;
 
       try {
         // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
         // can cost a DB round trip on cache miss; sending "open" first lets the
         // client paint its "thinking" state immediately instead of waiting on it.
         send("open", {});
+
+        // The caller's attached files, already validated as their own. A request
+        // about files never takes the fast path below: a canned answer can't know
+        // what the file says.
+        const attachments = await attachmentsPromise;
+        attachmentCount = attachments.length;
+        if (attachments.length) {
+          fileCtx = createFileContext(attachments, id => loadAttachmentContent(ctx, id));
+          access.files = fileCtx;
+        }
 
         // ── Deterministic fast-path ─────────────────────────────────────────
         // A large fraction of questions map to exactly one DB query with no
@@ -184,7 +217,7 @@ export async function POST(req: NextRequest) {
         // non-match / error returns null and we fall through to the LLM loop
         // unchanged, so the worst case is "no faster than before," never wrong.
         const latest = history.at(-1);
-        const fast = latest ? await tryFastPath(latest.content, ctx.db, ctx.orgId) : null;
+        const fast = latest && !fileCtx ? await tryFastPath(latest.content, ctx.db, ctx.orgId) : null;
         if (fast) {
           fastPathPattern = fast.pattern;
           ttftMs = performance.now() - reqStart;
@@ -204,6 +237,21 @@ export async function POST(req: NextRequest) {
           { role: "system", content: systemPrompt },
           ...history.map(m => ({ role: m.role, content: m.content }) as OpenAI.Chat.Completions.ChatCompletionMessageParam),
         ];
+        const tools = chatToolsFor(!!fileCtx);
+
+        // Files: the list (and, on the turn a small file arrives, its text) go in
+        // as already-answered tool calls after the latest user message — always
+        // in the tool role, inside the untrusted-content envelope.
+        if (fileCtx) {
+          const preseed = await buildPreseed(fileCtx);
+          messages.push(...preseed.messages);
+          for (const step of preseed.steps) {
+            send("step", { id: step.id, verb: step.verb, ...(step.source ? { source: step.source } : {}) });
+            send("step_done", { id: step.id, ...(step.finding ? { finding: step.finding } : {}) });
+            if (step.source && !consulted.includes(step.source)) consulted.push(step.source);
+          }
+          await touchAttachments(ctx, fileCtx.files.map(f => f.id)).catch(() => {});
+        }
 
         for (let iter = 0; iter < MAX_ITERS; iter++) {
           totalIters = iter + 1;
@@ -226,7 +274,7 @@ export async function POST(req: NextRequest) {
           const completion = await openai.chat.completions.create({
             model: CHAT_MODEL,
             messages,
-            tools: TOOLS,
+            tools,
             tool_choice: "auto",
             // Parallel tool calls let the model emit several calls in one turn
             // instead of round-tripping for each — big latency win on questions
@@ -244,18 +292,27 @@ export async function POST(req: NextRequest) {
             // by org routes repeat requests to the same cache shard, so the
             // prefix is served from OpenAI's prompt cache — lower TTFT on
             // every model call, including the per-tool-loop iterations.
-            prompt_cache_key: `chat-org-${ctx.orgId}`,
+            // File turns key separately: their tools and prompt differ, and
+            // sharing a key would split the ordinary chats' cache shard.
+            prompt_cache_key: fileCtx ? `chat-org-${ctx.orgId}-files` : `chat-org-${ctx.orgId}`,
             // Cap output length. Chat answers are short by design; on gpt-5.x this
             // is max_completion_tokens (counts reasoning tokens too — see lib/ai),
             // so it's higher than the old gpt-4o cap to leave reasoning headroom.
             max_completion_tokens: MAX_COMPLETION_TOKENS,
             stream: true,
+            // One final chunk carries the token counts, so cost is measurable per request.
+            stream_options: { include_usage: true },
           });
 
           // Idle watchdog: the client `timeout` bounds the connect, not the gap
           // between streamed chunks. Abort the upstream stream if it stalls so the
           // SSE response can't hang indefinitely; the throw lands in the catch below.
           for await (const chunk of withIdleTimeout(completion, STREAM_IDLE_MS, () => completion.controller.abort())) {
+            if (chunk.usage) {
+              promptTokens += chunk.usage.prompt_tokens ?? 0;
+              cachedTokens += chunk.usage.prompt_tokens_details?.cached_tokens ?? 0;
+              completionTokens += chunk.usage.completion_tokens ?? 0;
+            }
             const choice = chunk.choices[0];
             if (!choice) continue;
             const delta = choice.delta;
@@ -349,6 +406,9 @@ export async function POST(req: NextRequest) {
 
           const answerCall = prepared.find(p => isAnswerTool(p.tc.name));
           const execCalls = prepared.filter(p => !isAnswerTool(p.tc.name));
+          // Decided before anything in the batch runs: a file read in this same
+          // batch blocks a proposal in it, not just reads from earlier turns.
+          const blockProposals = shouldBlockProposal(fileCtx, execCalls.map(p => p.tc.name));
 
           // Run tool calls CONCURRENTLY when the model emitted more than one in
           // this turn. Sequential awaits would add ~1 DB round trip per extra
@@ -360,6 +420,8 @@ export async function POST(req: NextRequest) {
             let proposalEvent: Proposal | null = null;
             if (isReadTool(tc.name)) {
               resultPayload = await runTool(tc.name, argsObj, ctx.db, ctx.orgId, undefined, access);
+            } else if (isProposalTool(tc.name) && blockProposals) {
+              resultPayload = BLOCKED_FILE_CONTEXT;
             } else if (isProposalTool(tc.name)) {
               const proposal = await runProposal(tc.name, argsObj, ctx.db, { orgId: ctx.orgId, ...access, userText });
               if ("error" in proposal) {
@@ -405,7 +467,9 @@ export async function POST(req: NextRequest) {
           for (const { tc, argsObj, resultPayload, proposalEvent } of results) {
             if (proposalEvent) send("proposal", proposalEvent);
             if (isReadTool(tc.name)) {
-              const src = TOOL_UI[tc.name]?.source;
+              const ui = TOOL_UI[tc.name];
+              let src: string | null | undefined;
+              try { src = ui?.sourceOf ? ui.sourceOf(resultPayload, argsObj) : ui?.source; } catch { src = null; }
               if (src && !consulted.includes(src)) consulted.push(src);
               // Fold this payload's ids in while it's already in hand. In-memory
               // only — no query, nothing added to the wait before the answer.
@@ -496,6 +560,12 @@ export async function POST(req: NextRequest) {
             shape: shapeType,
             shapeMs,
             ttftMs: ttftMs === null ? null : Math.round(ttftMs),
+            promptTokens,
+            cachedTokens,
+            completionTokens,
+            // Attachments in play and the file characters handed to the model.
+            attachments: attachmentCount,
+            fileChars: fileCtx ? CHAT_FILE_CHARS_BUDGET - fileCtx.remaining() : 0,
             totalMs: Math.round(performance.now() - reqStart),
           },
         });

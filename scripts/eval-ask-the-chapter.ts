@@ -22,7 +22,7 @@ import type OpenAI from "openai";
 
 import { getOpenAI, CHAT_MODEL, aiEnabled, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "../lib/ai";
 import {
-  TOOLS,
+  chatToolsFor,
   runTool,
   isReadTool,
   runProposal,
@@ -36,6 +36,11 @@ import {
 import { ALL_PERMISSIONS } from "../lib/permissions";
 import { buildSystemPrompt } from "../lib/ai-prompt";
 import { db } from "../lib/db";
+import { extractFile } from "../lib/files";
+import type { AttachmentContent } from "../lib/files/types";
+import { createFileContext, shouldBlockProposal, BLOCKED_FILE_CONTEXT, type FileToolContext } from "../lib/ai-files";
+import { buildPreseed } from "../lib/ai-file-tools";
+import { EVAL_FILES } from "../evals/ask-the-chapter/file-fixtures";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -77,6 +82,18 @@ interface EvalCase {
    * compose_answer when there's no data to show.
    */
   allowProse?: boolean;
+  /**
+   * File cases: fixture names from evals/ask-the-chapter/file-fixtures.ts,
+   * attached in this order (f1, f2, …). Built in memory — nothing is written
+   * to the database. The first turn sees them fresh (pre-seeded when small)
+   * unless `filesSeen` is true, which mimics a follow-up turn.
+   */
+  files?: string[];
+  filesSeen?: boolean;
+  /** Tool names that must NOT be called (e.g. any propose_* on an injection case). */
+  mustNotCallTools?: string[];
+  /** Fail if the model needed more iterations than this. */
+  maxIters?: number;
 }
 
 interface ToolCallRecord {
@@ -96,6 +113,9 @@ interface TurnResult {
   proposals: Proposal[];
   iters: number;
   ms: number;
+  promptTokens: number;
+  /** Proposals refused because the request had read file content. */
+  blockedProposals: number;
 }
 
 /**
@@ -157,7 +177,26 @@ async function createWithRetry(
   throw lastErr;
 }
 
-async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number, now: Date, pctx: ProposalCtx): Promise<TurnResult> {
+/** The in-memory file context for a file case — the route builds the same thing from forOwner rows. */
+async function evalFileContext(names: string[], seen: boolean): Promise<FileToolContext> {
+  const contents = new Map<number, AttachmentContent>();
+  const metas = [];
+  const created = new Date("2026-05-20T12:00:00Z");
+  for (const [i, name] of names.entries()) {
+    const build = EVAL_FILES[name];
+    if (!build) throw new Error(`unknown eval file fixture: ${name}`);
+    const bytes = build();
+    const x = await extractFile(bytes, name);
+    contents.set(i + 1, x.content);
+    metas.push({
+      id: i + 1, publicId: `eval-${i + 1}`, filename: name, kind: x.kind, sizeBytes: bytes.length, unitCount: x.unitCount,
+      charCount: x.charCount, truncated: x.truncated, createdAt: created, lastUsedAt: seen ? new Date(created.getTime() + 60_000) : created,
+    });
+  }
+  return createFileContext(metas, async id => contents.get(id) ?? null);
+}
+
+async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId: number, now: Date, pctx: ProposalCtx, fc?: FileToolContext): Promise<TurnResult> {
   // Same org-scoped accessor the chat route threads into the tools.
   const scoped = db(orgId);
   const t0 = Date.now();
@@ -167,17 +206,23 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   let answer: AnswerPayload | null = null;
   let iters = 0;
 
+  let promptTokens = 0;
+  let blockedProposals = 0;
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: c.question },
   ];
+  // Same order as the route: the file list (and small fresh files) answered
+  // after the user's message, in the tool role.
+  if (fc) messages.push(...(await buildPreseed(fc)).messages);
+  const access = fc ? { ...pctx, files: fc } : pctx;
 
   for (let i = 0; i < MAX_ITERS; i++) {
     iters = i + 1;
     const completion = await createWithRetry(openai, {
       model: CHAT_MODEL,
       messages,
-      tools: TOOLS,
+      tools: chatToolsFor(!!fc),
       tool_choice: "auto",
       parallel_tool_calls: true,
       // Match the route exactly — the eval must measure prod params. No
@@ -191,6 +236,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       stream: false,
     });
 
+    promptTokens += completion.usage?.prompt_tokens ?? 0;
     const msg = completion.choices[0]?.message;
     if (!msg) break;
 
@@ -223,6 +269,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     // keep grading data reads, not the answer-format artifact.
     const answerCall = calls.find(tc => isAnswerTool(tc.function.name));
     const execCalls = calls.filter(tc => !isAnswerTool(tc.function.name));
+    const blockProposals = shouldBlockProposal(fc, execCalls.map(tc => tc.function.name));
 
     const results = await Promise.all(execCalls.map(async tc => {
       let args: Record<string, unknown> = {};
@@ -234,7 +281,10 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       if (isReadTool(tc.function.name)) {
         // Pass the pinned date so date-relative tools (weekly_digest) agree
         // with the pinned system prompt instead of using the real today.
-        payload = await runTool(tc.function.name, args, scoped, orgId, now, pctx);
+        payload = await runTool(tc.function.name, args, scoped, orgId, now, access);
+      } else if (isProposalTool(tc.function.name) && blockProposals) {
+        blockedProposals++;
+        payload = BLOCKED_FILE_CONTEXT;
       } else if (isProposalTool(tc.function.name)) {
         const p = await runProposal(tc.function.name, args, scoped, pctx);
         if ("error" in p) {
@@ -274,6 +324,14 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   }
 
   const grade = grade_case(c, { toolCalls, proposals, finalText, answer });
+  if (c.mustNotCallTools) {
+    const bad = toolCalls.map(t => t.name).filter(n => c.mustNotCallTools!.some(m => n === m || (m.endsWith("*") && n.startsWith(m.slice(0, -1)))));
+    if (bad.length) { grade.pass = false; grade.reasons.push(`called forbidden tool(s): ${[...new Set(bad)].join(", ")}`); }
+  }
+  if (c.maxIters !== undefined && iters > c.maxIters) {
+    grade.pass = false;
+    grade.reasons.push(`took ${iters} iterations, max ${c.maxIters}`);
+  }
 
   return {
     caseId: c.id,
@@ -286,6 +344,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     proposals,
     iters,
     ms: Date.now() - t0,
+    promptTokens,
+    blockedProposals,
   };
 }
 
@@ -446,6 +506,7 @@ async function main() {
     name: process.env.EVAL_CALLER_NAME ?? "Eval Caller",
   };
   const systemPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE);
+  const filesPrompt = await buildSystemPrompt(db(EVAL_ORG_ID), EVAL_ORG_ID, EVAL_CALLER, PINNED_DATE, { files: true });
 
   // The eval caller can approve anything — the suite grades tool selection and
   // answers, not the permission gate (tests/ai cover canApprove branching).
@@ -472,7 +533,9 @@ async function main() {
     while (cursor < cases.length) {
       const i = cursor++;
       try {
-        const r = await runCase(cases[i], openai, systemPrompt, EVAL_ORG_ID, PINNED_DATE, pctx);
+        const c = cases[i];
+        const fc = c.files?.length ? await evalFileContext(c.files, c.filesSeen === true) : undefined;
+        const r = await runCase(c, openai, fc ? filesPrompt : systemPrompt, EVAL_ORG_ID, PINNED_DATE, pctx, fc);
         results[i] = r;
         const mark = r.pass ? "PASS" : "FAIL";
         process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter)\n`);
@@ -498,6 +561,8 @@ async function main() {
           proposals: [],
           iters: 0,
           ms: 0,
+          promptTokens: 0,
+          blockedProposals: 0,
         };
         process.stdout.write(`[ERR ] ${cases[i].id}: ${(e as Error).message}\n`);
       }
@@ -538,6 +603,8 @@ async function main() {
     const histoStr = [...histo.entries()].sort((a, b) => a[0] - b[0])
       .map(([k, n]) => `${k === 3 ? "3+" : k} iter: ${n}`).join(" · ");
     console.log(`Iterations: mean ${meanIters.toFixed(2)} · ${histoStr}`);
+    const tokens = results.filter(r => r.promptTokens > 0).map(r => r.promptTokens).sort((a, b) => a - b);
+    if (tokens.length) console.log(`Prompt tokens: median ${tokens[Math.floor(tokens.length / 2)]} · max ${tokens[tokens.length - 1]}`);
     console.log("──────────────────────────────────");
   }
 
