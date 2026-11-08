@@ -16,7 +16,12 @@ describe("ordinary chats are untouched by the file feature", () => {
     expect(chatToolsFor(false)).toBe(TOOLS);
     expect(TOOLS.some(t => t.type === "function" && t.function.name.includes("attachment"))).toBe(false);
     expect(chatToolsFor(true)).toBe(FILE_MODE_TOOLS);
-    expect(FILE_MODE_TOOLS.slice(0, TOOLS.length)).toEqual(TOOLS);
+    // File mode reuses every ordinary tool object, except compose_answer, which gains cite fields.
+    FILE_MODE_TOOLS.slice(0, TOOLS.length).forEach((t, i) => {
+      const name = t.type === "function" ? t.function.name : "";
+      if (name === "compose_answer") expect(t).not.toBe(TOOLS[i]);
+      else expect(t).toBe(TOOLS[i]);
+    });
   });
 
   it("builds the same prompt with no options as with files: false", async () => {

@@ -127,6 +127,27 @@ export const FILE_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
+/** A citation tag the model may name: a document unit, a sheet, or a range on a sheet. */
+export const CITE_TAG_RE = /^f\d{1,2}:(?:[psl]\d{1,4}|sh\d{1,2}(?:![A-Z]{1,3}\d{1,7}(?::[A-Z]{1,3}\d{1,7})?)?)$/;
+
+/**
+ * compose_answer as offered on file turns: the same definition plus `cites`
+ * (verdict) and per-row `cite`. Ordinary turns keep the original, untouched.
+ * The server keeps only tags for units it actually served (resolveCites).
+ */
+export function withCitations(tool: OpenAI.Chat.Completions.ChatCompletionTool): OpenAI.Chat.Completions.ChatCompletionTool {
+  if (tool.type !== "function") return tool;
+  type Schema = { properties: Record<string, unknown> & { rows: { items: { properties: Record<string, unknown> } } } };
+  const params = structuredClone(tool.function.parameters) as unknown as Schema;
+  const tags = (max: number, what: string) => ({
+    type: "array", items: { type: "string" },
+    description: `Up to ${max} tags (f1:p4, f2:s3, f1:sh1!B2:D9) copied from the file tool results — ${what}.`,
+  });
+  params.properties.cites = tags(4, "the passages the verdict rests on");
+  params.properties.rows.items.properties.cite = tags(3, "where this row's facts come from in the attached files");
+  return { ...tool, function: { ...tool.function, parameters: params as unknown as typeof tool.function.parameters } };
+}
+
 export const FILE_TOOL_NAMES = new Set(FILE_TOOLS.flatMap(t => (t.type === "function" ? [t.function.name] : [])));
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

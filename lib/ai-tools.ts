@@ -37,7 +37,8 @@ import { ExcuseStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
 import { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
-import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool } from "@/lib/ai-file-tools";
+import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool, withCitations, CITE_TAG_RE } from "@/lib/ai-file-tools";
+import type { AnswerCitation } from "@/lib/api-types";
 import type { FileToolContext } from "@/lib/ai-files";
 
 export { noteTerms, noteExcerpts };
@@ -1107,11 +1108,18 @@ export interface AnswerRow {
    * see WireAnswerRow.
    */
   screen?: ScreenKey;
+  /**
+   * Citation tags the model named (file turns only). A REQUEST, like
+   * shapeRequest: the chat route keeps only units it served and replaces this
+   * with `citations` before the row reaches the wire.
+   */
+  cite?: string[];
 }
 
-/** An AnswerRow as it goes over the SSE wire — `screen` resolved to its target. */
-export type WireAnswerRow = Omit<AnswerRow, "screen"> & {
+/** An AnswerRow as it goes over the SSE wire — `screen` resolved, `cite` resolved to citations. */
+export type WireAnswerRow = Omit<AnswerRow, "screen" | "cite"> & {
   screen?: { label: string; path: string };
+  citations?: AnswerCitation[];
 };
 
 /**
@@ -1177,6 +1185,15 @@ export interface AnswerPayload {
    * before sending.
    */
   shapeRequest?: ShapeRequest;
+  /** Verdict-level citation tags (file turns). Resolved and stripped by the route, like `cite`. */
+  cites?: string[];
+}
+
+/** Well-formed citation tags only, deduped, at most `max`. Anything else is dropped silently. */
+function citeTags(raw: unknown, max: number): string[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const tags = [...new Set(raw.filter((t): t is string => typeof t === "string").map(t => t.trim()).filter(t => CITE_TAG_RE.test(t)))].slice(0, max);
+  return tags.length ? tags : undefined;
 }
 
 const ANSWER_ROW_KINDS = new Set(["person", "money", "event", "task", "generic"]);
@@ -1235,14 +1252,17 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
       const screen = typeof r.screen === "string" && r.screen in SCREEN_PATHS
         ? (r.screen as ScreenKey)
         : undefined;
+      // A row that points into a file gets room to say what the passage says.
+      const cite = citeTags(r.cite, 3);
       rows.push({
         kind,
         title: title.slice(0, 80),
-        ...(typeof r.subtitle === "string" && r.subtitle.trim() ? { subtitle: r.subtitle.trim().slice(0, 120) } : {}),
+        ...(typeof r.subtitle === "string" && r.subtitle.trim() ? { subtitle: r.subtitle.trim().slice(0, cite ? 240 : 120) } : {}),
         ...(typeof r.value === "string" && r.value.trim() ? { value: r.value.trim().slice(0, 24) } : {}),
         ...(typeof r.ask === "string" && r.ask.trim() ? { ask: r.ask.trim().slice(0, 200) } : {}),
         ...(tier ? { tier } : {}),
         ...(screen ? { screen } : {}),
+        ...(cite ? { cite } : {}),
       });
     }
   }
@@ -1290,11 +1310,13 @@ export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: str
 
   const askback = parseAskBack(args.askback);
   const shapeRequest = parseShapeRequest(args.shape);
+  const cites = citeTags(args.cites, 4);
 
   return {
     verdict: verdict.slice(0, 240), rows, follows,
     ...(askback ? { askback } : {}),
     ...(shapeRequest ? { shapeRequest } : {}),
+    ...(cites ? { cites } : {}),
   };
 }
 
@@ -3645,7 +3667,10 @@ export function isReadTool(name: string): boolean {
  * then the file tools. Ordinary requests send TOOLS itself, untouched, so their
  * prompt-cache prefix and tool selection can't move (ADR-8).
  */
-export const FILE_MODE_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [...TOOLS, ...FILE_TOOLS];
+export const FILE_MODE_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  ...TOOLS.map(t => (t.type === "function" && t.function.name === ANSWER_TOOL ? withCitations(t) : t)),
+  ...FILE_TOOLS,
+];
 
 /** The tools a chat request sends: TOOLS itself (same reference) unless it carries files. */
 export function chatToolsFor(hasFiles: boolean): OpenAI.Chat.Completions.ChatCompletionTool[] {

@@ -11,11 +11,11 @@ import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
 import { logError, logTiming } from "@/lib/observability";
-import type { ChatAvailability, ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
+import type { AnswerCitation, ChatAvailability, ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
 import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS, CHAT_FILE_CHARS_BUDGET } from "@/lib/files/limits";
 import { chatAttachmentIds } from "@/lib/validation/ai";
 import { listActiveByPublicIds, loadAttachmentContent, touchAttachments, type ChatAttachmentMeta } from "@/lib/services/chat-attachment-service";
-import { createFileContext, shouldBlockProposal, BLOCKED_FILE_CONTEXT, type FileToolContext } from "@/lib/ai-files";
+import { createFileContext, shouldBlockProposal, resolveCites, BLOCKED_FILE_CONTEXT, type FileToolContext } from "@/lib/ai-files";
 import { buildPreseed } from "@/lib/ai-file-tools";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
@@ -70,7 +70,9 @@ function sseEvent(event: string, data: unknown): string {
  * A key that isn't in the table was already dropped by parseComposeAnswer.
  */
 function resolveScreen(row: AnswerRow): WireAnswerRow {
-  const { screen, ...rest } = row;
+  // `cite` is a request the route already resolved into `citations`; it never ships.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { screen, cite, ...rest } = row;
   if (!screen) return rest;
   const hit = SCREEN_PATHS[screen];
   if (!hit) return rest;
@@ -193,6 +195,8 @@ export async function POST(req: NextRequest) {
       let promptTokens = 0, cachedTokens = 0, completionTokens = 0;
       let fileCtx: FileToolContext | undefined;
       let attachmentCount = 0;
+      // A file answer that cites nothing goes back to the model once.
+      let citeRetried = false;
 
       try {
         // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
@@ -496,7 +500,33 @@ export async function POST(req: NextRequest) {
               // The shape the model named is drawn from org reads here, after the
               // model is done — DB time, not another model round trip. Its rows
               // replace the model's, which stay the fallback if the build fails.
-              const { shapeRequest, ...answer } = parsed;
+              const { shapeRequest, cites, ...answer } = parsed;
+
+              // Citations: keep only units served to the model this request.
+              let verdictCitations: AnswerCitation[] = [];
+              let rowCitations: AnswerCitation[][] = [];
+              if (fileCtx) {
+                const fc = fileCtx;
+                [verdictCitations, rowCitations] = await Promise.all([
+                  resolveCites(fc, cites, 4),
+                  Promise.all(answer.rows.map(r => resolveCites(fc, r.cite, 3))),
+                ]);
+                const cited = verdictCitations.length > 0 || rowCitations.some(c => c.length > 0);
+                if (fc.tainted && !cited && !citeRetried) {
+                  citeRetried = true;
+                  messages.push({
+                    role: "tool",
+                    tool_call_id: answerCall.tc.id,
+                    content: JSON.stringify({
+                      error:
+                        "compose_answer: this answer draws on the attached files but cites none of the passages you read. Re-send it with `cite` on each row that comes from a file " +
+                        "(the tags from the tool results, e.g. f1:p4 or f2:sh1!B2:D9) and `cites` for the verdict. If the files don't cover the question, say so and cite what you checked.",
+                    }),
+                  });
+                  continue;
+                }
+              }
+              const citedRows = answer.rows.map((r, i) => (rowCitations[i]?.length ? { ...r, citations: rowCitations[i] } : r));
               const shapeStart = performance.now();
               const [built, askback] = await Promise.all([
                 shapeRequest ? buildShape(shapeRequest, evidence, ctx.db, ctx.orgId) : Promise.resolve(null),
@@ -507,8 +537,9 @@ export async function POST(req: NextRequest) {
               send("answer", {
                 ...answer,
                 ...(askback ? { askback } : {}),
-                rows: (built ? built.rows : attachRefs(answer.rows, refIndex)).map(resolveScreen),
+                rows: (built ? built.rows : attachRefs(citedRows, refIndex)).map(resolveScreen),
                 ...(built ? { shape: built.shape } : {}),
+                ...(verdictCitations.length ? { citations: verdictCitations } : {}),
                 sources: consulted,
               });
               answeredStructured = true;

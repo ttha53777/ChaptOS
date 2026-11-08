@@ -1,5 +1,5 @@
 // Ask Chapt (POST /api/ai/chat) wire shapes. Type-only: see lib/api-types/index.ts for the rules.
-import type { FileLimits } from "./chat-attachments";
+import type { AttachmentKind, FileLimits } from "./chat-attachments";
 //
 // The response is a server-sent-event stream: `event: <name>\ndata: <json>\n\n`.
 // ChatStreamEvents maps every event name to its JSON payload; the route's
@@ -13,6 +13,8 @@ import type { FileLimits } from "./chat-attachments";
  */
 export interface ChatRequest {
   messages: { role: "user" | "assistant"; content: string }[];
+  /** Every file currently attached to this conversation (ChatAttachmentInfo.id), on every request. At most 5. */
+  attachmentIds?: string[];
 }
 
 /**
@@ -49,6 +51,22 @@ export interface AnswerRow {
   tier?: AnswerTier;
   /** Server-resolved screen path, relative to the org (e.g. "/treasury/dues"). */
   screen?: { label: string; path: string };
+  /** Where in an attached file this row came from. Only ever a unit the server showed the model this turn. */
+  citations?: AnswerCitation[];
+}
+
+/**
+ * A server-attested pointer into an attached file. Open its text with
+ * GET /api/ai/attachments/[attachmentId]/units/[unit].
+ */
+export interface AnswerCitation {
+  attachmentId: string;
+  name: string;
+  kind: AttachmentKind;
+  /** "p7", "s2", "l3", "sh1" or "sh1!B2:D9". */
+  unit: string;
+  /** For display: "p. 7", "§ Article IV", "Lines 81–160", "Events!B2:D9". */
+  locator: string;
 }
 
 /**
@@ -91,6 +109,8 @@ export interface AnswerData {
   sources: string[];
   /** Questions the answer asks back, each with tappable likely replies. */
   askback?: AskBack;
+  /** File passages backing the verdict as a whole (rows carry their own). */
+  citations?: AnswerCitation[];
   /**
    * The picture the answer is drawn as, built server-side from org data (never
    * model text). When present, `rows` are the shape's own fallback rows, so a
