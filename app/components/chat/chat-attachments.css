@@ -1,0 +1,124 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Ask Chapt — attached files: the tray above the composer, the paperclip, the
+   drop target, citation chips under answers, and the excerpt sheet.
+
+   A component file rather than globals.css (the running dev server can miss new
+   globals rules). Colors are the chat's own tokens, so dusk and ivory both work;
+   the paper aesthetic's overrides sit at the bottom.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Tray ─────────────────────────────────────────────────────────────────── */
+.chat-root .att-tray { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-root .att-chip {
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 8px;
+  max-width: 260px; min-width: 0; padding: 6px 5px 6px 9px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  animation: cs-chip-pop .28s var(--spring) both;
+}
+.chat-root .att-chip .att-ic { display: inline-flex; color: var(--vio); flex-shrink: 0; }
+.chat-root .att-chip .att-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.chat-root .att-chip .att-name { font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-root .att-chip .att-meta { font-family: var(--mono); font-size: 9.5px; letter-spacing: .03em; color: var(--faint); }
+.chat-root .att-chip.is-reading .att-meta { animation: att-breathe 1.4s ease-in-out infinite; }
+@keyframes att-breathe { 50% { opacity: .45; } }
+.chat-root .att-chip.is-failed { max-width: 100%; border-color: var(--risk-bg); background: var(--risk-bg); }
+.chat-root .att-chip.is-failed .att-ic,
+.chat-root .att-chip.is-failed .att-meta { color: var(--risk); }
+.chat-root .att-chip.is-failed .att-meta { white-space: normal; }
+.chat-root .att-x {
+  flex-shrink: 0; width: 22px; height: 22px; display: grid; place-items: center; cursor: pointer;
+  background: transparent; border: 0; border-radius: 6px; color: var(--faint); transition: color .12s, background .12s;
+}
+.chat-root .att-x:hover { color: var(--ink); background: var(--card-2); }
+.chat-root .att-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--vio);
+  transform-origin: left center; transition: transform .2s linear;
+}
+
+/* ── Composer paperclip ───────────────────────────────────────────────────── */
+.cs-dock .composer .clip {
+  flex: 0 0 auto; align-self: flex-end; width: 32px; height: 32px; margin: 0 -4px 2px -8px;
+  display: grid; place-items: center; cursor: pointer; background: transparent; border: 0;
+  border-radius: 9px; color: var(--muted); transition: color .14s, background .14s;
+}
+.cs-dock .composer .clip:hover { color: var(--vio); background: var(--vio-bg); }
+.cs-dock .composer .clip:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; }
+
+/* ── Drop target ──────────────────────────────────────────────────────────── */
+.cs-spot.is-dropping { position: relative; }
+.cs-spot.is-dropping::after {
+  content: "Drop to attach"; position: absolute; inset: 8px; z-index: 5; pointer-events: none;
+  display: grid; place-items: center; border: 2px dashed var(--vio-line); border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  font-family: var(--serif); font-size: 18px; color: var(--vio);
+}
+
+/* ── The user's bubble names the files it carried ─────────────────────────── */
+.chat-root .msg.user .msg-files {
+  display: flex; align-items: center; gap: 5px; margin-top: 5px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere;
+}
+.chat-root .msg.user .msg-files svg { flex-shrink: 0; }
+
+/* ── Citations ────────────────────────────────────────────────────────────── */
+.chat-root .cites { display: flex; flex-wrap: wrap; gap: 5px; }
+.chat-root .verdict-cites { margin-top: 8px; }
+/* Under a row, aligned with its text (avatar 32 + gap 12 + padding 10). */
+.chat-root .row-cites { padding: 0 10px 7px 54px; margin-top: -3px; }
+.chat-root .cite-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; cursor: pointer;
+  background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px;
+  font-family: var(--mono); font-size: 10px; color: var(--ink-soft); transition: border-color .14s, background .14s, color .14s;
+}
+.chat-root .cite-chip svg { flex-shrink: 0; color: var(--muted); }
+.chat-root .cite-chip .cn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+.chat-root .cite-chip .cl { color: var(--vio); white-space: nowrap; }
+.chat-root .cite-chip:hover { border-color: var(--vio-line); background: var(--vio-bg); color: var(--ink); }
+
+/* ── Excerpt sheet (shares the peek's chrome) ─────────────────────────────── */
+.chat-root .cs-excerpt .ex-text {
+  margin: 18px 0 0; padding: 14px 15px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--sans); font-size: 13.5px; line-height: 1.6; color: var(--ink);
+  background: var(--card-2); border: 1px solid var(--line-soft); border-radius: 11px;
+}
+.chat-root .cs-excerpt .ex-grid { margin-top: 18px; overflow: auto; border: 1px solid var(--line-soft); border-radius: 11px; }
+.chat-root .cs-excerpt .ex-grid table { border-collapse: collapse; min-width: 100%; }
+.chat-root .cs-excerpt .ex-grid td {
+  padding: 6px 10px; border-bottom: 1px solid var(--line-soft); border-right: 1px solid var(--line-soft);
+  font-family: var(--mono); font-size: 12px; color: var(--ink-soft); white-space: nowrap;
+}
+.chat-root .cs-excerpt .ex-grid tr:first-child td { color: var(--ink); background: var(--card-2); }
+.chat-root .cs-excerpt .ex-grid td:last-child { border-right: 0; }
+.chat-root .cs-excerpt .ex-grid tr:last-child td { border-bottom: 0; }
+
+/* ── Phone ────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  html[data-aesthetic] body .chat-root .att-tray { margin-bottom: 6px; }
+  html[data-aesthetic] body .chat-root .att-chip { max-width: calc(50% - 3px); }
+  html[data-aesthetic] body .chat-root .att-chip.is-failed { max-width: 100%; }
+  html[data-aesthetic] body .chat-root .att-x { width: 30px; height: 30px; }
+  html[data-aesthetic] body .chat-root .cs-dock .composer .clip { width: 38px; height: 38px; margin: 0 -2px 0 -11px; align-self: center; }
+  html[data-aesthetic] body .chat-root .row-cites { padding-left: 52px; }
+}
+
+/* ── Paper aesthetic ──────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .att-chip { border: 1.5px solid var(--line); border-radius: 4px; box-shadow: 2px 2px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .chat-root .att-chip .att-ic { color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .chat-root .att-chip .att-name { font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .att-chip.is-failed { box-shadow: 2px 2px 0 var(--pp-rose); border-color: var(--pp-rose-bd); background: var(--pp-rose-soft); }
+html[data-aesthetic="paper"] .chat-root .att-chip.is-failed .att-ic,
+html[data-aesthetic="paper"] .chat-root .att-chip.is-failed .att-meta { color: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .chat-root .att-bar { background: var(--ink); }
+html[data-aesthetic="paper"] .cs-dock .composer .clip { color: var(--ink); }
+html[data-aesthetic="paper"] .cs-dock .composer .clip:hover { background: var(--pp-lilac-soft); color: var(--ink); }
+html[data-aesthetic="paper"] .cs-spot.is-dropping::after { border: 2px dashed var(--ink); border-radius: 4px; color: var(--ink); background: color-mix(in srgb, var(--pp-butter-soft) 90%, transparent); }
+html[data-aesthetic="paper"] .chat-root .cite-chip { border-radius: 3px; background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .cite-chip .cl { color: var(--pp-butter-ink); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .cite-chip:hover { background: var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .cs-excerpt .ex-text { border-radius: 4px; border: 1.5px solid var(--line); background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .cs-excerpt .ex-grid { border-radius: 4px; border: 1.5px solid var(--line); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-root .att-chip, .chat-root .att-chip.is-reading .att-meta { animation: none; }
+  .chat-root .att-bar { transition: none; }
+}

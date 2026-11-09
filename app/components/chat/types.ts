@@ -8,6 +8,7 @@ export type {
   RefType, EntityRef, AnswerTier, AnswerRow, AskBackSelect, AskBackQuestion, AskBack,
   AnswerData, ProposalPermInfo, ProposalDisplayInfo,
   AnswerShape, AskBackPerson, TallyShape, TallyMark, BreakdownShape, BreakdownPart, WeekShape, WeekItem, MissingShape,
+  AnswerCitation, ChatAttachmentInfo, AttachmentUnit, FileLimits,
 } from "@/lib/api-types";
 import type { AnswerData, AnswerRow, ProposalDisplayInfo, ProposalPermInfo } from "@/lib/api-types";
 
@@ -118,6 +119,8 @@ export interface ChatMessage {
   feedback?: "up" | "down";
   /** The user hit Stop mid-stream — render whatever arrived, no caret. */
   stopped?: boolean;
+  /** User turns: names of the files first sent with this message. */
+  attachments?: string[];
 }
 
 export function newId(): string {

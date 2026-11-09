@@ -11,7 +11,8 @@ import { useState } from "react";
 import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
 import { ShapeBlock, isKnownShape } from "./AnswerShape";
-import { initialsOf, rowAction, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
+import { CitationChips } from "./CitationChips";
+import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 
 function Verdict({ text }: { text: string }) {
   const m = /\*([^*]+)\*/.exec(text);
@@ -231,7 +232,7 @@ export function FeedbackRow({ value, onFeedback }: {
   );
 }
 
-export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onNav, onIdea, onFeedback }: {
+export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPeek, onNav, onIdea, onFeedback, onCite }: {
   answer: AnswerData;
   steps: LedgerStep[];
   /** Index of the keyboard-selected row, or -1. */
@@ -242,10 +243,22 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   onNav: (row: AnswerRow) => void;
   onIdea: (row: AnswerRow) => void;
   onFeedback: (v: "up" | "down") => void;
+  /** Open the passage behind a citation chip. */
+  onCite: (c: AnswerCitation) => void;
 }) {
-  const renderRow = (r: AnswerRow, i: number) => (
-    <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} onIdea={onIdea} />
-  );
+  // A cited row carries its file passages on a line of their own beneath it —
+  // a sibling, because the row itself is a button. Uncited rows render exactly
+  // as before, so shapes and the row list keep their structure.
+  const renderRow = (r: AnswerRow, i: number) => {
+    const row = <ResultRow key={`${r.title}-${i}`} row={r} selected={i === selectedRow} onAsk={onAsk} onPeek={onPeek} onNav={onNav} onIdea={onIdea} />;
+    if (!r.citations?.length) return row;
+    return (
+      <div key={`${r.title}-${i}`} className="res-wrap">
+        {row}
+        <CitationChips citations={r.citations} onOpen={onCite} className="row-cites" />
+      </div>
+    );
+  };
   // One dispatcher for anything a shape draws over a row — the same precedence
   // a ResultRow's own click uses.
   const act = (row: AnswerRow) => {
@@ -260,6 +273,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
     <div className="answer">
       <TraceBlock steps={steps} />
       <Verdict text={answer.verdict} />
+      <CitationChips citations={answer.citations} onOpen={onCite} className="verdict-cites in in-2" />
       {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek }} renderRow={renderRow} />}
       {!shape && answer.rows.length > 0 && (
         <div className="reslist in in-3">

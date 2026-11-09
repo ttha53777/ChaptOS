@@ -113,3 +113,37 @@ export async function requestJson<T>(url: string, init?: RequestInit): Promise<T
     throw new Error(`${url} returned non-JSON response`);
   }
 }
+
+/**
+ * A multipart upload with progress, for the one place a byte counter matters
+ * (Ask Chapt attachments). fetch can't report upload progress, so this is XHR;
+ * it carries the same x-org-slug header as orgFetch. Resolves with the status
+ * and parsed JSON body (null when there isn't one); rejects only on a network
+ * failure or abort.
+ */
+export function orgUpload(
+  url: string,
+  form: FormData,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    const slug = currentOrgSlug();
+    if (slug) xhr.setRequestHeader(ORG_SLUG_HEADER, slug);
+    xhr.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      let body: unknown = null;
+      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : null; } catch { body = null; }
+      resolve({ status: xhr.status, body });
+    };
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+    if (signal) {
+      if (signal.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+      signal.addEventListener("abort", () => xhr.abort(), { once: true });
+    }
+    xhr.send(form);
+  });
+}

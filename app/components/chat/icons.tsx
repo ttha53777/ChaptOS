@@ -134,6 +134,25 @@ export function IcText({ size = 15, className }: IconProps) {
 }
 
 /** Glyph for a result/approval row by its kind. */
+/** Attach a file — the composer's paperclip. */
+export function IcClip({ size = 17, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.8}><path d="M20 11.5l-8.2 8.2a5 5 0 01-7.1-7.1l8.6-8.6a3.4 3.4 0 014.8 4.8l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8" /></svg>;
+}
+
+/** A document — an attached file's chip and citation. */
+export function IcFile({ size = 14, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.8}><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg>;
+}
+
+/** A spreadsheet — the grid variant of IcFile. */
+export function IcSheet({ size = 14, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.8}><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 10h16M4 15h16M10 4v16" /></svg>;
+}
+
+export function IcX({ size = 12, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={2.2}><path d="M6 6l12 12M18 6L6 18" /></svg>;
+}
+
 export function KindGlyph({ kind, size = 15 }: { kind: string; size?: number }) {
   switch (kind) {
     case "money":

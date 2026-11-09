@@ -14,12 +14,12 @@
 // v3.html — Fraunces serif counsel voice, ONE violet accent, zero gradients.
 // Styling in chat-spotlight.css; fonts come from next/font vars on <html>.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
-import { IcCal, IcCoin, IcSend, IcStop, IcUsers } from "./chat/icons";
+import { IcCal, IcClip, IcCoin, IcSend, IcStop, IcUsers } from "./chat/icons";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
@@ -30,6 +30,10 @@ import { useProposalChoices } from "./chat/useProposalChoices";
 import { usePhoneSheet, useSheetDrag } from "./chat/usePhoneSheet";
 import { PhoneLanding } from "./chat/PhoneLanding";
 import { ApprovalsView } from "./chat/ApprovalsView";
+import { AttachmentTray } from "./chat/AttachmentTray";
+import { useAttachments } from "./chat/useAttachments";
+import { ExcerptSheet } from "./chat/ExcerptSheet";
+import { parseCitations } from "./chat/CitationChips";
 import { refreshDuesStandings } from "../hooks/useDuesStandings";
 import { dropOtherPeoplesChats } from "../lib/local-session";
 import { dropProvisional, intentFor, planFor, reconcileStep, settleLedger } from "./chat/intent";
@@ -38,15 +42,18 @@ import {
   rowAction,
   stepRow,
   timeStamp,
+  type AnswerCitation,
   type AnswerData,
   type AnswerRow,
   type ChatMessage,
+  type FileLimits,
   type EntityRef,
   type LedgerStep,
   type ProposalCard,
 } from "./chat/types";
 import "./chat-spotlight.css";
 import "./chat-phone.css";
+import "./chat/chat-attachments.css";
 import { orgHref } from "@/lib/org-paths";
 
 const PULSE_SEEN_KEY = "chaptos_chat_seen_v1";
@@ -90,6 +97,9 @@ function approvedText(card: ProposalCard): string {
 
 /** Text a message contributes to the request history (the server wants prose). */
 function messageText(m: ChatMessage): string {
+  // A later turn learns a file exists from this line; its text reaches the
+  // model only through the file tools.
+  if (m.role === "user" && m.attachments?.length) return `${m.content}\n(attached: ${m.attachments.join(", ")})`;
   if (m.content.trim()) return m.content;
   if (m.answer) {
     return [
@@ -187,6 +197,13 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
   // into an explanation plus a prefilled proposal. Rides over the thread the
   // same way the peek does, and is mutually exclusive with it.
   const [idea, setIdea] = useState<EventIdeaSeed | null>(null);
+  // The open citation, if any — the passage of an attached file a chip points at.
+  // Rides over the thread like the peek and the idea panel, exclusive with both.
+  const [excerpt, setExcerpt] = useState<AnswerCitation | null>(null);
+  // What the composer may attach; null while attachments are off for the deployment.
+  const [fileLimits, setFileLimits] = useState<FileLimits | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Mirror of `messages` for synchronous reads in sendMessage — building the
   // request body inside a setMessages updater isn't reliable under React 18
   // batching (could read stale/empty state and POST {messages: []} → 400).
@@ -205,6 +222,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
   const loadedRef = useRef(false);
 
   const actorName = currentUser?.name ?? "you";
+  const att = useAttachments(storageKey, fileLimits);
 
   // The option sets a card's category picker offers. Fetched on first open
   // rather than on mount: the widget rides every dashboard route, and a member
@@ -216,7 +234,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     let cancelled = false;
     fetch("/api/ai/chat", { method: "GET" })
       .then(r => (r.ok ? r.json() : { enabled: false }))
-      .then((d: { enabled?: boolean }) => { if (!cancelled) setEnabled(d.enabled === true); })
+      .then((d: { enabled?: boolean; files?: boolean; fileLimits?: FileLimits }) => {
+        if (cancelled) return;
+        setEnabled(d.enabled === true);
+        if (d.files === true && d.fileLimits && typeof d.fileLimits.maxBytes === "number") setFileLimits(d.fileLimits);
+      })
       .catch(() => { if (!cancelled) setEnabled(false); });
     return () => { cancelled = true; };
   }, []);
@@ -279,8 +301,15 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
   const { phone, keyboard } = usePhoneSheet(open, overlayRef);
   const dragHandlers = useSheetDrag(spotRef, closeSpotlight, phone);
 
+  const openCite = useCallback((c: AnswerCitation) => {
+    setPeek(null);
+    setIdea(null);
+    setExcerpt(c);
+  }, []);
+
   const openPeek = useCallback((row: AnswerRow) => {
     if (!row.ref) return;
+    setExcerpt(null);
     setPeek({
       refr: row.ref,
       // The row's own text carries the sheet until the fetch lands.
@@ -341,6 +370,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       // check only sees the editor because we listen during capture — otherwise
       // backing out of one field would close the spotlight on every card.
       if (e.key === "Escape" && (document.activeElement as HTMLElement | null)?.closest(".wv.editing")) return;
+      if (e.key === "Escape" && open && excerpt) { setExcerpt(null); return; }
       if (e.key === "Escape" && open && idea) { setIdea(null); return; }
       if (e.key === "Escape" && open && peek) { setPeek(null); return; }
       if (e.key === "Escape" && open) { closeSpotlight(); return; }
@@ -351,7 +381,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, peek, idea, openSpotlight, closeSpotlight]);
+  }, [open, peek, idea, excerpt, openSpotlight, closeSpotlight]);
 
   // Pages open the spotlight with a question staged in the composer — staged,
   // not sent, so the asker can still edit it. Fired as window "chapt:ask" with
@@ -443,15 +473,20 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || streaming) return;
+    // A file still uploading or being read isn't attached yet — wait for it.
+    if (!trimmed || streaming || att.busy) return;
 
     // A new turn supersedes whatever record was open.
     setPeek(null);
+    setExcerpt(null);
     // Any mutation still queued belongs to the turn we're replacing.
     flushStage();
     stageRef.current.q.length = 0;
 
-    const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed };
+    // Every ready file goes with every question (the server keeps no thread);
+    // the bubble names only the ones this message is the first to carry.
+    const files = att.takeForSend();
+    const userMsg: ChatMessage = { id: newId(), role: "user", content: trimmed, ...(files.newNames.length ? { attachments: files.newNames } : {}) };
     // Seed the ledger with what the question is plainly about, so the wait while
     // the model decides isn't a blank panel. These rows are pending-only guesses
     // (see chat/intent.ts) — the real steps replace or evict them.
@@ -482,7 +517,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       const res = await orgFetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: payloadHistory }),
+        body: JSON.stringify({ messages: payloadHistory, ...(files.ids.length ? { attachmentIds: files.ids } : {}) }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
@@ -551,9 +586,18 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
           flushStage();
           const a = parsed as Partial<AnswerData>;
           if (typeof a.verdict === "string") {
+            const verdictCites = parseCitations(a.citations);
             const answer: AnswerData = {
               verdict: a.verdict,
-              rows: Array.isArray(a.rows) ? a.rows : [],
+              rows: Array.isArray(a.rows)
+                ? a.rows.map(r => {
+                    const citations = parseCitations(r?.citations);
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { citations: _raw, ...rest } = r;
+                    return citations ? { ...rest, citations } : rest;
+                  })
+                : [],
+              ...(verdictCites ? { citations: verdictCites } : {}),
               follows: Array.isArray(a.follows) ? a.follows : [],
               sources: Array.isArray(a.sources) ? a.sources : [],
               ...(a.askback && Array.isArray(a.askback.questions) && a.askback.questions.length > 0
@@ -608,7 +652,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [streaming, patchMessage, enqueueStage, flushStage]);
+  }, [streaming, patchMessage, enqueueStage, flushStage, att.busy, att.takeForSend]);
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
@@ -768,7 +812,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       // Row navigation belongs to the thread; an open panel owns the keyboard.
       // The idea panel especially — it is a form, so Enter and the arrows must
       // reach its inputs rather than moving the selection in the thread behind.
-      if (peek || idea) return;
+      if (peek || idea || excerpt) return;
       if (e.key === "ArrowDown" && rows.length > 0) {
         e.preventDefault();
         setSelRow(i => stepRow(rows, i, 1));
@@ -795,7 +839,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, scene, peek, idea, lastAnswer, pendingWrit, selRow, sendMessage, openPeek, navRow, openIdea]);
+  }, [open, scene, peek, idea, excerpt, lastAnswer, pendingWrit, selRow, sendMessage, openPeek, navRow, openIdea]);
 
   // ── Composer plumbing ──────────────────────────────────────────────────────
 
@@ -811,6 +855,35 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       if (!streaming) void sendMessage(input);
     }
   }
+
+  // ── Attachments: paperclip, drop onto the spotlight, paste ────────────────
+  function attachFiles(list: FileList | File[] | null | undefined) {
+    const files = list ? Array.from(list) : [];
+    if (files.length && att.enabled) att.add(files);
+  }
+
+  function handlePaste(e: ReactClipboardEvent<HTMLTextAreaElement>) {
+    if (!att.enabled || e.clipboardData.files.length === 0) return;
+    e.preventDefault();
+    attachFiles(e.clipboardData.files);
+  }
+
+  const dropProps = att.enabled ? {
+    onDragOver: (e: ReactDragEvent) => {
+      if (!e.dataTransfer.types.includes("Files")) return;
+      e.preventDefault();
+      if (!dragging) setDragging(true);
+    },
+    onDragLeave: (e: ReactDragEvent) => {
+      if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+    },
+    onDrop: (e: ReactDragEvent) => {
+      if (!e.dataTransfer.files.length) return;
+      e.preventDefault();
+      setDragging(false);
+      attachFiles(e.dataTransfer.files);
+    },
+  } : {};
 
   function autosize(el: HTMLTextAreaElement) {
     el.style.height = "auto";
@@ -828,6 +901,9 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     setSelRow(-1);
     setPeek(null);
     setIdea(null);
+    setExcerpt(null);
+    // A new conversation starts with no files; the old thread's are deleted.
+    att.clear();
     setScene("briefing");
     textareaRef.current?.focus();
   }
@@ -854,7 +930,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
       {open && (
         <div ref={overlayRef} className="cs-overlay" onClick={e => { if (e.target === e.currentTarget) closeSpotlight(); }}>
-          <div ref={spotRef} className="cs-spot" role="dialog" aria-label="Ask Chapt">
+          <div ref={spotRef} className={`cs-spot${dragging ? " is-dropping" : ""}`} role="dialog" aria-label="Ask Chapt" {...dropProps}>
             {/* Header bar — on a phone, also the handle you pull the sheet down by */}
             <div className="cs-bar" {...dragHandlers}>
               {/* Phone only (chat-phone.css): the sheet fills the screen, so there's no scrim to tap. */}
@@ -918,7 +994,16 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                 <div ref={threadRef} className="cs-thread" aria-live="polite" onScroll={onThreadScroll}>
                   {messages.map(m => {
                     if (m.role === "user") {
-                      return <div key={m.id} className="msg user send-in">{m.content}</div>;
+                      return (
+                        <div key={m.id} className="msg user send-in">
+                          {m.content}
+                          {m.attachments?.length ? (
+                            <span className="msg-files">
+                              <IcClip size={12} />{m.attachments.join(", ")}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
                     }
                     const isLive = streaming && m === lastMsg;
                     const showLedgerLive = isLive && !m.answer && !m.content && (!m.proposals || m.proposals.length === 0);
@@ -949,6 +1034,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                                   onNav={navRow}
                                   onIdea={openIdea}
                                   onFeedback={v => giveFeedback(m, v)}
+                                  onCite={openCite}
                                 />
                               )}
                               {!m.answer && m.content && (
@@ -1003,6 +1089,8 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
               {/* The idea panel rides over the body on the same terms as the
                   peek — the thread stays mounted, so Back is a return. */}
+              {excerpt && <ExcerptSheet citation={excerpt} onBack={() => setExcerpt(null)} />}
+
               {idea && (
                 <EventIdeaPanel
                   seed={idea}
@@ -1014,7 +1102,29 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
             {/* Dock / composer */}
             <div className="cs-dock">
+              {att.enabled && <AttachmentTray chips={att.chips} onRemove={att.remove} />}
               <form className="composer" onSubmit={handleSubmit}>
+                {att.enabled && fileLimits && (
+                  <>
+                    <button
+                      type="button"
+                      className="clip"
+                      aria-label="Attach a file"
+                      title="Attach a PDF, Word, Excel, CSV or text file"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <IcClip />
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      hidden
+                      accept={fileLimits.extensions.join(",")}
+                      onChange={e => { attachFiles(e.target.files); e.target.value = ""; }}
+                    />
+                  </>
+                )}
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -1023,12 +1133,13 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                   placeholder={scene === "approvals" ? "Ask about an approval…" : scene === "briefing" ? "Ask the chapter anything…" : "Ask a follow-up…"}
                   onChange={e => { setInput(e.target.value); autosize(e.target); }}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                 />
                 <button
                   type="submit"
                   className={`send${streaming ? " stop" : ""}`}
-                  disabled={!streaming && !input.trim()}
-                  aria-label={streaming ? "Stop" : "Ask"}
+                  disabled={!streaming && (!input.trim() || att.busy)}
+                  aria-label={streaming ? "Stop" : att.busy ? "Waiting for the file" : "Ask"}
                 >
                   {streaming ? <IcStop /> : <IcSend />}
                 </button>
