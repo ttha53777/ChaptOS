@@ -777,6 +777,13 @@ export default function TrustPage() {
                 requests, and your custom member fields, so any of those can be part of what
                 is sent.
               </p>
+              <p>
+                <strong>Files you attach.</strong>{" "}Where attaching files to Ask Chapt is
+                switched on, a PDF, Word, Excel, CSV or text file you attach is read on our
+                server. We keep the text and spreadsheet cells we pulled out of it,{" "}
+                <strong>never the original file</strong>, and only the passages the assistant
+                asks for are sent to OpenAI, the same way any other lookup is.
+              </p>
               <p>Four other features use the same provider:</p>
               <ul className="tp__list">
                 <li>
@@ -819,6 +826,12 @@ export default function TrustPage() {
                       and org, and is erased when you sign out.
                     </li>
                     <li>We do not train any model on your data, and we have none to train.</li>
+                    <li>
+                      A file attached to Ask Chapt is private to the person who attached it;
+                      not even an org admin can open it. And while the assistant is reading a
+                      file it can&apos;t draft any change, so a document can&apos;t talk it into
+                      proposing one.
+                    </li>
                   </ul>
                 </div>
                 <div className="tp__col tp__col--no">
@@ -1158,8 +1171,9 @@ export default function TrustPage() {
               <h2>How long we keep things, and deletion</h2>
               <p className="tp__lede">
                 The straight answer: as long as your organization exists, unless someone
-                deletes it. Nothing expires on a timer today, and we would rather tell you that
-                than imply a schedule we don&apos;t run.
+                deletes it. The one exception is files attached to Ask Chapt, below; nothing
+                else expires on a timer, and we would rather tell you that than imply a
+                schedule we don&apos;t run.
               </p>
 
               <h3>Deleting an organization</h3>
@@ -1177,6 +1191,15 @@ export default function TrustPage() {
                 <strong>another</strong>{" "}organization keeps their account and simply loses this
                 membership. Only people for whom this was their sole org have their record
                 removed. Nobody loses access to an unrelated org because you deleted this one.
+              </p>
+
+              <h3>Files attached to Ask Chapt</h3>
+              <p>
+                Where file attachments are switched on, the text we pulled from a file is kept
+                for at most 30 days from the upload, and only 7 days after a conversation last
+                used it. After that it can no longer be read and is then deleted. Removing the
+                file from the conversation, or starting a new one, wipes its text at once;
+                leaving the org or deleting your account removes it too.
               </p>
 
               <h3>What a member can do themselves</h3>

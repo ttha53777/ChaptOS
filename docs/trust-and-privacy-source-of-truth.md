@@ -315,8 +315,19 @@ Four surfaces, all server-side, all dormant without `OPENAI_API_KEY`. Model: `gp
 4. **Meeting-notes summarization** ([summarize route](app/api/ai/summarize-meeting/route.ts)) — raw
    free-form meeting notes. The resulting summary **persists on `CalendarEvent.notesSummary`**.
 
+5. **Ask Chapt file attachments** (behind `ASK_CHAPT_FILES=1`; see
+   [ASK_CHAPT_FILE_INTELLIGENCE_PLAN.md](ASK_CHAPT_FILE_INTELLIGENCE_PLAN.md)) — the original bytes are
+   parsed on our server inside the upload request and discarded; only the extracted text / sheet cells
+   are stored (`ChatAttachment.content`, org-scoped RLS, private to the uploader via
+   `ctx.db.chatAttachment.forOwner`). OpenAI receives only what the file tools return to the model:
+   the file list (names, page/sheet outline) and the passages or computed totals the model asked for,
+   capped at 120k characters per request.
+
 **What you can truthfully claim:**
 - Server-side only; `OPENAI_API_KEY` never reaches the browser.
+- Attached files: the original is never stored; the extracted text is readable only by the uploader
+  (org admins included — no bypass); while a request has read file content, `propose_*` tools are
+  refused (`blocked_file_context`), so a document can't get a write drafted.
 - Tool data is scoped to `ctx.orgId` — the assistant cannot read another org's data.
 - **Chat transcripts are not stored server-side.** History is localStorage-only.
 - **The assistant never writes to the database on its own.** `propose_*` tools validate but do not
@@ -383,9 +394,19 @@ never human-reviewed, or never used for training.
 
 ## 11. Retention and deletion — what actually happens
 
-**Nothing expires on its own.** There is no cron, no pruning job, no retention policy anywhere in the
-codebase (verified by grep). Every record persists until explicitly deleted. State a retention posture
-honestly: *"we retain org data for as long as the organization maintains its account."*
+**Nothing expires on its own — except Ask Chapt attachments.** Every other record persists until
+explicitly deleted. State a retention posture honestly: *"we retain org data for as long as the
+organization maintains its account."*
+
+**Ask Chapt attachments** (`ChatAttachment`, only when `ASK_CHAPT_FILES=1`): `expiresAt =
+min(createdAt + 30 d, lastUse + 7 d)`. Every read filters `expiresAt > now()`, so expiry revokes access
+immediately. Physical deletion happens (a) on any upload in the same org (`purgeExpired`), (b) hourly via
+`supabase/cron-chat-attachments.sql` **once that SQL has been applied**, or (c) by
+`scripts/purge-chat-attachments.ts`. Until (b) is applied, an org that stops uploading keeps expired
+(unreadable) rows in the DB — apply the cron before switching the flag on, or the page's "is then
+deleted" overstates. Removal (`DELETE /api/ai/attachments/[id]`, or ← New) nulls `content`/`digest` and
+blanks `filename` in the same statement; the row stays as a tombstone for the daily quota.
+Member removal (`eraseOrgScopedRecords`), account deletion and org deletion all remove the rows.
 
 **Org deletion works and is thorough.** An org admin typing the org slug triggers
 [deleteOrg()](lib/services/org-service.ts#L772) — a hand-ordered cascade across ~20 tables inside one

@@ -38,7 +38,7 @@ import { buildSystemPrompt } from "../lib/ai-prompt";
 import { db } from "../lib/db";
 import { extractFile } from "../lib/files";
 import type { AttachmentContent } from "../lib/files/types";
-import { createFileContext, shouldBlockProposal, BLOCKED_FILE_CONTEXT, type FileToolContext } from "../lib/ai-files";
+import { createFileContext, shouldBlockProposal, resolveCites, BLOCKED_FILE_CONTEXT, type FileToolContext } from "../lib/ai-files";
 import { buildPreseed } from "../lib/ai-file-tools";
 import { EVAL_FILES } from "../evals/ask-the-chapter/file-fixtures";
 
@@ -94,6 +94,11 @@ interface EvalCase {
   mustNotCallTools?: string[];
   /** Fail if the model needed more iterations than this. */
   maxIters?: number;
+  /**
+   * File cases: at least one of these units must be among the answer's
+   * server-resolved citations ("f1:p3", or "f2:sh1" to accept any range on that sheet).
+   */
+  expectCites?: string[];
 }
 
 interface ToolCallRecord {
@@ -116,6 +121,8 @@ interface TurnResult {
   promptTokens: number;
   /** Proposals refused because the request had read file content. */
   blockedProposals: number;
+  /** Server-resolved citations on the answer, as "f1:p3" / "f2:sh1!B2:D9". */
+  cited: string[];
 }
 
 /**
@@ -208,6 +215,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
 
   let promptTokens = 0;
   let blockedProposals = 0;
+  let cited: string[] = [];
+  let citeRetried = false;
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: c.question },
@@ -315,7 +324,12 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       if ("error" in parsed) {
         // Malformed — feed it back so the model retries, same as the route.
         messages.push({ role: "tool", tool_call_id: answerCall.id, content: JSON.stringify(parsed) });
+      } else if (fc && fc.tainted && !citeRetried && (await citedUnits(fc, parsed)).length === 0) {
+        // Same one-time push-back as the route for a file answer that cites nothing.
+        citeRetried = true;
+        messages.push({ role: "tool", tool_call_id: answerCall.id, content: JSON.stringify({ error: "compose_answer: this answer draws on the attached files but cites none of the passages you read. Re-send it with `cite` on each row that comes from a file and `cites` for the verdict." }) });
       } else {
+        if (fc) cited = await citedUnits(fc, parsed);
         answer = parsed;
         finalText = answerToText(parsed);
         break;
@@ -327,6 +341,10 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   if (c.mustNotCallTools) {
     const bad = toolCalls.map(t => t.name).filter(n => c.mustNotCallTools!.some(m => n === m || (m.endsWith("*") && n.startsWith(m.slice(0, -1)))));
     if (bad.length) { grade.pass = false; grade.reasons.push(`called forbidden tool(s): ${[...new Set(bad)].join(", ")}`); }
+  }
+  if (c.expectCites?.length) {
+    const hit = c.expectCites.some(want => cited.some(got => got === want || got.startsWith(`${want}!`)));
+    if (!hit) { grade.pass = false; grade.reasons.push(`expected a citation of [${c.expectCites.join(", ")}], got [${cited.join(", ") || "none"}]`); }
   }
   if (c.maxIters !== undefined && iters > c.maxIters) {
     grade.pass = false;
@@ -346,7 +364,15 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     ms: Date.now() - t0,
     promptTokens,
     blockedProposals,
+    cited,
   };
+}
+
+/** The answer's citations as the route would resolve them, keyed back to file labels. */
+async function citedUnits(fc: FileToolContext, a: AnswerPayload): Promise<string[]> {
+  const tags = [...(a.cites ?? []), ...a.rows.flatMap(r => r.cite ?? [])];
+  const resolved = await resolveCites(fc, tags, 50);
+  return resolved.map(cit => `${fc.files.find(f => f.publicId === cit.attachmentId)?.label}:${cit.unit}`);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -538,7 +564,7 @@ async function main() {
         const r = await runCase(c, openai, fc ? filesPrompt : systemPrompt, EVAL_ORG_ID, PINNED_DATE, pctx, fc);
         results[i] = r;
         const mark = r.pass ? "PASS" : "FAIL";
-        process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter)\n`);
+        process.stdout.write(`[${mark}] ${cases[i].id} (${r.ms}ms, ${r.iters} iter, ${r.promptTokens} prompt tok${r.blockedProposals ? `, ${r.blockedProposals} proposal blocked` : ""})\n`);
         if (!r.pass) {
           for (const reason of r.reasons) process.stdout.write(`        ↳ ${reason}\n`);
           // EVAL_DEBUG=1: show what the model actually did on a failing case —
@@ -546,6 +572,7 @@ async function main() {
           // diagnosable from the run output without re-instrumenting.
           if (process.env.EVAL_DEBUG === "1") {
             for (const t of r.toolCalls) process.stdout.write(`        · ${t.name} ${JSON.stringify(t.args)}\n`);
+            if (r.cited.length) process.stdout.write(`        · cited: ${r.cited.join(", ")}\n`);
             process.stdout.write(`        · final: ${r.finalText.replace(/\n/g, " ").slice(0, 300)}\n`);
           }
         }
@@ -563,6 +590,7 @@ async function main() {
           ms: 0,
           promptTokens: 0,
           blockedProposals: 0,
+          cited: [],
         };
         process.stdout.write(`[ERR ] ${cases[i].id}: ${(e as Error).message}\n`);
       }

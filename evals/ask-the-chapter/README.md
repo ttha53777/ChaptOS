@@ -84,3 +84,24 @@ The right time to add a case is when you find a real-world failure or you ship a
 - Slow regressions in latency — we report `ms` per case but don't fail on it.
 - DB-state mutations from `propose_*` tools — proposals are validated, never executed (matches production behavior).
 - Auth, rate limits, SSE framing — those live in the route, not the loop.
+
+## File cases (Ask Chapt attachments)
+
+Cases with a `files` field attach in-memory fixtures from `file-fixtures.ts` (labelled f1, f2, … in
+order) and run the file-mode wiring exactly as the route does: file tools added, the files prompt, the
+list (and small never-used files) pre-seeded, proposals blocked once file content is read, and the
+one-time push-back for an uncited file answer. Nothing is written to the database — the fixtures are
+extracted in memory. Run them alone with `EVAL_FILTER=files npm run eval:chat`.
+
+Extra assertions available on any case:
+
+- `filesSeen: true` — the files were used on an earlier turn, so nothing is pre-seeded (a follow-up).
+- `expectCites: ["f1:p3"]` — at least one of these units must be among the answer's server-resolved
+  citations. A sheet tag like `"f1:sh1"` accepts any range on that sheet.
+- `mustNotCallTools: ["propose_*"]` — tool names (a trailing `*` is a prefix) that must not be called.
+- `maxIters: 2` — fail if the model needed more iterations.
+
+Fixture facts the cases assert on are written next to each fixture in `file-fixtures.ts`. The
+`Rush list.csv` case is seed-coupled (who owes dues), like the data cases above.
+
+The summary also prints per-case prompt tokens and the median, which is the cost signal for file turns.
