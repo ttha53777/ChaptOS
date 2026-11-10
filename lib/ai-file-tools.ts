@@ -7,6 +7,7 @@
  *   search_attachments      keyword passages across the files
  *   query_attachment_table  sum / avg / min / max / count over a sheet, on the server
  *   compare_attachments     line two files up: what differs, what's only in one, what moved
+ *   find_in_attachments     every amount / date / percentage / email / phone / name / exact text, whole files at once
  *
  * Every result is wrapped in the same envelope that labels it untrusted file
  * content. File text never enters the model any other way: not in the system
@@ -20,7 +21,8 @@ import type OpenAI from "openai";
 import type { AttachmentContent, Cell, SheetData, TextUnit } from "@/lib/files/types";
 import { colIndex, colLetter, dateValue, formatRange, isoDate, numericValue, parseRange, type CellRange } from "@/lib/files/cells";
 import { compareTexts, figureChanges, type Segment } from "@/lib/files/compare";
-import { TOOL_RESULT_CHARS } from "@/lib/files/limits";
+import { FIND_KINDS, findInContent, type FindKind, type Hit } from "@/lib/files/find";
+import { FILE_ANSWER_MAX_ROWS, TOOL_RESULT_CHARS } from "@/lib/files/limits";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
 import { PRESEED_LIMITS, type FileRef, type FileToolContext } from "@/lib/ai-files";
 import type { ToolUiMeta } from "@/lib/ai-tools";
@@ -131,6 +133,27 @@ export const FILE_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "find_in_attachments",
+      description:
+        "Scan the WHOLE of the attached files in one call for every occurrence of one kind of thing: amounts (dollar figures), dates (deadlines, meeting dates), percentages, emails, phones, names (capitalised names of people, places, groups — check them), or exact `text` (symbols, codes, phrases keyword search drops, like \"$\" or \"4.2(b)\"). " +
+        "Each hit comes with its tag, the line or table row around it (with the table's columns), and for amounts and dates the parsed value. " +
+        "Use it for 'every / all / list the …' questions and for timelines instead of reading page by page. `near` keeps only hits whose line mentions a word (\"deposit\", \"due\").",
+      parameters: {
+        type: "object",
+        properties: {
+          kind:  { type: "string", enum: [...FIND_KINDS] },
+          text:  { type: "string", description: "For kind \"text\": the exact text to find (case-insensitive)." },
+          file:  { type: "string", description: "Limit to one file label. Omit to scan all." },
+          near:  { type: "string", description: "Keep only hits whose line or row mentions one of these words, e.g. \"deposit due\"." },
+          order: { type: "string", enum: ["document", "ascending", "descending"], description: "document (default) keeps file order; ascending/descending sort amounts and percentages by size and dates by date (earliest first = ascending)." },
+        },
+        required: ["kind"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "compare_attachments",
       description:
         "Line two attached files up on the server and return only what differs. Use it for two versions of a document (old vs new bylaws, a draft vs the final), two lists or exports (a sign-up sheet vs a roster), or to check two files against each other. " +
@@ -169,8 +192,10 @@ export function withCitations(tool: OpenAI.Chat.Completions.ChatCompletionTool):
     description: `Up to ${max} tags (f1:p4, f2:s3, f1:sh1!B2:D9) copied from the file tool results — ${what}.`,
   });
   params.properties.cites = tags(4, "the passages the verdict rests on");
+  // File answers can list more: a whole-file scan's "every deadline" shouldn't stop at six.
+  const description = tool.function.description?.replace("rows: up to 6 records", `rows: up to ${FILE_ANSWER_MAX_ROWS} records`);
   params.properties.rows.items.properties.cite = tags(3, "where this row's facts come from in the attached files");
-  return { ...tool, function: { ...tool.function, parameters: params as unknown as typeof tool.function.parameters } };
+  return { ...tool, function: { ...tool.function, description, parameters: params as unknown as typeof tool.function.parameters } };
 }
 
 export const FILE_TOOL_NAMES = new Set(FILE_TOOLS.flatMap(t => (t.type === "function" ? [t.function.name] : [])));
@@ -543,6 +568,112 @@ export async function queryAttachmentTable(args: Args, fc: FileToolContext): Pro
   return result;
 }
 
+// ── find_in_attachments ─────────────────────────────────────────────────────
+
+const FIND_MAX_HITS = 150;
+const FIND_MAX_NAMES = 100;
+
+export async function findInAttachments(args: Args, fc: FileToolContext): Promise<object> {
+  const kind = String(args.kind) as FindKind;
+  if (!FIND_KINDS.includes(kind)) return { error: `kind must be one of ${FIND_KINDS.join(", ")}.` };
+  const text = typeof args.text === "string" ? args.text.trim() : "";
+  if (kind === "text" && !text) return { error: "Give the `text` to find." };
+  let scope = fc.files;
+  if (args.file !== undefined && args.file !== null && args.file !== "") {
+    const f = fc.resolve(args.file);
+    if (!f) return { error: `No attached file "${String(args.file)}". Files: ${fc.files.map(x => x.label).join(", ") || "none"}.` };
+    scope = [f];
+  }
+  const nearTerms = typeof args.near === "string" ? noteTerms(args.near) : [];
+  const order = args.order === "ascending" || args.order === "descending" ? args.order : "document";
+
+  const all: { file: FileRef; hit: Hit }[] = [];
+  for (const f of scope) {
+    const content = await fc.load(f);
+    if (!content) continue;
+    for (const hit of findInContent(content, kind, text)) {
+      if (nearTerms.length && !nearTerms.some(t => hit.context.toLowerCase().includes(t))) continue;
+      all.push({ file: f, hit });
+    }
+  }
+  if (order !== "document") {
+    const dir = order === "ascending" ? 1 : -1;
+    // Hits without a comparable value (a date with no day) keep their place at the end.
+    all.sort((a, b) => (a.hit.sortKey === null ? 1 : 0) - (b.hit.sortKey === null ? 1 : 0) || dir * ((a.hit.sortKey ?? 0) - (b.hit.sortKey ?? 0)));
+  }
+
+  const cap = Math.min(TOOL_RESULT_CHARS, fc.remaining());
+  if (all.length > 0 && cap < MIN_USEFUL_CHARS) return budgetSpent();
+  const tagOf = (x: { file: FileRef; hit: Hit }) => unitTag(x.file, x.hit.ref);
+  const served: string[] = [];
+  let used = 0;
+  let matches: object[];
+  let shownCount: number;
+
+  if (kind === "names") {
+    // A name list: each distinct name once, with how often and where it appears.
+    const byName = new Map<string, { name: string; count: number; tags: string[]; context: string }>();
+    for (const x of all) {
+      const key = x.hit.value.toLowerCase();
+      let e = byName.get(key);
+      if (!e) { e = { name: x.hit.value, count: 0, tags: [], context: x.hit.context }; byName.set(key, e); }
+      e.count++;
+      const tag = tagOf(x);
+      if (e.tags.length < 3 && !e.tags.includes(tag)) e.tags.push(tag);
+    }
+    matches = [];
+    for (const e of [...byName.values()].slice(0, FIND_MAX_NAMES)) {
+      const size = JSON.stringify(e).length;
+      if (used + size > cap && matches.length > 0) break;
+      matches.push(e);
+      served.push(...e.tags);
+      used += size;
+    }
+    shownCount = matches.length;
+    const result = envelope(null, {
+      kind, distinct: byName.size, occurrences: all.length, names: matches,
+      note_names: "Capitalised word runs: real names of people, places and groups, plus some titles and headings. Keep the ones that answer the question.",
+      ...(shownCount < byName.size ? { more: `${byName.size - shownCount} more names not shown; narrow with near or file` } : {}),
+      ...(scope.length > 1 ? { matchesByFile: Object.fromEntries(scope.map(f => [f.label, all.filter(x => x.file === f).length])) } : {}),
+    });
+    return settleFind(fc, result, served, all.length > 0);
+  }
+
+  matches = [];
+  for (const x of all.slice(0, FIND_MAX_HITS)) {
+    const h = x.hit;
+    const m = {
+      tag: tagOf(x), value: h.value,
+      ...(h.iso ? { iso: h.iso } : {}),
+      ...(h.number !== undefined && h.value !== String(h.number) ? { number: h.number } : {}),
+      context: h.context,
+      ...(h.columns ? { columns: h.columns } : {}),
+    };
+    const size = JSON.stringify(m).length;
+    if (used + size > cap && matches.length > 0) break;
+    matches.push(m);
+    served.push(m.tag);
+    used += size;
+  }
+  shownCount = matches.length;
+  const result = envelope(null, {
+    kind, ...(kind === "text" ? { text } : {}), ...(nearTerms.length ? { near: nearTerms } : {}), order,
+    found: all.length, matches,
+    ...(kind === "amounts" ? { note_amounts: "Each occurrence is listed, so a figure repeated as a subtotal or total appears again — don't add these up yourself; quote them." } : {}),
+    ...(shownCount < all.length ? { more: `${all.length - shownCount} more not shown; narrow with near or file, or sort to see the largest/earliest first` } : {}),
+    ...(scope.length > 1 ? { matchesByFile: Object.fromEntries(scope.map(f => [f.label, all.filter(x => x.file === f).length])) } : {}),
+    ...(scope.some(f => f.truncated) ? { truncated: "only the first part of a file was kept, so hits past it can't be seen" } : {}),
+  });
+  return settleFind(fc, result, served, all.length > 0);
+}
+
+function settleFind(fc: FileToolContext, result: object, served: string[], any: boolean): object {
+  fc.spend(JSON.stringify(result).length);
+  for (const t of served) fc.serve(t);
+  if (any) fc.tainted = true;
+  return result;
+}
+
 // ── compare_attachments ─────────────────────────────────────────────────────
 
 const COMPARE_SEGMENTS_PER_SIDE = 6;
@@ -773,6 +904,7 @@ export const FILE_READ_HANDLERS: Record<string, FileHandler> = {
   search_attachments:     searchAttachments,
   query_attachment_table: queryAttachmentTable,
   compare_attachments:    compareAttachments,
+  find_in_attachments:    findInAttachments,
 };
 
 /** Run a file tool. Never throws; a missing file context is an error result, not a crash. */
@@ -841,6 +973,17 @@ export const FILE_TOOL_UI: Record<string, ToolUiMeta> = {
       if (isErr(r)) return null;
       const n = (r as { rowsMatched?: number }).rowsMatched;
       return typeof n === "number" ? `${n} row${n === 1 ? "" : "s"}` : null;
+    },
+  },
+  find_in_attachments: {
+    verb: "Scanning the files",
+    source: "Files",
+    sourceOf: r => (isErr(r) ? null : "Files"),
+    finding: r => {
+      if (isErr(r)) return null;
+      const o = r as { found?: number; distinct?: number; kind?: string };
+      const n = o.distinct ?? o.found;
+      return typeof n === "number" ? `${n} ${o.kind === "names" ? (n === 1 ? "name" : "names") : n === 1 ? "match" : "matches"}` : null;
     },
   },
   compare_attachments: {

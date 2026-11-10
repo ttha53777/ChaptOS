@@ -40,6 +40,12 @@ export const CHAT_FILE_CHARS_BUDGET = 120_000;
 /** Characters in one file tool result. */
 export const TOOL_RESULT_CHARS = 24_000;
 
+/**
+ * Rows a file answer may show. Ordinary answers keep 6; "every deadline in the
+ * report" needs room, or the list a whole-file scan found gets cut at six.
+ */
+export const FILE_ANSWER_MAX_ROWS = 12;
+
 /** Characters pre-seeded into the first turn after upload, across all files. */
 export const PRESEED_TOTAL_CHARS = 48_000;
 

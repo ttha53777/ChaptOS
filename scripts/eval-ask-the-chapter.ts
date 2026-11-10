@@ -20,7 +20,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type OpenAI from "openai";
 
-import { getOpenAI, CHAT_MODEL, aiEnabled, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "../lib/ai";
+import { getOpenAI, CHAT_MODEL, aiEnabled, CHAT_REASONING_EFFORT } from "../lib/ai";
+import { FILE_ANSWER_MAX_ROWS } from "../lib/files/limits";
+import { MAX_ITERS, roundOptions, isToolRound, LAST_ROUND_NOTE, CUT_OFF_NOTE, NO_ANSWER_TEXT } from "../lib/ai-answer-guard";
 import {
   chatToolsFor,
   runTool,
@@ -141,7 +143,6 @@ function answerToText(a: AnswerPayload): string {
 // Driver: runs the same loop as the chat route, returns instrumentation
 // ────────────────────────────────────────────────────────────────────────────
 
-const MAX_ITERS = 10; // match route
 
 // Retry transient OpenAI failures (429 rate limit, 5xx) with exponential backoff.
 // A rate-limit blip is an environmental hiccup, not a model failure — without this
@@ -226,19 +227,28 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   if (fc) messages.push(...(await buildPreseed(fc)).messages);
   const access = fc ? { ...pctx, files: fc } : pctx;
 
-  for (let i = 0; i < MAX_ITERS; i++) {
+  // The answer guard, exactly as the route runs it (lib/ai-answer-guard).
+  let forceAnswer = false;
+  let salvaged = false;
+  for (let i = 0; i <= MAX_ITERS; i++) {
+    if (i === MAX_ITERS && !forceAnswer) break;
     iters = i + 1;
+    if (i === MAX_ITERS - 1 && !forceAnswer) {
+      forceAnswer = true;
+      messages.push({ role: "system", content: LAST_ROUND_NOTE });
+    }
+    const round = roundOptions(forceAnswer);
     const completion = await createWithRetry(openai, {
       model: CHAT_MODEL,
       messages,
       tools: chatToolsFor(!!fc),
-      tool_choice: "auto",
+      tool_choice: round.tool_choice,
       parallel_tool_calls: true,
       // Match the route exactly — the eval must measure prod params. No
       // temperature: gpt-5.2 rejects non-default temperature once
       // reasoning_effort is set.
       reasoning_effort: CHAT_REASONING_EFFORT,
-      max_completion_tokens: MAX_COMPLETION_TOKENS,
+      max_completion_tokens: round.max_completion_tokens,
       // Non-streaming in the eval — we don't need progressive tokens, and the
       // non-streaming response is easier to parse. The model behavior is the
       // same; only the transport differs.
@@ -258,7 +268,13 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
         tc.type === "function",
     );
 
-    if (calls.length === 0) {
+    if (!isToolRound(completion.choices[0]?.finish_reason ?? null, calls.length)) {
+      if (!content.trim() && !salvaged) {
+        salvaged = true;
+        forceAnswer = true;
+        messages.push({ role: "system", content: CUT_OFF_NOTE });
+        continue;
+      }
       finalText = content;
       break;
     }
@@ -320,7 +336,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
       let args: Record<string, unknown> = {};
       try { args = answerCall.function.arguments ? JSON.parse(answerCall.function.arguments) : {}; }
       catch { args = { _parse_error: answerCall.function.arguments }; }
-      const parsed = parseComposeAnswer(args);
+      const parsed = parseComposeAnswer(args, { maxRows: fc ? FILE_ANSWER_MAX_ROWS : undefined });
       if ("error" in parsed) {
         // Malformed — feed it back so the model retries, same as the route.
         messages.push({ role: "tool", tool_call_id: answerCall.id, content: JSON.stringify(parsed) });
@@ -337,6 +353,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     }
   }
 
+  // The route's last resort: the user gets this sentence, so the grade sees it too.
+  if (!answer && !finalText.trim() && proposals.length === 0) finalText = NO_ANSWER_TEXT;
   const grade = grade_case(c, { toolCalls, proposals, finalText, answer });
   if (c.mustNotCallTools) {
     const bad = toolCalls.map(t => t.name).filter(n => c.mustNotCallTools!.some(m => n === m || (m.endsWith("*") && n.startsWith(m.slice(0, -1)))));

@@ -59,7 +59,7 @@ const TREASURER_REPORT = [
   "Owner\tTask\tDue\n" +
   "Ana Ruiz\tCollect late dues\tMarch 10\n" +
   "Sam Ortiz\tBook the van\tFeb 28\n" +
-  "Rob Chen\tFile the spring budget\tMarch 17",
+  "Rob Chen\tFile the budget\tMarch 17",
 ];
 
 /** Two roster exports: Ana Ruiz goes Secretary → President and $120 → $60 owed; Lee Park leaves; Mia Wong joins. */

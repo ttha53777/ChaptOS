@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import OpenAI from "openai";
 import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
-import { aiEnabled, getOpenAI, CHAT_MODEL, MAX_COMPLETION_TOKENS, CHAT_REASONING_EFFORT } from "@/lib/ai";
+import { aiEnabled, getOpenAI, CHAT_MODEL, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { chatToolsFor, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { createShapeEvidence, buildShape, attachPeople } from "@/lib/ai-shapes";
@@ -12,17 +12,17 @@ import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/a
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
 import { logError, logTiming } from "@/lib/observability";
 import type { AnswerCitation, ChatAvailability, ChatStreamEventName, ChatStreamEvents } from "@/lib/api-types";
-import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS, CHAT_FILE_CHARS_BUDGET } from "@/lib/files/limits";
+import { filesEnabled, FILE_MAX_BYTES, FILES_PER_THREAD, FILE_EXTENSIONS, CHAT_FILE_CHARS_BUDGET, FILE_ANSWER_MAX_ROWS } from "@/lib/files/limits";
 import { chatAttachmentIds } from "@/lib/validation/ai";
 import { listActiveByPublicIds, loadAttachmentContent, touchAttachments, type ChatAttachmentMeta } from "@/lib/services/chat-attachment-service";
 import { createFileContext, shouldBlockProposal, resolveCites, BLOCKED_FILE_CONTEXT, type FileToolContext } from "@/lib/ai-files";
 import { buildPreseed } from "@/lib/ai-file-tools";
+import { MAX_ITERS, roundOptions, isToolRound, LAST_ROUND_NOTE, CUT_OFF_NOTE, CUT_SHORT_TEXT, NO_ANSWER_TEXT } from "@/lib/ai-answer-guard";
 
 // Force the Node runtime — Edge would buffer SSE differently and we want full
 // control over the stream lifecycle. (NOT setting runtime = "edge".)
 export const dynamic = "force-dynamic";
 
-const MAX_ITERS = 10;         // bound the tool-call loop (allows broaden-and-retry + chained queries)
 const MAX_HISTORY_MSGS = 12;  // bound input size — fewer prior turns = fewer input tokens = faster
 const MAX_PRIOR_CONTENT_CHARS = 600; // trim long prior messages; recent turns matter more than verbatim history
 
@@ -180,6 +180,7 @@ export async function POST(req: NextRequest) {
       let fastPathPattern: string | null = null;
       let answeredStructured = false;
       let answeredProposal = false;
+      let answeredNone = false;
       // Sources actually consulted this request (TOOL_UI labels, ordered dedup) —
       // attached to the structured answer server-side, never model-claimed.
       const consulted: string[] = [];
@@ -197,6 +198,12 @@ export async function POST(req: NextRequest) {
       let attachmentCount = 0;
       // A file answer that cites nothing goes back to the model once.
       let citeRetried = false;
+      // The answer guard (lib/ai-answer-guard): a turn always ends with something
+      // the user can read. `forceAnswer` makes the next round compose_answer;
+      // `salvaged` spends the one extra round a silent turn gets.
+      let forceAnswer = false;
+      let salvaged = false;
+      let anyVisible = false;
 
       try {
         // Flush a tiny event before awaiting the system prompt. buildSystemPrompt
@@ -257,8 +264,16 @@ export async function POST(req: NextRequest) {
           await touchAttachments(ctx, fileCtx.files.map(f => f.id)).catch(() => {});
         }
 
-        for (let iter = 0; iter < MAX_ITERS; iter++) {
+        // One round past MAX_ITERS exists only for the salvage of a silent turn.
+        for (let iter = 0; iter <= MAX_ITERS; iter++) {
+          if (iter === MAX_ITERS && !forceAnswer) break;
           totalIters = iter + 1;
+          // The last regular round reads nothing more: it answers from what's in hand.
+          if (iter === MAX_ITERS - 1 && !forceAnswer) {
+            forceAnswer = true;
+            messages.push({ role: "system", content: LAST_ROUND_NOTE });
+          }
+          const round = roundOptions(forceAnswer);
           const iterStart = performance.now();
           // Accumulate one assistant turn from the streamed deltas
           const assistantContent: string[] = [];
@@ -279,7 +294,7 @@ export async function POST(req: NextRequest) {
             model: CHAT_MODEL,
             messages,
             tools,
-            tool_choice: "auto",
+            tool_choice: round.tool_choice,
             // Parallel tool calls let the model emit several calls in one turn
             // instead of round-tripping for each — big latency win on questions
             // that need two or three lookups (e.g. "how are dues and attendance?").
@@ -302,7 +317,8 @@ export async function POST(req: NextRequest) {
             // Cap output length. Chat answers are short by design; on gpt-5.x this
             // is max_completion_tokens (counts reasoning tokens too — see lib/ai),
             // so it's higher than the old gpt-4o cap to leave reasoning headroom.
-            max_completion_tokens: MAX_COMPLETION_TOKENS,
+            // A forced answer round gets double: it has no later round to finish in.
+            max_completion_tokens: round.max_completion_tokens,
             stream: true,
             // One final chunk carries the token counts, so cost is measurable per request.
             stream_options: { include_usage: true },
@@ -324,6 +340,7 @@ export async function POST(req: NextRequest) {
             if (typeof delta.content === "string" && delta.content.length > 0) {
               if (ttftMs === null) ttftMs = performance.now() - reqStart;
               assistantContent.push(delta.content);
+              anyVisible = true;
               send("text", { delta: delta.content });
             }
             if (delta.tool_calls) {
@@ -364,7 +381,7 @@ export async function POST(req: NextRequest) {
           const fullText = assistantContent.join("");
           const toolCalls = assembleToolCalls(toolCallsByIndex);
 
-          if (finishReason !== "tool_calls" || toolCalls.length === 0) {
+          if (!isToolRound(finishReason, toolCalls.length)) {
             // Done — model returned a final assistant message. Any step already
             // announced mid-stream will never run (a turn truncated by
             // max_completion_tokens can strand a half-streamed call), so retract
@@ -372,6 +389,15 @@ export async function POST(req: NextRequest) {
             if (sentSteps.size > 0) {
               send("step_drop", { ids: [...sentSteps].map(i => stepId(iter, i)) });
             }
+            // Nothing visible came of this round — cut off mid-answer, or empty.
+            // One more round, forced to answer, with room and a note to be brief.
+            if (!fullText.trim() && !salvaged) {
+              salvaged = true;
+              forceAnswer = true;
+              messages.push({ role: "system", content: CUT_OFF_NOTE });
+              continue;
+            }
+            if (finishReason === "length" && fullText.trim()) send("text", { delta: CUT_SHORT_TEXT });
             break;
           }
 
@@ -469,7 +495,7 @@ export async function POST(req: NextRequest) {
 
           // Emit results in tool_calls order so client step states stay aligned.
           for (const { tc, argsObj, resultPayload, proposalEvent } of results) {
-            if (proposalEvent) send("proposal", proposalEvent);
+            if (proposalEvent) { anyVisible = true; send("proposal", proposalEvent); }
             if (isReadTool(tc.name)) {
               const ui = TOOL_UI[tc.name];
               let src: string | null | undefined;
@@ -493,7 +519,7 @@ export async function POST(req: NextRequest) {
           // the model retries next iteration; the abandoned message history is
           // fine on success because no further completion is requested.
           if (answerCall) {
-            const parsed = parseComposeAnswer(answerCall.argsObj);
+            const parsed = parseComposeAnswer(answerCall.argsObj, { maxRows: fileCtx ? FILE_ANSWER_MAX_ROWS : undefined });
             if ("error" in parsed) {
               messages.push({ role: "tool", tool_call_id: answerCall.tc.id, content: JSON.stringify(parsed) });
             } else {
@@ -557,6 +583,11 @@ export async function POST(req: NextRequest) {
           // Loop back: the model now sees the tool results and writes its answer.
         }
 
+        // The last resort of the answer guard: never an empty bubble.
+        if (!answeredStructured && !answeredProposal && !anyVisible) {
+          answeredNone = true;
+          send("text", { delta: NO_ANSWER_TEXT });
+        }
         send("done", {});
       } catch (e) {
         if (e instanceof StreamIdleTimeoutError) {
@@ -583,7 +614,8 @@ export async function POST(req: NextRequest) {
             // tells us which deterministic answer served it.
             fastPath: fastPathPattern,
             // How the request resolved: structured compose_answer, fast-path, or prose.
-            answered: answeredStructured ? "structured" : answeredProposal ? "proposal" : fastPathPattern ? "fastpath" : "text",
+            // "none": the answer guard's fallback sentence was all the user got.
+            answered: answeredStructured ? "structured" : answeredProposal ? "proposal" : fastPathPattern ? "fastpath" : answeredNone ? "none" : "text",
             iters: totalIters,
             perIterMs,
             toolMs,

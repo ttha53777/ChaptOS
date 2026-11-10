@@ -1225,17 +1225,17 @@ function claimedRowCount(verdict: string): number | null {
 /**
  * Sanitize compose_answer args into the payload the `answer` SSE event carries.
  * Deep-validates what validateArgs (top-level only) can't: row/follow shapes,
- * caps (6 rows, 3 follows), and length limits. Malformed entries are dropped,
+ * caps (6 rows — FILE_ANSWER_MAX_ROWS on file turns — 3 follows), and length limits. Malformed entries are dropped,
  * not fatal; a missing verdict and a verdict that miscounts its own rows are
  * the hard errors (fed back to the model so it retries).
  */
-export function parseComposeAnswer(args: ToolArgs): AnswerPayload | { error: string } {
+export function parseComposeAnswer(args: ToolArgs, opts: { maxRows?: number } = {}): AnswerPayload | { error: string } {
   const verdict = typeof args.verdict === "string" ? args.verdict.trim() : "";
   if (!verdict) return { error: "compose_answer: verdict (one sentence) is required." };
 
   const rows: AnswerRow[] = [];
   if (Array.isArray(args.rows)) {
-    for (const raw of args.rows.slice(0, 6)) {
+    for (const raw of args.rows.slice(0, opts.maxRows ?? 6)) {
       if (typeof raw !== "object" || raw === null) continue;
       const r = raw as Record<string, unknown>;
       const title = typeof r.title === "string" ? r.title.trim() : "";

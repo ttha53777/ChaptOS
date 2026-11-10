@@ -115,7 +115,7 @@ export function createFileContext(
 }
 
 /** Tool names whose results carry file content (list_attachments carries only names and shapes). */
-export const FILE_CONTENT_TOOLS = new Set(["read_attachment", "search_attachments", "query_attachment_table", "compare_attachments"]);
+export const FILE_CONTENT_TOOLS = new Set(["read_attachment", "search_attachments", "query_attachment_table", "compare_attachments", "find_in_attachments"]);
 
 /**
  * The hard control against a file talking the assistant into a write: once a

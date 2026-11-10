@@ -60,7 +60,8 @@ export function itemsToLines(items: PdfItem[]): PdfLine[] {
         cells.push({ text: it.str, x0: it.x, x1: it.x + it.w });
         continue;
       }
-      const joinSpace = gap > WORD_GAP_EM * it.size && !/\s$/.test(last.text) && !/^\s/.test(it.str);
+      // A run that starts inside the previous one is separate text, not the rest of a word.
+      const joinSpace = (gap > WORD_GAP_EM * it.size || gap < -WORD_GAP_EM * it.size) && !/\s$/.test(last.text) && !/^\s/.test(it.str);
       last.text += (joinSpace ? " " : "") + it.str;
       last.x1 = Math.max(last.x1, it.x + it.w);
     }
