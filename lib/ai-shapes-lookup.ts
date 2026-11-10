@@ -16,7 +16,7 @@ import type { AnswerRow, ToolAccess } from "@/lib/ai-tools";
 import { PROPOSAL_META } from "@/lib/ai-tools";
 import { hasPermission } from "@/lib/permissions";
 import type { ShapeRequest } from "@/lib/ai-shape-request";
-import { listItems, type ShapeEvidence } from "@/lib/ai-shape-evidence";
+import { listItems, prop, recordsOf, resolveRows, type ShapeEvidence, type SourceRecord } from "@/lib/ai-shape-evidence";
 import { DATE_RE, isValidCalendarDate } from "@/lib/dates";
 import type { PeekCard, RecordShape, RefType, ZeroShape } from "@/lib/api-types";
 import type { BuiltShape } from "@/lib/ai-shapes";
@@ -38,12 +38,30 @@ export function recordFromCards(pairs: Array<{ row: AnswerRow; card: PeekCard }>
   return { shape: { type: "record", cards: pairs.map(p => p.card) }, rows: pairs.map(p => p.row) };
 }
 
-export async function buildRecord(_req: ShapeRequest, _evidence: ShapeEvidence, _scoped: Scoped, _orgId: number, o: Opts): Promise<BuiltShape | null> {
+/** Records this turn's reads can identify, by type — for rows whose title alone was ambiguous. */
+function seenRecords(evidence: ShapeEvidence): SourceRecord[] {
+  const tag = (kind: string, rs: SourceRecord[]) => rs.map(r => ({ ...r, kind }));
+  return [
+    ...tag("event", recordsOf(listItems(evidence.get("list_calendar_events")?.result), "title", "date")),
+    ...tag("task", recordsOf(listItems(evidence.get("list_deadlines")?.result), "title", "dueDate")),
+    ...tag("member", recordsOf(prop(evidence.get("list_brothers")?.result, "brothers"), "name", null)),
+  ];
+}
+
+export async function buildRecord(_req: ShapeRequest, evidence: ShapeEvidence, _scoped: Scoped, _orgId: number, o: Opts): Promise<BuiltShape | null> {
   if (!o.peek) return null;
-  // Rows carry the refs the route matched against this turn's reads; a row
-  // without one has no record behind it, so there's no card to show.
-  const withRef = o.rows.filter(r => r.ref);
-  if (withRef.length === 0 || withRef.length > RECORD_MAX || withRef.length !== o.rows.length) return null;
+  if (o.rows.length === 0 || o.rows.length > RECORD_MAX) return null;
+  // Rows carry the refs the route matched against this turn's reads. A
+  // recurring title ("Chapter Meeting") matches several and gets none, so a
+  // row without one is resolved by title + its own date among the same reads.
+  const seen = o.rows.some(r => !r.ref) ? seenRecords(evidence) : [];
+  const withRef = o.rows.map(r => {
+    if (r.ref) return r;
+    const hit = r.date ? resolveRows([r], seen)?.[0] : undefined;
+    return hit?.kind ? { ...r, ref: { type: hit.kind as "event" | "task" | "member", id: hit.id } } : r;
+  });
+  // A row with no record behind it has no card to show.
+  if (withRef.some(r => !r.ref)) return null;
   const pairs: Array<{ row: AnswerRow; card: PeekCard }> = [];
   // Sequential: each peek is a few scoped reads, and the pool is two connections.
   for (const row of withRef) {
@@ -108,8 +126,12 @@ function canPlan(access?: ToolAccess): boolean {
 }
 
 export async function buildZero(_req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, _orgId: number, o: Opts): Promise<BuiltShape | null> {
-  const read = evidence.get("list_calendar_events");
-  if (!read || typeof read.args.category !== "string") return null;
+  // A type-filtered calendar read, or an empty list_parties read (parties are
+  // the calendar's `party` type, when the org has one).
+  const read = evidence.latest(["list_calendar_events", "list_parties"]);
+  if (!read) return null;
+  const category = read.tool === "list_parties" ? "party" : read.args.category;
+  if (typeof category !== "string") return null;
   if (listItems(read.result).length > 0) return null;
   const start = okDate(read.args.start) ? read.args.start : undefined;
   const end = okDate(read.args.end) ? read.args.end : undefined;
@@ -120,7 +142,7 @@ export async function buildZero(_req: ShapeRequest, evidence: ShapeEvidence, sco
   });
   const scope = start && end ? `${fmt(start)} – ${fmt(end)}` : start ? `since ${fmt(start)}` : end ? `through ${fmt(end)}` : "on the calendar";
   return zeroFromCounts({
-    filterSlug: read.args.category,
+    filterSlug: category,
     types,
     window,
     period: await periodLabel(scoped, read.args),

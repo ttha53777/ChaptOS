@@ -465,3 +465,42 @@ describe("receipt (pure)", () => {
     expect(idx.lookup("Venue hold", "money")).toEqual({ type: "transaction", id: 41 });
   });
 });
+
+describe("yesno coverage", () => {
+  it("rows that are all exceptions mean the question covered the whole read", async () => {
+    const ev = createShapeEvidence();
+    ev.add("list_brothers", {}, { summary: {}, brothers: [
+      { id: 1, name: "Owes A", role: "", attendance: 90, gpa: 3, duesOwed: 50, serviceHours: 1 },
+      { id: 2, name: "Owes B", role: "", attendance: 90, gpa: 3, duesOwed: 20, serviceHours: 1 },
+      { id: 3, name: "Paid C", role: "", attendance: 90, gpa: 3, duesOwed: 0, serviceHours: 1 },
+    ] });
+    const scoped = { organizationConfig: { find: async () => ({ thresholds: {}, disabledFeatures: {} }) } } as never;
+    const built = await buildYesNo({ type: "yesno", test: "dues_paid" }, ev, scoped, 31339, { rows: [{ kind: "person", title: "Owes A" }, { kind: "person", title: "Owes B" }], today: TODAY });
+    expect((built!.shape as YesNoShape)).toMatchObject({ holds: false, headline: "1 of 3 have paid" });
+  });
+});
+
+describe("found by the eval", () => {
+  it("a record row with a recurring title resolves by its date among this turn's reads", async () => {
+    const ev = createShapeEvidence();
+    ev.add("list_calendar_events", { start: TODAY }, [{ id: 21, title: "Chapter Meeting", date: "2026-11-15" }, { id: 22, title: "Chapter Meeting", date: "2026-11-22" }]);
+    const built = await buildRecord({ type: "record" }, ev, {} as never, 1, {
+      rows: [{ kind: "event", title: "Chapter Meeting", date: "2026-11-15" }],
+      today: TODAY,
+      peek: async (type, id) => ({ type, id, title: "Chapter Meeting", facts: [], sections: [] }),
+    });
+    expect(built!.rows[0].ref).toEqual({ type: "event", id: 21 });
+  });
+
+  it("an empty list_parties read is a zero for the org's party type", async () => {
+    const ev = createShapeEvidence();
+    ev.add("list_parties", { start: "2026-01-01", end: "2026-01-31" }, { count: 0, items: [], hint: "" });
+    const scoped = {
+      calendarEventType: { findMany: async () => [{ slug: "party", label: "Party" }, { slug: "chapter", label: "Chapter" }] },
+      calendarEvent: { findMany: async () => [{ category: "chapter" }, { category: "chapter" }] },
+      semester: { findMany: async () => [] },
+    } as never;
+    const built = await buildZero({ type: "zero" }, ev, scoped, 1, { rows: [], today: TODAY });
+    expect((built!.shape as ZeroShape)).toMatchObject({ filter: "Party", searched: { count: 2, scope: "Jan 1 – Jan 31" } });
+  });
+});

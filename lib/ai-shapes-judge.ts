@@ -84,11 +84,21 @@ export function yesnoFromJudged(input: { test: YesNoTest; judged: Judged[]; scop
 const memberRecs = (r: unknown) => recordsOf(prop(r, "brothers") ?? listItems(r), "name", null);
 const num = (raw: Record<string, unknown>, k: string) => (typeof raw[k] === "number" ? (raw[k] as number) : 0);
 
-/** The model's rows narrow the set; a full row list may itself be a cut, so it gets no stamp. */
-function pickForStamp(all: SourceRecord[], rows: AnswerRow[]): SourceRecord[] | null {
+/**
+ * Which records the question covers. The model's rows narrow the set, with two
+ * exceptions: a full row list may itself be a cut, so it gets no stamp; and a
+ * list of nothing but failures is the classic "here are the exceptions" reply
+ * to "has everyone…?", so when the read holds records that pass, the question
+ * covered the whole read and that's what is judged.
+ */
+export function pickForStamp(all: SourceRecord[], rows: AnswerRow[], passes: (r: SourceRecord) => boolean | null): SourceRecord[] | null {
   if (rows.length >= MODEL_ROW_CAP && resolveRows(rows, all)) return null;
   const pick = narrowToRows(all, rows, YESNO_MAX);
-  return pick.truncated ? null : pick.records;
+  if (pick.truncated) return null;
+  if (pick.subset && pick.records.every(r => passes(r) === false) && all.some(r => passes(r) === true)) {
+    return all.length <= YESNO_MAX ? all : null;
+  }
+  return pick.records;
 }
 
 export async function buildYesNo(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, orgId: number, o: Opts): Promise<BuiltShape | null> {
@@ -100,8 +110,6 @@ export async function buildYesNo(req: ShapeRequest, evidence: ShapeEvidence, sco
     const read = evidence.get("list_brothers");
     if (!read) return null;
     const all = memberRecs(read.result);
-    const set = pickForStamp(all, o.rows);
-    if (!set) return null;
     const { thresholds, measured } = await orgStanding(scoped, orgId, all.map(r => ({ attendance: num(r.raw, "attendance"), gpa: num(r.raw, "gpa"), serviceHours: num(r.raw, "serviceHours"), duesOwed: num(r.raw, "duesOwed") })));
     const config = await scoped.organizationConfig.find();
     const setKeys = new Set(config?.thresholds && typeof config.thresholds === "object" ? Object.keys(config.thresholds as object) : []);
@@ -117,6 +125,8 @@ export async function buildYesNo(req: ShapeRequest, evidence: ShapeEvidence, sco
       if (!measured.gpa || !setKeys.has("gpaWatch")) return null;
       judge = raw => { const g = num(raw, "gpa"); return g > 0 ? { pass: g >= thresholds.gpaWatch, value: g.toFixed(2) } : { pass: null, value: "not recorded" }; };
     }
+    const set = pickForStamp(all, o.rows, r => judge(r.raw).pass);
+    if (!set) return null;
     return yesnoFromJudged({
       test,
       scope: scopeOf(set.length, "member"),
@@ -127,7 +137,7 @@ export async function buildYesNo(req: ShapeRequest, evidence: ShapeEvidence, sco
   if (test === "task_done") {
     const read = evidence.get("list_deadlines");
     if (!read) return null;
-    const set = pickForStamp(recordsOf(listItems(read.result), "title", "dueDate"), o.rows);
+    const set = pickForStamp(recordsOf(listItems(read.result), "title", "dueDate"), o.rows, r => r.raw.status === "done");
     if (!set) return null;
     return yesnoFromJudged({
       test,
@@ -167,7 +177,7 @@ export async function buildYesNo(req: ShapeRequest, evidence: ShapeEvidence, sco
       ...excused.map(name => ({ name, pass: false, value: "Excused" })),
     ];
     const recs: SourceRecord[] = people.map((p, i) => ({ id: ids.get(p.name) ?? -(i + 1), title: p.name, date: null, raw: p }));
-    const set = pickForStamp(recs, o.rows);
+    const set = pickForStamp(recs, o.rows, r => r.raw.pass as boolean);
     if (!set) return null;
     return yesnoFromJudged({
       test,
@@ -186,7 +196,7 @@ export async function buildYesNo(req: ShapeRequest, evidence: ShapeEvidence, sco
   const notVoted = new Set(recordsOf(poll.notVoted, "name", null).map(p => p.id));
   const roster = await scoped.member.listRoster({ where: { archivedAt: null } });
   if (roster.length !== poll.eligible) return null;
-  const set = pickForStamp(roster.map(m => ({ id: m.id, title: m.name, date: null, raw: { role: m.role } })), o.rows);
+  const set = pickForStamp(roster.map(m => ({ id: m.id, title: m.name, date: null, raw: { role: m.role } })), o.rows, r => !notVoted.has(r.id));
   if (!set) return null;
   return yesnoFromJudged({
     test,

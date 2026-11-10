@@ -42,6 +42,10 @@ import { extractFile } from "../lib/files";
 import type { AttachmentContent } from "../lib/files/types";
 import { createFileContext, shouldBlockProposal, resolveCites, BLOCKED_FILE_CONTEXT, type FileToolContext } from "../lib/ai-files";
 import { buildPreseed } from "../lib/ai-file-tools";
+import { buildShape, checkVerdict, createShapeEvidence } from "../lib/ai-shapes";
+import { attachRefs, createRefIndex } from "../lib/ai-refs";
+import { getPeek } from "../lib/services/peek-service";
+import type { RequestContext } from "../lib/context";
 import { EVAL_FILES } from "../evals/ask-the-chapter/file-fixtures";
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -101,6 +105,13 @@ interface EvalCase {
    * server-resolved citations ("f1:p3", or "f2:sh1" to accept any range on that sheet).
    */
   expectCites?: string[];
+  /**
+   * The picture the answer must be drawn as: a shape type the server actually
+   * BUILT from this turn's reads (not merely one the model asked for), or
+   * "none" for an answer that must stay plain rows. List forms are only offered
+   * with ASK_CHAPT_FORMS=1; without it these cases expect "none" to fail.
+   */
+  expectShape?: string;
 }
 
 interface ToolCallRecord {
@@ -125,6 +136,8 @@ interface TurnResult {
   blockedProposals: number;
   /** Server-resolved citations on the answer, as "f1:p3" / "f2:sh1!B2:D9". */
   cited: string[];
+  /** The shape the server built for the answer, or null for plain rows. */
+  shape: string | null;
 }
 
 /**
@@ -218,6 +231,11 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   let blockedProposals = 0;
   let cited: string[] = [];
   let citeRetried = false;
+  // Shapes, exactly as the route builds them: from this turn's reads only.
+  const evidence = createShapeEvidence();
+  const refIndex = createRefIndex();
+  let shape: string | null = null;
+  let verdictRetried = false;
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: c.question },
@@ -307,6 +325,8 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
         // Pass the pinned date so date-relative tools (weekly_digest) agree
         // with the pinned system prompt instead of using the real today.
         payload = await runTool(tc.function.name, args, scoped, orgId, now, access);
+        evidence.add(tc.function.name, args, payload);
+        refIndex.add(tc.function.name, payload);
       } else if (isProposalTool(tc.function.name) && blockProposals) {
         blockedProposals++;
         payload = BLOCKED_FILE_CONTEXT;
@@ -345,6 +365,28 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
         citeRetried = true;
         messages.push({ role: "tool", tool_call_id: answerCall.id, content: JSON.stringify({ error: "compose_answer: this answer draws on the attached files but cites none of the passages you read. Re-send it with `cite` on each row that comes from a file and `cites` for the verdict." }) });
       } else {
+        // File-cited rows keep their own rows in the route, so no shape there.
+        const rowCites = parsed.rows.some(r => r.cite?.length);
+        const built = parsed.shapeRequest && !rowCites
+          ? await buildShape(parsed.shapeRequest, evidence, scoped, orgId, {
+              rows: attachRefs(parsed.rows, refIndex),
+              access,
+              today: now.toISOString().slice(0, 10),
+              peek: (type, id) => getPeek({ db: scoped, orgId, actorId: pctx.actorId } as unknown as RequestContext, type, id),
+            })
+          : null;
+        if (built) {
+          const vc = checkVerdict(parsed.verdict, built.shape, built.rows);
+          if (!vc.ok && !verdictRetried) {
+            verdictRetried = true;
+            messages.push({ role: "tool", tool_call_id: answerCall.id, content: JSON.stringify({ error: vc.feedback }) });
+            continue;
+          }
+          if (!vc.ok) parsed.verdict = vc.fallback;
+          shape = built.shape.type;
+          // What the user sees: the server's rows replace the model's.
+          parsed.rows = built.rows;
+        }
         if (fc) cited = await citedUnits(fc, parsed);
         answer = parsed;
         finalText = answerToText(parsed);
@@ -363,6 +405,10 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   if (c.expectCites?.length) {
     const hit = c.expectCites.some(want => cited.some(got => got === want || got.startsWith(`${want}!`)));
     if (!hit) { grade.pass = false; grade.reasons.push(`expected a citation of [${c.expectCites.join(", ")}], got [${cited.join(", ") || "none"}]`); }
+  }
+  if (c.expectShape !== undefined && (shape ?? "none") !== c.expectShape) {
+    grade.pass = false;
+    grade.reasons.push(`expected shape ${c.expectShape}, got ${shape ?? "none"}${answer?.shapeRequest ? ` (asked for ${answer.shapeRequest.type})` : ""}`);
   }
   if (c.maxIters !== undefined && iters > c.maxIters) {
     grade.pass = false;
@@ -383,6 +429,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
     promptTokens,
     blockedProposals,
     cited,
+    shape,
   };
 }
 
@@ -591,6 +638,7 @@ async function main() {
           if (process.env.EVAL_DEBUG === "1") {
             for (const t of r.toolCalls) process.stdout.write(`        · ${t.name} ${JSON.stringify(t.args)}\n`);
             if (r.cited.length) process.stdout.write(`        · cited: ${r.cited.join(", ")}\n`);
+            if (r.answer?.shapeRequest || r.shape) process.stdout.write(`        · shape: asked ${r.answer?.shapeRequest?.type ?? "-"}, built ${r.shape ?? "-"}\n`);
             process.stdout.write(`        · final: ${r.finalText.replace(/\n/g, " ").slice(0, 300)}\n`);
           }
         }
@@ -609,6 +657,7 @@ async function main() {
           promptTokens: 0,
           blockedProposals: 0,
           cited: [],
+          shape: null,
         };
         process.stdout.write(`[ERR ] ${cases[i].id}: ${(e as Error).message}\n`);
       }
@@ -629,6 +678,12 @@ async function main() {
   const structured = dataCases.filter(r => r.answer !== null).length;
   if (dataCases.length > 0) {
     console.log(`Structured answers: ${structured}/${dataCases.length} data cases via compose_answer`);
+  }
+  // List-form adoption: of the cases that name a picture, how many got it built.
+  const shaped = results.filter((_, i) => cases[i].expectShape && cases[i].expectShape !== "none");
+  if (shaped.length > 0) {
+    const hit = shaped.filter(r => r.shape === cases[results.indexOf(r)].expectShape).length;
+    console.log(`Shapes built as expected: ${hit}/${shaped.length}`);
   }
   console.log("──────────────────────────────────");
 
