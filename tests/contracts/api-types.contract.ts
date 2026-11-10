@@ -22,9 +22,10 @@
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
-  ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape,
+  ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
+import type { rankedFromMembers, rankedFromEvents, tableFromMembers, rollFromPeople } from "@/lib/ai-shapes-people";
 import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { publicBrother } from "@/lib/brother-avatar";
@@ -110,3 +111,7 @@ type ShapeOf<F extends Fn> = NonNullable<Served<F>> extends { shape: infer S } ?
 export const datedShape: Widen<DatedShape> = served<ShapeOf<typeof datedFromThings>>();
 export const logbookShape: Widen<LogbookShape> = served<ShapeOf<typeof logbookFromRecords>>();
 export const pastDueShape: Widen<PastDueShape> = served<ShapeOf<typeof pastDueFromTasks>>();
+export const rankedShape: Widen<RankedShape> = served<ShapeOf<typeof rankedFromMembers>>();
+export const rankedByDateShape: Widen<RankedShape> = served<ShapeOf<typeof rankedFromEvents>>();
+export const tableShape: Widen<TableShape> = served<ShapeOf<typeof tableFromMembers>>();
+export const rollShape: Widen<RollShape> = served<ShapeOf<typeof rollFromPeople>>();

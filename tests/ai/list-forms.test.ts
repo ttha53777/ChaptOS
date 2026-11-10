@@ -179,3 +179,98 @@ describe("pastdue", () => {
     expect((built!.shape as PastDueShape).items[0].owner).toEqual({ kind: "role", label: "Treasurer" });
   });
 });
+
+// ── People family ───────────────────────────────────────────────────────────
+import { rankedFromMembers, rankedFromEvents, tableFromMembers, rollFromPeople, buildRanked, buildRoll, scaleOf, type MemberRow } from "@/lib/ai-shapes-people";
+import { DEFAULT_THRESHOLDS } from "@/lib/thresholds";
+import { ALL_TRACKED } from "@/lib/tracked-metrics";
+import type { RankedShape, RollShape, TableShape } from "@/lib/api-types";
+
+const m = (id: number, name: string, over: Partial<MemberRow> = {}): MemberRow => ({
+  id, name, role: "Member", attendance: 80, gpa: 3.2, duesOwed: 0, serviceHours: 10, ...over,
+});
+const crew = [m(1, "Aiden", { serviceHours: 22 }), m(2, "Cole", { serviceHours: 0 }), m(3, "Maya", { serviceHours: 19 }), m(4, "Ian", { serviceHours: 4 })];
+const setAll = new Set(["serviceHoursGoal", "gpaWatch", "attendanceWatch"]);
+
+describe("ranked (Standings)", () => {
+  it("ranks best first and draws the org's bar only when the org set it", () => {
+    const built = rankedFromMembers({ metric: "service_hours", members: crew, thresholds: DEFAULT_THRESHOLDS, setKeys: setAll, measured: ALL_TRACKED, truncated: null, scope: "4 members" })!;
+    const shape = built.shape as RankedShape;
+    expect(built.rows.map(r => r.title)).toEqual(["Aiden", "Maya", "Ian", "Cole"]);
+    expect(shape.items.map(i => i.num)).toEqual([22, 19, 4, 0]);
+    expect(shape.bar).toEqual({ at: 10, label: "Your bar · 10 hrs" });
+    expect(shape).toMatchObject({ min: 0, max: 22, order: "rank", better: "higher" });
+    const unset = rankedFromMembers({ metric: "service_hours", members: crew, thresholds: DEFAULT_THRESHOLDS, setKeys: new Set(), measured: ALL_TRACKED, truncated: null, scope: "" })!;
+    expect((unset.shape as RankedShape).bar).toBeNull();
+  });
+
+  it("dues are lower-is-better: the least owed ranks first", () => {
+    const built = rankedFromMembers({ metric: "dues_owed", members: [m(1, "A", { duesOwed: 380 }), m(2, "B"), m(3, "C", { duesOwed: 40 })], thresholds: DEFAULT_THRESHOLDS, setKeys: setAll, measured: ALL_TRACKED, truncated: null, scope: "" })!;
+    expect(built.rows.map(r => r.title)).toEqual(["B", "C", "A"]);
+    expect((built.shape as RankedShape).better).toBe("lower");
+  });
+
+  it("an unmeasured metric can't be ranked, and a member's blank sorts last as not recorded", () => {
+    expect(rankedFromMembers({ metric: "gpa", members: crew, thresholds: DEFAULT_THRESHOLDS, setKeys: setAll, measured: { ...ALL_TRACKED, gpa: false }, truncated: null, scope: "" })).toBeNull();
+    const built = rankedFromMembers({ metric: "gpa", members: [m(1, "A", { gpa: 0 }), m(2, "B", { gpa: 3.9 }), m(3, "C", { gpa: 3.1 })], thresholds: DEFAULT_THRESHOLDS, setKeys: setAll, measured: ALL_TRACKED, truncated: null, scope: "" })!;
+    expect((built.shape as RankedShape).items.map(i => i.num)).toEqual([3.9, 3.1, null]);
+    expect(built.rows[2].value).toBe("not recorded");
+  });
+
+  it("GPA starts a whole point under the lowest; percentages always run 0–100", () => {
+    expect(scaleOf("gpa", [3.1, 3.9])).toEqual({ min: 2, max: 4 });
+    expect(scaleOf("pct", [40])).toEqual({ min: 0, max: 100 });
+  });
+
+  it("dated rows keep date order and carry their dates", () => {
+    const built = rankedFromEvents({ events: [{ id: 2, title: "Chapter Meeting", date: "2026-10-11", rate: 72 }, { id: 1, title: "Chapter Meeting", date: "2026-10-04", rate: 88 }], bar: null, truncated: null, scope: "2 events" })!;
+    const shape = built.shape as RankedShape;
+    expect(shape.order).toBe("date");
+    expect(shape.items).toEqual([{ num: 88, date: "2026-10-04" }, { num: 72, date: "2026-10-11" }]);
+    expect(built.rows.map(r => r.ref?.id)).toEqual([1, 2]);
+  });
+
+  it("shows nothing list_brothers didn't already return to the caller", async () => {
+    const ev = createShapeEvidence();
+    const served = { summary: {}, brothers: crew.map(b => ({ ...b, status: "Good", isAdmin: false })) };
+    ev.add("list_brothers", {}, served);
+    const scoped = { organizationConfig: { find: async () => ({ thresholds: { serviceHoursGoal: 10 }, disabledFeatures: {} }) } } as never;
+    const built = (await buildRanked({ type: "ranked", rank: "service_hours" }, ev, scoped, 424242, { rows: [], today: TODAY }))!;
+    for (const r of built.rows) expect(Object.keys(r).every(k => ["kind", "title", "subtitle", "value", "ref"].includes(k))).toBe(true);
+    const servedHours = new Set(served.brothers.map(b => b.serviceHours));
+    for (const it of (built.shape as RankedShape).items) expect(servedHours.has(it.num!)).toBe(true);
+  });
+});
+
+describe("table (Side by side)", () => {
+  it("drops measures the org doesn't track and keeps source order", () => {
+    const built = tableFromMembers({ metrics: ["gpa", "dues_owed", "attendance"], members: crew, thresholds: DEFAULT_THRESHOLDS, setKeys: setAll, tracked: { ...ALL_TRACKED, gpa: false }, measured: ALL_TRACKED, truncated: null, scope: "4" })!;
+    const shape = built.shape as TableShape;
+    expect(shape.cols.map(c => c.key)).toEqual(["dues_owed", "attendance"]);
+    expect(built.rows.map(r => r.title)).toEqual(["Aiden", "Cole", "Maya", "Ian"]);
+    expect(shape.cols[1].bar).toBe(80);
+  });
+
+  it("is a ranking's job with fewer than two usable columns", () => {
+    expect(tableFromMembers({ metrics: ["gpa", "attendance"], members: crew, thresholds: DEFAULT_THRESHOLDS, setKeys: setAll, tracked: { ...ALL_TRACKED, gpa: false }, measured: ALL_TRACKED, truncated: null, scope: "" })).toBeNull();
+  });
+});
+
+describe("roll (Roll call)", () => {
+  it("splits by group with the flagged group first, any count from one", () => {
+    const built = rollFromPeople({ groups: [{ label: "No excuse", flag: true }, { label: "Excused", flag: false }], people: [{ id: 3, name: "Zane", group: 1, note: null }, { id: 1, name: "Owen", group: 0, note: null }], rows: [] })!;
+    expect(built.rows.map(r => r.title)).toEqual(["Owen", "Zane"]);
+    expect((built.shape as RollShape).items.map(i => i.group)).toEqual([0, 1]);
+    const one = rollFromPeople({ groups: [{ label: "Missed", flag: true }], people: [{ id: 1, name: "Owen", group: 0, note: null }], rows: [] });
+    expect(one).not.toBeNull();
+  });
+
+  it("resolves absentees' names to roster ids, and never guesses a shared name", async () => {
+    const ev = createShapeEvidence();
+    ev.add("get_event_attendance", { id: 1 }, { event: { id: 1 }, absent: ["Owen Park", "Sam Lee"], excused: [{ name: "Ravi M", status: "approved" }], attended: [] });
+    const scoped = { member: { listRoster: async () => [{ id: 7, name: "Owen Park" }, { id: 8, name: "Sam Lee" }, { id: 9, name: "Sam Lee" }, { id: 10, name: "Ravi M" }] } } as never;
+    const built = (await buildRoll({ type: "roll", split: "excused" }, ev, scoped, 1, { rows: [], today: TODAY }))!;
+    expect(built.rows.map(r => [r.title, r.ref?.id])).toEqual([["Owen Park", 7], ["Sam Lee", undefined], ["Ravi M", 10]]);
+    expect((built.shape as RollShape).groups.map(g => g.label)).toEqual(["No excuse", "Excused"]);
+  });
+});

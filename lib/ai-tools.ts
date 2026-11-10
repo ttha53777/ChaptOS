@@ -35,7 +35,7 @@ import { duesPaymentWhere } from "@/lib/dues";
 import { compareLines } from "@/lib/dues-ledger";
 import { ExcuseStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
-import { offeredShapeTypes, formsEnabled, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
+import { offeredShapeTypes, formsEnabled, TALLY_METRICS, RANK_METRICS, ROLL_SPLITS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
 import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool, withCitations, CITE_TAG_RE } from "@/lib/ai-file-tools";
 import type { AnswerCitation } from "@/lib/api-types";
@@ -1059,7 +1059,13 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               "Omit for anything else. Still send your rows: they're shown if the picture can't be drawn.",
             properties: {
               type:   { type: "string", enum: offeredShapeTypes() },
-              metric: { type: "string", enum: [...TALLY_METRICS], description: "tally only: which subset." },
+              metric: formsEnabled()
+                ? { type: "string", enum: [...TALLY_METRICS, ...RANK_METRICS], description: "tally: which subset; ranked: which number." }
+                : { type: "string", enum: [...TALLY_METRICS], description: "tally only: which subset." },
+              ...(formsEnabled() ? {
+                metrics: { type: "array", items: { type: "string", enum: RANK_METRICS.filter(m => m !== "event_attendance") }, description: "table only: 2–4 measures." },
+                split:   { type: "string", enum: [...ROLL_SPLITS], description: "roll only." },
+              } : {}),
               start:  { type: "string", description: "week only: the first day, YYYY-MM-DD." },
               term:   { type: "string", description: "missing only: the name of the thing that wasn't found, ≤60 chars." },
             },

@@ -1022,3 +1022,80 @@
   .chat-root .pd-r.flat .pd-flat { grid-column: 2; grid-row: 2; }
 }
 @media (prefers-reduced-motion: reduce) { .chat-root .pd-bar { animation: none; } }
+
+/* standings */
+.chat-root .shp-legend .k-bar { width: 0; height: 12px; border-radius: 0; background: none; border-left: 1.5px dashed var(--ink-soft); box-shadow: none; }
+.chat-root .rk-rows { padding: 8px 6px; }
+.chat-root .rk-r { display: grid; grid-template-columns: 16px 28px minmax(0, 128px) minmax(0, 1fr) 14px; gap: 10px; align-items: center; width: 100%; padding: 5px 8px; border: 0; border-radius: 10px; background: none; text-align: left; cursor: pointer; transition: background .12s; }
+.chat-root .rk-r:hover:not(:disabled) { background: var(--card-2); }
+.chat-root .rk-r.sel { background: var(--vio-bg); }
+.chat-root .rk-r .n { font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: right; }
+.chat-root .rk-r .av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 10px; }
+.chat-root .rk-r .av.blank { background: var(--card-2); }
+.chat-root .rk-r .t { font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-root .rk-trk { position: relative; display: flex; align-items: center; gap: 8px; height: 28px; }
+.chat-root .rk-rows.has-bar .rk-trk::before { content: ''; position: absolute; z-index: 1; left: calc(var(--bar) * (100% - 52px)); top: -5px; bottom: -5px; border-left: 1.5px dashed var(--ink-soft); }
+.chat-root .rk-rows.broken .rk-trk::after { content: ''; position: absolute; left: -2px; top: 6px; bottom: 6px; width: 5px; border-left: 2px solid var(--line-med); border-right: 2px solid var(--line-med); transform: skewX(-18deg); }
+.chat-root .rk-fill { height: 14px; width: calc(var(--w) * (100% - 52px)); min-width: 4px; border-radius: 4px 7px 7px 4px; background: var(--ok); opacity: .8; transform-origin: left center; animation: cs-grow .7s var(--spring) both; animation-delay: calc(var(--i) * 60ms + .2s); }
+.chat-root .rk-v { position: relative; z-index: 2; padding: 0 3px; margin-left: -3px; background: var(--card); font-family: var(--mono); font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--ink); }
+.chat-root .rk-v small { font-weight: 400; color: var(--faint); }
+.chat-root .rk-r:hover:not(:disabled) .rk-v { background: var(--card-2); }
+.chat-root .rk-r.sel .rk-v { background: transparent; }
+.chat-root .rk-r.under .rk-fill { background: var(--risk); }
+.chat-root .rk-r.under .rk-v { color: var(--risk); }
+.chat-root .rk-r.zero .rk-fill { background: none; border: 1.5px dashed var(--risk); }
+.chat-root .rk-r.none .rk-v { font-family: var(--sans); font-weight: 400; font-style: italic; color: var(--faint); }
+.chat-root .rk-rows.by-date .rk-r { grid-template-columns: 38px minmax(0, 118px) minmax(0, 1fr) 14px; }
+.chat-root .rk-rows.by-date .rk-r .t { font-size: 13px; color: var(--ink-soft); }
+.chat-root .rk-cut { display: flex; align-items: center; gap: 8px; margin: 6px 8px 4px 34px; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--risk); }
+.chat-root .rk-cut::after { content: ''; flex: 1; border-top: 1.5px dashed color-mix(in srgb, var(--risk) 35%, transparent); }
+
+/* side by side */
+.chat-root .tb-scroll { overflow-x: auto; border-radius: 14px; }
+.chat-root .shp-tb table { width: 100%; min-width: 470px; border-collapse: collapse; }
+.chat-root .shp-tb th { padding: 10px 12px 8px; text-align: right; vertical-align: bottom; font-weight: 400; border-bottom: 1px solid var(--line); }
+.chat-root .shp-tb th:first-child { text-align: left; }
+.chat-root .shp-tb th button { border: 0; background: none; padding: 0; display: inline-grid; justify-items: end; gap: 1px; color: var(--faint); cursor: pointer; }
+.chat-root .shp-tb th button[aria-sort] .shp-kicker { color: var(--ink); }
+.chat-root .shp-tb th button[aria-sort] .shp-kicker::after { content: ' ↓'; }
+.chat-root .shp-tb th button[aria-sort="ascending"] .shp-kicker::after { content: ' ↑'; }
+.chat-root .shp-tb th small { font-family: var(--mono); font-size: 9.5px; color: var(--faint); }
+.chat-root .shp-tb td { padding: 7px 12px; border-top: 1px solid var(--line-soft); text-align: right; font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+.chat-root .shp-tb tbody tr:first-child td { border-top: 0; }
+.chat-root .shp-tb tbody tr { cursor: pointer; }
+.chat-root .shp-tb tbody tr.inert { cursor: default; }
+.chat-root .shp-tb tbody tr:hover td, .chat-root .shp-tb tbody tr.sel td { background: var(--card-2); }
+.chat-root .shp-tb td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); text-align: left; font-family: var(--sans); }
+.chat-root .shp-tb td.go-c { width: 14px; padding-left: 0; }
+.chat-root .shp-tb .tb-who { display: flex; align-items: center; gap: 10px; }
+.chat-root .shp-tb .tb-who .av { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 10px; }
+.chat-root .shp-tb .bad { display: inline-block; margin-right: -8px; padding: 1px 8px; border-radius: 6px; background: var(--risk-bg); color: var(--risk); font-weight: 600; }
+.chat-root .shp-tb .ok { color: var(--ink-soft); }
+.chat-root .shp-tb .nil { color: var(--faint); }
+
+/* roll call */
+.chat-root .shp-roll { padding: 4px 14px; }
+.chat-root .roll-g { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-top: 1px dashed var(--line-med); }
+.chat-root .roll-g:first-child { border-top: 0; }
+.chat-root .roll-n { display: grid; align-content: start; gap: 2px; }
+.chat-root .roll-n b { font-family: var(--serif); font-weight: 600; font-size: 30px; letter-spacing: -.04em; line-height: 1; color: var(--ink); }
+.chat-root .roll-g.flag .roll-n b { color: var(--risk); }
+.chat-root .roll-c { display: flex; flex-wrap: wrap; gap: 7px; align-content: start; }
+.chat-root .who-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 11px 3px 3px; border-radius: 999px; border: 1px solid var(--line-med); background: var(--card); font-size: 13px; color: var(--ink); cursor: pointer; }
+.chat-root .who-chip:hover:not(:disabled), .chat-root .who-chip.sel { border-color: var(--vio); }
+.chat-root .who-chip .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 9px; }
+.chat-root .who-chip em { font-style: normal; font-family: var(--mono); font-size: 10.5px; color: var(--risk); padding-left: 7px; border-left: 1px solid var(--line-med); }
+.chat-root .roll-g.soft .who-chip { border-style: dashed; color: var(--ink-soft); }
+@media (max-width: 600px) {
+  .chat-root .rk-r { grid-template-columns: 16px 28px minmax(0, 1fr) 14px; row-gap: 0; }
+  .chat-root .rk-trk { grid-column: 2 / 4; grid-row: 2; height: 24px; }
+  .chat-root .rk-r .chev { grid-row: 1; grid-column: 4; }
+  .chat-root .rk-cut { margin-left: 8px; }
+  .chat-root .rk-rows.by-date .rk-r { grid-template-columns: 38px minmax(0, 1fr) 14px; }
+  .chat-root .rk-rows.by-date .rk-trk { grid-column: 2; grid-row: auto; }
+  .chat-root .rk-rows.by-date .rk-r .t { display: none; }
+  .chat-root .rk-rows.by-date .rk-r .chev { grid-column: 3; }
+  .chat-root .roll-g { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .chat-root .roll-n { display: flex; align-items: baseline; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .chat-root .rk-fill { animation: none; } }

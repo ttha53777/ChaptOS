@@ -101,6 +101,15 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
   const logbook = await buildShape({ type: "logbook" }, await formRead([["list_calendar_events", { category: "chapter", start: "2026-01-01", end: "2026-06-30" }]]), scoped, org.id);
   const P_TODAY = process.env.PASTDUE_TODAY ?? "2026-07-10";
   const pastdue = await buildShape({ type: "pastdue" }, await formRead([["list_deadlines", { open_only: true, end: "2026-07-09" }]]), scoped, org.id, { today: P_TODAY });
+  const brothersEv = await formRead([["list_brothers", {}]]);
+  const ranked = await buildShape({ type: "ranked", rank: "service_hours" }, brothersEv, scoped, org.id);
+  const table = await buildShape({ type: "table", metrics: ["gpa", "dues_owed", "attendance"] }, brothersEv, scoped, org.id);
+  const meetingsEv = await formRead([["list_calendar_events", { category: "chapter", start: "2026-01-01", end: "2026-06-30" }]]);
+  const rankedDates = await buildShape({ type: "ranked", rank: "event_attendance" }, meetingsEv, scoped, org.id);
+  // The most recent meeting with anyone marked absent, as "who missed chapter?" would read it.
+  const missedAt = await scoped.attendanceRecord.findFirst({ where: { attended: false }, orderBy: { calendarEventId: "desc" }, select: { calendarEventId: true } });
+  const roll = missedAt ? await buildShape({ type: "roll", split: "excused" }, await formRead([["get_event_attendance", { id: missedAt.calendarEventId }]]), scoped, org.id) : null;
+  console.log("ranked", ranked?.rows.length, "table", table?.rows.length, "rankedDates", rankedDates?.rows.length, "roll", roll?.rows.length);
   console.log("dated", dated && dated.rows.length, "logbook", logbook && logbook.rows.map(r => `${r.title}:${r.ref?.id ?? "-"}`).join(", "), "pastdue", pastdue && JSON.stringify(pastdue.shape));
 
   const ledger = (verb: string, source: string, finding: string) => [
@@ -121,6 +130,10 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     dated: ledger("Checking deadlines", "Tasks", "this month") + answer("*A busy June*, and two things are already late.", dated, ["Tasks", "Timeline"]),
     logbook: ledger("Scanning the calendar", "Timeline", "chapter meetings") + answer(`*${logbook?.rows.length ?? 0}* chapter meetings so far this year.`, logbook, ["Timeline"]),
     pastdue: ledger("Checking deadlines", "Tasks", "overdue") + answer(`*${pastdue?.rows.length ?? 0} things* are overdue.`, pastdue, ["Tasks"]),
+    ranked: ledger("Reading the roster", "Roster", "service hours") + answer("*Most* have cleared the bar.", ranked, ["Roster"]),
+    rankdate: ledger("Reading attendance", "Attendance", "per meeting") + answer("Turnout *dipped late* in the term.", rankedDates, ["Timeline", "Attendance"]),
+    table: ledger("Reading the roster", "Roster", "3 measures") + answer("*Mostly fine*, with a few under a bar.", table, ["Roster"]),
+    roll: ledger("Checking attendance", "Attendance", "absences") + answer(`*${roll?.rows.length ?? 0}* missed it.`, roll, ["Attendance"]),
     which: ledger("Looking up the name", "Brotherhood", "2 matches") + frame("answer", { verdict: "There are *two* matches on the roster.", rows: [], follows: [], sources: ["Brotherhood"], askback }),
   };
 
@@ -170,6 +183,10 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     ["02-dated", "dated: what's on my plate this month", ".shp-td"],
     ["03-logbook", "logbook: how many chapter meetings have we had", ".shp-lg"],
     ["10-pastdue", "pastdue: what's overdue", ".shp-pd"],
+    ["01-ranked", "ranked: service hours standings", ".shp-rk"],
+    ["01b-ranked-dates", "rankdate: attendance at each meeting", ".rk-rows.by-date"],
+    ["06-table", "table: grades dues attendance", ".shp-tb"],
+    ["07-roll", "roll: who missed chapter", ".shp-roll"],
   ];
   for (const [n, q, sel] of SHOTS.filter(([n]) => !CASES || CASES.has(n))) {
     await p.fill(".cs-dock textarea", q);

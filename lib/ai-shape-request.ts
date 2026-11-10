@@ -4,15 +4,18 @@
 // import each other.
 
 import { isValidCalendarDate } from "@/lib/dates";
-import type { TallyMetric } from "@/lib/api-types";
+import type { RankMetric, TallyMetric } from "@/lib/api-types";
 
 /** The shapes that shipped before the list forms (docs/ask-chapt-list-forms-plan.md). */
 export const LEGACY_SHAPE_TYPES = ["tally", "breakdown", "week", "missing"] as const;
 /** The list forms: each replaces the plain row list when every record qualifies. */
-export const FORM_SHAPE_TYPES = ["dated", "logbook", "pastdue"] as const;
+export const FORM_SHAPE_TYPES = ["dated", "logbook", "pastdue", "ranked", "table", "roll"] as const;
 export const SHAPE_TYPES = [...LEGACY_SHAPE_TYPES, ...FORM_SHAPE_TYPES] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
 export const TALLY_METRICS = ["owes_dues", "at_risk", "no_service_hours"] as const satisfies readonly TallyMetric[];
+export const RANK_METRICS = ["service_hours", "gpa", "attendance", "dues_owed", "event_attendance"] as const satisfies readonly RankMetric[];
+export const ROLL_SPLITS = ["excused", "paid"] as const;
+export type RollSplit = (typeof ROLL_SPLITS)[number];
 
 /**
  * ASK_CHAPT_FORMS=1 offers the list forms to the model (schema + prompt) and
@@ -35,6 +38,12 @@ export interface ShapeRequest {
   start?: string;
   /** missing only: the thing the user named that couldn't be found. */
   term?: string;
+  /** ranked only: the one number every row carries. */
+  rank?: RankMetric;
+  /** table only: 2 to 4 measures, in column order. */
+  metrics?: RankMetric[];
+  /** roll only: a two-way split computed from the source. */
+  split?: RollSplit;
 }
 
 /** Unknown types and malformed fields are dropped, never fatal — the answer still goes out as rows. */
@@ -46,5 +55,20 @@ export function parseShapeRequest(raw: unknown): ShapeRequest | undefined {
     ? (r.metric as TallyMetric) : undefined;
   const start = typeof r.start === "string" && isValidCalendarDate(r.start) ? r.start : undefined;
   const term = typeof r.term === "string" && r.term.trim() ? r.term.trim().slice(0, 60) : undefined;
-  return { type: r.type as ShapeType, ...(metric ? { metric } : {}), ...(start ? { start } : {}), ...(term ? { term } : {}) };
+  const isRank = (v: unknown): v is RankMetric => typeof v === "string" && (RANK_METRICS as readonly string[]).includes(v);
+  // `metric` names a tally subset for tally and a measure for ranked: one
+  // property in the schema, read through the type's own closed set.
+  const rank = r.type === "ranked" && isRank(r.metric) ? r.metric : undefined;
+  const metrics = r.type === "table" && Array.isArray(r.metrics)
+    ? [...new Set(r.metrics.filter(isRank).filter(m => m !== "event_attendance"))].slice(0, 4) : undefined;
+  const split = r.type === "roll" && typeof r.split === "string" && (ROLL_SPLITS as readonly string[]).includes(r.split) ? (r.split as RollSplit) : undefined;
+  return {
+    type: r.type as ShapeType,
+    ...(metric && r.type === "tally" ? { metric } : {}),
+    ...(start ? { start } : {}),
+    ...(term ? { term } : {}),
+    ...(rank ? { rank } : {}),
+    ...(metrics?.length ? { metrics } : {}),
+    ...(split ? { split } : {}),
+  };
 }

@@ -35,6 +35,7 @@ export { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest, type 
 export { createShapeEvidence, selectFromEvidence, type ShapeEvidence } from "@/lib/ai-shape-evidence";
 import type { ShapeEvidence } from "@/lib/ai-shape-evidence";
 import { buildDated, buildLogbook, buildPastDue } from "@/lib/ai-shapes-calendar";
+import { buildRanked, buildRoll, buildTable } from "@/lib/ai-shapes-people";
 
 export interface BuiltShape<S extends AnswerShape = AnswerShape> {
   shape: S;
@@ -56,6 +57,9 @@ const FAMILY_BUILDERS: Partial<Record<ShapeRequest["type"], FamilyBuilder>> = {
   dated: buildDated,
   logbook: buildLogbook,
   pastdue: buildPastDue,
+  ranked: buildRanked,
+  table: buildTable,
+  roll: buildRoll,
 };
 
 /**

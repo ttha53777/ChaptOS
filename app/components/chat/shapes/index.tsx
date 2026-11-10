@@ -23,6 +23,9 @@ import { WeekSheet } from "./Week";
 import { DatedSheet } from "./Dated";
 import { LogbookSheet } from "./Logbook";
 import { PastDueSheet } from "./PastDue";
+import { RankedSheet } from "./Ranked";
+import { TableSheet } from "./Table";
+import { RollSheet } from "./Roll";
 
 export type { RowHandlers } from "./common";
 
@@ -43,6 +46,9 @@ const SHEETS: Registry = {
   dated: p => <DatedSheet shape={p.shape} rows={p.rows} h={p.h} />,
   logbook: p => <LogbookSheet shape={p.shape} rows={p.rows} h={p.h} />,
   pastdue: p => <PastDueSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  ranked: p => <RankedSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  table: p => <TableSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  roll: p => <RollSheet shape={p.shape} rows={p.rows} h={p.h} />,
 };
 
 /** True when this client knows how to draw the shape; unknown types fall back to rows. */

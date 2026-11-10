@@ -10,9 +10,12 @@ import { formsEnabled, FORM_SHAPE_TYPES } from "@/lib/ai-shape-request";
  * list when one doesn't qualify, so a wrong pick costs nothing.
  */
 const FORM_LADDER: Array<[(typeof FORM_SHAPE_TYPES)[number], string]> = [
+  ["table", "`table` — members compared on the SAME 2–4 measures ('how's exec doing on grades, dues and attendance'); set metrics (service_hours, gpa, attendance, dues_owed); needs list_brothers."],
+  ["ranked", "`ranked` — rows of one kind each carrying ONE number in one unit ('how are the new members doing on service hours', 'top GPAs'); set metric to service_hours, gpa, attendance or dues_owed (needs list_brothers), or event_attendance for turnout at each of several past meetings (needs list_calendar_events for them). A number on every row beats a date, so meetings-with-turnout are ranked, not a logbook."],
   ["pastdue", "`pastdue` — every row is OPEN work whose date has passed ('what's overdue'); needs list_deadlines with open_only and an end before today."],
   ["logbook", "`logbook` — calendar things that ALL already happened ('how many service events have we had', 'what parties did we throw'); needs the list tool for that kind (list_calendar_events with its category, list_service_events, list_parties, list_programming_events, list_fundraisers, or list_deadlines status=done) with the window asked about. One result is still a logbook."],
   ["dated", "`dated` — calendar things (tasks, deadlines, events, mixed is fine) where at least one is today or later and the window is longer than a week ('what's on my plate this month'); needs list_deadlines and/or list_calendar_events for the window. 7 days or fewer stays `week`."],
+  ["roll", "`roll` — the rows are just people, any number ('who missed chapter on Sunday', 'who hasn't voted'); set split='excused' for absences (needs get_event_attendance) or split='paid' for dues (needs list_brothers); also list_polls, list_attendance_exemptions."],
 ];
 
 /** The list-forms paragraph, or "" when ASK_CHAPT_FORMS is off. */

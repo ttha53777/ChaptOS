@@ -122,7 +122,8 @@ export interface AnswerData {
 /** Discriminated by `type`. New types may be added; ignore ones you don't know. */
 export type AnswerShape =
   | TallyShape | BreakdownShape | WeekShape | MissingShape
-  | DatedShape | LogbookShape | PastDueShape;
+  | DatedShape | LogbookShape | PastDueShape
+  | RankedShape | TableShape | RollShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -309,5 +310,52 @@ export interface PastDueShape {
   type: "pastdue";
   today: string;
   items: Array<{ date: string; owner: PastDueOwner }>;
+  truncated: ShapeTruncation | null;
+}
+
+/** A number every row of one kind carries. */
+export type RankMetric = "service_hours" | "gpa" | "attendance" | "dues_owed" | "event_attendance";
+export type MetricUnit = "hrs" | "usd" | "pct" | "gpa";
+
+/** One number per row on a shared scale — Standings. */
+export interface RankedShape {
+  type: "ranked";
+  metric: RankMetric;
+  /** "Service hours · 8 members · SPR26". */
+  kicker: string;
+  unit: MetricUnit;
+  /** dues_owed is "lower": the cut reads "over the bar" and the colours swap. */
+  better: "higher" | "lower";
+  /** Scale end: 100 for pct, 4 (or more) for gpa, else the largest value. */
+  max: number;
+  /** Scale start: 0, except gpa, which starts a whole point under the lowest (drawn with a broken axis). */
+  min: number;
+  /** The org's own threshold; null when it never set one — then no cut line and no colour. */
+  bar: { at: number; label: string } | null;
+  /** "date": dated rows keep date order with a date stub, no rank numerals, no cut line. */
+  order: "rank" | "date";
+  /** num null = nothing recorded for that row yet: drawn as "not recorded", never coloured, sorted last. */
+  items: Array<{ num: number | null; date: string | null }>;
+  truncated: ShapeTruncation | null;
+}
+
+/** The same 2 to 4 measures per row, as columns — Side by side. */
+export interface TableShape {
+  type: "table";
+  kicker: string;
+  cols: Array<{ key: RankMetric; label: string; unit: MetricUnit; better: "higher" | "lower"; bar: number | null }>;
+  /** cells[i][col.key]; null = not recorded, drawn as a dash and never tinted. */
+  cells: Array<Record<string, number | null>>;
+  /** Set when rows are dated things; null for people. */
+  dates: Array<string | null> | null;
+  truncated: ShapeTruncation | null;
+}
+
+/** People, as name chips under a count, optionally split two ways — Roll call. */
+export interface RollShape {
+  type: "roll";
+  /** `flag` marks the group the question is about; no good/bad order is implied. */
+  groups: Array<{ label: string; flag: boolean }>;
+  items: Array<{ group: number; note: string | null }>;
   truncated: ShapeTruncation | null;
 }

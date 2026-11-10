@@ -124,3 +124,49 @@ html[data-aesthetic="paper"] .chat-root .pd-bar { border: 1.5px solid var(--ink)
 html[data-aesthetic="paper"] .chat-root .pd-v, html[data-aesthetic="paper"] .chat-root .pd-flat { font-family: var(--font-geist-mono); color: var(--pp-peach-ink); }
 html[data-aesthetic="paper"] .chat-root .pd-ax .pd-in span { font-family: var(--font-geist-mono); font-weight: 600; color: var(--muted); }
 html[data-aesthetic="paper"] .chat-root .pd-ax .pd-in span.now { color: var(--ink); }
+
+/* ── 01 Standings ─────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-bar { border: 0; border-left: 1.5px dashed var(--ink-soft); background: none; }
+html[data-aesthetic="paper"] .chat-root .rk-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .rk-r .n { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .rk-r .av { background: var(--pp-lilac); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-weight: 700; border: 1.5px solid rgba(38,33,27,.08); }
+html[data-aesthetic="paper"] .chat-root .rk-r .t { font-family: var(--font-geist-sans); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .rk-rows.by-date .rk-r .t { font-weight: 500; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .rk-rows.has-bar .rk-trk::before { border-left-color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .rk-fill { opacity: 1; border: 1.5px solid var(--ink); background: var(--pp-mint); animation-timing-function: var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .chat-root .rk-v { font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .chat-root .rk-r:hover:not(:disabled) .rk-v { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .rk-r.under .rk-fill { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .rk-r.under .rk-v { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .rk-r.zero .rk-fill { background: none; border: 1.5px dashed var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .rk-r.none .rk-v { font-family: var(--font-geist-sans); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .rk-cut { font-family: var(--font-geist-mono); font-weight: 600; color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .rk-cut::after { border-top-color: var(--pp-peach-bd); }
+
+/* ── 06 Side by side ──────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .shp-tb th { border-bottom: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .chat-root .shp-tb th button:hover .shp-kicker { color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .shp-tb th small { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .shp-tb td { border-top-color: var(--line-soft); font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .chat-root .shp-tb td:first-child { font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .chat-root .shp-tb tbody tr:hover td { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .shp-tb tbody tr.sel td { background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .chat-root .shp-tb .tb-who .av { background: var(--pp-lilac); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-weight: 700; }
+html[data-aesthetic="paper"] .chat-root .shp-tb .bad { background: var(--pp-peach-soft); box-shadow: inset 0 0 0 1.5px var(--pp-peach-bd); color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .shp-tb .ok { color: var(--ink-soft); }
+
+/* ── 07 Roll call ─────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .roll-g { border-top-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .roll-n b { font-family: var(--font-fraunces); font-weight: 650; }
+html[data-aesthetic="paper"] .chat-root .roll-g.flag .roll-n b { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .who-chip {
+  border: 1.5px solid var(--ink); font-family: var(--font-geist-sans); font-weight: 600; font-size: 13px;
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .who-chip:hover:not(:disabled),
+html[data-aesthetic="paper"] .chat-root .who-chip.sel { transform: translate(-1px,-1px); box-shadow: 2px 2px 0 var(--pp-peach); border-color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .chat-root .who-chip .av { background: var(--pp-rose); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-weight: 700; }
+html[data-aesthetic="paper"] .chat-root .who-chip em { font-family: var(--font-geist-mono); font-weight: 600; color: var(--pp-peach-ink); border-left: 1.5px solid var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .roll-g.soft .who-chip { border-color: var(--line-med); color: var(--ink-soft); font-weight: 500; }
+html[data-aesthetic="paper"] .chat-root .roll-g.soft .who-chip:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--card-3); }
+html[data-aesthetic="paper"] .chat-root .roll-g.soft .who-chip .av { background: var(--card-3); }
