@@ -13,7 +13,7 @@
 import type OpenAI from "openai";
 import { db } from "@/lib/db";
 import type { RosterRow } from "@/lib/db/tenant";
-import { isoWeekBounds, todayISO, DATE_RE } from "@/lib/dates";
+import { isoWeekBounds, todayISO, DATE_RE, isValidCalendarDate } from "@/lib/dates";
 import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd as fmtMoney, money } from "@/lib/money";
 import type { Thresholds } from "@/lib/thresholds";
@@ -35,7 +35,7 @@ import { duesPaymentWhere } from "@/lib/dues";
 import { compareLines } from "@/lib/dues-ledger";
 import { ExcuseStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
-import { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
+import { offeredShapeTypes, formsEnabled, TALLY_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
 import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool, withCitations, CITE_TAG_RE } from "@/lib/ai-file-tools";
 import type { AnswerCitation } from "@/lib/api-types";
@@ -1009,6 +1009,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                 ask:      { type: "string", description: "Follow-up question to send if the user taps this row." },
                 tier:     { type: "string", enum: ["high", "medium", "later"], description: "ADVISORY ONLY: impact. Rows are ranked, so tiers must never improve further down the list." },
                 screen:   { type: "string", enum: ["dashboard", "roster", "events", "attendance", "tasks", "treasury", "dues", "service", "instagram", "parties", "docs", "settings"], description: "ADVISORY ONLY: which screen this change lives on. Tapping the row navigates there." },
+                ...(formsEnabled() ? { date: { type: "string", description: "The record's YYYY-MM-DD date, for dated records." } } : {}),
               },
               required: ["kind", "title"],
             },
@@ -1056,7 +1057,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               "missing — you searched for a specific thing the user named and NOTHING matched; set term to its name ('beach cleanup'). The server shows where you looked and the closest real titles. Not for a genuine zero (nobody owes dues is a tally). " +
               "Omit for anything else. Still send your rows: they're shown if the picture can't be drawn.",
             properties: {
-              type:   { type: "string", enum: [...SHAPE_TYPES] },
+              type:   { type: "string", enum: offeredShapeTypes() },
               metric: { type: "string", enum: [...TALLY_METRICS], description: "tally only: which subset." },
               start:  { type: "string", description: "week only: the first day, YYYY-MM-DD." },
               term:   { type: "string", description: "missing only: the name of the thing that wasn't found, ≤60 chars." },
@@ -1114,10 +1115,16 @@ export interface AnswerRow {
    * with `citations` before the row reaches the wire.
    */
   cite?: string[];
+  /**
+   * The record's own date (YYYY-MM-DD), when the model gave one. Only used to
+   * tell same-titled records apart (nine "Chapter Meeting"s) when a shape picks
+   * its set from this turn's reads; stripped before the wire.
+   */
+  date?: string;
 }
 
-/** An AnswerRow as it goes over the SSE wire — `screen` resolved, `cite` resolved to citations. */
-export type WireAnswerRow = Omit<AnswerRow, "screen" | "cite"> & {
+/** An AnswerRow as it goes over the SSE wire — `screen` resolved, `cite` resolved to citations, `date` dropped. */
+export type WireAnswerRow = Omit<AnswerRow, "screen" | "cite" | "date"> & {
   screen?: { label: string; path: string };
   citations?: AnswerCitation[];
 };
@@ -1263,6 +1270,7 @@ export function parseComposeAnswer(args: ToolArgs, opts: { maxRows?: number } = 
         ...(tier ? { tier } : {}),
         ...(screen ? { screen } : {}),
         ...(cite ? { cite } : {}),
+        ...(typeof r.date === "string" && isValidCalendarDate(r.date) ? { date: r.date } : {}),
       });
     }
   }

@@ -10,7 +10,7 @@ import { useState } from "react";
 
 import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
-import { ShapeBlock, isKnownShape } from "./AnswerShape";
+import { ShapeBlock, isKnownShape } from "./shapes";
 import { CitationChips } from "./CitationChips";
 import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 

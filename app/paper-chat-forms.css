@@ -1,0 +1,31 @@
+/* ── Paper aesthetic: Ask Chapt list forms ─────────────────────────────────────
+   1:1 with _design/Ask Chapt List Forms Mock.html. The structural layout of
+   each form lives in app/components/chat-spotlight.css (the Ledger look, which
+   still ships); this file is the paper skin over it, under
+   html[data-aesthetic="paper"] so it out-specifies the widget's own rules.
+   Its own file rather than paper-chat.css so a running dev server picks it up
+   (see the stale-globals note in paper-chat.css's history).
+
+   Token map from the mock: --paper-3 → --card-3, --line-2 → --line-med,
+   --ink-2 → --ink-soft, --ink-3 → --muted, pastels → --pp-*, --display →
+   --font-fraunces, --mono → --font-geist-mono, --sans → --font-geist-sans.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Shared: the date stub, the fold ─────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .shp-stub { border: 1.5px solid var(--ink); border-radius: 8px; background: var(--card); }
+html[data-aesthetic="paper"] .chat-root .shp-stub b { font-family: var(--font-geist-mono); background: var(--sc, var(--card-3)); border-bottom: 1.5px solid var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .shp-stub i { font-family: var(--font-fraunces); font-weight: 650; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .shp-stub.late { --sc: var(--pp-peach); transform: rotate(-3deg); }
+html[data-aesthetic="paper"] .chat-root .shp-stub.now { --sc: var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .shp-stub.week { --sc: var(--pp-sky); }
+html[data-aesthetic="paper"] .chat-root .shp-stub.was { border-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .shp-stub.was b { border-bottom-color: var(--line-med); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .shp-stub.was i { color: var(--muted); }
+
+html[data-aesthetic="paper"] .chat-root .shp-fold { border-top: 1px dashed var(--line-med); font-family: var(--font-geist-sans); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .shp-fold:hover { color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .shp-fold b { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .shp-fold-m { border: 1.5px solid var(--ink); background: var(--pp-mint); color: var(--ink); border-radius: 6px; }
+
+/* Selection on any form's row: the same lilac wash the plain rows use. */
+html[data-aesthetic="paper"] .chat-root .shp .sel { background: var(--pp-lilac-soft); box-shadow: none; }

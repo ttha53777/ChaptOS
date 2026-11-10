@@ -17,7 +17,7 @@
 // answer goes out with the model's own rows, exactly as before shapes existed.
 
 import type { db } from "@/lib/db";
-import type { AnswerRow } from "@/lib/ai-tools";
+import type { AnswerRow, ToolAccess } from "@/lib/ai-tools";
 import { orgStanding } from "@/lib/ai-tools";
 import type { RefIndex } from "@/lib/ai-refs";
 import { DATE_RE, isValidCalendarDate, todayISO } from "@/lib/dates";
@@ -32,40 +32,37 @@ import type {
 type Scoped = ReturnType<typeof db>;
 
 export { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest, type ShapeType } from "@/lib/ai-shape-request";
-
-// ────────────────────────────────────────────────────────────────────────────
-// Evidence — what the model read this turn, by tool name
-// ────────────────────────────────────────────────────────────────────────────
-
-export interface ShapeEvidence {
-  add(toolName: string, args: Record<string, unknown>, result: unknown): void;
-  /** The most recent successful call of a tool, if it ran this turn. */
-  get(toolName: string): { args: Record<string, unknown>; result: unknown } | undefined;
-}
-
-export function createShapeEvidence(): ShapeEvidence {
-  const seen = new Map<string, { args: Record<string, unknown>; result: unknown }>();
-  return {
-    add(toolName, args, result) {
-      if (typeof result === "object" && result !== null && "error" in result) return;
-      seen.set(toolName, { args, result });
-    },
-    get: toolName => seen.get(toolName),
-  };
-}
+export { createShapeEvidence, selectFromEvidence, type ShapeEvidence } from "@/lib/ai-shape-evidence";
+import type { ShapeEvidence } from "@/lib/ai-shape-evidence";
 
 export interface BuiltShape {
   shape: AnswerShape;
   rows: AnswerRow[];
 }
 
+export interface BuildOpts {
+  /** The model's own rows: a deliberate subset narrows the picture to them (selectFromEvidence). */
+  rows?: AnswerRow[];
+  /** Who's asking — a builder never shows what the evidence tool wouldn't show them. */
+  access?: ToolAccess;
+  /** YYYY-MM-DD; pinned by tests and the screenshot driver. */
+  today?: string;
+}
+
+/** The newer shapes, one module per family. Each never throws past buildShape's catch. */
+type FamilyBuilder = (req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, orgId: number, o: BuildOpts & { rows: AnswerRow[]; today: string }) => Promise<BuiltShape | null>;
+const FAMILY_BUILDERS: Partial<Record<ShapeRequest["type"], FamilyBuilder>> = {};
+
 /**
  * Build the requested shape, or null when the turn didn't read the data it
  * needs, the data is empty, or anything goes wrong. Never throws: this runs on
  * the answer path, after the model has already finished.
  */
-export async function buildShape(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, orgId: number): Promise<BuiltShape | null> {
+export async function buildShape(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, orgId: number, opts: BuildOpts = {}): Promise<BuiltShape | null> {
+  const o: Required<Pick<BuildOpts, "rows" | "today">> & BuildOpts = { ...opts, rows: opts.rows ?? [], today: opts.today ?? todayISO() };
   try {
+    const family = FAMILY_BUILDERS[req.type];
+    if (family) return await family(req, evidence, scoped, orgId, o);
     if (req.type === "tally") return await buildTally(req, evidence, scoped, orgId);
     if (req.type === "breakdown") return await buildBreakdown(evidence, scoped);
     if (req.type === "week") return await buildWeek(req, evidence, scoped);

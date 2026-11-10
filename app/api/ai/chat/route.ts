@@ -70,9 +70,10 @@ function sseEvent(event: string, data: unknown): string {
  * A key that isn't in the table was already dropped by parseComposeAnswer.
  */
 function resolveScreen(row: AnswerRow): WireAnswerRow {
-  // `cite` is a request the route already resolved into `citations`; it never ships.
+  // `cite` is a request the route already resolved into `citations`, and `date`
+  // only helped a shape find its records; neither ships.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { screen, cite, ...rest } = row;
+  const { screen, cite, date, ...rest } = row;
   if (!screen) return rest;
   const hit = SCREEN_PATHS[screen];
   if (!hit) return rest;
@@ -553,9 +554,12 @@ export async function POST(req: NextRequest) {
                 }
               }
               const citedRows = answer.rows.map((r, i) => (rowCitations[i]?.length ? { ...r, citations: rowCitations[i] } : r));
+              // A shape replaces the rows, and with them their file citations —
+              // so an answer whose rows cite a file keeps its own rows.
+              const drawShape = shapeRequest && !rowCitations.some(c => c.length > 0) ? shapeRequest : undefined;
               const shapeStart = performance.now();
               const [built, askback] = await Promise.all([
-                shapeRequest ? buildShape(shapeRequest, evidence, ctx.db, ctx.orgId) : Promise.resolve(null),
+                drawShape ? buildShape(drawShape, evidence, ctx.db, ctx.orgId, { rows: answer.rows, access }) : Promise.resolve(null),
                 answer.askback ? attachPeople(answer.askback, refIndex, ctx.db, ctx.orgId) : Promise.resolve(undefined),
               ]);
               if (shapeRequest || answer.askback) shapeMs = Math.round(performance.now() - shapeStart);

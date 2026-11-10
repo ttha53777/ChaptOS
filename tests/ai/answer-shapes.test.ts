@@ -221,7 +221,9 @@ describe("people cards", () => {
       member: { listRoster: async () => [
         { id: 1, name: "Chris Lee", role: "Rush chair", attendance: 92, duesOwed: 0, gpa: 3.4, serviceHours: 5 },
         { id: 2, name: "Chris Okafor", role: "Member", attendance: 70, duesOwed: 0, gpa: 3.1, serviceHours: 2 },
-      ] },
+      ],
+      // orgStanding's `measured` aggregate (a few people, not the roster).
+      aggregate: async () => ({ _max: { attendance: 92, gpa: 3.4, serviceHours: 5, duesOwed: 0 }, _min: { duesOwed: 0 } }) },
       organizationConfig: { find: async () => null },
     } as never;
     const out = await attachPeople({

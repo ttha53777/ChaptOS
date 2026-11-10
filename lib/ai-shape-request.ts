@@ -6,9 +6,27 @@
 import { isValidCalendarDate } from "@/lib/dates";
 import type { TallyMetric } from "@/lib/api-types";
 
-export const SHAPE_TYPES = ["tally", "breakdown", "week", "missing"] as const;
+/** The shapes that shipped before the list forms (docs/ask-chapt-list-forms-plan.md). */
+export const LEGACY_SHAPE_TYPES = ["tally", "breakdown", "week", "missing"] as const;
+/** The list forms: each replaces the plain row list when every record qualifies. */
+export const FORM_SHAPE_TYPES = [] as const;
+export const SHAPE_TYPES = [...LEGACY_SHAPE_TYPES, ...FORM_SHAPE_TYPES] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
 export const TALLY_METRICS = ["owes_dues", "at_risk", "no_service_hours"] as const satisfies readonly TallyMetric[];
+
+/**
+ * ASK_CHAPT_FORMS=1 offers the list forms to the model (schema + prompt) and
+ * builds them. Off, the model is never told they exist and a request for one is
+ * dropped; clients always know how to draw them either way.
+ */
+export function formsEnabled(): boolean {
+  return process.env.ASK_CHAPT_FORMS === "1";
+}
+
+/** The shape types advertised in compose_answer's schema this deployment. */
+export function offeredShapeTypes(): string[] {
+  return formsEnabled() ? [...SHAPE_TYPES] : [...LEGACY_SHAPE_TYPES];
+}
 
 /** What the model asked for, sanitized. Never reaches the wire. */
 export interface ShapeRequest {
@@ -23,7 +41,7 @@ export interface ShapeRequest {
 export function parseShapeRequest(raw: unknown): ShapeRequest | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const r = raw as Record<string, unknown>;
-  if (typeof r.type !== "string" || !(SHAPE_TYPES as readonly string[]).includes(r.type)) return undefined;
+  if (typeof r.type !== "string" || !offeredShapeTypes().includes(r.type)) return undefined;
   const metric = typeof r.metric === "string" && (TALLY_METRICS as readonly string[]).includes(r.metric)
     ? (r.metric as TallyMetric) : undefined;
   const start = typeof r.start === "string" && isValidCalendarDate(r.start) ? r.start : undefined;

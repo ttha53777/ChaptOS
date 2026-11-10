@@ -442,7 +442,7 @@ html[data-aesthetic="paper"] .chat-root .inbox-empty .note { color: var(--muted)
    1:1 with _design/Ask Chapt Reply States.html §02, §03, §05, §08. Mock tokens
    map: --paper-3 → --card-3, --line-2 → --line-med, --ink-2 → --ink-soft,
    --ink-3 → --muted, pastels → --pp-*. Category colours arrive as the
-   --pcc/--pcf/--pcs/--pcb triplet (catVars in AnswerShape.tsx, = catStyleOf). */
+   --pcc/--pcf/--pcs/--pcb triplet (catVars in chat/shapes/common.tsx, = catStyleOf). */
 html[data-aesthetic="paper"] .chat-root .shp { margin-top: 12px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--card); }
 html[data-aesthetic="paper"] .chat-root .shp-kicker { font-family: var(--font-geist-mono); font-size: 9.9px; font-weight: 600; letter-spacing: .1em; color: var(--muted); }
 html[data-aesthetic="paper"] .chat-root .shp-legend { font-family: var(--font-geist-sans); font-size: 11.5px; color: var(--muted); }

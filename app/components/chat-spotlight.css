@@ -728,7 +728,7 @@
   .chat-root *, .chat-root *::before, .chat-root *::after { animation: none !important; transition: none !important; }
 }
 
-/* ── Answer shapes (app/components/chat/AnswerShape.tsx) ──────────────────────
+/* ── Answer shapes (app/components/chat/shapes/) ─────────────────────────────
    The picture an answer is drawn as when a list isn't it — tally (the roster as
    dots), breakdown (a ranked share of a total), week (seven days). Ledger look
    here; the paper look, matched to _design/Ask Chapt Reply States.html, is in
@@ -867,3 +867,28 @@
 .chat-root .closest { margin-top: 14px; }
 .chat-root .closest .reslist { margin-top: 6px; }
 @media (prefers-reduced-motion: reduce) { .chat-root .lk, .chat-root .nomatch { animation: none; } }
+
+/* ── List forms (docs/ask-chapt-list-forms-plan.md) ───────────────────────────
+   The forms that replace the plain row list when every record qualifies. The
+   layout lives here (the Ledger look); app/paper-chat-forms.css is the paper
+   skin, matched to _design/Ask Chapt List Forms Mock.html. */
+
+/* shared: the date stub every dated row wears, the one-line fold */
+.chat-root .shp-stub { display: grid; width: 38px; flex: none; border: 1px solid var(--line-med); border-radius: 8px; overflow: hidden; text-align: center; line-height: 1; background: var(--card); }
+.chat-root .shp-stub b { padding: 3px 0 2px; font-family: var(--mono); font-size: 8px; font-weight: 600; letter-spacing: .1em; background: var(--card-2); color: var(--muted); }
+.chat-root .shp-stub i { padding: 4px 0 5px; font-style: normal; font-family: var(--serif); font-size: 16px; color: var(--ink); }
+.chat-root .shp-stub.sm { width: 28px; border-radius: 7px; }
+.chat-root .shp-stub.sm b { font-size: 6.7px; padding: 2px 0 1px; }
+.chat-root .shp-stub.sm i { font-size: 12.5px; padding: 2px 0 3px; }
+.chat-root .shp-stub.late b { background: var(--risk-bg); color: var(--risk); }
+.chat-root .shp-stub.now b { background: var(--warn-bg); color: var(--warn); }
+.chat-root .shp-stub.week b { background: var(--vio-bg); color: var(--vio); }
+.chat-root .shp-stub.was i { color: var(--faint); }
+.chat-root .shp-fold { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px; border: 0; border-top: 1px dashed var(--line-med); background: none; text-align: left; font-size: 13px; color: var(--muted); cursor: pointer; }
+.chat-root .shp-fold:hover { color: var(--ink); }
+.chat-root .shp-fold .tx { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-root .shp-fold b { font-weight: 600; color: var(--ink-soft); }
+.chat-root .shp-fold-m { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 6px; background: var(--ok-bg); color: var(--ok); }
+.chat-root .shp-fold .chev { display: inline-flex; color: var(--faint); transition: transform .18s; }
+.chat-root .shp-fold[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.chat-root .shp .inert { cursor: default; }
