@@ -845,23 +845,6 @@ html[data-aesthetic="paper"] .dash .tl-add-btn.ghost { --bg: var(--card); --fg: 
 html[data-aesthetic="paper"] .dash .tl-add-actions > .tl-add-btn.ghost:first-child { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
 html[data-aesthetic="paper"] .dash .tl-add-actions > .tl-add-btn.ghost:first-child:hover { border-color: var(--muted); color: var(--ink); box-shadow: none; transform: translateY(-1px); }
 
-/* glance: the four measures press like keys, each in its own ink */
-/* .dash.dash-timeline out-specifies the dashboard's own .dash .ledger breakpoints */
-html[data-aesthetic="paper"] .dash.dash-timeline .ledger { grid-template-columns: repeat(4, minmax(0,1fr)); }
-html[data-aesthetic="paper"] .dash-timeline .measure { cursor: pointer; position: relative; }
-html[data-aesthetic="paper"] .dash-timeline .measure:nth-child(1) { --c: var(--pp-sky-ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure:nth-child(2) { --c: var(--pp-lilac-ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure:nth-child(3) { --c: var(--pp-butter-ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure:nth-child(4) { --c: var(--pp-peach-ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure:hover { transform: translateY(-2px); box-shadow: var(--pp-sh-2); border-color: var(--line-med); background: var(--card); }
-html[data-aesthetic="paper"] .dash-timeline .measure.on { border-color: var(--ink); box-shadow: 3px 3px 0 var(--c); transform: translate(-1px,-1px); background: var(--card); }
-html[data-aesthetic="paper"] .dash-timeline .measure.on::after { display: none; }
-html[data-aesthetic="paper"] .dash-timeline .measure.flag { background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); }
-html[data-aesthetic="paper"] .dash-timeline .measure.flag.on { border-color: var(--ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure.flag .v { color: var(--ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure .note.warn { color: var(--pp-butter-ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure .note.bad { color: var(--pp-peach-ink); }
-html[data-aesthetic="paper"] .dash-timeline .measure:focus-visible { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; box-shadow: none; }
 
 /* filter tabs, legend, scope */
 html[data-aesthetic="paper"] .dash .tl-toolbar { margin-top: 24px; gap: 12px; flex-wrap: wrap; }
@@ -1122,8 +1105,6 @@ html[data-aesthetic="paper"] .dash .gd {
 }
 @keyframes pp-swap { from { opacity: 0; transform: translateY(6px); } }
 html[data-aesthetic="paper"] .dash .gd { --pcf: var(--pp-sky); --pcs: var(--pp-sky-soft); }
-html[data-aesthetic="paper"] .dash .gd:has(.gd-overdue) { --pcf: var(--pp-peach); }
-html[data-aesthetic="paper"] .dash .gd:has(.gd-required) { --pcf: var(--pp-lilac); }
 html[data-aesthetic="paper"] .dash .ev-top { justify-content: flex-start; gap: 4px; padding: 10px 10px 0 8px; background: var(--pcs); }
 html[data-aesthetic="paper"] .dash .gd .ev-top { background: none; }
 html[data-aesthetic="paper"] .dash .ev-back {
@@ -1275,7 +1256,6 @@ html[data-aesthetic="paper"] .dash .gd-hero { padding: 6px 18px 16px; border: 0;
 html[data-aesthetic="paper"] .dash .gd-hero::before { display: none; }
 html[data-aesthetic="paper"] .dash .gd-hero .k { font-family: var(--font-geist-sans); font-size: .7rem; font-weight: 700; letter-spacing: .1em; color: var(--muted); }
 html[data-aesthetic="paper"] .dash .gd-hero .v { margin-top: 0; font-family: var(--font-fraunces); font-weight: 600; font-size: 3rem; letter-spacing: -.05em; line-height: 1; color: var(--ink); }
-html[data-aesthetic="paper"] .dash .gd-hero.gd-overdue .v { color: var(--pp-peach-ink); }
 html[data-aesthetic="paper"] .dash .gd-hero .blurb { margin-top: 4px; font-family: var(--font-geist-sans); font-style: normal; font-size: .84rem; color: var(--ink-soft); }
 html[data-aesthetic="paper"] .dash .gd .then-card { border-radius: 0; border: 0; border-top: 1px dashed var(--line-med); }
 html[data-aesthetic="paper"] .dash .gd-empty { padding: 16px 18px; border: 0; border-top: 1px dashed var(--line-med); border-radius: 0; background: none; font-size: .86rem; color: var(--muted); }
@@ -1298,7 +1278,6 @@ html[data-aesthetic="paper"] .dash .gd-empty { padding: 16px 18px; border: 0; bo
 }
 @media (max-width: 900px) {
   html[data-aesthetic="paper"] .dash.dash-timeline .briefing { grid-template-columns: minmax(0,1fr); gap: 18px; }
-  html[data-aesthetic="paper"] .dash.dash-timeline .ledger { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 @media (max-width: 760px) {
   html[data-aesthetic="paper"] .dash .tl-add-actions { justify-content: flex-start; }

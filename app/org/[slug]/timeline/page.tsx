@@ -120,15 +120,6 @@ function paperBurst(from: HTMLElement) {
   }
 }
 
-// Glance-strip measures — clicking one opens its breakdown in the rail.
-type GlanceMetric = "week" | "required" | "deadlines" | "overdue";
-const GLANCE_TITLE: Record<GlanceMetric, string> = {
-  week:      "This week",
-  required:  "Required this month",
-  deadlines: "Upcoming deadlines",
-  overdue:   "Overdue",
-};
-
 // Filter layers — mono segmented control. `mandatory` reads as "Required".
 const LAYERS: { id: CalLayer; label: string }[] = [
   { id: "all",       label: "All" },
@@ -1188,65 +1179,6 @@ function EventDetail({
   );
 }
 
-// ─── GlanceDetail (rail, when a glance measure is clicked) ───────────────────
-
-function GlanceDetail({
-  metric, events, weekStart, weekEnd, onClose, onSelectEvent,
-}: {
-  metric: GlanceMetric;
-  events: CalendarEvent[];
-  weekStart: string;
-  weekEnd: string;
-  onClose: () => void;
-  onSelectEvent: (e: CalendarEvent) => void;
-}) {
-  const types = useEventTypes();
-  const blurb: Record<GlanceMetric, string> = {
-    week:      `Events scheduled for ${fmtRange(weekStart, weekEnd)}.`,
-    required:  "Mandatory events this month — attendance is taken.",
-    deadlines: "Deadlines still ahead, soonest first.",
-    overdue:   "Incomplete deadlines past their due date.",
-  };
-  // Namespaced tone class — a bare "overdue" would collide with the global
-  // .overdue badge pill rule and tint the whole hero rose.
-  const tone = metric === "overdue" ? "gd-overdue" : metric === "required" ? "gd-required" : "";
-
-  return (
-    <div className="gd">
-      <div className="ev-top">
-        <button className="ev-back" onClick={onClose}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-      </div>
-
-      <div className={`gd-hero ${tone}`}>
-        <p className="k">{GLANCE_TITLE[metric]}</p>
-        <p className="v">{events.length}</p>
-        <p className="blurb">{blurb[metric]}</p>
-      </div>
-
-      {events.length === 0 ? (
-        <p className="gd-empty">{metric === "overdue" ? "Nothing overdue — all clear." : "Nothing in this window."}</p>
-      ) : (
-        <div className="then-card">
-          {events.map(ev => (
-            <button key={ev.id} className="then-row" style={catStyleOf(types, ev.category)} onClick={() => onSelectEvent(ev)}>
-              <span className="when">{fmtDow(ev.date)}<br />{fmtDate(ev.date)}</span>
-              <div className="what">
-                <p className="t">{ev.title}</p>
-                <p className="s">{catLabelOf(types, ev.category)}{ev.mandatory ? " · Required" : formatEventTime(ev.time, ev.schedule) ? ` · ${formatEventTime(ev.time, ev.schedule)}` : ""}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── TimelineTodo (rail, idle — "what needs me" action queue) ─────────────────
 
 /**
@@ -1355,7 +1287,6 @@ export default function TimelinePage() {
   const [sidebarOpen,     setSidebarOpen]     = useState(false);
   const [activeLayer,     setActiveLayer]     = useState<CalLayer>("all");
   const [selectedEvent,   setSelectedEvent]   = useState<CalendarEvent | null>(null);
-  const [glanceFocus,     setGlanceFocus]     = useState<GlanceMetric | null>(null);
   const [apiEvents,       setApiEvents]       = useState<CalendarEvent[]>([]);
   const [eventTypes,      setEventTypes]      = useState<CalEventType[]>([]);
   // Upcoming months the user has flipped away from their default open/closed state.
@@ -1686,7 +1617,6 @@ export default function TimelinePage() {
   }
 
   const todayStr = toDateStr(TODAY.year, TODAY.month, TODAY.day);
-  const monthPrefix = todayStr.slice(0, 7);
   const now = useNow();
 
   const timeline = useMemo(() => buildTimeline(filtered, now, todayStr), [filtered, now, todayStr]);
@@ -1717,7 +1647,7 @@ export default function TimelinePage() {
     [timeline, doneById],
   );
 
-  // ── Rail + glance derivations (global — independent of the active filter) ──
+  // ── Rail derivations (global — independent of the active filter) ──
   const { start: weekStart, end: weekEnd } = useMemo(() => isoWeekBounds(new Date()), []);
   const upcoming = useMemo(
     () => allEvents.filter(e => !isEventOver(e, now)).sort(compareEvents),
@@ -1730,15 +1660,9 @@ export default function TimelinePage() {
     [allEvents],
   );
 
-  // Per-metric event lists — counts are derived from .length so the glance
-  // numbers and the rail breakdowns can never drift apart.
   const weekEvents = useMemo(
     () => allEvents.filter(e => e.date >= weekStart && e.date <= weekEnd).sort(compareEvents),
     [allEvents, weekStart, weekEnd],
-  );
-  const requiredEvents = useMemo(
-    () => allEvents.filter(e => e.mandatory && e.date.startsWith(monthPrefix)).sort(compareEvents),
-    [allEvents, monthPrefix],
   );
   const deadlineEvents = useMemo(
     () => allEvents.filter(e => e.category === "deadline" && e.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date)),
@@ -1762,23 +1686,8 @@ export default function TimelinePage() {
     [taskList, todayStr],
   );
 
-  const thisWeekCount     = weekEvents.length;
-  const requiredThisMonth = requiredEvents.length;
-  const upcomingDeadlines = deadlineEvents.length;
   const deadlinesDueThisWeek = useMemo(() => deadlineEvents.filter(e => e.date <= weekEnd), [deadlineEvents, weekEnd]);
-  const deadlinesThisWeek = deadlinesDueThisWeek.length;
-  const overdueCount      = overdueEvents.length;
-
-  // The events behind whichever glance measure is focused.
-  const glanceEvents = useMemo<CalendarEvent[]>(() => {
-    switch (glanceFocus) {
-      case "week":      return weekEvents;
-      case "required":  return requiredEvents;
-      case "deadlines": return deadlineEvents;
-      case "overdue":   return overdueEvents;
-      default:          return [];
-    }
-  }, [glanceFocus, weekEvents, requiredEvents, deadlineEvents, overdueEvents]);
+  const overdueCount = overdueEvents.length;
 
   // The briefing line, read off the calendar (no model): what's left this week,
   // each with its day, then anything overdue — "3 things left this week —
@@ -2230,7 +2139,7 @@ export default function TimelinePage() {
   }, []);
 
   const brotherNames = useMemo(() => brotherList.map(b => b.name), [brotherList]);
-  const railOpen = !!(selectedEvent || glanceFocus || (view === "calendar" && calDayOpen));
+  const railOpen = !!(selectedEvent || (view === "calendar" && calDayOpen));
 
   const dateLabel = _now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const dateShort = _now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -2357,54 +2266,6 @@ export default function TimelinePage() {
             )}
 
             {!dayOne && <>
-            {/* ── Glance strip — each measure opens its breakdown in the rail ── */}
-            <section className="ledger" aria-label="Timeline measures">
-              <button
-                type="button"
-                className={`measure${glanceFocus === "week" ? " on" : ""}`}
-                aria-pressed={glanceFocus === "week"}
-                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "week" ? null : "week"); }}
-              >
-                <p className="k">This week</p>
-                <p className="v">{thisWeekCount}</p>
-                <p className="note">{fmtRange(weekStart, weekEnd)}</p>
-              </button>
-              <button
-                type="button"
-                className={`measure${glanceFocus === "required" ? " on" : ""}`}
-                aria-pressed={glanceFocus === "required"}
-                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "required" ? null : "required"); }}
-              >
-                <p className="k">Required</p>
-                <p className="v">{requiredThisMonth}</p>
-                <p className="note">this month</p>
-              </button>
-              <button
-                type="button"
-                className={`measure${glanceFocus === "deadlines" ? " on" : ""}`}
-                aria-pressed={glanceFocus === "deadlines"}
-                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "deadlines" ? null : "deadlines"); }}
-              >
-                <p className="k">Deadlines</p>
-                <p className="v">{upcomingDeadlines}</p>
-                <p className={deadlinesThisWeek > 0 ? "note warn" : "note"}>
-                  {deadlinesThisWeek > 0 ? `${deadlinesThisWeek} due this week` : "upcoming"}
-                </p>
-              </button>
-              <button
-                type="button"
-                className={`measure${overdueCount > 0 ? " flag" : ""}${glanceFocus === "overdue" ? " on" : ""}`}
-                aria-pressed={glanceFocus === "overdue"}
-                onClick={() => { setSelectedEvent(null); setGlanceFocus(f => f === "overdue" ? null : "overdue"); }}
-              >
-                <p className="k">Overdue</p>
-                <p className="v">{overdueCount}</p>
-                <p className={overdueCount > 0 ? "note bad" : "note"}>
-                  {overdueCount > 0 ? "need follow-up" : "all clear"}
-                </p>
-              </button>
-            </section>
-
             {/* ── Filter ───────────────────────────────────────────────────── */}
             <div className="tl-toolbar" ref={toolbarRef}>
               <div className="tl-seg" role="tablist" aria-label="Filter events">
@@ -2555,10 +2416,10 @@ export default function TimelinePage() {
                     month={calMonth}
                     onMonth={setCalMonth}
                     day={calDayOpen || selectedEvent ? calDay : ""}
-                    onDay={(d) => { pickCalDay(d); setCalDayOpen(true); setSelectedEvent(null); setGlanceFocus(null); }}
+                    onDay={(d) => { pickCalDay(d); setCalDayOpen(true); setSelectedEvent(null); }}
                     doneById={doneById}
                     selectedId={selectedEvent?.id ?? null}
-                    onSelect={(e) => { setGlanceFocus(null); setSelectedEvent(e); }}
+                    onSelect={setSelectedEvent}
                   />
                 ) : !hasEvents ? (
                   <div className="tl-empty filter" style={{ textAlign: "center", padding: "72px 0", color: "var(--faint)" }}>
@@ -2707,15 +2568,6 @@ export default function TimelinePage() {
                     onEditDetails={selectedEventCanEdit && selectedEvent.category !== "deadline" ? () => openEventModal("edit", 2) : undefined}
                     onDetailsChange={details => setEventDetails(selectedEvent.id, details)}
                   />
-                ) : glanceFocus ? (
-                  <GlanceDetail
-                    metric={glanceFocus}
-                    events={glanceEvents}
-                    weekStart={weekStart}
-                    weekEnd={weekEnd}
-                    onClose={() => setGlanceFocus(null)}
-                    onSelectEvent={setSelectedEvent}
-                  />
                 ) : view === "calendar" ? (
                   calDayOpen && (
                     <DayDetail
@@ -2789,7 +2641,7 @@ export default function TimelinePage() {
               {/* Below lg the rail is a bottom sheet over this scrim. */}
               {railOpen && (
                 <button type="button" className="tl-scrim" aria-label="Close" tabIndex={-1}
-                  onClick={() => { setSelectedEvent(null); setGlanceFocus(null); setCalDayOpen(false); }} />
+                  onClick={() => { setSelectedEvent(null); setCalDayOpen(false); }} />
               )}
             </div>
             </>}
