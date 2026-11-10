@@ -11,6 +11,8 @@ import { useState } from "react";
 import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
 import { ShapeBlock, isKnownShape } from "./shapes";
+import { PlanBlock, isPlanRows } from "./shapes/Plan";
+import { DrawerBlock, isDrawerRows } from "./shapes/Drawers";
 import { CitationChips } from "./CitationChips";
 import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 
@@ -269,13 +271,19 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
     else if (action === "ask") onAsk(row.ask!);
   };
   const shape = isKnownShape(answer.shape) ? answer.shape : null;
+  const cited = answer.rows.some(r => r.citations?.length);
   return (
     <div className="answer">
       <TraceBlock steps={steps} />
       <Verdict text={answer.verdict} />
       <CitationChips citations={answer.citations} onOpen={onCite} className="verdict-cites in in-2" />
       {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek }} renderRow={renderRow} />}
-      {!shape && answer.rows.length > 0 && (
+      {/* No server shape: two forms are decided here, from rows that already
+          arrive — tiered advice as a game plan, mixed kinds filed by drawer.
+          Rows carrying file citations keep the plain list (and their chips). */}
+      {!shape && !cited && isPlanRows(answer.rows) && <PlanBlock rows={answer.rows} h={{ selectedRow, act, onPeek }} />}
+      {!shape && !cited && !isPlanRows(answer.rows) && isDrawerRows(answer.rows) && <DrawerBlock rows={answer.rows} renderRow={renderRow} />}
+      {!shape && (cited || (!isPlanRows(answer.rows) && !isDrawerRows(answer.rows))) && answer.rows.length > 0 && (
         <div className="reslist in in-3">
           {answer.rows.map(renderRow)}
         </div>

@@ -66,6 +66,24 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
   refs.add("get_brother", { candidates: pair.map(b => ({ id: b.id, name: b.name, role: b.role })) });
   const askback = await attachPeople({ questions: [{ question: "Which one did you mean?", chips: pair.map(b => b.name) }] }, refs, scoped, org.id);
 
+  // Game plan: tiered advice, as an advisory answer sends it (client-only form).
+  const planRows = [
+    { kind: "generic", title: "Make the next two meetings mandatory", subtitle: "People skip what looks optional. Mark them, and an absence needs an excuse.", tier: "high", screen: SCREEN_PATHS.events },
+    { kind: "generic", title: "Close excuses at meeting time", subtitle: "Right now an excuse can be filed days later, so missing costs nothing.", tier: "high", screen: SCREEN_PATHS.settings },
+    { kind: "generic", title: "Send a reminder the morning of", subtitle: "One message with the time, the room and what's on the agenda.", tier: "medium", screen: SCREEN_PATHS.tasks },
+    { kind: "generic", title: "Put attendance on the dashboard", subtitle: "Members see their own number every time they open the app.", tier: "medium", screen: SCREEN_PATHS.dashboard },
+    { kind: "generic", title: "Pair one meeting a month with a dinner", tier: "later", screen: SCREEN_PATHS.events },
+    { kind: "generic", title: "Ask the three lowest what gets in the way", tier: "later", screen: SCREEN_PATHS.roster },
+  ];
+  // By drawer: mixed kinds, each with the ref the route attaches.
+  const someEvent = (await scoped.calendarEvent.findFirst({ orderBy: { date: "desc" }, select: { id: true, title: true, date: true } }))!;
+  const someTasks = await scoped.task.findMany({ where: { dueDate: { not: null } }, take: 2, select: { id: true, title: true, dueDate: true } });
+  const drawerRows = [
+    { kind: "event", title: someEvent.title, subtitle: someEvent.date, ref: { type: "event", id: someEvent.id } },
+    ...someTasks.map(t => ({ kind: "task", title: t.title, subtitle: `Due ${t.dueDate}`, ref: { type: "task", id: t.id } })),
+    { kind: "person", title: roster[0].name, subtitle: roster[0].role, value: `$${roster[0].duesOwed}`, ref: { type: "member", id: roster[0].id } },
+  ];
+
   const ledger = (verb: string, source: string, finding: string) => [
     frame("step", { id: "0", verb, source }), frame("step_start", { id: "0" }), frame("step_done", { id: "0", finding }),
   ].join("");
@@ -79,6 +97,8 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     money: ledger("Summing spending by category", "Treasury", "by category") + answer("*Most of it* went to the top category.", brk, ["Treasury", "Budget"]),
     week: ledger("Scanning the calendar", "Events", "this week") + answer("Here's *this week*.", week, ["Events", "Tasks"]),
     beach: ledger("Searching the calendar", "Events", "none found") + answer(`I couldn't find a *${TERM}* anywhere.`, missing, ["Events", "Service", "Programming"], { follows: [{ label: "Add it to Programming", ask: `Add ${TERM} to Programming` }] }),
+    plan: ledger("Reading attendance", "Attendance", "72% avg") + frame("answer", { verdict: "Start with the *two that cost nothing*.", rows: planRows, follows: [], sources: ["Attendance"] }),
+    drawer: ledger("Searching everything", "Timeline", "4 found") + frame("answer", { verdict: "*Four things* in three places.", rows: drawerRows, follows: [], sources: ["Timeline", "Tasks", "Roster"] }),
     which: ledger("Looking up the name", "Brotherhood", "2 matches") + frame("answer", { verdict: "There are *two* matches on the roster.", rows: [], follows: [], sources: ["Brotherhood"], askback }),
   };
 
@@ -123,6 +143,8 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     ["3-week", "what's on this week", ".shp-wk"],
     ["4-which", "how is which one doing", ".ab-people"],
     ["5-missing", "did anyone sign up for the beach cleanup", ".shp-miss"],
+    ["11-plan", "plan to get attendance up", ".gp"],
+    ["8-drawer", "drawer: what do we have on the retreat", ".mx"],
   ];
   for (const [n, q, sel] of SHOTS.filter(([n]) => !CASES || CASES.has(n))) {
     await p.fill(".cs-dock textarea", q);

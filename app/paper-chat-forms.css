@@ -29,3 +29,44 @@ html[data-aesthetic="paper"] .chat-root .shp-fold-m { border: 1.5px solid var(--
 
 /* Selection on any form's row: the same lilac wash the plain rows use. */
 html[data-aesthetic="paper"] .chat-root .shp .sel { background: var(--pp-lilac-soft); box-shadow: none; }
+
+/* ── 11 Game plan ─────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .gp-l::after { border-top-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .gp-c {
+  border: 1.5px solid var(--ink); border-radius: 16px; background: var(--card); box-shadow: 3px 3px 0 var(--pp-butter);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .gp-c:hover:not(:disabled),
+html[data-aesthetic="paper"] .chat-root .gp-c.sel { transform: translate(-1.5px,-1.5px); box-shadow: 5px 5px 0 var(--pp-butter); border-color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .chat-root .gp-no { width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid var(--ink); background: var(--pp-butter); font-family: var(--font-geist-mono); font-size: 12px; font-weight: 600; color: var(--pp-note-ink); }
+html[data-aesthetic="paper"] .chat-root .gp-c .t { font-family: var(--font-fraunces); font-weight: 600; font-size: 16.5px; letter-spacing: -.02em; margin-top: 4px; }
+html[data-aesthetic="paper"] .chat-root .gp-c .s { font-family: var(--font-geist-sans); font-size: 13px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .go { padding: 2px 10px; border: 1.5px solid var(--line-med); font-family: var(--font-geist-sans); font-size: 11.8px; font-weight: 600; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .go.plus,
+html[data-aesthetic="paper"] .chat-root .go.ask { border-style: dashed; border-color: var(--pp-lilac-ink); color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .chat-root button:hover:not(:disabled) .go:not(.plus):not(.ask) { border-color: var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .gp-2 { border: 1.5px solid var(--line); border-radius: 16px; }
+html[data-aesthetic="paper"] .chat-root .gp-r { border-top-color: var(--line-soft); }
+html[data-aesthetic="paper"] .chat-root .gp-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .gp-r .gp-no { background: var(--pp-butter-soft); }
+html[data-aesthetic="paper"] .chat-root .gp-r .t { font-family: var(--font-geist-sans); font-weight: 600; font-size: 14px; }
+html[data-aesthetic="paper"] .chat-root .gp-r .s { font-size: 12.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .gp-3 .gp-no { background: none; border-style: dashed; border-color: var(--line-med); box-shadow: none; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .gp-3 .t { font-weight: 500; color: var(--ink-soft); font-size: 13.8px; }
+
+/* ── 08 By drawer ─────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .dr { --c: var(--card-3); --cs: var(--paper-2); --cb: var(--line); --ci: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .dr.hue-rose   { --c: var(--pp-rose);   --cs: var(--pp-rose-soft);   --cb: var(--pp-rose-bd);   --ci: var(--pp-rose-ink); }
+html[data-aesthetic="paper"] .chat-root .dr.hue-sky    { --c: var(--pp-sky);    --cs: var(--pp-sky-soft);    --cb: var(--pp-sky-bd);    --ci: var(--pp-sky-ink); }
+html[data-aesthetic="paper"] .chat-root .dr.hue-butter { --c: var(--pp-butter); --cs: var(--pp-butter-soft); --cb: var(--pp-butter-bd); --ci: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .chat-root .dr.hue-mint   { --c: var(--pp-mint);   --cs: var(--pp-mint-soft);   --cb: var(--pp-mint-bd);   --ci: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .chat-root .dr.hue-lilac  { --c: var(--pp-lilac);  --cs: var(--pp-lilac-soft);  --cb: var(--pp-lilac-bd);  --ci: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .chat-root .dr-tab {
+  margin-bottom: -1.5px; border: 1.5px solid var(--ink); border-bottom-color: var(--c); background: var(--c);
+  font-family: var(--font-geist-sans); font-size: 12px; font-weight: 700; color: var(--pp-note-ink);
+}
+html[data-aesthetic="paper"] .chat-root .dr-tab i { color: var(--pp-note-ink); opacity: .7; }
+html[data-aesthetic="paper"] .chat-root .dr .dr-b { padding: 0; border: 1.5px solid var(--ink); border-radius: 14px; box-shadow: inset 0 5px 0 var(--c); }
+html[data-aesthetic="paper"] .chat-root .dr .dr-b .res:first-child { padding-top: 13px; }
+html[data-aesthetic="paper"] .chat-root .dr .res .glyph { background: var(--cs); border-color: var(--cb); color: var(--ci); }
+html[data-aesthetic="paper"] .chat-root .gp-r.sel { background: var(--pp-lilac-soft); }
