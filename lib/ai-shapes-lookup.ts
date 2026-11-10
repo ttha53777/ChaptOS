@@ -18,12 +18,12 @@ import { hasPermission } from "@/lib/permissions";
 import type { ShapeRequest } from "@/lib/ai-shape-request";
 import { listItems, type ShapeEvidence } from "@/lib/ai-shape-evidence";
 import { DATE_RE, isValidCalendarDate } from "@/lib/dates";
-import type { PeekCard, RecordShape, ZeroShape } from "@/lib/api-types";
+import type { PeekCard, RecordShape, RefType, ZeroShape } from "@/lib/api-types";
 import type { BuiltShape } from "@/lib/ai-shapes";
 import { periodLabel } from "@/lib/ai-shapes-calendar";
 
 type Scoped = ReturnType<typeof db>;
-interface Opts { rows: AnswerRow[]; today: string; access?: ToolAccess; peek?: (type: "member" | "event" | "task", id: number) => Promise<PeekCard> }
+interface Opts { rows: AnswerRow[]; today: string; access?: ToolAccess; peek?: (type: RefType, id: number) => Promise<PeekCard> }
 
 export const RECORD_MAX = 2;
 export const ZERO_INSTEAD_MAX = 5;

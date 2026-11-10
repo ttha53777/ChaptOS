@@ -440,3 +440,28 @@ describe("zero (Nothing yet)", () => {
     expect(checkVerdict("*None* filed as Service this term.", built.shape, built.rows).ok).toBe(true);
   });
 });
+
+// ── Money ───────────────────────────────────────────────────────────────────
+import { receiptFromLines, type Line } from "@/lib/ai-shapes-money";
+import { createRefIndex } from "@/lib/ai-refs";
+import type { ReceiptShape } from "@/lib/api-types";
+
+describe("receipt (pure)", () => {
+  const L = (id: number, type: "income" | "expense", cents: number, date: string, pending = false): Line =>
+    ({ id, title: `L${id}`, date, raw: {}, cents, type, category: "formal", pending });
+
+  it("leads with what the lines contain, and never sums a cut set", () => {
+    const out = receiptFromLines({ lines: [L(1, "expense", 5000, "2026-10-01"), L(2, "expense", 2500, "2026-10-02")], kicker: "Formal", categoryLabels: new Map(), rows: [] })!;
+    expect((out.shape as ReceiptShape)).toMatchObject({ headline: "out", totals: { out: 7500, in: 0, net: -7500 } });
+    const many = Array.from({ length: 30 }, (_, k) => L(k + 1, "expense", 100, `2026-10-${String(k + 1).padStart(2, "0")}`));
+    const cut = receiptFromLines({ lines: many, kicker: "x", categoryLabels: new Map(), rows: [] })!;
+    expect((cut.shape as ReceiptShape)).toMatchObject({ totals: null, truncated: { of: 30 } });
+    expect((cut.shape as ReceiptShape).items[0].date).toBe("2026-10-07"); // the newest 24, oldest first
+  });
+
+  it("a ledger line becomes a transaction ref for a money row", () => {
+    const idx = createRefIndex();
+    idx.add("list_transactions", [{ id: 41, description: "Venue hold", date: "2026-10-21" }]);
+    expect(idx.lookup("Venue hold", "money")).toEqual({ type: "transaction", id: 41 });
+  });
+});

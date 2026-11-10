@@ -33,7 +33,7 @@ import { buildDuesBoard } from "@/lib/services/dues-charge-service";
 import { loadDuesLedger } from "@/lib/dues-ledger-db";
 import { duesPaymentWhere } from "@/lib/dues";
 import { compareLines } from "@/lib/dues-ledger";
-import { ExcuseStatus } from "@/lib/state";
+import { ExcuseStatus, ReimbursementStatus, TransactionStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
 import { offeredShapeTypes, formsEnabled, TALLY_METRICS, RANK_METRICS, ROLL_SPLITS, YESNO_TESTS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
@@ -431,6 +431,29 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: { type: "object", properties: {} },
     },
   },
+  // List forms (ASK_CHAPT_FORMS): individual ledger lines, so a Receipt can sum
+  // exactly the lines it shows. Offered only with the forms.
+  ...(formsEnabled() ? [{
+    type: "function" as const,
+    function: {
+      name: "list_transactions",
+      description:
+        "Individual ledger lines (id, date, type, amount, category, description, pending) for a filter — use when the answer is a set of payments ('what have we spent on formal', 'what came in from ticket sales'). " +
+        "For a total alone, sum_transactions is cheaper.",
+      parameters: {
+        type: "object",
+        properties: {
+          start:       { type: "string", description: "Inclusive YYYY-MM-DD start." },
+          end:         { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          category:    { type: "string", description: "One category slug." },
+          type_filter: { type: "string", enum: ["income", "expense"] },
+          event_id:    { type: "integer", description: "Only lines linked to this calendar event." },
+          search:      { type: "string", description: "Description contains (case-insensitive)." },
+          limit:       { type: "integer", minimum: 1, maximum: 100, description: "Default 50." },
+        },
+      },
+    },
+  }] : []),
   {
     type: "function",
     function: {
@@ -1069,6 +1092,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                 split:   { type: "string", enum: [...ROLL_SPLITS], description: "roll only." },
                 test:    { type: "string", enum: [...YESNO_TESTS], description: "yesno only." },
                 focus:   { type: "string", enum: ["open", "done"], description: "status only." },
+                headline: { type: "string", enum: ["out", "in", "net"], description: "receipt only: which total leads." },
               } : {}),
               start:  { type: "string", description: "week only: the first day, YYYY-MM-DD." },
               term:   { type: "string", description: "missing only: the name of the thing that wasn't found, ≤60 chars." },
@@ -1105,7 +1129,7 @@ export interface AnswerRow {
    * the chat route by matching the title against ids seen in this turn's tool
    * results. See lib/ai-refs.
    */
-  ref?: { type: "member" | "event" | "task"; id: number };
+  ref?: { type: "member" | "event" | "task" | "transaction"; id: number };
   /**
    * Impact tier for an advisory row, rendered in the same mono slot a data row
    * uses for its figure. Advisory rows are RANKED — that order is the argument —
@@ -1925,6 +1949,47 @@ async function getTreasury(scoped: Scoped): Promise<ToolResult> {
     breakdown: { openingBalance: openingBalance == null ? null : r2(openingBalance), doorRevenue: r2(doorRevenue), income: r2(income), expense: r2(expense) },
     recentTransactions: transactions.map(t => ({ ...t, amount: r2(t.amount) })),
   };
+}
+
+/** Ledger lines for a filter, newest first. Same audience as get_treasury and /api/transactions: any member. */
+async function listTransactions(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {
+  const start = typeof args.start === "string" && DATE_RE.test(args.start) ? args.start : undefined;
+  const end   = typeof args.end   === "string" && DATE_RE.test(args.end)   ? args.end   : undefined;
+  const category = typeof args.category === "string" && args.category.trim() ? args.category.trim() : undefined;
+  const typeFilter = args.type_filter === "income" || args.type_filter === "expense" ? args.type_filter : undefined;
+  const eventId = typeof args.event_id === "number" && Number.isInteger(args.event_id) ? args.event_id : undefined;
+  const search = typeof args.search === "string" && args.search.trim() ? args.search.trim() : undefined;
+  const rows = await scoped.transaction.findMany({
+    where: {
+      deletedAt: null,
+      ...(start || end ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
+      ...(category ? { category } : {}),
+      ...(typeFilter ? { type: typeFilter } : {}),
+      ...(eventId ? { calendarEvents: { some: { calendarEventId: eventId } } } : {}),
+      ...(search ? { description: { contains: search, mode: "insensitive" } } : {}),
+    },
+    orderBy: { date: "desc" },
+    take: clampLimit(args.limit, 50),
+    select: {
+      id: true, date: true, type: true, amount: true, amountCents: true, category: true, description: true, status: true,
+      reimbursement: { select: { status: true } },
+    },
+    // The scoped wrapper isn't select-narrowed in its return type; this is the runtime shape.
+  }) as unknown as Array<{
+    id: number; date: string; type: string; amount: number; amountCents: bigint | null; category: string;
+    description: string; status: string; reimbursement: { status: string } | null;
+  }>;
+  return listResult(rows.map(t => ({
+    id: t.id,
+    date: t.date,
+    type: t.type,
+    amount: r2(t.amount),
+    amountCents: t.amountCents != null ? Number(t.amountCents) : Math.round(t.amount * 100),
+    category: t.category,
+    description: t.description,
+    // Not settled yet: planned, or fronted by a member who hasn't been paid back.
+    pending: t.status === TransactionStatus.Scheduled || t.reimbursement?.status === ReimbursementStatus.Pending,
+  })), !!(start || end || category || typeFilter || eventId || search));
 }
 
 async function getBudget(scoped: Scoped): Promise<ToolResult> {
@@ -3624,6 +3689,7 @@ const READ_HANDLERS: Record<string, (args: ToolArgs, scoped: Scoped, orgId: numb
   list_parties:            (args, scoped) => listParties(args, scoped),
   sum_transactions:        (args, scoped) => sumTransactions(args, scoped),
   get_treasury:            (_args, scoped) => getTreasury(scoped),
+  list_transactions:       (args, scoped) => listTransactions(args, scoped),
   get_budget:              (_args, scoped) => getBudget(scoped),
   recent_activity:         (args, scoped) => recentActivity(args, scoped),
   weekly_digest:           (_args, scoped, orgId, now) => weeklyDigest(scoped, orgId, now),
@@ -3789,6 +3855,14 @@ export const TOOL_UI: Record<string, ToolUiMeta> = {
       return typeof b === "number" ? `${fmtUsd(b)} on hand` : null;
     },
   },
+  // Offered with the list forms only (see TOOLS), so its ledger line is too.
+  ...(formsEnabled() ? {
+    list_transactions: {
+      verb: "Reading the ledger",
+      source: "Treasury",
+      finding: countFinding("line"),
+    },
+  } : {}),
   get_budget: {
     verb: "Opening the budget",
     source: "Budget",

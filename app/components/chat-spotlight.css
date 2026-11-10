@@ -1187,3 +1187,28 @@
 }
 .chat-root .rec-card .peek-id { flex-wrap: wrap; row-gap: 8px; }
 .chat-root .shp-recs.two .rec-val { flex-basis: 100%; padding-left: 50px; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
+
+/* receipt */
+.chat-root .rcp-top { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px 16px; padding: 14px 16px; }
+.chat-root .rcp-n { font-family: var(--serif); font-weight: 600; font-size: 38px; letter-spacing: -.04em; line-height: .95; margin-top: 4px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.chat-root .rcp-n small { font-size: .5em; color: var(--faint); letter-spacing: -.02em; }
+.chat-root .rcp-cut { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.chat-root .rcp-d { margin: 0 0 4px auto; padding: 3px 10px; border-radius: 999px; background: var(--ok-bg); color: var(--ok); font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.chat-root .rcp-d.neg { background: var(--risk-bg); color: var(--risk); }
+.chat-root .rcp-tear { border-top: 1px dashed var(--line-med); }
+.chat-root .rcp-rows { padding: 4px 8px 6px; }
+.chat-root .rcp-r { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; width: 100%; padding: 7px 8px; border: 0; border-top: 1px dotted var(--line-med); border-radius: 0; background: none; text-align: left; cursor: pointer; }
+.chat-root .rcp-r:first-child { border-top: 0; }
+.chat-root .rcp-r:hover:not(:disabled) { background: var(--card-2); }
+.chat-root .rcp-r.sel { background: var(--vio-bg); }
+.chat-root .rcp-r .dt { font-family: var(--mono); font-size: 11px; color: var(--faint); white-space: nowrap; }
+.chat-root .rcp-r .rb .t { white-space: normal; }
+.chat-root .rcp-r .pend { margin-left: 7px; padding: 0 7px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); font-size: 10.5px; font-weight: 600; vertical-align: 1px; white-space: nowrap; }
+.chat-root .rcp-r .a { font-family: var(--mono); font-size: 13px; white-space: nowrap; color: var(--ink); }
+.chat-root .rcp-r.in .a { color: var(--ok); font-weight: 600; }
+.chat-root .rcp-sum { padding: 10px 16px 14px; display: grid; gap: 4px; font-size: 13px; }
+.chat-root .rcp-sum div { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-soft); }
+.chat-root .rcp-sum .mono { font-family: var(--mono); color: var(--ink); }
+.chat-root .rcp-sum .in .mono { color: var(--ok); }
+.chat-root .rcp-sum .net { margin-top: 5px; padding-top: 8px; border-top: 3px double var(--ink); font-weight: 600; color: var(--ink); }
+@media (max-width: 600px) { .chat-root .rcp-d { margin-left: 0; } }

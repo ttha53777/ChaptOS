@@ -226,3 +226,27 @@ html[data-aesthetic="paper"] .chat-root .zr-b .s svg { color: var(--pp-lilac-ink
 html[data-aesthetic="paper"] .chat-root .zr-near { border-top-color: var(--line-med); }
 html[data-aesthetic="paper"] .chat-root .zr-near button { border: 1.5px solid var(--line-med); font-family: var(--font-geist-sans); font-weight: 600; transition: border-color .15s, color .15s; }
 html[data-aesthetic="paper"] .chat-root .zr-near button i { background: var(--card-3); font-family: var(--font-geist-mono); }
+
+/* ── 09 Receipt ───────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .shp-rcp { border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .rcp-n { font-family: var(--font-fraunces); font-weight: 650; font-size: clamp(32px, 6vw, 41px); letter-spacing: -.045em; }
+html[data-aesthetic="paper"] .chat-root .rcp-n small { color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .rcp-cut { font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .chat-root .rcp-d { background: var(--pp-mint-soft); border: 1.5px solid var(--pp-mint-bd); color: var(--pp-mint-ink); font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .chat-root .rcp-d.neg { background: var(--pp-peach-soft); border-color: var(--pp-peach-bd); color: var(--pp-peach-ink); }
+/* the tear: a dashed rule with a ticket notch at each end */
+html[data-aesthetic="paper"] .chat-root .rcp-tear { position: relative; border-top: 1.5px dashed var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .rcp-tear::before,
+html[data-aesthetic="paper"] .chat-root .rcp-tear::after { content: ''; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .chat-root .rcp-tear::before { left: -9px; clip-path: inset(0 0 0 50%); }
+html[data-aesthetic="paper"] .chat-root .rcp-tear::after { right: -9px; clip-path: inset(0 50% 0 0); }
+html[data-aesthetic="paper"] .chat-root .rcp-r { border-top-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .rcp-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .rcp-r .dt { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .rcp-r .pend { background: var(--pp-butter-soft); border: 1.5px solid var(--pp-butter-bd); color: var(--pp-butter-ink); font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .chat-root .rcp-r .a { font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .chat-root .rcp-r.in .a { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .chat-root .rcp-sum { font-family: var(--font-geist-sans); }
+html[data-aesthetic="paper"] .chat-root .rcp-sum .mono { font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .chat-root .rcp-sum .in .mono { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .chat-root .rcp-sum .net { font-weight: 650; font-size: 14px; }

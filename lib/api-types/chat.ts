@@ -30,7 +30,12 @@ export interface ChatAvailability {
   fileLimits?: FileLimits;
 }
 
-export type RefType = "member" | "event" | "task";
+/**
+ * Record kinds a row can open. New kinds are added over time ("transaction"
+ * joined with the list forms): a client must treat a ref whose type it doesn't
+ * know as no ref at all — the row still has its title and `ask`.
+ */
+export type RefType = "member" | "event" | "task" | "transaction";
 
 export interface EntityRef {
   type: RefType;
@@ -125,7 +130,8 @@ export type AnswerShape =
   | DatedShape | LogbookShape | PastDueShape
   | RankedShape | TableShape | RollShape
   | YesNoShape | StatusShape
-  | RecordShape | ZeroShape;
+  | RecordShape | ZeroShape
+  | ReceiptShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -456,4 +462,18 @@ export interface ZeroShape {
   instead: Array<{ slug: string; label: string; count: number }>;
   /** The caller may propose an event of this kind ("Plan one"). */
   canCreate: boolean;
+}
+
+/** Payments that add up — Receipt. rows[i] is the ledger line items[i] draws; money is integer cents. */
+export interface ReceiptShape {
+  type: "receipt";
+  /** "Winter Formal · Fall 2026". */
+  kicker: string;
+  /** Which total leads: what went out, what came in, or the net. */
+  headline: "out" | "in" | "net";
+  /** Summed from exactly the lines sent (out and in are positive). null when the set is cut: no sum over a sample. */
+  totals: { out: number; in: number; net: number } | null;
+  /** cents is signed: an expense is negative. */
+  items: Array<{ date: string; cents: number; pending: boolean }>;
+  truncated: ShapeTruncation | null;
 }

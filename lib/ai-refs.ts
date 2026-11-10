@@ -23,7 +23,7 @@
 import type { AnswerRow } from "./ai-tools";
 
 /** Record kinds an answer row can open. Mirrors PeekType in lib/services/peek-service. */
-export const REF_TYPES = ["member", "event", "task"] as const;
+export const REF_TYPES = ["member", "event", "task", "transaction"] as const;
 export type RefType = (typeof REF_TYPES)[number];
 
 export interface EntityRef {
@@ -45,7 +45,7 @@ interface Collected extends EntityRef {
 // ────────────────────────────────────────────────────────────────────────────
 
 /** Pull {id, label} pairs out of an array-ish value under `key`, or the value itself. */
-function fromList(value: unknown, labelKey: "name" | "title", type: RefType): Collected[] {
+function fromList(value: unknown, labelKey: "name" | "title" | "description", type: RefType): Collected[] {
   if (!Array.isArray(value)) return [];
   const out: Collected[] = [];
   for (const raw of value) {
@@ -61,7 +61,7 @@ function fromList(value: unknown, labelKey: "name" | "title", type: RefType): Co
 }
 
 /** Pull a single {id, label} record — the get_* tools' direct-hit shape. */
-function fromRecord(value: unknown, labelKey: "name" | "title", type: RefType): Collected[] {
+function fromRecord(value: unknown, labelKey: "name" | "title" | "description", type: RefType): Collected[] {
   return fromList([value], labelKey, type);
 }
 
@@ -100,6 +100,7 @@ const EXTRACTORS: Record<string, Extractor> = {
     ...fromList(prop(r, "candidates"), "title", "event"),
   ],
   list_deadlines: r => fromList(listRows(r), "title", "task"),
+  list_transactions: r => fromList(listRows(r), "description", "transaction"),
   get_custom_metrics: r => fromList(prop(r, "members"), "name", "member"),
   list_member_fields: r => fromList(prop(r, "members"), "name", "member"),
   list_reimbursements: r => fromList(prop(r, "reimbursements"), "name", "member"),

@@ -36,6 +36,7 @@ const PAGE: Record<RefType, { path: string; label: string }> = {
   member: { path: "brothers", label: "Open in Roster" },
   event:  { path: "events",   label: "Open in Events" },
   task:   { path: "tasks",    label: "Open in Timeline" },
+  transaction: { path: "treasury", label: "Open in Treasury" },
 };
 
 export function PeekSheet({ refr, seed, slug, onBack, onAsk }: {

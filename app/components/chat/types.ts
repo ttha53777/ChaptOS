@@ -9,7 +9,7 @@ export type {
   AnswerData, ProposalPermInfo, ProposalDisplayInfo,
   AnswerShape, AskBackPerson, TallyShape, TallyMark, BreakdownShape, BreakdownPart, WeekShape, WeekItem, MissingShape,
   DatedShape, LogbookShape, PastDueShape, PastDueOwner, ShapeTruncation,
-  RankedShape, TableShape, RollShape, RankMetric, MetricUnit, YesNoShape, YesNoTest, StatusShape, RecordShape, ZeroShape,
+  RankedShape, TableShape, RollShape, RankMetric, MetricUnit, YesNoShape, YesNoTest, StatusShape, RecordShape, ZeroShape, ReceiptShape,
   PeekCard, PeekFact, PeekRow, PeekSection, PeekTone,
   AnswerCitation, ChatAttachmentInfo, AttachmentUnit, FileLimits,
 } from "@/lib/api-types";

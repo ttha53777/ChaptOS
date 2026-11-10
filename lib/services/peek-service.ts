@@ -20,7 +20,7 @@ import { getBrotherStatus, type Brother as BrotherType, type BrotherStatus } fro
 import { formatEventTime } from "@/lib/event-time";
 import { ExcuseStatus } from "@/lib/state";
 
-export const PEEK_TYPES = ["member", "event", "task"] as const;
+export const PEEK_TYPES = ["member", "event", "task", "transaction"] as const;
 export type PeekType = (typeof PEEK_TYPES)[number];
 
 // The card is wire data (it also rides inline in a `record` answer), so its
@@ -253,11 +253,56 @@ async function taskPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
 
 // ────────────────────────────────────────────────────────────────────────────
 
+// ────────────────────────────────────────────────────────────────────────────
+// Transaction — one ledger line. The same fields get_treasury and
+// list_transactions already hand any member; who paid it back stays a status,
+// not a name, as on the ledger page.
+// ────────────────────────────────────────────────────────────────────────────
+
+async function transactionPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
+  const tx = await ctx.db.transaction.findFirst({
+    where: { id, deletedAt: null },
+    select: {
+      id: true, date: true, type: true, amount: true, category: true, description: true, status: true, paymentMethod: true,
+      reimbursement: { select: { status: true } },
+      calendarEvents: { select: { calendarEvent: { select: { title: true, date: true } } } },
+    },
+  }) as unknown as {
+    id: number; date: string; type: string; amount: number; category: string; description: string; status: string; paymentMethod: string | null;
+    reimbursement: { status: string } | null;
+    calendarEvents: Array<{ calendarEvent: { title: string; date: string } }>;
+  } | null;
+  if (!tx) throw new NotFoundError("Transaction");
+  const category = await ctx.db.transactionCategory.findFirst({ where: { slug: tx.category }, select: { label: true } });
+  const income = tx.type === "income";
+  const scheduled = tx.status === "scheduled";
+  const owed = tx.reimbursement?.status === "pending";
+  const facts: PeekFact[] = [
+    { k: income ? "Came in" : "Paid out", v: `${income ? "+" : "−"} ${usd(tx.amount)}`, mono: true, tone: income ? "good" : undefined },
+    { k: "Category", v: category?.label ?? tx.category },
+    ...(tx.paymentMethod ? [{ k: "Method", v: tx.paymentMethod }] : []),
+    ...(tx.reimbursement ? [{ k: "Reimbursement", v: tx.reimbursement.status, tone: (owed ? "warn" : "muted") as PeekTone }] : []),
+  ];
+  const sections: PeekSection[] = tx.calendarEvents.length
+    ? [{ label: "For", rows: tx.calendarEvents.map(l => ({ title: l.calendarEvent.title, subtitle: prettyDate(l.calendarEvent.date) })) }]
+    : [];
+  return {
+    type: "transaction",
+    id: tx.id,
+    title: tx.description || (category?.label ?? tx.category),
+    subtitle: prettyDate(tx.date),
+    ...(scheduled || owed ? { badge: { label: scheduled ? "Scheduled" : "Pending", tone: "warn" as PeekTone } } : {}),
+    facts,
+    sections,
+  };
+}
+
 export async function getPeek(ctx: RequestContext, type: PeekType, id: number): Promise<PeekCard> {
   switch (type) {
     case "member": return memberPeek(ctx, id);
     case "event":  return eventPeek(ctx, id);
     case "task":   return taskPeek(ctx, id);
+    case "transaction": return transactionPeek(ctx, id);
     default:       throw new ValidationError(`Unknown peek type: ${type}`);
   }
 }

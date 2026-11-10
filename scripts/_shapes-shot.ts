@@ -134,6 +134,9 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
   const zero = await buildShape({ type: "zero" }, await formRead([["list_calendar_events", { category: "fundy", start: "2026-07-01" }]]), scoped, org.id, {
     access: { actorId: admin.brotherId, permissions: 0, isOrgAdmin: true, isPlatformAdmin: false },
   });
+  // Receipt: "what have we spent on brotherhood?" — the ledger lines, summed.
+  const receipt = await buildShape({ type: "receipt" }, await formRead([["list_transactions", { category: "Brotherhood" }]]), scoped, org.id);
+  console.log("receipt", receipt && JSON.stringify((receipt.shape as { totals: unknown }).totals));
   console.log("record", !!record, "record2", !!record2, "zero", zero && JSON.stringify(zero.shape));
   console.log("yesno", yesno && JSON.stringify(yesno.shape).slice(0, 120), "yesnoOne", !!yesnoOne, "status", status?.rows.length);
   console.log("ranked", ranked?.rows.length, "table", table?.rows.length, "rankedDates", rankedDates?.rows.length, "roll", roll?.rows.length);
@@ -167,6 +170,7 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     record: ledger("Scanning the calendar", "Timeline", "1 found") + answer("It was *on " + lastMeeting.date + "*.", record, ["Timeline"]),
     recpair: ledger("Reading the roster", "Roster", "2 found") + answer("*These two* run it.", record2, ["Roster"]),
     zero: ledger("Scanning the calendar", "Timeline", "none") + answer("*None* filed as fundraisers since July.", zero, ["Timeline"]),
+    receipt: ledger("Reading the ledger", "Treasury", "7 lines") + answer("*Seven payments* on brotherhood so far.", receipt, ["Treasury"]),
     which: ledger("Looking up the name", "Brotherhood", "2 matches") + frame("answer", { verdict: "There are *two* matches on the roster.", rows: [], follows: [], sources: ["Brotherhood"], askback }),
   };
 
@@ -226,6 +230,7 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     ["05-record", "record: when was the last chapter meeting", ".shp-recs"],
     ["05b-record-pair", "recpair: who runs dues", ".shp-recs.two"],
     ["12-zero", "zero: how many fundraisers since july", ".shp-zero"],
+    ["09-receipt", "receipt: what have we spent on brotherhood", ".shp-rcp"],
   ];
   for (const [n, q, sel] of SHOTS.filter(([n]) => !CASES || CASES.has(n))) {
     await p.fill(".cs-dock textarea", q);

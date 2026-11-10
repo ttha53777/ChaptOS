@@ -30,6 +30,7 @@ import { YesNoSheet } from "./YesNo";
 import { StatusSheet } from "./Status";
 import { RecordSheet } from "./Record";
 import { ZeroSheet } from "./Zero";
+import { ReceiptSheet } from "./Receipt";
 
 export type { RowHandlers } from "./common";
 
@@ -57,6 +58,7 @@ const SHEETS: Registry = {
   status: p => <StatusSheet shape={p.shape} rows={p.rows} h={p.h} />,
   record: p => <RecordSheet shape={p.shape} rows={p.rows} h={p.h} />,
   zero: p => <ZeroSheet shape={p.shape} h={p.h} />,
+  receipt: p => <ReceiptSheet shape={p.shape} rows={p.rows} h={p.h} />,
 };
 
 /** True when this client knows how to draw the shape; unknown types fall back to rows. */
