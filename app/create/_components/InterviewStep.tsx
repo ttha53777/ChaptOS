@@ -79,7 +79,7 @@ const KIND_CHIP: Record<KindId, string> = {
     tile and the chip it puts on the charter read as the same thing. */
 const ACTIVITY_LABEL: Record<string, string> = {
   meetings:    "Chapter meetings",
-  socials:     "Social events or parties",
+  socials:     "Ticketed events",
   programs:    "Programs or workshops",
   fundraisers: "Fundraisers",
   service:     "Service or volunteering",
@@ -118,7 +118,7 @@ function activityLabel(d: Draft, id: string): string {
 
 function monthWords(d: Draft, ids: readonly string[]): string[] {
   const words: Record<string, string> = {
-    meetings: meetingsWord(d), socials: "parties", service: "service",
+    meetings: meetingsWord(d), socials: "ticketed events", service: "service",
     programs: "programs", fundraisers: "fundraisers", tasks: "deadlines", online: "posting",
   };
   return ACTIVITY_IDS.filter(id => ids.includes(id)).map(id => words[id]!);
