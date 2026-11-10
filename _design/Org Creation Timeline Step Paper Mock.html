@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en" data-crf-theme="ivory">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Org Creation · Step 4 Timeline · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;550;600;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   /create step 4 — "What lands on your timeline?" — rethought for a first-time
+   founder. Tokens, header, buttons and the bottom step rail are the shipped
+   flow's (app/create/create-paper.css); everything from "the kinds" down is new.
+
+   The idea: one sticker sheet of KINDS on the left (tick = it's on your
+   timeline), one sample WEEK on the right that fills in as you tick. Hovering
+   either side lights up its partner, so the link between "a kind" and "a thing
+   on the calendar" never needs explaining.
+   ========================================================================== */
+html[data-crf-theme="ivory"], html[data-crf-theme="ivory"] body{color-scheme:light; background:#FFFCF6}
+html[data-crf-theme="dusk"],  html[data-crf-theme="dusk"] body{color-scheme:dark; background:#15110D}
+body{margin:0}
+
+.ocp{--paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --note-ink:#26211B; --note-filter:none; --mark-op:.85; --wash-op:.55;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+  --sh-2:0 1px 2px rgba(38,33,27,.05), 0 10px 26px -8px rgba(38,33,27,.14);
+  --sh-3:0 2px 4px rgba(38,33,27,.05), 0 26px 60px -18px rgba(38,33,27,.22);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light}
+html[data-crf-theme="dusk"] .ocp{--paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --note-filter:brightness(.93) saturate(.85); --mark-op:.42; --wash-op:.9;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --sh-2:0 1px 2px rgba(0,0,0,.4), 0 12px 28px -10px rgba(0,0,0,.6);
+  --sh-3:0 2px 4px rgba(0,0,0,.4), 0 26px 60px -18px rgba(0,0,0,.75);
+  color-scheme:dark}
+.ocp *, .ocp *::before, .ocp *::after{box-sizing:border-box}
+.ocp{position:relative; min-height:100vh; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em;
+  -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%; overflow-x:hidden;
+  transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+.ocp h1, .ocp h2, .ocp p{margin:0}
+.ocp button, .ocp input{font:inherit; color:inherit}
+.ocp button{cursor:pointer}
+.ocp svg{display:block}
+.ocp :focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ocp::before{content:''; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:var(--wash-op);
+  background:
+    radial-gradient(60vw 50vh at 18% 0%,  var(--butter-soft), transparent 62%),
+    radial-gradient(52vw 48vh at 98% 18%, var(--sky-soft),    transparent 60%),
+    radial-gradient(48vw 46vh at 20% 74%, var(--lilac-soft),  transparent 62%),
+    radial-gradient(56vw 50vh at 94% 96%, var(--peach-soft),  transparent 62%)}
+html[data-crf-theme="dusk"] .ocp::before{display:none}
+.ocp .ic{width:18px; height:18px; flex:none}
+.ocp .hi{position:relative; white-space:nowrap; z-index:0}
+.ocp .hi::before{content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em;
+  background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg); opacity:var(--mark-op)}
+
+/* the title's marker stroke is cut from the six papers — one swipe per category */
+.ocp .hi--multi::before{height:.46em; border-radius:.3em .5em .34em .55em;
+  background:linear-gradient(90deg, var(--sky) 0 17%, var(--rose) 17% 34%, var(--peach) 34% 50%, var(--mint) 50% 67%, var(--butter) 67% 84%, var(--lilac) 84%)}
+
+/* ---- shipped chrome: button, header, rail -------------------------------- */
+.ocp .btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac);
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:12px 20px; border-radius:999px; border:1.5px solid var(--ink);
+  background:var(--bg); color:var(--fg); font-weight:600; font-size:.95rem; letter-spacing:-.01em;
+  box-shadow:2.5px 2.5px 0 var(--hs); white-space:nowrap;
+  transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.ocp .btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:4.5px 4.5px 0 var(--hs)}
+.ocp .btn:active{transform:translate(1px,1px); box-shadow:1px 1px 0 var(--hs)}
+.ocp .btn .ic{width:15px; height:15px}
+.ocp .iconbtn{width:34px; height:34px; flex:none; display:grid; place-items:center; border-radius:10px; border:1.5px solid transparent; background:none; color:var(--ink-3); transition:background .16s, color .16s, border-color .16s}
+.ocp .iconbtn:hover{background:var(--card); color:var(--ink); border-color:var(--line)}
+.ocp .iconbtn .ic{width:17px; height:17px}
+.ocp .shell{position:relative; z-index:1; min-height:100vh; display:flex; flex-direction:column}
+.ocp .top{position:sticky; top:0; z-index:40; display:flex; justify-content:space-between; align-items:center; gap:18px;
+  height:66px; padding:0 clamp(16px,3vw,32px);
+  background:color-mix(in srgb, var(--paper) 86%, transparent); backdrop-filter:blur(12px); border-bottom:1.5px solid var(--line)}
+.ocp .wm{display:flex; align-items:center; gap:11px; font-family:var(--display); font-weight:700; font-size:1.06rem; letter-spacing:-.025em; color:var(--ink); text-decoration:none}
+.ocp .wm .brand__mark{width:34px; height:34px; flex:none}
+.ocp .top-r{display:flex; align-items:center; gap:10px}
+.ocp .tag{font-family:var(--mono); font-size:.64rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); padding:3px 9px; border:1.5px solid var(--line-2); border-radius:7px; white-space:nowrap}
+.ocp .rail{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:45; max-width:calc(100vw - 24px);
+  display:flex; gap:3px; padding:3px; border-radius:999px; overflow-x:auto; scrollbar-width:none;
+  background:color-mix(in srgb, var(--card) 92%, transparent); border:1.5px solid var(--line-2); box-shadow:var(--sh-2); backdrop-filter:blur(12px)}
+.ocp .rail::-webkit-scrollbar{display:none}
+.ocp .rail button{flex:none; display:inline-flex; align-items:center; gap:7px; padding:4px 12px 4px 4px; border:0; border-radius:999px; background:none; font-size:.8rem; font-weight:550; color:var(--ink-3)}
+.ocp .rail button:hover:not(:disabled){color:var(--ink)}
+.ocp .rail .n{width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-family:var(--mono); font-size:.64rem; font-weight:600; border:1.5px solid var(--line-2); background:var(--card)}
+.ocp .rail .n .ic{width:11px; height:11px}
+.ocp .rail button.done .n{background:var(--mint-soft); border-color:var(--mint-bd); color:var(--mint-ink)}
+.ocp .rail button[aria-current="step"]{background:var(--card); color:var(--ink); box-shadow:var(--sh-1); font-weight:600}
+.ocp .rail button[aria-current="step"] .n{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+
+.ocp .stage{flex:1; width:100%; max-width:1240px; margin:0 auto; padding:clamp(22px,3vw,36px) clamp(16px,3vw,40px) 110px}
+.ocp .split{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,430px); gap:clamp(26px,4.4vw,68px); align-items:start}
+.ocp .slot{position:sticky; top:84px; min-width:0}
+.ocp .kick{display:inline-flex; align-items:center; gap:9px; font-family:var(--mono); font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:600}
+.ocp .kick .chip{padding:2px 9px; border-radius:999px; background:var(--card); border:1.5px solid var(--line-2); color:var(--ink-2); letter-spacing:.06em}
+.ocp .q{margin-top:14px; font-family:var(--display); font-weight:600; letter-spacing:-.034em; line-height:1.05; font-size:clamp(1.9rem,3.3vw,2.7rem); text-wrap:balance}
+.ocp .lede{margin-top:12px; font-size:1.02rem; line-height:1.55; color:var(--ink-2); max-width:62ch; text-wrap:pretty}
+.ocp .lede b{color:var(--ink); font-weight:600}
+.ocp .foot{margin-top:20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.ocp .foot .note{font-size:.8rem; color:var(--ink-3)}
+
+/* the three numbered captions that carry the explanation */
+.ocp .how{display:flex; align-items:center; gap:9px; margin-top:20px; font-size:.9rem; font-weight:600; color:var(--ink)}
+.ocp .how .num{width:22px; height:22px; flex:none; display:grid; place-items:center; border-radius:50%; background:var(--butter); color:var(--note-ink); border:1.5px solid var(--ink);
+  font-family:var(--mono); font-size:.66rem; font-weight:600; transform:rotate(-6deg); filter:var(--note-filter)}
+.ocp .slot .how{margin:0 0 10px}
+.ocp .slot .slip + .how{margin-top:18px; margin-bottom:16px}
+/* the add-event slip */
+.ocp .slip{background:var(--card); border:1.5px solid var(--line-2); border-radius:var(--r-md); box-shadow:var(--sh-1); overflow:hidden}
+.ocp .slip-h{display:grid; grid-template-columns:34px minmax(0,1fr) auto; gap:11px; align-items:center; padding:11px 14px; border-bottom:1px dashed var(--line-2)}
+.ocp .slip-h .g{width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:color-mix(in srgb, var(--tc) 24%, var(--card)); color:var(--tc); border:1.5px solid var(--ink); transform:rotate(-6deg)}
+.ocp .slip small{display:block; font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.ocp .slip-h b{display:block; font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ocp .slip-h em{font-style:normal; font-family:var(--mono); font-size:.66rem; color:var(--ink-3); white-space:nowrap}
+.ocp .slip-c{padding:10px 14px 12px}
+.ocp .cps{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px}
+.ocp .cp{display:inline-flex; align-items:center; gap:6px; padding:3px 10px 3px 8px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card); font-size:.76rem; font-weight:550; color:var(--ink-2); white-space:nowrap;
+  transition:border-color .16s, background .16s, color .16s, transform .18s var(--ease-spring)}
+.ocp .cp i{width:8px; height:8px; border-radius:3px; background:var(--tc); transform:rotate(-8deg)}
+.ocp .cp .ic{width:11px; height:11px; color:var(--tc)}
+.ocp .cp:hover{border-color:var(--ink-3); color:var(--ink)}
+.ocp .cp[aria-pressed="true"]{border-color:var(--ink); background:color-mix(in srgb, var(--tc) 13%, var(--card)); color:var(--ink); font-weight:600; transform:translate(-1px,-1px); box-shadow:2px 2px 0 color-mix(in srgb, var(--tc) 42%, var(--card))}
+
+/* ---- the kinds: one sticker each ----------------------------------------- */
+/* a kind's colour is a real hex pair (CalendarEventType.color / colorDark) */
+.ocp [data-k]{--tc:var(--tcl)}
+html[data-crf-theme="dusk"] .ocp [data-k]{--tc:var(--tcd)}
+
+.ocp .kinds{margin-top:12px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px}
+.ocp .kd{position:relative; display:grid; grid-template-columns:44px minmax(0,1fr) 24px; gap:13px; align-items:center;
+  padding:12px 14px 12px 12px; border-radius:6px 16px 12px 14px; border:1.5px dashed var(--line-2); background:transparent;
+  cursor:pointer; user-select:none;
+  transition:transform .2s var(--ease-spring), box-shadow .2s var(--ease-spring), border-color .18s, background .18s, opacity .2s}
+.ocp .kd:hover{border-color:var(--ink-3)}
+.ocp .kd .sw{width:44px; height:44px; padding:0; border-radius:13px; display:grid; place-items:center;
+  background:var(--paper-3); border:1.5px dashed var(--line-2); color:var(--ink-3);
+  transition:transform .35s var(--ease-spring), background .2s, border-color .2s, color .2s, box-shadow .2s}
+.ocp .kd .sw .ic{width:20px; height:20px}
+.ocp .kd-t{min-width:0}
+.ocp .kd-t input{display:block; width:100%; border:0; padding:0 0 1px; background:none; outline:none; pointer-events:none;
+  font-size:.95rem; font-weight:600; color:var(--ink-2); text-overflow:ellipsis; border-bottom:1.5px solid transparent; border-radius:0}
+.ocp .kd-t small{display:block; margin-top:1px; font-size:.78rem; color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ocp .kd-t small b{font-weight:550; color:var(--ink-2)}
+.ocp .kd .bx{width:24px; height:24px; padding:0; border-radius:8px; border:1.5px solid var(--line-2); background:var(--card); display:grid; place-items:center; color:transparent;
+  transition:background .18s, border-color .18s, color .18s, transform .3s var(--ease-spring)}
+.ocp .kd .bx .ic{width:13px; height:13px}
+
+.ocp .kd[aria-checked="true"]{border-style:solid; border-color:var(--ink); background:color-mix(in srgb, var(--tc) 7%, var(--card));
+  transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 color-mix(in srgb, var(--tc) 42%, var(--card))}
+.ocp .kd[aria-checked="true"] .sw{background:color-mix(in srgb, var(--tc) 24%, var(--card)); border:1.5px solid var(--ink); color:var(--tc);
+  transform:rotate(-6deg); box-shadow:2px 2px 0 var(--ink)}
+.ocp .kd[aria-checked="true"] .sw:hover{transform:rotate(4deg) scale(1.07)}
+.ocp .kd[aria-checked="true"] .kd-t input{color:var(--ink); pointer-events:auto; cursor:text}
+.ocp .kd[aria-checked="true"] .kd-t input:hover{border-bottom-color:var(--line-2)}
+.ocp .kd[aria-checked="true"] .kd-t input:focus{border-bottom-color:var(--ink)}
+.ocp .kd[aria-checked="true"] .bx{background:var(--ink); border-color:var(--ink); color:var(--paper)}
+.ocp .kd.pop .bx{animation:tick .45s var(--ease-spring)}
+@keyframes tick{0%{transform:scale(.5) rotate(-20deg)} 60%{transform:scale(1.2) rotate(6deg)} 100%{transform:none}}
+/* the partner highlight: hovering a kind (or its entry in the week) dims the rest */
+.ocp .kinds.linking .kd:not(.lit){opacity:.45}
+.ocp .kd.lit{border-color:var(--ink)}
+.ocp .kd:has(.pal){z-index:5}
+
+/* colour picker: opens under the sticker */
+.ocp .pal{position:absolute; left:8px; top:calc(100% + 8px); z-index:20; display:flex; gap:6px; padding:8px 10px;
+  border-radius:999px; background:var(--card); border:1.5px solid var(--ink); box-shadow:3px 3px 0 var(--butter); animation:palin .25s var(--ease-spring) both}
+@keyframes palin{from{opacity:0; transform:translateY(-6px) scale(.94)} to{opacity:1; transform:none}}
+.ocp .pal button{width:22px; height:22px; padding:0; border-radius:50%; border:1.5px solid rgba(38,33,27,.25); background:var(--tc); transition:transform .18s var(--ease-spring)}
+.ocp .pal button:hover{transform:scale(1.18)}
+.ocp .pal button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--card), 0 0 0 3.5px var(--ink)}
+
+/* your own */
+.ocp .kd.own{grid-template-columns:44px minmax(0,1fr) auto; cursor:text}
+.ocp .kd.own input{width:100%; border:0; background:none; outline:none; font-size:.95rem; font-weight:550}
+.ocp .kd.own input::placeholder{color:var(--ink-2); font-weight:600}
+/* the one tile that asks for something: butter paper, inked dashes, a sticker that nods */
+.ocp .kd.own{border:1.5px dashed var(--ink); background:var(--butter-soft)}
+.ocp .kd.own:hover, .ocp .kd.own:focus-within{border-style:solid; background:var(--card); transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 var(--butter)}
+.ocp .kd.own .sw{background:var(--butter); border:1.5px solid var(--ink); color:var(--note-ink); transform:rotate(-6deg); box-shadow:2px 2px 0 var(--ink); filter:var(--note-filter); animation:nod 2.4s var(--ease-spring) 1.2s 2}
+.ocp .kd.own .sw .ic{width:18px; height:18px}
+@keyframes nod{0%,60%,100%{transform:rotate(-6deg)} 70%{transform:rotate(8deg) scale(1.08)} 82%{transform:rotate(-10deg)}}
+.ocp .kd.own .mini{border-color:var(--ink); background:var(--ink); color:var(--paper)}
+.ocp .kd.own .mini:disabled{opacity:1; background:transparent; color:var(--ink-3); border-color:var(--line-2)}
+.ocp .mini{border:1.5px solid var(--line-2); background:var(--card); border-radius:999px; padding:4px 12px; font-size:.78rem; font-weight:600; color:var(--ink-2); white-space:nowrap}
+.ocp .mini:hover:not(:disabled){border-color:var(--ink); color:var(--ink)}
+.ocp .mini:disabled{opacity:.45; cursor:default}
+
+/* quick ideas */
+.ocp .ideas{margin-top:14px; display:flex; flex-wrap:wrap; align-items:center; gap:7px}
+.ocp .ideas > span{font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); margin-right:3px}
+.ocp .idea{display:inline-flex; align-items:center; gap:5px; padding:4px 11px 4px 8px; border-radius:999px; border:1.5px dashed var(--line-2); background:none; font-size:.8rem; font-weight:550; color:var(--ink-2);
+  transition:border-color .16s, color .16s, transform .18s var(--ease-spring), background .16s}
+.ocp .idea .ic{width:12px; height:12px; color:var(--ink-3)}
+.ocp .idea:hover{border-style:solid; border-color:var(--ink); color:var(--ink); background:var(--card); transform:translateY(-1px)}
+.ocp .tips{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px 18px; font-size:.8rem; color:var(--ink-3)}
+.ocp .tips span{display:inline-flex; align-items:center; gap:6px}
+.ocp .tips .ic{width:13px; height:13px}
+.ocp .tips i{width:12px; height:12px; border-radius:4px; background:var(--rose); border:1.5px solid var(--ink); transform:rotate(-8deg); filter:var(--note-filter)}
+
+/* ---- the week: a taped-up page that fills in as you tick ------------------ */
+.ocp .week{position:relative; background:var(--card); border:1.5px solid var(--ink); border-radius:6px 18px 10px 16px; box-shadow:5px 5px 0 var(--butter)}
+.ocp .week::before, .ocp .week::after{content:''; position:absolute; top:-10px; width:64px; height:20px; z-index:2;
+  background:color-mix(in srgb, var(--mint) 75%, transparent); border-inline:1px dashed rgba(38,33,27,.16); filter:var(--note-filter)}
+.ocp .week::before{left:26px; transform:rotate(-5deg)}
+.ocp .week::after{left:calc(50% - 32px); transform:rotate(3deg); background:color-mix(in srgb, var(--rose) 75%, transparent)}
+.ocp .week-h{display:flex; align-items:baseline; gap:10px; padding:17px 18px 10px; border-bottom:1.5px solid var(--line)}
+.ocp .week-h b{font-family:var(--display); font-weight:600; font-size:1.12rem; letter-spacing:-.025em; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ocp .week-h small{margin-left:auto; font-family:var(--mono); font-size:.66rem; color:var(--ink-3); white-space:nowrap}
+.ocp .day{display:grid; grid-template-columns:46px minmax(0,1fr); gap:10px; padding:5px 16px 5px 14px; border-bottom:1px dashed var(--line-2); min-height:43px; align-items:center}
+.ocp .day .d{font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); line-height:1.15; text-align:center}
+.ocp .day .d b{display:block; font-family:var(--display); font-size:1.12rem; font-weight:600; color:var(--ink); letter-spacing:-.02em}
+.ocp .day.today .d b{width:28px; height:28px; margin:1px auto 0; display:grid; place-items:center; border-radius:50%; background:var(--peach); color:var(--note-ink); border:1.5px solid var(--ink); font-size:.92rem; filter:var(--note-filter)}
+.ocp .day .evs{display:grid; gap:5px}
+.ocp .day .free{height:0; border-top:2px dotted var(--line); margin-right:30%}
+.ocp .ev{display:grid; grid-template-columns:24px minmax(0,1fr) auto; gap:9px; align-items:center; padding:5px 10px 5px 6px; border-radius:4px 10px 8px 10px;
+  border:1.5px solid color-mix(in srgb, var(--tc) 38%, var(--card)); background:color-mix(in srgb, var(--tc) 11%, var(--card));
+  font-size:.82rem; font-weight:600; cursor:default;
+  transition:opacity .2s, transform .2s var(--ease-spring), box-shadow .2s, border-color .2s}
+.ocp .ev .g{width:24px; height:24px; border-radius:7px; display:grid; place-items:center; background:color-mix(in srgb, var(--tc) 24%, var(--card)); color:var(--tc)}
+.ocp .ev .g .ic{width:13px; height:13px}
+.ocp .ev span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ocp .ev em{font-style:normal; font-weight:500; font-size:.72rem; color:var(--tc); margin-left:6px}
+.ocp .ev small{font-family:var(--mono); font-size:.64rem; font-weight:500; color:var(--ink-3)}
+.ocp .ev.new{animation:drop .5s var(--ease-spring) both}
+@keyframes drop{from{opacity:0; transform:translateY(-10px) rotate(-3deg) scale(.94)} to{opacity:1; transform:none}}
+.ocp .week.linking .ev:not(.lit){opacity:.3}
+.ocp .ev.lit{border-color:var(--ink); transform:translate(-1.5px,-1.5px); box-shadow:3px 3px 0 color-mix(in srgb, var(--tc) 42%, var(--card))}
+.ocp .week-f{display:flex; align-items:center; gap:8px; padding:10px 16px 12px; border-top:1.5px solid var(--line); margin-top:-1px; background:var(--paper-2); border-radius:0 0 8px 14px; font-size:.76rem; color:var(--ink-3)}
+.ocp .week-f .ic{width:13px; height:13px}
+.ocp .week-0{padding:34px 24px; text-align:center; color:var(--ink-3); font-size:.9rem}
+/* the sticky note that says what the page is */
+.ocp .sticky{position:absolute; right:-20px; top:-20px; z-index:3; width:124px; padding:9px 10px 10px; border-radius:3px 10px 5px 9px;
+  background:var(--butter); color:var(--note-ink); filter:var(--note-filter); box-shadow:var(--sh-2); transform:rotate(4deg);
+  font-family:var(--display); font-weight:600; font-size:.8rem; line-height:1.25; letter-spacing:-.01em; pointer-events:none;
+  transition:opacity .3s, transform .4s var(--ease-spring)}
+.ocp .sticky svg{width:34px; height:18px; margin-top:4px}
+.ocp .week.touched .sticky{opacity:0; transform:rotate(10deg) translateY(-8px)}
+
+.ocp .toast{position:fixed; left:50%; bottom:74px; z-index:60; transform:translate(-50%,16px); opacity:0; pointer-events:none;
+  display:flex; align-items:center; gap:9px; max-width:calc(100vw - 32px); padding:9px 16px 9px 12px; border-radius:999px; background:var(--ink); color:var(--paper); font-size:.84rem; font-weight:550; box-shadow:var(--sh-3);
+  transition:opacity .25s, transform .35s var(--ease-spring)}
+.ocp .toast.on{opacity:1; transform:translate(-50%,0)}
+.ocp .toast .ic{width:14px; height:14px; color:var(--mint)}
+.ocp .mockchip{position:fixed; left:14px; bottom:18px; z-index:44; font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); padding:4px 9px; border:1.5px dashed var(--line-2); border-radius:8px; background:color-mix(in srgb, var(--card) 80%, transparent)}
+
+@media (max-width:1100px){
+  .ocp .rail button:not([aria-current="step"]) .lb{display:none}
+  .ocp .rail button:not([aria-current="step"]){padding-right:4px}
+  .ocp .mockchip{display:none}
+}
+@media (max-width:960px){
+  .ocp .split{grid-template-columns:minmax(0,1fr)}
+  .ocp .slot{position:static; max-width:520px; margin-top:8px}
+  .ocp .sticky{display:none}
+  .ocp .top .tag{display:none}
+}
+@media (max-width:640px){
+  .ocp .top{padding:0 12px}
+  .ocp .wm .wt{display:none}
+  .ocp .kinds{grid-template-columns:minmax(0,1fr); gap:10px}
+  .ocp .kick .chip{display:none}
+  .ocp .foot .btn{width:100%}
+}
+@media (prefers-reduced-motion: reduce){
+  .ocp *, .ocp *::before, .ocp *::after{animation-duration:.01ms !important; transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="pp-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-spark" viewBox="0 0 24 24"><path d="M12 2.6c.7 5.1 3.6 8 8.7 8.8-5.1.7-8 3.6-8.7 8.7-.7-5.1-3.6-8-8.7-8.7 5.1-.8 8-3.7 8.7-8.8Z" fill="currentColor"/></symbol><symbol id="pp-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-receipt" viewBox="0 0 24 24"><path d="M6 2.9h12v18.4l-2.4-1.7-2.4 1.7-2.4-1.7-2.4 1.7L6 19.6V2.9Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M9.4 8h5.2M9.4 12.2h5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol><symbol id="pp-hand" viewBox="0 0 24 24"><path d="M8.6 11V5.4a1.5 1.5 0 0 1 3 0V10m0-1.1a1.5 1.5 0 0 1 3 0v1.4m0-.7a1.5 1.5 0 0 1 3 0v4.6c0 3.4-2.4 6.1-5.8 6.1-3 0-4.6-1.5-6.2-4.2l-1.7-3a1.4 1.4 0 0 1 2.2-1.7l1.5 1.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 20.4c.4-3.6 3-5.8 6.2-5.8s5.8 2.2 6.2 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M16.2 5.2a3.2 3.2 0 0 1 0 6M17.6 14.9c2.2.5 3.6 2.5 3.8 5.1" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-chat" viewBox="0 0 24 24"><path d="M20.6 11.6c0 4.2-3.9 7.6-8.6 7.6-1 0-2-.2-2.9-.5l-5 1.6 1.6-4a7 7 0 0 1-2.3-4.7C3.4 7.4 7.3 4 12 4s8.6 3.4 8.6 7.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-star" viewBox="0 0 24 24"><path d="M12 3.4c.9 4.2 2.6 6 6.6 6.9-4 .9-5.7 2.7-6.6 6.9-.9-4.2-2.6-6-6.6-6.9 4-.9 5.7-2.7 6.6-6.9Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol><symbol id="pp-mug" viewBox="0 0 24 24"><path d="M4.2 7.4h12.2v7.4a5 5 0 0 1-5 5h-2.2a5 5 0 0 1-5-5V7.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M16.6 9.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8 4.4c.7-.9.7-1.5 0-2.2M11.8 4.4c.7-.9.7-1.5 0-2.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol><symbol id="pp-plant" viewBox="0 0 24 24"><path d="M12 21v-8.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M12 13.4C9 13.4 6.6 11 6.6 8c3 0 5.4 2.4 5.4 5.4ZM12 12.2c0-3 2.4-5.4 5.4-5.4 0 3-2.4 5.4-5.4 5.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.4 21h7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-pencil" viewBox="0 0 24 24"><path d="M4 20.2 4.9 16 16.4 4.5a2.1 2.1 0 0 1 3 3L7.9 19.1 4 20.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14.6 6.4 17.8 9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-folder" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-board" viewBox="0 0 24 24"><path d="M4.6 3.4v17.2M12 3.4v10.4M19.4 3.4v14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol><symbol id="pp-key" viewBox="0 0 24 24"><circle cx="8" cy="8.4" r="4.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m11.2 11.6 8.4 8.4M16.4 16.8l2-2M13.6 14l2-2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 6.8V12l3.6 2.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-heart" viewBox="0 0 24 24"><path d="M12 20.4C6.4 16.8 3 13.6 3 9.8A4.6 4.6 0 0 1 7.6 5.2c1.8 0 3.4 1 4.4 2.6 1-1.6 2.6-2.6 4.4-2.6A4.6 4.6 0 0 1 21 9.8c0 3.8-3.4 7-9 10.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-link" viewBox="0 0 24 24"><path d="M10.2 13.8a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.6 1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.6-1.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-camera" viewBox="0 0 24 24"><rect x="3.4" y="6.4" width="17.2" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="12" cy="13.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.6 6.4 10 3.6h4l1.4 2.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-note" viewBox="0 0 24 24"><path d="M9.4 18V5.2l9.4-2v12.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="7" cy="18.4" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><circle cx="16.4" cy="15.8" r="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol><symbol id="pp-flag" viewBox="0 0 24 24"><path d="M5.4 21V3.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M5.4 4.6h11.8l-2.2 3.8 2.2 3.8H5.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-bars" viewBox="0 0 24 24"><path d="M5.4 20.4V12M12 20.4V4.4M18.6 20.4v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol><symbol id="pp-home" viewBox="0 0 24 24"><path d="M3.6 11.2 12 4l8.4 7.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.8 9.6v9.6c0 .8.6 1.4 1.4 1.4h9.6c.8 0 1.4-.6 1.4-1.4V9.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 20.4v-5.2h4v5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-timeline" viewBox="0 0 24 24"><path d="M6 4v16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><circle cx="6" cy="7" r="1.9" fill="currentColor"/><circle cx="6" cy="17" r="1.9" fill="currentColor"/><path d="M10 7h9.4M10 12h6M10 17h8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-box" viewBox="0 0 24 24"><rect x="3.8" y="3.8" width="16.4" height="16.4" rx="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.2 12.4 2.6 2.6 5-5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-gavel" viewBox="0 0 24 24"><path d="M5 20.4h9" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m9.6 4.6 5.8 5.8M7.2 7l5.8 5.8M8.4 5.8l5.8 5.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="m14.2 11.6 5.6 5.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-moon" viewBox="0 0 24 24"><path d="M19.6 14.6A8 8 0 0 1 9.4 4.4a8 8 0 1 0 10.2 10.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-monitor" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 20.2h6M12 16.6v3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-door" viewBox="0 0 24 24"><path d="M13.4 3.8H6.6c-.8 0-1.4.6-1.4 1.4v13.6c0 .8.6 1.4 1.4 1.4h6.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M10.4 12h10m0 0-3.4-3.4m3.4 3.4-3.4 3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.4 15.4 5 5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-updown" viewBox="0 0 24 24"><path d="m7.6 9.4 4.4-4.4 4.4 4.4M7.6 14.6 12 19l4.4-4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-chev-l" viewBox="0 0 24 24"><path d="m14.6 5.6-6.4 6.4 6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-rail" viewBox="0 0 24 24"><rect x="3.4" y="4.4" width="17.2" height="15.2" rx="3" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.4 4.6v14.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.6 9.6-2.4 2.4 2.4 2.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h11M4 17h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol><symbol id="pp-envelope" viewBox="0 0 24 24"><rect x="3.2" y="5.4" width="17.6" height="13.2" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8M9.6 6.4V4.4h4.8v2M6.6 6.8l.9 12.4c.1.8.7 1.4 1.5 1.4h6c.8 0 1.4-.6 1.5-1.4l.9-12.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.2 10.6v6M13.8 10.6v6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-dots" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/></symbol><symbol id="pp-pin" viewBox="0 0 24 24"><path d="M12 21s-6.4-5.6-6.4-11a6.4 6.4 0 0 1 12.8 0c0 5.4-6.4 11-6.4 11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol><symbol id="pp-lock" viewBox="0 0 24 24"><rect x="4.6" y="10.4" width="14.8" height="10.2" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.2 10.2V7.6a3.8 3.8 0 0 1 7.6 0v2.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-eye" viewBox="0 0 24 24"><path d="M2.6 12s3.4-6.4 9.4-6.4 9.4 6.4 9.4 6.4-3.4 6.4-9.4 6.4S2.6 12 2.6 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol><symbol id="pp-thumb" viewBox="0 0 24 24"><path d="M7.4 10.6v9.6H4.2v-9.6h3.2Zm0 0 3.8-6.4c1.4 0 2.4 1.1 2.2 2.5l-.5 3.3h5.3c1.3 0 2.2 1.2 1.9 2.4l-1.6 6.1c-.3 1-1.2 1.7-2.2 1.7H7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol><symbol id="pp-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-sheet" viewBox="0 0 24 24"><rect x="3.6" y="4.2" width="16.8" height="15.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.8 9.6h16.4M3.8 14.6h16.4M9.6 4.4v15.2" fill="none" stroke="currentColor" stroke-width="2"/></symbol><symbol id="pp-form" viewBox="0 0 24 24"><rect x="4.6" y="4.4" width="14.8" height="16.4" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9.2 4.4c0-1.1 1.2-1.8 2.8-1.8s2.8.7 2.8 1.8" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m8.6 13.2 2.2 2.2 4.4-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-drive" viewBox="0 0 24 24"><path d="M8.6 3.8h6.8l5.6 9.8-3.4 5.8H6.4L3 13.6l5.6-9.8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 3.8 15 15M3.2 13.6h11.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="pp-tack" viewBox="0 0 24 24"><path d="M9 3.2h6M10 3.4l-.6 6.2-3.4 3h12l-3.4-3-.6-6.2M12 12.8v8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="18" r="1.8"/></g></symbol><symbol id="pp-out" viewBox="0 0 24 24"><path d="M8 16 17.6 6.4M9.4 6h8.4v8.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-copy" viewBox="0 0 24 24"><rect x="8.4" y="8.4" width="12" height="12" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 5.6V5c0-1.1-.9-2-2-2H5.2c-1.1 0-2 .9-2 2v8.4c0 1.1.9 2 2 2h.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-refresh" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 0 1-13 4.8M4.6 12a7.4 7.4 0 0 1 13-4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M17.8 3.4v4h-4M6.2 20.6v-4h4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-move" viewBox="0 0 24 24"><path d="M3.2 6.6c0-1 .8-1.8 1.8-1.8h4l2.2 2.6h8.8c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5c-1 0-1.8-.8-1.8-1.8V6.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 13.4h6.6m0 0-2.6-2.6m2.6 2.6-2.6 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-x" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol><symbol id="pp-upload" viewBox="0 0 24 24"><path d="M12 15.6V4.4m0 0-4.4 4.4M12 4.4l4.4 4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.4 14.8v3.4c0 1.2 1 2.2 2.2 2.2h10.8c1.2 0 2.2-1 2.2-2.2v-3.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-megaphone" viewBox="0 0 24 24"><path d="M4 10v4.2c0 .7.5 1.2 1.2 1.2h2.2L17 20V4.2L7.4 8.8H5.2C4.5 8.8 4 9.3 4 10Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="m8 15.6 1.4 4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M20.2 9.6v4.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol><symbol id="pp-alert" viewBox="0 0 24 24"><path d="M12 3.6 21.2 19.6H2.8L12 3.6Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M12 9.6v4.4" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.2" fill="currentColor"/></symbol><symbol id="pp-jar" viewBox="0 0 24 24"><path d="M7.4 3.4h9.2v3.2H7.4z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8 6.6c-2 1.1-3.2 2.9-3.2 5.2v6.4c0 1.3 1.1 2.4 2.4 2.4h9.6c1.3 0 2.4-1.1 2.4-2.4v-6.4c0-2.3-1.2-4.1-3.2-5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M10 4.9h4M8.6 14.4h6.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="pp-chev-u" viewBox="0 0 24 24"><path d="m5.6 14.6 6.4-6.4 6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-chev-d" viewBox="0 0 24 24"><path d="m5.6 9.4 6.4 6.4 6.4-6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-swap" viewBox="0 0 24 24"><path d="M4 8h14.5m0 0-3.6-3.6M18.5 8l-3.6 3.6M20 16H5.5m0 0 3.6-3.6M5.5 16l3.6 3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-cake" viewBox="0 0 24 24"><path d="M5.4 12.4h13.2l-1.6 8H7l-1.6-8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M4.6 12.4c0-3.8 3.3-6.6 7.4-6.6s7.4 2.8 7.4 6.6M12 5.8V3.4M9.6 15.6l.4 2.6M14.4 15.6l-.4 2.6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol><symbol id="pp-cup" viewBox="0 0 24 24"><path d="M6.4 7.6h11.2l-1.4 12.2c-.1.9-.9 1.6-1.8 1.6H9.6c-.9 0-1.7-.7-1.8-1.6L6.4 7.6ZM5.4 7.6h13.2M12.6 7.4l2-4.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol><symbol id="pp-drop" viewBox="0 0 24 24"><path d="M12 3.2s-6 6.6-6 11a6 6 0 0 0 12 0c0-4.4-6-11-6-11Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol><symbol id="pp-ticket" viewBox="0 0 24 24"><path d="M3.4 7.4c0-.8.6-1.4 1.4-1.4h14.4c.8 0 1.4.6 1.4 1.4v2.2a2.4 2.4 0 0 0 0 4.8v2.2c0 .8-.6 1.4-1.4 1.4H4.8c-.8 0-1.4-.6-1.4-1.4v-2.2a2.4 2.4 0 0 0 0-4.8V7.4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14.4 6.4v11.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2 2.2"/></symbol><symbol id="pp-bag" viewBox="0 0 24 24"><path d="M5 8h14l-1 12.2c-.1.8-.7 1.4-1.5 1.4h-9c-.8 0-1.4-.6-1.5-1.4L5 8Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M8.6 10.4V6.6a3.4 3.4 0 0 1 6.8 0v3.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol><symbol id="pp-cash" viewBox="0 0 24 24"><rect x="2.8" y="6.2" width="18.4" height="11.6" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></symbol></defs></svg>
+
+<div class="ocp">
+  <div class="shell">
+    <header class="top">
+      <a class="wm" href="#" aria-label="ChaptOS home">
+        <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true">
+          <rect x="2.5" y="4.5" width="35" height="31" rx="9" fill="#FFE5A0" stroke="#26211B" stroke-width="2.4"/>
+          <path d="M12 21.5c2.2 3.4 5 5 8.4 5 3.2 0 5.9-1.5 8-4.6" fill="none" stroke="#26211B" stroke-width="2.4" stroke-linecap="round"/>
+          <circle cx="14.6" cy="16" r="1.9" fill="#26211B"/><circle cx="25.4" cy="16" r="1.9" fill="#26211B"/>
+        </svg>
+        <span class="wt">ChaptOS</span>
+      </a>
+      <div class="top-r">
+        <span class="tag">Create your org</span>
+        <button type="button" class="iconbtn theme" id="theme" aria-label="Switch paper (T)" title="Switch paper (T)"><svg class="ic"><use href="#pp-moon"/></svg></button>
+      </div>
+    </header>
+
+    <main class="stage" data-step="timeline">
+      <div class="split">
+        <div class="ask">
+          <p class="kick">Step 4 · Event categories <span class="chip" id="count"></span></p>
+          <h1 class="q">Everything Oozma Kappa does, <span class="hi hi--multi">colour-coded</span>.</h1>
+          <p class="lede">From what you told us, these are your <b>event categories</b>. Every event you add later goes into one, and its colour is how everyone spots it.</p>
+
+          <p class="how"><span class="num">1</span>Keep the ones you'll use, add any we missed</p>
+
+          <div class="kinds" id="kinds" role="group" aria-label="Event categories"></div>
+
+          <div class="ideas" id="ideas"></div>
+
+          <p class="tips">
+            <span><svg class="ic"><use href="#pp-pencil"/></svg>Tap a name to rename it</span>
+            <span><i></i>Tap its sticker to change the colour</span>
+          </p>
+
+          <div class="foot">
+            <button type="button" class="btn" id="go">See the whole charter<svg class="ic"><use href="#pp-arrow-r"/></svg></button>
+            <span class="note">Nothing here is final — change it any time in Settings.</span>
+          </div>
+        </div>
+
+        <div class="slot">
+          <p class="how"><span class="num">2</span>Later, when you add an event, you pick its category</p>
+          <div class="slip" id="slip"></div>
+          <p class="how"><span class="num">3</span>It lands on the timeline in that colour</p>
+          <div class="week" id="week"></div>
+        </div>
+      </div>
+    </main>
+
+    <nav class="rail" aria-label="Steps">
+      <button type="button" class="done" title="Name"><span class="n"><svg class="ic"><use href="#pp-check"/></svg></span><span class="lb">Name</span></button>
+      <button type="button" class="done" title="Interview"><span class="n"><svg class="ic"><use href="#pp-check"/></svg></span><span class="lb">Interview</span></button>
+      <button type="button" class="done" title="Roles"><span class="n"><svg class="ic"><use href="#pp-check"/></svg></span><span class="lb">Roles</span></button>
+      <button type="button" aria-current="step" title="Timeline"><span class="n">4</span><span class="lb">Timeline</span></button>
+      <button type="button" title="Charter"><span class="n">5</span><span class="lb">Charter</span></button>
+      <button type="button" title="Sign in"><span class="n">6</span><span class="lb">Sign in</span></button>
+    </nav>
+  </div>
+  <div class="toast" id="toast" role="status"><svg class="ic"><use href="#pp-check"/></svg><span></span></div>
+  <span class="mockchip">Mock · T switches paper</span>
+</div>
+
+<script>
+/* EVENT_TYPE_PALETTE (lib/event-types.ts) — ivory / dusk pairs */
+const PALETTE = [
+  ["#3f6ea3", "#8fb0d6"], ["#b34f72", "#d98ba3"], ["#c14a37", "#e0796b"], ["#2f8579", "#5fbdb0"], ["#9a7224", "#ddb36a"],
+  ["#4a7d4c", "#86b988"], ["#6d28d9", "#a78bfa"], ["#2f5d7c", "#7fb3d9"], ["#8b3fa3", "#c98bd9"],
+];
+/* A fraternity's set: the built-ins (each rides with a page) + its starters.
+   day = Mon 0 … Sun 6 in the sample week. */
+const KINDS = [
+  { slug: "chapter",     label: "Chapter",           c: 0, icon: "gavel", eg: "Chapter meeting",  day: 6, at: "7:00p",   on: true,  page: "Meetings" },
+  { slug: "party",       label: "Party",             c: 1, icon: "star",  eg: "Fall formal",      day: 4, at: "9:00p",   on: true,  page: "Parties" },
+  { slug: "deadline",    label: "Deadline",          c: 2, icon: "flag",  eg: "Dues due",         day: 2, at: "all day", on: true,  page: "Tasks" },
+  { slug: "service",     label: "Community Service", c: 3, icon: "heart", eg: "Food bank shift",  day: 5, at: "10:00a",  on: true,  page: "Service" },
+  { slug: "social",      label: "Social",            c: 4, icon: "mug",   eg: "Social night",     day: 3, at: "8:00p",   on: true },
+  { slug: "programming", label: "Programming",       c: 6, icon: "board", eg: "Alumni panel",     day: 1, at: "6:30p",   on: true },
+  { slug: "fundraising", label: "Fundraising",       c: 5, icon: "jar",   eg: "Bake sale",        day: 0, at: "noon",    on: false, page: "Fundraisers" },
+];
+/* EVENT_TYPE_SUGGESTIONS.fraternity, with something to draw on the week */
+const IDEAS = [
+  { label: "Rush",         icon: "hand",     eg: "Rush kickoff",   day: 0, at: "6:00p" },
+  { label: "Formal",       icon: "ticket",   eg: "Spring formal",  day: 5, at: "8:00p" },
+  { label: "Philanthropy", icon: "cash",     eg: "Charity 5K",     day: 6, at: "9:00a" },
+  { label: "Alumni",       icon: "envelope", eg: "Alumni dinner",  day: 2, at: "6:30p" },
+];
+const MAX_OWN = 20;
+
+const $ = s => document.querySelector(s);
+const ic = n => `<svg class="ic"><use href="#pp-${n}"/></svg>`;
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const tc = k => `--tcl:${PALETTE[k.c][0]};--tcd:${PALETTE[k.c][1]}`;
+let palFor = null, fresh = null, toastT = 0, foc = "party";
+
+function toast(msg) {
+  const t = $("#toast");
+  t.querySelector("span").textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove("on"), 2600);
+}
+function nextColor() {
+  const used = new Set(KINDS.filter(k => k.on).map(k => k.c));
+  const free = PALETTE.findIndex((_, i) => !used.has(i));
+  return free < 0 ? KINDS.length % PALETTE.length : free;
+}
+
+function renderKinds() {
+  const own = KINDS.filter(k => k.own).length;
+  $("#kinds").innerHTML = KINDS.map(k => `
+    <div class="kd${fresh === k.slug ? " pop" : ""}" data-k="${k.slug}" role="checkbox" tabindex="0" aria-checked="${k.on}" aria-label="${esc(k.label)}" style="${tc(k)}">
+      <button type="button" class="sw" ${k.on ? "" : 'tabindex="-1"'} aria-label="Change colour of ${esc(k.label)}">${ic(k.icon)}</button>
+      <div class="kd-t">
+        <input value="${esc(k.label)}" maxlength="40" aria-label="Name" ${k.on ? "" : 'tabindex="-1"'}>
+        <small>${!k.on && k.page ? `also adds the <b>${k.page}</b> page` : k.eg === k.label ? "your own category" : `e.g. <b>${esc(k.eg)}</b>`}</small>
+      </div>
+      <span class="bx">${ic("check")}</span>
+      ${palFor === k.slug ? `<div class="pal" role="group" aria-label="Colour">${PALETTE.map((p, i) =>
+        `<button type="button" data-c="${i}" aria-pressed="${i === k.c}" aria-label="Colour ${i + 1}" style="--tcl:${p[0]};--tcd:${p[1]};--tc:var(--tcl)"></button>`).join("")}</div>` : ""}
+    </div>`).join("") + (own < MAX_OWN ? `
+    <form class="kd own" id="own">
+      <span class="sw">${ic("plus")}</span>
+      <input placeholder="Add your own…" autocomplete="off" maxlength="40" aria-label="Your own category">
+      <button class="mini" type="submit" disabled>Add</button>
+    </form>` : "");
+  // dusk swatches read the dark hex
+  if (document.documentElement.dataset.crfTheme === "dusk") document.querySelectorAll(".pal button").forEach(b => b.style.setProperty("--tc", "var(--tcd)"));
+  const left = IDEAS.filter(i => !KINDS.some(k => k.label.toLowerCase() === i.label.toLowerCase()));
+  $("#ideas").innerHTML = left.length ? `<span>Others often add</span>` + left.map(i => `<button type="button" class="idea" data-idea="${i.label}">${ic("plus")}${i.label}</button>`).join("") : "";
+  const n = KINDS.filter(k => k.on).length;
+  $("#count").textContent = `${n} ${n === 1 ? "category" : "categories"}`;
+}
+
+function renderWeek() {
+  const now = new Date(), mon = new Date(now);
+  mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
+  const today = (now.getDay() + 6) % 7;
+    const on = KINDS.filter(k => k.on);
+  const w = $("#week");
+  w.innerHTML = `
+    <div class="week-h"><b>A week at Oozma Kappa</b></div>
+    ${on.length ? days.map((d, i) => {
+      const evs = on.filter(k => k.day === i);
+      return `<div class="day${i === today ? " today" : ""}">
+        <span class="d">${d.toLocaleDateString("en-US", { weekday: "short" })}<b>${d.getDate()}</b></span>
+        <div class="evs">${evs.length ? evs.map(k => `
+          <div class="ev${fresh === k.slug ? " new" : ""}" data-k="${k.slug}" style="${tc(k)}">
+            <i class="g">${ic(k.icon)}</i><span>${esc(k.eg)}<em>${esc(k.label)}</em></span><small>${k.at}</small>
+          </div>`).join("") : `<i class="free"></i>`}</div>
+      </div>`;
+    }).join("") : `<p class="week-0">An empty week. Tick a category and watch an event land here.</p>`}
+    <div class="week-f">${ic("eye")}Sample events, just to show the colours. Your real timeline starts empty.</div>`;
+}
+/* What "a category" means, shown instead of told: the add-event form the
+   founder will meet later, with their ticked categories as its choices. */
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function focused() {
+  const on = KINDS.filter(k => k.on);
+  return on.find(k => k.slug === foc) ?? on[0] ?? null;
+}
+function renderSlip() {
+  const k = focused(), on = KINDS.filter(x => x.on);
+  $("#slip").innerHTML = k ? `
+    <div class="slip-h" data-k="${k.slug}" style="${tc(k)}">
+      <i class="g">${ic(k.icon)}</i>
+      <div><small>New event</small><b>${esc(k.eg)}</b></div>
+      <em>${DAYS[k.day]} · ${k.at}</em>
+    </div>
+    <div class="slip-c"><small>Category</small>
+      <div class="cps">${on.map(x => `<button type="button" class="cp" data-k="${x.slug}" aria-pressed="${x === k}" style="${tc(x)}">${x === k ? ic("check") : "<i></i>"}${esc(x.label)}</button>`).join("")}</div>
+    </div>` : `<p class="week-0">Tick a category to see how adding an event works.</p>`;
+  document.querySelectorAll("#week .ev").forEach(n => n.classList.toggle("lit", !!k && n.dataset.k === k.slug));
+}
+function render() { renderKinds(); renderWeek(); renderSlip(); fresh = null; }
+
+function toggle(slug) {
+  const k = KINDS.find(x => x.slug === slug);
+  if (!k) return;
+  palFor = null;
+  if (k.own && k.on) {                       // your own kinds just come off the sheet
+    KINDS.splice(KINDS.indexOf(k), 1);
+    toast(`${k.label} removed`);
+  } else {
+    k.on = !k.on;
+    if (k.on) fresh = foc = slug;
+    if (k.page && slug !== "chapter") toast(k.on ? `${k.label} is on — the ${k.page} page joins your sidebar` : `${k.label} is off — the ${k.page} page goes with it`);
+  }
+  $("#week").classList.add("touched");
+  render();
+}
+function add(label, idea) {
+  label = label.trim();
+  if (!label) return;
+  const slug = "own-" + Date.now();
+  KINDS.push({ slug, label, own: true, on: true, c: nextColor(), icon: idea?.icon ?? "pin", eg: idea?.eg ?? label, day: idea?.day ?? (KINDS.length * 2 + 1) % 7, at: idea?.at ?? "7:00p" });
+  fresh = foc = slug;
+  $("#week").classList.add("touched");
+  render();
+}
+
+/* ---- wiring ---- */
+const kinds = $("#kinds");
+kinds.addEventListener("click", e => {
+  if (e.target.closest("#own")) return;
+  const kd = e.target.closest(".kd");
+  if (!kd) return;
+  const slug = kd.dataset.k, k = KINDS.find(x => x.slug === slug);
+  const sw = e.target.closest(".pal button");
+  if (sw) { k.c = +sw.dataset.c; palFor = null; render(); return; }
+  if (k.on && e.target.closest(".sw")) { palFor = palFor === slug ? null : slug; renderKinds(); return; }
+  if (k.on && e.target.closest(".kd-t input")) return;   // renaming, not toggling
+  toggle(slug);
+});
+kinds.addEventListener("keydown", e => {
+  if (e.target.matches(".kd[role=checkbox]") && (e.key === " " || e.key === "Enter")) { e.preventDefault(); toggle(e.target.dataset.k); }
+  if (e.target.matches(".kd-t input") && e.key === "Enter") e.target.blur();
+});
+kinds.addEventListener("input", e => {
+  if (e.target.closest("#own")) { $("#own .mini").disabled = !e.target.value.trim(); return; }
+  const kd = e.target.closest(".kd"), k = kd && KINDS.find(x => x.slug === kd.dataset.k);
+  if (k && e.target.value.trim()) { k.label = e.target.value; renderWeek(); renderSlip(); }
+});
+kinds.addEventListener("focusout", e => {
+  const kd = e.target.matches(".kd-t input") && e.target.closest(".kd"), k = kd && KINDS.find(x => x.slug === kd.dataset.k);
+  if (k && !e.target.value.trim()) e.target.value = k.label;
+});
+kinds.addEventListener("submit", e => { e.preventDefault(); add(e.target.querySelector("input").value); $("#own input")?.focus(); });
+$("#ideas").addEventListener("click", e => {
+  const b = e.target.closest(".idea");
+  if (b) add(b.dataset.idea, IDEAS.find(i => i.label === b.dataset.idea));
+});
+document.addEventListener("click", e => { if (palFor && !e.target.closest(".kd")) { palFor = null; renderKinds(); } });
+
+/* one category is always "in hand": its tile, the slip and its event on the week agree */
+function link(slug, dim) {
+  if (slug && KINDS.some(k => k.slug === slug && k.on) && slug !== foc) { foc = slug; renderSlip(); }
+  $("#week").classList.toggle("linking", !!dim && !!slug);
+  kinds.querySelectorAll(".kd").forEach(n => n.classList.toggle("lit", !!dim && n.dataset.k === foc));
+}
+kinds.addEventListener("mouseover", e => link(e.target.closest(".kd[data-k]")?.dataset.k, true));
+kinds.addEventListener("mouseleave", () => link(null));
+kinds.addEventListener("focusin", e => link(e.target.closest(".kd[data-k]")?.dataset.k, true));
+$("#week").addEventListener("mouseover", e => link(e.target.closest(".ev")?.dataset.k, false));
+$("#slip").addEventListener("click", e => link(e.target.closest(".cp")?.dataset.k, false));
+
+function setTheme(t) {
+  document.documentElement.dataset.crfTheme = t;
+  $("#theme use").setAttribute("href", t === "dusk" ? "#pp-sun" : "#pp-moon");
+  try { localStorage.setItem("paper-mock-theme", t); } catch {}
+  renderKinds();
+}
+$("#theme").addEventListener("click", () => setTheme(document.documentElement.dataset.crfTheme === "dusk" ? "ivory" : "dusk"));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && palFor) { palFor = null; renderKinds(); }
+  if ((e.key === "t" || e.key === "T") && !e.target.matches("input") && !e.metaKey && !e.ctrlKey) $("#theme").click();
+});
+$("#go").addEventListener("click", () => toast("Next: the whole charter (step 5)"));
+
+let saved = null;
+try { saved = localStorage.getItem("paper-mock-theme"); } catch {}
+render();
+if (saved === "dusk" || saved === "ivory") setTheme(saved);
+</script>
+</body>
+</html>
