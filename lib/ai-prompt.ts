@@ -1,6 +1,29 @@
 import { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
 import { netBalance } from "@/lib/treasury-balance";
+import { formsEnabled, FORM_SHAPE_TYPES } from "@/lib/ai-shape-request";
+
+/**
+ * Which list form to name, checked in this order — the first that fits wins
+ * (docs/ask-chapt-list-forms-plan.md §2.2). Each line says what the form needs
+ * read THIS turn; the server still checks every record and draws the plain
+ * list when one doesn't qualify, so a wrong pick costs nothing.
+ */
+const FORM_LADDER: Array<[(typeof FORM_SHAPE_TYPES)[number], string]> = [
+  ["pastdue", "`pastdue` — every row is OPEN work whose date has passed ('what's overdue'); needs list_deadlines with open_only and an end before today."],
+  ["logbook", "`logbook` — calendar things that ALL already happened ('how many service events have we had', 'what parties did we throw'); needs the list tool for that kind (list_calendar_events with its category, list_service_events, list_parties, list_programming_events, list_fundraisers, or list_deadlines status=done) with the window asked about. One result is still a logbook."],
+  ["dated", "`dated` — calendar things (tasks, deadlines, events, mixed is fine) where at least one is today or later and the window is longer than a week ('what's on my plate this month'); needs list_deadlines and/or list_calendar_events for the window. 7 days or fewer stays `week`."],
+];
+
+/** The list-forms paragraph, or "" when ASK_CHAPT_FORMS is off. */
+export function formsGuidance(): string {
+  if (!formsEnabled()) return "";
+  const lines = FORM_LADDER.map(([, line]) => line).join(" ");
+  return "LIST FORMS: when the rows all share something the eye can use, name a list form in `shape` instead of leaving a plain list; first match wins, in this order: " +
+    lines +
+    " Tie-breaks: a number on every row beats a date; a shared date beats sorting by kind; never choose by how many rows came back — the same question gets the same form every week. " +
+    "Give dated rows their `date` (YYYY-MM-DD) so same-titled records (recurring meetings) can be told apart. Existing shapes win where they apply (tally for a roster subset, week for 7 days or fewer, missing for a named thing not found).";
+}
 
 /** Org-scoped data accessor (same shape as ctx.db). See lib/ai-tools.ts. */
 type Scoped = ReturnType<typeof db>;
@@ -198,6 +221,7 @@ export async function buildSystemPrompt(
     "ASKING BACK: only ask when the RECOMMENDATION ITSELF would change based on the answer — not for logistics/scheduling on a recommendation you already made. If your rows already answer the question given what the user told you, do not append questions just to have a next step; that's what `follows` and each row's `ask` are for. When you do need to narrow, put it in compose_answer's `askback` (up to 2 questions, each with 2-5 likely answers as chips) — never as trailing questions in the verdict or a 'if you tell me X and Y' paragraph. Answer with what you can determine FIRST, then ask. Never lead with the question. Set each question's `select`: \"one\" (the default) when the chips are alternatives and picking one rules out the rest ('optimize for cost or turnout?'); \"many\" when they are constraints or preferences that can all hold at once ('under $500', 'no Saturdays', 'by next semester') — the user then picks several and replies once instead of spending a turn per constraint.",
     "NEVER COUNT THE ROWS: don't announce how many rows follow ('here are 3 ideas') — the list is already on screen, and that count is the thing that ends up disagreeing with it. When a question has no real figure (suggestions, recommendations, 'what should we do next'), lead the verdict with what the data shows instead: 'Your last *21* events skew social and alumni.' And keep the rows one kind of thing — an event already on the calendar is not a suggestion; put it in follows, not in the list.",
     "ANSWER SHAPES: some answers read better as a picture than a list — name one in compose_answer's `shape` and the server draws it from the data. `tally` when the question picks a SUBSET of the roster ('who owes dues', 'who's at risk', 'who hasn't logged service hours') — set metric. `breakdown` when a total splits by category ('where did our money go', 'what's our income from'). `week` for what's on in a window of 7 days or fewer — set start to its first day. `missing` when you searched for something specific the user named ('the beach cleanup', 'the formal deposit') and nothing matched — set term to its name, keep the verdict to what you couldn't find, and offer the fix as a follow-up (e.g. adding it to Programming). Search the places it could live first (calendar, service, programming, deadlines, docs, as fits); the picture shows exactly where you looked. Read the data first exactly as you would anyway (list_brothers; sum_transactions with group_by_category, plus get_budget for this semester's spending; list_calendar_events and list_deadlines for the window), still write the verdict and rows, and never put numbers in `shape`. Anything else: no shape.",
+    formsGuidance(),
     "WHICH ONE: when get_brother matches several people, don't guess and don't ask in prose — call compose_answer with a verdict saying how many match (e.g. 'There are *two Chrises* on the roster.'), no rows, and an askback with ONE question ('Which one did you mean?') whose chips are the candidates' full names exactly as get_brother returned them.",
     "SOURCING: compose_answer gets its sources attached automatically from the tools you called — do NOT inline citation tags in the verdict or rows. Only when answering in plain text with a specific number, tag its source in a few words, e.g. '$1,240 (treasury balance)'.",
     "PRODUCT HOW-TO: 'how do I do X in ChaptOS' questions about real features ARE in scope. Custom metrics, vocabulary, roles, member fields, semesters, and dues/GPA thresholds are managed under Settings. A SINGLE navigational answer stays plain text (e.g. 'Settings → Custom Metrics → Add metric; you set a name, unit, goal, and at-risk threshold'); anything spanning several features or steps goes through compose_answer as advisory rows. You configure these in the app, not via chat — point the user to the page, don't claim to do it for them. Don't decline these as out-of-scope.",

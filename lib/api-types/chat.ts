@@ -120,7 +120,9 @@ export interface AnswerData {
 }
 
 /** Discriminated by `type`. New types may be added; ignore ones you don't know. */
-export type AnswerShape = TallyShape | BreakdownShape | WeekShape | MissingShape;
+export type AnswerShape =
+  | TallyShape | BreakdownShape | WeekShape | MissingShape
+  | DatedShape | LogbookShape | PastDueShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -257,4 +259,55 @@ export interface MissingShape {
   type: "missing";
   term: string;
   looked: Array<{ source: LookedSource; label: string; scope: string; of: number }>;
+}
+
+// ── List forms (docs/ask-chapt-list-forms-plan.md) ──────────────────────────
+// Each replaces the plain row list when every record in the answer qualifies.
+// Same rule as the shapes above: `rows[i]` is the record `items[i]` draws, so
+// identity, title and ref stay on the row and these carry only the extra facts.
+// Dates are YYYY-MM-DD and `today` is the server's day when the answer was
+// built: clients compute "6 days late" from those, never receive the phrase.
+
+/** The set was cut to fit: `of` records matched in all. Draw "+ N more", and no total or count over the cut. */
+export interface ShapeTruncation { of: number }
+
+/** Calendar things around today, in date order — the Today line. */
+export interface DatedShape {
+  type: "dated";
+  today: string;
+  items: Array<{
+    date: string;
+    time: string | null;
+    kind: "task" | "event";
+    /** An open task whose date has passed. Never an event. */
+    late: boolean;
+    /** A finished task, or an event that already happened. */
+    done: boolean;
+  }>;
+  truncated: ShapeTruncation | null;
+}
+
+/** Calendar things that already happened, oldest first — counted, shelved by month. */
+export interface LogbookShape {
+  type: "logbook";
+  /** Marks the current month "so far". */
+  today: string;
+  noun: { one: string; many: string };
+  /** "Fall 2026", "since Aug 24", "All time". */
+  period: string;
+  items: Array<{ date: string }>;
+  truncated: ShapeTruncation | null;
+}
+
+export interface PastDueOwner {
+  kind: "member" | "role" | "everyone" | "none";
+  label: string;
+}
+
+/** Open work whose date has passed, measured back from today. */
+export interface PastDueShape {
+  type: "pastdue";
+  today: string;
+  items: Array<{ date: string; owner: PastDueOwner }>;
+  truncated: ShapeTruncation | null;
 }

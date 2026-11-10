@@ -20,6 +20,9 @@ import { BreakdownSheet } from "./Breakdown";
 import { MissingSheet } from "./Missing";
 import { TallySheet } from "./Tally";
 import { WeekSheet } from "./Week";
+import { DatedSheet } from "./Dated";
+import { LogbookSheet } from "./Logbook";
+import { PastDueSheet } from "./PastDue";
 
 export type { RowHandlers } from "./common";
 
@@ -37,6 +40,9 @@ const SHEETS: Registry = {
   breakdown: p => <BreakdownSheet shape={p.shape} rows={p.rows} h={p.h} />,
   week: p => <WeekSheet shape={p.shape} rows={p.rows} h={p.h} />,
   missing: p => <MissingSheet shape={p.shape} rows={p.rows} renderRow={p.renderRow} />,
+  dated: p => <DatedSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  logbook: p => <LogbookSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  pastdue: p => <PastDueSheet shape={p.shape} rows={p.rows} h={p.h} />,
 };
 
 /** True when this client knows how to draw the shape; unknown types fall back to rows. */

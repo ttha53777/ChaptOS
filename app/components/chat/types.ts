@@ -8,6 +8,7 @@ export type {
   RefType, EntityRef, AnswerTier, AnswerRow, AskBackSelect, AskBackQuestion, AskBack,
   AnswerData, ProposalPermInfo, ProposalDisplayInfo,
   AnswerShape, AskBackPerson, TallyShape, TallyMark, BreakdownShape, BreakdownPart, WeekShape, WeekItem, MissingShape,
+  DatedShape, LogbookShape, PastDueShape, PastDueOwner, ShapeTruncation,
   AnswerCitation, ChatAttachmentInfo, AttachmentUnit, FileLimits,
 } from "@/lib/api-types";
 import type { AnswerData, AnswerRow, ProposalDisplayInfo, ProposalPermInfo } from "@/lib/api-types";

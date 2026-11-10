@@ -34,9 +34,10 @@ type Scoped = ReturnType<typeof db>;
 export { SHAPE_TYPES, TALLY_METRICS, parseShapeRequest, type ShapeRequest, type ShapeType } from "@/lib/ai-shape-request";
 export { createShapeEvidence, selectFromEvidence, type ShapeEvidence } from "@/lib/ai-shape-evidence";
 import type { ShapeEvidence } from "@/lib/ai-shape-evidence";
+import { buildDated, buildLogbook, buildPastDue } from "@/lib/ai-shapes-calendar";
 
-export interface BuiltShape {
-  shape: AnswerShape;
+export interface BuiltShape<S extends AnswerShape = AnswerShape> {
+  shape: S;
   rows: AnswerRow[];
 }
 
@@ -51,7 +52,11 @@ export interface BuildOpts {
 
 /** The newer shapes, one module per family. Each never throws past buildShape's catch. */
 type FamilyBuilder = (req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, orgId: number, o: BuildOpts & { rows: AnswerRow[]; today: string }) => Promise<BuiltShape | null>;
-const FAMILY_BUILDERS: Partial<Record<ShapeRequest["type"], FamilyBuilder>> = {};
+const FAMILY_BUILDERS: Partial<Record<ShapeRequest["type"], FamilyBuilder>> = {
+  dated: buildDated,
+  logbook: buildLogbook,
+  pastdue: buildPastDue,
+};
 
 /**
  * Build the requested shape, or null when the turn didn't read the data it

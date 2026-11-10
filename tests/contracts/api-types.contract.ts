@@ -22,8 +22,9 @@
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
-  ChatAttachmentInfo, AttachmentUnit,
+  ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape,
 } from "@/lib/api-types";
+import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
 import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { publicBrother } from "@/lib/brother-avatar";
@@ -103,3 +104,9 @@ export const duesWaiverVoided: Widen<DuesWaived> = served<Served<typeof voidDues
 export const chatAttachments: Widen<ChatAttachmentInfo[]> = served<Served<typeof listAttachments>>();
 export const chatAttachmentUploaded: Widen<ChatAttachmentInfo> = served<Served<typeof uploadAttachment>>();
 export const chatAttachmentUnit: Widen<AttachmentUnit> = served<Served<typeof getAttachmentUnit>>();
+
+// POST /api/ai/chat `answer.shape` — each list form's pure builder, as sent.
+type ShapeOf<F extends Fn> = NonNullable<Served<F>> extends { shape: infer S } ? S : never;
+export const datedShape: Widen<DatedShape> = served<ShapeOf<typeof datedFromThings>>();
+export const logbookShape: Widen<LogbookShape> = served<ShapeOf<typeof logbookFromRecords>>();
+export const pastDueShape: Widen<PastDueShape> = served<ShapeOf<typeof pastDueFromTasks>>();

@@ -70,3 +70,57 @@ html[data-aesthetic="paper"] .chat-root .dr .dr-b { padding: 0; border: 1.5px so
 html[data-aesthetic="paper"] .chat-root .dr .dr-b .res:first-child { padding-top: 13px; }
 html[data-aesthetic="paper"] .chat-root .dr .res .glyph { background: var(--cs); border-color: var(--cb); color: var(--ci); }
 html[data-aesthetic="paper"] .chat-root .gp-r.sel { background: var(--pp-lilac-soft); }
+
+/* shared row bits */
+html[data-aesthetic="paper"] .chat-root .shp .rb .t { font-family: var(--font-geist-sans); font-weight: 600; font-size: 14px; }
+html[data-aesthetic="paper"] .chat-root .shp .rb .s { color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .shp .chev { color: var(--muted); transition: color .15s, transform .18s var(--pp-ease-out); }
+html[data-aesthetic="paper"] .chat-root .shp button:hover:not(:disabled) > .chev:not(.ask):not(.plus) { color: var(--ink); transform: translateX(2px); }
+html[data-aesthetic="paper"] .chat-root .shp .chev.ask, html[data-aesthetic="paper"] .chat-root .shp .chev.plus { color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .chat-root .shp-more { font-family: var(--font-geist-sans); color: var(--muted); }
+
+/* ── 02 Today line ────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .td-g::before { border-left: 1.5px solid var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .td-l b { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .td-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .td-r .d { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .td-r.late .d { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .td-g.now .d { color: var(--pp-butter-ink); }
+html[data-aesthetic="paper"] .chat-root .td-r.was .rb .t { color: var(--muted); font-weight: 500; }
+html[data-aesthetic="paper"] .chat-root .td-now::before { width: 12px; height: 12px; border: 1.5px solid var(--ink); background: var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .td-now span { font-family: var(--font-geist-mono); font-weight: 600; padding: 3px 9px; border: 1.5px solid var(--ink); background: var(--pp-butter); color: var(--pp-note-ink); }
+
+/* ── 03 Logbook ───────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .lg-head b { font-family: var(--font-fraunces); font-weight: 650; font-size: 40px; letter-spacing: -.045em; }
+html[data-aesthetic="paper"] .chat-root .lg-m { border-top-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .lg-ml .m { font-family: var(--font-fraunces); font-weight: 600; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .chat-root .lg-ml .c { font-family: var(--font-geist-mono); font-weight: 600; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .lg-ml small { color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .tk {
+  border: 1.5px solid var(--ink); background: var(--card);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .tk:hover:not(:disabled),
+html[data-aesthetic="paper"] .chat-root .tk.sel { transform: translate(-1.5px,-1.5px); box-shadow: 3px 3px 0 var(--pp-mint); border-color: var(--ink); background: var(--card); }
+html[data-aesthetic="paper"] .chat-root .tk .dt { background: var(--pp-mint); border-right: 1.5px solid var(--ink); color: var(--pp-note-ink); }
+html[data-aesthetic="paper"] .chat-root .tk .dt u { font-family: var(--font-geist-mono); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .tk .dt i { font-family: var(--font-fraunces); font-weight: 650; letter-spacing: -.03em; }
+html[data-aesthetic="paper"] .chat-root .tk .nm .t { font-family: var(--font-geist-sans); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .tk .nm .s { color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .lg-more { font-family: var(--font-geist-sans); color: var(--pp-lilac-ink); }
+
+/* ── 10 Past due ──────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .shp-pd { --pd-late: var(--pp-peach); --pd-old: var(--pp-peach-ink); }
+html[data-aesthetic="paper"][data-theme="dusk"] .chat-root .shp-pd { --pd-late: color-mix(in srgb, var(--pp-peach) 38%, var(--card)); }
+html[data-aesthetic="paper"] .chat-root .shp-legend .k-late, html[data-aesthetic="paper"] .chat-root .shp-legend .k-old { border: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .chat-root .pd-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .pd-r .av { background: var(--pp-lilac); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-weight: 700; border: 1.5px solid rgba(38,33,27,.08); }
+html[data-aesthetic="paper"] .chat-root .pd-r .av.role { background: var(--pp-sky); }
+html[data-aesthetic="paper"] .chat-root .pd-r .av.all { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .pd-r .av.none { background: none; border: 1.5px dashed var(--pp-peach-ink); color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .pd-in::before { content: ''; position: absolute; inset: -6px 0; background: repeating-linear-gradient(to left, transparent 0 calc(100% / var(--wk, 3) - 1.5px), var(--line-med) calc(100% / var(--wk, 3) - 1.5px) calc(100% / var(--wk, 3))); }
+html[data-aesthetic="paper"] .chat-root .pd-ax .pd-in::before { display: none; }
+html[data-aesthetic="paper"] .chat-root .pd-bar { border: 1.5px solid var(--ink); border-right: 0; }
+html[data-aesthetic="paper"] .chat-root .pd-v, html[data-aesthetic="paper"] .chat-root .pd-flat { font-family: var(--font-geist-mono); color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .pd-ax .pd-in span { font-family: var(--font-geist-mono); font-weight: 600; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .pd-ax .pd-in span.now { color: var(--ink); }

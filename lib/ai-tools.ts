@@ -1055,6 +1055,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               "breakdown — a total split by category (where the money went / came from); needs sum_transactions with group_by_category, plus get_budget when it's this semester's spending. " +
               "week — what's on during a window of 7 days or fewer ('this week', 'next week', 'this weekend'); needs list_calendar_events and list_deadlines for that window. " +
               "missing — you searched for a specific thing the user named and NOTHING matched; set term to its name ('beach cleanup'). The server shows where you looked and the closest real titles. Not for a genuine zero (nobody owes dues is a tally). " +
+              (formsEnabled() ? "The other types are list forms: see LIST FORMS in the instructions. " : "") +
               "Omit for anything else. Still send your rows: they're shown if the picture can't be drawn.",
             properties: {
               type:   { type: "string", enum: offeredShapeTypes() },

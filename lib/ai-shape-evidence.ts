@@ -62,6 +62,8 @@ export function createShapeEvidence(): ShapeEvidence {
 
 /** One record of a source, as a builder needs to find it again. */
 export interface SourceRecord {
+  /** Set when a set mixes record types (tasks and events share id space). */
+  kind?: string;
   id: number;
   title: string;
   date: string | null;
@@ -95,12 +97,14 @@ export function resolveRows(rows: ReadonlyArray<Pick<AnswerRow, "title" | "date"
     byTitle.set(k, [...(byTitle.get(k) ?? []), r]);
   }
   const out: SourceRecord[] = [];
-  const used = new Set<number>();
+  const used = new Set<string>();
   for (const row of rows) {
     const same = byTitle.get(norm(row.title)) ?? [];
     const hits = row.date ? same.filter(r => r.date === row.date) : same;
-    if (hits.length !== 1 || used.has(hits[0].id)) return null;
-    used.add(hits[0].id);
+    if (hits.length !== 1) return null;
+    const key = `${hits[0].kind ?? ""}:${hits[0].id}`;
+    if (used.has(key)) return null;
+    used.add(key);
     out.push(hits[0]);
   }
   return out;
@@ -117,17 +121,20 @@ export function selectFromEvidence(input: {
   if (!read) return null;
   let all: SourceRecord[];
   try { all = input.sources[read.tool](read.result, read.args); } catch { return null; }
-  if (input.rows.length > 0 && input.rows.length < MODEL_ROW_CAP) {
-    const picked = resolveRows(input.rows, all);
-    if (picked) return { tool: read.tool, args: read.args, records: picked, truncated: null, subset: true };
+  return { tool: read.tool, args: read.args, ...narrowToRows(all, input.rows, input.cap) };
+}
+
+/** Rules 2 and 3 over an already-merged set: the model's deliberate subset, or the whole set capped. */
+export function narrowToRows(
+  all: SourceRecord[],
+  rows: ReadonlyArray<Pick<AnswerRow, "title" | "date">>,
+  cap: number,
+): Pick<Selection, "records" | "truncated" | "subset"> {
+  if (rows.length > 0 && rows.length < MODEL_ROW_CAP) {
+    const picked = resolveRows(rows, all);
+    if (picked) return { records: picked, truncated: null, subset: true };
   }
-  return {
-    tool: read.tool,
-    args: read.args,
-    records: all.slice(0, input.cap),
-    truncated: all.length > input.cap ? { of: all.length } : null,
-    subset: false,
-  };
+  return { records: all.slice(0, cap), truncated: all.length > cap ? { of: all.length } : null, subset: false };
 }
 
 // ────────────────────────────────────────────────────────────────────────────

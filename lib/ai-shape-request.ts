@@ -9,7 +9,7 @@ import type { TallyMetric } from "@/lib/api-types";
 /** The shapes that shipped before the list forms (docs/ask-chapt-list-forms-plan.md). */
 export const LEGACY_SHAPE_TYPES = ["tally", "breakdown", "week", "missing"] as const;
 /** The list forms: each replaces the plain row list when every record qualifies. */
-export const FORM_SHAPE_TYPES = [] as const;
+export const FORM_SHAPE_TYPES = ["dated", "logbook", "pastdue"] as const;
 export const SHAPE_TYPES = [...LEGACY_SHAPE_TYPES, ...FORM_SHAPE_TYPES] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
 export const TALLY_METRICS = ["owes_dues", "at_risk", "no_service_hours"] as const satisfies readonly TallyMetric[];

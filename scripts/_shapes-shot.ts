@@ -84,6 +84,25 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     { kind: "person", title: roster[0].name, subtitle: roster[0].role, value: `$${roster[0].duesOwed}`, ref: { type: "member", id: roster[0].id } },
   ];
 
+  // ── List forms, built by the real builders from real reads (flag forced on
+  // here; the driver never calls the model). Dev events are all in the past,
+  // so each form pins its own TODAY where it needs one ahead of it.
+  process.env.ASK_CHAPT_FORMS = "1";
+  const formRead = async (pairs: Array<[string, Record<string, unknown>]>) => {
+    const e = createShapeEvidence();
+    for (const [name, args] of pairs) e.add(name, args, await runTool(name, args, scoped, org.id));
+    return e;
+  };
+  const D_TODAY = process.env.DATED_TODAY ?? "2026-06-10";
+  const dated = await buildShape({ type: "dated" }, await formRead([
+    ["list_deadlines", { start: "2026-05-20", end: "2026-06-30" }],
+    ["list_calendar_events", { start: "2026-05-20", end: "2026-06-30" }],
+  ]), scoped, org.id, { today: D_TODAY });
+  const logbook = await buildShape({ type: "logbook" }, await formRead([["list_calendar_events", { category: "chapter", start: "2026-01-01", end: "2026-06-30" }]]), scoped, org.id);
+  const P_TODAY = process.env.PASTDUE_TODAY ?? "2026-07-10";
+  const pastdue = await buildShape({ type: "pastdue" }, await formRead([["list_deadlines", { open_only: true, end: "2026-07-09" }]]), scoped, org.id, { today: P_TODAY });
+  console.log("dated", dated && dated.rows.length, "logbook", logbook && logbook.rows.map(r => `${r.title}:${r.ref?.id ?? "-"}`).join(", "), "pastdue", pastdue && JSON.stringify(pastdue.shape));
+
   const ledger = (verb: string, source: string, finding: string) => [
     frame("step", { id: "0", verb, source }), frame("step_start", { id: "0" }), frame("step_done", { id: "0", finding }),
   ].join("");
@@ -99,6 +118,9 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     beach: ledger("Searching the calendar", "Events", "none found") + answer(`I couldn't find a *${TERM}* anywhere.`, missing, ["Events", "Service", "Programming"], { follows: [{ label: "Add it to Programming", ask: `Add ${TERM} to Programming` }] }),
     plan: ledger("Reading attendance", "Attendance", "72% avg") + frame("answer", { verdict: "Start with the *two that cost nothing*.", rows: planRows, follows: [], sources: ["Attendance"] }),
     drawer: ledger("Searching everything", "Timeline", "4 found") + frame("answer", { verdict: "*Four things* in three places.", rows: drawerRows, follows: [], sources: ["Timeline", "Tasks", "Roster"] }),
+    dated: ledger("Checking deadlines", "Tasks", "this month") + answer("*A busy June*, and two things are already late.", dated, ["Tasks", "Timeline"]),
+    logbook: ledger("Scanning the calendar", "Timeline", "chapter meetings") + answer(`*${logbook?.rows.length ?? 0}* chapter meetings so far this year.`, logbook, ["Timeline"]),
+    pastdue: ledger("Checking deadlines", "Tasks", "overdue") + answer(`*${pastdue?.rows.length ?? 0} things* are overdue.`, pastdue, ["Tasks"]),
     which: ledger("Looking up the name", "Brotherhood", "2 matches") + frame("answer", { verdict: "There are *two* matches on the roster.", rows: [], follows: [], sources: ["Brotherhood"], askback }),
   };
 
@@ -127,7 +149,7 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     if (r.request().method() === "GET") return r.fulfill({ json: { enabled: true } });
     const body = JSON.parse(r.request().postData() ?? "{}") as { messages?: Array<{ content: string }> };
     const q = (body.messages?.at(-1)?.content ?? "").toLowerCase();
-    const key = Object.keys(STREAMS).find(k => q.includes(k)) ?? "dues";
+    const key = Object.keys(STREAMS).find(k => q.startsWith(`${k}:`)) ?? Object.keys(STREAMS).find(k => q.includes(k)) ?? "dues";
     return r.fulfill({ status: 200, headers: { "content-type": "text/event-stream" }, body: frame("open", {}) + STREAMS[key] + frame("done", {}) });
   });
   await p.goto(`${BASE}/org/${SLUG}`, { waitUntil: "domcontentloaded" });
@@ -145,6 +167,9 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     ["5-missing", "did anyone sign up for the beach cleanup", ".shp-miss"],
     ["11-plan", "plan to get attendance up", ".gp"],
     ["8-drawer", "drawer: what do we have on the retreat", ".mx"],
+    ["02-dated", "dated: what's on my plate this month", ".shp-td"],
+    ["03-logbook", "logbook: how many chapter meetings have we had", ".shp-lg"],
+    ["10-pastdue", "pastdue: what's overdue", ".shp-pd"],
   ];
   for (const [n, q, sel] of SHOTS.filter(([n]) => !CASES || CASES.has(n))) {
     await p.fill(".cs-dock textarea", q);
