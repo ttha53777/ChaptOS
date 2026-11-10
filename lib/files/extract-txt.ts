@@ -1,6 +1,6 @@
 import { FileRejected, type Extracted, type TextUnit } from "./types";
 import { FILE_MAX_CHARS } from "./limits";
-import { capUnits } from "./units";
+import { capUnits, carryTableHeaders } from "./units";
 
 const LINES_PER_BLOCK = 80;
 const BLOCK_MAX_CHARS = 4_000;
@@ -34,6 +34,7 @@ export function extractTxt(text: string): Extracted {
     if (body.trim()) push(end - start === 1 ? `Line ${start + 1}` : `Lines ${start + 1}–${end}`, body);
     start = end;
   }
-  const capped = capUnits(units, FILE_MAX_CHARS);
+  const carried = carryTableHeaders(units.map(u => u.text));
+  const capped = capUnits(units.map((u, i) => ({ ...u, text: carried[i] })), FILE_MAX_CHARS);
   return { kind: "txt", content: { type: "text", units: capped.units }, unitCount: capped.units.length, charCount: capped.chars, truncated: capped.truncated };
 }

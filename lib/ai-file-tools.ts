@@ -6,6 +6,7 @@
  *   read_attachment         pages / sections / blocks, or a sheet range
  *   search_attachments      keyword passages across the files
  *   query_attachment_table  sum / avg / min / max / count over a sheet, on the server
+ *   compare_attachments     line two files up: what differs, what's only in one, what moved
  *
  * Every result is wrapped in the same envelope that labels it untrusted file
  * content. File text never enters the model any other way: not in the system
@@ -17,7 +18,8 @@
  */
 import type OpenAI from "openai";
 import type { AttachmentContent, Cell, SheetData, TextUnit } from "@/lib/files/types";
-import { colIndex, colLetter, formatRange, numericValue, parseRange, type CellRange } from "@/lib/files/cells";
+import { colIndex, colLetter, dateValue, formatRange, isoDate, numericValue, parseRange, type CellRange } from "@/lib/files/cells";
+import { compareTexts, figureChanges, type Segment } from "@/lib/files/compare";
 import { TOOL_RESULT_CHARS } from "@/lib/files/limits";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
 import { PRESEED_LIMITS, type FileRef, type FileToolContext } from "@/lib/ai-files";
@@ -36,6 +38,7 @@ const MAX_GRID_COLS = 40;
 const SEARCH_MAX_PASSAGES = 8;
 const SEARCH_PASSAGE_CHARS = 1_500;
 const QUERY_MAX_GROUPS = 50;
+const OUTLINE_MAX = 30;
 /** Below this, a read is refused rather than returning a useless sliver. */
 const MIN_USEFUL_CHARS = 400;
 
@@ -109,19 +112,41 @@ export const FILE_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           group_by: { type: "string", description: "Group rows by this column's value." },
           where: {
             type: "array",
-            description: "Up to 4 filters, all of which must hold.",
+            description: "Up to 4 filters, all of which must hold. gt/gte/lt/lte compare dates as dates when both sides are dates (\"2026-03-01\", \"3/1/2026\").",
             items: {
               type: "object",
               properties: {
                 column: { type: "string" },
                 op:     { type: "string", enum: ["eq", "contains", "gt", "gte", "lt", "lte"] },
-                value:  { type: "string", description: "Compared as a number for gt/gte/lt/lte." },
+                value:  { type: "string", description: "Compared as a number (or a date) for gt/gte/lt/lte." },
               },
               required: ["column", "op", "value"],
             },
           },
         },
         required: ["file", "op"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "compare_attachments",
+      description:
+        "Line two attached files up on the server and return only what differs. Use it for two versions of a document (old vs new bylaws, a draft vs the final), two lists or exports (a sign-up sheet vs a roster), or to check two files against each other. " +
+        "Documents: changed passages with both sides, passages only in one file, and passages that merely moved — each with its section and tags for both files. " +
+        "Spreadsheets: rows matched on a `key` column (a name, ID or item; picked automatically when omitted) — rows only in one, cells that changed with the difference, and column totals side by side. " +
+        "`a` is treated as the first file, `b` the second; it doesn't decide which is newer.",
+      parameters: {
+        type: "object",
+        properties: {
+          a:       { type: "string", description: "First file label, e.g. \"f1\"." },
+          b:       { type: "string", description: "Second file label, e.g. \"f2\"." },
+          sheet_a: { type: "string", description: "Spreadsheets: sheet in a (name or sh1). Default: the first sheet." },
+          sheet_b: { type: "string", description: "Spreadsheets: sheet in b. Default: the first sheet." },
+          key:     { type: "string", description: "Spreadsheets: the column that identifies a row in both (header text). Optional." },
+        },
+        required: ["a", "b"],
       },
     },
   },
@@ -206,7 +231,12 @@ function exactSum(values: number[]): number {
   return total / scale;
 }
 
-function aggregate(op: string, values: number[], matched: number): number | null {
+/**
+ * min/max over a column of dates (deadlines, due dates) answer with the date;
+ * a column counts as dates when it holds dates and no numbers.
+ */
+function aggregate(op: string, values: number[], matched: number, dates: number[] = []): number | string | null {
+  if ((op === "min" || op === "max") && values.length === 0 && dates.length) return isoDate(op === "min" ? Math.min(...dates) : Math.max(...dates));
   switch (op) {
     case "count": return matched;
     case "sum":   return exactSum(values);
@@ -217,13 +247,25 @@ function aggregate(op: string, values: number[], matched: number): number | null
   }
 }
 
+/** Largest first; ISO dates sort as text, which is chronological; nulls last. */
+function byResultDesc(a: number | string | null, b: number | string | null): number {
+  if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
+  return typeof a === "number" && typeof b === "number" ? b - a : String(b).localeCompare(String(a));
+}
+
 function cellMatches(cell: Cell, op: string, value: string): boolean {
   if (op === "eq" || op === "contains") {
     const n = numericValue(cell), target = Number(value);
     if (op === "eq" && n !== null && value.trim() !== "" && Number.isFinite(target)) return n === target;
+    const dCell = dateValue(cell), dTarget = dateValue(value);
+    if (op === "eq" && dCell !== null && dTarget !== null) return dCell === dTarget;
     const text = cell === null ? "" : String(cell).toLowerCase();
     const v = value.trim().toLowerCase();
     return op === "eq" ? text === v : text.includes(v);
+  }
+  const dCell = dateValue(cell), dTarget = dateValue(value);
+  if (dCell !== null && dTarget !== null) {
+    return op === "gt" ? dCell > dTarget : op === "gte" ? dCell >= dTarget : op === "lt" ? dCell < dTarget : dCell <= dTarget;
   }
   const n = numericValue(cell);
   const target = Number(String(value).replace(/[$,]/g, ""));
@@ -243,8 +285,17 @@ async function outline(fc: FileToolContext, f: FileRef): Promise<object> {
   if (content.type === "sheets") {
     return { ...base, sheets: content.sheets.map(s => ({ ref: s.ref, name: s.name, rows: s.rowCount, columns: s.columns.slice(0, MAX_GRID_COLS) })) };
   }
-  if (f.kind === "pdf") return { ...base, pages: content.units.length };
-  return { ...base, outline: content.units.slice(0, 30).map((u, i) => `${i + 1}. ${u.label}`) };
+  // The headings extraction recovered (Word styles, larger PDF type, markdown), each with where it sits.
+  const headings: string[] = [];
+  for (const u of content.units) {
+    for (const line of u.text.split("\n")) {
+      const m = /^(#{1,3}) (.+)$/.exec(line);
+      if (m && headings.length < OUTLINE_MAX) headings.push(`${unitTag(f, u.ref)} ${"  ".repeat(m[1].length - 1)}${m[2].slice(0, 80)}`);
+    }
+  }
+  if (f.kind === "pdf") return { ...base, pages: content.units.length, ...(headings.length ? { headings } : {}) };
+  if (headings.length) return { ...base, headings };
+  return { ...base, outline: content.units.slice(0, OUTLINE_MAX).map((u, i) => `${i + 1}. ${u.label}`) };
 }
 
 export async function listAttachments(_args: Args, fc: FileToolContext): Promise<object> {
@@ -382,12 +433,17 @@ export async function searchAttachments(args: Args, fc: FileToolContext): Promis
     }
   }
   found.sort((a, b) => b.hits - a.hits || a.order - b.order);
+  // Across several files, every file that matched gets its best passage in
+  // before any file gets a second — one long file must not crowd out the others.
+  const firsts = new Map<FileRef, Hit>();
+  for (const h of found) if (!firsts.has(h.file)) firsts.set(h.file, h);
+  const ranked = [...firsts.values(), ...found.filter(h => firsts.get(h.file) !== h)];
 
   const cap = Math.min(TOOL_RESULT_CHARS, fc.remaining());
   if (found.length > 0 && cap < MIN_USEFUL_CHARS) return budgetSpent();
   const passages: { tag: string; file: string; name: string; label: string; matched: number; text: string }[] = [];
   let used = 0;
-  for (const h of found.slice(0, SEARCH_MAX_PASSAGES)) {
+  for (const h of ranked.slice(0, SEARCH_MAX_PASSAGES)) {
     if (used + h.text.length > cap) break;
     passages.push({ tag: h.tag, file: h.file.label, name: h.file.name, label: h.label, matched: h.hits, text: h.text });
     used += h.text.length;
@@ -395,7 +451,13 @@ export async function searchAttachments(args: Args, fc: FileToolContext): Promis
   fc.spend(used);
   for (const p of passages) fc.serve(p.tag);
   if (passages.length) fc.tainted = true;
-  return envelope(null, { terms, passages, ...(found.length > passages.length ? { moreMatches: found.length - passages.length } : {}) });
+  // Which files mention the terms at all: "f2: 0" is itself an answer when comparing files.
+  const matchesByFile = scope.length > 1 ? Object.fromEntries(scope.map(f => [f.label, found.filter(h => h.file === f).length])) : undefined;
+  return envelope(null, {
+    terms, passages,
+    ...(matchesByFile ? { matchesByFile } : {}),
+    ...(found.length > passages.length ? { moreMatches: found.length - passages.length } : {}),
+  });
 }
 
 export async function queryAttachmentTable(args: Args, fc: FileToolContext): Promise<object> {
@@ -428,9 +490,9 @@ export async function queryAttachmentTable(args: Args, fc: FileToolContext): Pro
   }
 
   const { rows, offset } = dataRows(sheet);
-  type Bucket = { values: number[]; matched: number };
+  type Bucket = { values: number[]; dates: number[]; matched: number };
   const buckets = new Map<string, Bucket>();
-  const all: Bucket = { values: [], matched: 0 };
+  const all: Bucket = { values: [], dates: [], matched: 0 };
   let skipped = 0;
   let firstRow = -1, lastRow = -1;
   rows.forEach((row, i) => {
@@ -438,18 +500,20 @@ export async function queryAttachmentTable(args: Args, fc: FileToolContext): Pro
     if (!filters.every(w => cellMatches(row[w.col], w.op, w.value))) return;
     if (op === "count" && col !== null && row[col] === null) return;
     const v = col === null ? null : numericValue(row[col]);
+    const dv = col === null || v !== null ? null : dateValue(row[col]);
     const bucketsFor: Bucket[] = [all];
     if (groupCol !== null) {
       const key = row[groupCol] === null ? "(blank)" : String(row[groupCol]);
       let b = buckets.get(key);
-      if (!b) { b = { values: [], matched: 0 }; buckets.set(key, b); }
+      if (!b) { b = { values: [], dates: [], matched: 0 }; buckets.set(key, b); }
       bucketsFor.push(b);
     }
     for (const b of bucketsFor) {
       b.matched++;
       if (v !== null) b.values.push(v);
+      if (dv !== null) b.dates.push(dv);
     }
-    if (op !== "count" && v === null) skipped++;
+    if (op !== "count" && v === null && !((op === "min" || op === "max") && dv !== null)) skipped++;
     const r = offset + i;
     if (firstRow < 0) firstRow = r;
     lastRow = r;
@@ -460,15 +524,15 @@ export async function queryAttachmentTable(args: Args, fc: FileToolContext): Pro
   fc.serve(unitTag(f, sheet.ref));
   fc.tainted = true;
   const groups = groupCol === null ? undefined : [...buckets.entries()]
-    .map(([key, b]) => ({ group: key, result: aggregate(op, b.values, b.matched), rows: b.matched }))
-    .sort((a, b) => (b.result ?? -Infinity) - (a.result ?? -Infinity))
+    .map(([key, b]) => ({ group: key, result: aggregate(op, b.values, b.matched, b.dates), rows: b.matched }))
+    .sort((a, b) => byResultDesc(a.result, b.result))
     .slice(0, QUERY_MAX_GROUPS);
   const result = envelope(f, {
     sheet: sheet.name,
     op,
     ...(col !== null ? { column: sheet.columns[col] } : {}),
     ...(groupCol !== null ? { groupBy: sheet.columns[groupCol] } : {}),
-    result: aggregate(op, all.values, all.matched),
+    result: aggregate(op, all.values, all.matched, all.dates),
     ...(groups ? { groups, ...(buckets.size > QUERY_MAX_GROUPS ? { groupsCut: buckets.size - QUERY_MAX_GROUPS } : {}) } : {}),
     rowsMatched: all.matched,
     rowsSkippedNonNumeric: skipped,
@@ -479,6 +543,228 @@ export async function queryAttachmentTable(args: Args, fc: FileToolContext): Pro
   return result;
 }
 
+// ── compare_attachments ─────────────────────────────────────────────────────
+
+const COMPARE_SEGMENTS_PER_SIDE = 6;
+const COMPARE_SEGMENT_CHARS = 600;
+const COMPARE_MAX_ROWS = 40;
+const COMPARE_MAX_KEYS = 100;
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+function compareDocs(fc: FileToolContext, fa: FileRef, fb: FileRef, ua: TextUnit[], ub: TextUnit[], cap: number): object {
+  const cmp = compareTexts(ua, ub);
+  if (!cmp) {
+    return envelope(null, {
+      a: fa.label, b: fb.label, aligned: false,
+      note: "These files are too different to line up passage by passage. Search both for the topics in question (search_attachments) and compare what each says.",
+    });
+  }
+  const side = (file: FileRef, segs: Segment[]) =>
+    segs.slice(0, COMPARE_SEGMENTS_PER_SIDE).map(s => ({ tag: unitTag(file, s.ref), text: clip(s.text, COMPARE_SEGMENT_CHARS) }));
+
+  const changes: object[] = [];
+  const served: string[] = [];
+  let used = 0;
+  let shown = 0;
+  for (const h of cmp.hunks) {
+    const kind = h.a.length && h.b.length ? "differs" : h.a.length ? `only_in_${fa.label}` : `only_in_${fb.label}`;
+    const figures = h.a.length && h.b.length ? figureChanges(h.a.map(s => s.text).join(" "), h.b.map(s => s.text).join(" ")) : null;
+    const columns = [...h.a, ...h.b].find(x => x.header)?.header;
+    const entry = {
+      kind,
+      ...(h.section ? { section: h.section } : {}),
+      ...(columns ? { columns } : {}),
+      [fa.label]: side(fa, h.a),
+      [fb.label]: side(fb, h.b),
+      ...(figures ? { figures: { [fa.label]: figures.a, [fb.label]: figures.b } } : {}),
+      ...(h.a.length > COMPARE_SEGMENTS_PER_SIDE || h.b.length > COMPARE_SEGMENTS_PER_SIDE ? { cut: "more lines in this change; read the tagged units for the rest" } : {}),
+    };
+    const size = JSON.stringify(entry).length;
+    if (used + size > cap && shown > 0) break;
+    changes.push(entry);
+    used += size;
+    shown++;
+    for (const s of [...h.a.slice(0, COMPARE_SEGMENTS_PER_SIDE).map(x => unitTag(fa, x.ref)), ...h.b.slice(0, COMPARE_SEGMENTS_PER_SIDE).map(x => unitTag(fb, x.ref))]) served.push(s);
+  }
+  const moved = cmp.moved.slice(0, 10).map(m => ({ text: clip(m.text, 300), [fa.label]: unitTag(fa, m.a.ref), [fb.label]: unitTag(fb, m.b.ref) }));
+  for (const m of cmp.moved.slice(0, 10)) served.push(unitTag(fa, m.a.ref), unitTag(fb, m.b.ref));
+
+  const result = envelope(null, {
+    a: { file: fa.label, name: fa.name }, b: { file: fb.label, name: fb.name },
+    identical: cmp.hunks.length === 0 && cmp.moved.length === 0,
+    summary: {
+      passages: { [fa.label]: cmp.segmentsA, [fb.label]: cmp.segmentsB },
+      unchanged: cmp.unchanged,
+      changes: cmp.hunks.length,
+      moved: cmp.moved.length,
+    },
+    note_changes: `Each change shows both sides. "differs": the passage reads differently in each file; "only_in_…": it appears in that file alone. figures: amounts, dates and numbers present on one side only. Unchanged passages are left out.`,
+    changes,
+    ...(moved.length ? { moved } : {}),
+    ...(shown < cmp.hunks.length ? { more: `${cmp.hunks.length - shown} more changes not shown; read or search the files for them` } : {}),
+    ...(fa.truncated || fb.truncated ? { truncated: "only the first part of a file was kept, so changes past it can't be seen" } : {}),
+  });
+  fc.spend(JSON.stringify(result).length);
+  for (const t of served) fc.serve(t);
+  fc.tainted = true;
+  return result;
+}
+
+const keyOf = (c: Cell) => (c === null ? "" : String(c).trim().toLowerCase().replace(/\s+/g, " "));
+
+/** Same value for comparison purposes: equal numbers, equal dates, or equal text ignoring case and spacing. */
+function sameCell(x: Cell, y: Cell): boolean {
+  const nx = numericValue(x), ny = numericValue(y);
+  if (nx !== null && ny !== null) return nx === ny;
+  const dx = dateValue(x), dy = dateValue(y);
+  if (dx !== null && dy !== null) return dx === dy;
+  return keyOf(x) === keyOf(y);
+}
+
+/** Columns whose non-blank data values are all distinct (and present in every non-blank row). */
+function uniqueColumn(sheet: SheetData, col: number): boolean {
+  const seen = new Set<string>();
+  for (const row of dataRows(sheet).rows) {
+    if (row.every(c => c === null)) continue;
+    const k = keyOf(row[col]);
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+  }
+  return seen.size > 0;
+}
+
+function compareSheets(fc: FileToolContext, fa: FileRef, fb: FileRef, sa: SheetData, sb: SheetData, keyArg: unknown, cap: number): object {
+  // Columns are matched by header text (or letter, for sheets without a header row).
+  const shared: { name: string; a: number; b: number }[] = [];
+  sa.columns.forEach((name, i) => {
+    const j = sb.columns.findIndex(c => c.toLowerCase() === name.toLowerCase());
+    if (j >= 0) shared.push({ name, a: i, b: j });
+  });
+  if (shared.length === 0) return { error: `${fa.label} and ${fb.label} share no column names. ${fa.label}: ${columnList(sa)}. ${fb.label}: ${columnList(sb)}.` };
+
+  let key: { name: string; a: number; b: number } | undefined;
+  if (typeof keyArg === "string" && keyArg.trim()) {
+    const ka = findColumn(sa, keyArg), kb = findColumn(sb, keyArg);
+    if (ka === null || kb === null) return { error: `No key column ${JSON.stringify(keyArg)} in ${ka === null ? fa.label : fb.label}. Shared columns: ${shared.map(c => `"${c.name}"`).join(", ")}.` };
+    key = { name: sa.columns[ka], a: ka, b: kb };
+  } else {
+    // Prefer a text column (a name, an item) over a number that merely happens to be unique.
+    const textual = (c: { a: number }) => dataRows(sa).rows.filter(r => r[c.a] !== null && numericValue(r[c.a]) === null).length * 2 >= dataRows(sa).rows.filter(r => r[c.a] !== null).length;
+    const candidates = shared.filter(c => uniqueColumn(sa, c.a) && uniqueColumn(sb, c.b));
+    key = candidates.find(textual) ?? candidates[0];
+    if (!key) return { error: `No shared column identifies each row in both sheets. Pass \`key\`. Shared columns: ${shared.map(c => `"${c.name}"`).join(", ")}.` };
+  }
+
+  type Row = { r: number; cells: Cell[] };
+  const index = (sheet: SheetData, col: number) => {
+    const map = new Map<string, Row>();
+    let dupes = 0;
+    const { rows, offset } = dataRows(sheet);
+    rows.forEach((cells, i) => {
+      if (cells.every(c => c === null)) return;
+      const k = keyOf(cells[col]);
+      if (!k) return;
+      if (map.has(k)) { dupes++; return; }
+      map.set(k, { r: offset + i + 1, cells });
+    });
+    return { map, dupes };
+  };
+  const A = index(sa, key.a), B = index(sb, key.b);
+  const others = shared.filter(c => c !== key);
+  const describe = (sheet: SheetData, cells: Cell[]) =>
+    clip(cells.map((c, k) => (c === null ? null : `${sheet.columns[k]}: ${c}`)).filter(Boolean).join("; "), 300);
+
+  const onlyA: object[] = [], onlyB: object[] = [], changed: object[] = [], inBoth: string[] = [];
+  let unchanged = 0, nOnlyA = 0, nOnlyB = 0, nChanged = 0;
+  for (const [k, ra] of A.map) {
+    const rb = B.map.get(k);
+    if (!rb) { nOnlyA++; if (onlyA.length < COMPARE_MAX_ROWS) onlyA.push({ row: ra.r, values: describe(sa, ra.cells) }); continue; }
+    if (inBoth.length < COMPARE_MAX_KEYS) inBoth.push(String(ra.cells[key.a]));
+    const diffs = others.filter(c => !sameCell(ra.cells[c.a], rb.cells[c.b])).map(c => {
+      const x = ra.cells[c.a], y = rb.cells[c.b];
+      const nx = numericValue(x), ny = numericValue(y);
+      return { column: c.name, [fa.label]: x, [fb.label]: y, ...(nx !== null && ny !== null ? { change: exactSum([ny, -nx]) } : {}) };
+    });
+    if (diffs.length === 0) { unchanged++; continue; }
+    nChanged++;
+    if (changed.length < COMPARE_MAX_ROWS) changed.push({ key: String(ra.cells[key.a]), rows: { [fa.label]: ra.r, [fb.label]: rb.r }, changes: diffs });
+  }
+  for (const [k, rb] of B.map) {
+    if (A.map.has(k)) continue;
+    nOnlyB++;
+    if (onlyB.length < COMPARE_MAX_ROWS) onlyB.push({ row: rb.r, values: describe(sb, rb.cells) });
+  }
+
+  // Column totals side by side, for the columns that are numbers in both sheets.
+  const numericIn = (sheet: SheetData, col: number) => {
+    const vals = dataRows(sheet).rows.map(r => r[col]).filter(c => c !== null);
+    const nums = vals.map(numericValue).filter((v): v is number => v !== null);
+    return vals.length > 0 && nums.length * 2 >= vals.length ? nums : null;
+  };
+  const totals = others.flatMap(c => {
+    const xa = numericIn(sa, c.a), xb = numericIn(sb, c.b);
+    if (!xa || !xb) return [];
+    const ta = exactSum(xa), tb = exactSum(xb);
+    return [{ column: c.name, [fa.label]: ta, [fb.label]: tb, change: exactSum([tb, -ta]) }];
+  });
+
+  const body = {
+    a: { file: fa.label, name: fa.name, sheet: sa.name }, b: { file: fb.label, name: fb.name, sheet: sb.name },
+    key: key.name,
+    identical: nOnlyA === 0 && nOnlyB === 0 && nChanged === 0,
+    summary: { rows: { [fa.label]: A.map.size, [fb.label]: B.map.size }, inBoth: A.map.size - nOnlyA, unchanged, changed: nChanged, [`only_in_${fa.label}`]: nOnlyA, [`only_in_${fb.label}`]: nOnlyB },
+    note_rows: "`row` and `rows` are spreadsheet row numbers. `change` is the second file's value minus the first's, computed exactly.",
+    changed, [`only_in_${fa.label}`]: onlyA, [`only_in_${fb.label}`]: onlyB,
+    inBoth,
+    ...(totals.length ? { totals } : {}),
+    ...(A.dupes || B.dupes ? { duplicateKeys: { [fa.label]: A.dupes, [fb.label]: B.dupes }, note_duplicates: "rows repeating a key were skipped after the first" } : {}),
+    ...(sa.columns.some(c => !shared.some(s => s.name === c)) ? { [`columns_only_in_${fa.label}`]: sa.columns.filter(c => !shared.some(s => s.name === c)) } : {}),
+    ...(sb.columns.some(c => !shared.some(s => s.name.toLowerCase() === c.toLowerCase())) ? { [`columns_only_in_${fb.label}`]: sb.columns.filter(c => !shared.some(s => s.name.toLowerCase() === c.toLowerCase())) } : {}),
+    tags: { [fa.label]: unitTag(fa, sa.ref), [fb.label]: unitTag(fb, sb.ref) },
+  };
+  // Trim the longest lists until the result fits; the summary counts stay exact.
+  const lists = [changed, onlyA, onlyB] as object[][];
+  while (JSON.stringify(body).length > cap && lists.some(l => l.length > 1)) {
+    lists.reduce((x, y) => (y.length > x.length ? y : x)).pop();
+    (body as Record<string, unknown>).more = "lists cut to fit; the summary counts are complete — ask about specific rows for the rest";
+  }
+  if (inBoth.length > 20 && JSON.stringify(body).length > cap) inBoth.length = 20;
+  const result = envelope(null, body);
+  fc.spend(JSON.stringify(result).length);
+  fc.serve(unitTag(fa, sa.ref));
+  fc.serve(unitTag(fb, sb.ref));
+  fc.tainted = true;
+  return result;
+}
+
+export async function compareAttachments(args: Args, fc: FileToolContext): Promise<object> {
+  const fa = fc.resolve(args.a), fb = fc.resolve(args.b);
+  const labels = fc.files.map(x => x.label).join(", ") || "none";
+  if (!fa) return { error: `No attached file "${String(args.a)}". Files: ${labels}.` };
+  if (!fb) return { error: `No attached file "${String(args.b)}". Files: ${labels}.` };
+  const [ca, cb] = await Promise.all([fc.load(fa), fc.load(fb)]);
+  if (!ca) return { error: `${fa.label} couldn't be loaded.` };
+  if (!cb) return { error: `${fb.label} couldn't be loaded.` };
+  if (fa === fb && (ca.type === "text" || findSheet(ca, args.sheet_a) === findSheet(ca, args.sheet_b))) {
+    return { error: "Pick two different files (or two different sheets of one workbook)." };
+  }
+  if (ca.type !== cb.type) {
+    const [doc, sheet] = ca.type === "text" ? [fa, fb] : [fb, fa];
+    return { error: `${doc.label} is a document and ${sheet.label} a spreadsheet, so they can't be lined up row by row. Read or search ${doc.label}, use query_attachment_table or read_attachment on ${sheet.label}, and compare the facts yourself.` };
+  }
+  const cap = Math.min(TOOL_RESULT_CHARS, fc.remaining());
+  if (cap < MIN_USEFUL_CHARS) return budgetSpent();
+  if (ca.type === "text" && cb.type === "text") return compareDocs(fc, fa, fb, ca.units, cb.units, cap);
+  if (ca.type === "sheets" && cb.type === "sheets") {
+    const sa = findSheet(ca, args.sheet_a), sb = findSheet(cb, args.sheet_b);
+    if (!sa) return { error: `No sheet "${String(args.sheet_a)}" in ${fa.label}. Sheets: ${sheetNames(ca)}.` };
+    if (!sb) return { error: `No sheet "${String(args.sheet_b)}" in ${fb.label}. Sheets: ${sheetNames(cb)}.` };
+    return compareSheets(fc, fa, fb, sa, sb, args.key, cap);
+  }
+  return { error: "These files can't be compared." };
+}
+
 type FileHandler = (args: Args, fc: FileToolContext) => Promise<object>;
 
 export const FILE_READ_HANDLERS: Record<string, FileHandler> = {
@@ -486,6 +772,7 @@ export const FILE_READ_HANDLERS: Record<string, FileHandler> = {
   read_attachment:        readAttachment,
   search_attachments:     searchAttachments,
   query_attachment_table: queryAttachmentTable,
+  compare_attachments:    compareAttachments,
 };
 
 /** Run a file tool. Never throws; a missing file context is an error result, not a crash. */
@@ -554,6 +841,19 @@ export const FILE_TOOL_UI: Record<string, ToolUiMeta> = {
       if (isErr(r)) return null;
       const n = (r as { rowsMatched?: number }).rowsMatched;
       return typeof n === "number" ? `${n} row${n === 1 ? "" : "s"}` : null;
+    },
+  },
+  compare_attachments: {
+    verb: "Comparing the files",
+    source: "Files",
+    sourceOf: r => (isErr(r) ? null : "Files"),
+    finding: r => {
+      if (isErr(r)) return null;
+      const o = r as { identical?: boolean; summary?: { changes?: number; changed?: number }; aligned?: boolean };
+      if (o.aligned === false) return "too different to line up";
+      if (o.identical) return "no differences";
+      const n = o.summary?.changes ?? o.summary?.changed;
+      return typeof n === "number" ? `${n} difference${n === 1 ? "" : "s"}` : null;
     },
   },
 };

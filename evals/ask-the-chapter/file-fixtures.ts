@@ -41,7 +41,50 @@ const BYLAWS = (year: 2024 | 2026) => docx([
   { text: "The chapter is the Alpha Beta Chapter." },
 ]);
 
+/**
+ * A PDF treasurer's report laid out as a real export would be: headings, a
+ * money table (right-aligned amounts) and an action-item table. Its formal
+ * venue line says $1,250.50 — Budget.xlsx says $1,200.50, a deliberate conflict.
+ */
+const TREASURER_REPORT = [
+  "# Treasurer Report: Spring 2026\n" +
+  "Prepared by Rob Chen, Treasurer, for the chapter meeting of March 3.\n\n" +
+  "## Expenses\n" +
+  "Item\tCategory\tAmount\tDate\n" +
+  "Formal venue\tSocial\t>$1,250.50\t3/14/2026\n" +
+  "DJ\tSocial\t>$450.00\t3/14/2026\n" +
+  "Food bank van\tService\t>$85.25\t2/2/2026\n\n" +
+  "The formal deposit is non-refundable after March 1.",
+  "## Action items\n" +
+  "Owner\tTask\tDue\n" +
+  "Ana Ruiz\tCollect late dues\tMarch 10\n" +
+  "Sam Ortiz\tBook the van\tFeb 28\n" +
+  "Rob Chen\tFile the spring budget\tMarch 17",
+];
+
+/** Two roster exports: Ana Ruiz goes Secretary → President and $120 → $60 owed; Lee Park leaves; Mia Wong joins. */
+const ROSTER_OCT = "Name,Role,Dues owed\nRob Chen,Treasurer,$0.00\nAna Ruiz,Secretary,$120.00\nSam Ortiz,Member,$45.50\nLee Park,Member,$0.00\n";
+const ROSTER_FEB = "Name,Role,Dues owed\nRob Chen,Treasurer,$0.00\nAna Ruiz,President,$60.00\nSam Ortiz,Member,$45.50\nMia Wong,Member,$120.00\n";
+
+/**
+ * Dues status with blank cells. Sam Ortiz paid fall only and Ana Ruiz spring
+ * only — flattened to text both read "$120 $120", so only the columns tell
+ * them apart. Unpaid for spring: Sam Ortiz and Lee Park.
+ */
+const DUES_STATUS = [
+  "## Dues status, 2025-26\n" +
+  "Name\tFall paid\tSpring paid\tBalance\n" +
+  "Rob Chen\t>$120\t>$120\t>$0\n" +
+  "Sam Ortiz\t>$120\t\t>$120\n" +
+  "Ana Ruiz\t\t>$120\t>$120\n" +
+  "Lee Park\t\t\t>$240",
+];
+
 export const EVAL_FILES: Record<string, () => Buffer> = {
+  "Dues status.pdf": () => pdf(DUES_STATUS),
+  "Treasurer report.pdf": () => pdf(TREASURER_REPORT),
+  "Roster Oct.csv": () => Buffer.from(ROSTER_OCT),
+  "Roster Feb.csv": () => Buffer.from(ROSTER_FEB),
   "Constitution.pdf": () => pdf(CONSTITUTION_PAGES),
   "Handbook.pdf": longHandbook,
   "Bylaws 2024.docx": () => BYLAWS(2024),

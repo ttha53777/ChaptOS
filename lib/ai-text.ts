@@ -12,18 +12,27 @@ export function noteTerms(query: string): string[] {
 
 /**
  * The lines of `text` that mention a term, each with the line before and
- * after and the heading it sits under, joined in document order with "…"
- * marking the gaps. Clipped to `budget` characters.
+ * after and the heading it sits under — and, for a markdown table row, the
+ * table's header row, so "| DJ | Social | 450 |" arrives with its columns —
+ * joined in document order with "…" marking the gaps. Clipped to `budget`
+ * characters.
  */
 export function noteExcerpts(text: string, terms: string[], budget: number): string {
   const lines = text.split("\n");
   const keep = new Set<number>();
   let heading = -1;
+  let tableHead = -1;
   lines.forEach((line, i) => {
     if (/^\s*#{1,3}/.test(line)) heading = i;
+    const row = line.startsWith("|");
+    if (row && !lines[i - 1]?.startsWith("|")) tableHead = i;
     const lower = line.toLowerCase();
     if (!terms.some(t => lower.includes(t))) return;
     if (heading >= 0) keep.add(heading);
+    if (row && tableHead >= 0 && tableHead < i - 1) {
+      keep.add(tableHead);
+      if (/^\|[\s:|-]+\|$/.test(lines[tableHead + 1] ?? "")) keep.add(tableHead + 1);
+    }
     for (let j = Math.max(0, i - 1); j <= Math.min(lines.length - 1, i + 1); j++) keep.add(j);
   });
   let out = "";

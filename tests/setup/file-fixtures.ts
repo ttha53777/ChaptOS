@@ -26,10 +26,43 @@ function writePdf(objects: string[], trailerExtra = ""): Buffer {
   return Buffer.from(out, "latin1");
 }
 
+/** Left edge of each tab-separated cell in a table line, in points. */
+const PDF_COL_X = [72, 230, 330, 430];
+/** Right edge used for a cell written ">text" (right-aligned, like a money column). */
+const PDF_COL_RIGHT = [218, 318, 416, 540];
+
+/**
+ * One page's text as positioned draw ops, the way real generators lay out a
+ * page: every line is placed absolutely. Plain lines are 11pt; "# Title" is
+ * drawn at 18pt (marker dropped) and "## Title" at 14pt; a line with tabs is a
+ * table row with each cell at its own column (an empty cell is simply not
+ * drawn, and a cell written ">$1.00" is right-aligned to its column's edge).
+ */
+function pdfPageOps(text: string): string {
+  let y = 740;
+  const ops: string[] = [];
+  for (const raw of text.split("\n")) {
+    const h = /^(#{1,2}) (.*)$/.exec(raw);
+    const size = h ? (h[1].length === 1 ? 18 : 14) : 11;
+    const cells = h ? [h[2]] : raw.split("\t");
+    cells.forEach((cell, k) => {
+      if (!cell) return;
+      const right = cell.startsWith(">");
+      const s = right ? cell.slice(1) : cell;
+      // Helvetica averages ~0.5em a character; close enough to right-align a column.
+      const x = cells.length === 1 ? 72 : right ? PDF_COL_RIGHT[k] - s.length * size * 0.5 : PDF_COL_X[k];
+      ops.push(`BT /F1 ${size} Tf 1 0 0 1 ${x.toFixed(1)} ${y} Tm (${escapePdf(s)}) Tj ET`);
+    });
+    y -= size + 3;
+  }
+  return ops.join(" ");
+}
+
 /**
  * A PDF with one page per entry. Each page's text is drawn line by line, so
- * "a\nb" lands as two lines. `draw` replaces the text with raw drawing ops
- * (an image-only page has drawing and no text).
+ * "a\nb" lands as two lines (see pdfPageOps for headings and table rows).
+ * `draw` replaces the text with raw drawing ops (an image-only page has
+ * drawing and no text).
  */
 export function pdf(pages: string[], opts: { encrypt?: boolean; draw?: boolean } = {}): Buffer {
   const objs: string[] = [];
@@ -40,7 +73,7 @@ export function pdf(pages: string[], opts: { encrypt?: boolean; draw?: boolean }
   pages.forEach((text, i) => {
     const stream = opts.draw
       ? "0.5 g 72 72 400 600 re f"
-      : "BT /F1 11 Tf 14 TL 72 740 Td " + text.split("\n").map(l => `(${escapePdf(l)}) Tj T*`).join(" ") + " ET";
+      : pdfPageOps(text);
     objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + i * 2} 0 R >>`);
     objs.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
   });
