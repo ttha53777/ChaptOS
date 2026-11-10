@@ -26,6 +26,8 @@ import { PastDueSheet } from "./PastDue";
 import { RankedSheet } from "./Ranked";
 import { TableSheet } from "./Table";
 import { RollSheet } from "./Roll";
+import { YesNoSheet } from "./YesNo";
+import { StatusSheet } from "./Status";
 
 export type { RowHandlers } from "./common";
 
@@ -49,6 +51,8 @@ const SHEETS: Registry = {
   ranked: p => <RankedSheet shape={p.shape} rows={p.rows} h={p.h} />,
   table: p => <TableSheet shape={p.shape} rows={p.rows} h={p.h} />,
   roll: p => <RollSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  yesno: p => <YesNoSheet {...p} />,
+  status: p => <StatusSheet shape={p.shape} rows={p.rows} h={p.h} />,
 };
 
 /** True when this client knows how to draw the shape; unknown types fall back to rows. */

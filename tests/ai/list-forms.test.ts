@@ -274,3 +274,94 @@ describe("roll (Roll call)", () => {
     expect((built.shape as RollShape).groups.map(g => g.label)).toEqual(["No excuse", "Excused"]);
   });
 });
+
+// ── Judgments ───────────────────────────────────────────────────────────────
+import { yesnoFromJudged, statusFromTasks, checkVerdict, verdictWord, verdictCount, buildYesNo, type Judged } from "@/lib/ai-shapes-judge";
+import type { YesNoShape, StatusShape } from "@/lib/api-types";
+
+const j = (id: number, title: string, pass: boolean | null, value = pass ? "Paid" : "$380 owed"): Judged =>
+  ({ kind: "person", ref: { type: "member", id }, title, subtitle: null, pass, value });
+
+describe("yesno", () => {
+  it("stamps NO when any fails, failures first; YES only when all pass", () => {
+    const no = yesnoFromJudged({ test: "dues_paid", judged: [j(1, "Priya", true), j(2, "Tyler", false), j(3, "Ava", true)], scope: "3 members" })!;
+    const shape = no.shape as YesNoShape;
+    expect(shape.holds).toBe(false);
+    expect(shape.headline).toBe("2 of 3 have paid");
+    expect(no.rows.map(r => r.title)).toEqual(["Tyler", "Priya", "Ava"]);
+    expect(shape.items.map(i => i.pass)).toEqual([false, true, true]);
+    const yes = yesnoFromJudged({ test: "dues_paid", judged: [j(1, "Priya", true), j(3, "Ava", true)], scope: "2" })!;
+    expect((yes.shape as YesNoShape)).toMatchObject({ holds: true, headline: "All 2 have paid" });
+  });
+
+  it("one record that can't be judged means no stamp at all", () => {
+    expect(yesnoFromJudged({ test: "gpa_met", judged: [j(1, "A", true), j(2, "B", null)], scope: "" })).toBeNull();
+  });
+
+  it("a single record reads as a sentence about it", () => {
+    const one = yesnoFromJudged({ test: "task_done", judged: [{ kind: "task", ref: { type: "task", id: 4 }, title: "The deposit", subtitle: null, pass: false, value: "6 days late" }], scope: "1 task" })!;
+    expect((one.shape as YesNoShape).headline).toBe("The deposit isn't done");
+  });
+
+  it("won't stamp over the model's full row list — it may be a cut", async () => {
+    const ev = createShapeEvidence();
+    const people = Array.from({ length: 8 }, (_, k) => ({ id: k + 1, name: `P${k + 1}`, role: "Exec", attendance: 90, gpa: 3.5, duesOwed: k === 2 ? 40 : 0, serviceHours: 5 }));
+    ev.add("list_brothers", {}, { summary: {}, brothers: people });
+    const scoped = { organizationConfig: { find: async () => ({ thresholds: {}, disabledFeatures: {} }) } } as never;
+    const six = people.slice(0, 6).map(p => ({ kind: "person" as const, title: p.name }));
+    expect(await buildYesNo({ type: "yesno", test: "dues_paid" }, ev, scoped, 31337, { rows: six, today: TODAY })).toBeNull();
+    const five = people.slice(0, 5).map(p => ({ kind: "person" as const, title: p.name }));
+    const built = await buildYesNo({ type: "yesno", test: "dues_paid" }, ev, scoped, 31337, { rows: five, today: TODAY });
+    expect((built!.shape as YesNoShape)).toMatchObject({ holds: false, headline: "4 of 5 have paid" });
+  });
+
+  it("service and GPA tests need the org's own threshold", async () => {
+    const ev = createShapeEvidence();
+    ev.add("list_brothers", {}, { summary: {}, brothers: [{ id: 1, name: "A", role: "", attendance: 90, gpa: 3.5, duesOwed: 0, serviceHours: 5 }, { id: 2, name: "B", role: "", attendance: 90, gpa: 3.5, duesOwed: 0, serviceHours: 12 }] });
+    const scoped = { organizationConfig: { find: async () => ({ thresholds: {}, disabledFeatures: {} }) } } as never;
+    expect(await buildYesNo({ type: "yesno", test: "service_met" }, ev, scoped, 31338, { rows: [], today: TODAY })).toBeNull();
+  });
+});
+
+describe("verdict consistency", () => {
+  const shapeNo = yesnoFromJudged({ test: "dues_paid", judged: [j(1, "Priya", true), j(2, "Tyler", false)], scope: "2 members" })!;
+
+  it("reads the word a verdict leads with, and the first count it states", () => {
+    expect(verdictWord("*Yes*, all six.")).toBe(true);
+    expect(verdictWord("Not yet. Tyler owes $380.")).toBe(false);
+    expect(verdictWord("Tyler still owes.")).toBeNull();
+    expect(verdictCount("*Six* so far, four in October.")).toBe(6);
+    expect(verdictCount("You've had 12 meetings")).toBe(12);
+  });
+
+  it("a Yes over a failing set is fed back with the computed result, then replaced", () => {
+    const vc = checkVerdict("*Yes*, exec is all paid up.", shapeNo.shape, shapeNo.rows);
+    expect(vc.ok).toBe(false);
+    if (vc.ok) return;
+    expect(vc.feedback).toMatch(/NO/);
+    expect(vc.feedback).toMatch(/Tyler/);
+    expect(vc.fallback).toBe("*No*. 1 of 2 have paid.");
+    expect(checkVerdict("*Not yet*. Tyler owes $380.", shapeNo.shape, shapeNo.rows).ok).toBe(true);
+  });
+
+  it("a logbook verdict must state the drawn count", () => {
+    const lb = logbookFromRecords({ records: recordsOf([{ id: 1, title: "A", date: "2026-10-01" }, { id: 2, title: "B", date: "2026-10-08" }], "title", "date"), source: { ref: "event", subtitle: () => null }, noun: { one: "service event", many: "service events" }, period: "Fall 2026", today: TODAY, rows: [] })!;
+    expect(checkVerdict("*Three* so far.", lb.shape, lb.rows)).toMatchObject({ ok: false, fallback: "*2* service events, Fall 2026." });
+    expect(checkVerdict("*Two* so far.", lb.shape, lb.rows).ok).toBe(true);
+  });
+});
+
+describe("status (Progress)", () => {
+  const t = (id: number, date: string, status: string, owner = { kind: "member", label: "Marcus" }) => ({ id, title: `T${id}`, date, raw: {}, status, owner });
+
+  it("derives stuck (late or unowned), orders stuck → open → done", () => {
+    const built = statusFromTasks({ tasks: [t(1, "2026-10-20", "done"), t(2, "2026-11-04", "open"), t(3, "2026-11-18", "open", { kind: "none", label: "No owner" }), t(4, "2026-11-20", "open"), t(5, "2026-11-12", "open", { kind: "role", label: "Treasurer" })], today: TODAY, kicker: "Nov", focus: "open", rows: [] })!;
+    const shape = built.shape as StatusShape;
+    expect(shape.items.map(i => [i.state, i.why])).toEqual([["stuck", "late"], ["stuck", "unowned"], ["open", null], ["open", null], ["done", null]]);
+    expect(built.rows.map(r => r.title)).toEqual(["T2", "T3", "T5", "T4", "T1"]);
+  });
+
+  it("needs two different states", () => {
+    expect(statusFromTasks({ tasks: [t(1, "2026-10-20", "done"), t(2, "2026-10-21", "done")], today: TODAY, kicker: "", focus: "open", rows: [] })).toBeNull();
+  });
+});

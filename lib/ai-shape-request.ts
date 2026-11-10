@@ -4,17 +4,18 @@
 // import each other.
 
 import { isValidCalendarDate } from "@/lib/dates";
-import type { RankMetric, TallyMetric } from "@/lib/api-types";
+import type { RankMetric, TallyMetric, YesNoTest } from "@/lib/api-types";
 
 /** The shapes that shipped before the list forms (docs/ask-chapt-list-forms-plan.md). */
 export const LEGACY_SHAPE_TYPES = ["tally", "breakdown", "week", "missing"] as const;
 /** The list forms: each replaces the plain row list when every record qualifies. */
-export const FORM_SHAPE_TYPES = ["dated", "logbook", "pastdue", "ranked", "table", "roll"] as const;
+export const FORM_SHAPE_TYPES = ["dated", "logbook", "pastdue", "ranked", "table", "roll", "yesno", "status"] as const;
 export const SHAPE_TYPES = [...LEGACY_SHAPE_TYPES, ...FORM_SHAPE_TYPES] as const;
 export type ShapeType = (typeof SHAPE_TYPES)[number];
 export const TALLY_METRICS = ["owes_dues", "at_risk", "no_service_hours"] as const satisfies readonly TallyMetric[];
 export const RANK_METRICS = ["service_hours", "gpa", "attendance", "dues_owed", "event_attendance"] as const satisfies readonly RankMetric[];
 export const ROLL_SPLITS = ["excused", "paid"] as const;
+export const YESNO_TESTS = ["dues_paid", "task_done", "attended", "service_met", "gpa_met", "voted"] as const satisfies readonly YesNoTest[];
 export type RollSplit = (typeof ROLL_SPLITS)[number];
 
 /**
@@ -44,6 +45,10 @@ export interface ShapeRequest {
   metrics?: RankMetric[];
   /** roll only: a two-way split computed from the source. */
   split?: RollSplit;
+  /** yesno only: the test every record must pass. */
+  test?: YesNoTest;
+  /** status only: "done" when the finished rows are the answer. */
+  focus?: "open" | "done";
 }
 
 /** Unknown types and malformed fields are dropped, never fatal — the answer still goes out as rows. */
@@ -70,5 +75,7 @@ export function parseShapeRequest(raw: unknown): ShapeRequest | undefined {
     ...(rank ? { rank } : {}),
     ...(metrics?.length ? { metrics } : {}),
     ...(split ? { split } : {}),
+    ...(r.type === "yesno" && typeof r.test === "string" && (YESNO_TESTS as readonly string[]).includes(r.test) ? { test: r.test as YesNoTest } : {}),
+    ...(r.type === "status" && (r.focus === "open" || r.focus === "done") ? { focus: r.focus } : {}),
   };
 }

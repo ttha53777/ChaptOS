@@ -170,3 +170,41 @@ html[data-aesthetic="paper"] .chat-root .who-chip em { font-family: var(--font-g
 html[data-aesthetic="paper"] .chat-root .roll-g.soft .who-chip { border-color: var(--line-med); color: var(--ink-soft); font-weight: 500; }
 html[data-aesthetic="paper"] .chat-root .roll-g.soft .who-chip:hover:not(:disabled) { box-shadow: 2px 2px 0 var(--card-3); }
 html[data-aesthetic="paper"] .chat-root .roll-g.soft .who-chip .av { background: var(--card-3); }
+
+/* ── 13 Yes or no ─────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .shp-yn { border: 1.5px solid var(--ink); box-shadow: 4px 4px 0 var(--yc); --yc: var(--pp-peach); --yi: var(--pp-peach-ink); --ys: var(--pp-peach-soft); }
+html[data-aesthetic="paper"] .chat-root .shp-yn.yes { --yc: var(--pp-mint); --yi: var(--pp-mint-ink); --ys: var(--pp-mint-soft); }
+html[data-aesthetic="paper"] .chat-root .yn-st { box-shadow: inset 0 0 0 2.5px var(--card), inset 0 0 0 3.5px var(--yi); font-family: var(--font-fraunces); font-size: 24.8px; animation-timing-function: var(--pp-ease-spring); }
+html[data-aesthetic="paper"] .chat-root .yn-h .t { font-family: var(--font-fraunces); font-weight: 600; font-size: 17.9px; letter-spacing: -.02em; }
+html[data-aesthetic="paper"] .chat-root .yn-h .s { font-family: var(--font-geist-sans); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .yn-pips .av { background: var(--pp-lilac); color: var(--pp-note-ink); font-family: var(--font-geist-sans); font-weight: 700; border: 1.5px solid rgba(38,33,27,.08); }
+html[data-aesthetic="paper"] .chat-root .yn-pips .av.fail { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .yn-pips .more { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .yn-x { border-top: 1.5px dashed var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .shp-yn .reslist { border: 0; background: none; }
+html[data-aesthetic="paper"] .chat-root .shp-yn .reslist .res { border-top: 0; border-radius: 10px; }
+html[data-aesthetic="paper"] .chat-root .shp-yn .yn-x .res .val { color: var(--pp-peach-ink); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .shp-yn.yes .yn-x .res .val { color: var(--ink); font-weight: 400; }
+html[data-aesthetic="paper"] .chat-root .shp-yn .shp-fold { padding-left: 16px; padding-right: 16px; }
+
+/* ── 04 Progress ──────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .sx-b { border: 1.5px solid var(--ink); background: var(--pp-mint); color: var(--ink); font-family: var(--font-geist-mono); transition: transform .2s var(--pp-ease-spring), box-shadow .2s; }
+html[data-aesthetic="paper"] .chat-root .sx-b.open { background: var(--pp-butter-soft); border-style: dashed; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .sx-b.stuck { background: var(--pp-peach); color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .sx-b:hover:not(:disabled), html[data-aesthetic="paper"] .chat-root .sx-b.sel { box-shadow: 0 3px 0 var(--ink); background-color: inherit; }
+html[data-aesthetic="paper"] .chat-root .sx-b.sel { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .sx-b.open.sel { background: var(--pp-butter-soft); }
+html[data-aesthetic="paper"] .chat-root .sx-b.stuck.sel { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .sx-bar b { border: 1.5px solid var(--ink); background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .sx-bar b.open { background: var(--pp-butter-soft); border-style: dashed; }
+html[data-aesthetic="paper"] .chat-root .sx-bar b.stuck { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .sx-key { font-family: var(--font-geist-sans); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .sx-key b { font-family: var(--font-geist-mono); }
+html[data-aesthetic="paper"] .chat-root .sx-grp.stuck .sx-gl { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .sx-r:hover:not(:disabled) { background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .sx-m { border: 1.5px solid var(--ink); font-family: var(--font-geist-mono); color: var(--ink); background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .sx-r.stuck .sx-m { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .sx-r.open .sx-m { background: var(--pp-butter-soft); border-style: dashed; }
+html[data-aesthetic="paper"] .chat-root .sx-r .d { font-family: var(--font-geist-mono); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .sx-r.stuck .d { color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .sx-r.done .rb .t { font-weight: 500; color: var(--muted); text-decoration-color: var(--line-med); }

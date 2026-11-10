@@ -1099,3 +1099,56 @@
   .chat-root .roll-n { display: flex; align-items: baseline; gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .chat-root .rk-fill { animation: none; } }
+
+/* yes or no */
+.chat-root .shp-yn { --yi: var(--risk); --ys: var(--risk-bg); }
+.chat-root .shp-yn.yes { --yi: var(--ok); --ys: var(--ok-bg); }
+.chat-root .yn-top { display: flex; align-items: center; gap: 18px; padding: 16px 16px 14px 20px; }
+.chat-root .yn-st { flex: none; min-width: 74px; text-align: center; padding: 7px 12px 8px; border-radius: 11px; border: 2.5px solid var(--yi); color: var(--yi); background: var(--ys); font-family: var(--serif); font-weight: 700; font-size: 24px; letter-spacing: .07em; text-transform: uppercase; line-height: 1; transform: rotate(-5deg); animation: cs-yn-stamp .45s var(--spring) .3s both; }
+@keyframes cs-yn-stamp { from { opacity: 0; transform: rotate(-5deg) scale(1.7); } to { opacity: 1; transform: rotate(-5deg); } }
+.chat-root .yn-h { min-width: 0; }
+.chat-root .yn-h .t { display: block; font-family: var(--serif); font-size: 17px; line-height: 1.25; color: var(--ink); }
+.chat-root .yn-h .s { display: block; font-size: 12.5px; color: var(--faint); margin-top: 1px; }
+.chat-root .yn-pips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chat-root .yn-pips .av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--vio-bg); color: var(--vio); font-family: var(--mono); font-size: 8.5px; }
+.chat-root .shp-yn.no .yn-pips .av:not(.fail) { opacity: .5; }
+.chat-root .yn-pips .av.fail { box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--risk); margin: 0 3px; }
+.chat-root .yn-pips .more { align-self: center; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.chat-root .yn-x { border-top: 1px dashed var(--line-med); padding: 8px 4px 4px; }
+.chat-root .yn-x > .shp-kicker { display: block; padding: 2px 12px; color: var(--yi); }
+.chat-root .shp-yn .reslist { margin-top: 2px; }
+.chat-root .yn-rest { padding: 0 4px 6px; }
+
+/* progress */
+.chat-root .sx-strip { display: flex; gap: 5px; padding: 12px 14px 0; }
+.chat-root .sx-b { flex: 1; height: 26px; display: grid; place-items: center; padding: 0; border-radius: 7px; border: 0; background: var(--ok-bg); color: var(--ok); font-family: var(--mono); font-size: 12px; font-weight: 600; cursor: pointer; transition: transform .2s var(--spring); }
+.chat-root .sx-b.open { background: var(--warn-bg); color: var(--warn); }
+.chat-root .sx-b.stuck { background: var(--risk-bg); color: var(--risk); }
+.chat-root .sx-b:hover:not(:disabled), .chat-root .sx-b.sel { transform: translateY(-3px); }
+.chat-root .sx-bar { display: flex; gap: 3px; height: 14px; margin: 12px 14px 0; }
+.chat-root .sx-bar b { border-radius: 4px; background: var(--ok-bg); }
+.chat-root .sx-bar b.open { background: var(--warn-bg); }
+.chat-root .sx-bar b.stuck { background: var(--risk); }
+.chat-root .sx-key { display: flex; gap: 5px; padding: 5px 14px 4px; font-size: 12px; color: var(--faint); }
+.chat-root .sx-key span { min-width: max-content; white-space: nowrap; }
+.chat-root .sx-key b { font-family: var(--mono); font-weight: 600; color: var(--ink); margin-right: 4px; }
+.chat-root .sx-grp { padding: 6px 6px 0; }
+.chat-root .sx-grp:last-child { padding-bottom: 8px; }
+.chat-root .sx-gl { display: block; padding: 4px 8px 2px; }
+.chat-root .sx-grp.stuck .sx-gl { color: var(--risk); }
+.chat-root .sx-r { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 14px; gap: 12px; align-items: center; width: 100%; padding: 6px 8px; border: 0; border-radius: 10px; background: none; text-align: left; cursor: pointer; transition: background .12s; }
+.chat-root .sx-r:hover:not(:disabled) { background: var(--card-2); }
+.chat-root .sx-r.sel { background: var(--vio-bg); }
+.chat-root .sx-m { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; line-height: 1; background: var(--ok-bg); color: var(--ok); }
+.chat-root .sx-r.stuck .sx-m { background: var(--risk-bg); color: var(--risk); }
+.chat-root .sx-r.open .sx-m { background: var(--warn-bg); }
+.chat-root .sx-r .d { font-family: var(--mono); font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.chat-root .sx-r.stuck .d { color: var(--risk); font-weight: 600; }
+.chat-root .sx-r.done .rb .t { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line-med); }
+.chat-root .sx-grp.folded { padding-top: 4px; }
+@media (prefers-reduced-motion: reduce) { .chat-root .yn-st { animation: none; } }
+@media (max-width: 600px) {
+  .chat-root .yn-top { gap: 14px; padding-left: 16px; }
+  .chat-root .yn-st { min-width: 62px; font-size: 20px; padding: 6px 9px 7px; }
+  .chat-root .sx-key { font-size: 11px; }
+}

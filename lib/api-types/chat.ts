@@ -123,7 +123,8 @@ export interface AnswerData {
 export type AnswerShape =
   | TallyShape | BreakdownShape | WeekShape | MissingShape
   | DatedShape | LogbookShape | PastDueShape
-  | RankedShape | TableShape | RollShape;
+  | RankedShape | TableShape | RollShape
+  | YesNoShape | StatusShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -358,4 +359,37 @@ export interface RollShape {
   groups: Array<{ label: string; flag: boolean }>;
   items: Array<{ group: number; note: string | null }>;
   truncated: ShapeTruncation | null;
+}
+
+export type YesNoTest = "dues_paid" | "task_done" | "attended" | "service_met" | "gpa_met" | "voted";
+
+/**
+ * A yes-or-no question, answered by a test the server ran on every record it
+ * covers. `holds` is computed (yes only if every item passes) — the model
+ * writes the sentence but can't choose the word. rows are failures first.
+ */
+export interface YesNoShape {
+  type: "yesno";
+  test: YesNoTest;
+  holds: boolean;
+  /** "5 of 6 have paid". */
+  headline: string;
+  /** "Dues · 6 members". */
+  kicker: string;
+  items: Array<{ pass: boolean }>;
+}
+
+/** Work with differing statuses — Progress. Stuck is derived: open and late, or open and owned by nobody. */
+export interface StatusShape {
+  type: "status";
+  kicker: string;
+  today: string;
+  /** "done": the finished rows are the answer, so the open ones fold instead. */
+  focus: "open" | "done";
+  items: Array<{
+    state: "done" | "open" | "stuck";
+    why: "late" | "unowned" | null;
+    date: string | null;
+    owner: string | null;
+  }>;
 }

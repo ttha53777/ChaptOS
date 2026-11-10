@@ -5,7 +5,7 @@ import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { chatToolsFor, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
-import { createShapeEvidence, buildShape, attachPeople } from "@/lib/ai-shapes";
+import { createShapeEvidence, buildShape, attachPeople, checkVerdict } from "@/lib/ai-shapes";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
@@ -199,6 +199,8 @@ export async function POST(req: NextRequest) {
       let attachmentCount = 0;
       // A file answer that cites nothing goes back to the model once.
       let citeRetried = false;
+      // So does a verdict that contradicts the picture drawn under it (§2.3).
+      let verdictRetried = false;
       // The answer guard (lib/ai-answer-guard): a turn always ends with something
       // the user can read. `forceAnswer` makes the next round compose_answer;
       // `salvaged` spends the one extra round a silent turn gets.
@@ -563,7 +565,18 @@ export async function POST(req: NextRequest) {
                 answer.askback ? attachPeople(answer.askback, refIndex, ctx.db, ctx.orgId) : Promise.resolve(undefined),
               ]);
               if (shapeRequest || answer.askback) shapeMs = Math.round(performance.now() - shapeStart);
-              if (built) shapeType = built.shape.type;
+              if (built) {
+                // A "Yes" over a NO stamp, or "six" over a logbook of five: one
+                // retry with the computed result, then the server's own sentence.
+                const vc = checkVerdict(answer.verdict, built.shape, built.rows);
+                if (!vc.ok && !verdictRetried) {
+                  verdictRetried = true;
+                  messages.push({ role: "tool", tool_call_id: answerCall.tc.id, content: JSON.stringify({ error: vc.feedback }) });
+                  continue;
+                }
+                if (!vc.ok) answer.verdict = vc.fallback;
+                shapeType = built.shape.type;
+              }
               send("answer", {
                 ...answer,
                 ...(askback ? { askback } : {}),
