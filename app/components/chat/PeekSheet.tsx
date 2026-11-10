@@ -16,25 +16,12 @@
 
 import { useEffect, useState } from "react";
 import { orgFetch } from "../../lib/api";
-import { IcChev, KindGlyph } from "./icons";
-import { initialsOf, type AnswerRow, type EntityRef, type RefType } from "./types";
+import { IcChev } from "./icons";
+import { PeekCardBody } from "./PeekCardBody";
+import type { AnswerRow, EntityRef, PeekCard, RefType } from "./types";
 import { orgHref } from "@/lib/org-paths";
 
-type PeekTone = "good" | "warn" | "risk" | "muted";
-
-interface PeekFact { k: string; v: string; mono?: boolean; tone?: PeekTone }
-interface PeekRow { title: string; subtitle?: string; value?: string; tone?: PeekTone }
-interface PeekSection { label: string; rows: PeekRow[]; empty?: string }
-
-export interface PeekCard {
-  type: RefType;
-  id: number;
-  title: string;
-  subtitle?: string;
-  badge?: { label: string; tone: PeekTone };
-  facts: PeekFact[];
-  sections: PeekSection[];
-}
+export type { PeekCard } from "./types";
 
 /** What the row already showed — the header content before the fetch lands. */
 export interface PeekSeed {
@@ -50,10 +37,6 @@ const PAGE: Record<RefType, { path: string; label: string }> = {
   event:  { path: "events",   label: "Open in Events" },
   task:   { path: "tasks",    label: "Open in Timeline" },
 };
-
-function toneClass(tone?: PeekTone): string {
-  return tone ? ` t-${tone}` : "";
-}
 
 export function PeekSheet({ refr, seed, slug, onBack, onAsk }: {
   refr: EntityRef;
@@ -90,50 +73,7 @@ export function PeekSheet({ refr, seed, slug, onBack, onAsk }: {
       </div>
 
       <div className="peek-body">
-        <div className="peek-id">
-          {seed.kind === "person"
-            ? <span className="av">{initialsOf(title)}</span>
-            : <span className="glyph"><KindGlyph kind={seed.kind} /></span>}
-          <span className="peek-name">
-            <span className="t">{title}</span>
-            {subtitle && <span className="s">{subtitle}</span>}
-          </span>
-          {card?.badge && <span className={`peek-badge${toneClass(card.badge.tone)}`}>{card.badge.label}</span>}
-        </div>
-
-        {/* Facts arrive together — until they do, the header alone is on screen,
-            which is still more than the row said. */}
-        {card && (
-          <div className="peek-facts in in-2">
-            {card.facts.map(f => (
-              <div key={f.k} className="fact">
-                <span className="k">{f.k}</span>
-                <span className={`v${f.mono ? " mono" : ""}${toneClass(f.tone)}`}>{f.v}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {card?.sections.map(sec => (
-          <div key={sec.label} className="peek-sec in in-3">
-            <div className="sec-lbl">{sec.label}</div>
-            {sec.rows.length === 0
-              ? <div className="sec-empty">{sec.empty ?? "Nothing here."}</div>
-              : (
-                <div className="sec-rows">
-                  {sec.rows.map((r, i) => (
-                    <div key={`${r.title}-${i}`} className="sec-row">
-                      <span className="rb">
-                        <span className="t">{r.title}</span>
-                        {r.subtitle && <span className="s">{r.subtitle}</span>}
-                      </span>
-                      {r.value && <span className={`val${toneClass(r.tone)}`}>{r.value}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-          </div>
-        ))}
+        <PeekCardBody card={card} title={title} subtitle={subtitle} kind={seed.kind} />
 
         {!card && !failed && <div className="peek-wait">Reading the records…</div>}
         {failed && <div className="peek-wait">Couldn&apos;t load this record.</div>}

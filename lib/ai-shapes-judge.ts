@@ -321,5 +321,14 @@ export function checkVerdict(verdict: string, shape: AnswerShape, rows: AnswerRo
       fallback: `*${n}* ${noun}, ${shape.period === "All time" ? "all time" : shape.period}.`,
     };
   }
+  if (shape.type === "zero") {
+    const said = verdictCount(verdict);
+    if (said == null || said === 0) return { ok: true };
+    return {
+      ok: false,
+      feedback: `compose_answer: your verdict says ${said}, but nothing is filed as ${shape.filter} (${shape.period}); the answer shows that zero. Re-send with a verdict that says none, and name what they're filed as instead if it helps.`,
+      fallback: `*None* filed as ${shape.filter}, ${shape.period === "All time" ? "ever" : shape.period}.`,
+    };
+  }
   return { ok: true };
 }

@@ -25,7 +25,7 @@ import type { ShapeRequest } from "@/lib/ai-shape-request";
 import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd, money } from "@/lib/money";
 import type {
-  AnswerShape, AskBack, AskBackPerson, BreakdownPart, BreakdownShape,
+  AnswerShape, AskBack, PeekCard, AskBackPerson, BreakdownPart, BreakdownShape,
   EntityRef, LookedSource, MissingShape, TallyMark, TallyMetric, TallyShape, WeekItem, WeekShape,
 } from "@/lib/api-types";
 
@@ -37,6 +37,7 @@ import type { ShapeEvidence } from "@/lib/ai-shape-evidence";
 import { buildDated, buildLogbook, buildPastDue } from "@/lib/ai-shapes-calendar";
 import { buildRanked, buildRoll, buildTable } from "@/lib/ai-shapes-people";
 import { buildStatus, buildYesNo } from "@/lib/ai-shapes-judge";
+import { buildRecord, buildZero } from "@/lib/ai-shapes-lookup";
 export { checkVerdict } from "@/lib/ai-shapes-judge";
 
 export interface BuiltShape<S extends AnswerShape = AnswerShape> {
@@ -51,6 +52,8 @@ export interface BuildOpts {
   access?: ToolAccess;
   /** YYYY-MM-DD; pinned by tests and the screenshot driver. */
   today?: string;
+  /** The peek card for a record, built exactly as the peek sheet builds it (record answers). */
+  peek?: (type: "member" | "event" | "task", id: number) => Promise<PeekCard>;
 }
 
 /** The newer shapes, one module per family. Each never throws past buildShape's catch. */
@@ -64,6 +67,8 @@ const FAMILY_BUILDERS: Partial<Record<ShapeRequest["type"], FamilyBuilder>> = {
   roll: buildRoll,
   yesno: buildYesNo,
   status: buildStatus,
+  record: buildRecord,
+  zero: buildZero,
 };
 
 /**

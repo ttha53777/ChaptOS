@@ -7,6 +7,7 @@ import { chatToolsFor, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool
 import { createRefIndex, attachRefs } from "@/lib/ai-refs";
 import { createShapeEvidence, buildShape, attachPeople, checkVerdict } from "@/lib/ai-shapes";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
+import { getPeek } from "@/lib/services/peek-service";
 import { tryFastPath } from "@/lib/ai-fastpath";
 import { withIdleTimeout, StreamIdleTimeoutError, STREAM_IDLE_MS } from "@/lib/ai-stream";
 import { assembleToolCalls, stepId, stepNameSettled } from "@/lib/ai-ledger";
@@ -561,7 +562,12 @@ export async function POST(req: NextRequest) {
               const drawShape = shapeRequest && !rowCitations.some(c => c.length > 0) ? shapeRequest : undefined;
               const shapeStart = performance.now();
               const [built, askback] = await Promise.all([
-                drawShape ? buildShape(drawShape, evidence, ctx.db, ctx.orgId, { rows: answer.rows, access }) : Promise.resolve(null),
+                drawShape ? buildShape(drawShape, evidence, ctx.db, ctx.orgId, {
+                  // With refs, so a record can be drawn from the row's own record.
+                  rows: attachRefs(answer.rows, refIndex),
+                  access,
+                  peek: (type, id) => getPeek(ctx, type, id),
+                }) : Promise.resolve(null),
                 answer.askback ? attachPeople(answer.askback, refIndex, ctx.db, ctx.orgId) : Promise.resolve(undefined),
               ]);
               if (shapeRequest || answer.askback) shapeMs = Math.round(performance.now() - shapeStart);

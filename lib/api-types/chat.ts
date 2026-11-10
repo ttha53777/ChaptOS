@@ -124,7 +124,8 @@ export type AnswerShape =
   | TallyShape | BreakdownShape | WeekShape | MissingShape
   | DatedShape | LogbookShape | PastDueShape
   | RankedShape | TableShape | RollShape
-  | YesNoShape | StatusShape;
+  | YesNoShape | StatusShape
+  | RecordShape | ZeroShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -392,4 +393,67 @@ export interface StatusShape {
     date: string | null;
     owner: string | null;
   }>;
+}
+
+// ── Peek cards (GET /api/ai/peek, and inline in a `record` answer) ──────────
+
+/** Colour intent for a fact or badge. */
+export type PeekTone = "good" | "warn" | "risk" | "muted";
+
+export interface PeekFact {
+  k: string;
+  v: string;
+  /** Render the value in the mono face — figures, dates, counts. */
+  mono?: boolean;
+  tone?: PeekTone;
+}
+
+export interface PeekRow {
+  title: string;
+  subtitle?: string;
+  value?: string;
+  tone?: PeekTone;
+}
+
+export interface PeekSection {
+  label: string;
+  rows: PeekRow[];
+  /** Shown in place of rows when the section is legitimately empty. */
+  empty?: string;
+}
+
+export interface PeekCard {
+  type: RefType;
+  id: number;
+  title: string;
+  subtitle?: string;
+  badge?: { label: string; tone: PeekTone };
+  facts: PeekFact[];
+  sections: PeekSection[];
+}
+
+/** A lookup for one thing (or the pair that share a job): the peek card itself, inline. cards[i] is rows[i]'s. */
+export interface RecordShape {
+  type: "record";
+  cards: PeekCard[];
+}
+
+/**
+ * A clean zero: the filter is a real category of this org and nothing is in
+ * it. One empty slot, what was searched, and what those records are filed as
+ * instead. rows are empty.
+ */
+export interface ZeroShape {
+  type: "zero";
+  /** The org's own word for the category: "Service". */
+  filter: string;
+  /** The category's slug, for re-asking. */
+  slug: string;
+  noun: string;
+  /** "Fall 2026", "since Aug 24", "All time". */
+  period: string;
+  searched: { count: number; scope: string };
+  instead: Array<{ slug: string; label: string; count: number }>;
+  /** The caller may propose an event of this kind ("Plan one"). */
+  canCreate: boolean;
 }

@@ -13,6 +13,8 @@ import { runTool, SCREEN_PATHS, type AnswerRow } from "../lib/ai-tools";
 import { createRefIndex } from "../lib/ai-refs";
 import { attachPeople, buildShape, createShapeEvidence } from "../lib/ai-shapes";
 import { isoWeekBounds } from "../lib/dates";
+import { getPeek } from "../lib/services/peek-service";
+import type { RequestContext } from "../lib/context";
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
 const CASES = process.env.CASES ? new Set(process.env.CASES.split(",")) : null;
@@ -116,6 +118,23 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
   const firstTask = (oneTaskEv.get("list_deadlines")!.result as Array<{ title: string }>)[0];
   const yesnoOne = firstTask ? await buildShape({ type: "yesno", test: "task_done" }, oneTaskEv, scoped, org.id, { rows: [{ kind: "task", title: firstTask.title }], today: P_TODAY }) : null;
   const status = await buildShape({ type: "status" }, await formRead([["list_deadlines", { start: "2026-05-01", end: "2026-06-30" }]]), scoped, org.id, { today: D_TODAY });
+  // The record: "when was our last chapter meeting?" — the row's ref, its peek card.
+  // The peek service only reads ctx.db, so a context of the scoped client is enough.
+  const peekCtx = { db: scoped, orgId: org.id, actorId: admin.brotherId } as unknown as RequestContext;
+  const lastMeeting = (await scoped.calendarEvent.findFirst({ where: { category: "chapter" }, orderBy: { date: "desc" }, select: { id: true, title: true, date: true } }))!;
+  const record = await buildShape({ type: "record" }, createShapeEvidence(), scoped, org.id, {
+    rows: [{ kind: "event", title: lastMeeting.title, value: lastMeeting.date, ref: { type: "event", id: lastMeeting.id } }],
+    peek: (type, id) => getPeek(peekCtx, type, id),
+  });
+  const record2 = await buildShape({ type: "record" }, createShapeEvidence(), scoped, org.id, {
+    rows: roster.slice(0, 2).map(b => ({ kind: "person" as const, title: b.name, value: b.role, ref: { type: "member" as const, id: b.id } })),
+    peek: (type, id) => getPeek(peekCtx, type, id),
+  });
+  // Nothing yet: no fundraisers since July (dev data stops at June 1).
+  const zero = await buildShape({ type: "zero" }, await formRead([["list_calendar_events", { category: "fundy", start: "2026-07-01" }]]), scoped, org.id, {
+    access: { actorId: admin.brotherId, permissions: 0, isOrgAdmin: true, isPlatformAdmin: false },
+  });
+  console.log("record", !!record, "record2", !!record2, "zero", zero && JSON.stringify(zero.shape));
   console.log("yesno", yesno && JSON.stringify(yesno.shape).slice(0, 120), "yesnoOne", !!yesnoOne, "status", status?.rows.length);
   console.log("ranked", ranked?.rows.length, "table", table?.rows.length, "rankedDates", rankedDates?.rows.length, "roll", roll?.rows.length);
   console.log("dated", dated && dated.rows.length, "logbook", logbook && logbook.rows.map(r => `${r.title}:${r.ref?.id ?? "-"}`).join(", "), "pastdue", pastdue && JSON.stringify(pastdue.shape));
@@ -145,6 +164,9 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     yesno: ledger("Reading the roster", "Roster", "dues") + answer("*Not yet*, one still owes.", yesno, ["Roster", "Dues"]),
     yesone: ledger("Checking deadlines", "Tasks", "1 task") + answer("*No*, it's still open.", yesnoOne, ["Tasks"]),
     status: ledger("Checking deadlines", "Tasks", "May – Jun") + answer("*Most of it* is done; two are stuck.", status, ["Tasks"]),
+    record: ledger("Scanning the calendar", "Timeline", "1 found") + answer("It was *on " + lastMeeting.date + "*.", record, ["Timeline"]),
+    recpair: ledger("Reading the roster", "Roster", "2 found") + answer("*These two* run it.", record2, ["Roster"]),
+    zero: ledger("Scanning the calendar", "Timeline", "none") + answer("*None* filed as fundraisers since July.", zero, ["Timeline"]),
     which: ledger("Looking up the name", "Brotherhood", "2 matches") + frame("answer", { verdict: "There are *two* matches on the roster.", rows: [], follows: [], sources: ["Brotherhood"], askback }),
   };
 
@@ -201,6 +223,9 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     ["13-yesno", "yesno: has exec paid", ".shp-yn"],
     ["13b-yesno-one", "yesone: is the roster update done", ".shp-yn"],
     ["04-status", "status: where are we on spring", ".shp-sx"],
+    ["05-record", "record: when was the last chapter meeting", ".shp-recs"],
+    ["05b-record-pair", "recpair: who runs dues", ".shp-recs.two"],
+    ["12-zero", "zero: how many fundraisers since july", ".shp-zero"],
   ];
   for (const [n, q, sel] of SHOTS.filter(([n]) => !CASES || CASES.has(n))) {
     await p.fill(".cs-dock textarea", q);

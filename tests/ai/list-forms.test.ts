@@ -365,3 +365,78 @@ describe("status (Progress)", () => {
     expect(statusFromTasks({ tasks: [t(1, "2026-10-20", "done"), t(2, "2026-10-21", "done")], today: TODAY, kicker: "", focus: "open", rows: [] })).toBeNull();
   });
 });
+
+// ── Lookups ─────────────────────────────────────────────────────────────────
+import { buildRecord, zeroFromCounts, buildZero } from "@/lib/ai-shapes-lookup";
+import type { PeekCard, RecordShape, ZeroShape } from "@/lib/api-types";
+
+describe("record", () => {
+  const card = (id: number): PeekCard => ({ type: "event", id, title: "Chapter Meeting", subtitle: "Nov 15, 2026", facts: [], sections: [] });
+
+  it("a lookup with a ref is its peek card, built by the peek service", async () => {
+    const asked: Array<[string, number]> = [];
+    const built = await buildRecord({ type: "record" }, createShapeEvidence(), {} as never, 1, {
+      rows: [{ kind: "event", title: "Chapter Meeting", value: "Sun 7 PM", ref: { type: "event", id: 9 } }],
+      today: TODAY,
+      peek: async (type, id) => { asked.push([type, id]); return card(id); },
+    });
+    expect(asked).toEqual([["event", 9]]);
+    expect((built!.shape as RecordShape).cards[0].id).toBe(9);
+    expect(built!.rows[0].value).toBe("Sun 7 PM");
+  });
+
+  it("never for more than two, a row with no record, or when the peek is refused", async () => {
+    const peek = async (_t: string, id: number) => card(id);
+    const r = (id: number) => ({ kind: "event" as const, title: `E${id}`, ref: { type: "event" as const, id } });
+    expect(await buildRecord({ type: "record" }, createShapeEvidence(), {} as never, 1, { rows: [r(1), r(2), r(3)], today: TODAY, peek })).toBeNull();
+    expect(await buildRecord({ type: "record" }, createShapeEvidence(), {} as never, 1, { rows: [r(1), { kind: "event", title: "No ref" }], today: TODAY, peek })).toBeNull();
+    expect(await buildRecord({ type: "record" }, createShapeEvidence(), {} as never, 1, { rows: [r(1)], today: TODAY, peek: async () => { throw new Error("403"); } })).toBeNull();
+  });
+});
+
+describe("zero (Nothing yet)", () => {
+  const types = [{ slug: "service", label: "Service" }, { slug: "chapter", label: "Chapter" }, { slug: "philanthropy", label: "Philanthropy" }];
+  const window = [...Array(12).fill({ category: "chapter" }), ...Array(6).fill({ category: "philanthropy" })];
+
+  it("names the org's word, the searched count, and what they're filed as instead", () => {
+    const built = zeroFromCounts({ filterSlug: "service", types, window, period: "Fall 2026", scope: "since Aug 24", canCreate: true })!;
+    const shape = built.shape as ZeroShape;
+    expect(built.rows).toEqual([]);
+    expect(shape).toMatchObject({ filter: "Service", slug: "service", searched: { count: 18, scope: "since Aug 24" }, canCreate: true });
+    expect(shape.instead).toEqual([{ slug: "chapter", label: "Chapter", count: 12 }, { slug: "philanthropy", label: "Philanthropy", count: 6 }]);
+  });
+
+  it("accepts the label for the slug", () => {
+    expect(zeroFromCounts({ filterSlug: "Service", types, window, period: "x", scope: "y", canCreate: false })?.shape).toMatchObject({ slug: "service" });
+  });
+
+  it("a word the org doesn't use is never a zero — the model asks back", () => {
+    expect(zeroFromCounts({ filterSlug: "volunteering", types, window, period: "x", scope: "y", canCreate: false })).toBeNull();
+  });
+
+  it("isn't a zero when the window holds that type after all", () => {
+    expect(zeroFromCounts({ filterSlug: "chapter", types, window, period: "x", scope: "y", canCreate: false })).toBeNull();
+  });
+
+  it("only for an empty, type-filtered calendar read; Plan one follows the proposal permission", async () => {
+    const scoped = {
+      calendarEventType: { findMany: async () => types },
+      calendarEvent: { findMany: async () => window },
+      semester: { findMany: async () => [{ label: "Fall 2026", startDate: "2026-08-24", endDate: "2026-12-20" }] },
+    } as never;
+    const ev = createShapeEvidence();
+    ev.add("list_calendar_events", { category: "service", start: "2026-08-24" }, { count: 0, items: [], hint: "" });
+    const member = { actorId: 1, permissions: 0, isOrgAdmin: false, isPlatformAdmin: false } as never;
+    const built = await buildZero({ type: "zero" }, ev, scoped, 1, { rows: [], today: TODAY, access: member });
+    expect((built!.shape as ZeroShape)).toMatchObject({ period: "Fall 2026", canCreate: false });
+    const evFull = createShapeEvidence();
+    evFull.add("list_calendar_events", { category: "service" }, [{ id: 1, title: "x", date: "2026-09-01" }]);
+    expect(await buildZero({ type: "zero" }, evFull, scoped, 1, { rows: [], today: TODAY })).toBeNull();
+  });
+
+  it("a zero verdict that states a count is corrected", () => {
+    const built = zeroFromCounts({ filterSlug: "service", types, window, period: "Fall 2026", scope: "", canCreate: false })!;
+    expect(checkVerdict("*Six* service events.", built.shape, built.rows)).toMatchObject({ ok: false, fallback: "*None* filed as Service, Fall 2026." });
+    expect(checkVerdict("*None* filed as Service this term.", built.shape, built.rows).ok).toBe(true);
+  });
+});

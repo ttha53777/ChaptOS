@@ -992,7 +992,9 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         "tier it high, and keep at most two real backups instead of listing everything you considered. Rows that are independently true " +
         "regardless of what else is picked — separate fixes, findings in different areas, ordered steps, or a menu the user asked for — stay a full list. " +
         "If you need something from the user to narrow the advice, put it in `askback` INSTEAD of trailing questions in the verdict. " +
-        "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text.",
+        (formsEnabled()
+          ? "Do NOT use this for refusals or one-line clarifying questions — answer those in plain text. With no data to show, answer in plain text too, except a clean zero for a real category (shape zero, no rows)."
+          : "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text."),
       parameters: {
         type: "object",
         properties: {

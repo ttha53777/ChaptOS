@@ -23,40 +23,10 @@ import { ExcuseStatus } from "@/lib/state";
 export const PEEK_TYPES = ["member", "event", "task"] as const;
 export type PeekType = (typeof PEEK_TYPES)[number];
 
-/** Colour intent for a fact or badge. Maps to the spotlight's existing tones. */
-export type PeekTone = "good" | "warn" | "risk" | "muted";
-
-export interface PeekFact {
-  k: string;
-  v: string;
-  /** Render the value in the mono face — figures, dates, counts. */
-  mono?: boolean;
-  tone?: PeekTone;
-}
-
-export interface PeekRow {
-  title: string;
-  subtitle?: string;
-  value?: string;
-  tone?: PeekTone;
-}
-
-export interface PeekSection {
-  label: string;
-  rows: PeekRow[];
-  /** Shown in place of rows when the section is legitimately empty. */
-  empty?: string;
-}
-
-export interface PeekCard {
-  type: PeekType;
-  id: number;
-  title: string;
-  subtitle?: string;
-  badge?: { label: string; tone: PeekTone };
-  facts: PeekFact[];
-  sections: PeekSection[];
-}
+// The card is wire data (it also rides inline in a `record` answer), so its
+// types live in lib/api-types; re-exported so existing imports don't move.
+import type { PeekCard, PeekFact, PeekRow, PeekSection, PeekTone } from "@/lib/api-types";
+export type { PeekCard, PeekFact, PeekRow, PeekSection, PeekTone };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Formatting — matches how officers read these numbers elsewhere in the app.

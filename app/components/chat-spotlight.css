@@ -1152,3 +1152,38 @@
   .chat-root .yn-st { min-width: 62px; font-size: 20px; padding: 6px 9px 7px; }
   .chat-root .sx-key { font-size: 11px; }
 }
+
+/* the record: the peek card, inline */
+.chat-root .shp-recs { margin-top: 14px; display: grid; gap: 12px; }
+.chat-root .shp-recs.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.chat-root .rec-card { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.chat-root .rec-card.sel { border-color: var(--vio-line); }
+.chat-root .rec-card .peek-facts { margin-top: 14px; }
+.chat-root .rec-card .peek-sec { margin-top: 14px; }
+.chat-root .rec-val { flex-shrink: 0; font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--ink); }
+.chat-root .rec-act { display: flex; gap: 8px; margin-top: 14px; }
+.chat-root .rec-act .chip { display: inline-flex; align-items: center; gap: 6px; }
+
+/* nothing yet */
+.chat-root .shp-zero { border-style: dashed; border-color: var(--line-med); background: var(--card-2); }
+.chat-root .zr { display: flex; align-items: center; gap: 14px; padding: 12px 14px; }
+.chat-root .zr-0 { width: 44px; height: 48px; flex: none; display: grid; grid-template-rows: 13px 1fr; border: 1.5px dashed var(--faint); border-radius: 9px; background: var(--card); transform: rotate(-3deg); overflow: hidden; }
+.chat-root .zr-0::before { content: ''; background: var(--card-2); border-bottom: 1.5px dashed var(--faint); }
+.chat-root .zr-b { flex: 1; min-width: 0; }
+.chat-root .zr-b .t { display: block; font-family: var(--serif); font-size: 16.5px; line-height: 1.25; color: var(--ink); }
+.chat-root .zr-b .s { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12.5px; color: var(--ink-soft); }
+.chat-root .zr-b .s svg { color: var(--vio); flex: none; }
+.chat-root .zr-plan { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.chat-root .zr-near { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 10px 14px 12px; border-top: 1px dashed var(--line-med); }
+.chat-root .zr-near .shp-kicker { margin-right: 4px; }
+.chat-root .zr-near button { display: inline-flex; align-items: center; gap: 7px; padding: 3px 6px 3px 11px; border-radius: 999px; border: 1px solid var(--line-med); background: var(--card); font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
+.chat-root .zr-near button:hover { border-color: var(--ink); color: var(--ink); }
+.chat-root .zr-near button i { font-style: normal; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--card-2); font-family: var(--mono); font-size: 11px; color: var(--ink); text-align: center; }
+@media (max-width: 600px) {
+  .chat-root .shp-recs.two { grid-template-columns: minmax(0, 1fr); }
+  .chat-root .zr { flex-wrap: wrap; row-gap: 10px; }
+  .chat-root .zr-b { flex-basis: calc(100% - 58px); }
+  .chat-root .zr-plan { margin-left: 58px; }
+}
+.chat-root .rec-card .peek-id { flex-wrap: wrap; row-gap: 8px; }
+.chat-root .shp-recs.two .rec-val { flex-basis: 100%; padding-left: 50px; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }

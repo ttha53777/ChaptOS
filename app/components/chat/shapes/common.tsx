@@ -17,6 +17,10 @@ export interface RowHandlers {
   selectedRow: number;
   act: (row: AnswerRow) => void;
   onPeek: (row: AnswerRow) => void;
+  /** Send a follow-up question (a sheet's own chips). */
+  onAsk?: (q: string) => void;
+  /** Open the event-idea panel for a suggested event. */
+  onIdea?: (row: AnswerRow) => void;
 }
 
 export type RenderRow = (row: AnswerRow, i: number) => ReactNode;

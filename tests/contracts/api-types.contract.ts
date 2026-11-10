@@ -22,9 +22,11 @@
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
-  ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape,
+  ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
+import type { recordFromCards, zeroFromCounts } from "@/lib/ai-shapes-lookup";
+import type { getPeek } from "@/lib/services/peek-service";
 import type { yesnoFromJudged, statusFromTasks } from "@/lib/ai-shapes-judge";
 import type { rankedFromMembers, rankedFromEvents, tableFromMembers, rollFromPeople } from "@/lib/ai-shapes-people";
 import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
@@ -118,3 +120,7 @@ export const tableShape: Widen<TableShape> = served<ShapeOf<typeof tableFromMemb
 export const rollShape: Widen<RollShape> = served<ShapeOf<typeof rollFromPeople>>();
 export const yesnoShape: Widen<YesNoShape> = served<ShapeOf<typeof yesnoFromJudged>>();
 export const statusShape: Widen<StatusShape> = served<ShapeOf<typeof statusFromTasks>>();
+export const recordShape: Widen<RecordShape> = served<ShapeOf<typeof recordFromCards>>();
+export const zeroShape: Widen<ZeroShape> = served<ShapeOf<typeof zeroFromCounts>>();
+// GET /api/ai/peek, and every card inside a record answer.
+export const peekCard: Widen<PeekCard> = served<Served<typeof getPeek>>();

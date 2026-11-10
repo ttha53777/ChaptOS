@@ -277,7 +277,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
       <TraceBlock steps={steps} />
       <Verdict text={answer.verdict} />
       <CitationChips citations={answer.citations} onOpen={onCite} className="verdict-cites in in-2" />
-      {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek }} renderRow={renderRow} />}
+      {shape && <ShapeBlock shape={shape} rows={answer.rows} h={{ selectedRow, act, onPeek, onAsk, onIdea }} renderRow={renderRow} />}
       {/* No server shape: two forms are decided here, from rows that already
           arrive — tiered advice as a game plan, mixed kinds filed by drawer.
           Rows carrying file citations keep the plain list (and their chips). */}
