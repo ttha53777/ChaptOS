@@ -1851,7 +1851,6 @@ function OnDeckHero({
         <span className="top">{MONTHS[dt.getMonth()]}</span>
         <span className="n">{dt.getDate()}</span>
         <span className="m">{DOWS[dt.getDay()]}</span>
-        {time && <span className="tm">{time}</span>}
       </div>
       <div className="od-body">
         <div className="od-top">
