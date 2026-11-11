@@ -5,7 +5,8 @@ import { Sidebar } from "../../../components/Sidebar";
 import { Modal, ConfirmDialog, LoadingSpinner } from "../../../components/dashboard/primitives";
 import { useToast } from "../../../components/dashboard/Toast";
 import { useChapter } from "../../../context/ChapterContext";
-import { kindOf, type Doc, type Folder } from "./lib";
+import { folderHue, kindOf, type Doc, type Folder } from "./lib";
+import { FolderPicker } from "./FolderPicker";
 import { DocForm, type DocDraft } from "./DocForm";
 import { FolderForm } from "./FolderForm";
 import { FolderSection } from "./FolderSection";
@@ -283,6 +284,18 @@ export default function DocsPage() {
       toast.error(message);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // From the Add sheet's picker: create a folder; the picker then selects it.
+  async function handleCreateFolderForAdd(name: string): Promise<Folder | null> {
+    try {
+      const created = await createFolderApi(name);
+      toast.success(`Created folder "${created.name}".`);
+      return created;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message.replace(/^.*?: /, "") : "Failed to create folder.");
+      return null;
     }
   }
 
@@ -657,9 +670,6 @@ export default function DocsPage() {
   // Search/filter matched nothing anywhere — skip the shelf and sections and
   // show one global empty state instead of a page of none-match lines.
   const nothingMatches = queryActive && hasDocs && filtered.length === 0 && pinnedDocs.length === 0;
-  const addFolderName = addFolderId != null
-    ? (folders.find(f => f.id === addFolderId)?.name ?? "folder")
-    : null;
   // Drag-reorder is an admin gesture, available under any sort as long as no
   // search/filter is narrowing the sections (otherwise "before this row" is
   // ambiguous against a hidden neighbor). It isn't gated to Manual sort: dropping
@@ -857,11 +867,12 @@ export default function DocsPage() {
             {/* ── Folder sections + Unfiled ── */}
             {!loading && !loadError && !nothingMatches && (
               <>
-                {sortedFolders.map(folder => (
+                {sortedFolders.map((folder, i) => (
                   <FolderSection
                     key={`f-${folder.id}`}
                     name={folder.name}
                     folder={folder}
+                    hue={folderHue(i)}
                     totalCount={folderCounts.get(folder.id) ?? 0}
                     visibleCount={docsByFolder.get(folder.id)?.length ?? 0}
                     collapsed={!!collapsed[`f-${folder.id}`]}
@@ -960,7 +971,7 @@ export default function DocsPage() {
       {/* ── Add modal ── */}
       {showAdd && (
         <Modal
-          title={addFolderName ? `Add doc — ${addFolderName}` : "Add doc"}
+          title="Add doc"
           tone="dusk"
           onClose={() => !submitting && closeAdd()}
         >
@@ -969,7 +980,15 @@ export default function DocsPage() {
             submitLabel={submitting ? "Adding…" : "Add"}
             onSubmit={handleAdd}
             onClose={closeAdd}
-          />
+          >
+            <FolderPicker
+              folders={sortedFolders}
+              counts={folderTotals}
+              value={addFolderId}
+              onChange={setAddFolderId}
+              onCreate={handleCreateFolderForAdd}
+            />
+          </DocForm>
         </Modal>
       )}
 

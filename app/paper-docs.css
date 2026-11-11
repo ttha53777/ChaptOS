@@ -142,11 +142,12 @@ html[data-aesthetic="paper"] .dash .dx-pinned-card .dx-menu { top: 46px; right: 
 
 /* ── Folders: a manila tab on an ink ledger body ────────────────────────────── */
 html[data-aesthetic="paper"] .dash .dx-section { --fc: var(--pp-butter); margin-top: 28px; }
-html[data-aesthetic="paper"] .dash .dx-section:nth-of-type(6n+1) { --fc: var(--pp-lilac); }
-html[data-aesthetic="paper"] .dash .dx-section:nth-of-type(6n+2) { --fc: var(--pp-rose); }
-html[data-aesthetic="paper"] .dash .dx-section:nth-of-type(6n+3) { --fc: var(--pp-mint); }
-html[data-aesthetic="paper"] .dash .dx-section:nth-of-type(6n+4) { --fc: var(--pp-peach); }
-html[data-aesthetic="paper"] .dash .dx-section:nth-of-type(6n+5) { --fc: var(--pp-sky); }
+/* hue-* comes from folderHue() (lib.tsx) so the Add sheet's picker can match it */
+html[data-aesthetic="paper"] .dash .dx-section.hue-lilac { --fc: var(--pp-lilac); }
+html[data-aesthetic="paper"] .dash .dx-section.hue-rose  { --fc: var(--pp-rose); }
+html[data-aesthetic="paper"] .dash .dx-section.hue-mint  { --fc: var(--pp-mint); }
+html[data-aesthetic="paper"] .dash .dx-section.hue-peach { --fc: var(--pp-peach); }
+html[data-aesthetic="paper"] .dash .dx-section.hue-sky   { --fc: var(--pp-sky); }
 html[data-aesthetic="paper"] .dash .dx-section.unfiled { --fc: var(--line-med); }
 html[data-aesthetic="paper"] .dash .dx-sec-head { align-items: flex-end; gap: 10px; padding: 0; border-radius: 0; }
 html[data-aesthetic="paper"] .dash .dx-sec-head:focus-visible { box-shadow: none; }
@@ -295,3 +296,36 @@ html[data-aesthetic="paper"] .dx-move .dx-move-new { border-top: 1.5px dashed va
   html[data-aesthetic="paper"] .dash .dx-pinned-card { min-height: 0; }
   html[data-aesthetic="paper"] .dash .dx-sec-head .dx-tab { padding: 9px 12px 8px 10px; }
 }
+
+/* ── Add sheet: folder picker — each folder a manila tab in its section colour ── */
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tabs { gap: 10px 8px; padding: 8px 4px 8px; margin: 0 -4px; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab { --fc: var(--line-med);
+  height: 38px; padding: 2px 13px 0 11px; border: 1.5px solid var(--line-med); border-radius: 12px 15px 4px 4px; background: var(--card);
+  color: var(--ink-soft); transition: transform .2s var(--pp-ease-spring), box-shadow .2s var(--pp-ease-spring), border-color .15s, color .15s; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab::before { content: ''; position: absolute; left: 11px; right: 11px; top: -1.5px; height: 4px;
+  border-radius: 0 0 4px 4px; background: var(--fc); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.hue-lilac { --fc: var(--pp-lilac); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.hue-rose  { --fc: var(--pp-rose); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.hue-mint  { --fc: var(--pp-mint); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.hue-peach { --fc: var(--pp-peach); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.hue-sky   { --fc: var(--pp-sky); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.hue-butter { --fc: var(--pp-butter); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.unfiled::before { display: none; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab:hover { color: var(--ink); border-color: var(--ink); transform: translateY(-2px); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab:has(input:checked) { color: var(--ink); border-color: var(--ink); background: var(--card);
+  transform: translateY(-3px); box-shadow: 3px 3px 0 var(--fc); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab.unfiled:has(input:checked) { box-shadow: 3px 3px 0 var(--line-med); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab:has(input:focus-visible) { outline: 2px solid var(--pp-lilac-ink); outline-offset: 2px; }
+html[data-aesthetic="paper"] .dx-fp .fi { color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-tab:has(input:checked) .fi { color: var(--ink); }
+html[data-aesthetic="paper"] .dx-fp .nm { font-family: var(--font-fraunces); font-weight: 600; font-size: 14px; letter-spacing: -.015em; }
+html[data-aesthetic="paper"] .dx-fp .ct { color: var(--muted); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-add { height: 38px; border: 1.5px dashed var(--line-med); border-radius: 12px 15px 4px 4px; background: none;
+  color: var(--ink-soft); font-family: var(--font-geist-sans); font-size: 13px; letter-spacing: 0; text-transform: none; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-add:hover { border-color: var(--ink); color: var(--ink); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-new { height: 38px; border: 1.5px solid var(--ink); border-radius: 12px 15px 4px 4px; background: var(--pp-butter-soft);
+  box-shadow: 3px 3px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-new input { font-family: var(--font-fraunces); font-weight: 600; font-size: 14px; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-new .ok { height: 28px; border: 1.5px solid var(--ink); border-radius: 9px; background: var(--ink); color: var(--paper); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-lands { font-family: var(--font-fraunces); font-style: italic; font-size: 13px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-lands b { font-style: normal; background: linear-gradient(transparent 58%, var(--pp-butter) 58% 92%, transparent 92%); }

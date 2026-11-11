@@ -78,3 +78,10 @@ export function fmtDate(iso: string): string {
     return "";
   }
 }
+
+/** Paper folder colours, assigned by section order (pinned first, then the hand
+ *  order). The Add sheet's folder picker uses the same index, so a folder's tab
+ *  there wears the colour of its section on the page. */
+export const FOLDER_HUES = ["lilac", "rose", "mint", "peach", "sky", "butter"] as const;
+export type FolderHue = (typeof FOLDER_HUES)[number];
+export const folderHue = (index: number): FolderHue => FOLDER_HUES[index % FOLDER_HUES.length];

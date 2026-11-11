@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { DocMenu } from "./DocMenu";
-import type { Folder } from "./lib";
+import type { Folder, FolderHue } from "./lib";
 import { PaperIcon } from "../../../components/paper/PaperIcon";
 
 /**
@@ -16,6 +16,7 @@ import { PaperIcon } from "../../../components/paper/PaperIcon";
 export function FolderSection({
   name,
   folder,
+  hue,
   totalCount,
   visibleCount,
   collapsed,
@@ -38,6 +39,8 @@ export function FolderSection({
 }: {
   name: string;
   folder: Folder | null;
+  /** Paper folder colour; Unfiled has none (it's dashed). */
+  hue?: FolderHue;
   totalCount: number;
   visibleCount: number;
   collapsed: boolean;
@@ -77,7 +80,7 @@ export function FolderSection({
   }
 
   return (
-    <section className={`dx-section${open ? "" : " closed"}${folder ? "" : " unfiled"}`}>
+    <section className={`dx-section${open ? "" : " closed"}${folder ? "" : " unfiled"}${hue ? ` hue-${hue}` : ""}`}>
       {/* Not a <button>: the folder menu renders nested <button>s, which is
           invalid inside a real button and breaks hydration. */}
       <div

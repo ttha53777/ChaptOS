@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { FieldLabel } from "../../../components/dashboard/primitives";
 import { inputDuskCls } from "../../../components/dashboard/styles";
 
@@ -11,11 +11,14 @@ export function DocForm({
   submitLabel,
   onSubmit,
   onClose,
+  children,
 }: {
   initial: DocDraft;
   submitLabel: string;
   onSubmit: (d: DocDraft) => void;
   onClose: () => void;
+  /** Extra fields under Description (the Add sheet's folder picker). */
+  children?: ReactNode;
 }) {
   const [form, setForm] = useState<DocDraft>(initial);
   const set = (k: keyof DocDraft) =>
@@ -57,6 +60,7 @@ export function DocForm({
           placeholder="Short note about what this is for"
         />
       </div>
+      {children}
       <div className="flex justify-end gap-2 pt-1">
         <button
           type="button"

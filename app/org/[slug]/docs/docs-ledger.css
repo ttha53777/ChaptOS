@@ -324,3 +324,34 @@
 /* The folder-tab group is only a box in the paper look (paper-docs.css); here
    its children lay out in the header row as they always did. */
 .dash .dx-sec-head .dx-tab { display: contents; }
+
+/* ── Add sheet: "File in" folder picker ──────────────────────────────────────────
+   Unscoped like .dx-move: the Modal may render outside `.dash`. Ledger look is a
+   quiet chip row; paper-docs.css turns each chip into a small manila tab. */
+.dx-fp .dx-fp-tabs { display: flex; flex-wrap: wrap; gap: 6px; max-height: 172px; overflow-y: auto; padding: 4px 2px 6px; margin: 0 -2px; }
+.dx-fp .dx-fp-tab,
+.dx-fp .dx-fp-add,
+.dx-fp .dx-fp-new { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; height: 34px; padding: 0 12px;
+  border-radius: 9px; border: 1px solid var(--line); background: var(--card); font-size: 13px; color: var(--ink-soft); }
+.dx-fp .dx-fp-tab { position: relative; cursor: pointer; transition: border-color .12s, color .12s, background .12s; }
+.dx-fp .dx-fp-tab input { position: absolute; opacity: 0; pointer-events: none; }
+.dx-fp .dx-fp-tab:hover { color: var(--ink); border-color: rgba(var(--vio-rgb),.28); }
+.dx-fp .dx-fp-tab:has(input:checked) { color: var(--ink); border-color: var(--vio); background: var(--vio-bg); }
+.dx-fp .dx-fp-tab:has(input:focus-visible) { outline: 2px solid var(--vio); outline-offset: 2px; }
+.dx-fp .dx-fp-tab.unfiled { border-style: dashed; }
+.dx-fp .fi { width: 15px; height: 15px; flex: none; color: var(--vio); }
+.dx-fp .nm { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 18ch; }
+.dx-fp .ct { flex: none; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 10.5px; color: var(--faint); }
+.dx-fp .dx-fp-add { cursor: pointer; border-style: dashed; color: var(--vio); font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; transition: border-color .12s; }
+.dx-fp .dx-fp-add:hover { border-color: var(--vio); }
+.dx-fp .dx-fp-add svg { width: 12px; height: 12px; }
+.dx-fp .dx-fp-new { border-color: var(--vio); padding-right: 4px; }
+.dx-fp .dx-fp-new input { width: 15ch; min-width: 0; border: 0; outline: 0; background: none; font-size: 13px; color: var(--ink); }
+.dx-fp .dx-fp-new input::placeholder { color: var(--faint); }
+.dx-fp .dx-fp-new .ok { height: 26px; padding: 0 10px; border-radius: 7px; border: 0; cursor: pointer; font-size: 12px; font-weight: 600;
+  background: var(--vio); color: var(--paper); }
+.dx-fp .dx-fp-new .ok:disabled { opacity: .45; cursor: default; }
+.dx-fp .dx-fp-lands { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.dx-fp .dx-fp-lands b { font-weight: 600; color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .dx-fp * { transition: none !important; } }
