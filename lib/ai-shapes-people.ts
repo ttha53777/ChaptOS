@@ -17,7 +17,7 @@ import type { db } from "@/lib/db";
 import type { AnswerRow } from "@/lib/ai-tools";
 import { orgStanding, orgStandingConfig } from "@/lib/ai-tools";
 import type { ShapeRequest, RollSplit } from "@/lib/ai-shape-request";
-import { listItems, narrowToRows, prop, recordsOf, type ShapeEvidence, type SourceRecord } from "@/lib/ai-shape-evidence";
+import { listItems, narrowToRows, prop, recordsOf, sourceRead, type ShapeEvidence, type SourceReader, type SourceRecord } from "@/lib/ai-shape-evidence";
 import { ExcuseStatus } from "@/lib/state";
 import { fmtUsd, money } from "@/lib/money";
 import type { Thresholds } from "@/lib/thresholds";
@@ -345,10 +345,25 @@ export function rollFromPeople(input: {
   return { shape, rows };
 }
 
-const ROLL_SOURCES = ["list_brothers", "get_event_attendance", "list_polls", "list_attendance_exemptions"] as const;
+/** People out of a list of bare names (get_event_attendance serves no ids). */
+function namedRecords(names: unknown): SourceRecord[] {
+  return (Array.isArray(names) ? names : [])
+    .map(n => (typeof n === "string" ? n : typeof n === "object" && n !== null ? (n as { name?: unknown }).name : null))
+    .filter((n): n is string => typeof n === "string")
+    .map((name, i) => ({ id: -(i + 1), title: name, date: null, raw: {} }));
+}
+
+// Who each roll source names, so the roll is drawn from the read the answer's
+// people came from (two events' attendance, or the roster read twice, in a turn).
+const ROLL_SOURCES: Record<string, SourceReader> = {
+  list_brothers: memberRecords,
+  get_event_attendance: r => [...namedRecords(prop(r, "absent")), ...namedRecords(prop(r, "excused"))],
+  list_polls: r => listItems(r).flatMap(p => recordsOf(p.notVoted, "name", null)),
+  list_attendance_exemptions: r => recordsOf(listItems(r), "name", null),
+};
 
 export async function buildRoll(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, _orgId: number, o: Opts): Promise<BuiltShape | null> {
-  const read = evidence.latest(ROLL_SOURCES);
+  const read = sourceRead(evidence, ROLL_SOURCES, o.rows);
   if (!read) return null;
   const split: RollSplit | undefined = req.split;
 

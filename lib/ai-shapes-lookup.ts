@@ -127,11 +127,17 @@ function canPlan(access?: ToolAccess): boolean {
 
 export async function buildZero(_req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, _orgId: number, o: Opts): Promise<BuiltShape | null> {
   // A type-filtered calendar read, or an empty list_parties read (parties are
-  // the calendar's `party` type, when the org has one).
-  const read = evidence.latest(["list_calendar_events", "list_parties"]);
+  // the calendar's `party` type, when the org has one). The model often follows
+  // an empty type read with a title search in the same turn, so the source is
+  // the newest read that names a type, not the newest read; and an answer whose
+  // rows are records it found is not "nothing yet".
+  const reads = evidence.reads(["list_calendar_events", "list_parties"]);
+  const titleKey = (tool: string) => (tool === "list_parties" ? "name" : "title");
+  if (o.rows.some(row => reads.some(r => resolveRows([row], recordsOf(listItems(r.result), titleKey(r.tool), "date")) !== null))) return null;
+  const typeOf = (r: (typeof reads)[number]) => (r.tool === "list_parties" ? "party" : r.args.category);
+  const read = reads.find(r => typeof typeOf(r) === "string");
   if (!read) return null;
-  const category = read.tool === "list_parties" ? "party" : read.args.category;
-  if (typeof category !== "string") return null;
+  const category = typeOf(read) as string;
   if (listItems(read.result).length > 0) return null;
   const start = okDate(read.args.start) ? read.args.start : undefined;
   const end = okDate(read.args.end) ? read.args.end : undefined;

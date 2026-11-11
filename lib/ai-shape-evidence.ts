@@ -19,37 +19,39 @@ export interface ShapeEvidence {
   add(toolName: string, args: Record<string, unknown>, result: unknown): void;
   /** The most recent successful call of a tool, if it ran this turn. */
   get(toolName: string): { args: Record<string, unknown>; result: unknown } | undefined;
-  /** The most recent successful call of ANY of these tools. */
-  latest(toolNames: readonly string[]): EvidenceRead | undefined;
+  /** Every successful call of these tools this turn, newest first. */
+  reads(toolNames: readonly string[]): EvidenceRead[];
 }
 
 export function createShapeEvidence(): ShapeEvidence {
   const seen = new Map<string, { args: Record<string, unknown>; result: unknown; seq: number }>();
+  // `seen` keeps one read per tool; a tool called twice in a turn (a type
+  // filter, then a title search) keeps both here.
+  const every: EvidenceRead[] = [];
   let seq = 0;
   return {
     add(toolName, args, result) {
       if (typeof result === "object" && result !== null && "error" in result) return;
       seen.set(toolName, { args, result, seq: seq++ });
+      every.unshift({ tool: toolName, args, result });
     },
     get: toolName => {
       const hit = seen.get(toolName);
       return hit ? { args: hit.args, result: hit.result } : undefined;
     },
-    latest(toolNames) {
-      let best: EvidenceRead & { seq: number } | undefined;
-      for (const tool of toolNames) {
-        const hit = seen.get(tool);
-        if (hit && (!best || hit.seq > best.seq)) best = { tool, args: hit.args, result: hit.result, seq: hit.seq };
-      }
-      return best ? { tool: best.tool, args: best.args, result: best.result } : undefined;
-    },
+    reads: toolNames => every.filter(r => toolNames.includes(r.tool)),
   };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // Selection — which records are in the picture
 //
-// 1. The source is the most recent successful call of a tool the shape accepts.
+// 1. The source is the read the model's rows came from: of the successful calls
+//    of a tool the shape accepts, the one most of its rows resolve in, newest on
+//    a tie (so with no rows, or none that resolve, the most recent call). A
+//    service count reads the calendar by type AND by a title fragment in one
+//    turn; "most recent" alone drew the one-row title search under a verdict of
+//    five and then corrected the verdict to one.
 // 2. If the model's rows ALL resolve to records in that source and there are
 //    fewer of them than the row cap, the set is exactly those records: the model
 //    listed a deliberate subset.
@@ -110,6 +112,22 @@ export function resolveRows(rows: ReadonlyArray<Pick<AnswerRow, "title" | "date"
   return out;
 }
 
+/** Rule 1: the accepted read most of the model's rows resolve in, newest on a tie. */
+export function sourceRead(
+  evidence: ShapeEvidence,
+  sources: Record<string, SourceReader>,
+  rows: ReadonlyArray<Pick<AnswerRow, "title" | "date">>,
+): EvidenceRead | undefined {
+  let best: { read: EvidenceRead; hits: number } | undefined;
+  for (const read of evidence.reads(Object.keys(sources))) {
+    let records: SourceRecord[];
+    try { records = sources[read.tool](read.result, read.args); } catch { continue; }
+    const hits = rows.filter(row => resolveRows([row], records) !== null).length;
+    if (!best || hits > best.hits) best = { read, hits };
+  }
+  return best?.read;
+}
+
 export function selectFromEvidence(input: {
   evidence: ShapeEvidence;
   /** The tools this shape accepts as a source, each with how to read its records. */
@@ -117,7 +135,7 @@ export function selectFromEvidence(input: {
   rows: ReadonlyArray<Pick<AnswerRow, "title" | "date">>;
   cap: number;
 }): Selection | null {
-  const read = input.evidence.latest(Object.keys(input.sources));
+  const read = sourceRead(input.evidence, input.sources, input.rows);
   if (!read) return null;
   let all: SourceRecord[];
   try { all = input.sources[read.tool](read.result, read.args); } catch { return null; }

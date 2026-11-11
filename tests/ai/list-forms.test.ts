@@ -72,6 +72,23 @@ describe("selection", () => {
     });
     expect(sel?.tool).toBe("list_calendar_events");
   });
+
+  it("takes the read the rows came from over a later, narrower one", () => {
+    // "How many service events this term?" reads the calendar by type, then by a
+    // title fragment. The second read holds one of the five the verdict counts.
+    const five = ["Book Drive", "Honor & Ink", "Sign Making", "Pet Drive", "Service Activity"].map((title, i) => ({ id: i + 1, title, date: `2026-10-0${i + 1}` }));
+    const ev = createShapeEvidence();
+    ev.add("list_calendar_events", { category: "service" }, five);
+    ev.add("list_calendar_events", { title: "service" }, [five[4]]);
+    const sel = selectFromEvidence({
+      evidence: ev,
+      sources: { list_calendar_events: r => recordsOf(r, "title", "date") },
+      rows: five.map(e => ({ title: e.title })),
+      cap: 10,
+    });
+    expect(sel?.args).toEqual({ category: "service" });
+    expect(sel?.records).toHaveLength(5);
+  });
 });
 
 const thing = (over: Partial<CalThing> & Pick<CalThing, "id" | "title" | "date">): CalThing => ({
@@ -273,6 +290,16 @@ describe("roll (Roll call)", () => {
     expect(built.rows.map(r => [r.title, r.ref?.id])).toEqual([["Owen Park", 7], ["Sam Lee", undefined], ["Ravi M", 10]]);
     expect((built.shape as RollShape).groups.map(g => g.label)).toEqual(["No excuse", "Excused"]);
   });
+
+  it("draws the read the answer's people came from, not the last one", async () => {
+    const ev = createShapeEvidence();
+    ev.add("get_event_attendance", { id: 1 }, { event: { id: 1 }, absent: ["Owen Park", "Ravi M"], excused: [], attended: [] });
+    ev.add("get_event_attendance", { id: 2 }, { event: { id: 2 }, absent: ["Sam Lee"], excused: [], attended: [] });
+    const scoped = { member: { listRoster: async () => [{ id: 7, name: "Owen Park" }, { id: 8, name: "Sam Lee" }, { id: 10, name: "Ravi M" }] } } as never;
+    const rows = [{ kind: "person", title: "Owen Park" }, { kind: "person", title: "Ravi M" }] as never;
+    const built = (await buildRoll({ type: "roll" }, ev, scoped, 1, { rows, today: TODAY }))!;
+    expect(built.rows.map(r => r.title)).toEqual(["Owen Park", "Ravi M"]);
+  });
 });
 
 // ── Judgments ───────────────────────────────────────────────────────────────
@@ -432,6 +459,15 @@ describe("zero (Nothing yet)", () => {
     const evFull = createShapeEvidence();
     evFull.add("list_calendar_events", { category: "service" }, [{ id: 1, title: "x", date: "2026-09-01" }]);
     expect(await buildZero({ type: "zero" }, evFull, scoped, 1, { rows: [], today: TODAY })).toBeNull();
+    // An empty type read followed by a title search is still that type's zero…
+    const evThen = createShapeEvidence();
+    evThen.add("list_calendar_events", { category: "service", start: "2026-08-24" }, { count: 0, items: [], hint: "" });
+    evThen.add("list_calendar_events", { title: "service" }, [{ id: 4, title: "Service planning", date: "2026-09-02" }]);
+    expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [], today: TODAY })).not.toBeNull();
+    // …unless the answer lists what the search found, or a later read of a type has rows.
+    expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [{ kind: "event", title: "Service planning" }] as never, today: TODAY })).toBeNull();
+    evThen.add("list_calendar_events", { category: "service" }, [{ id: 5, title: "Food bank", date: "2026-03-01" }]);
+    expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [], today: TODAY })).toBeNull();
   });
 
   it("a zero verdict that states a count is corrected", () => {

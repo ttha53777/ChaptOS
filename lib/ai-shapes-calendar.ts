@@ -11,7 +11,7 @@
 import type { db } from "@/lib/db";
 import type { AnswerRow } from "@/lib/ai-tools";
 import type { ShapeRequest } from "@/lib/ai-shape-request";
-import { listItems, narrowToRows, prop, recordsOf, type ShapeEvidence, type SourceRecord } from "@/lib/ai-shape-evidence";
+import { listItems, narrowToRows, prop, recordsOf, sourceRead, type ShapeEvidence, type SourceRecord } from "@/lib/ai-shape-evidence";
 import { DATE_RE, isValidCalendarDate } from "@/lib/dates";
 import type { DatedShape, LogbookShape, PastDueOwner, PastDueShape } from "@/lib/api-types";
 import type { BuiltShape } from "@/lib/ai-shapes";
@@ -211,6 +211,8 @@ const LOG_SOURCES: Record<string, LogSource> = {
   },
 };
 
+const LOG_READERS = Object.fromEntries(Object.entries(LOG_SOURCES).map(([tool, s]) => [tool, s.read]));
+
 /** Pure: past records → the logbook, or null when any of them isn't in the past. */
 export function logbookFromRecords(input: {
   records: SourceRecord[];
@@ -262,7 +264,7 @@ export async function periodLabel(scoped: Scoped, args: Record<string, unknown>)
 }
 
 export async function buildLogbook(_req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, _orgId: number, o: Opts): Promise<BuiltShape | null> {
-  const read = evidence.latest(Object.keys(LOG_SOURCES));
+  const read = sourceRead(evidence, LOG_READERS, o.rows);
   if (!read) return null;
   const src = LOG_SOURCES[read.tool];
   const records = src.read(read.result, read.args);
