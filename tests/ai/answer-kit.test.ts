@@ -7,13 +7,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { balanceFigure, membersFigure, FIGURE_MIN_POINTS } from "@/lib/ai-shapes-figure";
 import { declineShape, stepsFromPlaybook, HOWTO_PLAYBOOKS } from "@/lib/ai-howto";
 import { caseFile, pathBack, reasonRows } from "@/lib/ai-shapes-reasons";
-import { isVerbatim, quoteFrom } from "@/lib/ai-shapes-quote";
+import { isVerbatim, legacyDecisions, quoteFrom } from "@/lib/ai-shapes-quote";
 import { createRefIndex, noteRefs } from "@/lib/ai-refs";
 import { parseShapeRequest } from "@/lib/ai-shape-request";
 import { checkVerdict } from "@/lib/ai-shapes-judge";
 import { DEFAULT_THRESHOLDS } from "@/lib/thresholds";
-import type { ToolAccess } from "@/lib/ai-tools";
-import type { ReasonsShape } from "@/lib/api-types";
+import { chipAreas, parseComposeAnswer, type ToolAccess } from "@/lib/ai-tools";
+import { resolveTone, shapeTone } from "@/lib/ai-tone";
+import type { FigureShape, ReasonsShape } from "@/lib/api-types";
 
 const admin: ToolAccess = { actorId: 1, permissions: 0, isOrgAdmin: true, isPlatformAdmin: false };
 const member: ToolAccess = { actorId: 2, permissions: 0, isOrgAdmin: false, isPlatformAdmin: false };
@@ -192,6 +193,24 @@ describe("quote", () => {
   it("nothing verbatim and no decision → no quote", () => {
     expect(quoteFrom({ meeting, minutes, summary, quote: "We agreed on $3,500" })).toBeNull();
   });
+
+  // Meetings summarized before the structured summary: decisions live in markdown.
+  const legacy = "Meeting focused on events.\n\n**Decisions**\n- Need a headcount for China night.\n- Use trap door for China night instead of back door.\n\n**Action items**\n- PR: Send pics.";
+  it("reads decisions out of a legacy markdown summary", () => {
+    expect(legacyDecisions(legacy)).toEqual(["Need a headcount for China night.", "Use trap door for China night instead of back door."]);
+    expect(legacyDecisions("No headings here.\n- a bullet")).toEqual([]);
+    expect(legacyDecisions(null)).toEqual([]);
+  });
+
+  it("a legacy decision by index, or a quote copied from one, is drawn as decided", () => {
+    const raw = "SOCIAL - China night use trap door ? instead of back door";
+    const byIndex = quoteFrom({ meeting, minutes: raw, summary: null, summaryText: legacy, decision: 1 })!;
+    expect(byIndex.shape).toMatchObject({ text: "Use trap door for China night instead of back door.", decided: true });
+    const byCopy = quoteFrom({ meeting, minutes: raw, summary: null, summaryText: legacy, quote: "- Use trap door for China night instead of back door." })!;
+    expect(byCopy.shape.decided).toBe(true);
+    // A made-up decision still draws nothing.
+    expect(quoteFrom({ meeting, minutes: raw, summary: null, summaryText: legacy, quote: "Use the front door." })).toBeNull();
+  });
 });
 
 describe("note refs", () => {
@@ -223,5 +242,63 @@ describe("request parsing behind the flag", () => {
       .toEqual({ type: "steps", playbook: "custom_metric", examples: { Name: "Study hours" } });
     expect(parseShapeRequest({ type: "quote", meeting: 7, decision: 0, quote: " Motion " })).toEqual({ type: "quote", meeting: 7, decision: 0, quote: "Motion" });
     expect(parseShapeRequest({ type: "reasons" })).toEqual({ type: "reasons", judgment: "attendance" });
+  });
+});
+
+describe("tone: the shape's reading beats the model's", () => {
+  let prev: string | undefined;
+  beforeEach(() => { prev = process.env.ASK_CHAPT_ANSWER_KIT; });
+  afterEach(() => { if (prev === undefined) delete process.env.ASK_CHAPT_ANSWER_KIT; else process.env.ASK_CHAPT_ANSWER_KIT = prev; });
+
+  it("reads a tone off shapes that settle one", () => {
+    expect(shapeTone({ type: "decline", scope: "x" })).toBe("now");
+    const fig = (value: number) => ({ type: "figure", metric: "balance", value, unit: "usd", asOf: "2026-11-12" }) as unknown as FigureShape;
+    expect(shapeTone(fig(-12))).toBe("watch");
+    expect(shapeTone(fig(40))).toBe("good");
+    const gauge = (value: number) => shapeTone({ type: "reasons", judgment: "attendance", subject: { id: 1, name: "A", role: "Member", joinedAt: "2026-01-01" },
+      gauge: { value, attended: 0, counted: 0, atRisk: 65, watch: 80 }, strip: [], rest: [], excluded: [], pathBack: null, today: "2026-11-12" } as unknown as ReasonsShape);
+    expect([gauge(50), gauge(70), gauge(90)]).toEqual(["watch", "now", "good"]);
+    expect(shapeTone(undefined)).toBeNull();
+  });
+
+  it("a shape overrides the model; no shape keeps the model's; neither sends nothing", () => {
+    expect(resolveTone("good", { type: "decline", scope: "x" })).toBe("now");
+    expect(resolveTone("chapt", undefined)).toBe("chapt");
+    expect(resolveTone(undefined, undefined)).toBeUndefined();
+  });
+
+  it("compose_answer keeps a valid tone only with the kit on", () => {
+    delete process.env.ASK_CHAPT_ANSWER_KIT;
+    const off = parseComposeAnswer({ verdict: "All *paid*.", tone: "good" });
+    expect("error" in off ? null : off.tone).toBeUndefined();
+    process.env.ASK_CHAPT_ANSWER_KIT = "1";
+    const on = parseComposeAnswer({ verdict: "All *paid*.", tone: "good" });
+    expect("error" in on ? null : on.tone).toBe("good");
+    const bad = parseComposeAnswer({ verdict: "All *paid*.", tone: "red" });
+    expect("error" in bad ? null : bad.tone).toBeUndefined();
+  });
+});
+
+describe("askback areas inferred from area chips", () => {
+  let prev: string | undefined;
+  beforeEach(() => { prev = process.env.ASK_CHAPT_ANSWER_KIT; });
+  afterEach(() => { if (prev === undefined) delete process.env.ASK_CHAPT_ANSWER_KIT; else process.env.ASK_CHAPT_ANSWER_KIT = prev; });
+
+  it("maps whole-label area chips, and nothing else", () => {
+    expect(chipAreas(["Attendance", "Money", "Events", "Tasks", "Service"])).toEqual(["attendance", "money", "events", "tasks", "service"]);
+    expect(chipAreas(["Dues", "Members"])).toEqual(["money", "roster"]);
+    expect(chipAreas(["Who owes dues", "Upcoming events"])).toBeUndefined();
+    expect(chipAreas(["Roster", "Instagram posts"])).toBeUndefined();
+    expect(chipAreas(["Money", "Dues"])).toBeUndefined(); // same area twice: not tiles
+  });
+
+  it("fills areas the model left off, keeps the ones it sent, only with the kit", () => {
+    const ask = { verdict: "Which *area*?", askback: { questions: [{ question: "Which?", chips: ["Attendance", "Money"] }] } };
+    delete process.env.ASK_CHAPT_ANSWER_KIT;
+    const off = parseComposeAnswer(ask);
+    expect("error" in off ? null : off.askback?.questions[0].areas).toBeUndefined();
+    process.env.ASK_CHAPT_ANSWER_KIT = "1";
+    const on = parseComposeAnswer(ask);
+    expect("error" in on ? null : on.askback?.questions[0].areas).toEqual(["attendance", "money"]);
   });
 });

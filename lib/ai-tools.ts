@@ -35,6 +35,8 @@ import { duesPaymentWhere } from "@/lib/dues";
 import { compareLines } from "@/lib/dues-ledger";
 import { ExcuseStatus, ReimbursementStatus, TransactionStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
+import { ANSWER_TONES, isAnswerTone } from "@/lib/ai-tone";
+import type { AnswerTone } from "@/lib/api-types/chat";
 import { offeredShapeTypes, formsEnabled, kitEnabled, TALLY_METRICS, RANK_METRICS, ROLL_SPLITS, YESNO_TESTS, FIGURE_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
 import { PLAYBOOK_KEYS } from "@/lib/ai-howto";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
@@ -304,6 +306,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         properties: {
           start:  { type: "string", description: "Inclusive YYYY-MM-DD start." },
           end:    { type: "string", description: "Inclusive YYYY-MM-DD end." },
+          title:  { type: "string", description: "Case-insensitive substring of the task title ('roster' finds 'Spring Roster Update'). Leave dates off when looking one up by name." },
           status: { type: "string", description: '"open" or "done".' },
           open_only: { type: "boolean", description: "Only incomplete (open) tasks (default false)." },
           order_by:  { type: "string", enum: ["dueDate", "title"], description: "Sort field (default dueDate)." },
@@ -1029,6 +1032,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: "object",
         properties: {
           verdict: { type: "string", description: "One sentence, ≤160 chars, exactly one *emphasis*. Never end with a question — use askback." },
+          ...(kitEnabled() ? { tone: { type: "string", enum: [...ANSWER_TONES], description: "Colour of the verdict's mark: good = on track/paid · watch = late, owed, under a bar · now = neutral · yours = the asker's own record or a how-to · chapt = advice or a question back." } } : {}),
           rows: {
             type: "array",
             items: {
@@ -1250,6 +1254,8 @@ export interface AnswerPayload {
   shapeRequest?: ShapeRequest;
   /** Verdict-level citation tags (file turns). Resolved and stripped by the route, like `cite`. */
   cites?: string[];
+  /** The model's tone (answer kit only). The route lets a drawn shape's own tone win (resolveTone). */
+  tone?: AnswerTone;
 }
 
 /** Well-formed citation tags only, deduped, at most `max`. Anything else is dropped silently. */
@@ -1376,12 +1382,14 @@ export function parseComposeAnswer(args: ToolArgs, opts: { maxRows?: number } = 
   const askback = parseAskBack(args.askback);
   const shapeRequest = parseShapeRequest(args.shape);
   const cites = citeTags(args.cites, 4);
+  const tone = kitEnabled() && isAnswerTone(args.tone) ? args.tone : undefined;
 
   return {
     verdict: verdict.slice(0, 240), rows, follows,
     ...(askback ? { askback } : {}),
     ...(shapeRequest ? { shapeRequest } : {}),
     ...(cites ? { cites } : {}),
+    ...(tone ? { tone } : {}),
   };
 }
 
@@ -1391,6 +1399,30 @@ export function parseComposeAnswer(args: ToolArgs, opts: { maxRows?: number } = 
  * undefined rather than an error — a malformed ask-back should cost the block,
  * not the whole answer.
  */
+/**
+ * Chip labels that ARE an area, whole-label only ("Money", "Dues", "Members"),
+ * never a phrase that merely mentions one ("Who owes dues" stays a chip).
+ */
+const AREA_LABELS: Record<string, AskBackArea> = {
+  attendance: "attendance",
+  money: "money", dues: "money", treasury: "money", finances: "money", finance: "money", budget: "money",
+  service: "service", "service hours": "service",
+  tasks: "tasks", deadlines: "tasks",
+  events: "events", calendar: "events", meetings: "events",
+  roster: "roster", members: "roster", brothers: "roster", brotherhood: "roster",
+};
+
+/**
+ * The areas a question's chips name, when every chip names a different one.
+ * The model often writes area chips without tagging them, and the tag is fully
+ * determined by the labels, so the server fills it in.
+ */
+export function chipAreas(chips: string[]): AskBackArea[] | undefined {
+  const areas = chips.map(c => AREA_LABELS[c.toLowerCase().replace(/[.!?]+$/, "").trim()]);
+  if (areas.some(a => !a) || new Set(areas).size !== areas.length) return undefined;
+  return areas as AskBackArea[];
+}
+
 function parseAskBack(raw: unknown): AskBack | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const ab = raw as Record<string, unknown>;
@@ -1412,9 +1444,10 @@ function parseAskBack(raw: unknown): AskBack | undefined {
     const select: AskBackSelect = qq.select === "many" ? "many" : "one";
     // Areas only when there's one per chip and every one is known; anything
     // else costs the tiles, never the question.
-    const areas = kitEnabled() && Array.isArray(qq.areas) && qq.areas.length === chips.length
+    const sent = Array.isArray(qq.areas) && qq.areas.length === chips.length
       && qq.areas.every(a => typeof a === "string" && (ASKBACK_AREAS as readonly string[]).includes(a))
       ? (qq.areas as AskBackArea[]) : undefined;
+    const areas = kitEnabled() ? sent ?? chipAreas(chips) : undefined;
     questions.push({ question: question.slice(0, 80), chips, ...(select === "many" ? { select } : {}), ...(areas ? { areas } : {}) });
   }
   if (questions.length === 0) return undefined;
@@ -1689,6 +1722,7 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
   // due date, not a stored status, so a date window is the way to ask for it.
   const status = typeof args.status === "string" ? args.status : undefined;
   const openOnly = args.open_only === true;
+  const title = typeof args.title === "string" && args.title.trim() ? args.title.trim().slice(0, 80) : undefined;
   const orderByField = typeof args.order_by === "string" && ["dueDate", "title"].includes(args.order_by)
     ? args.order_by as "dueDate" | "title" : "dueDate";
   const orderDir = args.order === "desc" ? "desc" : "asc";
@@ -1700,6 +1734,7 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
     where: {
       dueDate: start || end ? { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } : { not: null },
       ...(status === "done" ? { status: "done" } : status === "open" || openOnly ? { status: "open" } : {}),
+      ...(title ? { title: { contains: title, mode: "insensitive" as const } } : {}),
     },
     orderBy: { [orderByField]: orderDir },
     take: clampLimit(args.limit),
@@ -1724,7 +1759,7 @@ async function listDeadlines(args: ToolArgs, scoped: Scoped): Promise<ToolResult
       : r.everyone === "any" ? "Anyone (one person does it for the chapter)"
       : r.assignments.map(a => a.brother?.name ?? a.role?.name).filter(Boolean).join(", ") || "Unassigned",
   }));
-  return listResult(shaped, !!(start || end || status || openOnly));
+  return listResult(shaped, !!(start || end || status || openOnly || title));
 }
 
 async function listInstagram(args: ToolArgs, scoped: Scoped): Promise<ToolResult> {

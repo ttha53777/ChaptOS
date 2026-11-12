@@ -135,12 +135,20 @@ export async function buildZero(_req: ShapeRequest, evidence: ShapeEvidence, sco
   const titleKey = (tool: string) => (tool === "list_parties" ? "name" : "title");
   if (o.rows.some(row => reads.some(r => resolveRows([row], recordsOf(listItems(r.result), titleKey(r.tool), "date")) !== null))) return null;
   const typeOf = (r: (typeof reads)[number]) => (r.tool === "list_parties" ? "party" : r.args.category);
-  const read = reads.find(r => typeof typeOf(r) === "string");
+  // The zero rests on the newest EMPTY read of a type. The model often widens
+  // afterwards for context (January was empty, so it lists the year); that
+  // doesn't overturn the zero unless the wider read found one of that type
+  // inside the empty read's window.
+  const typed = reads.filter(r => typeof typeOf(r) === "string");
+  const read = typed.find(r => listItems(r.result).length === 0);
   if (!read) return null;
   const category = typeOf(read) as string;
-  if (listItems(read.result).length > 0) return null;
   const start = okDate(read.args.start) ? read.args.start : undefined;
   const end = okDate(read.args.end) ? read.args.end : undefined;
+  const inWindow = (d: unknown) => typeof d !== "string" || ((!start || d.slice(0, 10) >= start) && (!end || d.slice(0, 10) <= end));
+  const overturned = typed.some(r => r !== read && typeOf(r) === category
+    && listItems(r.result).some(it => inWindow((it as { date?: unknown } | null)?.date)));
+  if (overturned) return null;
   const types = await scoped.calendarEventType.findMany({ select: { slug: true, label: true } });
   const window = await scoped.calendarEvent.findMany({
     where: start || end ? { date: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {},

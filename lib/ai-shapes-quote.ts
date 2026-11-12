@@ -37,16 +37,41 @@ export function isVerbatim(quote: string, minutes: string): boolean {
   return q.length >= 12 && normalizeQuote(minutes).includes(q);
 }
 
+/**
+ * Pure: the decisions of a meeting summarized before the structured summary
+ * existed. Its markdown (`notesSummary`, which search_meeting_notes shows the
+ * model) lists them as bullets under a **Decisions** heading.
+ */
+export function legacyDecisions(markdown: string | null | undefined): string[] {
+  if (!markdown) return [];
+  const lines = markdown.split(/\r?\n/);
+  const at = lines.findIndex(l => /^\s*(\*\*|#+\s*)decisions\b/i.test(l));
+  if (at < 0) return [];
+  const out: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    const m = /^\s*[-•*]\s+(.+)$/.exec(line);
+    if (m) { out.push(m[1].trim()); continue; }
+    if (line.trim() === "" && out.length === 0) continue;
+    break;
+  }
+  return out;
+}
+
 /** Pure: the meeting + the request → the quote, or null. Exported for tests. */
 export function quoteFrom(input: {
   meeting: { id: number; title: string; date: string };
   minutes: string;
   summary: MeetingSummaryData | null;
+  /** The markdown summary, for meetings with no structured one. */
+  summaryText?: string | null;
   quote?: string;
   decision?: number;
 }): BuiltShape<QuoteShape> | null {
-  const decisions = input.summary?.decisions ?? [];
-  const decisionText = input.decision != null ? decisions[input.decision] : undefined;
+  const decisions = input.summary?.decisions ?? legacyDecisions(input.summaryText);
+  // A quote copied from a decision (not the minutes) is that decision.
+  const asked = input.quote ? normalizeQuote(input.quote).replace(/^["']|["']$/g, "") : "";
+  const quotedDecision = asked ? decisions.find(d => normalizeQuote(d) === asked) : undefined;
+  const decisionText = (input.decision != null ? decisions[input.decision] : undefined) ?? quotedDecision;
   const verbatim = input.quote && isVerbatim(input.quote, input.minutes) ? input.quote.trim().replace(/^["“]|["”]$/g, "") : undefined;
   const text = verbatim ?? decisionText;
   if (!text) return null;
@@ -74,13 +99,14 @@ export async function buildQuote(req: ShapeRequest, evidence: ShapeEvidence, sco
   // The tool may have sent an excerpt; check the passage against the full minutes.
   const ev = await scoped.calendarEvent.findFirst({
     where: { id: req.meeting },
-    select: { id: true, title: true, date: true, description: true, notesSummaryData: true },
-  }) as { id: number; title: string; date: string; description: string | null; notesSummaryData: unknown } | null;
+    select: { id: true, title: true, date: true, description: true, notesSummary: true, notesSummaryData: true },
+  }) as { id: number; title: string; date: string; description: string | null; notesSummary: string | null; notesSummaryData: unknown } | null;
   if (!ev) return null;
   return quoteFrom({
     meeting: { id: ev.id, title: ev.title, date: ev.date },
     minutes: ev.description ?? "",
     summary: parseMeetingSummary(ev.notesSummaryData),
+    summaryText: ev.notesSummary,
     quote: req.quote,
     decision: req.decision,
   });

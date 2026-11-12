@@ -6,6 +6,7 @@ import { aiEnabled, getOpenAI, CHAT_MODEL, CHAT_REASONING_EFFORT } from "@/lib/a
 import { chatToolsFor, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
 import { createRefIndex, attachRefs, noteRefs } from "@/lib/ai-refs";
 import { createShapeEvidence, buildShape, attachPeople, checkVerdict } from "@/lib/ai-shapes";
+import { resolveTone } from "@/lib/ai-tone";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { getPeek } from "@/lib/services/peek-service";
 import { tryFastPath } from "@/lib/ai-fastpath";
@@ -248,7 +249,8 @@ export async function POST(req: NextRequest) {
           }
           if (fast.answer) {
             const { verdict, shape, rows } = fast.answer;
-            send("answer", { verdict, rows: rows.map(resolveScreen), follows: [], ...(shape ? { shape } : {}), sources: ui?.source ? [ui.source] : [] });
+            const tone = resolveTone(undefined, shape);
+            send("answer", { verdict, rows: rows.map(resolveScreen), follows: [], ...(shape ? { shape } : {}), ...(tone ? { tone } : {}), sources: ui?.source ? [ui.source] : [] });
             shapeType = shape?.type ?? null;
           } else {
             send("text", { delta: fast.text });
@@ -599,8 +601,12 @@ export async function POST(req: NextRequest) {
                 if (!vc.ok) answer.verdict = vc.fallback;
                 shapeType = built.shape.type;
               }
+              // The shape's own reading of the data beats the model's tone.
+              const tone = resolveTone(answer.tone, built?.shape);
+              const { tone: _modelTone, ...rest } = answer;
               send("answer", {
-                ...answer,
+                ...rest,
+                ...(tone ? { tone } : {}),
                 ...(askback ? { askback } : {}),
                 rows: (built ? built.rows : attachRefs(citedRows, refIndex)).map(resolveScreen),
                 ...(built ? { shape: built.shape } : {}),

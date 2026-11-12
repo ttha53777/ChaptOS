@@ -3,7 +3,7 @@
 Handoff document. A fresh Claude Code session in this repo should be able to build the feature from this file plus the mock, with no other context.
 
 - **Mock (the visual spec):** `_design/Ask Chapt Answer System Mock.html`. Open it in a browser. Every answer has a Today / New switch and build notes. Section ids: `#audit #system #figure #facts #steps #reasons #quote #note #clarify #decline #slips #thread #rollout`.
-- **Status (2026-11-12):** Phases 1–5 BUILT, uncommitted, behind `ASK_CHAPT_ANSWER_KIT=1` (Phase 1 is unflagged). `tests/ai/answer-kit.test.ts` (26) covers the pure builders; `scripts/_kit-shot.ts` drives every block in the real widget with shapes from the real builders. Not done: Phase 6 (evals, server-set tone, flag-on comparison); no live-model run yet. Decision 3 resolved: the rest-of-record panel shows what `list_brothers` already shows every member.
+- **Status (2026-11-12):** Phases 1–5 SHIPPED a72eb66, behind `ASK_CHAPT_ANSWER_KIT=1` (Phase 1 is unflagged). Phase 6 BUILT (uncommitted): server-set tone, 12 `answer-kit` eval cases, grader taught the kit's refuse/clarify forms, askback `areas` inferred from area chips. Flag-off vs flag-on full suite (forms off, as in Vercel): **69/99 → 79/99**, 12 cases fixed, 0 real regressions (the two that flipped were a bad assertion and the missing-areas bug, both fixed and re-run). Remaining step: turn `ASK_CHAPT_ANSWER_KIT=1` (and, per the forms-on run below, `ASK_CHAPT_FORMS=1`) on in Vercel. Decision 3 resolved: the rest-of-record panel shows what `list_brothers` already shows every member.
 - **Builds on:** `docs/ask-chapt-list-forms-plan.md` (same mechanism, read its section 2 first) and the shipped shapes in `lib/ai-shapes*.ts` / `app/components/chat/shapes/`.
 
 ## 1. What this is
@@ -172,6 +172,23 @@ Prompt edits live in `lib/ai-prompt.ts` (the `ANSWER FORMAT`, `PRODUCT HOW-TO`, 
 - `scripts/eval-ask-the-chapter.ts`: add `expectShape` cases. Two each for figure, steps, decline and reasons, one each for clarify and quote, plus negative cases (a GPA "why" must NOT be `reasons`; an out-of-scope question with an in-scope part must answer it in the verdict). Re-derive every assertion from the seed (memory `ask-the-chapter-eval-seed-drift`).
 - `tone` moves to the server: the model may set it in compose_answer (closed enum), and the builder overrides it when the shape implies one (reasons → watch, decline → now). The client derivation from Phase 1 stays as the fallback.
 - Run the full suite with the flag off, then on, and compare before turning `ASK_CHAPT_ANSWER_KIT=1` on in Vercel. (The OpenAI key ran out of credits during the last eval run.)
+
+**Phase 6 as built (2026-11-12):**
+
+- **Tone.** `lib/ai-tone.ts` (types-only, shared with the widget): `shapeTone(shape)` reads tone off a drawn shape, `resolveTone(model, shape)` lets the shape win. compose_answer offers `tone` (closed enum) only with the kit on; the route sends the resolved tone on model and fast-path answers. `app/components/chat/tone.ts` now calls `shapeTone` and keeps its fallbacks for answers with no `tone`.
+- **Areas are inferred.** In the evals the model wrote all-area chips (Attendance, Money, Events…) without tagging them, so no tiles were drawn. `chipAreas()` in `lib/ai-tools.ts` maps whole-label chips through a closed synonym table (Dues → money, Members → roster…) when every chip is a different area. A model-sent `areas` still wins. A phrase like "Who owes dues" never maps.
+- **Prompt steering** (kit only): steps for every how-to a playbook covers, however short (the ADVISORY paragraph's "one-line how-to stays plain text" had been overriding it); reasons for any "why" about one member's attendance, not only at-risk; quote copies from the `minutes` field, never the reworded summary.
+- **Evals.** 12 `answer-kit` cases (filter `EVAL_FILTER=answer-kit`): figure ×2, steps ×2, decline ×2 plus a mixed in-scope/out-of-scope case, reasons ×2 plus a GPA negative (`forbidShape`), clarify (`expectAreas`), quote. New case fields: `forbidShape`, `verdictMustInclude`, `expectAreas`. With the kit on, refuse passes on a built `decline` and clarify on an askback with no rows. The run header prints both flags. Seed facts used: the roster read lists 9 (raw Membership has 14), next chapter meeting is 2026-05-26 7 PM, meeting 5's minutes contain "China night use trap door ? instead of back door" (no structured decisions). Nobody real is under the attendance bars (65/80), so the reasons cases ask "why only 80%" / "so low".
+- **Known soft spot:** "why is X's attendance so low" names `reasons` most runs, not every run. The fallback (correct rows) is fine.
+
+**With list forms on too (2026-11-12, `ASK_CHAPT_FORMS=1 ASK_CHAPT_ANSWER_KIT=1`): 93/99, shapes 24/24** (forms off: 11/24, because the 13 list-form cases can't be offered). Fixes from that round:
+
+- `buildZero` used the newest typed read, so "January was empty, then list the year for context" lost the zero. It now rests on the newest EMPTY typed read, and a later read cancels it only with a row of that type inside the empty window (`tests/ai/list-forms.test.ts` updated).
+- `list_deadlines` gained a `title` filter. The model was passing one, it was ignored, and a task outside the 10 latest looked missing.
+- Quote reads decisions from the legacy markdown `notesSummary` (`legacyDecisions`) when `notesSummaryData` is null, and a quote copied from a decision counts as that decision.
+- Prompt (forms): `record` excludes yes/no questions about one thing; `logbook` covers "how many X have we had".
+- Eval: `form-zero` accepts `list_parties`. The 6 remaining failures are older seed drift (Jacob Hwang, Bryan Lee, Banquet Promo Post aren't in today's data), unrelated to shapes.
+
 
 ## 5. Files
 

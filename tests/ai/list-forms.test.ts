@@ -464,10 +464,24 @@ describe("zero (Nothing yet)", () => {
     evThen.add("list_calendar_events", { category: "service", start: "2026-08-24" }, { count: 0, items: [], hint: "" });
     evThen.add("list_calendar_events", { title: "service" }, [{ id: 4, title: "Service planning", date: "2026-09-02" }]);
     expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [], today: TODAY })).not.toBeNull();
-    // …unless the answer lists what the search found, or a later read of a type has rows.
+    // …unless the answer lists what the search found.
     expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [{ kind: "event", title: "Service planning" }] as never, today: TODAY })).toBeNull();
+    // A wider read for context with rows only OUTSIDE the empty window keeps the zero…
     evThen.add("list_calendar_events", { category: "service" }, [{ id: 5, title: "Food bank", date: "2026-03-01" }]);
+    expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [], today: TODAY })).not.toBeNull();
+    // …one with a row of that type inside the window overturns it.
+    evThen.add("list_calendar_events", { category: "service" }, [{ id: 6, title: "Beach cleanup", date: "2026-09-10" }]);
     expect(await buildZero({ type: "zero" }, evThen, scoped, 1, { rows: [], today: TODAY })).toBeNull();
+    // Parties: January empty, then the whole year for context (the eval's shape).
+    const evParty = createShapeEvidence();
+    evParty.add("list_parties", { start: "2026-01-01", end: "2026-01-31" }, { count: 0, items: [], hint: "" });
+    evParty.add("list_parties", { start: "2026-01-01", end: "2026-12-31" }, [{ id: 7, name: "Kickback", date: "2026-05-22" }]);
+    const withParty = {
+      calendarEventType: { findMany: async () => [...types, { slug: "party", label: "Party" }] },
+      calendarEvent: { findMany: async () => window },
+      semester: { findMany: async () => [{ label: "Spring 2026", startDate: "2026-01-01", endDate: "2026-05-31" }] },
+    } as never;
+    expect(await buildZero({ type: "zero" }, evParty, withParty, 1, { rows: [], today: TODAY })).not.toBeNull();
   });
 
   it("a zero verdict that states a count is corrected", () => {

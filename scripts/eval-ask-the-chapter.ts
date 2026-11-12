@@ -43,6 +43,7 @@ import type { AttachmentContent } from "../lib/files/types";
 import { createFileContext, shouldBlockProposal, resolveCites, BLOCKED_FILE_CONTEXT, type FileToolContext } from "../lib/ai-files";
 import { buildPreseed } from "../lib/ai-file-tools";
 import { buildShape, checkVerdict, createShapeEvidence } from "../lib/ai-shapes";
+import { formsEnabled, kitEnabled } from "../lib/ai-shape-request";
 import { attachRefs, createRefIndex } from "../lib/ai-refs";
 import { getPeek } from "../lib/services/peek-service";
 import type { RequestContext } from "../lib/context";
@@ -112,6 +113,12 @@ interface EvalCase {
    * with ASK_CHAPT_FORMS=1; without it these cases expect "none" to fail.
    */
   expectShape?: string;
+  /** A shape the answer must NOT be drawn as (e.g. a GPA "why" is never `reasons`). */
+  forbidShape?: string;
+  /** Case-insensitive substrings the VERDICT alone must contain (the in-scope part of a mixed question). */
+  verdictMustInclude?: string[];
+  /** clarify cases, answer kit only: the question back must tag its chips with `areas` (drawn as tiles). */
+  expectAreas?: boolean;
 }
 
 interface ToolCallRecord {
@@ -149,6 +156,9 @@ function answerToText(a: AnswerPayload): string {
     a.verdict,
     ...a.rows.map(r => [r.title, r.subtitle, r.value].filter(Boolean).join(" — ")),
     ...a.follows.map(f => f.label),
+    // A question back is part of what the user reads (and, with the kit, is how
+    // clarifying questions arrive), so the substring checks see it too.
+    ...(a.askback ? [a.askback.lead ?? "", ...a.askback.questions.flatMap(q => [q.question, ...q.chips])].filter(Boolean) : []),
   ].join("\n");
 }
 
@@ -397,7 +407,7 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
 
   // The route's last resort: the user gets this sentence, so the grade sees it too.
   if (!answer && !finalText.trim() && proposals.length === 0) finalText = NO_ANSWER_TEXT;
-  const grade = grade_case(c, { toolCalls, proposals, finalText, answer });
+  const grade = grade_case(c, { toolCalls, proposals, finalText, answer, shape });
   if (c.mustNotCallTools) {
     const bad = toolCalls.map(t => t.name).filter(n => c.mustNotCallTools!.some(m => n === m || (m.endsWith("*") && n.startsWith(m.slice(0, -1)))));
     if (bad.length) { grade.pass = false; grade.reasons.push(`called forbidden tool(s): ${[...new Set(bad)].join(", ")}`); }
@@ -405,6 +415,20 @@ async function runCase(c: EvalCase, openai: OpenAI, systemPrompt: string, orgId:
   if (c.expectCites?.length) {
     const hit = c.expectCites.some(want => cited.some(got => got === want || got.startsWith(`${want}!`)));
     if (!hit) { grade.pass = false; grade.reasons.push(`expected a citation of [${c.expectCites.join(", ")}], got [${cited.join(", ") || "none"}]`); }
+  }
+  if (c.forbidShape && shape === c.forbidShape) {
+    grade.pass = false;
+    grade.reasons.push(`drawn as ${shape}, which this question must never be`);
+  }
+  for (const need of c.verdictMustInclude ?? []) {
+    if (!(answer?.verdict ?? "").toLowerCase().includes(need.toLowerCase())) {
+      grade.pass = false;
+      grade.reasons.push(`verdict missing "${need}"${answer ? `: ${answer.verdict}` : " (no structured answer)"}`);
+    }
+  }
+  if (c.expectAreas && kitEnabled() && !answer?.askback?.questions.some(q => q.areas?.length)) {
+    grade.pass = false;
+    grade.reasons.push("expected the question back to carry areas (tiles)");
   }
   if (c.expectShape !== undefined && (shape ?? "none") !== c.expectShape) {
     grade.pass = false;
@@ -463,7 +487,7 @@ const CLARIFY_HINTS = ["which one", "could you clarify", "do you mean", "?"];
 
 function grade_case(
   c: EvalCase,
-  obs: { toolCalls: ToolCallRecord[]; proposals: Proposal[]; finalText: string; answer: AnswerPayload | null },
+  obs: { toolCalls: ToolCallRecord[]; proposals: Proposal[]; finalText: string; answer: AnswerPayload | null; shape: string | null },
 ): { pass: boolean; reasons: string[] } {
   const reasons: string[] = [];
   const text = (obs.finalText || "").toLowerCase();
@@ -526,12 +550,22 @@ function grade_case(
       }
       break;
     case "refuse":
-      if (obs.answer) reasons.push("refusal case answered via compose_answer — refusals must be plain text");
-      if (!REFUSAL_HINTS.some(h => text.includes(h))) reasons.push("expected refusal language not found");
+      // With the answer kit, a refusal is compose_answer drawn as `decline`
+      // (the scope line is fixed copy, so there's no refusal wording to find).
+      // Without it, refusals are plain text.
+      if (obs.answer) {
+        if (!kitEnabled()) reasons.push("refusal case answered via compose_answer — refusals must be plain text");
+        else if (obs.shape !== "decline") reasons.push(`refusal answered via compose_answer but drawn as ${obs.shape ?? "rows"}, not decline`);
+      } else if (!REFUSAL_HINTS.some(h => text.includes(h))) reasons.push("expected refusal language not found");
       break;
     case "clarify":
-      if (obs.answer) reasons.push("clarify case answered via compose_answer — clarifications must be plain text");
-      if (!CLARIFY_HINTS.some(h => text.includes(h))) reasons.push("expected a clarifying question");
+      // With the kit, a clarifying question is compose_answer with an askback
+      // and no rows; without it, plain text.
+      if (obs.answer) {
+        if (!kitEnabled()) reasons.push("clarify case answered via compose_answer — clarifications must be plain text");
+        else if (!obs.answer.askback) reasons.push("clarify case answered via compose_answer without an askback");
+        else if (obs.answer.rows.length > 0) reasons.push(`clarify case answered with ${obs.answer.rows.length} rows alongside the question`);
+      } else if (!CLARIFY_HINTS.some(h => text.includes(h))) reasons.push("expected a clarifying question");
       break;
     case "data":
       // Data answers must land as the structured verdict+rows payload — that's
@@ -539,7 +573,9 @@ function grade_case(
       // compose_answer and the user would get the fallback note style.
       if (!obs.answer && !c.allowProse) reasons.push("expected compose_answer (structured verdict+rows), got prose");
       if (!obs.finalText.trim() && obs.proposals.length === 0) reasons.push("empty answer");
-      if (REFUSAL_HINTS.some(h => text.includes(h))) reasons.push("model refused on a data case");
+      // A decline that answers the in-scope part in its verdict is a data answer
+      // (verdictMustInclude checks that part); anything else that refuses isn't.
+      if (obs.shape !== "decline" && REFUSAL_HINTS.some(h => text.includes(h))) reasons.push("model refused on a data case");
       break;
   }
 
@@ -612,6 +648,7 @@ async function main() {
   console.log(`Model: ${CHAT_MODEL}`);
   console.log(`Cases: ${cases.length}`);
   console.log(`Pinned date: ${PINNED_DATE.toISOString().slice(0, 10)}`);
+  console.log(`List forms: ${formsEnabled() ? "on" : "off"} · Answer kit: ${kitEnabled() ? "on" : "off"}`);
   console.log("");
 
   const results: TurnResult[] = [];
@@ -638,7 +675,7 @@ async function main() {
           if (process.env.EVAL_DEBUG === "1") {
             for (const t of r.toolCalls) process.stdout.write(`        · ${t.name} ${JSON.stringify(t.args)}\n`);
             if (r.cited.length) process.stdout.write(`        · cited: ${r.cited.join(", ")}\n`);
-            if (r.answer?.shapeRequest || r.shape) process.stdout.write(`        · shape: asked ${r.answer?.shapeRequest?.type ?? "-"}, built ${r.shape ?? "-"}\n`);
+            if (r.answer?.shapeRequest || r.shape) process.stdout.write(`        · shape: asked ${r.answer?.shapeRequest ? JSON.stringify(r.answer.shapeRequest) : "-"}, built ${r.shape ?? "-"}\n`);
             process.stdout.write(`        · final: ${r.finalText.replace(/\n/g, " ").slice(0, 300)}\n`);
           }
         }

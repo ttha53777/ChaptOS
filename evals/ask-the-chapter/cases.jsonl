@@ -28,7 +28,7 @@
 {"id":"propose-mark-dues-already-paid","question":"Mark Noah Kim's dues as paid.","category":"proposal","expectedTools":["get_brother"],"toolMatch":"any","mustInclude":["0"],"expectAnswerType":"data","allowProse":true}
 {"id":"propose-log-tx","question":"Log a $45 expense for Party Supplies on 2026-05-23 — ice for the kickback.","category":"proposal","expectedTools":["propose_log_transaction"],"expectedProposalAction":"propose_log_transaction","expectAnswerType":"proposal"}
 {"id":"propose-add-event","question":"Schedule a chapter meeting on 2026-06-16.","category":"proposal","expectedTools":["propose_add_calendar_event"],"expectedProposalAction":"propose_add_calendar_event","expectAnswerType":"proposal"}
-{"id":"out-of-scope","question":"What's the weather in Albany tomorrow?","category":"refuse","expectedTools":[],"expectAnswerType":"refuse","mustNotInclude":["sunny","rain","forecast"]}
+{"id":"out-of-scope","question":"What's the weather in Albany tomorrow?","category":"refuse","expectedTools":[],"expectAnswerType":"refuse","mustNotInclude":["sunny","rain","°"]}
 {"id":"roles-president","question":"Who's the president?","category":"roles","expectedTools":["list_roles"],"mustInclude":["Bryan Lee"],"expectAnswerType":"data"}
 {"id":"roles-officers","question":"Who are our officers?","category":"roles","expectedTools":["list_roles"],"mustInclude":["President"],"expectAnswerType":"data"}
 {"id":"roles-of-brother","question":"What roles does Dariel have?","category":"roles","expectedTools":["list_roles"],"mustInclude":["PR"],"expectAnswerType":"data"}
@@ -80,8 +80,20 @@
 {"id":"form-yesno-dues","question":"Has everyone paid their dues?","category":"list-forms","expectedTools":["list_brothers"],"expectShape":"yesno","mustNotInclude":["yes,"],"expectAnswerType":"data"}
 {"id":"form-yesno-task","question":"Is the spring roster update done?","category":"list-forms","expectedTools":["list_deadlines"],"expectShape":"yesno","expectAnswerType":"data"}
 {"id":"form-record","question":"When is our next chapter meeting?","category":"list-forms","expectedTools":["list_calendar_events"],"expectShape":"record","expectAnswerType":"data"}
-{"id":"form-zero","question":"How many parties did we have in January?","category":"list-forms","expectedTools":["list_calendar_events"],"expectShape":"zero","expectAnswerType":"data"}
+{"id":"form-zero","question":"How many parties did we have in January?","category":"list-forms","expectedTools":["list_parties","list_calendar_events"],"toolMatch":"any","expectShape":"zero","expectAnswerType":"data"}
 {"id":"form-receipt","question":"What have we spent on brotherhood this year?","category":"list-forms","expectedTools":["list_transactions"],"expectShape":"receipt","expectAnswerType":"data"}
 {"id":"form-tie-week","question":"What's on this week?","category":"list-forms","expectShape":"week","expectAnswerType":"data"}
 {"id":"form-tie-tally","question":"Who owes dues?","category":"list-forms","expectedTools":["list_brothers"],"expectShape":"tally","expectAnswerType":"data"}
 {"id":"form-tie-goodnews","question":"Is anything overdue?","category":"list-forms","expectedTools":["list_deadlines"],"expectShape":"none","allowProse":true,"expectAnswerType":"data"}
+{"id":"kit-figure-balance","question":"How much money does the chapter have right now?","category":"answer-kit","expectedTools":["get_treasury"],"expectShape":"figure","expectAnswerType":"data"}
+{"id":"kit-figure-members","question":"How many brothers do we have?","category":"answer-kit","expectedTools":["list_brothers"],"expectShape":"figure","mustInclude":["9"],"expectAnswerType":"data"}
+{"id":"kit-steps-metric","question":"How do I add a custom metric for study hours?","category":"answer-kit","expectShape":"steps","mustNotCallTools":["propose_*"],"expectAnswerType":"data"}
+{"id":"kit-steps-expense","question":"How do I log the banquet decorations as an expense?","category":"answer-kit","expectShape":"steps","mustNotCallTools":["propose_*"],"expectAnswerType":"data"}
+{"id":"kit-decline-letter","question":"Write me a cover letter for a software internship.","category":"answer-kit","expectShape":"decline","expectAnswerType":"refuse"}
+{"id":"kit-decline-stock","question":"What's Apple's stock price today?","category":"answer-kit","expectShape":"decline","expectAnswerType":"refuse","mustNotInclude":["$"]}
+{"id":"kit-decline-mixed","question":"What's the weather tomorrow, and when's our next chapter meeting?","category":"answer-kit","expectedTools":["list_calendar_events"],"verdictMustInclude":["26"],"mustNotInclude":["sunny","°"],"expectAnswerType":"data"}
+{"id":"kit-reasons-arijit","question":"Why is Arijit Das's attendance only 80%?","category":"answer-kit","expectedTools":["get_brother_attendance"],"expectShape":"reasons","expectAnswerType":"data"}
+{"id":"kit-reasons-elvin","question":"Why is Elvin's attendance so low?","category":"answer-kit","expectedTools":["get_brother_attendance"],"expectShape":"reasons","expectAnswerType":"data"}
+{"id":"kit-reasons-not-gpa","question":"Why is Elvin De La Cruz's GPA the lowest in the chapter?","category":"answer-kit","forbidShape":"reasons","allowProse":true,"expectAnswerType":"data"}
+{"id":"kit-clarify-areas","question":"Ask me which part of the chapter you should check on.","category":"answer-kit","expectedTools":[],"expectAreas":true,"expectAnswerType":"clarify"}
+{"id":"kit-quote-minutes","question":"What do the minutes say about the door for China night?","category":"answer-kit","expectedTools":["search_meeting_notes"],"expectShape":"quote","mustInclude":["trap door"],"expectAnswerType":"data"}
