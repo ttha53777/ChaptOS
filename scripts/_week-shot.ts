@@ -119,7 +119,7 @@ const frame = (e: string, d: unknown) => `event: ${e}\ndata: ${JSON.stringify(d)
     await sheet.screenshot({ path: `${OUT}/${k}-${THEME}-${W}.png` });
   }
   await p.locator(".shp-wk").last().locator(".wkp-d").nth(Math.min(6, todayIdx + 1)).dispatchEvent("click");
-  console.log("picked:", await p.locator(".shp-wk").last().locator(".wkp-d.on").count(), "flash:", await p.locator(".wkp-day.flash").count());
+  console.log("picked:", await p.locator(".shp-wk").last().locator(".wkp-d.on").count(), "flash:", await p.locator(".wkp-card.flash").count());
   console.log("page overflow:", await p.evaluate(() => document.documentElement.scrollWidth - innerWidth), "errors", errors);
   await b.close();
   process.exit(0);

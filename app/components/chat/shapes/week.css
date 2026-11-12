@@ -1,5 +1,5 @@
 /* The week answer: a planner page (_design/Ask Chapt Week Answer Mock.html).
-   Strip → ticket → day rail → tally. Category colours arrive as the
+   Strip → ticket → cards → tally. Category colours arrive as the
    --pcc/--pcf/--pcs/--pcb set (catVars); a deadline carries none and is peach. */
 html[data-aesthetic="paper"] .chat-root .shp-wk { padding-bottom: 4px; }
 html[data-aesthetic="paper"] .chat-root .shp-wk .shp-legend i { border-radius: 3px; }
@@ -84,52 +84,41 @@ html[data-aesthetic="paper"] .chat-root .shp-wk .k-free { background: var(--pp-m
 .chat-root .wkp-pill.mine { border-color: var(--pp-lilac-bd); background: var(--pp-lilac-soft); color: var(--pp-lilac-ink); }
 .chat-root .wkp-pill.went { border-color: var(--pp-mint-bd); background: var(--pp-mint-soft); color: var(--pp-mint-ink); }
 
-/* agenda */
-.chat-root .wkp-ag { display: grid; margin: 14px 14px 0; padding: 0; list-style: none; }
-.chat-root .wkp-day { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 0 12px; scroll-margin: 12px; }
-.chat-root .wkp-dl { padding-top: 9px; text-align: right; line-height: 1.2; }
-.chat-root .wkp-dl b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 15.6px; letter-spacing: -.02em; color: var(--ink); }
-.chat-root .wkp-dl span { font-family: var(--font-geist-mono); font-size: 10.2px; color: var(--muted); }
-.chat-root .wkp-its { position: relative; min-width: 0; padding: 3px 0 3px 12px; border-left: 1.5px solid var(--line-med); border-radius: 0 10px 10px 0; }
-.chat-root .wkp-its::before { content: ''; position: absolute; left: -5.75px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--line-med); }
-.chat-root .wkp-day:first-child .wkp-its { border-image: linear-gradient(to bottom, transparent 13px, var(--line-med) 13px) 1; }
-.chat-root .wkp-day:last-child .wkp-its { border-image: linear-gradient(to bottom, var(--line-med) 18px, transparent 18px) 1; }
-.chat-root .wkp-day.today .wkp-its::before { background: var(--ink); border-color: var(--ink); box-shadow: 0 0 0 3px var(--pp-butter); }
-.chat-root .wkp-day.today .wkp-dl span { color: var(--pp-butter-ink); font-weight: 600; }
-.chat-root .wkp-day.past .wkp-dl b { color: var(--muted); }
-.chat-root .wkp-day.flash .wkp-its { animation: wkp-flash 1s var(--pp-ease-out); }
-@keyframes wkp-flash { 0%, 30% { background: var(--pp-butter-soft); } 100% { background: transparent; } }
-.chat-root .wkp-it {
-  display: grid; grid-template-columns: 62px 4px minmax(0, 1fr) auto 14px; gap: 10px; align-items: center; width: 100%; padding: 7px 8px 7px 6px;
-  border: 0; border-radius: 10px; background: none; text-align: left; cursor: pointer;
-  animation: wkp-row .45s var(--pp-ease-spring) both; animation-delay: calc(380ms + var(--i) * 45ms); transition: background .15s, box-shadow .15s;
+/* cards: everything the ticket doesn't already say */
+.chat-root .wkp-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 14px 0; }
+.chat-root .wkp-card {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) 14px; gap: 12px; align-items: center; min-width: 0; padding: 10px 10px 10px 10px;
+  border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--card); text-align: left; cursor: pointer; scroll-margin: 12px;
+  animation: wkp-card .45s var(--pp-ease-spring) both; animation-delay: calc(380ms + var(--i) * 45ms);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring), border-color .15s;
 }
-@keyframes wkp-row { from { opacity: 0; transform: translateX(-6px); } }
-.chat-root .wkp-it + .wkp-it { margin-top: 2px; }
-.chat-root .wkp-it.inert { cursor: default; }
-.chat-root .wkp-it:hover:not(:disabled) { background: var(--paper-2); }
-.chat-root .wkp-it.sel { background: var(--paper-2); box-shadow: inset 0 0 0 1.5px var(--ink); }
-.chat-root .wkp-it .tm { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-geist-mono); font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chat-root .wkp-it .sp { align-self: stretch; min-height: 30px; border-radius: 3px; background: var(--pcf, var(--card-3)); border: 1px solid var(--pcb, var(--line-med)); }
-.chat-root .wkp-it .bd { min-width: 0; }
-.chat-root .wkp-it .t { display: block; font-family: var(--font-geist-sans); font-size: 14.2px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chat-root .wkp-it .s { display: block; margin-top: 1px; font-family: var(--font-geist-sans); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chat-root .wkp-it .s:empty { display: none; }
-.chat-root .wkp-it .tg { display: flex; align-items: center; gap: 6px; }
-.chat-root .wkp-it .chev { display: inline-flex; color: var(--muted); transition: color .15s, transform .18s var(--pp-ease-out); }
-.chat-root .wkp-it:hover:not(:disabled) .chev { color: var(--ink); transform: translateX(2px); }
-.chat-root .wkp-it.due .tm { color: var(--pp-peach-ink); font-weight: 600; }
-.chat-root .wkp-it.due .sp { background: none; border: 1.5px dashed var(--pp-peach-ink); }
-.chat-root .wkp-it.gone .t { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); font-weight: 500; }
-.chat-root .wkp-it.gone .tm { color: var(--muted); }
-.chat-root .wkp-it.gone .sp { opacity: .5; }
-.chat-root .wkp-free {
-  display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 8px 10px 6px; font-family: var(--font-geist-sans); font-size: 12.6px; font-weight: 600; color: var(--pp-mint-ink);
-  animation: wkp-row .45s var(--pp-ease-spring) both; animation-delay: calc(380ms + var(--i) * 45ms);
-}
-.chat-root .wkp-free::after { content: ''; flex: 1; border-top: 1.5px dashed var(--pp-mint-bd); }
-.chat-root .wkp-day.past .wkp-free { color: var(--muted); font-weight: 500; }
-.chat-root .wkp-day.past .wkp-free::after { border-color: var(--line); }
+@keyframes wkp-card { from { opacity: 0; transform: translateY(6px) rotate(-.6deg); } }
+.chat-root .wkp-card.inert { cursor: default; }
+.chat-root .wkp-card:hover:not(:disabled), .chat-root .wkp-card.sel { border-color: var(--ink); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--pcf, var(--pp-peach)); }
+.chat-root .wkp-card.flash { animation: wkp-flash 1s var(--pp-ease-out); }
+@keyframes wkp-flash { 0%, 30% { background: var(--pp-butter-soft); border-color: var(--ink); } }
+.chat-root .wkp-card .dt { align-self: stretch; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 52px; border-radius: 10px; background: var(--pcs, var(--paper-2)); border: 1px solid var(--pcb, var(--line)); }
+.chat-root .wkp-card .dt b { font-family: var(--font-geist-mono); font-size: 8.8px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--pcc, var(--muted)); }
+.chat-root .wkp-card .dt i { font-style: normal; font-family: var(--font-fraunces); font-weight: 650; font-size: 20px; letter-spacing: -.04em; line-height: 1; color: var(--ink); }
+.chat-root .wkp-card .bd { min-width: 0; }
+.chat-root .wkp-card .tm { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-geist-mono); font-size: 11.2px; color: var(--ink-soft); white-space: nowrap; }
+.chat-root .wkp-card .t { display: block; margin-top: 1px; font-family: var(--font-geist-sans); font-size: 14.2px; font-weight: 600; line-height: 1.3; color: var(--ink); overflow-wrap: anywhere; }
+.chat-root .wkp-card .s { display: block; margin-top: 1px; font-family: var(--font-geist-sans); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-root .wkp-card .s:empty { display: none; }
+.chat-root .wkp-card .tg { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.chat-root .wkp-card .tg:empty { display: none; }
+.chat-root .wkp-card .chev { display: inline-flex; color: var(--muted); transition: color .15s, transform .18s var(--pp-ease-out); }
+.chat-root .wkp-card:hover:not(:disabled) .chev { color: var(--ink); transform: translateX(2px); }
+.chat-root .wkp-card.today .dt { background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); }
+.chat-root .wkp-card.today .dt b { color: var(--pp-butter-ink); }
+.chat-root .wkp-card.due { border-style: dashed; border-color: var(--pp-peach-ink); background: var(--pp-peach-soft); }
+.chat-root .wkp-card.due .dt { background: var(--card); border: 1px dashed var(--pp-peach-ink); }
+.chat-root .wkp-card.due .dt b, .chat-root .wkp-card.due .tm { color: var(--pp-peach-ink); font-weight: 600; }
+.chat-root .wkp-card.gone { border-style: solid; border-color: var(--line); background: none; }
+.chat-root .wkp-card.gone .dt { background: none; border-color: var(--line); }
+.chat-root .wkp-card.gone .dt b, .chat-root .wkp-card.gone .dt i, .chat-root .wkp-card.gone .tm { color: var(--muted); font-weight: inherit; }
+.chat-root .wkp-card.gone .t { text-decoration: line-through; text-decoration-color: var(--muted); color: var(--muted); font-weight: 500; }
+.chat-root .wkp-next.sel { box-shadow: 4.5px 4.5px 0 var(--ink); }
 
 /* a clear week */
 .chat-root .wkp-clear { margin: 16px 14px 0; padding: 18px 16px; border: 1.5px dashed var(--pp-mint-bd); border-radius: 14px; background: var(--pp-mint-soft); text-align: center; }
@@ -159,20 +148,9 @@ html[data-aesthetic="paper"] .chat-root .shp-wk .k-free { background: var(--pp-m
   .chat-root .wkp-next .cd b, .chat-root .wkp-next.ghost .cd b { font-size: 15.5px; }
   .chat-root .wkp-next .cd span { margin: 0; }
   .chat-root .wkp-clear { margin: 16px 10px 0; }
-  .chat-root .wkp-ag { margin: 14px 10px 0; }
-  .chat-root .wkp-day { grid-template-columns: 42px minmax(0, 1fr); gap: 0 10px; }
-  .chat-root .wkp-dl b { font-size: 14.4px; }
-  .chat-root .wkp-dl span { font-size: 9.2px; }
-  .chat-root .wkp-its { padding-left: 8px; }
-  /* A row stacks: time, title, place, then its tags, with a tap target 44px or taller. */
-  .chat-root .wkp-it { grid-template-columns: 4px minmax(0, 1fr) 14px; gap: 3px 9px; min-height: 44px; padding: 7px 4px; }
-  .chat-root .wkp-it .sp { grid-column: 1; grid-row: 1 / span 3; }
-  .chat-root .wkp-it .tm { grid-column: 2; grid-row: 1; font-size: 11.2px; }
-  .chat-root .wkp-it .bd { grid-column: 2; grid-row: 2; }
-  .chat-root .wkp-it .t { white-space: normal; overflow-wrap: anywhere; }
-  .chat-root .wkp-it .tg { grid-column: 2; grid-row: 3; flex-wrap: wrap; }
-  .chat-root .wkp-it .tg:empty { display: none; }
-  .chat-root .wkp-it .chev { grid-column: 3; grid-row: 1 / span 3; }
+  /* One column: a card per line, each a comfortable tap target. */
+  .chat-root .wkp-cards { grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 14px 10px 0; }
+  .chat-root .wkp-card { min-height: 64px; }
   .chat-root .wkp-foot { margin: 14px 10px 10px; }
   .chat-root .wkp-foot .free { margin-left: 0; flex-basis: 100%; }
 }

@@ -4,13 +4,13 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { todayISO } from "@/lib/dates";
 import { IcClock, IcFlag, IcPin, IcTick } from "../icons";
-import { Affordance, RowButton, Sheet, addDays, catVars, dayNum, daysBetween, dowShort, fmtDay, iv, monShort, type RowHandlers } from "./common";
+import { Affordance, RowButton, Sheet, addDays, catVars, dayNum, daysBetween, dowShort, fmtDay, iv, monShort, useSelectedScroll, type RowHandlers } from "./common";
 import { rowAction, type AnswerRow, type WeekItem, type WeekShape } from "../types";
 import "./week.css";
 
 // ─── Week ───────────────────────────────────────────────────────────────────
 // A planner page (_design/Ask Chapt Week Answer Mock.html): the week's outline
-// as a strip, one ticket for what's next, then the days down a rail. "Next" and
+// as a strip, one ticket for what's next, then a card for everything else. "Next" and
 // its countdown are worked out here from the clock, never sent, so an answer
 // reopened from storage tomorrow still points at the right thing.
 
@@ -79,28 +79,31 @@ function countdown(it: WeekItem, today: string, nowMin: number): { big: string; 
   return { big: `in ${Math.round(days / 7)} weeks` };
 }
 
-function Tags({ it, past, next }: { it: WeekItem; past: boolean; next: boolean }) {
+function Tags({ it, past }: { it: WeekItem; past: boolean }) {
   return (
     <span className="tg">
       {past && it.attended === true && <span className="wkp-pill went"><IcTick size={10} />You were there</span>}
       {it.mine && <span className="wkp-pill mine">Yours</span>}
       {it.mandatory && !(past && it.attended === true) && <span className="wkp-stamp">Mandatory</span>}
-      {next && <span className="wkp-pill">Up next</span>}
     </span>
   );
 }
 
-function Ticket({ it, kicker, cd, ghost, onOpen }: {
+function Ticket({ it, kicker, cd, ghost, selected = false, onOpen }: {
   it: WeekItem;
   kicker: string;
   cd: { big: string; small?: string };
   ghost?: boolean;
+  /** Keyboard selection is on this item's row (it has no card of its own). */
+  selected?: boolean;
   onOpen?: () => void;
 }) {
+  const ref = useSelectedScroll<HTMLButtonElement>(selected);
   return (
     <button
+      ref={ref}
       type="button"
-      className={`wkp-next${ghost ? " ghost" : ""}${it.kind === "deadline" ? " due" : ""}`}
+      className={`wkp-next${ghost ? " ghost" : ""}${it.kind === "deadline" ? " due" : ""}${selected ? " sel" : ""}`}
       style={itemVars(it)}
       disabled={!onOpen}
       onClick={onOpen}
@@ -136,7 +139,7 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
   const days = Array.from({ length: 7 }, (_, i) => addDays(shape.start, i));
   const end = days[6];
   const [picked, setPicked] = useState<string | null>(null);
-  const agenda = useRef<HTMLOListElement | null>(null);
+  const agenda = useRef<HTMLDivElement | null>(null);
 
   // Items keep their index so each mark binds to its row (selection + action).
   const byDay = new Map<string, Array<{ it: WeekItem; i: number }>>();
@@ -149,8 +152,8 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
   const next = nextIndex(shape.items, today, nowMin);
   const nextItem = next >= 0 ? shape.items[next] : null;
   const nextRow = next >= 0 ? rows[next] : undefined;
-  // One thing, and the ticket already says it: no list.
-  const showAgenda = shape.items.length > 1 || (shape.items.length === 1 && !nextItem);
+  // Everything but what the ticket already says, one card each.
+  const cards = shape.items.map((it, i) => ({ it, i })).filter(c => c.i !== next);
   const left = shape.items.filter(it => it.date >= today);
   const events = left.filter(it => it.kind === "event").length;
   const free = days.filter(d => d >= today && !byDay.has(d));
@@ -158,7 +161,7 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
 
   const jump = (day: string) => {
     setPicked(day);
-    const el = agenda.current?.querySelector<HTMLElement>(`[data-day="${day}"]`);
+    const el = agenda.current?.querySelector<HTMLElement>(`[data-day="${day}"]`)?.closest<HTMLElement>(".wkp-card");
     if (!el) return;
     el.scrollIntoView({ block: "nearest", behavior: "smooth" });
     el.classList.remove("flash");
@@ -166,7 +169,6 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
     el.classList.add("flash");
   };
 
-  let order = 0;
   return (
     <Sheet
       className="shp-wk"
@@ -211,6 +213,7 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
           it={nextItem}
           kicker={`Up next · ${whenLabel(nextItem, today)}`}
           cd={countdown(nextItem, today, nowMin)}
+          selected={next === h.selectedRow}
           onOpen={nextRow && rowAction(nextRow) ? () => h.act(nextRow) : undefined}
         />
       )}
@@ -221,40 +224,34 @@ export function WeekSheet({ shape, rows, h }: { shape: WeekShape; rows: AnswerRo
         </div>
       )}
 
-      {showAgenda && (
-        <ol className="wkp-ag" ref={agenda}>
-          {days.map(day => {
-            const items = byDay.get(day) ?? [];
-            const past = day < today;
+      {cards.length > 0 && (
+        <div className="wkp-cards" ref={agenda}>
+          {cards.map(({ it, i }, n) => {
+            const past = it.date < today;
             return (
-              <li key={day} data-day={day} className={`wkp-day${past ? " past" : ""}${day === today ? " today" : ""}`}>
-                <div className="wkp-dl"><b>{dowShort(day)}</b><span>{day === today ? "Today" : fmtDay(day)}</span></div>
-                <div className="wkp-its">
-                  {items.length === 0 && <p className="wkp-free" style={iv(order++)}>{past ? "Nothing was on" : "Free"}</p>}
-                  {items.map(({ it, i }) => (
-                    <RowButton
-                      key={`${it.ref.type}-${it.ref.id}`}
-                      row={rows[i]}
-                      i={i}
-                      h={h}
-                      className={`wkp-it${it.kind === "deadline" ? " due" : ""}${past ? " gone" : ""}`}
-                      style={{ ...itemVars(it), ...iv(order++) }}
-                    >
-                      <span className="tm">{it.kind === "deadline" ? <><IcFlag size={12} />{it.time ?? "Due"}</> : it.time ?? "All day"}</span>
-                      <i className="sp" />
-                      <span className="bd">
-                        <span className="t">{it.title}</span>
-                        <span className="s">{it.kind === "deadline" ? (it.cat ? "Deadline" : "Task") : it.place ?? it.cat?.label ?? ""}</span>
-                      </span>
-                      <Tags it={it} past={past} next={i === next} />
-                      <Affordance action={rows[i] ? rowAction(rows[i]) : null} />
-                    </RowButton>
-                  ))}
-                </div>
-              </li>
+              <RowButton
+                key={`${it.ref.type}-${it.ref.id}`}
+                row={rows[i]}
+                i={i}
+                h={h}
+                className={`wkp-card${it.kind === "deadline" ? " due" : ""}${past ? " gone" : ""}${it.date === today ? " today" : ""}`}
+                style={{ ...itemVars(it), ...iv(n) }}
+              >
+                <span className="dt" data-day={it.date}>
+                  <b>{it.date === today ? "Today" : dowShort(it.date)}</b>
+                  <i>{dayNum(it.date)}</i>
+                </span>
+                <span className="bd">
+                  <span className="tm">{it.kind === "deadline" ? <><IcFlag size={12} />{it.time ?? "Due"}</> : it.time ?? "All day"}</span>
+                  <span className="t">{it.title}</span>
+                  <span className="s">{it.kind === "deadline" ? (it.cat ? "Deadline" : "Task") : it.place ?? it.cat?.label ?? ""}</span>
+                  <Tags it={it} past={past} />
+                </span>
+                <Affordance action={rows[i] ? rowAction(rows[i]) : null} />
+              </RowButton>
             );
           })}
-        </ol>
+        </div>
       )}
 
       {after && today <= end && (
