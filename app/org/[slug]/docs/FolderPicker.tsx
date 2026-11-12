@@ -70,7 +70,9 @@ export function FolderPicker({
             <svg className="fi" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d={FOLDER_PATH} />
             </svg>
+            {/* edt-bare: opts out of the paper sheet's boxed-input styles — the tab is the frame. */}
             <input
+              className="edt-bare"
               autoFocus
               value={name}
               maxLength={120}

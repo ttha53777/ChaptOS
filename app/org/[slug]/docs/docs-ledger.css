@@ -347,7 +347,9 @@
 .dx-fp .dx-fp-add:hover { border-color: var(--vio); }
 .dx-fp .dx-fp-add svg { width: 12px; height: 12px; }
 .dx-fp .dx-fp-new { border-color: var(--vio); padding-right: 4px; }
-.dx-fp .dx-fp-new input { width: 15ch; min-width: 0; border: 0; outline: 0; background: none; font-size: 13px; color: var(--ink); }
+.dx-fp .dx-fp-new:focus-within { box-shadow: 0 0 0 3px rgba(var(--vio-rgb),.15); }
+.dx-fp .dx-fp-new input { width: 15ch; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none;
+  background: none; font-size: 13px; line-height: 1; color: var(--ink); }
 .dx-fp .dx-fp-new input::placeholder { color: var(--faint); }
 .dx-fp .dx-fp-new .ok { height: 26px; padding: 0 10px; border-radius: 7px; border: 0; cursor: pointer; font-size: 12px; font-weight: 600;
   background: var(--vio); color: var(--paper); }

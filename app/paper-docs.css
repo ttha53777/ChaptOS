@@ -325,7 +325,9 @@ html[data-aesthetic="paper"] .dx-fp .dx-fp-add { height: 38px; border: 1.5px das
 html[data-aesthetic="paper"] .dx-fp .dx-fp-add:hover { border-color: var(--ink); color: var(--ink); }
 html[data-aesthetic="paper"] .dx-fp .dx-fp-new { height: 38px; border: 1.5px solid var(--ink); border-radius: 12px 15px 4px 4px; background: var(--pp-butter-soft);
   box-shadow: 3px 3px 0 var(--pp-butter); }
-html[data-aesthetic="paper"] .dx-fp .dx-fp-new input { font-family: var(--font-fraunces); font-weight: 600; font-size: 14px; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-new:focus-within { box-shadow: 3px 3px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-new input { font-family: var(--font-fraunces); font-weight: 600; font-size: 14px; letter-spacing: -.015em; }
+html[data-aesthetic="paper"] .dx-fp .dx-fp-new input::placeholder { font-weight: 400; font-style: italic; color: var(--muted); }
 html[data-aesthetic="paper"] .dx-fp .dx-fp-new .ok { height: 28px; border: 1.5px solid var(--ink); border-radius: 9px; background: var(--ink); color: var(--paper); }
 html[data-aesthetic="paper"] .dx-fp .dx-fp-lands { font-family: var(--font-fraunces); font-style: italic; font-size: 13px; color: var(--ink-soft); }
 html[data-aesthetic="paper"] .dx-fp .dx-fp-lands b { font-style: normal; background: linear-gradient(transparent 58%, var(--pp-butter) 58% 92%, transparent 92%); }
