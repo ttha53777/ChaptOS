@@ -114,7 +114,7 @@ export function ProgrammingCalendarView({
             <button onClick={() => setYm(TODAY.slice(0, 7))}>Today</button>
             <button onClick={() => shift(1)} aria-label="Next month">›</button>
           </div>
-          <span className="ev-cal-key pp-only" aria-hidden>
+          <span className="ev-cal-key" aria-hidden>
             <span><i className="d" />not on the Timeline</span>
             <span><i />on the Timeline</span>
           </span>

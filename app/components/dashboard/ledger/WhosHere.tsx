@@ -24,7 +24,6 @@ function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-type Filter = "here" | "expected";
 
 /**
  * "Who's here" — the roster behind the live band's tally.
@@ -36,7 +35,6 @@ type Filter = "here" | "expected";
 export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: () => void }) {
   const [roster, setRoster]   = useState<LiveAttendee[] | null>(null);
   const [error, setError]     = useState<string | null>(null);
-  const [filter, setFilter]   = useState<Filter>("here");
   const [query, setQuery]     = useState("");
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -158,12 +156,6 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
     ].filter(g => g.key !== "ex" || g.all.length > 0);
   }, [here, expected, query, closed]);
 
-  const shown = useMemo(() => {
-    const base = filter === "here" ? here : expected;
-    const q = query.trim().toLowerCase();
-    return q ? base.filter(a => a.name.toLowerCase().includes(q)) : base;
-  }, [filter, here, expected, query]);
-
   return (
     <div className="wh-scrim" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div
@@ -210,17 +202,9 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
             placeholder="Find a member…"
             aria-label="Find a member"
           />
-          <div className="wh-filters lg-only">
-            <button type="button" aria-pressed={filter === "here"} onClick={() => setFilter("here")}>
-              Here now{roster ? ` (${here.length})` : ""}
-            </button>
-            <button type="button" aria-pressed={filter === "expected"} onClick={() => setFilter("expected")}>
-              Not here yet{roster ? ` (${expected.length})` : ""}
-            </button>
-          </div>
         </div>
 
-        <div className="wh-groups pp-only">
+        <div className="wh-groups">
           {error && <p className="wh-empty" role="alert">{error}</p>}
           {!error && roster === null && <p className="wh-empty">Loading the roster…</p>}
           {!error && roster !== null && groups.map(g => (
@@ -245,48 +229,13 @@ export function WhosHere({ live, onClose }: { live: LiveCheckInData; onClose: ()
           ))}
         </div>
 
-        <div className="wh-list lg-only" role="list" aria-label="Members">
-          {error && <p className="wh-empty" role="alert">{error}</p>}
-
-          {!error && roster === null && <p className="wh-empty">Loading the roster…</p>}
-
-          {!error && roster !== null && shown.length === 0 && (
-            <p className="wh-empty">
-              {query.trim()
-                ? "No members match your search."
-                : filter === "here"
-                  ? "Nobody has checked in yet."
-                  : "Everyone is here."}
-            </p>
-          )}
-
-          {!error && shown.map(a => (
-            <div className="wh-person" role="listitem" key={a.brotherId}>
-              <span className="wh-avatar" aria-hidden="true">
-                {a.avatarUrl
-                  ? <img src={a.avatarUrl} alt="" />
-                  : initials(a.name)}
-              </span>
-              <span className="wh-name">
-                {a.name}
-                {a.excused && !a.present && <small>Excused — not counted absent</small>}
-              </span>
-              <span className={`wh-status${a.present ? "" : a.excused ? " excused" : " waiting"}`}>
-                {a.present
-                  ? (a.at ? clockLabel(a.at) : "here")
-                  : a.excused ? "excused" : "not yet"}
-              </span>
-            </div>
-          ))}
-        </div>
-
         <footer className="wh-foot">
           <span>
             {live.state === "closed"
               ? "Final — recorded when check-in closed"
               : "Updates as members check in"}
           </span>
-          <button type="button" className="wh-done pp-only" onClick={onClose}>Done</button>
+          <button type="button" className="wh-done" onClick={onClose}>Done</button>
         </footer>
       </div>
     </div>

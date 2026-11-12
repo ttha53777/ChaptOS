@@ -33,7 +33,7 @@ import { trackedCount } from "@/lib/tracked-metrics";
 import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { isAttendanceExempt } from "@/lib/thresholds";
 import { taskUrgency, type TaskUrgency } from "@/lib/tasks/urgency";
-import { Sidebar, SvgIcon, NAV_ICONS, isNavVisible } from "../../components/Sidebar";
+import { Sidebar, SvgIcon, isNavVisible } from "../../components/Sidebar";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { useChapter } from "../../context/ChapterContext";
 import { useToast } from "../../components/dashboard/Toast";
@@ -1731,7 +1731,6 @@ export default function Home() {
   // The "Open Check-in" chip's own pending state. It matters because the
   // one-tap path shows no modal: without it the officer taps and watches
   // nothing happen while the fetch and the open write go through.
-  const [openCheckInBusy, setOpenCheckInBusy] = useState(false);
 
   async function checkInAction(path: string, method: "POST" | "DELETE", body?: object) {
     if (!liveCheckIn) return;
@@ -1934,62 +1933,18 @@ export default function Home() {
   }, [calendarList, liveCheckIn?.event.id, todayISO]);
 
   /**
-   * Open the window in one tap when there is exactly one required event today.
-   *
-   * That is the overwhelmingly common shape of this action — an officer standing
-   * in front of the room at the start of the meeting — and it was costing four
-   * steps and a scroll through the org's entire event history. Anything
-   * ambiguous (no event today, or several) still goes to the picker.
+   * Open the check-in picker (tonight preselected), per the mock: the officer
+   * sees which event the hour is about to start on before it starts.
    *
    * The calendar list can be stale or unfetched, so a refresh is worth doing —
-   * but NOT in front of the tap. It used to `await orgFetch("/api/calendar")`
-   * before deciding anything, which put a whole calendar read ahead of every
-   * open, including the one-tap case that is the entire point of this function.
-   *
-   * So: decide on what is already in state when that answer is unambiguous, and
-   * let the refresh run behind the open. The only decision the fresher list can
-   * change is an ambiguous one (no event today, or several), and that path ends
-   * in a picker the officer reads anyway — so it is the one that waits.
+   * but NOT in front of the tap; a stale list still drives a usable picker.
    */
-  async function openCheckInPicker() {
-    const todayMandatory = (events: CalendarEvent[]) => events.filter(
-      e => e.mandatory && e.date === todayISO && e.id !== liveCheckIn?.event.id,
-    );
-
-    // Refresh regardless — the picker below and the dashboard's own event rails
-    // both read `calendarList` — but only block on it when we need its answer.
-    const refreshed = orgFetch("/api/calendar")
+  function openCheckInPicker() {
+    orgFetch("/api/calendar")
       .then(r => (r.ok ? r.json() as Promise<CalendarEvent[]> : null))
-      .then(list => { if (list) setCalendarList(list); return list; })
-      .catch(() => null); // Stale list still drives a usable picker.
-
-    // Paper always shows the sheet (tonight preselected), per the mock: the
-    // officer sees which event the hour is about to start on before it starts.
-    if (document.documentElement.dataset.aesthetic === "paper") {
-      setActiveModal("pick-event-for-checkin");
-      return;
-    }
-
-    const local = todayMandatory(calendarList);
-    if (local.length === 1) {
-      // Unambiguous from what is already on screen. handleOpenCheckIn is
-      // optimistic, so the band appears on this tick.
-      await handleOpenCheckIn(local[0]);
-      return;
-    }
-
-    setOpenCheckInBusy(true);
-    try {
-      const fresh = await refreshed;
-      const candidates = todayMandatory(fresh ?? calendarList);
-      if (candidates.length === 1) {
-        await handleOpenCheckIn(candidates[0]);
-        return;
-      }
-      setActiveModal("pick-event-for-checkin");
-    } finally {
-      setOpenCheckInBusy(false);
-    }
+      .then(list => { if (list) setCalendarList(list); })
+      .catch(() => undefined);
+    setActiveModal("pick-event-for-checkin");
   }
 
   function openAttendanceLog(event?: CalendarEvent) {
@@ -2034,7 +1989,7 @@ export default function Home() {
   // ?create=<key>, which waits for /me so the permission checks below are real.
   const runCreate = useRef<(key: CreateKey) => void>(() => {});
   runCreate.current = (key: CreateKey) => {
-    if (key === "checkin") { if (canAttendance) void openCheckInPicker(); return; }
+    if (key === "checkin") { if (canAttendance) openCheckInPicker(); return; }
     if (key === "announcement") { if (canAnnounce) setAnnouncementEditorOpen(true); return; }
     handleQuickAction(key);
   };
@@ -2602,8 +2557,7 @@ export default function Home() {
                       ? () => setSelectedBrotherId(selfId)
                       : undefined
                   }
-                  onOpenCheckIn={canAttendance ? () => void openCheckInPicker() : undefined}
-                  openCheckInBusy={openCheckInBusy}
+                  onOpenCheckIn={canAttendance ? () => openCheckInPicker() : undefined}
                   liveHere={liveCheckIn && liveCheckIn.state !== "closed" ? liveCheckIn.presentCount : null}
                   onGoToLive={() => document.querySelector("section.live")?.scrollIntoView({ behavior: "smooth", block: "center" })}
                   onQuickAction={handleQuickAction}
@@ -2654,7 +2608,7 @@ export default function Home() {
               onReopen={canAttendance ? handleReopenCheckIn : undefined}
               onCancel={canAttendance ? handleCancelCheckIn : undefined}
               onRestore={canAttendance ? handleRestoreCheckIn : undefined}
-              onOpenAnother={canAttendance ? () => void openCheckInPicker() : undefined}
+              onOpenAnother={canAttendance ? () => openCheckInPicker() : undefined}
               onTakeAttendance={canAttendance && liveCheckIn
                 ? () => openAttendanceLog(calendarList.find(e => e.id === liveCheckIn.event.id))
                 : undefined}
@@ -2825,7 +2779,7 @@ export default function Home() {
       )}
       {activeModal === "pick-event-for-checkin" && (
         <Modal title="Open Check-in" tone="dusk" onClose={closeModal} maxWidthClass="max-w-lg">
-          <div className="pp-only">
+          <div>
             <CheckInPicker
               candidates={checkInCandidates}
               todayISO={todayISO}
@@ -2835,29 +2789,6 @@ export default function Home() {
               onOpen={e => { closeModal(); void handleOpenCheckIn(e); }}
               onCancel={closeModal}
             />
-          </div>
-          <div className="lg-only">
-          <p className="mb-3 text-[12px] text-[color:var(--muted)]">Pick a required event to open live check-in for.</p>
-          <div className="max-h-72 space-y-1 overflow-y-auto">
-            {checkInCandidates.length === 0 && (
-              <p className="text-[12px] text-[color:var(--faint)]">No required events found.</p>
-            )}
-            {checkInCandidates.map(e => {
-              const when = e.date === todayISO ? "Today" : e.date;
-              return (
-                <button key={e.id} onClick={() => { closeModal(); void handleOpenCheckIn(e); }}
-                  className="w-full rounded-lg border border-[rgba(var(--ink-rgb),0.08)] bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 text-left transition-colors hover:border-[color:var(--vio)]/30 hover:bg-[color:var(--vio)]/10">
-                  <p className="text-[13px] font-medium text-[color:var(--ink)]">{e.title}</p>
-                  <p className="text-[11px] text-[color:var(--faint)]">
-                    {e.date === todayISO
-                      ? <span className="font-medium text-[color:var(--vio)]">{when}</span>
-                      : when}
-                    {formatEventTime(e.time, e.schedule) ? ` · ${formatEventTime(e.time, e.schedule)}` : ""}{e.location ? ` · ${e.location}` : ""}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
           </div>
         </Modal>
       )}

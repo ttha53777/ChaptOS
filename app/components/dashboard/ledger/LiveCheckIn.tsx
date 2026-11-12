@@ -228,7 +228,7 @@ export function LiveCheckIn({
     <>
     <section ref={bandRef} className={`live has-stub${toneClass ? ` ${toneClass}` : ""}`} data-state={state} aria-label="Live event check-in" style={tone}>
       {/* Paper only: the ticket stub the event wore in Up next, stamped. */}
-      <div className="un-stub live-stub pp-only" aria-hidden="true">
+      <div className="un-stub live-stub" aria-hidden="true">
         <span className="adm">ADMIT ONE</span>
         <small>{WD[stubDate.getUTCDay()]}</small>
         <b>{stubDate.getUTCDate()}</b>
@@ -236,7 +236,7 @@ export function LiveCheckIn({
         {!cancelled && <span className={`live-stamp${closed ? " shut" : ""}`}>{closed ? "CHECK-IN CLOSED" : "CHECK-IN OPEN"}</span>}
       </div>
       {/* Outside the stub, which greys out under it, so the stamp keeps its ink. */}
-      {cancelled && <span className="lce-void-stamp pp-only" aria-hidden="true">VOID<small>NOT RECORDED</small></span>}
+      {cancelled && <span className="lce-void-stamp" aria-hidden="true">VOID<small>NOT RECORDED</small></span>}
 
       <div className="live-rule">
         <i style={{ transform: `scaleY(${remaining.toFixed(3)})` }} />
@@ -338,7 +338,7 @@ export function LiveCheckIn({
 
           <p className="live-meta">
             {data.event.date !== new Date(now).toLocaleDateString("en-CA") && (
-              <span className="live-day pp-only">{new Date(`${data.event.date}T12:00:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+              <span className="live-day">{new Date(`${data.event.date}T12:00:00`).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
             )}
             {formatEventTime(event.time, event.schedule) && <><span>{formatEventTime(event.time, event.schedule)}</span><span className="dotsep">·</span></>}
             {event.location && <><span><b>{event.location}</b></span><span className="dotsep">·</span></>}
@@ -388,12 +388,12 @@ export function LiveCheckIn({
           <p className="n">{presentCount}<small>/{eligibleCount}</small></p>
           <p className="k">
             {cancelled ? "not counted" : closed ? "final tally" : "here now"}
-            {closed && !cancelled && <span className="pp-only"> · {Math.max(0, eligibleCount - presentCount)} absent</span>}
+            {closed && !cancelled && <span> · {Math.max(0, eligibleCount - presentCount)} absent</span>}
           </p>
           <span className="track"><i style={{ width: cancelled ? "0%" : `${pct}%` }} /></span>
           {/* Guarded: an old server instance mid-deploy answers without `recent`. */}
           {arrivals && !cancelled && (
-            <div className="live-stack pp-only">
+            <div className="live-stack">
               {arrivals.length === 0
                 ? (!closed && <span>Waiting for the first check-in…</span>)
                 : <>
@@ -432,7 +432,7 @@ export function LiveCheckIn({
             </button>
           ) : (
             <button type="button" className="live-btn ghost" onClick={() => setRosterOpen(true)}>
-              <PaperIcon name="people" className="pp-only" />
+              <PaperIcon name="people" />
               See who&rsquo;s here
             </button>
           )}

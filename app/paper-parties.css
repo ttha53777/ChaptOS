@@ -4,7 +4,7 @@
    (double-ruled net) over a night-by-night net strip; every party is one line
    in a ruled ledger book with a rose margin, Open/Closed worn as a wristband;
    a line opens onto that night's till receipt beside its notes, facts and roll
-   call. Markup only paper shows is .pp-only (see parties/page.tsx).
+   call.
 
    Everything hangs off html[data-aesthetic="paper"], which also out-specifies
    parties-ledger.css (`.dash .pty-*`), loaded after this file.

@@ -113,7 +113,7 @@ export function FolderSection({
           <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
-          <PaperIcon name="folder" className="fi pp-only" />
+          <PaperIcon name="folder" className="fi" />
           <span className="name">{name}</span>
           <span className="ct">{totalCount === 1 ? "1 doc" : `${totalCount} docs`}</span>
           {pinned && (
@@ -190,7 +190,7 @@ export function FolderSection({
           )}
         </div>
       )}
-      {!open && <div className="dx-lip pp-only" aria-hidden />}
+      {!open && <div className="dx-lip" aria-hidden />}
     </section>
   );
 }

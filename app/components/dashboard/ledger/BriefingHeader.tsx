@@ -32,7 +32,7 @@ function fmtDate(d: Date): string {
  * sidebar scroll-spy/jump still resolves the Dashboard anchor.
  */
 function Wave() {
-  return <span className="wave pp-only" aria-hidden="true"><PaperIcon name="hand" /></span>;
+  return <span className="wave" aria-hidden="true"><PaperIcon name="hand" /></span>;
 }
 
 export function BriefingHeader({
@@ -82,16 +82,12 @@ export function BriefingHeader({
     setClock({ label: fmtDate(now), short: fmtShort(now), greeting: greetingFor(now.getHours()) });
   }, []);
 
-  const dateLabel = clock.label;
-
   return (
     <section id="sec-dashboard" className="briefing" aria-label="Briefing">
       <div>
-        {/* Ledger and Paper word the date differently; both render and
-            app/paper-aesthetic.css shows the one for html[data-aesthetic]. */}
         <p className="kicker">
-          <span className="today"><span className="lg-only">{dateLabel}</span><span className="pp-only">{clock.short}</span></span>
-          <span className="lg-only">&ensp;·&ensp;</span>Week of {fmtRange(weekStart, weekEnd)}
+          <span className="today"><span>{clock.short}</span></span>
+          Week of {fmtRange(weekStart, weekEnd)}
         </p>
         <h1 className="greeting">
           {/* .greet-tail keeps the name, its period and Paper's waving hand on
@@ -115,8 +111,7 @@ export function BriefingHeader({
           >
             {!digestQuiet && (
               <span className="ai-chip">
-                <span className="lg-only">AI</span>
-                <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+                <span><PaperIcon name="spark" />Digest</span>
               </span>
             )}
             {digestLoading

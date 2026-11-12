@@ -41,7 +41,7 @@ export type PaperTone = "peach" | "sky" | "mint" | "butter" | "lilac" | "rose";
  *  under the Ledger aesthetic, so cards can carry it unconditionally. */
 export function PaperTile({ icon, tone }: { icon: PaperIconName; tone: PaperTone }) {
   return (
-    <span className={`pp-tile pp-only pp-t-${tone}`} aria-hidden="true">
+    <span className={`pp-tile pp-t-${tone}`} aria-hidden="true">
       <PaperIcon name={icon} />
     </span>
   );

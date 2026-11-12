@@ -67,7 +67,7 @@ function Measure({ label, prefix, value, unit, note, noteTone, icon, color, onCl
         onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } },
       })}
     >
-      <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
+      <p className="k">{icon && <PaperIcon name={icon} />}{label}</p>
       <p className="v">{prefix && <small>{prefix}</small>}{value}{unit && <small>{unit}</small>}</p>
       <p className={`note${noteTone ? ` ${noteTone}` : ""}`}>{note}</p>
     </div>
@@ -542,16 +542,16 @@ export default function BrothersPage() {
             {/* ── Editorial header ── */}
             <div className="pagehead">
               <div>
-                <p className="kicker"><span className="today pp-only">{todayChip}</span>{currentUser?.org?.name ?? "ChaptOS"} &ensp;·&ensp; {v("Member")} Roster</p>
-                <h1>The <em>{v("Member", true)}<span className="pp-only">.</span></em></h1>
+                <p className="kicker"><span className="today">{todayChip}</span>{currentUser?.org?.name ?? "ChaptOS"} &ensp;·&ensp; {v("Member")} Roster</p>
+                <h1>The <em>{v("Member", true)}<span>.</span></em></h1>
                 {dayOne && (
-                  <p className="summary pp-only">
+                  <p className="summary">
                     It&rsquo;s just you so far. Share an invite link &mdash; people sign in with Google,
                     ask to join, and you approve them right here.
                   </p>
                 )}
-                {kpis && (
-                  <p className={`summary${dayOne ? " lg-only" : ""}`}>
+                {kpis && !dayOne && (
+                  <p className="summary">
                     {kpis.total} {v("Member", true).toLowerCase()} active.{" "}
                     {nothingMeasured ? <>Nothing&rsquo;s been recorded yet, so nobody has a standing</>
                       : <><b>{statusCounts["At Risk"]} at risk</b> and <b>{statusCounts.Watch} on watch</b></>}
@@ -565,8 +565,7 @@ export default function BrothersPage() {
               </div>
               <div className="head-actions">
                 <button className="btn bh-export" onClick={handleExport} title="Export CSV">
-                  <svg className="lg-only" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  <PaperIcon name="out" className="pp-only" />
+                  <PaperIcon name="out" />
                   Export
                 </button>
                 {/* The roster is where anyone goes to think about adding people,
@@ -574,13 +573,11 @@ export default function BrothersPage() {
                     nothing here pointing at it. */}
                 {canSettings && (
                   <button className="btn primary" onClick={() => setInviteOpen(true)} title="Invite with a link">
-                    <svg className="lg-only" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5L21 3m0 0h-5.25M21 3v5.25M10 5H6a3 3 0 00-3 3v10a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
-                    <PaperIcon name="envelope" className="pp-only" />
-                    <span className="lg-only">Invite {v("Member", true)}</span>
-                    <span className="pp-only">Invite {memberPlural}</span>
+                    <PaperIcon name="envelope" />
+                    <span>Invite {memberPlural}</span>
                   </button>
                 )}
-                <button className="askbar pp-only" onClick={askWhoIsSlipping}>
+                <button className="askbar" onClick={askWhoIsSlipping}>
                   <PaperIcon name="spark" />Ask who&rsquo;s slipping<kbd>⌘K</kbd>
                 </button>
               </div>
@@ -624,7 +621,7 @@ export default function BrothersPage() {
 
             {/* ── Standing — interactive segmented bar ── */}
             {dayOne && (
-              <section className="bh-inv pp-only" aria-label="How joining works">
+              <section className="bh-inv" aria-label="How joining works">
                 <div>
                   <p className="bh-eyebrow">How joining works</p>
                   <h2>Joining is reviewed &mdash; a link isn&rsquo;t access.</h2>
@@ -652,15 +649,14 @@ export default function BrothersPage() {
               </section>
             )}
 
-            {!isLoading && kpis && (
-              <section className={`dist${dayOne ? " lg-only" : ""}`}>
+            {!isLoading && kpis && !dayOne && (
+              <section className="dist">
                 <div className="dist-head">
                   <h2>Standing</h2>
                   {nothingMeasured ? (
                     <span className="hint">Starts once the first record is in. Until then nobody is judged on a 0.</span>
                   ) : <>
-                  <span className="hint lg-only">Click a band to filter</span>
-                  <span className="hint pp-only">
+                  <span className="hint">
                     Click a band or a face &mdash;{" "}
                     {[
                       tracked.attendance && `attendance under ${THRESHOLDS.attendanceWatch}%`,
@@ -683,7 +679,7 @@ export default function BrothersPage() {
                       title={`${s.label} · ${s.count} — click to filter`}
                       aria-label={`Filter ${s.label}`}
                     >
-                      <span className="pp-only">{s.count > 2 ? s.count : ""}</span>
+                      <span>{s.count > 2 ? s.count : ""}</span>
                     </button>
                   ))}
                 </div>
@@ -704,7 +700,7 @@ export default function BrothersPage() {
                 {/* Paper's class photo: every face, ringed by standing. A face opens
                     that member's card; a band/legend filter dims everyone else.
                     Before anything is recorded there is no standing to ring. */}
-                <div className="bh-photo pp-only" aria-label={`Every ${v("Member").toLowerCase()}, ringed by standing`}>
+                <div className="bh-photo" aria-label={`Every ${v("Member").toLowerCase()}, ringed by standing`}>
                   {brotherList.map(b => {
                     const st = getBrotherStatus(b, THRESHOLDS, measured);
                     const ring = nothingMeasured ? "ph-none" : st === "Good" ? "ph-good" : st === "Watch" ? "ph-watch" : "ph-risk";
@@ -856,7 +852,7 @@ export default function BrothersPage() {
                                     {b.name}
                                     {canAttendance && (pendingCounts[b.id] ?? 0) > 0 && (
                                       <span className="excuse-chip" title={`${pendingCounts[b.id]} pending excuse ${pendingCounts[b.id] === 1 ? "review" : "reviews"}`}>
-                                        <PaperIcon name="clip" className="pp-only" />{pendingCounts[b.id]}
+                                        <PaperIcon name="clip" />{pendingCounts[b.id]}
                                       </span>
                                     )}
                                   </div>

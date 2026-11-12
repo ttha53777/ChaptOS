@@ -4,8 +4,7 @@
    manila tab sitting on an ink-bordered ledger body with a pastel hard shadow
    (Unfiled is dashed), folded folders close onto a striped lip, and each kind
    carries its own pastel — Doc sky · Sheet mint · Form lilac · Drive butter ·
-   Link peach. Hooks in FolderSection/PinnedCard/page.tsx are .pp-only or
-   `.dx-tab` (display: contents under Ledger).
+   Link peach.
    ───────────────────────────────────────────────────────────────────────────── */
 
 html[data-aesthetic="paper"] .dash .k-doc   { --pk-c: var(--pp-sky-ink);    --pk-b: var(--pp-sky);    --pk-s: var(--pp-sky-soft);    --pk-bd: var(--pp-sky-bd); }
@@ -33,7 +32,7 @@ html[data-aesthetic="paper"] .dash .dx-digest .ai {
   background: var(--pp-lilac-soft); border: 1px solid var(--pp-lilac-bd); color: var(--pp-lilac-ink);
   font-family: var(--font-geist-sans); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
 }
-html[data-aesthetic="paper"] .dash .dx-digest .ai .pp-only { display: inline-flex; align-items: center; gap: 5px; }
+html[data-aesthetic="paper"] .dash .dx-digest .ai > span { display: inline-flex; align-items: center; gap: 5px; }
 html[data-aesthetic="paper"] .dash .dx-digest .ai svg { width: 9px; height: 9px; }
 html[data-aesthetic="paper"] .dash .dx-digest p { font-family: var(--font-geist-sans); font-style: normal; font-weight: 400; font-size: 16px; line-height: 1.55; color: var(--ink-soft); }
 html[data-aesthetic="paper"] .dash .dx-meta-line { font-size: 11.5px; letter-spacing: 0; color: var(--muted); }

@@ -104,9 +104,8 @@ function writeSeenRejections(seen: Set<string>) {
 interface Deletion { event: CalendarEvent; tear: Tear | null; sent: boolean; settled: boolean }
 const reducedMotionNow = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** Paper only: the mock's pastel confetti when something is marked done. */
+/** The mock's pastel confetti when something is marked done. */
 function paperBurst(from: HTMLElement) {
-  if (document.documentElement.dataset.aesthetic !== "paper") return;
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const r = from.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
   const cols = ["--pp-peach", "--pp-sky", "--pp-mint", "--pp-butter", "--pp-lilac", "--pp-rose"];
@@ -443,7 +442,7 @@ function TimelineRow({
               {done && <span className="done">✓ Done</span>}
               {formatEventTime(event.time, event.schedule) && <span className="m-time">{formatEventTime(event.time, event.schedule)}</span>}
               {event.location && <span className="m-loc">{event.location}</span>}
-              {owner && <span className="owner pp-only">{owner}</span>}
+              {owner && <span className="owner">{owner}</span>}
             </div>
           </div>
           <DetailStack details={event.details ?? []} />
@@ -541,8 +540,8 @@ function TimelineCalendar({
   return (
     <div className="tl-cal">
       <div className="tl-cal-sheet">
-        <span className="tl-cal-ring l pp-only" aria-hidden />
-        <span className="tl-cal-ring r pp-only" aria-hidden />
+        <span className="tl-cal-ring l" aria-hidden />
+        <span className="tl-cal-ring r" aria-hidden />
         <header className="tl-cal-head">
           <h2 key={monthPrefix}>
             <span className="mo">{MONTH_NAMES[month.month]}</span>
@@ -718,12 +717,11 @@ function AttGroup({ label, tone, people, onOpenMember }: {
           return (
             <button key={p.brotherId} type="button" className="nm" title={p.reason ?? p.brotherName} onClick={() => onOpenMember(p.brotherId)}>
               {b && (
-                <span className="pp-only">
+                <span>
                   <BrotherAvatar brother={b} selfId={currentUser?.id ?? null} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" />
                 </span>
               )}
-              <span className="lg-only">{p.brotherName}</span>
-              <span className="pp-only">{p.brotherName.split(" ")[0]}</span>
+              <span>{p.brotherName.split(" ")[0]}</span>
             </button>
           );
         })}
@@ -2405,7 +2403,7 @@ export default function TimelinePage() {
                 ) : allEvents.length === 0 ? (
                   /* Day one: nothing on the calendar at all, not just under this filter. */
                   <div className="tl-empty">
-                    <span className="art pp-only"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg></span>
+                    <span className="art"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg></span>
                     <h3>Nothing on the calendar yet.</h3>
                     <p>Your first chapter meeting is the best first entry — make it required and check-in counts attendance for you.</p>
                     {canManageEvents && <button type="button" className="tl-empty-add" onClick={() => openEventModal("create")}>Add your first event</button>}

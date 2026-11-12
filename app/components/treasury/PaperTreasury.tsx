@@ -7,7 +7,6 @@ import { PaperIcon } from "../paper/PaperIcon";
  * The paper look's two treasury instruments, drawn the way the
  * `#treasury` page of _design/Dashboard Paper Mock.html draws them: hand-built
  * SVG and CSS rather than recharts, so they take the mock's inks directly.
- * Ledger keeps its recharts versions; these render inside `.pp-only`.
  *
  * Styles: app/paper-treasury.css (`.tz-*`).
  */

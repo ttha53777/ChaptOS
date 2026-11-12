@@ -1,20 +1,19 @@
 "use client";
 
-import { useState, useEffect, useMemo, startTransition, type ReactNode } from "react";
+import { useState, useEffect, useMemo, startTransition } from "react";
 import { Sidebar } from "../../../components/Sidebar";
 import { BrotherAvatar } from "../../../components/BrotherAvatar";
-import { Modal, FieldLabel, LoadingSpinner } from "../../../components/dashboard/primitives";
+import { Modal } from "../../../components/dashboard/primitives";
 import { useToast } from "../../../components/dashboard/Toast";
 import { useChapter } from "../../../context/ChapterContext";
 import { useVocab } from "../../../hooks/useVocab";
 import { useThresholds } from "../../../hooks/useThresholds";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
 import { useSemesterErrorHandler } from "../../../hooks/useSemesterErrorHandler";
-import { Brother, fmtDate } from "../../../data";
+import { Brother } from "../../../data";
 import { requestJson } from "../../../lib/api";
 import { ScheduleFields, initialSchedule, scheduleFromValue, type ScheduleValue } from "../../../components/timeline/ScheduleFields";
 import { scheduleDate, scheduleTime, type Schedule } from "@/lib/calendar-feed/schedule";
-import { APP_AESTHETIC } from "@/lib/aesthetic";
 import "../../../components/dashboard/dashboard-ledger.css";
 import "./service-ledger.css";
 import "./service-paper.css";
@@ -129,25 +128,6 @@ export default function ServicePage() {
   // ── Derived ──────────────────────────────────────────────────────────────────
   // brotherList is already ghost-filtered server-side (listBrothers → isGhost:false).
   const roster = brotherList;
-
-  const filteredRoster = useMemo(() =>
-    [...roster]
-      .filter(b => b.name.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => b.serviceHours - a.serviceHours),
-    [roster, search],
-  );
-
-  const filteredEvents = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = [...serviceEvents].sort((a, b) => b.date.localeCompare(a.date));
-    if (!q) return list;
-    return list.filter(e =>
-      e.title.toLowerCase().includes(q) || e.location.toLowerCase().includes(q));
-  }, [serviceEvents, search]);
-
-  const totalHours   = useMemo(() => roster.reduce((s, b) => s + b.serviceHours, 0), [roster]);
-  const onTrackCount = useMemo(() => roster.filter(b => b.serviceHours >= goal).length, [roster, goal]);
-  const avgHours     = roster.length ? totalHours / roster.length : 0;
 
   // ── Service event CRUD ────────────────────────────────────────────────────────
   function openAddEvent() {
@@ -322,17 +302,6 @@ export default function ServicePage() {
     } catch { /* totals refresh on next page load */ }
   }
 
-  // Per-event rolled-up hours, from cached participation when available.
-  function eventHours(eventId: number): number | null {
-    const rows = partByEvent[eventId];
-    if (!rows) return null;
-    return rows.reduce((s, p) => s + p.hours, 0);
-  }
-  function eventCount(eventId: number): number | null {
-    const rows = partByEvent[eventId];
-    return rows ? rows.length : null;
-  }
-
   // Events that contributed to a member's hours (member detail drawer).
   const memberEvents = useMemo(() => {
     if (!memberDetail) return [];
@@ -352,14 +321,6 @@ export default function ServicePage() {
   }
 
   const orgName = currentUser?.org?.name ?? "ChaptOS";
-  const hasEvents = serviceEvents.length > 0;
-
-  const measures: { k: string; v: ReactNode; note: string; warn?: boolean }[] = [
-    { k: "Hours logged", v: round(totalHours),                  note: "this term" },
-    { k: v("Service"),   v: serviceEvents.length,               note: serviceEvents.length === 1 ? "event" : "events" },
-    { k: "On track",     v: `${onTrackCount}/${roster.length}`, note: `${goal}h goal`, warn: roster.length > 0 && onTrackCount < roster.length },
-    { k: "Avg / member", v: round(avgHours),                    note: "hours" },
-  ];
 
   return (
     <div className="flex h-screen overflow-hidden bg-[color:var(--paper)]">
@@ -383,7 +344,7 @@ export default function ServicePage() {
         {/* ── Scrollable dusk ledger pane ── */}
         <main className="page-ambient flex-1 overflow-y-auto">
           <div className="dash dash-service" data-dashboard-theme="dusk">
-            <div className="pp-only">
+            <div>
               <PaperService
                 orgName={orgName} semesterLabel={activeSemester?.label ?? null} goal={goal}
                 roster={roster} events={serviceEvents} eventsLoading={eventsLoading} rosterLoading={isLoading}
@@ -395,187 +356,6 @@ export default function ServicePage() {
                 onDelete={handleDeleteEvent} onRemove={removeAttendee} onMember={openMemberDetail}
               />
             </div>
-            {/* Paper is the only look (lib/aesthetic.ts), so the hidden Ledger body
-                isn't rendered at all — it doubled the cost of every re-render and put a
-                dropped frame at the start of each add/edit/delete animation. */}
-            {APP_AESTHETIC !== "paper" && <div className="lg-only">
-
-            {/* ── Briefing ── */}
-            <section className="svc-briefing" aria-label="Service log">
-              <div>
-                <p className="kicker">The Service Log</p>
-                <h1>Hours, <em>by the event</em>.</h1>
-                <div className="svc-digest">
-                  <span className="ai">AI</span>
-                  <p>{digestLine(roster, serviceEvents.length, totalHours, goal, orgName)}</p>
-                </div>
-              </div>
-              <div className="svc-actions">
-                <button className="svc-add ghost" onClick={openLogMine} disabled={!hasEvents} title={hasEvents ? undefined : "No service events yet"}>
-                  <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  Log my hours
-                </button>
-                {canService && (
-                  <button className="svc-add" onClick={openAddEvent}>
-                    <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                    New service event
-                  </button>
-                )}
-              </div>
-            </section>
-
-            {/* ── Glance strip ── */}
-            {(hasEvents || roster.length > 0) && (
-              <section className="svc-glance" aria-label="Service at a glance">
-                {measures.map(m => (
-                  <div className="svc-measure" key={m.k}>
-                    <p className="k">{m.k}</p>
-                    <p className={`v${m.warn ? " warn" : ""}`}>{m.v}</p>
-                    <p className="note">{m.note}</p>
-                  </div>
-                ))}
-              </section>
-            )}
-
-            {/* ── Toolbar: search + view toggle ── */}
-            <div className="svc-toolbar">
-              <label className="svc-search">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
-                <input
-                  type="search"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder={view === "events" ? "Search events…" : "Search members…"}
-                  aria-label="Search"
-                />
-                {search && (
-                  <button type="button" className="clr" onClick={() => setSearch("")} aria-label="Clear search">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                )}
-              </label>
-              <div className="svc-seg" role="tablist" aria-label="View">
-                <button role="tab" aria-selected={view === "events"}  className={view === "events"  ? "on" : ""} onClick={() => setView("events")}>Events</button>
-                <button role="tab" aria-selected={view === "members"} className={view === "members" ? "on" : ""} onClick={() => setView("members")}>Members</button>
-              </div>
-              <span className="svc-scope">
-                {view === "events" ? `${filteredEvents.length} of ${serviceEvents.length}` : `${filteredRoster.length} of ${roster.length}`}
-              </span>
-            </div>
-
-            {/* ── EVENTS VIEW ── */}
-            {view === "events" && (
-              eventsLoading ? (
-                <div className="svc-loading"><LoadingSpinner size="md" tone="dusk" label="Loading events" /></div>
-              ) : !hasEvents ? (
-                <div className="svc-empty">
-                  <div className="ic"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg></div>
-                  <p className="t">No service events yet</p>
-                  <p className="h">{canService ? "Log your first cleanup, food bank, or fundraiser — then record who showed up." : "Ask an admin to log the chapter's service events."}</p>
-                </div>
-              ) : filteredEvents.length === 0 ? (
-                <div className="svc-empty">
-                  <div className="ic"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg></div>
-                  <p className="t">Nothing matches</p>
-                  <p className="h">Try a different search.</p>
-                  <button className="clear" onClick={() => setSearch("")}>Clear search</button>
-                </div>
-              ) : (
-                <div className="svc-events">
-                  {filteredEvents.map(ev => {
-                    const isPast = ev.date < new Date().toISOString().slice(0, 10);
-                    const hrs = eventHours(ev.id);
-                    const ct  = eventCount(ev.id);
-                    const expanded = expandedId === ev.id;
-                    const rows = partByEvent[ev.id] ?? [];
-                    return (
-                      <div key={ev.id} className={`svc-event${expanded ? " open" : ""}`}>
-                        <button className="svc-event-head" onClick={() => toggleExpand(ev.id)} aria-expanded={expanded}>
-                          <span className="svc-chev" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                          </span>
-                          <span className="svc-event-main">
-                            <span className="t">{ev.title}{isPast && <span className="past">Past</span>}</span>
-                            <span className="meta">
-                              {fmtDate(ev.date)}
-                              {ev.location && <> · {ev.location}</>}
-                            </span>
-                          </span>
-                          <span className="svc-event-stats">
-                            <span className="stat"><b>{ct ?? "—"}</b> here</span>
-                            <span className="stat hrs"><b>{hrs != null ? round(hrs) : "—"}</b>h</span>
-                          </span>
-                        </button>
-
-                        {expanded && (
-                          <div className="svc-event-body">
-                            {ev.notes && <p className="svc-event-notes">{ev.notes}</p>}
-                            {rows.length === 0 ? (
-                              <p className="svc-event-none">No one logged yet.{canService && " Use “Log hours” to record attendees."}</p>
-                            ) : (
-                              <ul className="svc-attendees">
-                                {rows.map(p => (
-                                  <li key={p.id}>
-                                    <BrotherAvatar brother={p.brother} selfId={selfId} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" />
-                                    <span className="nm">{p.brother.name}</span>
-                                    <span className="hr">{round(p.hours)}h</span>
-                                    {canService && (
-                                      <button className="rm" onClick={() => removeAttendee(ev.id, p)} title="Remove" aria-label={`Remove ${p.brother.name}`}>
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                      </button>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            <div className="svc-event-actions">
-                              {canService && <button className="log" onClick={() => openLog(ev)}>Log hours</button>}
-                              {canService && <button className="edit" onClick={() => openEditEvent(ev)}>Edit</button>}
-                              {canService && <button className="del" onClick={() => handleDeleteEvent(ev)}>Delete</button>}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )
-            )}
-
-            {/* ── MEMBERS VIEW ── */}
-            {view === "members" && (
-              isLoading ? (
-                <div className="svc-loading"><LoadingSpinner size="md" tone="dusk" label="Loading members" /></div>
-              ) : filteredRoster.length === 0 ? (
-                <div className="svc-empty">
-                  <div className="ic"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg></div>
-                  <p className="t">No members found</p>
-                  <p className="h">Try a different search.</p>
-                </div>
-              ) : (
-                <div className="svc-members">
-                  {filteredRoster.map(b => {
-                    const onTrack = b.serviceHours >= goal;
-                    const pct = goal > 0 ? Math.min(100, Math.round((b.serviceHours / goal) * 100)) : 100;
-                    const status = onTrack ? "ok" : b.serviceHours >= goal * 0.5 ? "watch" : "risk";
-                    return (
-                      <button key={b.id} className="svc-member" onClick={() => openMemberDetail(b)}>
-                        <BrotherAvatar brother={b} selfId={selfId} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="sm" />
-                        <span className="svc-member-main">
-                          <span className="row">
-                            <span className="nm">{b.name}</span>
-                            <span className="hr">{round(b.serviceHours)}<i>/{goal}h</i></span>
-                          </span>
-                          <span className="bar"><i className={status} style={{ width: `${pct}%` }} /></span>
-                        </span>
-                        <span className={`svc-dot ${status}`} aria-hidden="true" />
-                      </button>
-                    );
-                  })}
-                </div>
-              )
-            )}
-            </div>}
           </div>
         </main>
       </div>
@@ -609,7 +389,7 @@ export default function ServicePage() {
                 placeholder="Details, dress code, what to bring…" />
             </div>
             <div className="svc-foot flex justify-end gap-2 pt-1">
-              <span className="note pp-only">{activeSemester ? `Dates stay inside ${activeSemester.label}. ` : ""}It lands on the Timeline as a service event.</span>
+              <span className="note">{activeSemester ? `Dates stay inside ${activeSemester.label}. ` : ""}It lands on the Timeline as a service event.</span>
               <button onClick={() => setEventModal(null)} className="svc-btn ghost">Cancel</button>
               <button onClick={handleSaveEvent} disabled={!eventForm.title} className="svc-btn primary">
                 {eventModal === "add" ? "Log event" : "Save changes"}
@@ -637,7 +417,7 @@ export default function ServicePage() {
                 return (
                   <div key={b.id} className={`svc-log-row${active ? " on" : ""}`}>
                     <BrotherAvatar brother={b} selfId={selfId} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" />
-                    <span className="nm">{b.name}<small className="pp-only">{r1(b.serviceHours)}h total</small></span>
+                    <span className="nm">{b.name}<small>{r1(b.serviceHours)}h total</small></span>
                     <input
                       type="number" min="0" step="0.5" inputMode="decimal"
                       className="hrin"
@@ -651,7 +431,7 @@ export default function ServicePage() {
               })}
           </div>
           <div className="svc-foot flex justify-end gap-2 pt-3">
-            <span className="note pp-only">{logTally(logDraft)}</span>
+            <span className="note">{logTally(logDraft)}</span>
             <button onClick={() => setLogFor(null)} disabled={logBusy} className="svc-btn ghost">Cancel</button>
             <button onClick={submitLog} disabled={logBusy} className="svc-btn primary">{logBusy ? "Saving…" : "Save hours"}</button>
           </div>
@@ -662,7 +442,7 @@ export default function ServicePage() {
       {/* ── Log my hours (self-service) ── */}
       {logMineOpen && (
         <Modal title="Log my hours" tone="dusk" icon="clock" accent="mint" onClose={() => !logMineBusy && setLogMineOpen(false)}>
-          <div className="svc-wide svc-mine pp-only">
+          <div className="svc-wide svc-mine">
             <div className="svc-mine-pick">
               <p className="svc-mine-k">Which event?</p>
               <div className="svc-mine-list" role="radiogroup" aria-label="Service event">
@@ -702,46 +482,13 @@ export default function ServicePage() {
               </button>
             </div>
           </div>
-          <div className="lg-only">
-          <p className="svc-log-hint">Pick the service event you showed up to and enter how many hours you earned.</p>
-          <div className="space-y-3">
-            <div>
-              <FieldLabel tone="dusk">Service event</FieldLabel>
-              <select
-                className="svc-input"
-                value={logMineEventId ?? ""}
-                onChange={e => setLogMineEventId(e.target.value ? Number(e.target.value) : null)}
-              >
-                {serviceEvents.filter(e => !e.pending).sort((a, b) => b.date.localeCompare(a.date)).map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.title} · {fmtDate(ev.date)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <FieldLabel tone="dusk">Hours</FieldLabel>
-              <input
-                type="number" min="0" step="0.5" inputMode="decimal" autoFocus
-                className="svc-input"
-                value={logMineHours}
-                placeholder="0"
-                onChange={e => setLogMineHours(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setLogMineOpen(false)} disabled={logMineBusy} className="svc-btn ghost">Cancel</button>
-              <button onClick={submitLogMine} disabled={logMineBusy || logMineEventId == null || logMineHours === ""} className="svc-btn primary">
-                {logMineBusy ? "Saving…" : "Log my hours"}
-              </button>
-            </div>
-          </div>
-          </div>
         </Modal>
       )}
 
       {/* ── Member detail drawer ── */}
       {memberDetail && (
         <Modal title={memberDetail.name} tone="dusk" icon="heart" accent="mint" onClose={() => setMemberDetail(null)}>
-          <div className="pp-only svc-pmd">
+          <div className="svc-pmd">
             <div className="svc-pmd-big">
               <b>{r1(memberDetail.serviceHours)}</b>
               <span>of {goal}h goal · {standing(memberDetail.serviceHours, goal) === "ok" ? "on track" : `${r1(goal - memberDetail.serviceHours)}h to go`}</span>
@@ -764,25 +511,6 @@ export default function ServicePage() {
             })()}
             <div className="svc-foot flex justify-end"><button className="svc-btn primary" onClick={() => setMemberDetail(null)}>Done</button></div>
           </div>
-          <div className="lg-only">
-          <div className="svc-md-head">
-            <span className="big">{round(memberDetail.serviceHours)}<i>h</i></span>
-            <span className="goal">of {goal}h goal</span>
-          </div>
-          {memberEvents.length === 0 ? (
-            <p className="svc-md-none">No event-logged hours yet{memberDetail.serviceHours > 0 ? " — earlier hours were recorded before per-event tracking." : "."}</p>
-          ) : (
-            <ul className="svc-md-events">
-              {memberEvents.map(({ event, hours }) => (
-                <li key={event.id}>
-                  <span className="t">{event.title}</span>
-                  <span className="d">{fmtDate(event.date)}</span>
-                  <span className="h">{round(hours)}h</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          </div>
         </Modal>
       )}
     </div>
@@ -803,15 +531,3 @@ function logTally(draft: Record<number, string>): string {
   return `${n} ${n === 1 ? "member" : "members"} · ${round(h)}h on this sheet`;
 }
 
-/** One-line AI-style digest derived from the live roster + events. */
-function digestLine(roster: Brother[], eventCount: number, total: number, goal: number, orgName: string): string {
-  if (roster.length === 0) return `${orgName} hasn't added members yet.`;
-  if (eventCount === 0) {
-    return `No service events logged yet — record one and start crediting the members who show up.`;
-  }
-  const behind = roster.filter(b => b.serviceHours < goal).length;
-  const tail = behind > 0
-    ? ` ${behind} ${behind === 1 ? "member is" : "members are"} still short of the ${goal}h goal.`
-    : ` Every member has hit the ${goal}h goal.`;
-  return `${round(total)} hours logged across ${eventCount} ${eventCount === 1 ? "event" : "events"}.${tail}`;
-}

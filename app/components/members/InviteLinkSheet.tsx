@@ -79,7 +79,7 @@ export function InviteLinkChip({ link, onCopied, onError }: {
         className={`bh-btn sm ${btnDuskGhostCls}`}
         onClick={() => navigator.clipboard.writeText(url).then(onCopied, () => onError("Couldn't copy to clipboard"))}
       >
-        <PaperIcon name="link" className="pp-only" />Copy
+        <PaperIcon name="link" />Copy
       </button>
     </div>
   );

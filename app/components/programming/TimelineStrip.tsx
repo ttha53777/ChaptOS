@@ -15,7 +15,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ProgrammingTask } from "../../data";
-import { fmtDate } from "../../data";
 import { typeVisual, type TypeVisual } from "./typeColor";
 import { needsWrapUp } from "@/lib/programming";
 import { formatEventTime } from "@/lib/event-time";
@@ -97,19 +96,15 @@ export function TimelineStrip({
               >
                 {/* Paper renders each published event as a ticket stub. */}
                 {t.dueDate && (
-                  <span className="tk-d pp-only" aria-hidden>
+                  <span className="tk-d" aria-hidden>
                     <small>{MON3[Number(t.dueDate.slice(5, 7)) - 1]}</small>
                     <b>{Number(t.dueDate.slice(8, 10))}</b>
                   </span>
                 )}
-                <span className="tk-x pp-only">
+                <span className="tk-x">
                   <span className="t">{t.title}</span>
                   <span className="l">{stubLine(t, today)}</span>
                 </span>
-                <span className="cdot lg-only" style={{ background: v.hex }} />
-                <span className="t lg-only">{t.title}</span>
-                {t.location && <span className="l lg-only">{t.location}</span>}
-                <span className="d lg-only">{t.dueDate ? fmtDate(t.dueDate) : "—"}</span>
               </button>
             );
           })}

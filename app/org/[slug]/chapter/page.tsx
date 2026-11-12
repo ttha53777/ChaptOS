@@ -411,7 +411,7 @@ function SummaryCard({
   const data = parseMeetingSummary(event.notesSummaryData);
   const legacy = !data && (event.notesSummary ?? "").trim();
   const chip = (label: string) => (
-    <span className="ai-chip"><span className="lg-only">AI</span><span className="pp-only"><PaperIcon name="spark" />{label}</span></span>
+    <span className="ai-chip"><span><PaperIcon name="spark" />{label}</span></span>
   );
   const hide = (
     <button type="button" className="mt-sum-x" onClick={onHide} title="Hide the margin — the pad goes full width" aria-label="Hide summary">
@@ -550,9 +550,8 @@ function AttendanceCard({ event, refresh, canTake, onTake, onOpenMember }: {
                 const b = brotherList.find(x => x.id === p.brotherId);
                 return (
                   <button key={p.brotherId} type="button" className="nm" title={p.reason ?? p.brotherName} onClick={() => onOpenMember(p.brotherId)}>
-                    {b && <span className="pp-only"><BrotherAvatar brother={b} selfId={currentUser?.id ?? null} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" /></span>}
-                    <span className="lg-only">{p.brotherName}</span>
-                    <span className="pp-only">{p.brotherName.split(" ")[0]}</span>
+                    {b && <span><BrotherAvatar brother={b} selfId={currentUser?.id ?? null} selfAvatarUrl={currentUser?.avatarUrl} avatarRevision={avatarRevision} size="xs" /></span>}
+                    <span>{p.brotherName.split(" ")[0]}</span>
                   </button>
                 );
               })}
@@ -934,13 +933,13 @@ function MeetingDetailOverlay({
 
         {/* ── Meta strip ──────────────────────────────────────────────────── */}
         <div className="mt-meta flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-[rgba(var(--ink-rgb),0.05)] bg-[rgba(var(--ink-rgb),0.02)] px-6 py-3 text-[12px] text-[color:var(--muted)]">
-          <span className="flex items-center gap-2"><PaperIcon name="cal" className="pp-ic pp-only" />{fmtDateFull(event.date)}</span>
-          {time && <span className="flex items-center gap-2"><PaperIcon name="clock" className="pp-ic pp-only" />{time}</span>}
-          {event.location && <span className="flex items-center gap-2"><PaperIcon name="pin" className="pp-ic pp-only" />{event.location}</span>}
+          <span className="flex items-center gap-2"><PaperIcon name="cal" className="pp-ic" />{fmtDateFull(event.date)}</span>
+          {time && <span className="flex items-center gap-2"><PaperIcon name="clock" className="pp-ic" />{time}</span>}
+          {event.location && <span className="flex items-center gap-2"><PaperIcon name="pin" className="pp-ic" />{event.location}</span>}
           <span className={`mt-req ${event.mandatory ? "on" : ""}`}>{event.mandatory ? "Required" : "Optional"}</span>
           {/* The chip opens the margin, where the attendance card takes (or edits) the roll. */}
           <button type="button" className={`mt-attchip${margin ? " on" : ""}`} aria-pressed={margin} onClick={() => setMargin(m => !m)} title={margin ? "Put the margin away" : "Show attendance in the margin"}>
-            <PaperIcon name="people" className="pp-ic pp-only" />{attLabel}
+            <PaperIcon name="people" className="pp-ic" />{attLabel}
           </button>
           {clockText && <span className="mt-clock">{clockText.replace(/ · .*/, "")} · <b>{clockText.replace(/.* · /, "")}</b></span>}
         </div>
@@ -1536,10 +1535,9 @@ export default function ChapterPage() {
               <div>
                 <p className="kicker">
                   <span className="today">
-                    <span className="lg-only">{fmtDateFull(today)}</span>
-                    <span className="pp-only">{DOWS[localDate(today).getDay()]} · {fmtDate(today)}</span>
+                    <span>{DOWS[localDate(today).getDay()]} · {fmtDate(today)}</span>
                   </span>
-                  <span className="lg-only">&ensp;·&ensp;</span>Chapter Meetings
+                  Chapter Meetings
                 </p>
                 {dayOne ? <>
                   <h1 className="greeting mt1-h">Every meeting, <em>written down</em>.</h1>
@@ -1549,8 +1547,7 @@ export default function ChapterPage() {
                   <div className="digest">
                     {!loading && (
                       <span className="ai-chip">
-                        <span className="lg-only">AI</span>
-                        <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+                        <span><PaperIcon name="spark" />Digest</span>
                       </span>
                     )}
                     <p>{loading ? "" : digest}</p>
@@ -1570,7 +1567,7 @@ export default function ChapterPage() {
                     Add meeting
                   </button>
                 )}
-                {!dayOne && <button className="askbar pp-only" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "" } }))}>
+                {!dayOne && <button className="askbar" onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "" } }))}>
                   <PaperIcon name="spark" />Ask about past meetings<kbd>⌘K</kbd>
                 </button>}
               </div>
@@ -1612,16 +1609,15 @@ export default function ChapterPage() {
                     />
                   ) : (
                     <div className="ondeck empty">
-                      <span className="pp-tile pp-only pp-t-sky" aria-hidden><PaperIcon name="gavel" /></span>
+                      <span className="pp-tile pp-t-sky" aria-hidden><PaperIcon name="gavel" /></span>
                       <div>
-                        <h3 className="pp-only">No chapter meeting on the calendar.</h3>
+                        <h3>No chapter meeting on the calendar.</h3>
                         <p>
-                          <span className="lg-only">No upcoming chapter meeting. Add one to start a fresh agenda.</span>
-                          <span className="pp-only">Add one and it lands here with a fresh page for minutes. Meetings are required by default, so attendance and excuses start counting.</span>
+                          <span>Add one and it lands here with a fresh page for minutes. Meetings are required by default, so attendance and excuses start counting.</span>
                         </p>
                         {canEvents && (
                           <div className="actions" style={{ marginTop: 16 }}>
-                            <button className="btn-primary" onClick={() => setShowAddModal(true)}><PaperIcon name="plus" className="pp-ic pp-only" />Add meeting</button>
+                            <button className="btn-primary" onClick={() => setShowAddModal(true)}><PaperIcon name="plus" className="pp-ic" />Add meeting</button>
                           </div>
                         )}
                       </div>
@@ -1638,8 +1634,7 @@ export default function ChapterPage() {
                   {pastMeetings.length === 0 ? (
                     <div className="ledger-list mt-ldg-empty">
                       <div className="r-locked" style={{ padding: "22px 18px" }}>
-                        <span className="lg-only">No past meetings yet.</span>
-                        <span className="pp-only">Past meetings land here, newest first, each with its minutes and who showed up.</span>
+                        <span>Past meetings land here, newest first, each with its minutes and who showed up.</span>
                       </div>
                     </div>
                   ) : (
@@ -1672,7 +1667,7 @@ export default function ChapterPage() {
                               <div className="led-main">
                                 <div className="t">
                                   <span className="vdot" />{ev.title}
-                                  {summarized && <span className="ai pp-only" title="Summarized"><PaperIcon name="spark" /></span>}
+                                  {summarized && <span className="ai" title="Summarized"><PaperIcon name="spark" /></span>}
                                   {!ev.mandatory && <span className="opt">Optional</span>}
                                 </div>
                                 {filed && preview ? (
@@ -1847,28 +1842,23 @@ function OnDeckHero({
 
   return (
     <div className={`ondeck${isToday ? " live" : ""}`}>
-      <div className="od-cal pp-only" aria-hidden>
+      <div className="od-cal" aria-hidden>
         <span className="top">{MONTHS[dt.getMonth()]}</span>
         <span className="n">{dt.getDate()}</span>
         <span className="m">{DOWS[dt.getDay()]}</span>
       </div>
       <div className="od-body">
         <div className="od-top">
-          <span className="pill">{isToday ? <><i className="dot pp-only" />{whenPhrase(event) === "tonight" ? "Tonight" : "Today"}</> : "Next meeting"}</span>
+          <span className="pill">{isToday ? <><i className="dot" />{whenPhrase(event) === "tonight" ? "Tonight" : "Today"}</> : "Next meeting"}</span>
           <span className="when">
-            <span className="lg-only">{dp.dow} · {fmtDate(event.date)}{time ? ` · ${time}` : ""}</span>
-            <span className="pp-only">{dp.dow} · {fmtDate(event.date)}{isToday ? "" : ` · ${relativeWhen(event.date).toLowerCase()}`}</span>
+            <span>{dp.dow} · {fmtDate(event.date)}{isToday ? "" : ` · ${relativeWhen(event.date).toLowerCase()}`}</span>
           </span>
         </div>
         <h3>{event.title}</h3>
         <p className="od-meta">
-          <span className="lg-only od-lg">
-            {event.location && <><span><b>{event.location}</b></span><span>·</span></>}
-            {event.mandatory ? <span><b>Mandatory</b> for all brothers</span> : <span><b>Optional</b> — no roll taken</span>}
-          </span>
-          {time && <span className="pp-only"><PaperIcon name="clock" />{time}</span>}
-          <span className="pp-only"><PaperIcon name="pin" />{event.location || "No location yet"}</span>
-          <span className="pp-only"><PaperIcon name="people" />{event.mandatory ? "Required for everyone" : "Optional"}</span>
+          {time && <span><PaperIcon name="clock" />{time}</span>}
+          <span><PaperIcon name="pin" />{event.location || "No location yet"}</span>
+          <span><PaperIcon name="people" />{event.mandatory ? "Required for everyone" : "Optional"}</span>
         </p>
 
         <div className={`od-progress${!event.mandatory || (!live && !wasTaken) ? " none" : ""}`}>
@@ -1894,7 +1884,7 @@ function OnDeckHero({
               </div>
               <div className="meter">
                 <i className="fill-present" style={{ width: `${pct(present, eligible)}%` }} />
-                <i className="fill-absent pp-only" style={{ width: `${pct(absent, eligible)}%` }} />
+                <i className="fill-absent" style={{ width: `${pct(absent, eligible)}%` }} />
               </div>
               <div className="p-legend">
                 <span className="li"><span className="d" style={{ background: "var(--vio)" }} />Present {present}</span>
@@ -1908,35 +1898,33 @@ function OnDeckHero({
                 <span className="p-lbl">Attendance not taken yet</span>
                 {(summary?.expected ?? 0) > 0 && <span className="p-count">{summary!.expected} expected</span>}
               </div>
-              <p className="p-msg pp-only">{isToday ? "Mark who’s there once the meeting starts." : "Opens on the day. Excuses filed before then are already counted."}</p>
+              <p className="p-msg">{isToday ? "Mark who’s there once the meeting starts." : "Opens on the day. Excuses filed before then are already counted."}</p>
             </>
           )}
         </div>
 
         {pending.length > 0 && (
           <button type="button" className="od-exc" onClick={onReviewExcuses}>
-            <PaperIcon name="flag" className="pp-ic pp-only" />
+            <PaperIcon name="flag" className="pp-ic" />
             {pending.length} excuse{pending.length === 1 ? "" : "s"} waiting for review · {andList(pending.map(p => p.brotherName.split(" ")[0]))}
-            <PaperIcon name="arrow-r" className="pp-ic pp-only" />
+            <PaperIcon name="arrow-r" className="pp-ic" />
           </button>
         )}
 
         <div className="actions">
           {event.mandatory && live && canTakeAttendance ? (
-            <button className="btn-primary" onClick={onGoToCheckIn}><PaperIcon name="people" className="pp-ic pp-only" />Go to check-in</button>
+            <button className="btn-primary" onClick={onGoToCheckIn}><PaperIcon name="people" className="pp-ic" />Go to check-in</button>
           ) : event.mandatory && canTakeAttendance ? (
             <button className="btn-primary" onClick={onTakeAttendance}>
-              <svg className="lg-only" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
-              <PaperIcon name="check" className="pp-ic pp-only" />
+              <PaperIcon name="check" className="pp-ic" />
               {wasTaken ? "Edit attendance" : "Take attendance"}
             </button>
           ) : null}
           <button className="btn-ghost" onClick={onOpen}>
-            <svg className="lg-only" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h10M4 18h7" /></svg>
-            <PaperIcon name="pencil" className="pp-ic pp-only" />
+            <PaperIcon name="pencil" className="pp-ic" />
             {hasNotes(event) ? "Open minutes" : "Start the minutes"}
           </button>
-          {canEdit && <button className="btn-soft pp-only" onClick={onEdit}>Edit</button>}
+          {canEdit && <button className="btn-soft" onClick={onEdit}>Edit</button>}
         </div>
       </div>
     </div>

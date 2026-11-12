@@ -24,7 +24,6 @@ import { TermsGate } from "./components/TermsGate";
 import { LiveCheckInGate } from "./components/LiveCheckInGate";
 import { ToastProvider } from "./components/dashboard/Toast";
 import { APP_THEME_BOOT } from "@/lib/theme";
-import { APP_AESTHETIC } from "@/lib/aesthetic";
 import { landingFontClass } from "./components/landing/fonts";
 import { PaperSprite } from "./components/paper/PaperIcon";
 import { SIDEBAR_RAIL_BOOT } from "@/lib/sidebar-rail";
@@ -83,8 +82,9 @@ export default function RootLayout({
       // A prop, not a boot-script stamp: React strips every attribute off <html>
       // whenever it mounts a fresh one (after global-error, e.g. the chunk-load
       // failure an open tab hits on every deploy) and restores only its props.
-      // As a script-set attribute it was wiped and the app fell back to Ledger.
-      data-aesthetic={APP_AESTHETIC}
+      // As a script-set attribute it was wiped and the paper styles stopped
+      // matching: every rule in app/paper-*.css is keyed off this attribute.
+      data-aesthetic="paper"
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${landingFontClass} h-full antialiased`}
     >
       {/* Blocking, before any paint: stamps data-theme so ivory never flashes

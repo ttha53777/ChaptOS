@@ -41,7 +41,7 @@ export function PinnedAnnouncement({
     <>
       {/* Paper's byline, as on the mock's taped note. */}
       {announcement?.authorName && (
-        <span className="pin-by pp-only">— {announcement.authorName.split(" ")[0]} · {relativeTime(announcement.updatedAt)}</span>
+        <span className="pin-by">— {announcement.authorName.split(" ")[0]} · {relativeTime(announcement.updatedAt)}</span>
       )}
       {hasCta && (
         <a className="pin-edit" href={announcement!.ctaUrl!} target="_blank" rel="noopener noreferrer">

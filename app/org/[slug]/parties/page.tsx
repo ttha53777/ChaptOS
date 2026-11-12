@@ -92,16 +92,12 @@ const PARTY_TYPES: { v: "Open" | "Closed"; blurb: string }[] = [
   { v: "Closed", blurb: "Members and their plus-ones." },
 ];
 
-// Ledger keeps the select; Paper picks the type off two wristband cards.
+// The type is picked off two wristband cards.
 function PartyTypeField({ value, onChange }: { value: "Open" | "Closed"; onChange: (v: "Open" | "Closed") => void }) {
   return (
     <div className="cef-field pty-type-field">
-      <label className="cef-label" htmlFor="party-type">Party type</label>
-      <select id="party-type" className="cef-input lg-only" value={value} onChange={e => onChange(e.target.value as "Open" | "Closed")}>
-        <option value="Open">Open</option>
-        <option value="Closed">Closed</option>
-      </select>
-      <div className="pty-types pp-only" role="radiogroup" aria-label="Party type">
+      <label className="cef-label">Party type</label>
+      <div className="pty-types" role="radiogroup" aria-label="Party type">
         {PARTY_TYPES.map(t => (
           <label key={t.v}>
             <input type="radio" name="party-type" value={t.v} checked={value === t.v} onChange={() => onChange(t.v)} />
@@ -160,7 +156,7 @@ function AddPartyForm({ onSubmit, onClose }: {
         </div>
       </div>
       <div className="pty-foot flex gap-2 justify-end pt-1">
-        <span className="pty-fnote pp-only">Lands on the Timeline as a party.</span>
+        <span className="pty-fnote">Lands on the Timeline as a party.</span>
         <button type="button" onClick={onClose}
           className="ui-btn-ghost rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">
           Cancel
@@ -212,7 +208,7 @@ function EditPartyForm({ party, onSubmit, onClose }: {
         </div>
       </div>
       <div className="pty-foot flex gap-2 justify-end pt-1">
-        <span className="pty-fnote pp-only">Changes carry to its Timeline entry.</span>
+        <span className="pty-fnote">Changes carry to its Timeline entry.</span>
         <button type="button" onClick={onClose}
           className="ui-btn-ghost rounded-lg border border-[rgba(var(--ink-rgb),0.12)] bg-transparent px-4 py-2 text-[13px] font-medium text-[color:var(--ink-soft)] hover:bg-[rgba(var(--ink-rgb),0.04)] transition-colors">
           Cancel
@@ -299,7 +295,7 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
           <div className="pty-pv rounded-lg bg-[rgba(var(--ink-rgb),0.04)] px-3 py-2.5 text-center">
             <p className="text-[10px] text-[color:var(--faint)] mb-0.5">Net preview</p>
             <p className={`text-[18px] font-bold tabular-nums ${profitPreview >= 0 ? "text-[color:var(--ok)]" : "neg text-[color:var(--rose)]"}`}>
-              <span className="lg-only">{fmt$(profitPreview)}</span><span className="pp-only">{signed$(profitPreview)}</span>
+              <span>{signed$(profitPreview)}</span>
             </p>
           </div>
           <div>
@@ -307,7 +303,7 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
             <textarea className={`${inputDuskCls} resize-none`} rows={2} value={form.notes} onChange={set("notes")} placeholder="How did it go?" />
           </div>
           <div className="pty-foot flex gap-2 justify-end pt-1">
-            <span className="pty-fnote pp-only">{canTakeRoll ? "Next you’ll tick off who came." : "The roll’s already in — this just saves the money."}</span>
+            <span className="pty-fnote">{canTakeRoll ? "Next you’ll tick off who came." : "The roll’s already in — this just saves the money."}</span>
             <button type="button" onClick={onClose} className={ghostCls}>Cancel</button>
             <button type="submit" className={primaryCls}>
               {canTakeRoll ? "Next: Who came? →" : "Mark Completed"}
@@ -349,10 +345,10 @@ function WrapUpForm({ party, brothers, alreadyRolled, onSubmit, onClose }: {
           <label className="pty-req flex items-center gap-2.5 rounded-lg bg-[rgba(var(--ink-rgb),0.03)] px-3 py-2.5 cursor-pointer">
             <input type="checkbox" checked={mandatory} onChange={e => setMandatory(e.target.checked)}
               className="h-4 w-4 accent-[color:var(--vio)]" />
-            <span className="text-[12px] text-[color:var(--ink-soft)]"><b className="pp-only">Mandatory</b><span className="lg-only">Mandatory</span> — count this toward each brother&rsquo;s attendance %</span>
+            <span className="text-[12px] text-[color:var(--ink-soft)]"><b>Mandatory</b> — count this toward each brother&rsquo;s attendance %</span>
           </label>
           <div className="pty-foot flex gap-2 justify-end pt-1">
-            <span className="pty-fnote pp-only">Everyone starts ticked — untick the no-shows.</span>
+            <span className="pty-fnote">Everyone starts ticked — untick the no-shows.</span>
             <button type="button" onClick={() => setStep(1)} className={ghostCls}>← Back</button>
             <button type="submit" className={primaryCls}>Mark Completed</button>
           </div>
@@ -399,8 +395,7 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
             <span className={`vdot${due ? " due" : upcoming ? " open" : ""}`} />
             <span className="nm">{party.name}</span>
           </div>
-          <div className="sub lg-only">{subLine(party)}</div>
-          <div className="sline pp-only">
+          <div className="sline">
             <Wristband type={party.partyType} />
             {party.theme && <span>{party.theme}</span>}
             {party.collabOrg && <span className="x">with {party.collabOrg}</span>}
@@ -413,7 +408,7 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
         {party.completed ? (
           <div className={`net ${p >= 0 ? "pos" : "neg"}`}>
             <div className={`nv ${p >= 0 ? "pos" : "neg"}`}>
-              <span className="lg-only">{p >= 0 ? "+" : ""}{fmt$(p)}</span><span className="pp-only">{signed$(p)}</span>
+              <span>{signed$(p)}</span>
             </div>
             <div className="nk">net</div>
           </div>
@@ -422,7 +417,7 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
         ) : due ? (
           <span className="pty-badge wrap" style={{ cursor: "default" }}>Needs wrap-up</span>
         ) : (
-          <span className="pty-badge up"><span className="lg-only">Upcoming</span><span className="pp-only">{upcomingLabel(party.date)}</span></span>
+          <span className="pty-badge up"><span>{upcomingLabel(party.date)}</span></span>
         )}
         <span className="chev" onClick={onToggle} aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 6l6 6-6 6" /></svg>
@@ -430,41 +425,9 @@ function LedgerRow({ party, orgName, attendance, expanded, onToggle, onWrapUp, o
       </div>
 
       <div className="drawer">
-        <div className="drawer-inner lg-only">
-          {party.completed && <>
-            <div className="dstat"><div className="dk">Door</div><div className="dv">{fmt$(party.doorRevenue)}</div></div>
-            <div className="dstat"><div className="dk">Spent</div><div className="dv">{fmt$(party.expenses)}</div></div>
-            <div className="dstat"><div className="dk">Net</div><div className="dv">{p >= 0 ? "+" : ""}{fmt$(p)}</div></div>
-          </>}
-          {attendance && attendance.eligible > 0 && (
-            <div className="dstat"><div className="dk">Attendance</div><div className="dv">{attendance.present}/{attendance.eligible} · {attPct}%</div></div>
-          )}
-          {party.theme &&     <div className="dstat"><div className="dk">Theme</div><div className="dv">{party.theme}</div></div>}
-          {party.collabOrg && <div className="dstat"><div className="dk">Collab</div><div className="dv">{party.collabOrg}</div></div>}
-          <div className="dnote">
-            {party.notes
-              ? `“${party.notes}”`
-              : upcoming ? "Numbers open until it's wrapped up."
-              : due ? "Happened already — no figures recorded yet."
-              : "No notes."}
-          </div>
-          {party.attendanceEventId != null && (
-            <div className="dactions">
-              <button type="button" className="mini" onClick={onOpenTimeline}>Open in Timeline →</button>
-            </div>
-          )}
-          {canParties && (
-            <div className="dactions">
-              {due && <button type="button" className="mini" onClick={onWrapUp}>Wrap up</button>}
-              <button type="button" className="mini" onClick={onEdit}>Edit</button>
-              <button type="button" className="mini danger" onClick={onDelete}>Delete</button>
-            </div>
-          )}
-        </div>
-
         {/* Paper: the night's till receipt beside its notes, facts and roll call. */}
         {expanded && (
-          <div className="pty-dr pp-only">
+          <div className="pty-dr">
             <div className="pty-rw">
               <div className="pty-rc">
                 <p className="hd">{orgName} · the house<b>{party.name}</b>{dow(party.date)} {monDay(party.date)}{time && ` · ${time}`}</p>
@@ -764,10 +727,9 @@ export default function PartiesPage() {
               <div>
                 <p className="kicker">
                   <span className="today">
-                    <span className="lg-only">{new Date(todayStr() + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</span>
-                    <span className="pp-only">{dow(todayStr())} · {monDay(todayStr())}</span>
+                    <span>{dow(todayStr())} · {monDay(todayStr())}</span>
                   </span>
-                  <span className="lg-only">&ensp;·&ensp;</span>Parties&ensp;·&ensp;{orgName}
+                  Parties&ensp;·&ensp;{orgName}
                 </p>
                 <h1>The <em>house</em> ledger.</h1>
                 {!isLoading && <p className="sub">
@@ -787,7 +749,7 @@ export default function PartiesPage() {
                   </button>
                 )}
                 <button
-                  className="pty-ask pp-only"
+                  className="pty-ask"
                   onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "What did the door clear this semester?" } }))}
                 >
                   <PaperIcon name="spark" />Ask what the door cleared<kbd>⌘K</kbd>
@@ -810,16 +772,15 @@ export default function PartiesPage() {
                 {/* ── 1 · The one task ── */}
                 {heroParty && canParties && (
                   <div className="pty-needs">
-                    <svg className="flap pp-only" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0 L50 34 L100 0" /></svg>
-                    <span className="seal pp-only" aria-hidden="true">{orgInitials(orgName)}</span>
+                    <svg className="flap" viewBox="0 0 100 36" preserveAspectRatio="none" aria-hidden="true"><path d="M0 0 L50 34 L100 0" /></svg>
+                    <span className="seal" aria-hidden="true">{orgInitials(orgName)}</span>
                     <div className="nd-icon">
-                      <svg className="lg-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v4l3 2" /><circle cx="12" cy="12" r="9" /></svg>
-                      <PaperIcon name="clock" className="pp-ic pp-only" />
+                      <PaperIcon name="clock" className="pp-ic" />
                     </div>
                     <div className="nd-body">
                       <div className="nd-tag">Needs wrap-up · {Math.max(0, -daysFromToday(heroParty.date))} {-daysFromToday(heroParty.date) === 1 ? "day" : "days"} ago</div>
                       <div className="nd-title">{heroParty.name}</div>
-                      <div className="nd-meta">{subLine(heroParty)} · <b><span className="pp-only">{dow(heroParty.date)}, </span>{fmtDate(heroParty.date)}</b> — add the door &amp; expenses so the semester totals are right.</div>
+                      <div className="nd-meta">{subLine(heroParty)} · <b><span>{dow(heroParty.date)}, </span>{fmtDate(heroParty.date)}</b> — add the door &amp; expenses so the semester totals are right.</div>
                       {needWrap.length > 1 && <div className="nd-more">+{needWrap.length - 1} more waiting below</div>}
                     </div>
                     <button className="pty-do" onClick={() => openWrapUp(heroParty.id)}>
@@ -835,7 +796,7 @@ export default function PartiesPage() {
                     <div className="head-num">
                       <div className="k">Net this semester</div>
                       <div className={`v${totalNet >= 0 ? "" : " neg"}`}>
-                        <span className="lg-only">{totalNet >= 0 ? "+" : ""}{fmt$(totalNet)}</span><span className="pp-only">{signed$(totalNet)}</span>
+                        <span>{signed$(totalNet)}</span>
                       </div>
                       <div className="note">across {completed.length} closed {completed.length === 1 ? "party" : "parties"}</div>
                     </div>
@@ -844,15 +805,13 @@ export default function PartiesPage() {
                       <div className="bd"><div className="k">Door taken</div><div className="v">{fmt$(totalRevenue)}</div><div className="sub">gross revenue</div></div>
                       <div className="bd"><div className="k">Spent</div><div className="v">{fmt$(totalExpenses)}</div><div className="sub">kept {keptPct}%</div></div>
                       <div className="bd"><div className="k">Avg attendance</div><div className="v">{avgAttendance !== null ? `${avgAttendance}%` : "—"}</div><div className="sub">
-                        <span className="lg-only">{avgAttendance !== null ? "of chapter" : "no roll yet"}</span>
-                        <span className="pp-only">{avgAttendance !== null ? `of members, ${rolledCount} rolled` : "no roll taken yet"}</span>
+                        <span>{avgAttendance !== null ? `of members, ${rolledCount} rolled` : "no roll taken yet"}</span>
                       </div></div>
                       <div className="bd best"><div className="k">Best night</div><div className="v">
-                        <span className="lg-only">{bestParty ? `+${fmt$(profit(bestParty))}` : "—"}</span>
-                        <span className="pp-only">{bestParty ? signed$(profit(bestParty)) : "—"}</span>
+                        <span>{bestParty ? signed$(profit(bestParty)) : "—"}</span>
                       </div><div className="sub">{bestParty?.name ?? "none yet"}</div></div>
                     </div>
-                    <div className="pty-strip pp-only">
+                    <div className="pty-strip">
                       <div className="hh"><p className="pty-k">Night by night</p><small>net per closed party — tap one to open it</small></div>
                       <div className="bars">
                         {chron.map(p => {
@@ -882,25 +841,21 @@ export default function PartiesPage() {
                 {sorted.length === 0 ? (
                   <div className="pty-empty">
                     <div className="pty-empty-copy">
-                      <div className="ic lg-only">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
-                      </div>
-                      <div className="t">No parties yet<span className="pp-only">.</span></div>
-                      <div className="h lg-only">{canParties ? "Add your first party to start tracking the books." : "Nothing here yet."}</div>
-                      <div className="h pp-only">{canParties
+                      <div className="t">No parties yet<span>.</span></div>
+                      <div className="h">{canParties
                         ? "Add your first party to start tracking the books — after the night, close it out with the door and what you spent, and the semester’s net keeps itself."
                         : "Nothing here yet. Once an officer adds a party, it lands in this book."}</div>
                       {canParties && (
-                        <button className="pty-add pp-only" onClick={() => setModal("add")}>
+                        <button className="pty-add" onClick={() => setModal("add")}>
                           <PaperIcon name="plus" />Add party
                         </button>
                       )}
                     </div>
-                    <div className="pty-blank pp-only" aria-hidden="true"><span style={{ left: 14 }}>Date</span><span style={{ left: 68 }}>Party</span><span style={{ right: 16 }}>Net</span></div>
+                    <div className="pty-blank" aria-hidden="true"><span style={{ left: 14 }}>Date</span><span style={{ left: 68 }}>Party</span><span style={{ right: 16 }}>Net</span></div>
                   </div>
                 ) : (
                   <div className="pty-ledger">
-                    <div className="pty-cols pp-only" aria-hidden="true"><span>Date</span><span>Party</span><span>Net</span><span /></div>
+                    <div className="pty-cols" aria-hidden="true"><span>Date</span><span>Party</span><span>Net</span><span /></div>
                     {sorted.map(p => (
                       <LedgerRow
                         key={p.id}

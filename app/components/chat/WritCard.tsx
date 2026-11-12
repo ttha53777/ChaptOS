@@ -271,13 +271,13 @@ export function WritCard({ card, onApprove, onDiscard, onEdit, choices }: {
           <button type="button" className="wbtn quiet" data-w="decline" onClick={() => onDiscard(card)}>
             {blocked ? "Dismiss" : "Discard"}
           </button>
-          {canEdit && <span className="whint pp-only">Click any underlined value to correct it.</span>}
+          {canEdit && <span className="whint">Click any underlined value to correct it.</span>}
         </div>
       )}
       {card.state === "confirming" && (
         <div className="wfoot"><span className="wbusy"><span className="arc sm" />{self ? "Submitting…" : "Approving…"}</span></div>
       )}
-      {settled && <span className="rubber pp-only" aria-hidden>{stampWord}</span>}
+      {settled && <span className="rubber" aria-hidden>{stampWord}</span>}
       {settled && <SettledBar card={card} />}
     </div>
   );

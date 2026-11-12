@@ -82,7 +82,7 @@ function Sheet({ t, on, onSelect }: { t: AgendaTemplateDTO; on: boolean; onSelec
   const rows = heads.slice(0, 4);
   return (
     <button type="button" className={`at-sheet ${toneClass(t.category)}${on ? " on" : ""}`} aria-pressed={on} onClick={onSelect}>
-      <span className="at-tape pp-only" aria-hidden />
+      <span className="at-tape" aria-hidden />
       <span className="at-sh-head">
         <span className="at-sh-cat">{categoryOf(t.category).label}</span>
         {t.isDefault && <span className="at-star" title="New meetings start from this"><PaperIcon name="star" />Default</span>}
@@ -332,7 +332,7 @@ export default function AgendaTemplatesPage() {
             </div>
             <h1 className="greeting">Start every meeting<br /><em>on the same page.</em></h1>
             <div className="digest">
-              {templates && <span className="ai-chip"><span className="lg-only">Digest</span><span className="pp-only"><PaperIcon name="spark" />Digest</span></span>}
+              {templates && <span className="ai-chip"><span><PaperIcon name="spark" />Digest</span></span>}
               <p>{templates ? digest : ""}</p>
             </div>
           </div>

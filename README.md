@@ -50,7 +50,7 @@ Every organization is a fully isolated tenant, enforced from the route handler d
 
 Each org chooses which **workflows** (pages) it uses: `members` and `operations` are always on; `meetings`, `attendance`, `parties`, `service`, `events`, `finance`, `tasks`, `communications`, and `docs` can each be turned on or off ([lib/org-types.ts](lib/org-types.ts)). Vocabulary comes from the org type, so a sports team sees "Team" and "Players" where a fraternity sees "Chapter" and "Brothers".
 
-The app has two looks: **paper**, the default (cream paper, brown ink, hard offset shadows, in per-page `app/paper-*.css`), and the original **ledger** look. Each has light and dark modes ([lib/aesthetic.ts](lib/aesthetic.ts), [lib/theme.ts](lib/theme.ts)). Both are stamped on `<html>` by a boot script before first paint, so the page never flashes the wrong theme.
+The app has one look, **paper** (cream paper, brown ink, hard offset shadows), in light and dark modes ([lib/theme.ts](lib/theme.ts)); the theme is stamped on `<html>` by a boot script before first paint, so the page never flashes the wrong one. The paper styles live in per-page `app/paper-*.css`, layered over each page's original stylesheet and keyed off `html[data-aesthetic="paper"]`.
 
 ### Public site
 

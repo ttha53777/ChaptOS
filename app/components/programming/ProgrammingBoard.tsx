@@ -127,7 +127,7 @@ export function ProgrammingBoard({
       {/* Paper only: which half of the board the chapter can see. Idea and
           Planning aren't secret (members can open this page), they're just not
           on the Timeline yet — so the bracket says that, not "officers only". */}
-      <div className="ev-vis-bracket pp-only" aria-hidden>
+      <div className="ev-vis-bracket" aria-hidden>
         <span className="priv"><PaperIcon name="lock" />Not on the Timeline yet</span>
         <span className="pub"><PaperIcon name="eye" />On the chapter Timeline · everyone sees these</span>
       </div>
@@ -153,7 +153,7 @@ export function ProgrammingBoard({
               <div className="ev-lane-head">
                 <span className={`dot ${stage}`} />
                 <span className="lh">{STAGE_LABELS[stage]}</span>
-                <span className="pp-only lv" title={stage === "confirmed" || stage === "done" ? "On the chapter Timeline" : "Not on the Timeline yet"}>
+                <span className="lv" title={stage === "confirmed" || stage === "done" ? "On the chapter Timeline" : "Not on the Timeline yet"}>
                   <PaperIcon name={stage === "confirmed" || stage === "done" ? "eye" : "lock"} />
                 </span>
                 <span className="lc">{items.length}</span>

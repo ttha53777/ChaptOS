@@ -196,22 +196,15 @@ export function JoinRequestsPanel({
     <>
       <section id="join-requests" className="jr-band" aria-label={`${total} people waiting to join`}>
         <div className="jr-head">
-          <span className="jr-dot lg-only" aria-hidden />
-          <PaperIcon name="envelope" className="jr-ic pp-only" />
+          <PaperIcon name="envelope" className="jr-ic" />
           <h2 className="jr-title">
-            <span className="lg-only">
-              {total === 1
-                ? `1 person is waiting to join`
-                : `${total} people are waiting to join`}
-            </span>
-            <span className="pp-only">{total === 1 ? "1 person wants in" : `${total} people want in`}</span>
+            <span>{total === 1 ? "1 person wants in" : `${total} people want in`}</span>
           </h2>
           <span className="jr-sub">
-            <span className="lg-only">They can&rsquo;t see anything until you approve them.</span>
-            <span className="pp-only">They opened an invite link. Nothing is created until you approve.</span>
+            <span>They opened an invite link. Nothing is created until you approve.</span>
           </span>
           {seatsLeft != null && (
-            <span className="jr-seats pp-only">{seatsLeft} seat{seatsLeft === 1 ? "" : "s"} left on your plan</span>
+            <span className="jr-seats">{seatsLeft} seat{seatsLeft === 1 ? "" : "s"} left on your plan</span>
           )}
         </div>
 
@@ -236,8 +229,7 @@ export function JoinRequestsPanel({
               </span>
 
               <span className="jr-meta">
-                {row.inviteLabel && <span className="jr-chip lg-only">{row.inviteLabel}</span>}
-                <span className="jr-via pp-only">
+                <span className="jr-via">
                   <PaperIcon name="link" />
                   {row.inviteLabel ? <>via <b>{row.inviteLabel}</b> link</> : "via an invite link"}
                 </span>
@@ -246,10 +238,10 @@ export function JoinRequestsPanel({
 
               <span className="jr-acts">
                 <button className="btn primary jr-review" disabled={busy} onClick={() => openReview(row)}>
-                  <PaperIcon name="check" className="pp-only" />
-                  <span className="lg-only">Review</span><span className="pp-only">Review &amp; approve</span>
+                  <PaperIcon name="check" />
+                  <span>Review &amp; approve</span>
                 </button>
-                <button className="btn jr-decline pp-only" disabled={busy} onClick={() => setRejectTarget(row)}>
+                <button className="btn jr-decline" disabled={busy} onClick={() => setRejectTarget(row)}>
                   Decline
                 </button>
               </span>

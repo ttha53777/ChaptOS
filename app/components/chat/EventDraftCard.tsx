@@ -110,7 +110,7 @@ export function EventDraftCard({ card, categories, draft, onChange, onConfirm, o
     const approved = card.state === "approved";
     return (
       <div className={`writ edraft ${approved ? "done" : "off"}`}>
-        <span className="rubber pp-only" aria-hidden>{approved ? "Booked" : card.state === "error" ? "Not posted" : "Discarded"}</span>
+        <span className="rubber" aria-hidden>{approved ? "Booked" : card.state === "error" ? "Not posted" : "Discarded"}</span>
         <div className={`settled${approved ? "" : " declined"}`}>
           <span className="tk">{approved ? <IcTick /> : <>—</>}</span>
           <span className="txt">{card.resultMessage}</span>

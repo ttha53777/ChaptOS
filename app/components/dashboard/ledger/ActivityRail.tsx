@@ -101,7 +101,7 @@ export function ActivityRail({
               {e.message}
               {/* Paper only: what the row is about, as on the mock's feed. */}
               {e.category && ACTIVITY_CATEGORY[e.category] && (
-                <span className={`act-tag pp-only pp-t-${ACTIVITY_CATEGORY[e.category].tone}`}>{ACTIVITY_CATEGORY[e.category].label(v)}</span>
+                <span className={`act-tag pp-t-${ACTIVITY_CATEGORY[e.category].tone}`}>{ACTIVITY_CATEGORY[e.category].label(v)}</span>
               )}
             </p>
             <time>{e.timestamp.replace(/\s*ago$/, "")}</time>

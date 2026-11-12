@@ -1,18 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import dynamic from "next/dynamic";
-import { catColor } from "../../../components/treasury/chart-colors";
 import { Sidebar } from "../../../components/Sidebar";
-
-const TreasuryAreaChart = dynamic(
-  () => import("../../../components/treasury/TreasuryCharts").then(m => m.TreasuryAreaChart),
-  { ssr: false, loading: () => <div className="tr-skel h-[232px] rounded-lg" /> }
-);
-const TreasuryDonutChart = dynamic(
-  () => import("../../../components/treasury/TreasuryCharts").then(m => m.TreasuryDonutChart),
-  { ssr: false, loading: () => <div className="tr-skel h-[220px] rounded-full mx-auto max-w-[220px]" /> }
-);
 import { Modal, FieldLabel } from "../../../components/dashboard/primitives";
 import { inputDuskCls, btnDuskGhostCls, btnDuskActionCls } from "../../../components/dashboard/styles";
 import { LedgerStrip, Measure } from "../../../components/dashboard/ledger/LedgerStrip";
@@ -30,7 +19,6 @@ import { netBalance } from "../../../../lib/treasury-balance";
 import { TxForm, type TxFormEvent } from "../../../components/treasury/TxForm";
 import { TreasuryLocked } from "../../../components/treasury/TreasuryLocked";
 import { REIMBURSE_EVENT } from "../../../components/dashboard/QuickActionsMenu";
-import { GhostBalanceChart, GhostDonut } from "../../../components/treasury/TreasuryGhosts";
 import { PaperIcon, PaperTile, type PaperIconName } from "../../../components/paper/PaperIcon";
 import { PaperBalanceChart, PaperBreakdown, type PaperEntry, type PaperRange } from "../../../components/treasury/PaperTreasury";
 import { TreasuryOpenBooks } from "../../../components/treasury/TreasuryOpenBooks";
@@ -101,79 +89,6 @@ function buildRunningBalanceData(
       expenses: round2(expenses),
     };
   });
-}
-
-function buildBiweeklyData(
-  txns: Transaction[],
-  parties: PartyEvent[],
-): { period: string; income: number; expense: number; net: number }[] {
-  function biweekKey(dateStr: string): string {
-    const d = new Date(dateStr + "T00:00:00");
-    const dayOfYear = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000);
-    const period = Math.floor(dayOfYear / 14);
-    return `${d.getFullYear()}-${String(period).padStart(2, "0")}`;
-  }
-
-  const map = new Map<string, { income: number; expense: number }>();
-
-  parties.forEach(p => {
-    const k = biweekKey(p.date);
-    const cur = map.get(k) ?? { income: 0, expense: 0 };
-    map.set(k, { ...cur, income: cur.income + p.doorRevenue });
-  });
-  txns.forEach(t => {
-    const k = biweekKey(t.date);
-    const cur = map.get(k) ?? { income: 0, expense: 0 };
-    if (t.type === "income")  map.set(k, { ...cur, income:  cur.income  + t.amount });
-    if (t.type === "expense") map.set(k, { ...cur, expense: cur.expense + t.amount });
-  });
-
-  const sorted = Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  const labels = sorted.map(([k], i) => {
-    const [, p] = k.split("-");
-    return `Wk ${Number(p) * 2 + 1}–${i === sorted.length - 1 ? "now" : String(Number(p) * 2 + 2)}`;
-  });
-
-  return sorted.map(([, { income, expense }], i) => ({
-    period:  labels[i],
-    income:  round2(income),
-    expense: round2(expense),
-    net:     round2(income - expense),
-  }));
-}
-
-// Groups by the STORED slug but labels and colors each slice from the org's own
-// category row, so a renamed category reads by its new name and keeps its color as
-// slices reorder. `color` is null for a slug whose category was deleted; the chart
-// falls back to its positional ramp for those.
-function topCategoriesWithOther(
-  txns: Transaction[],
-  label: (kind: string, slug: string) => string,
-  color: (kind: string, slug: string) => string | null,
-  maxSlices = 5,
-): { name: string; value: number; color: string | null }[] {
-  const map = new Map<string, { value: number; kind: string }>();
-  txns.forEach(t => {
-    const cur = map.get(t.category);
-    map.set(t.category, { value: (cur?.value ?? 0) + t.amount, kind: cur?.kind ?? t.type });
-  });
-  const sorted = Array.from(map.entries())
-    .filter(([, v]) => v.value > 0)
-    .sort(([, a], [, b]) => b.value - a.value);
-
-  const slice = ([slug, v]: [string, { value: number; kind: string }]) => ({
-    name:  label(v.kind, slug),
-    value: round2(v.value),
-    color: color(v.kind, slug),
-  });
-
-  if (sorted.length <= maxSlices) return sorted.map(slice);
-
-  const otherVal = sorted.slice(maxSlices).reduce((s, [, v]) => s + v.value, 0);
-  return [
-    ...sorted.slice(0, maxSlices).map(slice),
-    { name: "Other", value: round2(otherVal), color: null },
-  ];
 }
 
 /**
@@ -358,7 +273,7 @@ function ReimbursementsView({
             </label>
           )}
           {r.status !== "pending" && (
-            <span className={`rubber pp-only ${r.status === "approved" ? "paid" : "no"}`} aria-hidden>
+            <span className={`rubber ${r.status === "approved" ? "paid" : "no"}`} aria-hidden>
               {r.status === "approved" ? "Paid" : "Declined"}
             </span>
           )}
@@ -465,11 +380,7 @@ function ReimbursementsView({
       </div>
 
       {pending.length === 0 ? (<>
-        <div className="tr-reimb-empty lg-only">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
-          <span>You&rsquo;re all caught up — no pending requests.</span>
-        </div>
-        <div className="tz-reimb-empty pp-only">
+        <div className="tz-reimb-empty">
           <PpCalm
             icon="receipt" tone="peach"
             title={canTreasury ? (archived.length ? "Nothing waiting on you." : "No requests yet.") : "No open requests."}
@@ -703,7 +614,7 @@ function PpCalm({ icon, tone, title, children, action }: {
   title: string; children: React.ReactNode; action?: React.ReactNode;
 }) {
   return (
-    <div className="tz-calm pp-only" data-tone={tone}>
+    <div className="tz-calm" data-tone={tone}>
       <span className="art" aria-hidden="true"><PaperIcon name={icon} /></span>
       <div>
         <h4>{title}</h4>
@@ -746,7 +657,6 @@ export default function TreasuryPage() {
   const [pickedTerm,    setSemester]      = useState<string | null>(null);
   const [ppRange,       setPpRange]       = useState<PaperRange>("term");
   const [navTab,        setNavTab]        = useState<NavTab>("Overview");
-  const [chartRange,    setChartRange]    = useState<"2W"|"1M"|"3M"|"YTD"|"ALL">("ALL");
   const [txTab,         setTxTab]         = useState<TxTab>("all");
   const [txCategory,    setTxCategory]    = useState<string>("all");
   const [txSearch,      setTxSearch]      = useState("");
@@ -924,35 +834,9 @@ export default function TreasuryPage() {
     [activeTxns, filteredParties, treasuryData?.openingBalance]
   );
 
-  // Biweekly summary
-  const biweeklyData = useMemo(
-    () => buildBiweeklyData(activeTxns, filteredParties),
-    [activeTxns, filteredParties]
-  );
-
-  // Latest biweekly vs previous — used in hero chip
-  const bwLatest   = biweeklyData[biweeklyData.length - 1];
-  const bwPrevious = biweeklyData[biweeklyData.length - 2];
-  const bwDelta    = bwLatest && bwPrevious ? bwLatest.net - bwPrevious.net : null;
-
-  // Slice running balance data by selected chart range
-  const filteredRunningData = useMemo(() => {
-    if (chartRange === "ALL" || runningData.length === 0) return runningData;
-    const cutoff = new Date();
-    if (chartRange === "2W") cutoff.setDate(cutoff.getDate() - 14);
-    else if (chartRange === "1M") cutoff.setMonth(cutoff.getMonth() - 1);
-    else if (chartRange === "3M") cutoff.setMonth(cutoff.getMonth() - 3);
-    else if (chartRange === "YTD") cutoff.setMonth(0, 1);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const cutoffStr = `${cutoff.getFullYear()}-${pad(cutoff.getMonth() + 1)}-${pad(cutoff.getDate())}`;
-    const sliced = runningData.filter(d => d.date >= cutoffStr);
-    return sliced.length > 0 ? sliced : runningData;
-  }, [runningData, chartRange]);
-
-  // Plotted from the same series the hero chart draws, so the thumbnail in the
-  // glance strip and the full chart can never disagree about which way the money
-  // went. null when there is nothing to plot — see sparkPoints.
-  const balanceSpark = useMemo(() => sparkPoints(filteredRunningData), [filteredRunningData]);
+  // Plotted from the running balance series. null when there is nothing to
+  // plot — see sparkPoints.
+  const balanceSpark = useMemo(() => sparkPoints(runningData), [runningData]);
 
   // ── Has anyone opened the books? ─────────────────────────────────────────────
   //
@@ -1001,13 +885,6 @@ export default function TreasuryPage() {
   // and `$0 outstanding` would otherwise claim "all settled" when the truth is
   // nobody has been billed yet.
   const duesUnassigned = brotherList.length > 0 && brotherList.every(b => b.duesOwed === 0);
-
-  // Donut data
-  const donutData = useMemo(
-    () => topCategoriesWithOther(donutMode === "expense" ? expenseTxns : incomeTxns, catalog.labelFor, catalog.colorFor),
-    [donutMode, expenseTxns, incomeTxns, catalog]
-  );
-  const donutTotal = donutMode === "expense" ? totalExpenses : totalIncome;
 
   // Paper lists every category (no "Other" bucket) because each row is a door
   // into that category's entries — a merged bucket has nowhere to go.
@@ -1300,11 +1177,6 @@ export default function TreasuryPage() {
     return { n: late.length, amt: late.reduce((s, m) => s + m.overdue, 0) };
   }, [dues.board]);
 
-  // One-line editorial digest built from live figures (mirrors sibling pages' AI line).
-  const digest = `${fmt$(Math.round(balance))} in the books${bwDelta != null ? (bwDelta >= 0 ? " and trending up" : " and trending down") : ""}` +
-    (scheduledDrain > 0 ? `, with ${fmt$(Math.round(scheduledDrain))} still scheduled` : "") +
-    (owingCount > 0 ? ` — ${owingCount} ${owingCount === 1 ? "brother owes" : "brothers owe"} ${fmt$(Math.round(duesTotal))} in dues${duesOverdue.n ? `, ${duesOverdue.n} overdue · ${fmt$(Math.round(duesOverdue.amt))}` : ""}.` : ".");
-
   // Paper's digest reads like the mock's: the balance and how far it moved this
   // term, who still owes, whose reimbursement is waiting (only to someone who
   // can settle it), and the next scheduled payment out. Every clause is a live
@@ -1376,7 +1248,7 @@ export default function TreasuryPage() {
                     active term until a transaction exists to widen the list.) */}
                 <p className="kicker">
                   <span className="today">{dateLabel}</span>
-                  <span className="lg-only">&ensp;·&ensp;</span>{v("Treasury")}
+                  {v("Treasury")}
                   {!booksUnopened && semester && <>&ensp;·&ensp;{semester}</>}
                 </p>
                 <h1 className="greeting">The <em>ledger</em>.</h1>
@@ -1392,11 +1264,9 @@ export default function TreasuryPage() {
                 {treasuryLoaded && !booksUnopened && !statedUnstarted && (
                   <div className="digest">
                     <span className="ai-chip">
-                      <span className="lg-only">AI</span>
-                      <span className="pp-only"><PaperIcon name="spark" />Digest</span>
+                      <span><PaperIcon name="spark" />Digest</span>
                     </span>
-                    <p className="lg-only">{digest}</p>
-                    <p className="pp-only">{paperDigest}</p>
+                    <p>{paperDigest}</p>
                   </div>
                 )}
                 {/* Same shape as the digest, but a plain state chip rather than the
@@ -1415,34 +1285,18 @@ export default function TreasuryPage() {
               {/* Every head action either edits the books or exports them. With no
                   books and no permission, all of them are dead controls. */}
               {!booksUnopened && <div className="tr-head-actions">
-                {semesters.map(s => (
-                  <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill lg-only${semester === s ? " on" : ""}`}>
-                    {s}
-                  </button>
-                ))}
-                {canTreasury && (
-                  <TreasuryIconButton onClick={handleExport} title="Export CSV" className="lg-only">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_EXPORT} /></svg>
-                  </TreasuryIconButton>
-                )}
-                <TreasuryIconButton onClick={() => setPartyModal({ kind: "addParty" })} title="Add Party Event" className="lg-only">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
-                </TreasuryIconButton>
                 <button className="tr-add tr-add-reimb" onClick={() => setReimbModal(true)}>
-                  <svg className="lg-only" viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  <PaperIcon name="receipt" className="pp-only" />
-                  <span className="lg-only">Add Reimbursement</span>
-                  <span className="pp-only">Request reimbursement</span>
+                  <PaperIcon name="receipt" />
+                  <span>Request reimbursement</span>
                 </button>
                 {canTreasury && (
                   <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
                     <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                    <span className="lg-only">New txn</span>
-                    <span className="pp-only">Log money</span>
+                    <span>Log money</span>
                   </button>
                 )}
                 <button
-                  className="tr-ask pp-only"
+                  className="tr-ask"
                   onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "How are the books looking this term?" } }))}
                 >
                   <PaperIcon name="spark" />Ask about the books<kbd>⌘K</kbd>
@@ -1482,22 +1336,22 @@ export default function TreasuryPage() {
             <nav className="tr-tabs">
               {NAV_TABS.map(tab => (
                 <button key={tab} data-tab={tab} className={navTab === tab ? "on" : ""} aria-selected={navTab === tab} onClick={() => { setNavTab(tab); if (tab === "Dues") setDuesJump(null); }}>
-                  <PaperIcon name={PP_TAB_ICON[tab] ?? "home"} className="pp-ic pp-only" />
+                  <PaperIcon name={PP_TAB_ICON[tab] ?? "home"} className="pp-ic" />
                   {tab === "Dues" ? v("Dues") : tab}
                   {tab === "Reimbursements" && pendingReimbCount > 0 && (
                     <span className="tr-tab-badge" aria-label={`${pendingReimbCount} requests awaiting review`}>{pendingReimbCount > 9 ? "9+" : pendingReimbCount}</span>
                   )}
                   {tab === "Dues" && dues.board && (dues.board.charges.length === 0
-                    ? <span className="tr-tab-new pp-only">NEW</span>
+                    ? <span className="tr-tab-new">NEW</span>
                     : duesOwing > 0 && <span className="tr-tab-badge" aria-label={`${duesOwing} members owe`}>{duesOwing > 99 ? "99+" : duesOwing}</span>)}
                   {tab === "Transactions" && activeTxns.length > 0 && (
-                    <span className="tr-tab-count pp-only">{activeTxns.length}</span>
+                    <span className="tr-tab-count">{activeTxns.length}</span>
                   )}
                 </button>
               ))}
               {/* Paper keeps the briefing to the mock's three actions; the term
                   switch, export and new party ride the tab rule instead. */}
-              <span className="tr-tabs-tools pp-only">
+              <span className="tr-tabs-tools">
                 {semesters.length > 1 && semesters.map(s => (
                   <button key={s} onClick={() => setSemester(s)} className={`tr-sem-pill${semester === s ? " on" : ""}`}>
                     {s}
@@ -1547,7 +1401,7 @@ export default function TreasuryPage() {
                   <div className="bact">
                     <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
                       <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                      <span className="lg-only">New txn</span><span className="pp-only">Log money</span>
+                      <span>Log money</span>
                     </button>
                   </div>
                 )}
@@ -1604,36 +1458,13 @@ export default function TreasuryPage() {
                 {/* Card header */}
                 <div className="tr-bal-top">
                   <div>
-                    <p className="tr-bal-label"><PaperIcon name="wallet" className="pp-ic pp-only" /><span className="lg-only">{v("Treasury")} Balance</span><span className="pp-only">In the account</span></p>
+                    <p className="tr-bal-label"><PaperIcon name="wallet" className="pp-ic" /><span>In the account</span></p>
                     <div className="tr-bal-row">
                       <span className={`tr-bal-num${balance < 0 ? " neg" : ""}`}>{fmt$(Math.round(balance))}</span>
-                      {bwDelta !== null && (
-                        <span className={`tr-bal-chip lg-only ${bwDelta >= 0 ? "up" : "down"}`}>
-                          {bwDelta >= 0 ? "+" : ""}{fmt$(Math.round(bwDelta))} biweekly
-                        </span>
-                      )}
                     </div>
-                    {scheduledDrain > 0 && (
-                      <span className="tr-bal-sched lg-only">
-                        −{fmt$(Math.round(scheduledDrain))} scheduled → {fmt$(Math.round(balance - scheduledDrain))} projected
-                      </span>
-                    )}
-                    {/* Projection is balance × 1.3. Against a stated-but-unmoved
-                        balance that's arithmetic on no evidence, so it's withheld
-                        rather than dressed up as a forecast. */}
-                    <p className="tr-bal-meta lg-only">{statedUnstarted ? `${semester} · opening balance` : <>{semester} · Projected <b>{fmt$(Math.round(projected))}</b></>}</p>
                   </div>
-                  {/* Range selector — every range slices the same empty series, so
-                      the control would do nothing visible. */}
                   {!statedUnstarted && (
-                    <div className="tr-ranges lg-only">
-                      {(["2W","1M","3M","YTD","ALL"] as const).map(r => (
-                        <button key={r} onClick={() => setChartRange(r)} className={chartRange === r ? "on" : ""}>{r}</button>
-                      ))}
-                    </div>
-                  )}
-                  {!statedUnstarted && (
-                    <div className="tr-ranges pp-only" role="tablist" aria-label="Chart range">
+                    <div className="tr-ranges" role="tablist" aria-label="Chart range">
                       {([["2w", "2W"], ["1m", "1M"], ["term", "Term"]] as const).map(([k, l]) => (
                         <button key={k} role="tab" aria-selected={ppRange === k} onClick={() => setPpRange(k)} className={ppRange === k ? "on" : ""}>{l}</button>
                       ))}
@@ -1655,24 +1486,10 @@ export default function TreasuryPage() {
                   </div>
                 </div>
 
-                {/* Area + Biweekly charts */}
-                <div className="lg-only tr-bal-lg">
-                  {statedUnstarted ? (
-                    <GhostBalanceChart balanceLabel={fmt$(Math.round(balance))} />
-                  ) : (
-                    <div className="tr-chart">
-                      <TreasuryAreaChart
-                        data={filteredRunningData}
-                        biweeklyData={biweeklyData}
-                        semester={semester}
-                      />
-                    </div>
-                  )}
-                </div>
                 {/* Paper: the running balance as a step line (a balance doesn't
                     glide between entries) — solid to today, dashed through what's
                     scheduled, scrubbable. */}
-                <div className="tz-bal pp-only">
+                <div className="tz-bal">
                   <PaperBalanceChart
                     opening={treasuryData?.openingBalance ?? 0}
                     posted={ppPosted}
@@ -1687,7 +1504,7 @@ export default function TreasuryPage() {
                 </div>
                 {/* Paper, books open but nothing moved: the same bar, uncharged. */}
                 {statedUnstarted && (
-                  <div className="tr-io pp-only">
+                  <div className="tr-io">
                     <span className="s"><i style={{ background: "var(--pp-mint-ink)" }} /><span>Money in</span><b className="un">—</b></span>
                     <span className="s r"><span>Money out</span><b className="un">—</b><i style={{ background: "var(--pp-peach)" }} /></span>
                     <span className="bar ghost" />
@@ -1697,7 +1514,7 @@ export default function TreasuryPage() {
                 {/* Paper: money in vs money out as one bar, two inks — both halves are
                     the term's own totals, so the split is the data, not decoration. */}
                 {!statedUnstarted && totalIncome + totalExpenses > 0 && (
-                  <div className="tr-io pp-only">
+                  <div className="tr-io">
                     <span className="s"><i style={{ background: "var(--pp-mint-ink)" }} /><span>Money in</span>{incomeTxns.length ? <b>{fmt$(Math.round(totalIncome))}</b> : <b className="un">—</b>}</span>
                     <span className="s r"><span>Money out</span>{expenseTxns.length ? <b>{fmt$(Math.round(totalExpenses))}</b> : <b className="un">—</b>}<i style={{ background: "var(--pp-peach)" }} /></span>
                     <span className="bar">
@@ -1713,18 +1530,17 @@ export default function TreasuryPage() {
               <FinanceCard className="tr-brk-card flex flex-col overflow-hidden">
                 <div className="card-h">
                   <PaperTile icon="bars" tone={donutMode === "income" ? "mint" : "peach"} />
-                  <h2><span className="lg-only">Breakdown</span><span className="pp-only">{donutMode === "income" ? "Where it came from" : "Where it went"}</span></h2>
+                  <h2><span>{donutMode === "income" ? "Where it came from" : "Where it went"}</span></h2>
                   <div className="tr-donut-toggle">
                     {(["income", "expense"] as const).map(m => (
                       <button key={m} onClick={() => setDonutMode(m)} className={donutMode === m ? "on" : ""}>
-                        <span className="lg-only">{m.charAt(0).toUpperCase() + m.slice(1)}s</span>
-                        <span className="pp-only">{m === "income" ? "In" : "Out"}</span>
+                        <span>{m === "income" ? "In" : "Out"}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="tz-brk pp-only">
+                <div className="tz-brk">
                   <PaperBreakdown
                     kind={donutMode}
                     rows={ppCats}
@@ -1740,51 +1556,6 @@ export default function TreasuryPage() {
                   )}
                 </div>
 
-                {/* Donut chart */}
-                <div className="lg-only tr-brk-lg">
-                {statedUnstarted ? (
-                  <GhostDonut categoryCount={catalog.options(donutMode).length} />
-                ) : donutData.length === 0 ? (
-                  <div className="tr-empty">No {donutMode} data</div>
-                ) : (
-                  <>
-                    {/* Chart area */}
-                    <div className="tr-donut-wrap">
-                      <TreasuryDonutChart data={donutData} />
-
-                      {/* Center label — sits inside the hole */}
-                      <div className="tr-donut-center">
-                        <div>
-                          <p className="lbl">{donutMode === "expense" ? "Expenses" : "Income"}</p>
-                          <p className="amt">{fmt$(Math.round(donutTotal))}</p>
-                          <p className="cnt">{donutData.length} {donutData.length === 1 ? "category" : "categories"}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Category list */}
-                    <div className="tr-cat-list">
-                      {donutData.map((entry, index) => {
-                        const pct = donutTotal > 0 ? (entry.value / donutTotal) * 100 : 0;
-                        const color = catColor(entry.color, index);
-                        return (
-                          <div key={entry.name} className="tr-cat">
-                            <span className="rank">{index + 1}</span>
-                            <span className="swatch" style={{ background: color }} />
-                            <div className="body">
-                              <div className="top">
-                                <span className="nm">{entry.name}</span>
-                                <span><span className="pct">{pct.toFixed(1)}%</span><span className="amt">{fmt$(Math.round(entry.value))}</span></span>
-                              </div>
-                              <div className="bar"><i style={{ width: `${pct}%`, background: color }} /></div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                </div>
               </FinanceCard>
 
             </div>}{/* end hero grid */}
@@ -1817,14 +1588,10 @@ export default function TreasuryPage() {
               <FinanceCard className="tr-up-card">
                 <div className="card-h">
                   <PaperTile icon="clock" tone="sky" />
-                  <h2><span className="lg-only">Upcoming</span><span className="pp-only">Coming up</span></h2>
+                  <h2><span>Coming up</span></h2>
                   <span className="sub">Events & txns</span>
                 </div>
                 {upcomingDues.length === 0 && upcomingParties.length === 0 && upcomingTxns.length === 0 ? (<>
-                  <div className="tr-empty-stack lg-only">
-                    <p>No upcoming treasury items</p>
-                    <button onClick={() => setPartyModal({ kind: "addParty" })}>+ Schedule an event</button>
-                  </div>
                   <PpCalm
                     icon="cal" tone="sky" title="Nothing on the calendar."
                     action={<>
@@ -1839,7 +1606,7 @@ export default function TreasuryPage() {
                     {/* A charge still collecting: its due date, and how many haven't paid. Opens Dues on "not due yet". */}
                     {upcomingDues.map(c => (
                       <button key={`dues-${c.id}`} type="button" className="tr-ev-row tr-ev-dues" onClick={() => goDues("due")}>
-                        <div className="tr-dd pp-only"><small>{ppDay(c.dueDate!).w}</small><b>{ppDay(c.dueDate!).d}</b><small>{ppDay(c.dueDate!).m}</small></div>
+                        <div className="tr-dd"><small>{ppDay(c.dueDate!).w}</small><b>{ppDay(c.dueDate!).d}</b><small>{ppDay(c.dueDate!).m}</small></div>
                         <div className="body">
                           <p className="t">{c.name} due</p>
                           <p className="m"><span className="tr-dues-chip">{v("Dues")}</span>{c.people - c.paidPeople} {c.people - c.paidPeople === 1 ? "person still owes" : "people still owe"}</p>
@@ -1849,10 +1616,7 @@ export default function TreasuryPage() {
                     ))}
                     {upcomingParties.map(p => (
                       <div key={`party-${p.id}`} className="tr-ev-row">
-                        <div className="tr-dd pp-only"><small>{ppDay(p.date).w}</small><b>{ppDay(p.date).d}</b><small>{ppDay(p.date).m}</small></div>
-                        <div className="glyph party lg-only">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d={ICON_PARTY} /></svg>
-                        </div>
+                        <div className="tr-dd"><small>{ppDay(p.date).w}</small><b>{ppDay(p.date).d}</b><small>{ppDay(p.date).m}</small></div>
                         <div className="body">
                           <p className="t">{p.name}</p>
                           <p className="m">{fmtDate(p.date)} · Party event</p>
@@ -1862,10 +1626,7 @@ export default function TreasuryPage() {
                     ))}
                     {upcomingTxns.map(t => (
                       <div key={`tx-${t.id}`} className="tr-ev-row">
-                        <div className="tr-dd pp-only"><small>{ppDay(t.date).w}</small><b>{ppDay(t.date).d}</b><small>{ppDay(t.date).m}</small></div>
-                        <div className={`glyph lg-only ${t.type === "income" ? "inc" : "exp"}`}>
-                          {t.category.slice(0, 2).toUpperCase()}
-                        </div>
+                        <div className="tr-dd"><small>{ppDay(t.date).w}</small><b>{ppDay(t.date).d}</b><small>{ppDay(t.date).m}</small></div>
                         <div className="body">
                           <p className="t">{t.description || catalog.labelFor(t.type, t.category)}</p>
                           <p className="m">{fmtDate(t.date)}</p>
@@ -1884,7 +1645,7 @@ export default function TreasuryPage() {
               <FinanceCard className="tr-rep-card flex flex-col">
                 <div className="card-h">
                   <PaperTile icon="sheet" tone="lilac" />
-                  <h2><span className="lg-only">Reports</span><span className="pp-only">{semester} so far</span></h2>
+                  <h2><span>{semester} so far</span></h2>
                   <span className="sub">{semester}</span>
                 </div>
                 {/* Same rule as the glance strip: the three summed lines and the
@@ -1911,7 +1672,7 @@ export default function TreasuryPage() {
             {/* ── Full Transaction Log ── Overview + Transactions tabs ────── */}
             {(navTab === "Overview" || navTab === "Transactions") && <>
 
-            <div className="tr-secnote"><span className="lg-only">— The record —</span><span className="pp-only">Recent entries</span></div>
+            <div className="tr-secnote"><span>Recent entries</span></div>
 
             <FinanceCard className="tr-log-card overflow-hidden">
               <div className="tr-log-h">
@@ -1956,21 +1717,20 @@ export default function TreasuryPage() {
               {txnsWithRunning.length === 0 ? (
                 activeTxns.length > 0 ? (
                   <div className="tr-table-empty">
-                    <b className="pp-only">Nothing matches.</b>
+                    <b>Nothing matches.</b>
                     No entries match {txSearch.trim() ? <>“{txSearch.trim()}”</> : "this filter"}.{" "}
                     <button className="tr-link" onClick={() => { setTxTab("all"); setTxCategory("all"); setTxSearch(""); }}>Clear filters</button>
                   </div>
                 ) : (
                   <div className="tr-table-empty">
-                    <b className="pp-only">Nothing logged yet.</b>
-                    <span className="lg-only">No transactions{semester ? ` for ${semester}` : ""}{canTreasury ? " · click New txn to log one" : ""}</span>
-                    <span className="pp-only">
+                    <b>Nothing logged yet.</b>
+                    <span>
                       {canTreasury
                         ? "The first entry you add lands here, with the running balance beside it."
                         : `When money moves${semester ? ` in ${semester}` : ""}, every entry lands here with the running balance beside it.`}
                     </span>
                     {canTreasury && (
-                      <button className="tr-add pp-only" onClick={() => setTxModal({ kind: "addTx" })}>
+                      <button className="tr-add" onClick={() => setTxModal({ kind: "addTx" })}>
                         <svg viewBox="0 0 24 24" fill="none" strokeWidth={2.4} strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
                         Log money
                       </button>
@@ -1990,7 +1750,7 @@ export default function TreasuryPage() {
                     <tbody>
                       {txnsWithRunning.map(t => (
                         <tr key={t.id}>
-                          <td className="date"><span className="lg-only">{fmtDate(t.date)}</span><span className="tr-dt pp-only"><b>{ppDay(t.date).d}</b><small>{ppDay(t.date).m}</small></span></td>
+                          <td className="date"><span className="tr-dt"><b>{ppDay(t.date).d}</b><small>{ppDay(t.date).m}</small></span></td>
                           <td>
                             <span className="tr-pill"><span className={`pdot ${t.type === "income" ? "inc" : "exp"}`} />{catalog.labelFor(t.type, t.category)}</span>
                             {t.status === "scheduled" && <span className="tr-sched-tag">Sched</span>}
@@ -2037,7 +1797,7 @@ export default function TreasuryPage() {
               const totalDoorRev  = partyList.reduce((s, p) => s + p.doorRevenue, 0);
               return (<>
                 {/* Paper: each party as a ticket stub — the door take on the tear-off. */}
-                <section className="tr-door pp-only" aria-label="Party events">
+                <section className="tr-door" aria-label="Party events">
                   <div className="tr-secnote">
                     <span>At the door</span>
                     <span className="sum">{sortedParties.length === 0 ? "none yet" : <>{sortedParties.length} {sortedParties.length === 1 ? "party" : "parties"} · {fmt$(Math.round(totalDoorRev))} at the door</>}</span>
@@ -2094,48 +1854,6 @@ export default function TreasuryPage() {
                     )}
                   </div>
                 </section>
-                <FinanceCard className="tr-party-card lg-only overflow-hidden" style={{ marginTop: 18 }}>
-                  <div className="tr-log-h">
-                    <h2>Party Events</h2>
-                    <span className="sub">{sortedParties.length === 0 ? "Door revenue" : <>Door revenue · {sortedParties.length} events · {fmt$(Math.round(totalDoorRev))} total</>}</span>
-                    <span className="tr-grow" />
-                    {canTreasury && <button className="tr-card-act" onClick={() => setPartyModal({ kind: "addParty" })}>+ Add Event</button>}
-                  </div>
-                  {sortedParties.length === 0 ? (
-                    <div className="tr-table-empty">No events logged · click + Add Event to create one</div>
-                  ) : (
-                    <div className="tr-table-wrap">
-                      <table className="tr-table">
-                        <thead>
-                          <tr>
-                            {["Name", "Date", "Door Revenue", "Attendance", "Notes", ""].map((h, i) => (
-                              <th key={h || `act-${i}`} className={h === "Door Revenue" ? "r" : undefined}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortedParties.map(p => (
-                            <tr key={p.id}>
-                              <td><span className="desc" style={{ fontWeight: 600 }}>{p.name}</span></td>
-                              <td className="date">{fmtDate(p.date)}</td>
-                              <td className="r"><span className="party-rev">{fmt$(p.doorRevenue)}</span></td>
-                              <td><span className="method" style={{ textTransform: "none" }}>{p.attendance}</span></td>
-                              <td><span className="desc">{p.notes || "—"}</span></td>
-                              <td className="r">
-                                <div className="tr-row-acts">
-                                  <IconBtn path={ICON_EDIT}  label="Edit"   tone="edit" onClick={() => setPartyModal({ kind: "editParty", event: p })} />
-                                  {canTreasury && (
-                                    <IconBtn path={ICON_TRASH} label="Delete" tone="del" onClick={() => setDeleteModal({ kind: "party", event: p })} />
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </FinanceCard>
               </>);
             })()}
 
@@ -2151,7 +1869,7 @@ export default function TreasuryPage() {
                 const ins = byCat(incomeTxns, "income");
                 const outs = byCat(expenseTxns, "expense");
                 return (
-                  <article className="stmt pp-only">
+                  <article className="stmt">
                     <header className="stmt-h">
                       <div>
                         <h2>{semester} statement</h2>

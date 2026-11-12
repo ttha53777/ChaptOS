@@ -6,7 +6,7 @@
    loose-leaf sheets with a punched margin; a single section is one inked sheet.
 
    Markup hooks (page.tsx): data-group on the nav items, the index wrappers
-   (.set-ix-grp) and the group/focus page; .set-ix-lede is pp-only. Section
+   (.set-ix-grp) and the group/focus page. Section
    bodies are restyled through the shared .sc-* control layer, so every section
    component picks this up without its own paper markup. Buttons and inputs
    come from paper-overlays.css.

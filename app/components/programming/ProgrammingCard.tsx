@@ -233,7 +233,7 @@ function DuskCard({
       <div className="ec-t">{task.title}</div>
       <div className="ec-meta">
         <span className={`ec-when${when.tone ? ` ${when.tone}` : ""}`}>{when.label}</span>
-        {sub && <span className="ec-where">{task.location && <PaperIcon name="pin" className="pp-only" />}{sub}</span>}
+        {sub && <span className="ec-where">{task.location && <PaperIcon name="pin" />}{sub}</span>}
         {task.mandatory && <span className="ec-mand" title="Required of every member">Required</span>}
         {isDone && task.successRating != null && <CardStars value={task.successRating} />}
       </div>

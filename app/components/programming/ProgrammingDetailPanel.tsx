@@ -316,7 +316,7 @@ export function ProgrammingDetailPanel({
         {isDone && (
           <div className="ev-pn-wrap mx-[22px] mt-[18px]">
             {/* Paper files a wrapped event with a rubber stamp. */}
-            <span className="pw-stamp pp-only" aria-hidden>WRAPPED</span>
+            <span className="pw-stamp" aria-hidden>WRAPPED</span>
             <div className="pw-head">
               <span className="pw-k">Wrap-up</span>
               {event.successRating != null ? (

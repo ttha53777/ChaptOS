@@ -1,6 +1,6 @@
 /* ── Paper aesthetic: Service (app/[slug]/service) ──────────────────────────────
    _design/Dashboard Paper Mock.html #service. The page body is PaperService.tsx
-   in .pp-only beside the Ledger body, so its classes are psv- namespaced. The
+   and its classes are psv- namespaced. The
    modals are shared with Ledger; their paper-only parts are svc-* rules keyed
    off html[data-aesthetic="paper"], and the forms run wide (the user asked for
    wide forms over the mock's 480px sheets).

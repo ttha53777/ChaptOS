@@ -5,7 +5,7 @@
    ruled ledger book with a rose margin and big day numbers, parties as
    notched ticket stubs, reimbursement requests as zig-zag receipts that get a
    PAID / DECLINED rubber stamp, and Reports as a printed statement with dotted
-   leaders. Markup only paper shows is .pp-only (see treasury/page.tsx).
+   leaders.
 
    Everything hangs off html[data-aesthetic="paper"], which also out-specifies
    treasury-ledger.css (`.dash .tr-*`), loaded after this file.

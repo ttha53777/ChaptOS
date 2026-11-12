@@ -725,7 +725,7 @@ export default function DocsPage() {
                   <p className="kicker">Reference Library</p>
                   <h1>The chapter&rsquo;s <em>reading room</em>.</h1>
                   <div className="dx-digest">
-                    <span className="ai"><span className="lg-only">AI</span><span className="pp-only"><PaperIcon name="spark" />Digest</span></span>
+                    <span className="ai"><span><PaperIcon name="spark" />Digest</span></span>
                     <p>{digestLine(sorted, orgName)}</p>
                   </div>
                 </>}
@@ -756,7 +756,7 @@ export default function DocsPage() {
                 </div>
               )}
               {!dayOne && <button
-                className="dx-ask pp-only"
+                className="dx-ask"
                 onClick={() => window.dispatchEvent(new CustomEvent("chapt:ask", { detail: { q: "Where do we keep " } }))}
               >
                 <PaperIcon name="spark" />Ask where a doc lives<kbd>⌘K</kbd>
@@ -844,7 +844,7 @@ export default function DocsPage() {
                 <p className="dx-shelf-label">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5M9 3h6l-.75 6.5L18 12H6l3.75-2.5z" /></svg>
                   Pinned
-                  <span className="cnt pp-only">{pinnedDocs.length} · stays put while you filter</span>
+                  <span className="cnt">{pinnedDocs.length} · stays put while you filter</span>
                 </p>
                 <div className="dx-shelf">
                   {pinnedDocs.map(doc => (

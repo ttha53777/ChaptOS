@@ -18,7 +18,6 @@ import { draftToCreateOrgInput } from "@/lib/onboarding/draft";
 import { createClient } from "@/lib/supabase/client";
 import { signInWithGoogle } from "@/lib/supabase/oauth";
 import { BILLING_BANDS, formatPrice } from "@/lib/billing/tiers";
-import { APP_AESTHETIC_STORAGE_KEY } from "@/lib/aesthetic";
 import { ORG_SLUG_HEADER } from "@/app/lib/api";
 import { validateSlugFormat } from "@/lib/slug-rules";
 import { TERMS_VERSION } from "@/lib/terms";
@@ -181,15 +180,6 @@ export function BuildStep({
         setLines(ls => ls.map(l => ({ ...l, show: true, done: true })));
         setStamp(true);
         clearStoredDraft();
-        // They chartered it on paper, so the workspace opens on paper — unless
-        // this device already chose a look (Settings → Aesthetic).
-        try {
-          if (!window.localStorage.getItem(APP_AESTHETIC_STORAGE_KEY)) {
-            window.localStorage.setItem(APP_AESTHETIC_STORAGE_KEY, "paper");
-          }
-        } catch {
-          // storage unavailable — the app falls back to its default look
-        }
         timers.current.push(
           setTimeout(() => window.location.assign(slug ? orgHref(slug, "/onboarding") : "/"), STAMP_HOLD_MS),
         );

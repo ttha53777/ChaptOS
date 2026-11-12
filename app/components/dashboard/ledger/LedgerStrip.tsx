@@ -91,7 +91,7 @@ export function Measure({
   if (error) {
     return (
       <div className="measure" style={toneStyle}>
-        <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
+        <p className="k">{icon && <PaperIcon name={icon} />}{label}</p>
         <p className="v unset">—</p>
         <p className="note warn">
           Couldn&apos;t load.
@@ -112,7 +112,7 @@ export function Measure({
   if (loading) {
     return (
       <div className="measure" style={toneStyle} aria-busy="true" aria-label={`${label}, loading`}>
-        <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
+        <p className="k">{icon && <PaperIcon name={icon} />}{label}</p>
         {/* Inside the real `.v` box so the tile keeps its height and the strip
             doesn't jump a row when the number lands. */}
         <p className="v"><i className="skel val" /></p>
@@ -136,7 +136,7 @@ export function Measure({
         }
       }}
     >
-      <p className="k">{icon && <PaperIcon name={icon} className="pp-only" />}{label}</p>
+      <p className="k">{icon && <PaperIcon name={icon} />}{label}</p>
       <p className={unset ? "v unset" : "v"}>
         {!unset && unitLeading && <small className="lead">{unitLeading}</small>}
         {value}
@@ -161,7 +161,7 @@ export function Measure({
       )}
       {spark}
       {meter != null && !unset && (
-        <span className="pp-meter pp-only" role="img" aria-label={meterLabel}>
+        <span className="pp-meter" role="img" aria-label={meterLabel}>
           <i style={{ width: `${Math.max(0, Math.min(100, meter))}%` }} />
         </span>
       )}

@@ -7,7 +7,6 @@ import { SvgIcon } from "./SvgIcon";
 import { PaperIcon } from "./paper/PaperIcon";
 import { orgHref } from "@/lib/org-paths";
 
-const ICON_CHEV_UP_DOWN = "M8 9l4-4 4 4m0 6l-4 4-4-4";
 const ICON_CHECK = "M5 13l4 4L19 7";
 const ICON_PLUS = "M12 4v16m8-8H4";
 
@@ -72,8 +71,7 @@ export function OrgSwitcher({ termLabel }: { termLabel: string }) {
           <span className="sb-org-name">{orgName || " "}</span>
           <span className="sb-org-term">{termLabel}</span>
         </span>
-        <SvgIcon d={ICON_CHEV_UP_DOWN} className="i sb-org-chev lg-only" />
-        <PaperIcon name="updown" className="i sb-org-chev pp-only" />
+        <PaperIcon name="updown" className="i sb-org-chev" />
       </button>
 
       {open && currentUser && (

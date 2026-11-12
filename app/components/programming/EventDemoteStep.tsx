@@ -7,8 +7,6 @@
  * to another day means taking it off the Timeline first. This says so before
  * doing it, names both dates, and does the two as one server move — the event
  * never lands demoted on its old date.
- *
- * Paper only: the Ledger look offers the same move from a toast.
  */
 
 import { useState } from "react";

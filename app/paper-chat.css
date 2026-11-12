@@ -9,7 +9,6 @@
 
    Same rules as paper-aesthetic.css: everything under html[data-aesthetic=
    "paper"], which also out-specifies the widget's own `.chat-root .x` rules.
-   Markup only the paper look shows is .pp-only (the stamp, the edit hint).
    ───────────────────────────────────────────────────────────────────────────── */
 
 html[data-aesthetic="paper"] .chat-root {

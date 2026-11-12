@@ -141,7 +141,7 @@ export function EventWrapUp({
           <p className="ev-ov-hint text-right">{notes.length}/{MAX_NOTES}</p>
         </div>
 
-        <div className="space-y-2 pp-only">
+        <div className="space-y-2">
           <label htmlFor="wrapup-spent" className="ev-ov-lbl block">
             Spent <span className="ev-wu-hint">optional · the manual total</span>
           </label>

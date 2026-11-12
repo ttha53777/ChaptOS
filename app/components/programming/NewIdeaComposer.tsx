@@ -104,7 +104,7 @@ export function NewIdeaComposer({
         </div>
 
         {/* Paper only: the sticky note this will become on the board. */}
-        <div className="ev-ni-prev pp-only" aria-hidden>
+        <div className="ev-ni-prev" aria-hidden>
           <div
             className="ev-card"
             data-stage="idea"

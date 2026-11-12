@@ -2,7 +2,7 @@
    The #chapter page of _design/Dashboard Paper Mock.html on the real meetings
    page. Same contract as paper-aesthetic.css: everything hangs off
    html[data-aesthetic="paper"], which also out-specifies meetings-ledger.css
-   (it loads later, from the page). Markup only paper shows is .pp-only.
+   (it loads later, from the page).
 
    Briefing → On deck (the next meeting as an ink-bordered card with a torn-off
    desk-calendar page) → past meetings as a stack of index cards, unfiled ones
@@ -330,7 +330,7 @@ html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm {
   border: 1.5px solid var(--line); background: var(--paper); font-size: .78rem; color: var(--ink); text-decoration: none;
 }
 html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm:hover { border-color: var(--muted); }
-html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm .pp-only { display: inline-flex; }
+html[data-aesthetic="paper"] .dash.mt-ov .mt-att .nm > span { display: inline-flex; }
 
 /* ── narrow ──────────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {

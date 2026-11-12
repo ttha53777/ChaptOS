@@ -158,7 +158,7 @@ export function TreasuryRail({
           <p className="tc-op-next">The line starts moving with your <b>first entry</b>. The end-of-term projection appears once there’s a trend to project.</p>
         </div>
         {onLogTransaction && (
-          <div className="card-f pp-only">
+          <div className="card-f">
             <button type="button" onClick={onLogTransaction}>
               <PaperIcon name="pencil" />Log the first transaction<PaperIcon name="arrow-r" />
             </button>
@@ -197,7 +197,7 @@ export function TreasuryRail({
         </div>
       </div>
       {onLogTransaction && (
-        <div className="card-f pp-only">
+        <div className="card-f">
           <button type="button" onClick={onLogTransaction}>
             <PaperIcon name="pencil" />Log a transaction<PaperIcon name="arrow-r" />
           </button>

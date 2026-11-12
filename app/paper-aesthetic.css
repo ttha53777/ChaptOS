@@ -17,15 +17,10 @@
    3. Surfaces built to the mock: the sidebar and the dashboard. Other pages
       inherit layers 1–2 only, until they get their own section below.
 
-   Markup that only one aesthetic shows carries .pp-only / .lg-only.
-
    This file loads from the root layout, before any page stylesheet, so a rule
    here must out-specify the ledger rule it replaces — the html[...] prefix does
    that for every `.dash .x` / `.sb .x` selector.
    ───────────────────────────────────────────────────────────────────────────── */
-
-html:not([data-aesthetic="paper"]) .pp-only { display: none !important; }
-html[data-aesthetic="paper"] .lg-only { display: none !important; }
 
 /* ── 1. Tokens: day ─────────────────────────────────────────────────────────── */
 html[data-aesthetic="paper"]:not([data-theme="dusk"]) {
@@ -447,7 +442,7 @@ html[data-aesthetic="paper"] .dash .ai-chip {
   background: var(--pp-lilac-soft); border: 1px solid var(--pp-lilac-bd); color: var(--pp-lilac-ink);
   font-family: var(--font-geist-sans); font-size: .64rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
 }
-html[data-aesthetic="paper"] .dash .ai-chip .pp-only { display: inline-flex; align-items: center; gap: 5px; }
+html[data-aesthetic="paper"] .dash .ai-chip > span { display: inline-flex; align-items: center; gap: 5px; }
 html[data-aesthetic="paper"] .dash .ai-chip svg { width: 9px; height: 9px; }
 
 html[data-aesthetic="paper"] .dash .brief-actions { margin-top: 22px; gap: 10px; }
@@ -1225,7 +1220,7 @@ html[data-aesthetic="paper"] .dash .ev-att-group .nm {
   border: 1.5px solid var(--line); background: var(--paper); font-size: .78rem; color: var(--ink);
 }
 html[data-aesthetic="paper"] .dash .ev-att-group .nm:hover { border-color: var(--muted); color: var(--ink); }
-html[data-aesthetic="paper"] .dash .ev-att-group .nm .pp-only { display: inline-flex; }
+html[data-aesthetic="paper"] .dash .ev-att-group .nm > span { display: inline-flex; }
 html[data-aesthetic="paper"] .dash .ev-att-empty { padding: 0; font-size: .84rem; color: var(--muted); }
 html[data-aesthetic="paper"] .dash .ev-att-form { padding: 0; gap: 10px; }
 html[data-aesthetic="paper"] .dash .ev-att-form .fl { font-family: var(--font-geist-sans); font-size: .74rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }

@@ -371,22 +371,7 @@ export default function ProgrammingPage() {
     if (!target) return;
 
     if (target.stage === "confirmed" || target.stage === "done") {
-      // Paper asks in a dialog; Ledger keeps its toast. Same one-step move.
-      if (document.documentElement.dataset.aesthetic === "paper") {
-        setDemoteTarget({ event: target, date });
-        return;
-      }
-      toast.info(
-        `“${target.title}” is on the chapter's timeline for ${target.dueDate ?? "a set date"}. Moving it takes that back first.`,
-        {
-          action: {
-            label: "Move to Planning",
-            onClick: () => {
-              void commitStage(id, "planning", date);
-            },
-          },
-        },
-      );
+      setDemoteTarget({ event: target, date });
       return;
     }
 
@@ -406,7 +391,7 @@ export default function ProgrammingPage() {
         ? `“${target.title}” is penciled in for ${fmtDate(date)} — still needs ${miss}.`
         : `“${target.title}” is penciled in for ${fmtDate(date)}.`,
     );
-  }, [events, patchEvent, commitStage, toast]);
+  }, [events, patchEvent, toast]);
 
   const filtered = useMemo(() => {
     let list = [...events];
@@ -611,8 +596,8 @@ export default function ProgrammingPage() {
 
   // The drawer stays mounted through its slide-out so the animation can run.
   const panelOpen = selected || isClosingDrawer;
-  // Nothing on the board at all. Paper swaps the measures, filters and lanes
-  // for ProgrammingDayOne; Ledger keeps its own empty state.
+  // Nothing on the board at all: ProgrammingDayOne replaces the measures,
+  // filters and lanes.
   const dayOne = !loading && events.length === 0;
 
   return (
@@ -644,8 +629,7 @@ export default function ProgrammingPage() {
                 </p>
                 {dayOne ? (
                   <h1 className="greeting">
-                    <span className="pp-only">Events, <em>one step at a time</em></span>
-                    <span className="lg-only">The <em>programme</em>.</span>
+                    <span>Events, <em>one step at a time</em></span>
                   </h1>
                 ) : (
                   <h1 className="greeting">The <em>programme</em>.</h1>
@@ -667,25 +651,23 @@ export default function ProgrammingPage() {
                       {status.bits.map(bit => (
                         <span key={bit.text}>
                           {" "}
-                          <span className={`lg-only${bit.tone === "warn" ? " warn" : ""}`}>{bit.text}</span>
                           {/* Paper: each clause is a link to the thing it counts.
                               Wrapping is an officer move, so that one only
                               becomes a button for someone who can do it. */}
                           {bit.kind !== "wrap" || canManage ? (
-                            <button type="button" className="sl-act pp-only" onClick={() => actOnClause(bit.kind)}>{bit.text}</button>
+                            <button type="button" className="sl-act" onClick={() => actOnClause(bit.kind)}>{bit.text}</button>
                           ) : (
-                            <span className="pp-only warn">{bit.text}</span>
+                            <span className="warn">{bit.text}</span>
                           )}
                         </span>
                       ))}
                     </>
                   ) : dayOne ? (
                     <>
-                      <span className="pp-only">
+                      <span>
                         Write down an idea, pick who&apos;s running it, then give it a date and a place.
                         That&apos;s when the whole chapter sees it.
                       </span>
-                      <span className="lg-only">Nothing scheduled.</span>
                     </>
                   ) : (
                     "Nothing scheduled."
@@ -816,7 +798,7 @@ export default function ProgrammingPage() {
 
                 {events.length === 0 ? (
                   <>
-                  <div className="pp-only">
+                  <div>
                     <ProgrammingDayOne
                       ready={!!currentUser}
                       canManage={canManage}
@@ -825,13 +807,6 @@ export default function ProgrammingPage() {
                       today={today}
                       onNew={() => setModal("idea")}
                     />
-                  </div>
-                  <div className="ev-empty lg-only">
-                    <span className="ic">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-                    </span>
-                    <div className="t">No events yet</div>
-                    <div className="h">{canManage ? "Add your first event to start the programme." : "Nothing on the slate yet."}</div>
                   </div>
                   </>
                 ) : filtered.length === 0 ? (

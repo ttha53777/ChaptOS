@@ -22,7 +22,6 @@ import { EventTypesSection } from "./sections/EventTypesSection";
 import { EventFieldsSection } from "./sections/EventFieldsSection";
 import { TransactionCategoriesSection } from "./sections/TransactionCategoriesSection";
 import { OpeningBalanceSection } from "./sections/OpeningBalanceSection";
-import { AestheticSection } from "./sections/AestheticSection";
 import { CalendarSubscription } from "../../../components/timeline/CalendarSubscription";
 import { useChapter } from "../../../context/ChapterContext";
 import { ConfirmDialog } from "../../../components/dashboard/primitives";
@@ -37,7 +36,7 @@ import "./settings-ledger.css";
 
 type SectionId =
   | "index"
-  | "general" | "vocabulary" | "aesthetic"
+  | "general" | "vocabulary"
   | "accounts" | "invitations" | "roles" | "member-fields"
   | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "calendar" | "opening-balance" | "money-categories" | "workflows"
   | "activity-log" | "billing";
@@ -78,12 +77,6 @@ const NAV_ITEMS: NavItem[] = [
     blurb: "Rename canonical terms to match your org's language.",
     lede: "Swap the platform's default words for the ones your org actually uses. Changes ripple across every page.",
     icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
-  },
-  {
-    id: "aesthetic", label: "Aesthetic", group: "Identity", tint: "",
-    blurb: "Switch the app between the Ledger and Paper looks.",
-    lede: "How the app looks on this device. Applies instantly; Light and Dark still work on top of it.",
-    icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01",
   },
   {
     id: "accounts", label: "Accounts", group: "Membership", tint: "",
@@ -292,8 +285,6 @@ function SettingsPageBody() {
     // assertCanManageBilling in lib/services/billing-service.ts. A Treasurer
     // runs the chapter's money; the platform subscription is the account
     // holder's business, so MANAGE_SETTINGS deliberately doesn't reach it.
-    // Paper is the only look for now; the Ledger switch is parked, not deleted.
-    if (id === "aesthetic")      return false;
     if (id === "billing")        return isOrgAdmin;
     if (id === "roles")          return canManageRoles;
     if (id === "invitations")    return canManageSettings;
@@ -499,7 +490,6 @@ function SettingsPageBody() {
       case "invitations":    return <InvitationsSection {...props} />;
       case "workflows":      return <WorkflowsSection {...props} />;
       case "vocabulary":     return <VocabSection {...props} />;
-      case "aesthetic":      return <AestheticSection {...props} />;
       case "member-fields":  return <MemberFieldsSection {...props} />;
       case "custom-metrics": return <CustomMetricsSection {...props} />;
       case "event-types":    return <EventTypesSection {...props} />;
@@ -742,7 +732,7 @@ function SettingsPageBody() {
                           {group}
                         </button>
                         <div className="ix-ledger">
-                          <p className="set-ix-lede pp-only">{GROUP_LEDE[group]}</p>
+                          <p className="set-ix-lede">{GROUP_LEDE[group]}</p>
                           {items.map(item => (
                             <button key={item.id} className={`ix-row ${item.tint}`} onClick={() => selectSection(item.id)}>
                               <span className="ic"><PathIcon d={item.icon} /></span>

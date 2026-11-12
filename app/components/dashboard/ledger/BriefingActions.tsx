@@ -19,7 +19,6 @@ export function BriefingActions({
   onMyStanding,
   onLogAttendance,
   onOpenCheckIn,
-  openCheckInBusy,
   liveHere,
   onGoToLive,
   onQuickAction,
@@ -37,14 +36,9 @@ export function BriefingActions({
   onMyStanding?: () => void;
   /** Opens the attendance-logging flow (primary action). Omit to hide. */
   onLogAttendance?: () => void;
-  /** Opens a live check-in window for a required event. When exactly one required
-   *  event falls today it opens that one outright, with no picker — so this chip
-   *  can be the whole interaction and needs a pending state of its own. */
+  /** Opens the picker for a live check-in window. */
   onOpenCheckIn?: () => void;
-  /** True while that open is in flight. Without it the one-tap path shows the
-   *  officer nothing at all between the tap and the band appearing. */
-  openCheckInBusy?: boolean;
-  /** Present count while a window is accepting check-ins, else null. Paper turns
+  /** Present count while a window is accepting check-ins, else null. That turns
    *  the chip into "Check-in open · N here", which jumps to the band. */
   liveHere?: number | null;
   onGoToLive?: () => void;
@@ -90,21 +84,16 @@ export function BriefingActions({
       )}
 
       {onOpenCheckIn && liveHere != null && onGoToLive && (
-        <button type="button" className="ba-chip checkin-live pp-only" onClick={onGoToLive}>
+        <button type="button" className="ba-chip checkin-live" onClick={onGoToLive}>
           <span className="ba-live-dot" aria-hidden="true" />
           <span>Check-in open · {liveHere} here</span>
         </button>
       )}
-      {onOpenCheckIn && (
-        <button type="button" className={`ba-chip checkin${liveHere != null && onGoToLive ? " lg-only" : ""}`} onClick={onOpenCheckIn} disabled={openCheckInBusy}>
-          <PaperIcon name="check" className="pp-only" />
-          <svg className="lg-only" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 2" />
-          </svg>
-          <span className="lg-only">{openCheckInBusy ? "Opening…" : "Open check-in"}</span>
+      {onOpenCheckIn && !(liveHere != null && onGoToLive) && (
+        <button type="button" className="ba-chip checkin" onClick={onOpenCheckIn}>
+          <PaperIcon name="check" />
           {/* The hidden ellipsis keeps the chip as wide as the old "Open check-in…" label. */}
-          <span className="pp-only">{openCheckInBusy ? "Opening…" : <>Open check-in<span aria-hidden="true" style={{ visibility: "hidden" }}>…</span></>}</span>
+          <span>Open check-in<span aria-hidden="true" style={{ visibility: "hidden" }}>…</span></span>
         </button>
       )}
 

@@ -2,7 +2,7 @@
    The #programming page of _design/Dashboard Paper Mock.html, applied to the
    real board. Same rules as paper-aesthetic.css: everything hangs off
    html[data-aesthetic="paper"], which also out-specifies events-ledger.css (it
-   loads later, from the page). Markup only paper shows is .pp-only.
+   loads later, from the page).
 
    The four lanes each cost something to enter, and the paper says so:
      Idea       a taped sticky note, a little askew (title + type)

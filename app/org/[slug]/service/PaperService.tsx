@@ -2,8 +2,8 @@
 
 /**
  * The Service page under the Paper aesthetic — _design/Dashboard Paper Mock.html
- * #service. Rendered in .pp-only beside the Ledger body (page.tsx owns all state
- * and handlers), so every class here is psv- namespaced and Ledger never sees it.
+ * #service. page.tsx owns all state and handlers; every class here is psv-
+ * namespaced.
  *
  * Events split into Coming up / Logged; each row leads with a desk-calendar date
  * and opens onto its sign-in sheet. Members are punch cards: one hole per hour of
