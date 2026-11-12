@@ -9,6 +9,10 @@ import { WORKFLOW_FEATURES, type DisabledFeatures } from "@/lib/workflow-feature
 import { NAV_GROUPS, applyNavOrder } from "@/lib/nav-order";
 import { isNavVisible } from "../../../../components/Sidebar";
 import { useDirtyGuard } from "../SettingsDirtyContext";
+import { PaperIcon } from "../../../../components/paper/PaperIcon";
+import { useVocab } from "../../../../hooks/useVocab";
+import { BUILTIN_METRIC_KPI } from "@/lib/tracked-metrics";
+import "./workflows.css";
 
 // Settings → Workflows. Lets an org admin choose which optional pages the org
 // exposes, AND which sections within a page are shown, at any time after
@@ -59,6 +63,12 @@ const ALWAYS_ON_LABELS = NAV.filter((label) => NAV_WORKFLOW_MAP[label] == null);
 // features nest under their page toggle (rendered only when that page is enabled).
 const DASHBOARD_FEATURES = WORKFLOW_FEATURES.operations;
 
+// Tracking dues is the same opt-out flag the interview's metrics answer writes
+// (operations/kpi-dues), but it reaches well past the dashboard strip — the
+// Treasury Dues tab and card, the roster column, standing — so it gets its own
+// switch instead of hiding in the widget list as "Dues KPI".
+const DUES_FEATURE = BUILTIN_METRIC_KPI.duesOwed;
+
 // A stable, order-independent content key for a disabled-features map, used to
 // re-seed local state only when the *stored* map actually changes (not on every
 // /me refresh, which recreates an equal object).
@@ -77,6 +87,7 @@ export function WorkflowsSection({
   onError: (msg: string) => void;
 }) {
   const { currentUser, refreshChapterData } = useChapter();
+  const v = useVocab();
 
   // The org's persisted set is the source of truth. We compare against it to
   // derive `dirty` and to reset, so the section always reflects what's saved.
@@ -220,6 +231,8 @@ export function WorkflowsSection({
     return !disabled.get(workflow)?.has(id);
   }
 
+  const duesOn = featureOn("operations", DUES_FEATURE);
+
   function toggleFeature(workflow: WorkflowId, id: string) {
     setDisabled((prev) => {
       const next = new Map([...prev].map(([w, s]) => [w, new Set(s)]));
@@ -307,7 +320,7 @@ export function WorkflowsSection({
   // Renders the indented feature checkboxes for one workflow. Shared by the
   // always-on Dashboard group and the per-page nested groups.
   function renderFeatureGroup(workflow: WorkflowId) {
-    const features = WORKFLOW_FEATURES[workflow];
+    const features = WORKFLOW_FEATURES[workflow].filter(f => workflow !== "operations" || f.id !== DUES_FEATURE);
     if (!features.length) return null;
     return (
       <div className="sc-pick-features space-y-1">
@@ -356,6 +369,31 @@ export function WorkflowsSection({
               <span className="sc-locked">Locked</span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Dues — one switch for the whole feature. */}
+      <div>
+        <p className="sc-grp-label">{v("Dues")}</p>
+        <div className={`wf-dues${duesOn ? " on" : ""}`}>
+          <span className="wf-dues-tile" aria-hidden><PaperIcon name="jar" /></span>
+          <span className="wf-dues-tx">
+            <b>Track {v("Dues").toLowerCase()}</b>
+            <small>
+              {duesOn
+                ? `Charge ${v("Member", true).toLowerCase()}, record payments and see who still owes, on the ${v("Treasury")} page, the roster and the dashboard.`
+                : `Off. The ${v("Dues")} tab, card and balances are hidden everywhere. Anything already recorded is kept for when you turn it back on.`}
+            </small>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            className="wf-switch"
+            aria-checked={duesOn}
+            aria-label={`Track ${v("Dues").toLowerCase()}`}
+            disabled={saving}
+            onClick={() => toggleFeature("operations", DUES_FEATURE)}
+          />
         </div>
       </div>
 

@@ -571,3 +571,10 @@ header.dash-toolbar .tr-crumb {
 .dash .tr-reimb-receipt:hover { text-decoration: underline; }
 .dash .tr-reimb-receipt svg { width: 14px; height: 14px; }
 .dash .tr-reimb-receipt[aria-busy="true"] { color: var(--faint); cursor: progress; }
+
+/* Dues not tracked: the lower row is Coming up + Reports, side by side. */
+html[data-aesthetic="paper"] .dash .tr-lower.no-dues { grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); }
+html[data-aesthetic="paper"] .dash .tr-lower.no-dues > :first-child { grid-row: auto; }
+@media (max-width: 820px) {
+  html[data-aesthetic="paper"] .dash .tr-lower.no-dues { grid-template-columns: minmax(0,1fr); }
+}
