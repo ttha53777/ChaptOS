@@ -196,6 +196,30 @@ describe("weekFromRows", () => {
     ]);
   });
 
+  it("carries place, mandatory, mine and the asker's attendance, and the event after the week", () => {
+    const shape = weekFromRows({
+      start: "2026-11-09",
+      events: [
+        { id: 1, title: "Chapter meeting", date: "2026-11-09", time: "7:00 PM", category: "chapter", location: " Chapter room ", mandatory: true, attended: true },
+        { id: 2, title: "Mixer", date: "2026-11-13", time: "9:00 PM", category: "party" },
+      ],
+      deadlines: [{ id: 5, title: "Venue deposit", dueDate: "2026-11-10", mine: true }, { id: 6, title: "RSVPs close", dueDate: "2026-11-12" }],
+      types: [],
+      after: { id: 9, title: "Chapter meeting", date: "2026-11-16", time: "7:00 PM", category: "chapter", mandatory: true },
+    }).shape as WeekShape;
+    expect(shape.items[0]).toMatchObject({ place: "Chapter room", mandatory: true, mine: false, attended: true });
+    expect(shape.items[1]).toMatchObject({ title: "Venue deposit", mine: true, mandatory: false, place: null, attended: null });
+    expect(shape.items[2]).toMatchObject({ title: "RSVPs close", mine: false });
+    expect(shape.items[3]).toMatchObject({ title: "Mixer", place: null, mandatory: false, attended: null });
+    expect(shape.after).toMatchObject({ ref: { type: "event", id: 9 }, date: "2026-11-16", mandatory: true });
+  });
+
+  it("an empty week is still a week, with no rows and no after", () => {
+    const built = weekFromRows({ start: "2026-12-14", events: [], deadlines: [], types: [] });
+    expect(built.shape).toMatchObject({ type: "week", items: [], after: null });
+    expect(built.rows).toEqual([]);
+  });
+
   it("reads free-text times, sorting what it can't read last", () => {
     expect(minutesOf("7:00 PM")).toBe(19 * 60);
     expect(minutesOf("12:30 am")).toBe(30);

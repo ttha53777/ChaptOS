@@ -494,30 +494,6 @@ html[data-aesthetic="paper"] .chat-root .bk-r:hover:not(:disabled) .chev { color
 html[data-aesthetic="paper"] .chat-root .bk-foot { border-top: 1.5px dashed var(--line-med); font-family: var(--font-geist-sans); color: var(--muted); }
 html[data-aesthetic="paper"] .chat-root .bk-foot b { font-family: var(--font-geist-mono); }
 
-/* week */
-html[data-aesthetic="paper"] .chat-root .wd { border-left: 1px solid var(--card-3); min-height: 168px; }
-html[data-aesthetic="paper"] .chat-root .wd-h { border-bottom: 1px solid var(--card-3); }
-html[data-aesthetic="paper"] .chat-root .wd-h .dw { font-family: var(--font-geist-mono); font-size: 9.6px; font-weight: 600; color: var(--muted); }
-html[data-aesthetic="paper"] .chat-root .wd-h .dn { font-family: var(--font-fraunces); font-weight: 600; font-size: 20px; letter-spacing: -.03em; }
-html[data-aesthetic="paper"] .chat-root .wd.past .wd-h .dn { color: var(--muted); }
-html[data-aesthetic="paper"] .chat-root .wd.today { background: var(--pp-lilac-soft); }
-html[data-aesthetic="paper"] .chat-root .wd.today .wd-h { background: var(--ink); color: var(--paper); border-bottom-color: var(--ink); }
-html[data-aesthetic="paper"] .chat-root .wd.today .wd-h .dw { color: color-mix(in srgb, var(--paper) 70%, transparent); }
-html[data-aesthetic="paper"] .chat-root .wd.today .wd-h .dn { color: var(--paper); }
-html[data-aesthetic="paper"] .chat-root .wd-b { background-image: repeating-linear-gradient(to bottom, transparent 0 25px, var(--card-3) 25px 26px); }
-html[data-aesthetic="paper"] .chat-root .wd.today .wd-b { background-image: none; }
-html[data-aesthetic="paper"] .chat-root .wd-none { color: var(--line-med); }
-html[data-aesthetic="paper"] .chat-root .wk-ev {
-  border: 1.5px solid var(--pcb, var(--line-med)); background: var(--pcs, var(--paper-2)); font-family: var(--font-geist-sans); font-size: 11.8px;
-  animation-name: pp-wk-in; animation-timing-function: var(--pp-ease-spring); transition: box-shadow .15s, border-color .15s;
-}
-@keyframes pp-wk-in { from { opacity: 0; transform: translateY(6px) rotate(-.6deg); } to { opacity: 1; transform: none; } }
-html[data-aesthetic="paper"] .chat-root .wk-ev:hover:not(:disabled),
-html[data-aesthetic="paper"] .chat-root .wk-ev.sel { box-shadow: 2px 2px 0 var(--ink); border-color: var(--ink); }
-html[data-aesthetic="paper"] .chat-root .wk-ev .tm { font-family: var(--font-geist-mono); font-size: 10.2px; color: var(--ink-soft); }
-html[data-aesthetic="paper"] .chat-root .wk-ev.dl { border: 1.5px dashed var(--pp-peach-ink); background: var(--pp-peach-soft); }
-html[data-aesthetic="paper"] .chat-root .wk-ev.dl .tm { color: var(--pp-peach-ink); }
-
 /* people: the ask-back cards */
 html[data-aesthetic="paper"] .chat-root .ab-who {
   border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--card);
@@ -534,13 +510,6 @@ html[data-aesthetic="paper"] .chat-root .ab-who .rl { font-family: var(--font-ge
 html[data-aesthetic="paper"] .chat-root .ab-who .facts span { font-family: var(--font-geist-sans); background: var(--paper-2); border: 1px solid var(--line); }
 html[data-aesthetic="paper"] .chat-root .ab-who .facts span.diff { background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); color: var(--ink); }
 html[data-aesthetic="paper"] .chat-root .askback .ab-qt small { font-family: var(--font-geist-sans); color: var(--muted); }
-
-@media (max-width: 600px) {
-  html[data-aesthetic="paper"] .chat-root .wd { min-height: 0; border-left: 0; border-top: 1px solid var(--card-3); }
-  html[data-aesthetic="paper"] .chat-root .wd:first-child { border-top: 0; }
-  html[data-aesthetic="paper"] .chat-root .wd-h { border-bottom: 0; border-right: 1px solid var(--card-3); }
-  html[data-aesthetic="paper"] .chat-root .wd-b { background-image: none; }
-}
 
 /* not found (§09 of the mock) */
 html[data-aesthetic="paper"] .chat-root .shp-miss { border: 1.5px dashed var(--line-med); background: var(--paper-2); }

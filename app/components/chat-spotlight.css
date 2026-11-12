@@ -799,27 +799,6 @@
 .chat-root .bk-foot { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; border-top: 1px dashed var(--line-med); font-size: 12.5px; color: var(--muted); }
 .chat-root .bk-foot b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
 
-/* week */
-.chat-root .shp-wk { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); overflow: hidden; }
-.chat-root .wd { border-left: 1px solid var(--line); min-height: 150px; display: flex; flex-direction: column; min-width: 0; }
-.chat-root .wd:first-child { border-left: 0; }
-.chat-root .wd-h { padding: 9px 9px 7px; border-bottom: 1px solid var(--line); }
-.chat-root .wd-h .dw { display: block; font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
-.chat-root .wd-h .dn { font-family: var(--serif); font-size: 19px; line-height: 1.1; color: var(--ink); }
-.chat-root .wd.past .wd-h .dn { color: var(--faint); }
-.chat-root .wd.today { background: var(--vio-bg); }
-.chat-root .wd.today .wd-h .dw { color: var(--vio); }
-.chat-root .wd-b { flex: 1; padding: 7px; display: flex; flex-direction: column; gap: 6px; }
-.chat-root .wd-none { margin: auto; font-family: var(--mono); font-size: 11px; color: var(--line-med); }
-.chat-root .wk-ev { display: block; width: 100%; padding: 6px 7px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--catc, var(--muted)) 40%, transparent);
-  background: color-mix(in srgb, var(--catc, var(--muted)) 12%, transparent); text-align: left; font-size: 12px; line-height: 1.3; color: var(--ink); cursor: pointer;
-  animation: cs-rise .4s var(--spring) both; animation-delay: calc(var(--i) * 90ms + .15s); }
-.chat-root .wk-ev:hover:not(:disabled), .chat-root .wk-ev.sel { border-color: var(--vio); }
-.chat-root .wk-ev b { display: block; font-weight: 600; overflow-wrap: anywhere; }
-.chat-root .wk-ev .tm { display: block; margin-top: 2px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); }
-.chat-root .wk-ev.dl { border: 1px dashed var(--risk); background: var(--risk-bg); }
-.chat-root .wk-ev.dl .tm { color: var(--risk); font-weight: 600; }
-
 /* ask-back people: a name that matched several members */
 .chat-root .ab-people { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; }
 .chat-root .ab-who { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 2px 12px; align-items: center; padding: 12px; border-radius: 12px;
@@ -838,14 +817,9 @@
   .chat-root .bk-r { grid-template-columns: minmax(0, 1fr) 76px 14px; row-gap: 6px; }
   .chat-root .bk-r .trk { grid-column: 1 / -1; grid-row: 2; }
   .chat-root .bk-r .pct { display: none; }
-  .chat-root .shp-wk { grid-template-columns: minmax(0, 1fr); }
-  .chat-root .wd { min-height: 0; flex-direction: row; border-left: 0; border-top: 1px solid var(--line); }
-  .chat-root .wd:first-child { border-top: 0; }
-  .chat-root .wd-h { width: 64px; flex: none; border-bottom: 0; border-right: 1px solid var(--line); }
-  .chat-root .wd-none { margin: auto 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chat-root .tl-dot, .chat-root .bk-rib b, .chat-root .bk-r .fill, .chat-root .bk-r .over, .chat-root .wk-ev { animation: none; }
+  .chat-root .tl-dot, .chat-root .bk-rib b, .chat-root .bk-r .fill, .chat-root .bk-r .over { animation: none; }
 }
 
 /* not found: the search as its receipt */

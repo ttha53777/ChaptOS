@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
         // non-match / error returns null and we fall through to the LLM loop
         // unchanged, so the worst case is "no faster than before," never wrong.
         const latest = history.at(-1);
-        const fast = latest && !fileCtx ? await tryFastPath(latest.content, ctx.db, ctx.orgId) : null;
+        const fast = latest && !fileCtx ? await tryFastPath(latest.content, ctx.db, ctx.orgId, ctx.actorId) : null;
         if (fast) {
           fastPathPattern = fast.pattern;
           ttftMs = performance.now() - reqStart;

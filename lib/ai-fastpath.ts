@@ -103,7 +103,7 @@ interface Intent {
   /** Render the answer; return null to abort → fall through to the LLM. */
   format: (result: ToolResult) => string | null;
   /** Compose the answer the way compose_answer would; null keeps the text. */
-  draw?: (d: { args: Record<string, unknown>; result: ToolResult; scoped: ReturnType<typeof db>; orgId: number }) => Promise<FastPathResult["answer"] | null>;
+  draw?: (d: { args: Record<string, unknown>; result: ToolResult; scoped: ReturnType<typeof db>; orgId: number; actorId?: number }) => Promise<FastPathResult["answer"] | null>;
 }
 
 /** A roster subset as its tally; nobody in the subset keeps the one-line text. */
@@ -231,10 +231,10 @@ const INTENTS: Intent[] = [
       const lines = rows.map(e => `- **${e.title}** — ${e.date}${formatEventTime(e.time, e.schedule) ? ` ${formatEventTime(e.time, e.schedule)}` : ""}${e.category ? ` (${e.category})` : ""}`);
       return [`This week (calendar):`, ...lines].join("\n");
     },
-    draw: async ({ args, scoped }) => {
-      const built = await weekOf(String(args.start), scoped);
+    draw: async ({ args, scoped, actorId }) => {
+      const built = await weekOf(String(args.start), scoped, { actorId });
       const n = built.shape.type === "week" ? built.shape.items.length : 0;
-      if (n === 0) return null;
+      if (n === 0) return { verdict: "*Nothing* on this week.", ...built };
       return { verdict: `*${n} ${n === 1 ? "thing" : "things"}* on this week.`, ...built };
     },
   },
@@ -272,7 +272,7 @@ export function matchIntent(question: string): { pattern: string; tool: string; 
  * FastPathResult on a confident match, or null to fall through to the normal
  * tool-calling loop. Never throws — any failure is treated as a miss.
  */
-export async function tryFastPath(question: string, scoped: ReturnType<typeof db>, orgId: number): Promise<FastPathResult | null> {
+export async function tryFastPath(question: string, scoped: ReturnType<typeof db>, orgId: number, actorId?: number): Promise<FastPathResult | null> {
   const matched = matchIntent(question);
   if (!matched) return null;
 
@@ -285,7 +285,7 @@ export async function tryFastPath(question: string, scoped: ReturnType<typeof db
     const text = intent.format(result);
     if (text == null || text.trim() === "") return null; // formatter abstained
     // A picture that fails to build is not a miss: the text still answers.
-    const answer = intent.draw ? await intent.draw({ args: matched.args, result, scoped, orgId }).catch(() => null) : null;
+    const answer = intent.draw ? await intent.draw({ args: matched.args, result, scoped, orgId, actorId }).catch(() => null) : null;
     return { text, pattern: intent.pattern, tool: matched.tool, ...(answer ? { answer } : {}) };
   } catch {
     return null; // any throw → fall through to the LLM path

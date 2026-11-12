@@ -192,6 +192,15 @@ export interface WeekItem {
   title: string;
   /** The event's type; null for a deadline. */
   cat: { slug: string; label: string; color: string | null; colorDark: string | null } | null;
+  // The four below arrived with the planner-page week (2026-11). Optional on the
+  // wire's reader side: answers saved before then don't carry them.
+  /** Where the event is; null for a deadline or an event with no location. */
+  place?: string | null;
+  mandatory?: boolean;
+  /** A task assigned to the asker (directly, by a role they hold, or to everyone). */
+  mine?: boolean;
+  /** The asker's own attendance at an event already past; null when nothing was recorded. */
+  attended?: boolean | null;
 }
 
 /** Seven days from `start`. `rows` line up 1:1 with `items`. */
@@ -199,6 +208,8 @@ export interface WeekShape {
   type: "week";
   start: string; // YYYY-MM-DD
   items: WeekItem[];
+  /** The first event after the seventh day. Never one of `items`, and has no row. */
+  after?: WeekItem | null;
 }
 
 export interface ProposalPermInfo {

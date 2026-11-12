@@ -86,7 +86,7 @@ export async function buildShape(req: ShapeRequest, evidence: ShapeEvidence, sco
     if (family) return await family(req, evidence, scoped, orgId, o);
     if (req.type === "tally") return await buildTally(req, evidence, scoped, orgId);
     if (req.type === "breakdown") return await buildBreakdown(evidence, scoped);
-    if (req.type === "week") return await buildWeek(req, evidence, scoped);
+    if (req.type === "week") return await buildWeek(req, evidence, scoped, o);
     if (req.type === "missing") return await buildMissing(req, evidence, scoped);
   } catch (e) {
     console.error(`buildShape(${req.type}) failed:`, e);
@@ -356,14 +356,44 @@ export function minutesOf(time: string | null): number {
   return h * 60 + min;
 }
 
+interface WeekEventRow {
+  id: number;
+  title: string;
+  date: string;
+  time: string | null;
+  schedule?: unknown;
+  category: string;
+  location?: string | null;
+  mandatory?: boolean;
+  /** The asker's own attendance row for this event, when one exists. */
+  attended?: boolean | null;
+}
+
 /** Pure: rows in the window → week. Exported for tests. */
 export function weekFromRows(input: {
   start: string;
-  events: Array<{ id: number; title: string; date: string; time: string | null; schedule?: unknown; category: string }>;
-  deadlines: Array<{ id: number; title: string; dueDate: string | null }>;
+  events: WeekEventRow[];
+  deadlines: Array<{ id: number; title: string; dueDate: string | null; mine?: boolean }>;
   types: Array<{ slug: string; label: string; color: string; colorDark: string | null }>;
+  /** The first event past the week, already chosen. */
+  after?: WeekEventRow | null;
 }): BuiltShape {
   const types = new Map(input.types.map(t => [t.slug, t]));
+  const eventItem = (e: WeekEventRow): WeekItem => {
+    const t = types.get(e.category);
+    return {
+      ref: { type: "event", id: e.id },
+      kind: e.category === "deadline" ? "deadline" : "event",
+      date: e.date,
+      time: formatEventTime(e.time, e.schedule),
+      title: e.title,
+      cat: { slug: e.category, label: t?.label ?? e.category, color: t?.color ?? null, colorDark: t?.colorDark ?? null },
+      place: e.location?.trim() || null,
+      mandatory: e.mandatory ?? false,
+      mine: false,
+      attended: e.attended ?? null,
+    };
+  };
   // A dated task also lives on the Timeline as a `deadline`-type event. Show it
   // once — as the task, which is what peeks and gets ticked off.
   const sameDay = (date: string, title: string) => `${date}|${title.trim().toLowerCase()}`;
@@ -373,15 +403,7 @@ export function weekFromRows(input: {
   const startsAt = new Map<WeekItem, number>();
   const items: WeekItem[] = [
     ...events.map((e): WeekItem => {
-      const t = types.get(e.category);
-      const item: WeekItem = {
-        ref: { type: "event", id: e.id },
-        kind: e.category === "deadline" ? "deadline" : "event",
-        date: e.date,
-        time: formatEventTime(e.time, e.schedule),
-        title: e.title,
-        cat: { slug: e.category, label: t?.label ?? e.category, color: t?.color ?? null, colorDark: t?.colorDark ?? null },
-      };
+      const item = eventItem(e);
       startsAt.set(item, minutesOf(e.time));
       return item;
     }),
@@ -392,6 +414,10 @@ export function weekFromRows(input: {
       time: null,
       title: d.title,
       cat: null,
+      place: null,
+      mandatory: false,
+      mine: d.mine ?? false,
+      attended: null,
     })),
   ]
     // Within a day: deadlines first (they're what a glance is for), then by time.
@@ -400,7 +426,7 @@ export function weekFromRows(input: {
       || (startsAt.get(a) ?? minutesOf(a.time)) - (startsAt.get(b) ?? minutesOf(b.time)))
     .slice(0, WEEK_MAX_ITEMS);
 
-  const shape: WeekShape = { type: "week", start: input.start, items };
+  const shape: WeekShape = { type: "week", start: input.start, items, after: input.after ? eventItem(input.after) : null };
   const rows: AnswerRow[] = items.map(it => ({
     kind: it.kind === "deadline" ? "task" : "event",
     title: it.title,
@@ -421,7 +447,7 @@ function startArg(read: { args: Record<string, unknown> } | undefined): string |
   return typeof s === "string" && DATE_RE.test(s) && isValidCalendarDate(s) ? s : undefined;
 }
 
-async function buildWeek(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped): Promise<BuiltShape | null> {
+async function buildWeek(req: ShapeRequest, evidence: ShapeEvidence, scoped: Scoped, o: { today: string; access?: ToolAccess }): Promise<BuiltShape | null> {
   const cal = evidence.get("list_calendar_events");
   const due = evidence.get("list_deadlines");
   const digest = evidence.get("weekly_digest");
@@ -429,27 +455,71 @@ async function buildWeek(req: ShapeRequest, evidence: ShapeEvidence, scoped: Sco
   const digestStart = (digest?.result as { weekRange?: { start?: string } } | undefined)?.weekRange?.start;
   const start = req.start ?? startArg(cal) ?? startArg(due)
     ?? (typeof digestStart === "string" && isValidCalendarDate(digestStart) ? digestStart : undefined)
-    ?? todayISO();
-  return weekOf(start, scoped);
+    ?? o.today;
+  return weekOf(start, scoped, { actorId: o.access?.actorId, today: o.today });
 }
 
-/** The seven days from `start`, read fresh. Also what the fast-path draws for "this week". */
-export async function weekOf(start: string, scoped: Scoped): Promise<BuiltShape> {
-  const end = addDaysISO(start, 6);
+/** How far past the week to look for the "after this week" event. */
+const WEEK_AFTER_LOOKAHEAD = 12;
 
-  const [events, deadlines, types] = await Promise.all([
+/**
+ * The seven days from `start`, read fresh. Also what the fast-path draws for
+ * "this week". With an `actorId` the week is read as theirs: which tasks are
+ * assigned to them, and whether they were at the events already past.
+ */
+export async function weekOf(start: string, scoped: Scoped, who: { actorId?: number; today?: string } = {}): Promise<BuiltShape> {
+  const end = addDaysISO(start, 6);
+  const today = who.today ?? todayISO();
+  const eventSelect = { id: true, title: true, date: true, time: true, schedule: true, category: true, location: true, mandatory: true } as const;
+
+  const [events, tasks, types, later] = await Promise.all([
     scoped.calendarEvent.findMany({
       where: { date: { gte: start, lte: end } },
-      select: { id: true, title: true, date: true, time: true, schedule: true, category: true },
+      select: eventSelect,
       orderBy: { date: "asc" },
     }),
     scoped.task.findMany({
       where: { dueDate: { gte: start, lte: end }, status: "open" },
-      select: { id: true, title: true, dueDate: true },
+      select: { id: true, title: true, dueDate: true, everyone: true, assignments: { select: { brotherId: true, roleId: true } } },
     }),
     scoped.calendarEventType.findMany({ select: { slug: true, label: true, color: true, colorDark: true } }),
+    // A dated task is mirrored as a `deadline` event; "after this week" is the next thing to show up to.
+    scoped.calendarEvent.findMany({
+      where: { date: { gt: end }, category: { not: "deadline" } },
+      select: eventSelect,
+      orderBy: { date: "asc" },
+      take: WEEK_AFTER_LOOKAHEAD,
+    }),
   ]);
-  return weekFromRows({ start, events, deadlines, types });
+
+  const actorId = who.actorId;
+  const pastIds = events.filter(e => e.date < today && e.category !== "deadline").map(e => e.id);
+  const [held, marks] = actorId == null ? [[], []] : await Promise.all([
+    tasks.some(t => t.assignments.some(a => a.roleId != null))
+      ? scoped.brotherRole.findMany({ where: { brotherId: actorId }, select: { roleId: true } })
+      : Promise.resolve([]),
+    pastIds.length
+      ? scoped.attendanceRecord.findMany({ where: { brotherId: actorId, calendarEventId: { in: pastIds } }, select: { calendarEventId: true, attended: true } })
+      : Promise.resolve([]),
+  ]);
+  const heldRoles = new Set(held.map(r => r.roleId));
+  const attended = new Map(marks.map(m => [m.calendarEventId, m.attended]));
+  // Same rule as the Tasks page's "mine" (isAssignee in task-service).
+  const mine = (t: typeof tasks[number]) => actorId != null && (t.everyone != null
+    || t.assignments.some(a => (a.brotherId != null && a.brotherId === actorId) || (a.roleId != null && heldRoles.has(a.roleId))));
+
+  // The earliest day past the week, and the earliest start on it.
+  const after = later
+    .filter(e => e.date === later[0].date)
+    .sort((a, b) => minutesOf(a.time) - minutesOf(b.time))[0] ?? null;
+
+  return weekFromRows({
+    start,
+    events: events.map(e => ({ ...e, attended: attended.get(e.id) ?? null })),
+    deadlines: tasks.map(t => ({ id: t.id, title: t.title, dueDate: t.dueDate, mine: mine(t) })),
+    types,
+    after,
+  });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
