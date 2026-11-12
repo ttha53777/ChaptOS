@@ -12,8 +12,9 @@ export type {
   RankedShape, TableShape, RollShape, RankMetric, MetricUnit, YesNoShape, YesNoTest, StatusShape, RecordShape, ZeroShape, ReceiptShape,
   PeekCard, PeekFact, PeekRow, PeekSection, PeekTone,
   AnswerCitation, ChatAttachmentInfo, AttachmentUnit, FileLimits,
+  AnswerTone, AskBackArea, FigureShape, StepsShape, DeclineShape, ReasonsShape, ReasonPanel, QuoteShape, ChatNotice,
 } from "@/lib/api-types";
-import type { AnswerData, AnswerRow, ProposalDisplayInfo, ProposalPermInfo } from "@/lib/api-types";
+import type { AnswerData, AnswerRow, ChatNotice, EntityRef, ProposalDisplayInfo, ProposalPermInfo } from "@/lib/api-types";
 
 export type StepStatus = "pending" | "active" | "done";
 
@@ -122,6 +123,17 @@ export interface ChatMessage {
   feedback?: "up" | "down";
   /** The user hit Stop mid-stream — render whatever arrived, no caret. */
   stopped?: boolean;
+  /** Steps that had finished when Stop landed — the stopped slip says how far it got. */
+  stoppedAfter?: number;
+  /**
+   * The stream dropped. `at` is the source the active step was reading, so the
+   * slip can say where it broke. Replaces writing "(network error)" into content.
+   */
+  error?: { at?: string };
+  /** The server said the turn ended in a status; the slip replaces its text. */
+  notice?: ChatNotice;
+  /** Names in a plain-text reply that are records this turn read (note_refs). */
+  noteRefs?: Array<{ text: string; ref: EntityRef }>;
   /** User turns: names of the files first sent with this message. */
   attachments?: string[];
 }

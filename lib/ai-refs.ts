@@ -145,6 +145,8 @@ export interface RefIndex {
   lookup(title: string, kind: AnswerRow["kind"]): EntityRef | null;
   /** Distinct records seen this turn — telemetry only. */
   size(): number;
+  /** Every label that resolves to exactly one record, as the tool wrote it. */
+  entries(): Array<{ label: string; ref: EntityRef }>;
 }
 
 export function createRefIndex(): RefIndex {
@@ -196,7 +198,43 @@ export function createRefIndex(): RefIndex {
     size() {
       return byTypeLabel.size;
     },
+
+    entries() {
+      const out: Array<{ label: string; ref: EntityRef }> = [];
+      for (const slot of byLabel.values()) {
+        if (slot !== AMBIGUOUS) out.push({ label: slot.label, ref: { type: slot.type, id: slot.id } });
+      }
+      return out;
+    },
   };
+}
+
+/** At most this many names in one reply become chips; past that it's a list, not prose. */
+export const NOTE_REFS_MAX = 12;
+
+/**
+ * The records a plain-text reply names, so the client can make them tappable
+ * (answer system, `note_refs`). Only labels this turn's reads resolved to one
+ * record, matched as whole words, longest first so "Winter Formal Deposit"
+ * wins over "Winter Formal"; each label once. Pure.
+ */
+export function noteRefs(text: string, index: RefIndex): Array<{ text: string; ref: EntityRef }> {
+  const taken: Array<[number, number]> = [];
+  const out: Array<{ text: string; ref: EntityRef }> = [];
+  const labels = index.entries()
+    .filter(e => e.label.trim().length >= 3)
+    .sort((a, b) => b.label.length - a.label.length);
+  for (const { label, ref } of labels) {
+    if (out.length >= NOTE_REFS_MAX) break;
+    const esc = label.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+    const m = new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, "iu").exec(text);
+    if (!m) continue;
+    const span: [number, number] = [m.index, m.index + m[0].length];
+    if (taken.some(([a, b]) => span[0] < b && a < span[1])) continue;
+    taken.push(span);
+    out.push({ text: m[0], ref });
+  }
+  return out;
 }
 
 /**

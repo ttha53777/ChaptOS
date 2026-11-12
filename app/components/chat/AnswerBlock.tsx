@@ -6,7 +6,7 @@
 // as escaped text (React text nodes); the only markup honored is the single
 // *emphasis* span in the verdict, parsed here — never injected as HTML.
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 import { IcArrow, IcChev, IcPlus, IcSpark, IcThumbDown, IcThumbUp, KindGlyph } from "./icons";
 import { TraceBlock } from "./ReasoningLedger";
@@ -14,6 +14,8 @@ import { ShapeBlock, isKnownShape } from "./shapes";
 import { PlanBlock, isPlanRows } from "./shapes/Plan";
 import { DrawerBlock, isDrawerRows } from "./shapes/Drawers";
 import { CitationChips } from "./CitationChips";
+import { answerTone } from "./tone";
+import { AREA_TILE, AreaGlyph } from "./area-glyphs";
 import { initialsOf, rowAction, type AnswerCitation, type AnswerData, type AnswerRow, type AskBack, type AskBackQuestion, type LedgerStep } from "./types";
 
 function Verdict({ text }: { text: string }) {
@@ -149,7 +151,32 @@ function AskBackBlock({ askback, onAsk }: { askback: AskBack; onAsk: (q: string)
       {questions.map((q, qi) => (
         <div className="ab-q" key={`${q.question}-${qi}`}>
           <span className="ab-qt">{q.question}{q.people && instant && <small>Tap to ask</small>}</span>
-          {q.people && q.people.length === q.chips.length ? (
+          {q.areas && q.areas.length === q.chips.length && !q.people ? (
+            // Every chip is an area of the chapter: a tile each, showing what
+            // picking it gets back. The tap sends the chip's own text.
+            <div className="ab-areas">
+              {q.areas.map((area, ai) => {
+                const chip = q.chips[ai];
+                const on = !instant && (picks[qi] ?? []).includes(chip);
+                const tile = AREA_TILE[area];
+                return (
+                  <button
+                    key={`${area}-${ai}`}
+                    type="button"
+                    className={`ab-area${on ? " on" : ""}`}
+                    style={{ ["--c" as string]: tile.tone } as CSSProperties}
+                    aria-pressed={instant ? undefined : on}
+                    onClick={() => tap(qi, q, chip)}
+                  >
+                    <span className="g"><AreaGlyph area={area} /></span>
+                    <b>{chip}</b>
+                    <span className="ln">{tile.line}</span>
+                    <svg className="sk" viewBox="0 0 80 26" preserveAspectRatio="xMinYMid meet" aria-hidden>{tile.sketch}</svg>
+                  </button>
+                );
+              })}
+            </div>
+          ) : q.people && q.people.length === q.chips.length ? (
             // Every chip is a member: draw who each one is. The tap still sends
             // the chip's own text, exactly as the plain chip would.
             <div className="ab-people">
@@ -211,7 +238,7 @@ export function SourcesRow({ sources }: { sources: string[] }) {
   if (sources.length === 0) return null;
   return (
     <div className="sources">
-      <span className="lbl">Sources</span>
+      <span className="lbl">From</span>
       {sources.map(s => <span key={s} className="src"><i />{s}</span>)}
     </div>
   );
@@ -223,7 +250,6 @@ export function FeedbackRow({ value, onFeedback }: {
 }) {
   return (
     <div className="feedback">
-      <span className="fl">Helpful?</span>
       <button type="button" className={`fbtn${value === "up" ? " on" : ""}`} aria-label="Helpful" onClick={() => onFeedback("up")}>
         <IcThumbUp />
       </button>
@@ -273,7 +299,7 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
   const shape = isKnownShape(answer.shape) ? answer.shape : null;
   const cited = answer.rows.some(r => r.citations?.length);
   return (
-    <div className="answer">
+    <div className={`answer t-${answerTone(answer)}`}>
       <TraceBlock steps={steps} />
       <Verdict text={answer.verdict} />
       <CitationChips citations={answer.citations} onOpen={onCite} className="verdict-cites in in-2" />
@@ -289,15 +315,17 @@ export function AnswerBlock({ answer, steps, selectedRow, feedback, onAsk, onPee
         </div>
       )}
       {answer.askback && <AskBackBlock askback={answer.askback} onAsk={onAsk} />}
+      {/* The footing: where it came from, was it useful, what to ask next —
+          the same strip under every answer, whatever its body. */}
       <div className="in in-4">
-        <div className="meta-row">
+        <div className="footing">
           <SourcesRow sources={answer.sources} />
           <FeedbackRow value={feedback} onFeedback={onFeedback} />
         </div>
         {!answer.askback && answer.follows.length > 0 && (
           <div className="follows">
             {answer.follows.map(f => (
-              <button key={f.label} type="button" className="chip" onClick={() => onAsk(f.ask)}>{f.label}</button>
+              <button key={f.label} type="button" className="chip next" onClick={() => onAsk(f.ask)}><IcArrow />{f.label}</button>
             ))}
           </div>
         )}

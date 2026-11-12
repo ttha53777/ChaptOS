@@ -340,5 +340,19 @@ export function checkVerdict(verdict: string, shape: AnswerShape, rows: AnswerRo
       fallback: `*None* filed as ${shape.filter}, ${shape.period === "All time" ? "ever" : shape.period}.`,
     };
   }
+  if (shape.type === "reasons") {
+    // The gauge is drawn under the sentence: a percent in the verdict that isn't
+    // it (or the bar) is a contradiction on screen.
+    const g = shape.gauge;
+    const said = [...verdict.replace(/\*/g, "").matchAll(/(\d{1,3})\s*%/g)].map(m => Number(m[1]));
+    const allowed = new Set([g.value, g.atRisk, ...(g.watch != null ? [g.watch] : [])]);
+    if (said.every(n => allowed.has(n))) return { ok: true };
+    const first = shape.subject.name.split(/\s+/)[0];
+    return {
+      ok: false,
+      feedback: `compose_answer: your verdict says ${said.find(n => !allowed.has(n))}%, but ${shape.subject.name}'s attendance is ${g.value}% (${g.attended} of ${g.counted} counted) against a ${g.atRisk}% bar, and that gauge is drawn under it. Re-send with a verdict that uses ${g.value}%.`,
+      fallback: `${first} is at *${g.value}% attendance*, ${g.value < g.atRisk ? "under" : "over"} your ${g.atRisk}% bar.`,
+    };
+  }
   return { ok: true };
 }

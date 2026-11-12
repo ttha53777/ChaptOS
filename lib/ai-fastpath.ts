@@ -22,7 +22,8 @@ import type { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
 import { fmtUsd } from "@/lib/money";
 import { formatEventTime } from "@/lib/event-time";
-import { tallyOf, weekOf, type BuiltShape } from "@/lib/ai-shapes";
+import { buildShape, createShapeEvidence, tallyOf, weekOf, type BuiltShape } from "@/lib/ai-shapes";
+import { kitEnabled } from "@/lib/ai-shape-request";
 import type { AnswerRow } from "@/lib/ai-tools";
 import type { AnswerShape, TallyMetric } from "@/lib/api-types/chat";
 
@@ -210,8 +211,16 @@ const INTENTS: Intent[] = [
       if (typeof t.balance !== "number") return null;
       return `${money(t.balance)} (treasury balance).`;
     },
-    // No picture for a single figure: the verdict line, sourced like any answer.
-    draw: async ({ result }) => ({ verdict: `*${money((result as { balance: number }).balance)}* in the treasury.`, rows: [] }),
+    // One quantity: drawn as the same Figure the model's answer would get
+    // (answer system), else just the verdict line.
+    draw: async ({ result, scoped, orgId }) => {
+      const verdict = `*${money((result as { balance: number }).balance)}* in the treasury.`;
+      if (!kitEnabled()) return { verdict, rows: [] };
+      const ev = createShapeEvidence();
+      ev.add("get_treasury", {}, result);
+      const built = await buildShape({ type: "figure", figure: "balance" }, ev, scoped, orgId);
+      return built ? { verdict, ...built } : { verdict, rows: [] };
+    },
   },
 
   // ── This week's events ──────────────────────────────────────────────────────

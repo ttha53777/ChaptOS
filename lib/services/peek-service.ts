@@ -18,6 +18,7 @@ import { readStandingConfig, rosterMeasured } from "@/lib/member-standing";
 import { ALL_TRACKED, anyMeasured, type TrackedMetrics } from "@/lib/tracked-metrics";
 import { getBrotherStatus, type Brother as BrotherType, type BrotherStatus } from "@/app/data";
 import { formatEventTime } from "@/lib/event-time";
+import { fmtUsd } from "@/lib/money";
 import { ExcuseStatus } from "@/lib/state";
 
 export const PEEK_TYPES = ["member", "event", "task", "transaction"] as const;
@@ -162,6 +163,18 @@ async function eventPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
     { k: "Attendance required", v: event.mandatory ? "Yes" : "No", tone: event.mandatory ? "warn" : "muted" },
   ];
 
+  // What's been spent on it: expenses linked to the event, the same filter
+  // list_transactions uses (any member can read the ledger). After the reads
+  // above rather than beside them — the pool is two connections.
+  const linked = await ctx.db.transaction.findMany({
+    where: { deletedAt: null, type: "expense", calendarEvents: { some: { calendarEventId: id } } },
+    select: { amount: true },
+  }) as Array<{ amount: number }>;
+  if (linked.length > 0) {
+    const spent = linked.reduce((sum, t) => sum + t.amount, 0);
+    facts.push({ k: "Spent so far", v: `${fmtUsd(spent)} · ${linked.length} ${linked.length === 1 ? "expense" : "expenses"}`, mono: true });
+  }
+
   const sections: PeekSection[] = [
     {
       label: "Attendance",
@@ -188,6 +201,7 @@ async function eventPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
     id: event.id,
     title: event.title,
     subtitle: prettyDate(event.date),
+    date: event.date,
     ...(event.mandatory ? { badge: { label: "Mandatory", tone: "warn" as PeekTone } } : {}),
     facts,
     sections,
@@ -245,6 +259,7 @@ async function taskPeek(ctx: RequestContext, id: number): Promise<PeekCard> {
     id: task.id,
     title: task.title,
     subtitle: task.dueDate ? "Deadline" : "To-do",
+    ...(task.dueDate ? { date: task.dueDate } : {}),
     badge: { label: done ? "Done" : overdue ? "Overdue" : "Open", tone: done ? "good" : overdue ? "risk" : "warn" },
     facts,
     sections: [{ label: "Assigned to", rows: assignees, empty: "Unassigned." }],

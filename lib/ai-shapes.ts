@@ -40,6 +40,10 @@ import { buildRanked, buildRoll, buildTable } from "@/lib/ai-shapes-people";
 import { buildStatus, buildYesNo } from "@/lib/ai-shapes-judge";
 import { buildRecord, buildZero } from "@/lib/ai-shapes-lookup";
 import { buildReceipt } from "@/lib/ai-shapes-money";
+import { buildFigure } from "@/lib/ai-shapes-figure";
+import { buildDecline, buildSteps } from "@/lib/ai-howto";
+import { buildReasons } from "@/lib/ai-shapes-reasons";
+import { buildQuote } from "@/lib/ai-shapes-quote";
 export { checkVerdict } from "@/lib/ai-shapes-judge";
 
 export interface BuiltShape<S extends AnswerShape = AnswerShape> {
@@ -72,6 +76,11 @@ const FAMILY_BUILDERS: Partial<Record<ShapeRequest["type"], FamilyBuilder>> = {
   record: buildRecord,
   zero: buildZero,
   receipt: buildReceipt,
+  figure: buildFigure,
+  steps: buildSteps,
+  decline: buildDecline,
+  reasons: buildReasons,
+  quote: buildQuote,
 };
 
 /**

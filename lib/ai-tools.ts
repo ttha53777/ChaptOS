@@ -35,10 +35,11 @@ import { duesPaymentWhere } from "@/lib/dues";
 import { compareLines } from "@/lib/dues-ledger";
 import { ExcuseStatus, ReimbursementStatus, TransactionStatus } from "@/lib/state";
 import { parseMeetingSummary } from "@/lib/meeting-summary";
-import { offeredShapeTypes, formsEnabled, TALLY_METRICS, RANK_METRICS, ROLL_SPLITS, YESNO_TESTS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
+import { offeredShapeTypes, formsEnabled, kitEnabled, TALLY_METRICS, RANK_METRICS, ROLL_SPLITS, YESNO_TESTS, FIGURE_METRICS, parseShapeRequest, type ShapeRequest } from "@/lib/ai-shape-request";
+import { PLAYBOOK_KEYS } from "@/lib/ai-howto";
 import { noteTerms, noteExcerpts } from "@/lib/ai-text";
 import { FILE_TOOLS, FILE_TOOL_NAMES, FILE_TOOL_UI, runFileTool, withCitations, CITE_TAG_RE } from "@/lib/ai-file-tools";
-import type { AnswerCitation } from "@/lib/api-types";
+import type { AnswerCitation, AskBackArea, ReasonPanel } from "@/lib/api-types";
 import type { FileToolContext } from "@/lib/ai-files";
 
 export { noteTerms, noteExcerpts };
@@ -115,6 +116,10 @@ export function unrecordedNote(unrecorded: string[], measured: TrackedMetrics): 
 // ────────────────────────────────────────────────────────────────────────────
 // Tool schemas (OpenAI Chat Completions tool format)
 // ────────────────────────────────────────────────────────────────────────────
+
+/** Areas a clarifying question's chips may name (askback `areas`, answer system). */
+export const ASKBACK_AREAS = ["attendance", "money", "service", "tasks", "events", "roster"] as const satisfies readonly AskBackArea[];
+export const REASON_PANEL_KEYS = ["gauge", "strip", "rest"] as const satisfies readonly ReasonPanel[];
 
 /** The chapter surface a proposal writes to — drives approvals filters + card glyphs. */
 export const PROPOSAL_KINDS = ["timeline", "instagram", "events", "treasury", "dues", "programming", "excuse", "reimbursement", "service", "poll"] as const;
@@ -1015,9 +1020,11 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         "tier it high, and keep at most two real backups instead of listing everything you considered. Rows that are independently true " +
         "regardless of what else is picked — separate fixes, findings in different areas, ordered steps, or a menu the user asked for — stay a full list. " +
         "If you need something from the user to narrow the advice, put it in `askback` INSTEAD of trailing questions in the verdict. " +
-        (formsEnabled()
-          ? "Do NOT use this for refusals or one-line clarifying questions — answer those in plain text. With no data to show, answer in plain text too, except a clean zero for a real category (shape zero, no rows)."
-          : "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text."),
+        (kitEnabled()
+          ? "Use it for refusals too (shape decline, no rows) and for clarifying questions (askback, no rows). Only a one-line acknowledgement of a drafted change is plain text."
+          : formsEnabled()
+            ? "Do NOT use this for refusals or one-line clarifying questions — answer those in plain text. With no data to show, answer in plain text too, except a clean zero for a real category (shape zero, no rows)."
+            : "Do NOT use this for refusals, one-line clarifying questions, or when there's no data to show — answer those in plain text."),
       parameters: {
         type: "object",
         properties: {
@@ -1035,6 +1042,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                 tier:     { type: "string", enum: ["high", "medium", "later"], description: "ADVISORY ONLY: impact. Rows are ranked, so tiers must never improve further down the list." },
                 screen:   { type: "string", enum: ["dashboard", "roster", "events", "attendance", "tasks", "treasury", "dues", "service", "instagram", "parties", "docs", "settings"], description: "ADVISORY ONLY: which screen this change lives on. Tapping the row navigates there." },
                 ...(formsEnabled() ? { date: { type: "string", description: "The record's YYYY-MM-DD date, for dated records." } } : {}),
+                ...(kitEnabled() ? { panel: { type: "string", enum: [...REASON_PANEL_KEYS], description: "shape reasons only: what this reason rests on (gauge = the % vs the bar, strip = specific meetings, rest = the rest of their record)." } } : {}),
               },
               required: ["kind", "title"],
             },
@@ -1065,6 +1073,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
                     question: { type: "string", description: "The question, ≤80 chars." },
                     chips:    { type: "array", items: { type: "string" }, description: "2–5 short likely answers, ≤24 chars each." },
                     select:   { type: "string", enum: ["one", "many"], description: "\"one\" (default) when the chips are alternatives only one of which can be true (cost vs speed). \"many\" when they are constraints or preferences that stack, so the user can pick several before replying (under $500 AND no Saturdays)." },
+                    ...(kitEnabled() ? { areas: { type: "array", items: { type: "string", enum: [...ASKBACK_AREAS] }, description: "When every chip is an area of the chapter, that area per chip, in chip order (drawn as tiles)." } } : {}),
                   },
                   required: ["question", "chips"],
                 },
@@ -1081,12 +1090,20 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
               "week — what's on during a window of 7 days or fewer ('this week', 'next week', 'this weekend'); needs list_calendar_events and list_deadlines for that window. " +
               "missing — you searched for a specific thing the user named and NOTHING matched; set term to its name ('beach cleanup'). The server shows where you looked and the closest real titles. Not for a genuine zero (nobody owes dues is a tally). " +
               (formsEnabled() ? "The other types are list forms: see LIST FORMS in the instructions. " : "") +
+              (kitEnabled() ? "figure, steps, decline, reasons and quote: see ANSWER BLOCKS in the instructions. " : "") +
               "Omit for anything else. Still send your rows: they're shown if the picture can't be drawn.",
             properties: {
               type:   { type: "string", enum: offeredShapeTypes() },
-              metric: formsEnabled()
-                ? { type: "string", enum: [...TALLY_METRICS, ...RANK_METRICS], description: "tally: which subset; ranked: which number." }
+              metric: formsEnabled() || kitEnabled()
+                ? { type: "string", enum: [...TALLY_METRICS, ...(formsEnabled() ? RANK_METRICS : []), ...(kitEnabled() ? FIGURE_METRICS : [])], description: "tally: which subset; ranked: which number; figure: which quantity." }
                 : { type: "string", enum: [...TALLY_METRICS], description: "tally only: which subset." },
+              ...(kitEnabled() ? {
+                playbook: { type: "string", enum: [...PLAYBOOK_KEYS], description: "steps only." },
+                examples: { type: "object", additionalProperties: { type: "string" }, description: "steps only: example values by field label, from the question ('Name': 'Study hours')." },
+                meeting:  { type: "integer", description: "quote only: the meeting's id from search_meeting_notes." },
+                decision: { type: "integer", description: "quote only: index into that meeting's summary decisions." },
+                quote:    { type: "string", description: "quote only: the passage, copied word for word from the minutes." },
+              } : {}),
               ...(formsEnabled() ? {
                 metrics: { type: "array", items: { type: "string", enum: RANK_METRICS.filter(m => m !== "event_attendance") }, description: "table only: 2–4 measures." },
                 split:   { type: "string", enum: [...ROLL_SPLITS], description: "roll only." },
@@ -1123,6 +1140,8 @@ export interface AnswerRow {
   subtitle?: string;
   value?: string;
   ask?: string;
+  /** Reasons answers: which panel of the case file this reason rests on. */
+  panel?: ReasonPanel;
   /**
    * The record this row stands for, so tapping it can open the peek instead of
    * asking a follow-up question. Never model-supplied — attached server-side in
@@ -1205,6 +1224,8 @@ export interface AskBackQuestion {
    * that never sets the field keeps today's tap-to-send behavior exactly.
    */
   select?: AskBackSelect;
+  /** Every chip names an area of the app: drawn as tiles (answer system, kit only). */
+  areas?: AskBackArea[];
 }
 
 export const ASKBACK_SELECTS = ["one", "many"] as const;
@@ -1306,6 +1327,7 @@ export function parseComposeAnswer(args: ToolArgs, opts: { maxRows?: number } = 
         ...(screen ? { screen } : {}),
         ...(cite ? { cite } : {}),
         ...(typeof r.date === "string" && isValidCalendarDate(r.date) ? { date: r.date } : {}),
+        ...(kitEnabled() && typeof r.panel === "string" && (REASON_PANEL_KEYS as readonly string[]).includes(r.panel) ? { panel: r.panel as ReasonPanel } : {}),
       });
     }
   }
@@ -1388,7 +1410,12 @@ function parseAskBack(raw: unknown): AskBack | undefined {
     // Anything but an explicit "many" is the exclusive default — an unrecognized
     // value must not turn a pick-one question into a staged multi-select.
     const select: AskBackSelect = qq.select === "many" ? "many" : "one";
-    questions.push({ question: question.slice(0, 80), chips, ...(select === "many" ? { select } : {}) });
+    // Areas only when there's one per chip and every one is known; anything
+    // else costs the tiles, never the question.
+    const areas = kitEnabled() && Array.isArray(qq.areas) && qq.areas.length === chips.length
+      && qq.areas.every(a => typeof a === "string" && (ASKBACK_AREAS as readonly string[]).includes(a))
+      ? (qq.areas as AskBackArea[]) : undefined;
+    questions.push({ question: question.slice(0, 80), chips, ...(select === "many" ? { select } : {}), ...(areas ? { areas } : {}) });
   }
   if (questions.length === 0) return undefined;
 

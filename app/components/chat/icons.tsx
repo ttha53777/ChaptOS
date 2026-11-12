@@ -75,6 +75,18 @@ export function IcFlag({ size = 15, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={1.7}><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg>;
 }
 
+export function IcAlert({ size = 15, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.9}><path d="M12 4l9 15.4H3L12 4zM12 10v4.2M12 16.9v.1" /></svg>;
+}
+
+export function IcCompass({ size = 15, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.9}><circle cx="12" cy="12" r="8.6" /><path d="M15.4 8.6l-2 4.8-4.8 2 2-4.8 4.8-2z" /></svg>;
+}
+
+export function IcRedo({ size = 14, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={2}><path d="M19.4 12a7.4 7.4 0 1 1-2.2-5.3M19.6 4.4v4.2h-4.2" /></svg>;
+}
+
 export function IcDot({ size = 15, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={1.7}><circle cx="12" cy="12" r="8.5" /><path d="M12 12h.01" /></svg>;
 }

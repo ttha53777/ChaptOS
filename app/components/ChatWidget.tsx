@@ -19,7 +19,8 @@ import { useRouter } from "next/navigation";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
-import { IcCal, IcClip, IcCoin, IcMic, IcSend, IcStop, IcUsers } from "./chat/icons";
+import { IcAlert, IcArrow, IcCal, IcClip, IcCoin, IcFlag, IcMic, IcRedo, IcSend, IcStop, IcUsers } from "./chat/icons";
+import { Slip } from "./chat/Slip";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
@@ -49,6 +50,7 @@ import {
   type ChatMessage,
   type FileLimits,
   type EntityRef,
+  type RefType,
   type LedgerStep,
   type ProposalCard,
 } from "./chat/types";
@@ -130,6 +132,8 @@ function loadHistory(storageKey: string): ChatMessage[] {
     // drop any guessed step the model never got round to corroborating.
     return parsed.slice(-MAX_HISTORY).map(m => ({
       ...m,
+      // Turns saved before the error slip wrote the failure into the prose.
+      ...(m.role === "assistant" && m.content === "(network error)" ? { content: "", error: m.error ?? {} } : {}),
       steps: m.steps
         ?.filter(s => !s.provisional)
         .map(s => (s.status === "done" ? s : { ...s, status: "done" as const })),
@@ -624,7 +628,23 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
         } else if (event === "text") {
           flushStage();
           const delta = (parsed as { delta?: string }).delta ?? "";
-          patchMessage(aid, m => ({ ...m, content: m.content + delta, steps: settleLedger(m.steps) }));
+          // After a notice, the text is that status written for older clients —
+          // the slip already says it.
+          patchMessage(aid, m => (m.notice ? m : { ...m, content: m.content + delta, steps: settleLedger(m.steps) }));
+        } else if (event === "notice") {
+          flushStage();
+          const kind = (parsed as { kind?: string }).kind;
+          if (kind === "timeout" || kind === "error" || kind === "cut_short") {
+            patchMessage(aid, m => ({ ...m, notice: { kind }, steps: settleLedger(m.steps), composing: false }));
+          }
+        } else if (event === "note_refs") {
+          flushStage();
+          const refs = (parsed as { refs?: unknown }).refs;
+          if (Array.isArray(refs)) {
+            const ok = refs.filter((r): r is { text: string; ref: { type: RefType; id: number } } =>
+              typeof r?.text === "string" && typeof r?.ref?.id === "number" && typeof r?.ref?.type === "string");
+            if (ok.length) patchMessage(aid, m => ({ ...m, noteRefs: ok }));
+          }
         } else if (event === "proposal") {
           flushStage();
           const p = parsed as Omit<ProposalCard, "id" | "state"> & Record<string, unknown>;
@@ -653,11 +673,22 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     } catch (e) {
       flushStage();
       if ((e as { name?: string })?.name === "AbortError") {
-        // Stopped by the user — keep whatever arrived, mark the turn stopped.
-        patchMessage(aid, m => ({ ...m, stopped: true, steps: settleLedger(m.steps), composing: false }));
+        // Stopped by the user — keep whatever arrived, mark the turn stopped,
+        // and remember how far it got before the ledger settles.
+        patchMessage(aid, m => ({
+          ...m,
+          stopped: true,
+          stoppedAfter: (m.steps ?? []).filter(s => !s.provisional && s.status === "done").length,
+          steps: settleLedger(m.steps),
+          composing: false,
+        }));
       } else {
         console.error("chat stream failed:", e);
-        patchMessage(aid, m => ({ ...m, content: m.content || "(network error)", steps: settleLedger(m.steps), composing: false }));
+        // Where it broke: the source the active step was reading, if any.
+        patchMessage(aid, m => {
+          const at = (m.steps ?? []).find(s => !s.provisional && s.status === "active")?.source;
+          return { ...m, error: at ? { at } : {}, steps: settleLedger(m.steps), composing: false };
+        });
       }
     } finally {
       flushStage();
@@ -1004,7 +1035,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
               {/* Thread */}
               {scene === "thread" && (
                 <div ref={threadRef} className="cs-thread" aria-live="polite" onScroll={onThreadScroll}>
-                  {messages.map(m => {
+                  {messages.map((m, mi) => {
                     if (m.role === "user") {
                       return (
                         <div key={m.id} className="msg user send-in">
@@ -1018,6 +1049,9 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                       );
                     }
                     const isLive = streaming && m === lastMsg;
+                    // The question this turn answered — what Try again and Finish it re-send.
+                    const asked = messages[mi - 1]?.role === "user" ? messages[mi - 1].content : undefined;
+                    const drafted = m.proposals?.filter(p => p.state === "pending" && p.perm.canApprove).length ?? 0;
                     const showLedgerLive = isLive && !m.answer && !m.content && (!m.proposals || m.proposals.length === 0);
                     return (
                       <div key={m.id} className="msg ai think-in">
@@ -1055,14 +1089,45 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                                   <MarkdownLite
                                     text={m.content}
                                     trailing={isLive ? <span className="cs-caret" aria-hidden /> : undefined}
+                                    refs={m.noteRefs}
+                                    onRef={r => openPeek({ kind: r.ref.type === "member" ? "person" : r.ref.type === "transaction" ? "money" : r.ref.type, title: r.text, ref: r.ref })}
                                   />
                                 </>
                               )}
-                              {!m.answer && !m.content && !isLive && (
-                                <>
-                                  {(m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
-                                  {m.stopped && <div className="note"><em>Stopped.</em></div>}
-                                </>
+                              {!m.answer && !m.content && !isLive && (m.steps?.length ?? 0) > 0 && <TraceBlock steps={m.steps!} />}
+                              {/* Status is a slip, never a line of prose that reads like the answer. */}
+                              {!isLive && m.stopped && !m.answer && (
+                                <Slip
+                                  tone="now"
+                                  dashed
+                                  icon={<IcStop size={12} />}
+                                  title={m.stoppedAfter
+                                    ? `You stopped it after ${m.stoppedAfter} ${m.stoppedAfter === 1 ? "check" : "checks"}.`
+                                    : "You stopped it."}
+                                  action={asked ? { label: "Finish it", icon: <IcArrow />, onClick: () => void sendMessage(asked) } : undefined}
+                                >
+                                  {m.content ? "That's as far as it got. Nothing was changed." : "No answer yet. Nothing was changed."}
+                                </Slip>
+                              )}
+                              {!isLive && m.notice && !m.answer && (
+                                <Slip
+                                  tone={m.notice.kind === "cut_short" ? "now" : "watch"}
+                                  icon={<IcAlert size={14} />}
+                                  title={m.notice.kind === "timeout" ? "That took too long and timed out." : m.notice.kind === "error" ? "Something went wrong on my end." : "That answer was cut short."}
+                                  action={asked && m.notice.kind !== "cut_short" ? { label: "Try again", icon: <IcRedo />, onClick: () => void sendMessage(asked) } : undefined}
+                                >
+                                  {m.notice.kind === "cut_short" ? "Ask about a narrower part to see the rest." : "Nothing was changed."}
+                                </Slip>
+                              )}
+                              {!isLive && m.error && !m.answer && (
+                                <Slip
+                                  tone="watch"
+                                  icon={<IcAlert size={14} />}
+                                  title={m.error.at ? `Lost the connection while reading ${m.error.at}.` : "Lost the connection."}
+                                  action={asked ? { label: "Try again", icon: <IcRedo />, onClick: () => void sendMessage(asked) } : undefined}
+                                >
+                                  Nothing was changed.
+                                </Slip>
                               )}
                               {m.proposals?.map(card => (
                                 <WritCard
@@ -1074,6 +1139,11 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                                   choices={choices}
                                 />
                               ))}
+                              {!isLive && drafted > 0 && (
+                                <Slip tone="chapt" icon={<IcFlag size={14} />} title={drafted === 1 ? "Drafted, not sent." : `${drafted} changes drafted, none sent.`}>
+                                  {drafted === 1 ? "Nothing changes until you approve the card above." : "Nothing changes until you approve the cards above."}
+                                </Slip>
+                              )}
                             </>
                           }
                         />

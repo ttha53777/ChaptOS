@@ -58,7 +58,15 @@ export interface AnswerRow {
   screen?: { label: string; path: string };
   /** Where in an attached file this row came from. Only ever a unit the server showed the model this turn. */
   citations?: AnswerCitation[];
+  /** Reasons answers only: which part of the case file this reason rests on. */
+  panel?: ReasonPanel;
 }
+
+/** The colour of an answer's one mark: on track, needs attention, neutral, your own record, Chapt asking or drafting. */
+export type AnswerTone = "good" | "watch" | "now" | "yours" | "chapt";
+
+/** The areas a clarifying question's choices can name; each draws a fixed tile. */
+export type AskBackArea = "attendance" | "money" | "service" | "tasks" | "events" | "roster";
 
 /**
  * A server-attested pointer into an attached file. Open its text with
@@ -92,6 +100,12 @@ export interface AskBackQuestion {
    * client that ignores this still works from `chips` alone.
    */
   people?: AskBackPerson[];
+  /**
+   * Present when every chip names an area of the app (attendance, money…), in
+   * chip order: each choice is drawn as a tile. Tapping one sends that chip's
+   * text, so a client that ignores this still works from `chips` alone.
+   */
+  areas?: AskBackArea[];
 }
 
 export interface AskBackPerson {
@@ -122,6 +136,8 @@ export interface AnswerData {
    * client that doesn't know `shape` — or this shape's `type` — renders those.
    */
   shape?: AnswerShape;
+  /** What colour the verdict's mark and the block's accents take. Absent: the client decides. */
+  tone?: AnswerTone;
 }
 
 /** Discriminated by `type`. New types may be added; ignore ones you don't know. */
@@ -131,7 +147,8 @@ export type AnswerShape =
   | RankedShape | TableShape | RollShape
   | YesNoShape | StatusShape
   | RecordShape | ZeroShape
-  | ReceiptShape;
+  | ReceiptShape
+  | FigureShape | StepsShape | DeclineShape | ReasonsShape | QuoteShape;
 
 export type TallyMetric = "owes_dues" | "at_risk" | "no_service_hours";
 
@@ -261,6 +278,10 @@ export interface ChatStreamEvents {
   answer: AnswerData;
   /** A drafted write to confirm. */
   proposal: ChatProposal;
+  /** The turn ended in a status (timed out, failed, cut short). The text says so too, for older clients. */
+  notice: ChatNotice;
+  /** After a plain-text reply: names in it that are records this turn read, so a client can make them tappable. */
+  note_refs: { refs: Array<{ text: string; ref: EntityRef }> };
   /** End of stream. */
   done: Record<string, never>;
 }
@@ -447,6 +468,8 @@ export interface PeekCard {
   badge?: { label: string; tone: PeekTone };
   facts: PeekFact[];
   sections: PeekSection[];
+  /** Event and dated-task cards: the record's own YYYY-MM-DD, for a date stub. */
+  date?: string;
 }
 
 /** A lookup for one thing (or the pair that share a job): the peek card itself, inline. cards[i] is rows[i]'s. */
@@ -487,4 +510,89 @@ export interface ReceiptShape {
   /** cents is signed: an expense is negative. */
   items: Array<{ date: string; cents: number; pending: boolean }>;
   truncated: ShapeTruncation | null;
+}
+
+// ── The answer system (docs/ask-chapt-answer-system-plan.md) ────────────────
+
+/**
+ * One quantity, drawn big — Figure. Every number is the server's. `terms` add
+ * up to `value` (or are absent); so does `split`. Money is in dollars.
+ */
+export interface FigureShape {
+  type: "figure";
+  metric: "balance" | "members";
+  /** "Treasury · balance". */
+  kicker: string;
+  value: number;
+  unit: "usd" | "count";
+  /** Change since `since` (YYYY-MM-DD). */
+  delta: { by: number; since: string } | null;
+  /** Running value by date, oldest first; at least 4 points or null. */
+  series: Array<{ date: string; value: number }> | null;
+  /** How it's counted: signed parts that sum to `value`. */
+  terms: Array<{ label: string; amount: number; op: "+" | "-" }> | null;
+  /** A count split into parts that sum to `value`. */
+  split: Array<{ label: string; count: number }> | null;
+  asOf: string;
+}
+
+/** A how-to as a path through the app — Steps. Written against the real screen, never by the model. */
+export interface StepsShape {
+  type: "steps";
+  playbook: string;
+  /** Where it lives, outermost first: "Settings", "Custom metrics", "Add metric". */
+  crumbs: string[];
+  steps: Array<{ title: string; hint?: string; fields?: Array<{ label: string; example?: string }> }>;
+  /** The screen the button opens, relative to the org. */
+  screen: { label: string; path: string };
+  /** The permission the screen needs, and whether the asker has it. null: anyone can. */
+  perm: { label: string; ok: boolean } | null;
+}
+
+/** Out of scope, said plainly — Decline. rows are empty; the follows are the closest things Chapt can answer. */
+export interface DeclineShape {
+  type: "decline";
+  /** "I only read Sigma's records in ChaptOS (events, money, people, minutes, docs)." */
+  scope: string;
+}
+
+export type ReasonPanel = "gauge" | "strip" | "rest";
+
+/**
+ * Why a member is flagged for attendance, as a case file — Reasons. rows are
+ * the reason cards (each with `panel`). Counting matches the roster %:
+ * mandatory meetings only, an approved excuse takes a meeting out.
+ */
+export interface ReasonsShape {
+  type: "reasons";
+  judgment: "attendance";
+  subject: { id: number; name: string; role: string; joinedAt: string };
+  /** Percent, and the org's lines from Settings › Thresholds. */
+  gauge: { value: number; attended: number; counted: number; atRisk: number; watch: number | null };
+  /** Every mandatory meeting this semester, in date order. */
+  strip: Array<{ eventId: number; date: string; state: "there" | "missed" | "excused" | "unrecorded" | "ahead" }>;
+  /** The rest of their roster row, against the org's lines. */
+  rest: Array<{ label: string; value: string; ok: boolean; note?: string }>;
+  /** Looked at, not counted. `reason` only for those allowed to read excuse reasons. */
+  excluded: Array<{ eventId: number; date: string; why: "excused" | "unrecorded"; reason?: string }>;
+  /** What the meetings still on the calendar can do. null when none are left. */
+  pathBack: { left: number; outcomes: Array<{ attend: number; attended: number; counted: number; pct: number; clears: boolean }> } | null;
+  today: string;
+}
+
+/** What the minutes say, word for word — Quote. */
+export interface QuoteShape {
+  type: "quote";
+  meeting: { id: number; title: string; date: string };
+  /** A verbatim stretch of the minutes, or one of the meeting's summarized decisions. */
+  text: string;
+  /** The passage is one of the meeting's summarized decisions. */
+  decided: boolean;
+  /** The meeting's action items. */
+  items: Array<{ id: string; text: string; owner: string | null; due: string | null; done: boolean }>;
+}
+
+/** Status the client draws as a slip. Sent alongside the existing text, never instead of it. */
+export interface ChatNotice {
+  kind: "timeout" | "error" | "cut_short";
 }

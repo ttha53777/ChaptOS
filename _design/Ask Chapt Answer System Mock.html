@@ -1,0 +1,1384 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ask Chapt Answer System</title>
+<!--
+  Ask Chapt: one design system for EVERY answer. MOCK ONLY.
+
+  The list forms and reply-state shapes (tally, breakdown, week, standings, today line,
+  logbook, progress, record, side by side, roll call, drawer, receipt, past due, game
+  plan, nothing yet, yes/no) already look right and are left alone. They are the model
+  for this page: a headline, one drawn block on a sheet, a footing.
+
+  What still looks plain is everything that doesn't get a shape:
+    - a single number or fact: the verdict sentence and nothing under it
+    - how-to, explanations, "why": MarkdownLite prose (.note), bullets in a column
+    - clarifying questions, refusals, proposal acks: one plain line
+    - stopped / network error: "Stopped." and "(network error)" in the prose style
+
+  This page names the grammar every answer follows, then adds eight blocks so no
+  answer falls through to bare prose. Today / New on each answer flips the same turn.
+
+  Paper idiom: tokens, .spot shell, .res rows and the sprite from
+  Ask Chapt List Forms Mock.html (lines 28-202 spliced in below).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens (verbatim from Dashboard Paper Mock) -------------------- */
+:root{
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --paper-3:#F4ECDD; --card:#FFFFFF;
+  --ink:#26211B; --ink-2:#544A3F; --ink-3:#8A7F71;
+  --line:#EBE1CF; --line-2:#DCD0B9;
+  --peach:#FFD5C4;  --peach-soft:#FFEDE5;  --peach-ink:#C9542D;  --peach-bd:#F8D2C2;
+  --sky:#CFE2FF;    --sky-soft:#EAF2FF;    --sky-ink:#2A66C7;    --sky-bd:#CCDFFB;
+  --mint:#C7EFDA;   --mint-soft:#E6F8EF;   --mint-ink:#1B815B;   --mint-bd:#BDE7D2;
+  --butter:#FFE5A0; --butter-soft:#FFF6DC; --butter-ink:#9C6B08; --butter-bd:#F4DFA6;
+  --lilac:#E1D8FF;  --lilac-soft:#F1EDFF;  --lilac-ink:#6244CC;  --lilac-bd:#DCD2FB;
+  --rose:#FFD6E6;   --rose-soft:#FFEDF4;   --rose-ink:#C23C77;   --rose-bd:#F8CEE0;
+  --mark-op:.85;
+  --av-ink:rgba(38,33,27,.72);
+  --r-sm:10px; --r-md:16px; --r-lg:22px;
+  --sans:'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display:'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ease-out:cubic-bezier(.22,.72,.24,1);
+  --ease-spring:cubic-bezier(.16,.9,.3,1.02);
+  color-scheme:light;
+}
+html[data-theme="dark"]{
+  --paper:#15110D; --paper-2:#1B1712; --paper-3:#25201A; --card:#1F1A15;
+  --ink:#F2EADC; --ink-2:#CDBFAB; --ink-3:#948876;
+  --line:#2F271E; --line-2:#43382B;
+  --peach:#E5A28A;  --peach-soft:rgba(255,178,148,.085); --peach-ink:#FFB49A; --peach-bd:rgba(255,178,148,.22);
+  --sky:#8DB2EC;    --sky-soft:rgba(150,190,255,.085);   --sky-ink:#AACBFF;   --sky-bd:rgba(150,190,255,.22);
+  --mint:#80CBA4;   --mint-soft:rgba(140,220,180,.08);   --mint-ink:#8FDDB6;  --mint-bd:rgba(140,220,180,.22);
+  --butter:#E3BF66; --butter-soft:rgba(255,214,120,.08); --butter-ink:#F0CC72;--butter-bd:rgba(255,214,120,.22);
+  --lilac:#A593EE;  --lilac-soft:rgba(180,160,255,.10);  --lilac-ink:#C4B6FF; --lilac-bd:rgba(180,160,255,.26);
+  --rose:#E598B7;   --rose-soft:rgba(255,160,200,.08);   --rose-ink:#FFAACB;  --rose-bd:rgba(255,160,200,.22);
+  --mark-op:.42;
+  --av-ink:rgba(22,18,14,.78);
+  color-scheme:dark;
+}
+
+/* ---------- base ---------------------------------------------------------- */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.55; letter-spacing:-.005em; -webkit-font-smoothing:antialiased; overflow-x:clip; transition:background .35s var(--ease-out), color .35s var(--ease-out)}
+h1,h2,h3,h4,p,ul,ol{margin:0}
+ul,ol{padding:0; list-style:none}
+button,input{font:inherit; color:inherit}
+button{cursor:pointer}
+svg{display:block}
+:focus-visible{outline:2px solid var(--lilac-ink); outline-offset:2px; border-radius:6px}
+.ic{width:18px; height:18px; flex:none}
+.mono{font-family:var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.hi{position:relative; white-space:nowrap; z-index:0}
+.hi::before{content:''; position:absolute; z-index:-1; left:-.12em; right:-.12em; bottom:.04em; height:.5em; background:var(--mark, var(--butter)); border-radius:.4em .55em .38em .6em; transform:rotate(-.8deg) scaleX(var(--mx,1)); transform-origin:left center; opacity:var(--mark-op); transition:transform .8s var(--ease-spring) .35s}
+.ak-a:not(.in) .hi::before{--mx:0}
+.eyebrow{display:inline-flex; align-items:center; gap:9px; font-size:.7rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.eyebrow::before{content:''; width:18px; height:2px; border-radius:2px; background:var(--peach)}
+.avatar{width:28px; height:28px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:.66rem; font-weight:700; letter-spacing:-.02em; background:var(--av, var(--lilac)); color:var(--av-ink); border:1.5px solid rgba(38,33,27,.08)}
+.avatar--sm{width:22px; height:22px; font-size:.56rem}
+.avatar--lg{width:46px; height:46px; font-size:.95rem; border:1.5px solid var(--ink)}
+.btn{--bg:var(--ink); --fg:var(--paper); --hs:var(--lilac); display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:6px 13px; border-radius:999px; border:1.5px solid var(--ink); background:var(--bg); color:var(--fg); font-weight:600; font-size:.8rem; box-shadow:2px 2px 0 var(--hs); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.btn:hover{transform:translate(-1.5px,-1.5px); box-shadow:3.5px 3.5px 0 var(--hs)}
+.btn .ic{width:13px; height:13px}
+.btn--ghost{--bg:var(--card); --fg:var(--ink); --hs:var(--sky)}
+.kicker{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+
+/* ---------- page shell (mock only) ------------------------------------------ */
+.pg{max-width:1180px; margin:0 auto; padding:44px 24px 120px}
+.pg-top{display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap}
+.pg-top h1{font-family:var(--display); font-weight:600; font-size:clamp(2rem,5vw,3rem); letter-spacing:-.035em; line-height:1.05; margin-top:12px}
+.pg-top .lede{margin-top:14px; max-width:64ch; color:var(--ink-2); font-size:1rem; text-wrap:pretty}
+.theme{margin-left:auto; display:inline-flex; gap:2px; padding:3px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--card)}
+.theme button{border:0; background:none; border-radius:999px; padding:5px 12px; font-size:.78rem; font-weight:600; color:var(--ink-3)}
+.theme button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+
+/* the picker: one tile per form, each a small drawing of itself */
+.pick{margin-top:30px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+.pk{position:relative; display:grid; gap:3px; align-content:start; padding:12px 14px 13px; border-radius:var(--r-md); border:1.5px solid var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--c, var(--paper-3)); text-decoration:none; color:inherit; transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+a.pk:hover{transform:translate(-1.5px,-1.5px); box-shadow:5px 5px 0 var(--c)}
+.pk svg.th{width:76px; height:50px; margin-bottom:6px; color:var(--ink)}
+.pk .th .f{fill:var(--c, var(--paper-3)); stroke:currentColor; stroke-width:1.5}
+.pk .th .l{stroke:var(--line-2); stroke-width:3; stroke-linecap:round}
+.pk .th .k{stroke:currentColor; stroke-width:3; stroke-linecap:round}
+.pk .th .o{fill:none; stroke:currentColor; stroke-width:1.5}
+.pk .th .d{stroke:currentColor; stroke-width:1.5; stroke-dasharray:3 3; fill:none}
+.pk i{position:absolute; top:12px; right:14px; font-style:normal; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.pk b{font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em}
+.pk span{font-size:.8rem; color:var(--ink-2); line-height:1.4; text-wrap:pretty}
+.pk.wide{grid-column:1 / -1; grid-template-columns:auto minmax(0,1fr); column-gap:16px; align-items:center}
+.pk.wide svg.th{grid-row:span 2; margin:0}
+.pk.old{grid-column:1 / -1; grid-template-columns:auto minmax(0,1fr); column-gap:16px; align-items:center; border-style:dashed; border-color:var(--line-2); background:var(--paper-2); box-shadow:none}
+.pk.old svg.th{color:var(--ink-3); grid-row:span 2; margin:0}
+.pk.old .th .f{fill:var(--paper-3)}
+@media (max-width:900px){ .pick{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+.st{padding-top:68px; scroll-margin-top:8px}
+.st-h{display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 16px; align-items:baseline; margin-bottom:18px}
+.st-h .num{font-family:var(--mono); font-size:.8rem; color:var(--ink-3); grid-row:span 2}
+.st-h h2{font-family:var(--display); font-weight:600; font-size:1.7rem; letter-spacing:-.03em; line-height:1.1}
+.st-h p{color:var(--ink-2); font-size:.94rem; max-width:66ch; text-wrap:pretty}
+.st-g{display:grid; grid-template-columns:minmax(0,732px) minmax(0,1fr); gap:28px; align-items:start}
+@media (max-width:1120px){ .st-g{grid-template-columns:minmax(0,1fr)} }
+
+.notes{position:sticky; top:20px; padding:16px 18px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--paper-2); font-size:.84rem; color:var(--ink-2); display:grid; gap:14px}
+.notes h4{margin:0 0 5px; font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.notes pre{margin:0; padding:10px 12px; border-radius:10px; background:var(--card); border:1.5px solid var(--line); font-family:var(--mono); font-size:.7rem; line-height:1.55; color:var(--ink-2); white-space:pre-wrap; overflow-wrap:anywhere}
+.notes pre b{color:var(--lilac-ink); font-weight:600}
+.notes .rule{padding-left:10px; border-left:2.5px solid var(--butter); line-height:1.5}
+@media (max-width:1120px){ .notes{position:static} }
+
+/* ---------- the spotlight shell (as in paper-chat.css) ---------------------- */
+.spot{display:flex; flex-direction:column; width:100%; background:var(--card); border:1.5px solid var(--ink); border-radius:20px; box-shadow:5px 5px 0 var(--lilac); overflow:hidden}
+.ak-bar{display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1.5px solid var(--line)}
+.ak-bar .tick{width:7px; height:7px; border-radius:2px; background:var(--lilac-ink); transform:rotate(45deg)}
+.ak-bar .title{font-family:var(--display); font-weight:600; font-size:.9rem; letter-spacing:-.015em; margin-left:2px}
+.ak-bar .spacer{flex:1}
+.barbtn{border:1.5px dashed var(--lilac-bd); background:none; border-radius:999px; padding:4px 10px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--lilac-ink)}
+.barbtn:hover{border-color:var(--lilac-ink)}
+/* mock control: flip one answer between today's list and its new form */
+.seg{display:inline-flex; padding:2px; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper-2)}
+.seg button{border:0; background:none; border-radius:999px; padding:3px 11px; font-family:var(--mono); font-size:.6rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)}
+.seg button[aria-pressed="true"]{background:var(--ink); color:var(--paper)}
+.spot[data-view="new"] .v-old,.spot[data-view="old"] .v-new{display:none}
+.spot-b{padding:4px 18px 18px; font-size:.94em}
+.dock{display:flex; align-items:flex-end; gap:8px; margin:0 14px 14px; padding:6px 6px 6px 14px; border:1.5px solid var(--line-2); border-radius:14px; background:var(--paper-2)}
+.dock span{flex:1; padding:6px 0; font-size:.9rem; color:var(--ink-3)}
+.dock .send{width:34px; height:34px; flex:none; display:grid; place-items:center; border-radius:10px; border:0; background:var(--paper-3); color:var(--ink-3)}
+.dock .send .ic{width:15px; height:15px}
+.ak-turn{padding-top:14px}
+.ak-turn + .ak-turn{margin-top:20px; border-top:1px dashed var(--line-2)}
+.ak-q{display:flex; justify-content:flex-end}
+.ak-q span{max-width:80%; padding:8px 14px; border-radius:16px 16px 4px 16px; background:var(--paper-2); border:1.5px solid var(--line); font-size:.92rem; font-weight:500}
+.trace{margin-top:12px; display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px dashed var(--line-2); font-size:.8rem; color:var(--ink-3)}
+.trace .tk{width:16px; height:16px; border-radius:50%; background:var(--lilac-soft); border:1.5px solid var(--lilac-bd); color:var(--lilac-ink); display:grid; place-items:center; flex:none}
+.trace .tk .ic{width:9px; height:9px}
+.trace .chev{margin-left:auto; width:13px; height:13px}
+.verdict{margin-top:10px; font-family:var(--display); font-weight:500; font-size:1.16rem; letter-spacing:-.022em; line-height:1.38; color:var(--ink-2); text-wrap:pretty}
+.verdict .hi{color:var(--ink); font-weight:650}
+.ak-a:not(.in){opacity:0}
+.ak-a{transition:opacity .3s}
+/* one stagger for every form: anything marked data-a rises in turn */
+.ak-a [data-a]{transition:opacity .35s var(--ease-out), transform .45s var(--ease-spring); transition-delay:calc(var(--i,0)*45ms + 120ms)}
+.ak-a:not(.in) [data-a]{opacity:0; transform:translateY(6px); transition:none}
+
+/* today's list — unchanged, kept as the fallback and as the "Today" view */
+.res-list{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); overflow:hidden; background:var(--card)}
+.res{display:grid; grid-template-columns:28px minmax(0,1fr) auto 14px; gap:12px; align-items:center; width:100%; padding:8px 12px; border:0; border-top:1px solid var(--paper-3); background:none; text-align:left; transition:background .15s}
+.res:first-child{border-top:0}
+.res:hover{background:var(--paper-2)}
+.res .glyph{width:28px; height:28px; border-radius:10px; display:grid; place-items:center; background:var(--g-bg, var(--paper-2)); border:1.5px solid var(--g-bd, var(--line)); color:var(--g-fg, var(--ink-2))}
+.res .glyph .ic{width:14px; height:14px}
+.res .t{display:block; font-size:.9rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .s{display:block; font-size:.76rem; color:var(--ink-3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.res .val{font-family:var(--mono); font-size:.8rem; color:var(--ink); white-space:nowrap}
+.chev{width:14px; height:14px; color:var(--ink-3); transition:transform .18s var(--ease-out), color .15s}
+button:hover > .chev, tr:hover .chev{color:var(--ink); transform:translateX(2px)}
+
+.ak-meta{margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px}
+.sources{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
+.sources .lbl,.fb .lbl{font-size:.62rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.src{display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; border:1.5px solid var(--line); background:var(--paper); font-size:.72rem; font-weight:600; color:var(--ink-2)}
+.src i{width:6px; height:6px; border-radius:50%; background:var(--lilac-ink)}
+.fb{margin-left:auto; display:flex; align-items:center; gap:4px}
+.fb button{width:28px; height:28px; display:grid; place-items:center; border-radius:9px; border:1.5px solid transparent; background:none; color:var(--ink-3)}
+.fb button:hover{background:var(--paper-2); color:var(--ink)}
+.fb .ic{width:14px; height:14px}
+.fb .flip{transform:scaleY(-1)}
+.follows{margin-top:12px; display:flex; flex-wrap:wrap; gap:7px}
+.follows button{border:1.5px solid var(--line-2); background:var(--card); border-radius:999px; padding:5px 12px; font-size:.8rem; color:var(--ink-2); transition:border-color .15s, color .15s, background .15s}
+.follows button:hover{border-color:var(--lilac-ink); color:var(--ink); background:var(--lilac-soft)}
+
+/* the sheet every form sits on */
+.sheet{margin-top:12px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); position:relative}
+.sheet-h{display:flex; align-items:center; gap:6px 10px; padding:11px 14px 0; flex-wrap:wrap}
+.legend{margin-left:auto; display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.72rem; color:var(--ink-3)}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{width:11px; height:11px; border-radius:4px; border:1.5px solid var(--ink); background:var(--c)}
+.legend i.dash{width:0; height:13px; border:0; border-left:1.5px dashed var(--ink-2); border-radius:0}
+.cap{margin-top:8px; font-size:.74rem; color:var(--ink-3)}
+
+/* ═════════════════════════ system-wide additions ═════════════════════════ */
+.verdict .hi{--mark:var(--tone, var(--butter))}
+.spot-b .ak-a{--tone:var(--butter)}
+.t-good{--tone:var(--mint); --tone-soft:var(--mint-soft); --tone-ink:var(--mint-ink); --tone-bd:var(--mint-bd)}
+.t-watch{--tone:var(--peach); --tone-soft:var(--peach-soft); --tone-ink:var(--peach-ink); --tone-bd:var(--peach-bd)}
+.t-now{--tone:var(--butter); --tone-soft:var(--butter-soft); --tone-ink:var(--butter-ink); --tone-bd:var(--butter-bd)}
+.t-info{--tone:var(--sky); --tone-soft:var(--sky-soft); --tone-ink:var(--sky-ink); --tone-bd:var(--sky-bd)}
+.t-chapt{--tone:var(--lilac); --tone-soft:var(--lilac-soft); --tone-ink:var(--lilac-ink); --tone-bd:var(--lilac-bd)}
+
+/* today's prose, as MarkdownLite draws it */
+.note{margin-top:10px; font-size:.92rem; line-height:1.6; color:var(--ink-2)}
+.note p + p,.note p + ul,.note p + ol,.note ul + p,.note ol + p,.note h3 + p,.note h3 + ul{margin-top:8px}
+.note h3{margin-top:14px; font-size:.95rem; font-weight:700; color:var(--ink)}
+.note h3:first-child{margin-top:0}
+.note ul{list-style:disc; padding-left:1.3em}
+.note ol{list-style:decimal; padding-left:1.4em}
+.note li + li{margin-top:2px}
+.note strong{color:var(--ink)}
+.note em{font-style:normal; font-weight:600; color:var(--ink)}
+
+/* entity chip: any record named in running text is a chip that opens it */
+.ent{display:inline-flex; align-items:center; gap:5px; vertical-align:baseline; padding:0 8px 0 3px; margin:0 1px; line-height:1.55; border-radius:999px; border:1.5px solid var(--line-2); background:var(--paper-2); font-weight:600; font-size:.88em; color:var(--ink); white-space:nowrap; transition:border-color .15s, background .15s; cursor:pointer}
+.ent:hover{border-color:var(--lilac-ink); background:var(--lilac-soft)}
+.ent .avatar{width:17px; height:17px; font-size:.5rem; border-width:1px}
+.ent .g{width:17px; height:17px; flex:none; display:grid; place-items:center; border-radius:6px; background:var(--g, var(--card)); border:1px solid var(--line-2); color:var(--ink-2)}
+.ent .g .ic{width:10px; height:10px}
+/* a UI label named in text is a keycap, not a link */
+.kc{display:inline-block; padding:0 6px; border-radius:6px; border:1.5px solid var(--line-2); border-bottom-width:2.5px; background:var(--card); font-size:.84em; font-weight:600; color:var(--ink); line-height:1.5; white-space:nowrap}
+
+/* footing: one strip under every answer */
+.ft{margin-top:14px; padding-top:10px; border-top:1px dashed var(--line-2); display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px}
+.ft .from{display:flex; flex-wrap:wrap; align-items:center; gap:5px}
+.ft .lbl{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); margin-right:2px}
+.ft .src{padding:1px 8px; background:none; font-size:.7rem}
+.ft .fb{margin-left:auto}
+.nx{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px}
+.nx button{display:inline-flex; align-items:center; gap:6px; border:1.5px solid var(--line-2); background:var(--card); border-radius:999px; padding:5px 12px 5px 10px; font-size:.8rem; color:var(--ink-2); transition:border-color .15s, color .15s, background .15s, transform .18s var(--ease-spring)}
+.nx button .ic{width:12px; height:12px; color:var(--lilac-ink)}
+.nx button:hover{border-color:var(--lilac-ink); color:var(--ink); background:var(--lilac-soft); transform:translateX(2px)}
+
+.sheet .kicker{display:inline-flex; align-items:center; gap:7px}
+.sheet .kicker .ic{width:12px; height:12px}
+.pill{display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; border:1.5px solid var(--ink); background:var(--tone, var(--butter)); color:#26211B; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.02em; white-space:nowrap}
+.pill .ic{width:10px; height:10px}
+.pill.soft{border-color:var(--tone-bd, var(--line-2)); background:var(--tone-soft, var(--paper-2)); color:var(--tone-ink, var(--ink-2))}
+
+/* ═════ 01 FIGURE ═════ */
+.fg-top{display:flex; align-items:flex-end; gap:10px 14px; flex-wrap:wrap; padding:12px 16px 2px}
+.fg-n{font-family:var(--display); font-weight:650; font-size:clamp(2.5rem,7vw,3.3rem); letter-spacing:-.05em; line-height:.92; font-variant-numeric:tabular-nums}
+.fg-n small{font-size:.48em; letter-spacing:-.02em; color:var(--ink-3); font-weight:600; margin-left:1px}
+.fg-top .pill{margin-bottom:7px}
+.fg-sub{padding:2px 16px 0; font-size:.78rem; color:var(--ink-3)}
+.fg-spark{padding:6px 10px 0}
+.fg-spark svg{width:100%; height:62px; overflow:visible}
+.fg-spark .area{fill:var(--tone-soft)}
+.fg-spark .line{fill:none; stroke:var(--ink); stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round; stroke-dasharray:600; stroke-dashoffset:0; transition:stroke-dashoffset 1.2s var(--ease-out) .25s}
+.ak-a:not(.in) .fg-spark .line{stroke-dashoffset:600; transition:none}
+.fg-spark .dot{fill:var(--tone); stroke:var(--ink); stroke-width:1.5}
+.fg-spark .ax{font-family:var(--mono); font-size:9px; fill:var(--ink-3)}
+.fg-eq{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin-top:8px; padding:11px 14px 12px; border-top:1.5px dashed var(--line); background:var(--paper-2); border-radius:0 0 var(--r-md) var(--r-md)}
+.fg-eq .kicker{width:100%}
+.term{display:inline-grid; gap:0; padding:4px 10px 5px; border-radius:10px; border:1.5px solid var(--line-2); background:var(--card); line-height:1.2; cursor:pointer; transition:border-color .15s}
+.term:hover{border-color:var(--lilac-ink)}
+.term b{font-family:var(--mono); font-size:.8rem; font-weight:600}
+.term span{font-size:.66rem; color:var(--ink-3)}
+.term.tot{border-color:var(--ink); background:var(--tone)}
+.term.tot b,.term.tot span{color:#26211B}
+.op{font-family:var(--mono); font-size:.9rem; color:var(--ink-3)}
+/* figure, the count variant: a small stack of fact boxes */
+.fg-mini{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; padding:10px 14px 14px}
+.fg-mini div{padding:8px 10px; border-radius:10px; border:1.5px solid var(--line); background:var(--paper-2)}
+.fg-mini b{display:block; font-family:var(--display); font-weight:650; font-size:1.2rem; letter-spacing:-.03em}
+.fg-mini span{font-size:.7rem; color:var(--ink-3)}
+
+/* ═════ 02 FACT CARD ═════ */
+.fc{display:grid; grid-template-columns:86px minmax(0,1fr); margin-top:12px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:3px 3px 0 var(--tone); overflow:hidden}
+.fc-stub{position:relative; display:grid; align-content:center; justify-items:center; gap:2px; padding:12px 6px; background:var(--tone-soft); border-right:1.5px dashed var(--ink)}
+.fc-stub::before,.fc-stub::after{content:''; position:absolute; right:-8px; width:14px; height:14px; border-radius:50%; background:var(--card); border:1.5px solid var(--ink)}
+.fc-stub::before{top:-8px} .fc-stub::after{bottom:-8px}
+.fc-stub .m{font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.14em}
+.fc-stub .d{font-family:var(--display); font-weight:650; font-size:2.3rem; letter-spacing:-.05em; line-height:.9}
+.fc-stub .w{font-family:var(--mono); font-size:.6rem; color:var(--ink-3); letter-spacing:.1em}
+.fc-b{padding:12px 16px 14px; min-width:0}
+.fc-h{display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap}
+.fc-h h3{font-family:var(--display); font-weight:600; font-size:1.2rem; letter-spacing:-.025em; line-height:1.15; flex:1; min-width:10ch}
+.fc-dl{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 16px; margin-top:12px}
+.fc-dl dt{font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3)}
+.fc-dl dd{margin:2px 0 0; display:flex; align-items:center; gap:6px; font-size:.86rem; font-weight:600; min-width:0}
+.fc-dl dd .s{font-weight:500; color:var(--ink-3); font-size:.78rem}
+.fc-meter{height:6px; flex:1; max-width:90px; border-radius:6px; border:1.5px solid var(--ink); background:var(--card); overflow:hidden}
+.fc-meter i{display:block; height:100%; width:var(--w); background:var(--tone)}
+.fc-act{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px}
+
+/* ═════ 03 STEPS ═════ */
+.sp-crumbs{display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:12px 14px 4px}
+.crumb{display:inline-flex; align-items:center; gap:6px; padding:4px 10px 4px 7px; border-radius:9px; border:1.5px solid var(--ink); border-bottom-width:3px; background:var(--card); font-size:.8rem; font-weight:600}
+.crumb .ic{width:13px; height:13px; color:var(--ink-2)}
+.crumb.end{background:var(--tone)}
+.crumb.end, .crumb.end .ic{color:#26211B}
+.sp-crumbs > .ic{width:12px; height:12px; color:var(--ink-3)}
+.sp-l{counter-reset:sp; padding:6px 14px 4px}
+.sp-l li{position:relative; display:grid; grid-template-columns:26px minmax(0,1fr); gap:12px; padding:8px 0}
+.sp-l li::before{counter-increment:sp; content:counter(sp); width:24px; height:24px; display:grid; place-items:center; border-radius:50%; border:1.5px solid var(--ink); background:var(--card); font-family:var(--mono); font-size:.72rem; font-weight:600; position:relative; z-index:1}
+.sp-l li:not(:last-child)::after{content:''; position:absolute; left:12px; top:32px; bottom:-8px; border-left:1.5px solid var(--line-2)}
+.sp-l li.done::before{content:'✓'; background:var(--mint)}
+.sp-l b{display:block; font-size:.9rem; font-weight:600}
+.sp-l p{font-size:.8rem; color:var(--ink-3); margin-top:1px; text-wrap:pretty}
+.flds{display:flex; flex-wrap:wrap; gap:5px; margin-top:7px}
+.fld{display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:7px; border:1.5px dashed var(--line-2); background:var(--paper-2); font-size:.72rem; color:var(--ink-2)}
+.fld i{font-style:normal; font-family:var(--mono); font-size:.66rem; color:var(--ink-3)}
+.sp-foot{display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; padding:10px 14px 13px; border-top:1.5px dashed var(--line); margin-top:6px}
+.sp-foot .cap{margin:0}
+
+/* ═════ 04 REASONS ═════ */
+.rs{padding:6px 6px 8px}
+.rs-r{display:grid; grid-template-columns:34px minmax(0,1fr); gap:10px; padding:9px 10px; border-radius:12px}
+.rs-r + .rs-r{border-top:1px solid var(--paper-3); border-radius:0}
+.rs-r .n{font-family:var(--display); font-weight:650; font-size:1.6rem; letter-spacing:-.04em; line-height:1; color:var(--tone-ink)}
+.rs-r b{display:block; font-size:.92rem; font-weight:600; text-wrap:pretty}
+.rs-r p{margin-top:3px; font-size:.82rem; color:var(--ink-2); line-height:1.75; text-wrap:pretty}
+.rs-x{display:flex; align-items:center; gap:8px; margin:2px 10px 2px; padding:8px 12px; border-radius:10px; background:var(--mint-soft); border:1.5px solid var(--mint-bd); font-size:.78rem; color:var(--ink-2)}
+.rs-x .ic{width:13px; height:13px; color:var(--mint-ink)}
+
+/* ═════ 04 REASONS, the case file ═════ */
+.rz{margin-top:32px}
+/* the folder: everything the reasons point at, drawn once */
+.rz-case{position:relative; border:1.5px solid var(--ink); border-radius:4px 18px 18px 18px; background:var(--card); box-shadow:4px 4px 0 var(--peach)}
+.rz-tab{position:absolute; left:-1.5px; top:-19px; height:20px; display:inline-flex; align-items:center; gap:6px; padding:0 12px; border:1.5px solid var(--ink); border-bottom:0; border-radius:10px 10px 0 0; background:var(--peach-soft); font-family:var(--mono); font-size:.58rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--peach-ink)}
+.rz-tab i{width:6px; height:6px; border-radius:50%; background:var(--peach-ink)}
+.rz-who{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:14px 16px 12px; border-bottom:1.5px dashed var(--line)}
+.rz-who b{display:block; font-family:var(--display); font-weight:600; font-size:1.15rem; letter-spacing:-.025em; line-height:1.15}
+.rz-who span.s{display:block; font-size:.76rem; color:var(--ink-3); margin-top:1px}
+.rz-stamp{padding:4px 10px; border:2.5px solid var(--peach-ink); border-radius:8px; color:var(--peach-ink); font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.14em; text-transform:uppercase; transform:rotate(-6deg); line-height:1.2; text-align:center; transition:transform .45s var(--ease-spring) .55s, opacity .3s .55s}
+.rz-stamp small{display:block; font-size:.58rem; letter-spacing:.04em}
+.ak-a:not(.in) .rz-stamp{transform:rotate(-6deg) scale(1.7); opacity:0; transition:none}
+
+.rz-ev{position:relative; padding:12px 16px; border-radius:12px; transition:background .2s, opacity .2s}
+.rz-ev + .rz-ev{border-top:1px solid var(--paper-3); border-radius:0}
+.rz-ev > .kicker{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+.rz-ev > .kicker em{font-style:normal; margin-left:auto; color:var(--peach-ink)}
+.rz-case.lit .rz-ev{opacity:.38}
+.rz-case.lit .rz-ev.on{opacity:1; background:var(--peach-soft)}
+
+/* gauge: one track, the org's bar through it, the gap called out */
+.gz{position:relative; padding:20px 0 4px}
+.gz-trk{position:relative; height:22px; border:1.5px solid var(--ink); border-radius:8px; background:var(--paper-2); overflow:hidden}
+.gz-fill{position:absolute; inset:0 auto 0 0; width:calc(var(--v)*1%); background:var(--peach); border-right:1.5px solid var(--ink); transform-origin:left center; transition:transform .9s var(--ease-spring) .3s}
+.ak-a:not(.in) .gz-fill{transform:scaleX(0); transition:none}
+.gz-gap{position:absolute; top:0; bottom:0; left:calc(var(--v)*1%); width:calc((var(--bar) - var(--v))*1%); background:repeating-linear-gradient(135deg, transparent 0 4px, var(--peach-bd) 4px 6px)}
+.gz-bar{position:absolute; top:4px; bottom:-6px; left:calc(var(--bar)*1%); border-left:2px dashed var(--ink)}
+.gz-bar span{position:absolute; top:-2px; left:6px; white-space:nowrap; font-family:var(--mono); font-size:.6rem; font-weight:600; color:var(--ink-2)}
+.gz-v{position:absolute; top:0; left:calc(var(--v)*1%); transform:translateX(-50%); padding:1px 7px; border-radius:999px; border:1.5px solid var(--ink); background:var(--peach); color:#26211B; font-family:var(--mono); font-size:.66rem; font-weight:600}
+.gz-ax{display:flex; justify-content:space-between; margin-top:5px; font-family:var(--mono); font-size:.58rem; color:var(--ink-3)}
+
+/* the term as a strip of meetings */
+.mts{display:grid; grid-template-columns:repeat(14,minmax(0,1fr)); gap:5px}
+.mts .mo{grid-row:1; font-family:var(--mono); font-size:.56rem; font-weight:600; letter-spacing:.1em; color:var(--ink-3); padding-bottom:3px; border-bottom:1px solid var(--line)}
+.mt{grid-row:3; display:grid; place-items:center; aspect-ratio:1 / 1.12; border-radius:7px; border:1.5px solid var(--ink); background:var(--card); font-family:var(--mono); font-size:.62rem; font-weight:600; color:#26211B; transition:transform .35s var(--ease-spring); transition-delay:calc(var(--i)*35ms + 250ms)}
+.ak-a:not(.in) .mt{transform:scale(.4); transition:none}
+.mt .ic{width:11px; height:11px}
+.mt.y{background:var(--mint)}
+.mt.x{background:var(--peach); transform:rotate(-4deg)}
+.mt.e{border-style:dashed; border-color:var(--line-2); background:none; color:var(--ink-3)}
+.mt.o{background:var(--butter)}
+.mt.f{border-style:dashed; border-color:var(--line-2); background:none}
+.md{grid-row:4; text-align:center; font-family:var(--mono); font-size:.55rem; color:var(--ink-3)}
+.mbr{grid-row:2; position:relative; height:16px; margin:0 1px 4px}
+.mbr::before{content:''; position:absolute; left:0; right:0; bottom:2px; height:7px; border:1.5px solid var(--peach-ink); border-bottom:0; border-radius:4px 4px 0 0}
+.mbr span{position:absolute; left:50%; top:-3px; transform:translateX(-50%); white-space:nowrap; padding:0 5px; background:var(--card); font-family:var(--mono); font-size:.56rem; font-weight:600; color:var(--peach-ink)}
+.rz-ev.on .mbr span{background:var(--peach-soft)}
+.mkey{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:9px; font-size:.68rem; color:var(--ink-3)}
+.mkey span{display:inline-flex; align-items:center; gap:5px}
+.mkey i{width:10px; height:10px; border-radius:3px; border:1.5px solid var(--ink); background:var(--c)}
+.mkey i.d{border-style:dashed; border-color:var(--line-2); background:none}
+
+/* the rest of the record: the roster row's other numbers, against Settings */
+.rz-ok{display:flex; flex-wrap:wrap; gap:6px}
+.rz-ok span{display:inline-flex; align-items:center; gap:7px; padding:5px 11px 5px 6px; border-radius:999px; border:1.5px solid var(--mint-bd); background:var(--mint-soft); font-size:.78rem; color:var(--ink-2)}
+.rz-ok i{width:18px; height:18px; border-radius:50%; display:grid; place-items:center; background:var(--mint); border:1.5px solid var(--ink); color:#26211B}
+.rz-ok i .ic{width:10px; height:10px}
+.rz-ok b{font-family:var(--mono); font-size:.76rem; color:var(--ink)}
+/* last touch: a dotted run from the last note to today */
+.lt{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center}
+.lt-run{position:relative; height:2px; border-top:2px dotted var(--line-2)}
+.lt-run span{position:absolute; left:50%; top:-12px; transform:translateX(-50%); white-space:nowrap}
+.lt-now{display:inline-flex; align-items:center; gap:6px; font-family:var(--mono); font-size:.66rem; font-weight:600; color:var(--ink-2)}
+.lt-now::before{content:''; width:9px; height:9px; border-radius:2px; border:1.5px solid var(--ink); background:var(--butter); transform:rotate(45deg)}
+
+/* the reasons: index cards, each lights its evidence in the folder */
+.rz-list{display:grid; gap:10px; margin-top:16px}
+.rz-c{display:grid; grid-template-columns:50px minmax(0,1fr); border:1.5px solid var(--line-2); border-radius:14px; background:var(--card); text-align:left; padding:0; overflow:hidden; transition:border-color .15s, box-shadow .2s var(--ease-spring), transform .2s var(--ease-spring)}
+.rz-c:hover,.rz-c:focus-visible,.rz-c.on{border-color:var(--ink); box-shadow:3px 3px 0 var(--peach); transform:translate(-1.5px,-1.5px)}
+.rz-n{display:grid; place-items:center; background:var(--peach-soft); border-right:1.5px dashed var(--peach-bd); font-family:var(--display); font-weight:650; font-size:1.7rem; letter-spacing:-.04em; color:var(--peach-ink)}
+.rz-c.on .rz-n,.rz-c:hover .rz-n{background:var(--peach); color:#26211B; border-right-color:var(--ink)}
+.rz-b{padding:11px 14px 12px}
+.rz-b .kicker{display:flex; align-items:center; gap:6px; margin-bottom:3px}
+.rz-b .kicker .ic{width:11px; height:11px}
+.rz-b b{display:block; font-size:.95rem; font-weight:600; letter-spacing:-.01em; text-wrap:pretty}
+.rz-b p{margin-top:3px; font-size:.83rem; color:var(--ink-2); line-height:1.75; text-wrap:pretty}
+
+/* considered, and ruled out */
+.rz-nc{position:relative; margin-top:12px; padding:12px 14px 12px; border-radius:14px; border:1.5px dashed var(--mint-bd); background:var(--mint-soft)}
+.rz-nc .kicker{color:var(--mint-ink)}
+.rz-nc ul{display:grid; gap:6px; margin-top:8px}
+.rz-nc li{display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; font-size:.82rem; color:var(--ink-2)}
+.rz-nc .stamp{--tone-ink:var(--mint-ink); right:14px; top:12px; bottom:auto; font-size:.6rem}
+
+/* the path back: computed, not advised */
+.rz-path{margin-top:12px; padding:13px 14px 14px; border-radius:16px; border:1.5px solid var(--ink); background:var(--butter-soft); box-shadow:3px 3px 0 var(--butter)}
+.rz-path > b{display:block; margin-top:3px; font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em}
+.rz-path > p{font-size:.8rem; color:var(--ink-2); margin-top:2px}
+.pb{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; margin-top:10px; padding:8px 10px; border-radius:11px; background:var(--card); border:1.5px solid var(--line)}
+.pb .dots{display:flex; gap:4px}
+.pb .dots i{width:16px; height:18px; border-radius:5px; border:1.5px solid var(--ink); background:var(--mint)}
+.pb .dots i.x{background:var(--peach)}
+.pb .lb{font-size:.78rem; color:var(--ink-2)}
+.pb .lb b{color:var(--ink)}
+.pb .pill{font-size:.7rem}
+.pb.ok{border-color:var(--mint-bd)}
+.rz-act{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+
+@media (max-width:620px){
+  .mts{gap:3px}
+  .mt{border-radius:5px; font-size:.5rem}
+  .mt .ic{width:8px; height:8px}
+  .md{font-size:.48rem}
+  .rz-who{grid-template-columns:auto minmax(0,1fr)}
+  .rz-stamp{grid-column:1 / -1; justify-self:start}
+  .rz-c{grid-template-columns:40px minmax(0,1fr)}
+  .rz-nc .stamp{position:static; display:inline-block; margin-top:8px}
+  .pb{grid-template-columns:auto minmax(0,1fr)}
+  .pb .pill{grid-column:1 / -1; justify-self:start}
+}
+
+/* ═════ 05 QUOTE ═════ */
+.qt{position:relative; margin-top:14px; padding:14px 18px 14px 50px; border:1.5px solid var(--line-2); border-radius:6px 6px var(--r-md) var(--r-md); background-color:var(--card);
+  background-image:linear-gradient(to right, transparent 36px, var(--rose-bd) 36px, var(--rose-bd) 38px, transparent 38px), repeating-linear-gradient(to bottom, transparent 0, transparent 25px, var(--line) 25px, var(--line) 26px); background-position:0 0, 0 9px}
+.qt::before{content:''; position:absolute; top:-9px; left:50%; width:84px; height:18px; margin-left:-42px; background:var(--butter); opacity:.75; transform:rotate(-2deg); border-radius:2px}
+.qt-src{display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:.74rem; color:var(--ink-3); line-height:26px}
+.qt-src b{color:var(--ink); font-weight:600}
+.qt blockquote{margin:0; font-family:var(--display); font-weight:500; font-size:1.06rem; letter-spacing:-.015em; line-height:26px; color:var(--ink)}
+.qt blockquote .hi{--mark:var(--mint)}
+.qt-by{font-size:.74rem; color:var(--ink-3); line-height:26px}
+.stamp{position:absolute; right:16px; bottom:14px; padding:4px 10px; border:2.5px solid var(--tone-ink); border-radius:8px; color:var(--tone-ink); font-family:var(--mono); font-size:.7rem; font-weight:600; letter-spacing:.12em; text-transform:uppercase; transform:rotate(-7deg); background:var(--card); line-height:1.25; text-align:center; transition:transform .4s var(--ease-spring) .5s, opacity .3s .5s}
+.stamp small{display:block; font-size:.62rem; letter-spacing:.04em}
+.ak-a:not(.in) .stamp{transform:rotate(-7deg) scale(1.6); opacity:0; transition:none}
+.since{margin-top:12px}
+.since .kicker{display:block; padding:0 4px 6px}
+.ai-row{display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 12px; border:1.5px solid var(--line); border-radius:12px; background:var(--card)}
+.ai-row + .ai-row{margin-top:6px}
+.box{width:18px; height:18px; border-radius:5px; border:1.5px solid var(--ink); display:grid; place-items:center; background:var(--card)}
+.box.on{background:var(--mint)}
+.box .ic{width:11px; height:11px}
+.ai-row .t{display:block; font-size:.86rem; font-weight:600}
+.ai-row .s{display:block; font-size:.74rem; color:var(--ink-3)}
+.ai-row .d{font-family:var(--mono); font-size:.72rem; color:var(--ink-3)}
+.ai-row.late .d{color:var(--peach-ink); font-weight:600}
+
+/* ═════ 06 NOTE ═════ */
+.nt{margin-top:12px; padding:2px 0 2px 16px; border-left:2px solid var(--line-2)}
+.nt h4{margin:14px 0 4px; font-family:var(--mono); font-size:.62rem; font-weight:600; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3)}
+.nt h4:first-child{margin-top:2px}
+.nt p{font-size:.9rem; line-height:1.72; color:var(--ink-2); max-width:62ch; text-wrap:pretty}
+.nt-li{margin-top:4px; display:grid; gap:6px}
+.nt-li li{position:relative; padding-left:18px; font-size:.88rem; line-height:1.65; color:var(--ink-2)}
+.nt-li li::before{content:''; position:absolute; left:2px; top:.62em; width:7px; height:7px; border-radius:2px; background:var(--tone); border:1.5px solid var(--ink); transform:rotate(45deg)}
+.tip{display:flex; gap:10px; margin-top:14px; padding:10px 12px; border-radius:12px; background:var(--butter-soft); border:1.5px solid var(--butter-bd); font-size:.82rem; color:var(--ink-2); line-height:1.55}
+.tip .ic{width:15px; height:15px; color:var(--butter-ink); margin-top:2px}
+.tip b{color:var(--ink)}
+.goto{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:12px}
+
+/* ═════ 07 CLARIFY ═════ */
+.cl{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:12px}
+.cl-o{display:grid; gap:6px; align-content:start; padding:12px 13px; border-radius:var(--r-md); border:1.5px solid var(--ink); background:var(--card); text-align:left; box-shadow:2px 2px 0 var(--c); transition:transform .18s var(--ease-spring), box-shadow .18s var(--ease-spring)}
+.cl-o:hover{transform:translate(-2px,-2px); box-shadow:4px 4px 0 var(--c)}
+.cl-o .g{width:30px; height:30px; border-radius:10px; display:grid; place-items:center; background:var(--c); border:1.5px solid var(--ink); color:#26211B}
+.cl-o .g .ic{width:15px; height:15px}
+.cl-o b{font-size:.92rem; font-weight:600}
+.cl-o span{font-size:.76rem; color:var(--ink-3); line-height:1.45}
+.cl-o svg.mini{width:100%; height:26px; margin-top:2px}
+.cl-else{grid-column:1 / -1; display:flex; align-items:center; gap:8px; padding:9px 13px; border-radius:12px; border:1.5px dashed var(--line-2); background:none; font-size:.82rem; color:var(--ink-3); text-align:left}
+.cl-else:hover{border-color:var(--lilac-ink); color:var(--ink)}
+.cl-else .ic{width:13px; height:13px}
+
+/* ═════ 08 DECLINE ═════ */
+.dc{display:grid; grid-template-columns:34px minmax(0,1fr); gap:12px; margin-top:12px; padding:13px 14px; border-radius:var(--r-md); border:1.5px dashed var(--line-2); background:var(--paper-2)}
+.dc .g{width:34px; height:34px; border-radius:11px; display:grid; place-items:center; border:1.5px solid var(--line-2); background:var(--card); color:var(--ink-3)}
+.dc .g .ic{width:16px; height:16px}
+.dc b{display:block; font-size:.92rem; font-weight:600}
+.dc p{font-size:.84rem; color:var(--ink-2); margin-top:2px; text-wrap:pretty}
+.dc .nx{margin-top:10px}
+
+/* ═════ 09 SLIPS ═════ */
+.slip{display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; margin-top:12px; padding:10px 12px 10px 10px; border-radius:14px; border:1.5px solid var(--tone-bd); background:var(--tone-soft)}
+.slip .g{width:28px; height:28px; flex:none; border-radius:9px; display:grid; place-items:center; background:var(--tone); border:1.5px solid var(--ink); color:#26211B}
+.slip .g .ic{width:14px; height:14px}
+.slip .tx{flex:1; min-width:18ch; font-size:.86rem; color:var(--ink-2); line-height:1.45}
+.slip .tx b{display:block; color:var(--ink); font-weight:600}
+.slip .acts{display:flex; gap:6px; flex-wrap:wrap}
+.slip.dash{border-style:dashed; border-color:var(--line-2); background:none}
+.slip.dash .g{background:var(--card); border-color:var(--line-2); color:var(--ink-3)}
+.part{margin-top:10px; opacity:.55}
+.mini-led{margin-top:10px; display:grid; gap:6px; padding-left:4px}
+.mini-led div{display:flex; align-items:center; gap:9px; font-size:.82rem; color:var(--ink-2)}
+.mini-led i{width:14px; height:14px; border-radius:50%; border:1.5px solid var(--line-2); flex:none; display:grid; place-items:center}
+.mini-led .ok i{background:var(--lilac-ink); border-color:var(--lilac-ink); color:var(--card)}
+.mini-led .ok i .ic{width:8px; height:8px}
+.mini-led .no{color:var(--ink-3); text-decoration:line-through; text-decoration-color:var(--line-2)}
+.mini-led em{font-style:normal; font-family:var(--mono); font-size:.72rem; color:var(--ink-3); margin-left:auto}
+.writ-mini{margin-top:12px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; align-items:center; padding:12px 14px; border:1.5px solid var(--ink); border-radius:var(--r-md); background:var(--card); box-shadow:3px 3px 0 var(--butter)}
+.writ-mini .kicker{grid-column:1 / -1}
+.writ-mini b{font-size:.94rem}
+.writ-mini span{font-size:.78rem; color:var(--ink-3)}
+.writ-mini .acts{grid-row:2 / span 2; grid-column:2; display:flex; gap:6px}
+
+/* ═════ SYSTEM section ═════ */
+.sys{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:22px; align-items:start}
+@media (max-width:1000px){ .sys{grid-template-columns:minmax(0,1fr)} }
+.anat{position:relative; padding:18px 18px 18px 18px; border:1.5px solid var(--ink); border-radius:20px; background:var(--card); box-shadow:5px 5px 0 var(--lilac)}
+.an-part{position:relative; display:grid; grid-template-columns:minmax(0,1fr) 128px; gap:14px; align-items:center}
+.an-part + .an-part{margin-top:12px}
+.an-box{border:1.5px dashed var(--line-2); border-radius:12px; padding:10px 12px; background:var(--paper)}
+.an-lab{display:grid; gap:2px; font-size:.74rem; color:var(--ink-3); line-height:1.35; padding-left:12px; border-left:2.5px solid var(--c)}
+.an-lab b{font-family:var(--display); font-weight:600; font-size:.98rem; color:var(--ink); letter-spacing:-.02em}
+.an-blocks{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px}
+.an-blocks span{padding:2px 8px; border-radius:7px; border:1.5px solid var(--line-2); background:var(--card); font-size:.68rem; font-weight:600; color:var(--ink-2)}
+.an-blocks span.new{border-color:var(--ink); background:var(--lilac-soft); color:var(--ink)}
+.an-blocks span.new::after{content:' ·new'; font-family:var(--mono); font-weight:500; color:var(--lilac-ink); font-size:.6rem}
+@media (max-width:560px){ .an-part{grid-template-columns:minmax(0,1fr)} }
+
+.rules{display:grid; gap:10px; counter-reset:r}
+.rule-c{display:grid; grid-template-columns:28px minmax(0,1fr); gap:12px; padding:12px 14px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--card)}
+.rule-c::before{counter-increment:r; content:counter(r, decimal-leading-zero); font-family:var(--mono); font-size:.74rem; color:var(--ink-3); padding-top:2px}
+.rule-c b{display:block; font-size:.92rem}
+.rule-c p{font-size:.82rem; color:var(--ink-2); margin-top:2px; text-wrap:pretty}
+
+.tones{margin-top:26px; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px}
+.tn{display:grid; gap:6px; padding:12px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--card)}
+.tn .sw{height:34px; border-radius:10px; border:1.5px solid var(--ink); background:var(--tone); position:relative; overflow:hidden}
+.tn .sw::after{content:''; position:absolute; inset:0 0 0 55%; background:var(--tone-soft); border-left:1.5px solid var(--ink)}
+.tn b{font-size:.9rem}
+.tn span{font-size:.74rem; color:var(--ink-3); line-height:1.4}
+.tn .eg{font-family:var(--display); font-size:.86rem; color:var(--ink-2)}
+.tn .eg .hi{--mark:var(--tone)}
+@media (max-width:900px){ .tones{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+.router{margin-top:26px; border:1.5px solid var(--line); border-radius:var(--r-md); background:var(--card); overflow:hidden}
+.router-h{padding:12px 16px; border-bottom:1.5px solid var(--line); display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline}
+.router-h b{font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em}
+.router-h span{font-size:.8rem; color:var(--ink-3)}
+.rt{display:grid; grid-template-columns:32px minmax(0,1.3fr) minmax(0,1fr) minmax(0,.9fr); gap:12px; align-items:center; padding:9px 16px; border-top:1px solid var(--paper-3); font-size:.84rem}
+.rt:first-of-type{border-top:0}
+.rt i{font-style:normal; font-family:var(--mono); font-size:.7rem; color:var(--ink-3)}
+.rt q{quotes:none; color:var(--ink-2); font-style:italic}
+.rt a{color:var(--ink); font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:6px}
+.rt a::before{content:''; width:9px; height:9px; border-radius:3px; border:1.5px solid var(--ink); background:var(--c)}
+.rt a:hover{text-decoration:underline}
+.rt .x{font-size:.76rem; color:var(--ink-3)}
+.rt.have{background:var(--paper-2)}
+.rt.have a::before{border-style:dashed; background:none}
+@media (max-width:760px){ .rt{grid-template-columns:24px minmax(0,1fr) minmax(0,auto)} .rt .x{display:none} }
+
+/* audit cards */
+.audit{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+.au{display:grid; gap:8px; align-content:start; padding:14px; border-radius:var(--r-md); border:1.5px solid var(--line); background:var(--card)}
+.au .kicker{color:var(--peach-ink)}
+.au b{font-family:var(--display); font-weight:600; font-size:1.02rem; letter-spacing:-.02em; line-height:1.2}
+.au p{font-size:.8rem; color:var(--ink-2); text-wrap:pretty}
+.au .ex{padding:8px 10px; border-radius:10px; background:var(--paper-2); border:1.5px dashed var(--line-2); font-size:.76rem; color:var(--ink-3); font-family:var(--mono); line-height:1.5}
+@media (max-width:1000px){ .audit{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:560px){ .audit{grid-template-columns:minmax(0,1fr)} }
+
+/* thread + phone */
+.thread-g{display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:28px; align-items:start}
+@media (max-width:1120px){ .thread-g{grid-template-columns:minmax(0,1fr)} .phone{display:none} }
+.phone{position:sticky; top:20px; width:390px; height:780px; border:1.5px solid var(--ink); border-radius:44px; padding:12px; background:var(--paper-3); box-shadow:6px 6px 0 var(--sky)}
+.phone-in{height:100%; border-radius:34px; overflow:auto; background:var(--card); scrollbar-width:none}
+.phone-in .spot{border:0; border-radius:0; box-shadow:none; font-size:.94em}
+.phone-in .ak-bar{position:sticky; top:0; z-index:3; background:var(--card); padding-top:16px}
+.phone-in .seg,.phone-in .barbtn{display:none}
+.phone-in .cl{grid-template-columns:minmax(0,1fr)}
+.phone-in .dock{position:sticky; bottom:10px; background:var(--paper-2)}
+
+/* rollout */
+.phases{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
+.ph{display:grid; gap:8px; align-content:start; padding:14px; border-radius:var(--r-md); border:1.5px solid var(--ink); background:var(--card); box-shadow:3px 3px 0 var(--c)}
+.ph .kicker{color:var(--ink-2)}
+.ph b{font-family:var(--display); font-weight:600; font-size:1.05rem; letter-spacing:-.02em; line-height:1.2}
+.ph ul{display:grid; gap:5px}
+.ph li{position:relative; padding-left:14px; font-size:.8rem; color:var(--ink-2); line-height:1.45}
+.ph li::before{content:''; position:absolute; left:0; top:.55em; width:6px; height:6px; border-radius:2px; background:var(--c); border:1px solid var(--ink)}
+.ph .wire{font-family:var(--mono); font-size:.66rem; color:var(--ink-3); padding-top:8px; border-top:1px dashed var(--line-2)}
+@media (max-width:1000px){ .phases{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:560px){ .phases{grid-template-columns:minmax(0,1fr)} }
+
+@media (max-width:620px){
+  .pg{padding:28px 16px 90px}
+  .spot-b{padding:4px 14px 16px}
+  .fc{grid-template-columns:68px minmax(0,1fr)}
+  .fc-stub .d{font-size:1.9rem}
+  .fc-dl{grid-template-columns:minmax(0,1fr)}
+  .fg-mini{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .cl{grid-template-columns:minmax(0,1fr)}
+  .qt{padding-left:44px}
+  .stamp{position:static; display:inline-block; margin-top:6px}
+  .pick{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="d-check" viewBox="0 0 24 24"><path d="M4.5 13.2 9.4 18 19.5 6.4" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-chev-r" viewBox="0 0 24 24"><path d="m9.4 5.6 6.4 6.4-6.4 6.4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-arrow-r" viewBox="0 0 24 24"><path d="M4 12h15m0 0-6-6m6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-cal" viewBox="0 0 24 24"><rect x="3.3" y="5.2" width="17.4" height="15.4" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M3.6 10h16.8M8.2 3.2v3.6M15.8 3.2v3.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-wallet" viewBox="0 0 24 24"><path d="M3.4 7.6c0-1.3 1-2.3 2.3-2.3h12.6c1.3 0 2.3 1 2.3 2.3v9.2c0 1.3-1 2.3-2.3 2.3H5.7a2.3 2.3 0 0 1-2.3-2.3V7.6Z" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M15.6 12.2h4.9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></symbol>
+    <symbol id="d-clip" viewBox="0 0 24 24"><rect x="4.4" y="4.2" width="15.2" height="16.6" rx="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M9 4.2c0-1.2 1.3-2 3-2s3 .8 3 2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M8.4 11.4h7.2M8.4 15.4h4.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-doc" viewBox="0 0 24 24"><path d="M6.2 2.9h8l4.6 4.7v12.2c0 .8-.6 1.4-1.4 1.4H6.2c-.8 0-1.4-.6-1.4-1.4V4.3c0-.8.6-1.4 1.4-1.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M14 3.2v4.6h4.6M8.6 12.4h6.8M8.6 16h4.4" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-thumb" viewBox="0 0 24 24"><path d="M7.4 10.6v9.6H4.2v-9.6h3.2Zm0 0 3.8-6.4c1.4 0 2.4 1.1 2.2 2.5l-.5 3.3h5.3c1.3 0 2.2 1.2 1.9 2.4l-1.6 6.1c-.3 1-1.2 1.7-2.2 1.7H7.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6.4 16-2.4-6.8L4 12Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/></symbol>
+    <symbol id="d-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+    <symbol id="d-spark" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 2.9 7.2 7.5 8.5-4.6 1.3-6.9 4.1-7.5 8.5-.6-4.4-2.9-7.2-7.5-8.5 4.6-1.3 6.9-4.1 7.5-8.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-users" viewBox="0 0 24 24"><circle cx="9" cy="8.4" r="3.4" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M2.8 19.6c.7-3.4 3.2-5.2 6.2-5.2s5.5 1.8 6.2 5.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M15.6 5.4a3.2 3.2 0 0 1 0 6.2M17.6 14.6c1.8.6 3.1 2.2 3.6 4.8" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></symbol>
+    <symbol id="d-chart" viewBox="0 0 24 24"><path d="M4 20V4M4 20h16" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/><path d="M8 15l3.5-4 3 2.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-pin" viewBox="0 0 24 24"><path d="M12 21s-6.6-6-6.6-11.2A6.6 6.6 0 0 1 12 3.2a6.6 6.6 0 0 1 6.6 6.6C18.6 15 12 21 12 21Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><circle cx="12" cy="9.8" r="2.4" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="M12 7.4V12l3 2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-ticket" viewBox="0 0 24 24"><path d="M3.4 8.2V6.6c0-.8.6-1.4 1.4-1.4h14.4c.8 0 1.4.6 1.4 1.4v1.6a2.6 2.6 0 0 0 0 5.2v1.6c0 .8-.6 1.4-1.4 1.4H4.8c-.8 0-1.4-.6-1.4-1.4v-1.6a2.6 2.6 0 0 0 0-5.2Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round" transform="translate(0 1.6)"/><path d="M14.4 7v10" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2 2.4"/></symbol>
+    <symbol id="d-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="none" stroke="currentColor" stroke-width="2.1"/><path d="m15.4 8.6-2 4.8-4.8 2 2-4.8 4.8-2Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="d-alert" viewBox="0 0 24 24"><path d="M12 4 21 19.4H3L12 4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linejoin="round"/><path d="M12 10v4.2" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/><circle cx="12" cy="16.9" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="d-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.6" fill="none" stroke="currentColor" stroke-width="2.1"/></symbol>
+    <symbol id="d-redo" viewBox="0 0 24 24"><path d="M19.4 12a7.4 7.4 0 1 1-2.2-5.3M19.6 4.4v4.2h-4.2" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-bulb" viewBox="0 0 24 24"><path d="M9 17.4h6M10 20.6h4M12 3.4a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2v1.2h5.2v-1.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3.4Z" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-hand" viewBox="0 0 24 24"><path d="M8.4 12.6V5.4a1.6 1.6 0 0 1 3.2 0v5.8M11.6 10.6V4.2a1.6 1.6 0 0 1 3.2 0v7M14.8 11.2V6a1.6 1.6 0 0 1 3.2 0v8.2c0 4-2.6 6.6-6.4 6.6-2.6 0-4.2-1.2-5.6-3.4l-2.2-3.6a1.6 1.6 0 0 1 2.6-1.8l2 2.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="d-flag" viewBox="0 0 24 24"><path d="M5 21V4.4M5 4.6c4-2 7 2 11.4 0v8.6c-4.4 2-7.4-2-11.4 0" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="pg">
+  <header class="pg-top">
+    <div>
+      <span class="eyebrow">Ask Chapt · answer system</span>
+      <h1>No answer should <span class="hi" style="--mark:var(--lilac)">look like a fallback</span>.</h1>
+      <p class="lede">The list forms got the hard cases right: a sentence that judges, one drawing on a sheet, then where it came from and what to ask next. Everything without a shape still drops to a bare sentence or a column of prose. This page turns what the shapes already do into rules every answer follows, and adds eight blocks so nothing falls through. Flip <b>Today / New</b> on any answer to see the same turn both ways.</p>
+    </div>
+    <div class="theme" role="group" aria-label="Theme">
+      <button aria-pressed="true" data-theme-set="light">Day</button>
+      <button aria-pressed="false" data-theme-set="dark">Night</button>
+    </div>
+  </header>
+
+  <nav class="pick" aria-label="Blocks">
+    <a class="pk" href="#figure" style="--c:var(--mint)"><i>01</i>
+      <svg class="th" viewBox="0 0 76 50"><path class="k" d="M2 8h26" style="stroke-width:7"/><path class="l" d="M2 21h16"/><path class="d" d="M2 44c10-4 16-12 26-8s18-14 26-10 14-6 20-8"/></svg>
+      <b>Figure</b><span>One number. Drawn big, with how it's counted.</span></a>
+    <a class="pk" href="#facts" style="--c:var(--butter)"><i>02</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="o" x="1" y="3" width="74" height="44" rx="6"/><rect class="f" x="1" y="3" width="20" height="44" rx="6"/><path class="k" d="M28 13h30"/><path class="l" d="M28 26h16M50 26h16M28 37h16M50 37h12"/></svg>
+      <b>Fact card</b><span>One thing's when, where, who.</span></a>
+    <a class="pk" href="#steps" style="--c:var(--sky)"><i>03</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="1" width="20" height="9" rx="3"/><rect class="f" x="26" y="1" width="20" height="9" rx="3"/><circle class="o" cx="6" cy="22" r="4.5"/><path class="l" d="M16 22h40"/><circle class="o" cx="6" cy="38" r="4.5"/><path class="l" d="M16 38h30"/><path class="d" d="M6 27v6"/></svg>
+      <b>Steps</b><span>How to do it, as a path you can follow.</span></a>
+    <a class="pk" href="#reasons" style="--c:var(--peach)"><i>04</i>
+      <svg class="th" viewBox="0 0 76 50"><path class="k" d="M2 4v10M2 22v10M2 38v10" style="stroke-width:5"/><path class="k" d="M12 7h40"/><path class="l" d="M12 12h26"/><path class="k" d="M12 25h34"/><path class="l" d="M12 30h44"/><path class="k" d="M12 42h28"/></svg>
+      <b>Reasons</b><span>Why, as numbered causes with evidence.</span></a>
+    <a class="pk" href="#quote" style="--c:var(--rose)"><i>05</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="o" x="1" y="4" width="74" height="42" rx="4"/><path d="M12 4v42" stroke="var(--rose-ink)" stroke-width="1.5"/><path class="l" d="M18 16h44M18 26h36M18 36h20"/><rect class="f" x="30" y="0" width="16" height="6" style="fill:var(--butter)"/></svg>
+      <b>Quote</b><span>What the minutes or a file actually say.</span></a>
+    <a class="pk" href="#note" style="--c:var(--lilac)"><i>06</i>
+      <svg class="th" viewBox="0 0 76 50"><path class="k" d="M2 2v46" style="stroke:var(--line-2)"/><path class="k" d="M9 6h16" style="stroke-width:2"/><path class="l" d="M9 15h56M9 23h48"/><rect class="f" x="9" y="30" width="16" height="7" rx="3.5"/><path class="l" d="M30 33.5h30M9 44h40"/></svg>
+      <b>Note</b><span>Prose, typeset, with live records inline.</span></a>
+    <a class="pk" href="#clarify" style="--c:var(--sky)"><i>07</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="6" width="22" height="30" rx="5"/><rect class="f" x="27" y="6" width="22" height="30" rx="5"/><rect class="f" x="53" y="6" width="22" height="30" rx="5"/><rect class="o" x="1" y="41" width="74" height="8" rx="4" stroke-dasharray="3 2"/></svg>
+      <b>Clarify</b><span>A question back, with the choices drawn.</span></a>
+    <a class="pk" href="#decline" style="--c:var(--paper-3)"><i>08</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="o" x="1" y="6" width="74" height="38" rx="7" stroke-dasharray="4 3"/><rect class="o" x="9" y="14" width="12" height="12" rx="4"/><path class="k" d="M28 17h30"/><path class="l" d="M28 25h22"/><rect class="o" x="28" y="32" width="18" height="7" rx="3.5"/><rect class="o" x="50" y="32" width="18" height="7" rx="3.5"/></svg>
+      <b>Decline</b><span>Can't, said kindly, with what's closest.</span></a>
+    <a class="pk wide" href="#slips" style="--c:var(--peach)"><i>09</i>
+      <svg class="th" viewBox="0 0 76 50"><rect class="f" x="1" y="4" width="74" height="12" rx="6" style="fill:var(--lilac)"/><rect class="o" x="1" y="19" width="74" height="12" rx="6" stroke-dasharray="3 2"/><rect class="f" x="1" y="34" width="74" height="12" rx="6"/></svg>
+      <b>Slips</b><span>Done, stopped, couldn't. Status is a slip with a way forward, never a line of prose that reads like the answer.</span></a>
+  </nav>
+
+  <!-- ═════════════════════════════ AUDIT ═════════════════════════════ -->
+  <section class="st" id="audit">
+    <div class="st-h"><span class="num">00</span><h2>What the average answer looks like now</h2><p>Read off <code>AnswerBlock.tsx</code>, <code>MarkdownLite.tsx</code> and the prompt's plain-text carve-outs. The shapes cover lists of like things. These four cover most of what's left.</p></div>
+    <div class="audit">
+      <div class="au"><span class="kicker">The lone sentence</span><b>One number, no figure</b><p>"What's our balance?" is a verdict and nothing else. The headline number is the same size as the words around it, and nothing says how it was counted.</p><div class="ex">verdict + sources<br>rows: []</div></div>
+      <div class="au"><span class="kicker">The prose column</span><b>How-to and why become a document</b><p>Refusals, single how-tos, the fast path and explanations all render through MarkdownLite: sans paragraphs and disc bullets, unlike anything else in the app.</p><div class="ex">&lt;div class="note"&gt;<br>&nbsp;&nbsp;&lt;ul&gt;&lt;li&gt;…</div></div>
+      <div class="au"><span class="kicker">Dead names</span><b>Records in text can't be tapped</b><p>A row opens its record, but the same person or event named in a sentence is plain text. A prose answer has nothing to tap.</p><div class="ex">"…Cole missed Nov 3…"<br>(not a link)</div></div>
+      <div class="au"><span class="kicker">Status as content</span><b>Errors read like answers</b><p>A dropped stream writes "(network error)" into the answer, and Stop leaves "Stopped." The reader can't tell what ran, what changed, or what to do next.</p><div class="ex">content: "(network error)"</div></div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ SYSTEM ═════════════════════════════ -->
+  <section class="st" id="system">
+    <div class="st-h"><span class="num">··</span><h2>The system</h2><p>Every answer has three parts in the same order. The shapes you already have are bodies, and the new blocks are bodies too. Nothing else changes: same ledger, same trace, same writ.</p></div>
+    <div class="sys">
+      <div class="anat">
+        <div class="an-part">
+          <div class="an-box"><p class="verdict" style="margin:0; font-size:1.05rem">Five of nine done. <span class="hi" style="--mark:var(--peach)">The deposit is late</span>.</p></div>
+          <div class="an-lab" style="--c:var(--butter)"><b>Headline</b>One sentence that judges. One mark, colored by tone.</div>
+        </div>
+        <div class="an-part">
+          <div class="an-box">
+            <span class="kicker">One body block, always on a sheet</span>
+            <div class="an-blocks">
+              <span>Standings</span><span>Today line</span><span>Logbook</span><span>Progress</span><span>Record</span><span>Side by side</span><span>Roll call</span><span>By drawer</span><span>Receipt</span><span>Past due</span><span>Game plan</span><span>Nothing yet</span><span>Yes / no</span><span>Tally</span><span>Breakdown</span><span>Week</span><span>Not found</span>
+              <span class="new">Figure</span><span class="new">Fact card</span><span class="new">Steps</span><span class="new">Reasons</span><span class="new">Quote</span><span class="new">Note</span><span class="new">Clarify</span><span class="new">Decline</span>
+            </div>
+          </div>
+          <div class="an-lab" style="--c:var(--lilac)"><b>Body</b>Exactly one. Picked by the question, never by how many rows came back.</div>
+        </div>
+        <div class="an-part">
+          <div class="an-box">
+            <div class="ft" style="margin:0; padding:0; border:0"><div class="from"><span class="lbl">From</span><span class="src"><i></i>Treasury</span><span class="src"><i></i>Tasks</span></div><div class="fb"><button aria-label="Helpful"><svg class="ic"><use href="#d-thumb"/></svg></button><button aria-label="Not helpful"><svg class="ic flip"><use href="#d-thumb"/></svg></button></div></div>
+            <div class="nx" style="margin-top:8px"><button><svg class="ic"><use href="#d-arrow-r"/></svg>Who owns the deposit?</button></div>
+          </div>
+          <div class="an-lab" style="--c:var(--sky)"><b>Footing</b>Where it came from, was it useful, what to ask next.</div>
+        </div>
+        <div class="an-part">
+          <div class="an-box" style="border-style:solid; border-color:var(--peach-bd); background:var(--peach-soft)"><span style="font-size:.8rem; color:var(--ink-2)">Stopped, failed, drafted: a <b>slip</b> replaces the body.</span></div>
+          <div class="an-lab" style="--c:var(--peach)"><b>Slip</b>Status is never prose.</div>
+        </div>
+      </div>
+      <div class="rules">
+        <div class="rule-c"><div><b>Prose never stands alone.</b><p>Every answer gets a body block. MarkdownLite stays only as the streaming state, while text is still arriving. When the answer settles it becomes a Note or a block.</p></div></div>
+        <div class="rule-c"><div><b>One mark, and its color means something.</b><p>The headline's highlight takes the answer's tone. Mint is good, peach needs attention, butter is now or neutral, sky is your own record, lilac is Chapt itself. The block's accents use the same tone.</p></div></div>
+        <div class="rule-c"><div><b>The model picks the words. The server fills the facts.</b><p>The same rule as sources and shapes: every number, date, name and quote in a block is read back from tool results that ran this turn. The model names the block type and writes the sentence.</p></div></div>
+        <div class="rule-c"><div><b>Anything named can be opened.</b><p>A person, event, task or transaction mentioned in running text becomes an entity chip that opens the same peek a row does. Matched server-side through RefIndex, never from model markup.</p></div></div>
+        <div class="rule-c"><div><b>Rows always ride along.</b><p>Every block still ships plain <code>rows</code> (or a plain verdict), so older native builds that ignore the new field draw what they draw today. Purely additive.</p></div></div>
+      </div>
+    </div>
+
+    <div class="tones">
+      <div class="tn t-good"><div class="sw"></div><b>Good</b><span>On track, done, paid, passed.</span><span class="eg"><span class="hi">$4,210</span> in the bank</span></div>
+      <div class="tn t-watch"><div class="sw"></div><b>Watch</b><span>Late, under the bar, owed, at risk.</span><span class="eg"><span class="hi">Three haven't</span> paid</span></div>
+      <div class="tn t-now"><div class="sw"></div><b>Now</b><span>Today, upcoming, neutral headline.</span><span class="eg">Formal is <span class="hi">Saturday</span></span></div>
+      <div class="tn t-info"><div class="sw"></div><b>Yours</b><span>Your own record, how-to, a path.</span><span class="eg">It's in <span class="hi">Settings</span></span></div>
+      <div class="tn t-chapt"><div class="sw"></div><b>Chapt</b><span>Asking back, a draft, Chapt's own state.</span><span class="eg"><span class="hi">Which</span> term?</span></div>
+    </div>
+
+    <div class="router">
+      <div class="router-h"><b>Which body</b><span>First match wins. Dashed rows are shapes you already have. Rows are only for "several things".</span></div>
+      <div class="rt"><i>1</i><q>Can you check the weather?</q><a href="#decline" style="--c:var(--paper-3)">Decline</a><span class="x">outside the chapter's records</span></div>
+      <div class="rt"><i>2</i><q>How did we do last semester?</q><a href="#clarify" style="--c:var(--sky)">Clarify</a><span class="x">the answer would change with the reply</span></div>
+      <div class="rt"><i>3</i><q>What's our balance?</q><a href="#figure" style="--c:var(--mint)">Figure</a><span class="x">one number</span></div>
+      <div class="rt"><i>4</i><q>When's Winter Formal?</q><a href="#facts" style="--c:var(--butter)">Fact card</a><span class="x">one record's details</span></div>
+      <div class="rt"><i>5</i><q>What did we decide about formal?</q><a href="#quote" style="--c:var(--rose)">Quote</a><span class="x">what a record says, verbatim</span></div>
+      <div class="rt"><i>6</i><q>Why is Cole at risk?</q><a href="#reasons" style="--c:var(--peach)">Reasons</a><span class="x">a judgment, explained</span></div>
+      <div class="rt"><i>7</i><q>How do I add a custom metric?</q><a href="#steps" style="--c:var(--sky)">Steps</a><span class="x">a how-to with a known path</span></div>
+      <div class="rt have"><i>8</i><q>Who owes dues? / What's this week?</q><a href="List%20Forms%20Mock" onclick="return false" style="--c:var(--mint)">A list form or shape</a><span class="x">several like things</span></div>
+      <div class="rt"><i>9</i><q>How does attendance work?</q><a href="#note" style="--c:var(--lilac)">Note</a><span class="x">everything else</span></div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 01 FIGURE ═════════════════════════════ -->
+  <section class="st" id="figure">
+    <div class="st-h"><span class="num">01</span><h2>Figure</h2><p>When the answer is one number, draw the number. It comes with its direction since a date you'd care about, a sparkline only when the history is real, and a "how it's counted" strip whose terms add up to the figure. Each term opens the ledger lines behind it.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="What's our treasury balance?" data-trace="Checked 1 source · 0.1s" data-src="Treasury" data-follows="Where did October's money go?|Who still owes dues?">
+          <div class="v-old">
+            <p class="verdict">Your treasury balance is <span class="hi">$4,210.50</span>.</p>
+          </div>
+          <div class="v-new t-good">
+            <p class="verdict">You have <span class="hi">$4,210.50</span>, up $640 since Halloween.</p>
+            <div class="sheet" data-a>
+              <div class="sheet-h"><span class="kicker"><svg class="ic"><use href="#d-wallet"/></svg>Treasury · balance · as of Nov 12</span></div>
+              <div class="fg-top"><span class="fg-n">$4,210<small>.50</small></span><span class="pill soft">▲ $640 since Oct 31</span></div>
+              <div class="fg-spark">
+                <svg viewBox="0 0 600 62" preserveAspectRatio="none">
+                  <path class="area" d="M0 50 L75 46 L150 30 L225 36 L300 24 L375 28 L450 20 L525 16 L600 8 L600 62 L0 62 Z"/>
+                  <path class="line" d="M0 50 L75 46 L150 30 L225 36 L300 24 L375 28 L450 20 L525 16 L600 8"/>
+                  <circle class="dot" cx="600" cy="8" r="4.5"/>
+                </svg>
+              </div>
+              <div class="fg-sub">Aug 24 · term start&nbsp;&nbsp;→&nbsp;&nbsp;today</div>
+              <div class="fg-eq">
+                <span class="kicker">How it's counted</span>
+                <span class="term"><b>$1,200.00</b><span>Opening</span></span><span class="op">+</span>
+                <span class="term"><b>$6,830.00</b><span>Income · 41</span></span><span class="op">−</span>
+                <span class="term"><b>$3,819.50</b><span>Expenses · 27</span></span><span class="op">=</span>
+                <span class="term tot"><b>$4,210.50</b><span>Balance</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="How many members do we have?" data-trace="Checked 1 source · 0.1s" data-src="Roster" data-follows="Who joined this term?|Who's at risk?">
+          <div class="v-old">
+            <div class="note"><p>You have 52 active members (roster).</p></div>
+          </div>
+          <div class="v-new t-now">
+            <p class="verdict"><span class="hi">52</span> active members. Six joined this term.</p>
+            <div class="sheet" data-a>
+              <div class="sheet-h"><span class="kicker"><svg class="ic"><use href="#d-users"/></svg>Roster · active · Fall 26</span></div>
+              <div class="fg-top"><span class="fg-n">52</span><span class="pill soft">+6 this term</span></div>
+              <div class="fg-mini" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                <div><b>46</b><span>Joined before Fall 26</span></div>
+                <div><b>6</b><span>Joined this term</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The question asks for one quantity (a balance, a count, an average, a total) and a figure tool ran this turn: balance, roster count, budget remaining, attendance average.</p></div>
+        <div><h4>Drawn from</h4><p>The number, delta and terms all come from the tool result. The terms must add up to the figure or the strip is dropped. The sparkline only draws when there are at least four real points. A count gets a split instead, only from fields that exist (joined date, role, exempt), and the boxes must also add up.</p></div>
+        <div><h4>Second turn shows</h4><p>The member count used to take the fast path straight into prose. Same figure, same sheet, whichever path served it.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"figure"</b>,
+  metric: "balance" }
+<b>// server fills:</b>
+value, unit, delta?: {by, since},
+series?: [..], terms?: [{label,
+  amount, op, ref}]</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 02 FACT CARD ═════════════════════════════ -->
+  <section class="st" id="facts">
+    <div class="st-h"><span class="num">02</span><h2>Fact card</h2><p>"When is it", "where is it", "who's running it": the question is about one record, so the answer is that record as a ticket. The date stub sits where your eye starts, the facts sit in a grid, and the button that opens it sits where a row's chevron would have been.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="When's Winter Formal?" data-trace="Checked 1 source · 0.8s" data-src="Timeline" data-follows="What's left to do before it?|How much is left in the Social budget?">
+          <div class="v-old">
+            <p class="verdict">Winter Formal is on <span class="hi">Saturday, Dec 5</span> at 8:00 PM at The Lindell Ballroom.</p>
+            <div class="res-list"><button class="res"><span class="glyph"><svg class="ic"><use href="#d-cal"/></svg></span><span><span class="t">Winter Formal</span><span class="s">Sat, Dec 5 · 8:00 PM</span></span><span class="val"></span><svg class="chev"><use href="#d-chev-r"/></svg></button></div>
+          </div>
+          <div class="v-new t-now">
+            <p class="verdict">Formal is <span class="hi">Saturday, Dec 5</span>, three weeks from now.</p>
+            <div class="fc" data-a>
+              <div class="fc-stub"><span class="m">DEC</span><span class="d">5</span><span class="w">SAT</span></div>
+              <div class="fc-b">
+                <div class="fc-h"><h3>Winter Formal</h3><span class="pill">in 23 days</span></div>
+                <dl class="fc-dl">
+                  <div><dt>Time</dt><dd><svg class="ic" style="width:13px;height:13px"><use href="#d-clock"/></svg>8:00 PM</dd></div>
+                  <div><dt>Where</dt><dd><svg class="ic" style="width:13px;height:13px"><use href="#d-pin"/></svg>The Lindell Ballroom</dd></div>
+                  <div><dt>Spent so far</dt><dd>$1,820 <span class="s">3 expenses linked</span></dd></div>
+                  <div><dt>Owner</dt><dd><span class="avatar avatar--sm" style="--av:var(--rose)">PN</span>Priya Nair <span class="s">Social chair</span></dd></div>
+                </dl>
+                <div class="fc-act"><button class="btn">Open event<svg class="ic"><use href="#d-arrow-r"/></svg></button><button class="btn btn--ghost">What's been spent?</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The answer resolves to exactly one record (an event, task, member or transaction) and the question asked about its details. The list forms' Record is the same idea for a list of one. This is its sibling for "tell me about X".</p></div>
+        <div><h4>Drawn from</h4><p>The record's own fields, read back through the peek builder that already powers row sheets (<code>PeekCard</code>), so the ticket and the sheet can't disagree. Facts with no value are left out instead of showing a dash. Time and place are the event's own fields, the owner is its Programming owner, and spend is the sum of transactions linked to it. The second button is an ordinary follow-up.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"card"</b> }
+rows: [{ ref: {type:"event",id} }]
+<b>// server fills from PeekCard:</b>
+card: PeekCard { title, badge?,
+  facts[], sections[] }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 03 STEPS ═════════════════════════════ -->
+  <section class="st" id="steps">
+    <div class="st-h"><span class="num">03</span><h2>Steps</h2><p>A how-to is a route. The breadcrumb shows where it lives in keycap pills, the steps hang off a rail, and the fields you'll be asked for show as dashed slots, so the screen looks familiar when you get there. It ends with the button that takes you there.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How do I track a custom metric like study hours?" data-trace="Thought it through · 0.9s" data-src="ChaptOS help" data-follows="How do I enter values for it?|What's the KPI card headline?">
+          <div class="v-old">
+            <div class="note">
+              <p>You can do this under <strong>Settings → Custom Metrics</strong>:</p>
+              <ol>
+                <li>Click <strong>Add metric</strong>.</li>
+                <li>Give it a name (e.g. "Study hours"), a unit, and a goal.</li>
+                <li>Optionally set an at-risk threshold.</li>
+                <li>Save. It will show up on the roster and member cards.</li>
+              </ol>
+            </div>
+          </div>
+          <div class="v-new t-info">
+            <p class="verdict">Add it as a <span class="hi">custom metric</span> in Settings. It takes about a minute.</p>
+            <div class="sheet" data-a>
+              <div class="sp-crumbs">
+                <span class="crumb"><svg class="ic"><use href="#d-gear"/></svg>Settings</span><svg class="ic"><use href="#d-chev-r"/></svg>
+                <span class="crumb"><svg class="ic"><use href="#d-chart"/></svg>Custom metrics</span><svg class="ic"><use href="#d-chev-r"/></svg>
+                <span class="crumb end"><svg class="ic"><use href="#d-plus"/></svg>Add metric</span>
+              </div>
+              <ol class="sp-l">
+                <li><div><b>Name it</b><p>The slug can't be changed later. Unit is optional.</p><div class="flds"><span class="fld"><i>Name</i>Study hours</span><span class="fld"><i>Slug</i>study-hours</span><span class="fld"><i>Unit</i>hrs</span></div></div></li>
+                <li><div><b>Set the goal per member</b><p>At or above it counts as on track.</p><div class="flds"><span class="fld"><i>Goal (per member)</i>20</span></div></div></li>
+                <li><div><b>Draw the at-risk line</b><p>Under it counts as at risk. Watch is an optional middle band.</p><div class="flds"><span class="fld"><i>At Risk below</i>8</span><span class="fld"><i>Watch below</i>12</span></div></div></li>
+              </ol>
+              <div class="sp-foot"><button class="btn">Open Custom metrics<svg class="ic"><use href="#d-arrow-r"/></svg></button><span class="cap">You'll need Manage settings. You have it.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">A product how-to whose path is in a closed <code>HOWTO</code> playbook (like <code>SCREEN_PATHS</code>). That covers single-step answers too, which today stay plain text. A how-to with no playbook entry becomes a Note with a Go-to strip.</p></div>
+        <div><h4>Drawn from</h4><p>The crumbs, steps and field labels come from the playbook, written against the real form (Name, Slug, Unit, Goal, At Risk below, Watch below), so they match the screen. The model only picks the playbook and may fill the example values ("Study hours") from the question. The permission line is checked against the asker's role (custom metrics need MANAGE_SETTINGS), like the writ's gate.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"steps"</b>,
+  playbook: "custom_metric",
+  examples?: { name: "Study hours" } }
+<b>// server fills:</b> crumbs[], steps[],
+screen, perm: {ok, label}</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 04 REASONS ═════════════════════════════ -->
+  <section class="st" id="reasons">
+    <div class="st-h"><span class="num">04</span><h2>Reasons</h2><p>A "why" is a judgment the reader wants to check, so the answer opens the case file. The folder draws the evidence once: the bar he's under, every mandatory meeting this term, and the rest of his record. Each reason is an index card, and touching it lights up the part of the folder it rests on. What was ruled out is stamped, and the way back is worked out from the calendar, not guessed.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="Why is Cole showing as at risk?" data-trace="Checked 4 sources · 1.4s" data-src="Roster,Attendance,Timeline,Settings" data-follows="Who else is close to the bar?|Show me Cole's whole term">
+          <div class="v-old">
+            <p class="verdict">Cole is at risk because his attendance is <span class="hi">63%</span>, below your 75% threshold.</p>
+            <div class="res-list">
+              <button class="res"><span class="glyph"><svg class="ic"><use href="#d-cal"/></svg></span><span><span class="t">Missed Chapter · Nov 3</span><span class="s">Unexcused</span></span><span class="val"></span><svg class="chev" style="color:var(--lilac-ink)"><use href="#d-spark"/></svg></button>
+              <button class="res"><span class="glyph"><svg class="ic"><use href="#d-cal"/></svg></span><span><span class="t">Missed Chapter · Oct 27</span><span class="s">Unexcused</span></span><span class="val"></span><svg class="chev" style="color:var(--lilac-ink)"><use href="#d-spark"/></svg></button>
+              <button class="res"><span class="glyph"><svg class="ic"><use href="#d-cal"/></svg></span><span><span class="t">Missed Chapter · Oct 20</span><span class="s">Unexcused</span></span><span class="val"></span><svg class="chev" style="color:var(--lilac-ink)"><use href="#d-spark"/></svg></button>
+              <button class="res"><span class="glyph"><svg class="ic"><use href="#d-clip"/></svg></span><span><span class="t">Attendance threshold</span><span class="s">Settings</span></span><span class="val">75%</span><svg class="chev" style="color:var(--lilac-ink)"><use href="#d-spark"/></svg></button>
+            </div>
+          </div>
+          <div class="v-new t-watch">
+            <p class="verdict">Cole is at <span class="hi">63% attendance</span>, under your 75% bar. It's recent: three straight misses since Oct 20, after a perfect September.</p>
+
+            <div class="rz" data-a>
+              <div class="rz-case" >
+                <span class="rz-tab"><i></i>Case · at risk</span>
+                <div class="rz-who">
+                  <span class="avatar avatar--lg" style="--av:var(--sky)">CB</span>
+                  <span><b>Cole Brennan</b><span class="s">Member · joined Jan 2025</span></span>
+                  <span class="rz-stamp">Under bar<small>by 12 pts</small></span>
+                </div>
+
+                <div class="rz-ev" data-evt="gauge">
+                  <span class="kicker">Attendance · Fall 26 <em>5 of 8 counted</em></span>
+                  <div class="gz" style="--v:63; --bar:75">
+                    <div class="gz-trk"><span class="gz-fill"></span><span class="gz-gap"></span></div>
+                    <span class="gz-bar"><span>Your bar · 75%</span></span>
+                    <span class="gz-v" style="top:auto; bottom:-22px">63%</span>
+                  </div>
+                  <div class="gz-ax" style="margin-top:26px"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+                </div>
+
+                <div class="rz-ev" data-evt="misses">
+                  <span class="kicker">Mandatory meetings this term <em>3 in a row</em></span>
+                  <div class="mts">
+                    <span class="mo" style="grid-column:1 / 5">SEP</span>
+                    <span class="mo" style="grid-column:5 / 9">OCT</span>
+                    <span class="mo" style="grid-column:9 / 13">NOV</span>
+                    <span class="mo" style="grid-column:13 / 15">DEC</span>
+                    <span class="mbr" style="grid-column:7 / 10"><span>since Oct 20</span></span>
+                    <span class="mt y" style="--i:0"><svg class="ic"><use href="#d-check"/></svg></span>
+                    <span class="mt y" style="--i:1"><svg class="ic"><use href="#d-check"/></svg></span>
+                    <span class="mt y" style="--i:2"><svg class="ic"><use href="#d-check"/></svg></span>
+                    <span class="mt e" style="--i:3">E</span>
+                    <span class="mt y" style="--i:4"><svg class="ic"><use href="#d-check"/></svg></span>
+                    <span class="mt y" style="--i:5"><svg class="ic"><use href="#d-check"/></svg></span>
+                    <span class="mt x" style="--i:6">✕</span>
+                    <span class="mt x" style="--i:7">✕</span>
+                    <span class="mt x" style="--i:8">✕</span>
+                    <span class="mt o" style="--i:9">?</span>
+                    <span class="mt f" style="--i:10"></span>
+                    <span class="mt f" style="--i:11"></span>
+                    <span class="mt f" style="--i:12"></span>
+                    <span class="mt f" style="--i:13"></span>
+                    <span class="md">8</span><span class="md">15</span><span class="md">22</span><span class="md">29</span><span class="md">6</span><span class="md">13</span><span class="md">20</span><span class="md">27</span><span class="md">3</span><span class="md">10</span><span class="md">17</span><span class="md">24</span><span class="md">1</span><span class="md">8</span>
+                  </div>
+                  <div class="mkey"><span><i style="--c:var(--mint)"></i>There</span><span><i style="--c:var(--peach)"></i>Missed</span><span><i class="d"></i>Excused · still to come</span><span><i style="--c:var(--butter)"></i>Not recorded yet</span></div>
+                </div>
+
+                <div class="rz-ev" data-evt="rest">
+                  <span class="kicker">The rest of his record <em style="color:var(--mint-ink)">on track</em></span>
+                  <div class="rz-ok">
+                    <span><i><svg class="ic"><use href="#d-check"/></svg></i><b>$0</b>dues owed</span>
+                    <span><i><svg class="ic"><use href="#d-check"/></svg></i><b>14 hrs</b>service · goal 10</span>
+                    <span><i><svg class="ic"><use href="#d-check"/></svg></i><b>3.4</b>GPA · watch under 3.0</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rz-list">
+                <button class="rz-c" data-ev="gauge"><span class="rz-n">1</span><span class="rz-b"><span class="kicker"><svg class="ic"><use href="#d-chart"/></svg>Under the bar</span><b>He's at 63%, twelve points short.</b><p>He came to 5 of the 8 meetings that count, against the <span class="ent"><span class="g"><svg class="ic"><use href="#d-gear"/></svg></span>75% bar</span> you set in Settings.</p></span></button>
+                <button class="rz-c" data-ev="misses"><span class="rz-n">2</span><span class="rz-b"><span class="kicker"><svg class="ic"><use href="#d-cal"/></svg>It's recent</span><b>Three unexcused misses in a row.</b><p><span class="ent"><span class="g" style="--g:var(--peach-soft)"><svg class="ic"><use href="#d-cal"/></svg></span>Oct 20</span> <span class="ent"><span class="g" style="--g:var(--peach-soft)"><svg class="ic"><use href="#d-cal"/></svg></span>Oct 27</span> <span class="ent"><span class="g" style="--g:var(--peach-soft)"><svg class="ic"><use href="#d-cal"/></svg></span>Nov 3</span>. Before that he hadn't missed one. Something changed in mid-October.</p></span></button>
+                <button class="rz-c" data-ev="rest"><span class="rz-n">3</span><span class="rz-b"><span class="kicker"><svg class="ic"><use href="#d-check"/></svg>Only this</span><b>Everything else on his record is fine.</b><p>Dues are paid and his service is over the goal, so the flag is about meetings alone. <span class="ent"><span class="avatar" style="--av:var(--sky)">CB</span>Cole's card</span> has the full record.</p></span></button>
+              </div>
+
+              <div class="rz-nc">
+                <span class="kicker">Looked at, not counted against him</span>
+                <ul>
+                  <li><span class="ent"><span class="g" style="--g:var(--mint-soft)"><svg class="ic"><use href="#d-cal"/></svg></span>Sep 29</span>excused by Jordan for travel</li>
+                  <li><span class="ent"><span class="g" style="--g:var(--butter-soft)"><svg class="ic"><use href="#d-cal"/></svg></span>Nov 10</span>no attendance taken yet, so it doesn't count</li>
+                </ul>
+                <span class="stamp">Fair<small>2 left out</small></span>
+              </div>
+
+              <div class="rz-path">
+                <span class="kicker">The way back</span>
+                <b>He clears the bar only with a clean run.</b>
+                <p>Five mandatory meetings are on the calendar, counting Nov 10.</p>
+                <div class="pb ok"><span class="dots"><i></i><i></i><i></i><i></i><i></i></span><span class="lb"><b>Makes all five</b> → 10 of 13</span><span class="pill t-good">77% · clears it</span></div>
+                <div class="pb"><span class="dots"><i></i><i></i><i></i><i></i><i class="x"></i></span><span class="lb"><b>Misses one</b> → 9 of 13</span><span class="pill t-watch">69% · still under</span></div>
+              </div>
+
+              <div class="rz-act">
+                <button class="btn">Draft a check-in task<svg class="ic"><use href="#d-arrow-r"/></svg></button>
+                <button class="btn btn--ghost">Open his card</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">A "why" about a judgment the app made (at risk, flagged, over budget, late) when the tools that hold the evidence ran this turn. The folder's panels depend on the judgment: attendance draws the gauge plus the meeting strip; GPA, service or a custom metric draws the gauge alone, since those have no per-event history.</p></div>
+        <div><h4>Drawn from</h4><p>The folder is built by the server from the reads: the gauge from the member's metric and the org's threshold, the strip from every mandatory meeting in the term (attendance records, excuses, and the ones still scheduled), and the rest of his record from his roster row against your Settings thresholds. Draft a check-in task is the existing add-deadline proposal, assigned to whoever you pick. The model writes up to four reason cards and tags each with the panel it rests on. A tag that doesn't match a panel drops the link, not the card.</p></div>
+        <div><h4>Fair and the way back</h4><p>Both are computed, never written. An excused row carries the officer who decided it and the reason the member gave. "Not counted" lists the rows the metric excluded. "The way back" counts the scheduled meetings left and works out the outcomes: all of them, and one missed. If no number of meetings would clear the bar, it says so plainly.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"reasons"</b>,
+  subject: {type:"member",id} }
+reasons: [{ title, body, refs,
+  <b>panel: "gauge"|"strip"|"rest"</b> }]
+<b>// server fills:</b> case{gauge,
+strip[], rest[], excluded[],
+pathBack[{label,pct,clears}]}</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 05 QUOTE ═════════════════════════════ -->
+  <section class="st" id="quote">
+    <div class="st-h"><span class="num">05</span><h2>Quote</h2><p>When the answer is what someone wrote down, show what they wrote. The minutes passage goes on a legal-pad strip with its meeting and date, the decision is stamped, and that meeting's action items show underneath, ready to tick off.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="What did we decide about the formal budget?" data-trace="Searched minutes · 1.1s" data-src="Minutes,Tasks" data-follows="Has the deposit been paid?|What else did we decide Oct 20?">
+          <div class="v-old">
+            <p class="verdict">The chapter <span class="hi">approved $3,000</span> for Winter Formal at the Oct 20 meeting.</p>
+            <div class="res-list">
+              <button class="res"><span class="glyph"><svg class="ic"><use href="#d-doc"/></svg></span><span><span class="t">Formal budget vote</span><span class="s">Chapter · Oct 20</span></span><span class="val"></span><svg class="chev"><use href="#d-chev-r"/></svg></button>
+              <button class="res"><span class="glyph"><svg class="ic"><use href="#d-clip"/></svg></span><span><span class="t">Pay venue deposit</span><span class="s">Priya Nair · due Nov 10</span></span><span class="val"></span><svg class="chev"><use href="#d-chev-r"/></svg></button>
+            </div>
+          </div>
+          <div class="v-new t-good">
+            <p class="verdict">You <span class="hi">approved $3,000</span> on Oct 20. The $800 deposit was due two days ago and isn't marked done.</p>
+            <div class="qt" data-a>
+              <div class="qt-src"><svg class="ic" style="width:13px;height:13px"><use href="#d-doc"/></svg><b>Chapter meeting</b> · Oct 20 · Minutes</div>
+              <blockquote>“Motion to set the Winter Formal budget at <span class="hi">$3,000</span>, venue deposit of $800 due by Nov 10. Seconded by Marcus.”</blockquote>
+              <span class="stamp">Decided<small>Oct 20</small></span>
+            </div>
+            <div class="since" data-a>
+              <span class="kicker">Assigned from this</span>
+              <div class="ai-row late"><span class="box"></span><span><span class="t">Pay the venue deposit · $800</span><span class="s">Priya Nair</span></span><span class="d">2 days late</span></div>
+              <div class="ai-row"><span class="box on"><svg class="ic"><use href="#d-check"/></svg></span><span><span class="t">Sign the venue contract</span><span class="s">Priya Nair</span></span><span class="d">Done</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The answer rests on a passage from <code>search_meeting_notes</code> or an attached file. Quoted text is copied verbatim from the snippet by index, never retyped by the model.</p></div>
+        <div><h4>Drawn from</h4><p>The snippet, meeting and date come from the minutes record. The Decided stamp appears only when the passage matches one of the meeting's summarized decisions. Decisions are plain text with no vote counts, so no tally is drawn. The action items are the meeting's <code>notesSummaryData</code> items, and ticking one uses the existing tick-off route. File quotes use the same strip with the file name and page in the header.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"quote"</b>,
+  snippet: 0 }
+<b>// server fills:</b> source{meeting,
+date}, text, decided: bool,
+items[{title, owner, done, due}]</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 06 NOTE ═════════════════════════════ -->
+  <section class="st" id="note">
+    <div class="st-h"><span class="num">06</span><h2>Note</h2><p>The catch-all, done properly. Prose sits on a notebook margin rule, headings shrink to kickers, bullets become tone diamonds, UI labels become keycaps, and any record named becomes a chip. It closes with a tip if there is one, and the screens it mentioned as places to go.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How does attendance work?" data-trace="Thought it through · 1.0s" data-src="ChaptOS help,Roster" data-follows="Who's under the bar right now?|How do I review excuses?">
+          <div class="v-old">
+            <div class="note">
+              <h3>How attendance works</h3>
+              <p>ChaptOS tracks attendance for mandatory events.</p>
+              <ul>
+                <li><strong>Taking it:</strong> officers can mark who attended after the event, or open a live check-in during it.</li>
+                <li><strong>Excuses:</strong> members submit an excuse and officers review it.</li>
+                <li><strong>Exemptions:</strong> a member can be marked exempt for a whole semester.</li>
+              </ul>
+              <p>The at-risk line is set under Settings → Thresholds. Right now 3 members are under it.</p>
+            </div>
+          </div>
+          <div class="v-new t-chapt">
+            <p class="verdict">Only <span class="hi">mandatory events</span> count, and an approved excuse takes that meeting out of the math.</p>
+            <div class="nt" data-a>
+              <h4>Taking it</h4>
+              <ul class="nt-li">
+                <li>During the meeting, <span class="kc">Open check-in</span> and members check themselves in.</li>
+                <li>Afterward, <span class="kc">Mark who attended</span> from the event.</li>
+              </ul>
+              <h4>Excuses and exemptions</h4>
+              <p>Members file their own <span class="kc">Excuse</span>, before or after the meeting, and an officer reviews it. Someone away all term (abroad, co-op) gets <span class="kc">Mark exempt…</span> instead, which takes them out of every mandatory event that semester.</p>
+              <h4>Under the line right now</h4>
+              <p><span class="ent"><span class="avatar" style="--av:var(--sky)">CB</span>Cole</span> <span class="ent"><span class="avatar" style="--av:var(--mint)">DA</span>Dev</span> <span class="ent"><span class="avatar" style="--av:var(--rose)">ML</span>Maya</span> are under your 75% at-risk line.</p>
+              <div class="tip"><svg class="ic"><use href="#d-bulb"/></svg><span><b>Tip:</b> the at-risk and watch lines live in <span class="kc">Settings</span> › <span class="kc">Thresholds</span>, next to the GPA and service ones.</span></div>
+              <div class="goto"><span class="kicker">Go to</span><span class="crumb"><svg class="ic"><use href="#d-gear"/></svg>Settings</span><span class="crumb"><svg class="ic"><use href="#d-cal"/></svg>Events</span><span class="crumb"><svg class="ic"><use href="#d-users"/></svg>Roster</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Nothing else matched. This is the only place prose is allowed to be the body, and it's still a block.</p></div>
+        <div><h4>Drawn from</h4><p>Same markdown subset as today, typeset differently: <code>###</code> becomes a kicker, <code>-</code> becomes a diamond, and <code>`Label`</code> becomes a keycap. Names become chips only when the server matched them to a record this turn (RefIndex). Unmatched names stay text. Keycaps are only allowed for labels that exist in the UI (a closed list, like the screen keys). The Go-to strip comes from <code>screen</code> keys, the same closed enum advisory rows use.</p></div>
+        <div><h4>While it streams</h4><p>Text arriving token by token still renders as today's <code>.note</code> with the caret. On the final event it swaps to the Note in place, with no layout jump because the type sizes match.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"note"</b> }
+note: { md, <b>refs</b>: [{text, ref}],
+  tip?, screens?: ["settings","events"] }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 07 CLARIFY ═════════════════════════════ -->
+  <section class="st" id="clarify">
+    <div class="st-h"><span class="num">07</span><h2>Clarify</h2><p>Today a clarifying question is one line of prose, and you type the answer. The new version draws each choice as a tile showing what you'd get back, so picking one is a tap. A dashed "something else" goes to the composer.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="How did we do last semester?" data-trace="Thought it through · 0.4s" data-src="" data-follows="">
+          <div class="v-old">
+            <div class="note"><p>Could you clarify what you'd like to know about last semester? For example, attendance, dues collection, or service hours?</p></div>
+          </div>
+          <div class="v-new t-chapt">
+            <p class="verdict">Happy to. <span class="hi">Which part</span> of Spring 26?</p>
+            <div class="cl" data-a>
+              <button class="cl-o" style="--c:var(--mint)"><span class="g"><svg class="ic"><use href="#d-users"/></svg></span><b>Attendance</b><span>Each meeting against your 75% bar</span>
+                <svg class="mini" viewBox="0 0 100 26" preserveAspectRatio="xMinYMid meet"><rect x="0" y="6" width="8" height="20" rx="2" fill="var(--mint)" stroke="var(--ink)" stroke-width="1.2"/><rect x="13" y="3" width="8" height="23" rx="2" fill="var(--mint)" stroke="var(--ink)" stroke-width="1.2"/><rect x="26" y="9" width="8" height="17" rx="2" fill="var(--mint)" stroke="var(--ink)" stroke-width="1.2"/><rect x="39" y="12" width="8" height="14" rx="2" fill="var(--peach)" stroke="var(--ink)" stroke-width="1.2"/><rect x="52" y="5" width="8" height="21" rx="2" fill="var(--mint)" stroke="var(--ink)" stroke-width="1.2"/><rect x="65" y="7" width="8" height="19" rx="2" fill="var(--mint)" stroke="var(--ink)" stroke-width="1.2"/><path d="M0 10h100" stroke="var(--ink-2)" stroke-width="1.2" stroke-dasharray="3 3"/></svg></button>
+              <button class="cl-o" style="--c:var(--butter)"><span class="g"><svg class="ic"><use href="#d-wallet"/></svg></span><b>Money</b><span>Where it came from and went</span>
+                <svg class="mini" viewBox="0 0 100 26" preserveAspectRatio="xMinYMid meet"><rect x="0" y="8" width="44" height="12" rx="3" fill="var(--butter)" stroke="var(--ink)" stroke-width="1.2"/><rect x="44" y="8" width="26" height="12" fill="var(--sky)" stroke="var(--ink)" stroke-width="1.2"/><rect x="70" y="8" width="18" height="12" fill="var(--rose)" stroke="var(--ink)" stroke-width="1.2"/><rect x="88" y="8" width="12" height="12" rx="3" fill="var(--mint)" stroke="var(--ink)" stroke-width="1.2"/></svg></button>
+              <button class="cl-o" style="--c:var(--sky)"><span class="g"><svg class="ic"><use href="#d-hand"/></svg></span><b>Service</b><span>Hours per member against the goal</span>
+                <svg class="mini" viewBox="0 0 100 26" preserveAspectRatio="xMinYMid meet"><rect x="0" y="2" width="84" height="6" rx="3" fill="var(--sky)" stroke="var(--ink)" stroke-width="1.2"/><rect x="0" y="10" width="62" height="6" rx="3" fill="var(--sky)" stroke="var(--ink)" stroke-width="1.2"/><rect x="0" y="18" width="30" height="6" rx="3" fill="var(--peach)" stroke="var(--ink)" stroke-width="1.2"/></svg></button>
+              <button class="cl-else"><svg class="ic"><use href="#d-plus"/></svg>Something else about Spring 26…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">A clarifying question with two to four answers that each map to a known area. Today these are "one-line clarifying questions" in plain text. They go through <code>compose_answer</code> as an askback with <code>areas</code> instead.</p></div>
+        <div><h4>Drawn from</h4><p>Each tile's icon, color, line and sketch come from a closed area list (attendance, money, service, tasks, events, roster). The sketch is a fixed glyph, not data, so it promises nothing it hasn't read. A tap sends the chip text, exactly as an askback chip does today. It's the same block as Which-one's people cards, for topics instead of people.</p></div>
+        <div><h4>On the wire</h4><pre>askback.questions[0]:
+{ question, chips: ["Attendance",
+  "Money","Service"],
+  <b>areas: ["attendance","money",
+  "service"]</b> }</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 08 DECLINE ═════════════════════════════ -->
+  <section class="st" id="decline">
+    <div class="st-h"><span class="num">08</span><h2>Decline</h2><p>Out-of-scope shouldn't sound like an error. A quiet dashed slip says what Chapt can see and why this isn't in it, then offers the closest questions it can answer about the same thing.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="Is it going to rain for the cookout Saturday?" data-trace="Thought it through · 0.3s" data-src="" data-follows="">
+          <div class="v-old">
+            <div class="note"><p>Sorry, I can only help with questions about your chapter's data in ChaptOS. I don't have access to weather information.</p></div>
+          </div>
+          <div class="v-new t-now">
+            <p class="verdict">I can't see the weather, but <span class="hi">the cookout is Saturday at 1 PM</span>.</p>
+            <div class="dc" data-a>
+              <span class="g"><svg class="ic"><use href="#d-compass"/></svg></span>
+              <div>
+                <b>Outside what I can read</b>
+                <p>I only read Sigma's records in ChaptOS (events, money, people, minutes, docs). A weather app will know better.</p>
+                <div class="nx"><button><svg class="ic"><use href="#d-arrow-r"/></svg>Does the event say anything about rain?</button><button><svg class="ic"><use href="#d-arrow-r"/></svg>What's left to do before it?</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">The out-of-scope refusal path. If the question names something Chapt <em>can</em> read (the cookout), it answers that part in the headline first, the same "answer what you can, then ask" rule askback follows.</p></div>
+        <div><h4>Drawn from</h4><p>The scope line is fixed copy plus the org's name, and the model can't reword it. The two follow-ups are ordinary follows, shown inside the slip because there is no other body.</p></div>
+        <div><h4>On the wire</h4><pre>shape: { type: <b>"decline"</b> }
+verdict, follows[]
+<b>// no rows, no sources</b></pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 09 SLIPS ═════════════════════════════ -->
+  <section class="st" id="slips">
+    <div class="st-h"><span class="num">09</span><h2>Slips</h2><p>Three moments that today write a line into the answer as if it were content. Each becomes a slip: an icon in the tone, one bold line saying what happened, one saying what it means, and the next action.</p></div>
+    <div class="st-g">
+      <div class="spot">
+        <div class="ak-turn" data-q="Remind the exec board about the deposit" data-trace="Drafted 1 change · 0.9s" data-src="Tasks,Roles" data-follows="">
+          <div class="v-old">
+            <div class="writ-mini"><span class="kicker">Proposed · new task</span><b>Pay the venue deposit · remind exec</b><span>Assign to Exec board · due Fri, Nov 13</span><div class="acts"><button class="btn">Approve</button></div></div>
+            <div class="note"><p>Done! I've drafted a reminder task for the exec board. Approve it above to send.</p></div>
+          </div>
+          <div class="v-new t-chapt">
+            <div class="writ-mini" data-a><span class="kicker">Proposed · new task</span><b>Pay the venue deposit · remind exec</b><span>Assign to Exec board · due Fri, Nov 13</span><div class="acts"><button class="btn">Approve</button></div></div>
+            <div class="slip" data-a><span class="g"><svg class="ic"><use href="#d-flag"/></svg></span><span class="tx"><b>Drafted, not sent.</b>Nothing changes until you approve the card above.</span></div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="Who's missed the most meetings this term?" data-trace="Stopped · 2 of 4 checks" data-src="" data-follows="">
+          <div class="v-old">
+            <div class="note"><p><em>Stopped.</em></p></div>
+          </div>
+          <div class="v-new t-now">
+            <div class="mini-led" data-a>
+              <div class="ok"><i><svg class="ic"><use href="#d-check"/></svg></i>Read the roster<em>52 members</em></div>
+              <div class="ok"><i><svg class="ic"><use href="#d-check"/></svg></i>Listed this term's meetings<em>13 meetings</em></div>
+              <div class="no"><i></i>Counting attendance</div>
+              <div class="no"><i></i>Composing the answer</div>
+            </div>
+            <div class="slip dash" data-a><span class="g"><svg class="ic"><use href="#d-stop"/></svg></span><span class="tx"><b>You stopped it after 2 of 4 checks.</b>No answer yet. Nothing was changed.</span><span class="acts"><button class="btn btn--ghost">Finish it<svg class="ic"><use href="#d-arrow-r"/></svg></button></span></div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="What did we spend on rush?" data-trace="Interrupted · 1 of 2 checks" data-src="" data-follows="">
+          <div class="v-old">
+            <div class="note"><p>(network error)</p></div>
+          </div>
+          <div class="v-new t-watch">
+            <div class="slip" data-a><span class="g"><svg class="ic"><use href="#d-alert"/></svg></span><span class="tx"><b>Lost the connection while reading Treasury.</b>Nothing was changed. Your question is still in the box.</span><span class="acts"><button class="btn"><svg class="ic"><use href="#d-redo"/></svg>Try again</button></span></div>
+          </div>
+        </div>
+      </div>
+      <aside class="notes">
+        <div><h4>Granted when</h4><p class="rule">Client-side only. Every case is already known to <code>ChatWidget</code>: a proposal with no answer body, <code>stopped: true</code>, and the stream's catch branch that writes "(network error)" today.</p></div>
+        <div><h4>Drawn from</h4><p>Stopped keeps the ledger steps that did finish (they're on the message) and strikes through the rest. "Finish it" re-sends the same question. The error slip names the source of the step that was active when the stream dropped, and Try again re-sends the question. "Nothing was changed" is always true here, because writes only happen on Approve.</p></div>
+        <div><h4>On the wire</h4><pre><b>// none</b> — ChatMessage gains
+error?: { at?: stepSource }
+replacing content "(network error)"</pre></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ 10 THREAD ═════════════════════════════ -->
+  <section class="st" id="thread">
+    <div class="st-h"><span class="num">10</span><h2>A whole conversation</h2><p>The real test is four different answers in a row. Each one is a headline, one block and a footing, so the thread reads as one surface instead of a stack of different documents. On the right is the same thread at phone width.</p></div>
+    <div class="thread-g">
+      <div class="spot" id="thread-spot" data-noseg>
+        <div class="ak-turn" data-q="How much have we spent on formal?" data-trace="Checked 2 sources · 1.0s" data-src="Treasury,Timeline" data-follows="">
+          <div class="v-new t-good">
+            <p class="verdict"><span class="hi">$1,820</span> so far, across three expenses linked to the event.</p>
+            <div class="sheet" data-a>
+              <div class="sheet-h"><span class="kicker"><svg class="ic"><use href="#d-wallet"/></svg>Winter Formal · spent so far</span></div>
+              <div class="fg-top"><span class="fg-n">$1,820</span><span class="pill soft">3 expenses · 23 days out</span></div>
+              <div class="fg-eq">
+                <span class="term"><b>$900</b><span>Decor</span></span><span class="op">+</span>
+                <span class="term"><b>$620</b><span>Catering</span></span><span class="op">+</span>
+                <span class="term"><b>$300</b><span>DJ</span></span><span class="op">=</span>
+                <span class="term tot"><b>$1,820</b><span>Spent</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="Wait, why is the deposit late then?" data-trace="Checked 2 sources · 1.1s" data-src="Tasks,Treasury" data-follows="">
+          <div class="v-new t-watch">
+            <p class="verdict">It hasn't been paid. <span class="hi">The task is still open.</span></p>
+            <div class="sheet" data-a>
+              <div class="rs">
+                <div class="rs-r"><span class="n">1</span><div><b>The task is still open.</b><p><span class="ent"><span class="g" style="--g:var(--peach-soft)"><svg class="ic"><use href="#d-clip"/></svg></span>Pay venue deposit</span> was due Nov 10, owned by <span class="ent"><span class="avatar" style="--av:var(--rose)">PN</span>Priya</span>.</p></div></div>
+                <div class="rs-r"><span class="n">2</span><div><b>No deposit in the ledger.</b><p>None of the expenses linked to Formal is the $800 deposit.</p></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="How do I log it once Priya pays?" data-trace="Thought it through · 0.6s" data-src="ChaptOS help" data-follows="">
+          <div class="v-new t-info">
+            <p class="verdict">Log it as an <span class="hi">expense</span> linked to Formal, then Priya ticks the task.</p>
+            <div class="sheet" data-a>
+              <div class="sp-crumbs"><span class="crumb"><svg class="ic"><use href="#d-wallet"/></svg>Treasury</span><svg class="ic"><use href="#d-chev-r"/></svg><span class="crumb end"><svg class="ic"><use href="#d-plus"/></svg>Log Expense</span></div>
+              <ol class="sp-l">
+                <li><div><b>Log the expense</b><div class="flds"><span class="fld"><i>Amount</i>$800</span><span class="fld"><i>Category</i>Social</span><span class="fld"><i>Event</i>Winter Formal</span></div></div></li>
+                <li><div><b>Priya ticks the task</b><p>On Timeline. It's assigned to her.</p></div></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <div class="ak-turn" data-q="She just paid it. Log the $800." data-trace="Drafted 1 change · 0.8s" data-src="" data-follows="">
+          <div class="v-new t-chapt">
+            <div class="writ-mini" data-a><span class="kicker">Proposed · expense</span><b>Venue deposit · $800</b><span>Social · Nov 12 · linked to Winter Formal</span><div class="acts"><button class="btn">Approve</button></div></div>
+            <div class="slip" data-a><span class="g"><svg class="ic"><use href="#d-flag"/></svg></span><span class="tx"><b>Drafted, not logged.</b>Nothing is in the ledger until you approve it.</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone" aria-label="Same thread at phone width"><div class="phone-in" id="phone-in"></div></div>
+    </div>
+  </section>
+
+  <!-- ═════════════════════════════ ROLLOUT ═════════════════════════════ -->
+  <section class="st" id="rollout">
+    <div class="st-h"><span class="num">→</span><h2>How it would ship</h2><p>Cheapest and most visible first. Phase 1 changes no wire and touches every answer. Each later phase is one family of shape types, behind the same pattern as list forms: a model-named type, a server builder, a client sheet, and rows always kept.</p></div>
+    <div class="phases">
+      <div class="ph" style="--c:var(--lilac)"><span class="kicker">Phase 1 · client only</span><b>The grammar</b><ul><li>Footing replaces meta-row + follows</li><li>Tone classes on every answer</li><li>Slips for drafted, stopped, network error</li><li>MarkdownLite restyled as Note (kickers, diamonds, keycaps)</li></ul><div class="wire">wire: none · ChatMessage.error</div></div>
+      <div class="ph" style="--c:var(--mint)"><span class="kicker">Phase 2 · numbers</span><b>Figure + Fact card</b><ul><li>figure builder off balance, roster, budget, attendance avg</li><li>card builder reuses PeekCard</li><li>Fast-path answers draw them too</li></ul><div class="wire">shape: figure | card</div></div>
+      <div class="ph" style="--c:var(--sky)"><span class="kicker">Phase 3 · plain-text paths</span><b>Steps, Clarify, Decline</b><ul><li>HOWTO playbook enum (crumbs, steps, fields, perm)</li><li>askback.areas for clarify tiles</li><li>Refusals + single how-to move into compose_answer</li></ul><div class="wire">shape: steps | decline · askback.areas</div></div>
+      <div class="ph" style="--c:var(--peach)"><span class="kicker">Phase 4 · evidence</span><b>Reasons, Quote, chips</b><ul><li>Entity chips via RefIndex in Note + Reasons</li><li>Quote from minutes snippets + summary items</li><li>Evals: verbatim quote check, ref resolution</li></ul><div class="wire">shape: reasons | quote · note.refs</div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  function ic(id, cls){ return '<svg class="ic' + (cls ? ' ' + cls : '') + '"><use href="#d-' + id + '"/></svg>'; }
+
+  // the phone gets an undressed copy of the thread before the shell dresses both
+  var ts = document.getElementById('thread-spot');
+  document.getElementById('phone-in').appendChild(ts.cloneNode(true)).removeAttribute('id');
+
+  document.querySelectorAll('.spot').forEach(function(spot){
+    var noseg = spot.hasAttribute('data-noseg');
+    spot.dataset.view = 'new';
+    var turns = [].slice.call(spot.querySelectorAll('.ak-turn'));
+    var body = document.createElement('div'); body.className = 'spot-b';
+    turns.forEach(function(t){
+      var d = t.dataset, a = document.createElement('div'); a.className = 'ak-a';
+      var oldV = t.querySelector('.v-old'), newV = t.querySelector('.v-new');
+      var src = d.src ? d.src.split(',') : [], fol = d.follows ? d.follows.split('|') : [];
+      if (oldV){
+        oldV.insertAdjacentHTML('beforeend', (src.length ? '<div class="ak-meta"><div class="sources"><span class="lbl">Sources</span>' + src.map(function(s){ return '<span class="src"><i></i>' + s + '</span>'; }).join('') + '</div>' +
+          '<div class="fb"><span class="lbl">Helpful?</span><button aria-label="Helpful">' + ic('thumb') + '</button><button aria-label="Not helpful">' + ic('thumb', 'flip') + '</button></div></div>' : '') +
+          (fol.length ? '<div class="follows">' + fol.map(function(f){ return '<button>' + f + '</button>'; }).join('') + '</div>' : ''));
+        a.appendChild(oldV);
+      }
+      if (newV){
+        if (src.length) newV.insertAdjacentHTML('beforeend', '<div class="ft"><div class="from"><span class="lbl">From</span>' + src.map(function(s){ return '<span class="src"><i></i>' + s + '</span>'; }).join('') + '</div>' +
+          '<div class="fb"><button aria-label="Helpful">' + ic('thumb') + '</button><button aria-label="Not helpful">' + ic('thumb', 'flip') + '</button></div></div>');
+        if (fol.length) newV.insertAdjacentHTML('beforeend', '<div class="nx">' + fol.map(function(f){ return '<button>' + ic('arrow-r') + f + '</button>'; }).join('') + '</div>');
+        newV.querySelectorAll('[data-a]').forEach(function(el, i){ el.style.setProperty('--i', i); });
+        a.appendChild(newV);
+      }
+      t.innerHTML = '<div class="ak-q"><span>' + d.q + '</span></div><div class="trace"><span class="tk">' + ic('check') + '</span>' + d.trace + ic('chev-r', 'chev') + '</div>';
+      t.appendChild(a); body.appendChild(t);
+    });
+    spot.innerHTML = '';
+    spot.insertAdjacentHTML('afterbegin', '<div class="ak-bar"><span class="tick"></span><span class="title">Ask Chapt</span><span class="spacer"></span>' +
+      (noseg ? '' : '<div class="seg" role="group" aria-label="Which picture"><button data-view="old" aria-pressed="false">Today</button><button data-view="new" aria-pressed="true">New</button></div>') + '<button class="barbtn">Replay</button></div>');
+    spot.appendChild(body);
+    spot.insertAdjacentHTML('beforeend', '<div class="dock"><span>Ask a follow-up…</span><button class="send" aria-label="Send">' + ic('send') + '</button></div>');
+
+    function play(){
+      var as = spot.querySelectorAll('.ak-a');
+      as.forEach(function(a){ a.classList.remove('in'); });
+      void spot.offsetWidth;
+      as.forEach(function(a, i){ setTimeout(function(){ a.classList.add('in'); }, 60 + i * 240); });
+    }
+    spot.querySelector('.barbtn').addEventListener('click', play);
+    spot.querySelectorAll('.seg button').forEach(function(b){
+      b.addEventListener('click', function(){
+        spot.dataset.view = b.dataset.view;
+        spot.querySelectorAll('.seg button').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+        play();
+      });
+    });
+    if ('IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(es){ if (es[0].isIntersecting){ io.disconnect(); play(); } }, { threshold:.12 });
+      io.observe(spot);
+    } else play();
+  });
+
+  // reasons: a card lights the part of the case file it rests on
+  function lightCase(card, on){
+    var cs = card.closest('.rz'); if (!cs) return;
+    var fold = cs.querySelector('.rz-case');
+    cs.querySelectorAll('.rz-c').forEach(function(c){ c.classList.toggle('on', on && c === card); });
+    fold.classList.toggle('lit', on);
+    fold.querySelectorAll('.rz-ev').forEach(function(e){ e.classList.toggle('on', on && e.dataset.evt === card.dataset.ev); });
+  }
+  document.querySelectorAll('.rz-c').forEach(function(c){
+    c.addEventListener('mouseenter', function(){ lightCase(c, true); });
+    c.addEventListener('mouseleave', function(){ lightCase(c, false); });
+    c.addEventListener('focus', function(){ lightCase(c, true); });
+    c.addEventListener('blur', function(){ lightCase(c, false); });
+  });
+
+  document.querySelectorAll('[data-theme-set]').forEach(function(b){
+    b.addEventListener('click', function(){
+      root.dataset.theme = b.dataset.themeSet;
+      document.querySelectorAll('[data-theme-set]').forEach(function(x){ x.setAttribute('aria-pressed', String(x === b)); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

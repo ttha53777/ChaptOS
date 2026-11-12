@@ -31,6 +31,11 @@ import { StatusSheet } from "./Status";
 import { RecordSheet } from "./Record";
 import { ZeroSheet } from "./Zero";
 import { ReceiptSheet } from "./Receipt";
+import { FigureSheet } from "./Figure";
+import { StepsSheet } from "./Steps";
+import { DeclineSheet } from "./Decline";
+import { ReasonsSheet } from "./Reasons";
+import { QuoteSheet } from "./Quote";
 
 export type { RowHandlers } from "./common";
 
@@ -59,6 +64,11 @@ const SHEETS: Registry = {
   record: p => <RecordSheet shape={p.shape} rows={p.rows} h={p.h} />,
   zero: p => <ZeroSheet shape={p.shape} h={p.h} />,
   receipt: p => <ReceiptSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  figure: p => <FigureSheet shape={p.shape} />,
+  steps: p => <StepsSheet shape={p.shape} h={p.h} />,
+  decline: p => <DeclineSheet shape={p.shape} />,
+  reasons: p => <ReasonsSheet shape={p.shape} rows={p.rows} h={p.h} />,
+  quote: p => <QuoteSheet shape={p.shape} rows={p.rows} h={p.h} />,
 };
 
 /** True when this client knows how to draw the shape; unknown types fall back to rows. */

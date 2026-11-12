@@ -1,0 +1,408 @@
+/* ── Paper aesthetic: Ask Chapt answer system, phase 1 ─────────────────────────
+   The grammar every answer shares, 1:1 with _design/Ask Chapt Answer System
+   Mock.html (#system, #note, #slips): a tone that colours the headline's one
+   mark, the footing under every answer, prose drawn as a Note, and status
+   drawn as a slip. docs/ask-chapt-answer-system-plan.md, Phase 1.
+
+   Its own file (like paper-chat-forms.css) so a running dev server picks it
+   up. Token map from the mock: --ink-2 → --ink-soft, --ink-3 → --muted,
+   --line-2 → --line-med, pastels → --pp-*, --display → --font-fraunces,
+   --mono → --font-geist-mono, --sans → --font-geist-sans.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Tone ─────────────────────────────────────────────────────────────────────
+   good = on track · watch = needs attention · now = neutral · yours = your
+   own record · chapt = Chapt asking or drafting. chat/tone.ts picks it. */
+html[data-aesthetic="paper"] .chat-root .t-good  { --tone: var(--pp-mint);   --tone-soft: var(--pp-mint-soft);   --tone-ink: var(--pp-mint-ink);   --tone-bd: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .chat-root .t-watch { --tone: var(--pp-peach);  --tone-soft: var(--pp-peach-soft);  --tone-ink: var(--pp-peach-ink);  --tone-bd: var(--pp-peach-bd); }
+html[data-aesthetic="paper"] .chat-root .t-now   { --tone: var(--pp-butter); --tone-soft: var(--pp-butter-soft); --tone-ink: var(--pp-butter-ink); --tone-bd: var(--pp-butter-bd); }
+html[data-aesthetic="paper"] .chat-root .t-yours { --tone: var(--pp-sky);    --tone-soft: var(--pp-sky-soft);    --tone-ink: var(--pp-sky-ink);    --tone-bd: var(--pp-sky-bd); }
+html[data-aesthetic="paper"] .chat-root .t-chapt { --tone: var(--pp-lilac);  --tone-soft: var(--pp-lilac-soft);  --tone-ink: var(--pp-lilac-ink);  --tone-bd: var(--pp-lilac-bd); }
+
+/* The headline's one mark takes the tone (paper-chat.css draws it butter). */
+html[data-aesthetic="paper"] .chat-root .answer .verdict em::before { background: var(--tone, var(--pp-butter)); }
+
+/* ── Footing: where it came from, was it useful, what to ask next ───────────── */
+html[data-aesthetic="paper"] .chat-root .footing {
+  margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--line-med);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
+}
+html[data-aesthetic="paper"] .chat-root .footing .sources { flex: 1 1 auto; gap: 5px; }
+html[data-aesthetic="paper"] .chat-root .footing .sources .lbl {
+  font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-right: 2px;
+}
+html[data-aesthetic="paper"] .chat-root .footing .src { background: none; padding: 1px 8px; font-size: 11px; }
+html[data-aesthetic="paper"] .chat-root .footing .feedback { margin-left: auto; gap: 4px; }
+
+html[data-aesthetic="paper"] .chat-root .follows { margin-top: 10px; gap: 6px; }
+html[data-aesthetic="paper"] .chat-root .chip.next { display: inline-flex; align-items: center; gap: 6px; padding-left: 10px; }
+html[data-aesthetic="paper"] .chat-root .chip.next svg { width: 12px; height: 12px; flex: none; color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .chat-root .chip.next:hover { transform: translateX(2px); }
+
+/* ── Note: prose, typeset ─────────────────────────────────────────────────────
+   Only inside an assistant turn — the Approvals inbox's empty .note keeps its
+   own look. Sizes match the streaming text, so the caret never jumps. */
+html[data-aesthetic="paper"] .chat-root .msg.ai .note {
+  padding: 2px 0 2px 16px; border-left: 2px solid var(--line-med);
+  font-size: 14.5px; line-height: 1.72;
+}
+html[data-aesthetic="paper"] .chat-root .msg.ai .note :is(h1, h2, h3) {
+  margin: 14px 0 4px; font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: .11em; text-transform: uppercase; color: var(--muted); line-height: 1.4;
+}
+html[data-aesthetic="paper"] .chat-root .msg.ai .note > :is(h1, h2, h3):first-child { margin-top: 2px; }
+html[data-aesthetic="paper"] .chat-root .msg.ai .note p { max-width: 62ch; text-wrap: pretty; }
+html[data-aesthetic="paper"] .chat-root .msg.ai .note ul { list-style: none; padding-left: 0; }
+html[data-aesthetic="paper"] .chat-root .msg.ai .note ul > li { position: relative; padding-left: 18px; line-height: 1.65; }
+html[data-aesthetic="paper"] .chat-root .msg.ai .note ul > li::before {
+  content: ''; position: absolute; left: 2px; top: .62em; width: 7px; height: 7px;
+  border-radius: 2px; border: 1.5px solid var(--ink); background: var(--tone, var(--pp-lilac)); transform: rotate(45deg);
+}
+html[data-aesthetic="paper"] .chat-root .msg.ai .note ol { list-style: decimal; padding-left: 1.5em; }
+html[data-aesthetic="paper"] .chat-root .msg.ai .note ol > li::marker { font-family: var(--font-geist-mono); font-size: .82em; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .msg.ai .note strong { color: var(--ink); font-weight: 650; }
+
+/* A real control named in prose is a keycap, not a link (ui-labels.ts). */
+html[data-aesthetic="paper"] .chat-root .kc {
+  display: inline-block; padding: 0 6px; margin: 0 1px; border-radius: 6px;
+  border: 1.5px solid var(--line-med); border-bottom-width: 2.5px; background: var(--card);
+  font-family: var(--font-geist-sans); font-size: .86em; font-weight: 600; line-height: 1.5; color: var(--ink); white-space: nowrap;
+}
+
+/* ── Slips: status with a way forward ──────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .slip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px;
+  padding: 10px 12px 10px 10px; border-radius: 14px;
+  border: 1.5px solid var(--tone-bd); background: var(--tone-soft);
+}
+html[data-aesthetic="paper"] .chat-root .slip-g {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 9px;
+  background: var(--tone); border: 1.5px solid var(--ink); color: var(--pp-note-ink, #26211B);
+}
+html[data-aesthetic="paper"] .chat-root .slip-tx { flex: 1; min-width: 18ch; font-family: var(--font-geist-sans); font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .slip-tx b { display: block; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .slip-act {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--card); color: var(--ink);
+  font-family: var(--font-geist-sans); font-size: 12.5px; font-weight: 600;
+  box-shadow: 2px 2px 0 var(--tone); transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .slip-act:hover { transform: translate(-1.5px, -1.5px); box-shadow: 3.5px 3.5px 0 var(--tone); }
+html[data-aesthetic="paper"] .chat-root .slip-act svg { width: 13px; height: 13px; }
+/* Dashed: the user's own doing (Stop), nothing went wrong. */
+html[data-aesthetic="paper"] .chat-root .slip.dash { border-style: dashed; border-color: var(--line-med); background: none; }
+html[data-aesthetic="paper"] .chat-root .slip.dash .slip-g { background: var(--card); border-color: var(--line-med); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .slip.dash .slip-act { box-shadow: 2px 2px 0 var(--pp-sky); }
+
+@media (max-width: 640px) {
+  html[data-aesthetic] body .chat-root .slip-act { min-height: 38px; }
+}
+
+/* ═══════════════════════ Phases 2–5: the new bodies ══════════════════════════
+   Same token map as above. Every rule is scoped under the paper root so it
+   out-specifies chat-spotlight.css. */
+
+/* ── Entity chip: a record named in prose opens like a row (note_refs) ───────── */
+html[data-aesthetic="paper"] .chat-root .ent {
+  display: inline-flex; align-items: center; gap: 5px; vertical-align: baseline; padding: 0 8px 0 3px; margin: 0 1px;
+  line-height: 1.55; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--paper-2);
+  font: inherit; font-weight: 600; font-size: .9em; color: var(--ink); white-space: nowrap; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+html[data-aesthetic="paper"] .chat-root .ent:hover { border-color: var(--pp-lilac-ink); background: var(--pp-lilac-soft); }
+html[data-aesthetic="paper"] .chat-root .ent-av {
+  width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--pp-lilac); color: var(--pp-note-ink); font-size: 8px; font-weight: 700; letter-spacing: -.02em;
+}
+html[data-aesthetic="paper"] .chat-root .ent-g {
+  width: 17px; height: 17px; border-radius: 6px; display: grid; place-items: center; flex: none;
+  background: var(--card); border: 1px solid var(--line-med); color: var(--ink-soft);
+}
+
+/* Shared: the dark-on-ink button the new blocks end with */
+html[data-aesthetic="paper"] .chat-root .sp-go {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px; border-radius: 999px;
+  border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper);
+  font-family: var(--font-geist-sans); font-size: 12.5px; font-weight: 600;
+  box-shadow: 2px 2px 0 var(--pp-lilac); transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .sp-go:hover { transform: translate(-1.5px, -1.5px); box-shadow: 3.5px 3.5px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .chat-root .sp-go svg { width: 12px; height: 12px; }
+
+/* ── Figure ───────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .fg { overflow: hidden; }
+html[data-aesthetic="paper"] .chat-root .fg-top { display: flex; align-items: flex-end; gap: 8px 14px; flex-wrap: wrap; padding: 10px 16px 2px; }
+html[data-aesthetic="paper"] .chat-root .fg-n {
+  font-family: var(--font-fraunces); font-weight: 650; font-size: clamp(38px, 7vw, 50px); letter-spacing: -.05em; line-height: .95;
+  font-variant-numeric: tabular-nums; color: var(--ink);
+}
+html[data-aesthetic="paper"] .chat-root .fg-n small { font-size: .48em; letter-spacing: -.02em; color: var(--muted); font-weight: 600; margin-left: 1px; }
+html[data-aesthetic="paper"] .chat-root .fg-delta {
+  margin-bottom: 7px; padding: 2px 9px; border-radius: 999px; border: 1.5px solid var(--tone-bd, var(--line-med));
+  background: var(--tone-soft, var(--paper-2)); color: var(--tone-ink, var(--ink-soft));
+  font-family: var(--font-geist-mono); font-size: 10.5px; font-weight: 600; white-space: nowrap;
+}
+html[data-aesthetic="paper"] .chat-root .fg-delta.down { border-color: var(--pp-peach-bd); background: var(--pp-peach-soft); color: var(--pp-peach-ink); }
+html[data-aesthetic="paper"] .chat-root .fg-spark { position: relative; padding: 8px 12px 0; }
+html[data-aesthetic="paper"] .chat-root .fg-spark svg { display: block; width: 100%; height: 62px; overflow: visible; }
+html[data-aesthetic="paper"] .chat-root .fg-spark .area { fill: var(--tone-soft, var(--pp-mint-soft)); }
+html[data-aesthetic="paper"] .chat-root .fg-spark .line {
+  fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round;
+}
+html[data-aesthetic="paper"] .chat-root .fg-plot { position: relative; }
+html[data-aesthetic="paper"] .chat-root .fg-dot {
+  position: absolute; width: 10px; height: 10px; transform: translate(-50%, -50%);
+  border-radius: 50%; background: var(--tone, var(--pp-mint)); border: 1.5px solid var(--ink);
+}
+html[data-aesthetic="paper"] .chat-root .fg-ax { display: block; padding: 4px 4px 0; font-size: 11.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fg-split { display: grid; gap: 8px; padding: 10px 14px 14px; }
+html[data-aesthetic="paper"] .chat-root .fg-split div { padding: 8px 10px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .fg-split b { display: block; font-family: var(--font-fraunces); font-weight: 650; font-size: 19px; letter-spacing: -.03em; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .fg-split span { font-size: 11.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fg-eq { margin-top: 10px; padding: 11px 14px 12px; border-top: 1.5px dashed var(--line); background: var(--paper-2); }
+html[data-aesthetic="paper"] .chat-root .fg-terms { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; }
+html[data-aesthetic="paper"] .chat-root .fg-tw { display: inline-flex; align-items: center; gap: 8px; }
+html[data-aesthetic="paper"] .chat-root .fg-op { font-family: var(--font-geist-mono); font-size: 14px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fg-term { display: inline-grid; padding: 4px 10px 5px; border-radius: 10px; border: 1.5px solid var(--line-med); background: var(--card); line-height: 1.25; }
+html[data-aesthetic="paper"] .chat-root .fg-term b { font-family: var(--font-geist-mono); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .fg-term span { font-size: 10.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fg-term.tot { border-color: var(--ink); background: var(--tone, var(--pp-mint)); }
+html[data-aesthetic="paper"] .chat-root .fg-term.tot :is(b, span) { color: var(--pp-note-ink); }
+
+/* ── Fact card: one dated record as a ticket ───────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .fc {
+  display: grid; grid-template-columns: 84px minmax(0, 1fr); margin-top: 2px;
+  border: 1.5px solid var(--ink); border-radius: 16px; background: var(--card); box-shadow: 3px 3px 0 var(--tone, var(--pp-butter)); overflow: hidden;
+}
+html[data-aesthetic="paper"] .chat-root .fc.sel { box-shadow: 3px 3px 0 var(--pp-lilac); }
+html[data-aesthetic="paper"] .chat-root .fc-stub {
+  position: relative; display: grid; align-content: center; justify-items: center; gap: 2px; padding: 12px 6px;
+  background: var(--tone-soft, var(--pp-butter-soft)); border-right: 1.5px dashed var(--ink); color: var(--ink);
+}
+html[data-aesthetic="paper"] .chat-root .fc.past .fc-stub { background: var(--paper-2); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fc-stub .m { font-family: var(--font-geist-mono); font-size: 10px; font-weight: 600; letter-spacing: .14em; }
+html[data-aesthetic="paper"] .chat-root .fc-stub .d { font-family: var(--font-fraunces); font-weight: 650; font-size: 36px; letter-spacing: -.05em; line-height: .9; }
+html[data-aesthetic="paper"] .chat-root .fc-stub .w { font-family: var(--font-geist-mono); font-size: 9.5px; letter-spacing: .1em; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fc-b { padding: 12px 16px 14px; min-width: 0; }
+html[data-aesthetic="paper"] .chat-root .fc-h { display: flex; align-items: flex-start; gap: 6px 8px; flex-wrap: wrap; }
+html[data-aesthetic="paper"] .chat-root .fc-h h3 { margin: 0; flex: 1; min-width: 10ch; font-family: var(--font-fraunces); font-weight: 600; font-size: 19px; letter-spacing: -.025em; line-height: 1.15; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .fc-badge { padding: 2px 8px; border-radius: 999px; border: 1.5px solid var(--pp-peach-bd); background: var(--pp-peach-soft); color: var(--pp-peach-ink); font-size: 10.5px; font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .fc-when { padding: 2px 9px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--tone, var(--pp-butter)); color: var(--pp-note-ink); font-family: var(--font-geist-mono); font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+html[data-aesthetic="paper"] .chat-root .fc.past .fc-when { background: var(--card); color: var(--muted); border-color: var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .fc-dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 12px 0 0; }
+html[data-aesthetic="paper"] .chat-root .fc-dl dt { font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .fc-dl dd { margin: 2px 0 0; font-size: 13.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+html[data-aesthetic="paper"] .chat-root .fc-dl dd.mono { font-family: var(--font-geist-mono); font-size: 12.5px; }
+html[data-aesthetic="paper"] .chat-root .fc-act { margin-top: 14px; }
+
+/* ── Steps ────────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .sp-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 12px 14px 4px; }
+html[data-aesthetic="paper"] .chat-root .sp-cw { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .crumb {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 9px; border: 1.5px solid var(--ink); border-bottom-width: 3px;
+  background: var(--card); font-family: var(--font-geist-sans); font-size: 12.5px; font-weight: 600; color: var(--ink);
+}
+html[data-aesthetic="paper"] .chat-root .crumb.end { background: var(--tone, var(--pp-sky)); color: var(--pp-note-ink); }
+html[data-aesthetic="paper"] .chat-root .sp-l { list-style: none; margin: 0; padding: 6px 14px 4px; }
+html[data-aesthetic="paper"] .chat-root .sp-l li { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 8px 0; }
+html[data-aesthetic="paper"] .chat-root .sp-l li:not(:last-child)::after { content: ''; position: absolute; left: 12px; top: 34px; bottom: -8px; border-left: 1.5px solid var(--line-med); }
+html[data-aesthetic="paper"] .chat-root .sp-n {
+  position: relative; z-index: 1; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%;
+  border: 1.5px solid var(--ink); background: var(--card); font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; color: var(--ink);
+}
+html[data-aesthetic="paper"] .chat-root .sp-l b { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .sp-l p { margin: 1px 0 0; font-size: 12.5px; color: var(--muted); text-wrap: pretty; }
+html[data-aesthetic="paper"] .chat-root .flds { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+html[data-aesthetic="paper"] .chat-root .fld {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 7px; border: 1.5px dashed var(--line-med);
+  background: var(--paper-2); font-size: 11.5px; color: var(--ink-soft);
+}
+html[data-aesthetic="paper"] .chat-root .fld i { font-style: normal; font-family: var(--font-geist-mono); font-size: 10.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .sp-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 6px; padding: 10px 14px 13px; border-top: 1.5px dashed var(--line); }
+html[data-aesthetic="paper"] .chat-root .sp-perm { font-size: 11.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .sp-perm.no { color: var(--pp-peach-ink); }
+
+/* ── Decline ──────────────────────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .dc {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; margin-top: 12px; padding: 13px 14px;
+  border-radius: 16px; border: 1.5px dashed var(--line-med); background: var(--paper-2);
+}
+html[data-aesthetic="paper"] .chat-root .dc-g { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 11px; border: 1.5px solid var(--line-med); background: var(--card); color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .dc b { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .dc p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); text-wrap: pretty; }
+
+/* ── Clarify: a tile per area ─────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .ab-areas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 8px; }
+html[data-aesthetic="paper"] .chat-root .ab-area {
+  display: grid; gap: 5px; align-content: start; padding: 12px 13px; border-radius: 16px; border: 1.5px solid var(--ink);
+  background: var(--card); text-align: left; box-shadow: 2px 2px 0 var(--c); color: var(--ink);
+  transition: transform .18s var(--pp-ease-spring), box-shadow .18s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .ab-area:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--c); }
+html[data-aesthetic="paper"] .chat-root .ab-area.on { background: var(--paper-2); box-shadow: inset 0 0 0 1.5px var(--ink); transform: none; }
+html[data-aesthetic="paper"] .chat-root .ab-area .g { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 10px; background: var(--c); border: 1.5px solid var(--ink); color: var(--pp-note-ink); }
+html[data-aesthetic="paper"] .chat-root .ab-area b { font-size: 14px; font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .ab-area .ln { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+html[data-aesthetic="paper"] .chat-root .ab-area .sk { width: 100%; height: 26px; margin-top: 2px; }
+
+/* ── Reasons: the case file ───────────────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .rz { margin-top: 30px; }
+html[data-aesthetic="paper"] .chat-root .rz-case { position: relative; border: 1.5px solid var(--ink); border-radius: 4px 18px 18px 18px; background: var(--card); box-shadow: 4px 4px 0 var(--tone); }
+html[data-aesthetic="paper"] .chat-root .rz-tab {
+  position: absolute; left: -1.5px; top: -20px; height: 20px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
+  border: 1.5px solid var(--ink); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--tone-soft);
+  font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--tone-ink);
+}
+html[data-aesthetic="paper"] .chat-root .rz-tab i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone-ink); }
+html[data-aesthetic="paper"] .chat-root .rz-who { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 14px 16px 12px; border-bottom: 1.5px dashed var(--line); }
+html[data-aesthetic="paper"] .chat-root .rz-av { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--ink); background: var(--pp-sky); color: var(--pp-note-ink); font-weight: 700; font-size: 15px; }
+html[data-aesthetic="paper"] .chat-root .rz-nm b { display: block; font-family: var(--font-fraunces); font-weight: 600; font-size: 18px; letter-spacing: -.025em; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .rz-nm span { display: block; font-size: 12px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .rz-stamp {
+  padding: 4px 10px; border: 2.5px solid var(--tone-ink); border-radius: 8px; color: var(--tone-ink);
+  font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; transform: rotate(-6deg); line-height: 1.2; text-align: center;
+  animation: pp-rz-stamp .45s var(--pp-ease-spring) .5s both;
+}
+html[data-aesthetic="paper"] .chat-root .rz-stamp small { display: block; font-size: 9.5px; letter-spacing: .04em; }
+@keyframes pp-rz-stamp { from { opacity: 0; transform: rotate(-6deg) scale(1.7); } to { opacity: 1; transform: rotate(-6deg); } }
+html[data-aesthetic="paper"] .chat-root .rz-ev { padding: 12px 16px; transition: background .2s, opacity .2s; }
+html[data-aesthetic="paper"] .chat-root .rz-ev + .rz-ev { border-top: 1px solid var(--line-soft, var(--line)); }
+html[data-aesthetic="paper"] .chat-root .rz-ev:last-child { border-radius: 0 0 18px 18px; }
+html[data-aesthetic="paper"] .chat-root .rz-case.lit .rz-ev { opacity: .38; }
+html[data-aesthetic="paper"] .chat-root .rz-case.lit .rz-ev.on { opacity: 1; background: var(--tone-soft); }
+html[data-aesthetic="paper"] .chat-root .rz-k { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+html[data-aesthetic="paper"] .chat-root .rz-k em { font-style: normal; margin-left: auto; color: var(--tone-ink); }
+/* gauge */
+html[data-aesthetic="paper"] .chat-root .gz { position: relative; padding: 20px 0 26px; }
+html[data-aesthetic="paper"] .chat-root .gz-trk { position: relative; height: 22px; border: 1.5px solid var(--ink); border-radius: 8px; background: var(--paper-2); overflow: hidden; }
+html[data-aesthetic="paper"] .chat-root .gz-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--v) * 1%); background: var(--tone); border-right: 1.5px solid var(--ink); transform-origin: left center; animation: pp-gz .9s var(--pp-ease-spring) .3s both; }
+@keyframes pp-gz { from { transform: scaleX(0); } }
+html[data-aesthetic="paper"] .chat-root .gz-gap { position: absolute; top: 0; bottom: 0; left: calc(var(--v) * 1%); width: calc((var(--bar) - var(--v)) * 1%); background: repeating-linear-gradient(135deg, transparent 0 4px, var(--tone-bd) 4px 6px); }
+html[data-aesthetic="paper"] .chat-root .gz-bar { position: absolute; z-index: 1; top: 4px; bottom: 20px; left: calc(var(--bar) * 1%); border-left: 2px dashed var(--ink); }
+html[data-aesthetic="paper"] .chat-root .gz-bar span { position: absolute; top: -2px; left: 6px; white-space: nowrap; font-family: var(--font-geist-mono); font-size: 10px; font-weight: 600; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .gz-v { position: absolute; bottom: 0; left: calc(var(--v) * 1%); transform: translateX(-50%); padding: 1px 7px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--tone); color: var(--pp-note-ink); font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .gz-ax { display: flex; justify-content: space-between; margin-top: 4px; font-family: var(--font-geist-mono); font-size: 9.5px; color: var(--muted); }
+/* meeting strip */
+html[data-aesthetic="paper"] .chat-root .mts { display: grid; gap: 5px; }
+html[data-aesthetic="paper"] .chat-root .mts .mo { grid-row: 1; padding-bottom: 3px; border-bottom: 1px solid var(--line); font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600; letter-spacing: .1em; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .mbr { grid-row: 2; position: relative; height: 16px; margin: 0 1px 2px; }
+html[data-aesthetic="paper"] .chat-root .mbr::before { content: ''; position: absolute; left: 0; right: 0; bottom: 2px; height: 7px; border: 1.5px solid var(--tone-ink); border-bottom: 0; border-radius: 4px 4px 0 0; }
+html[data-aesthetic="paper"] .chat-root .mbr span { position: absolute; left: 50%; top: -3px; transform: translateX(-50%); white-space: nowrap; padding: 0 5px; background: var(--card); font-family: var(--font-geist-mono); font-size: 9.5px; font-weight: 600; color: var(--tone-ink); }
+html[data-aesthetic="paper"] .chat-root .rz-ev.on .mbr span { background: var(--tone-soft); }
+html[data-aesthetic="paper"] .chat-root .mt {
+  display: grid; place-items: center; aspect-ratio: 1 / 1.12; min-width: 0; padding: 0; border-radius: 7px; border: 1.5px solid var(--ink);
+  background: var(--card); font-family: var(--font-geist-mono); font-size: 10.5px; font-weight: 600; color: var(--pp-note-ink); cursor: pointer;
+  animation: pp-mt .35s var(--pp-ease-spring) both; animation-delay: calc(var(--i, 0) * 35ms + 250ms);
+}
+@keyframes pp-mt { from { transform: scale(.4); opacity: 0; } }
+html[data-aesthetic="paper"] .chat-root .mt:hover { outline: 2px solid var(--pp-lilac-ink); outline-offset: 1px; }
+html[data-aesthetic="paper"] .chat-root .mt.there { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .mt.missed { background: var(--pp-peach); rotate: -4deg; }
+html[data-aesthetic="paper"] .chat-root .mt.excused { border-style: dashed; border-color: var(--line-med); background: none; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .mt.unrecorded { background: var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .mt.ahead { border-style: dashed; border-color: var(--line-med); background: none; }
+html[data-aesthetic="paper"] .chat-root .md { grid-row: 4; text-align: center; font-family: var(--font-geist-mono); font-size: 9.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .mkey { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 9px; font-size: 11px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .mkey span { display: inline-flex; align-items: center; gap: 5px; }
+html[data-aesthetic="paper"] .chat-root .mkey i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); }
+html[data-aesthetic="paper"] .chat-root .mkey .k-there { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .mkey .k-missed { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .mkey .k-unrec { background: var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .mkey .k-dash { border-style: dashed; border-color: var(--line-med); }
+/* the rest of the record */
+html[data-aesthetic="paper"] .chat-root .rz-ok { display: flex; flex-wrap: wrap; gap: 6px; }
+html[data-aesthetic="paper"] .chat-root .rz-ok > span { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px 5px 6px; border-radius: 999px; border: 1.5px solid var(--pp-mint-bd); background: var(--pp-mint-soft); font-size: 12px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .rz-ok > span.no { border-color: var(--pp-peach-bd); background: var(--pp-peach-soft); }
+html[data-aesthetic="paper"] .chat-root .rz-ok i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--pp-mint); border: 1.5px solid var(--ink); color: var(--pp-note-ink); font-style: normal; font-size: 11px; font-weight: 700; }
+html[data-aesthetic="paper"] .chat-root .rz-ok .no i { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .rz-ok b { font-family: var(--font-geist-mono); font-size: 11.5px; color: var(--ink); }
+/* the reason cards */
+html[data-aesthetic="paper"] .chat-root .rz-list { display: grid; gap: 10px; margin-top: 16px; }
+html[data-aesthetic="paper"] .chat-root .rz-c {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr); padding: 0; overflow: hidden; text-align: left;
+  border: 1.5px solid var(--line-med); border-radius: 14px; background: var(--card); color: var(--ink);
+  transition: border-color .15s, box-shadow .2s var(--pp-ease-spring), transform .2s var(--pp-ease-spring);
+}
+html[data-aesthetic="paper"] .chat-root .rz-c:is(:hover, :focus-visible, .on, .sel) { border-color: var(--ink); box-shadow: 3px 3px 0 var(--tone); transform: translate(-1.5px, -1.5px); }
+html[data-aesthetic="paper"] .chat-root .rz-n { display: grid; place-items: center; background: var(--tone-soft); border-right: 1.5px dashed var(--tone-bd); font-family: var(--font-fraunces); font-weight: 650; font-size: 26px; letter-spacing: -.04em; color: var(--tone-ink); }
+html[data-aesthetic="paper"] .chat-root .rz-c:is(:hover, .on) .rz-n { background: var(--tone); color: var(--pp-note-ink); border-right-color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .rz-b { padding: 11px 14px 12px; }
+html[data-aesthetic="paper"] .chat-root .rz-b b { display: block; font-size: 14.5px; font-weight: 600; text-wrap: pretty; }
+html[data-aesthetic="paper"] .chat-root .rz-b span { display: block; margin-top: 3px; font-size: 13px; color: var(--ink-soft); line-height: 1.6; text-wrap: pretty; }
+/* Fair */
+html[data-aesthetic="paper"] .chat-root .rz-nc { position: relative; margin-top: 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px dashed var(--pp-mint-bd); background: var(--pp-mint-soft); }
+html[data-aesthetic="paper"] .chat-root .rz-nc .shp-kicker { color: var(--pp-mint-ink); }
+html[data-aesthetic="paper"] .chat-root .rz-nc ul { list-style: none; margin: 8px 0 0; padding: 0 90px 0 0; display: grid; gap: 6px; }
+html[data-aesthetic="paper"] .chat-root .rz-nc li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .rz-date { padding: 0 8px; border-radius: 999px; border: 1.5px solid var(--line-med); background: var(--card); font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; color: var(--ink); line-height: 1.6; }
+html[data-aesthetic="paper"] .chat-root .rz-date:hover { border-color: var(--pp-lilac-ink); }
+html[data-aesthetic="paper"] .chat-root .rz-fair {
+  position: absolute; right: 14px; top: 12px; padding: 3px 9px; border: 2.5px solid var(--pp-mint-ink); border-radius: 8px; background: var(--card);
+  color: var(--pp-mint-ink); font-family: var(--font-geist-mono); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; transform: rotate(-6deg); text-align: center; line-height: 1.25;
+}
+html[data-aesthetic="paper"] .chat-root .rz-fair small { display: block; font-size: 9px; letter-spacing: .04em; }
+/* the way back */
+html[data-aesthetic="paper"] .chat-root .rz-path { margin-top: 12px; padding: 13px 14px 14px; border-radius: 16px; border: 1.5px solid var(--ink); background: var(--pp-butter-soft); box-shadow: 3px 3px 0 var(--pp-butter); }
+html[data-aesthetic="paper"] .chat-root .rz-path > b { display: block; margin-top: 3px; font-family: var(--font-fraunces); font-weight: 600; font-size: 17px; letter-spacing: -.02em; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .rz-path > p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .pb { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; margin-top: 10px; padding: 8px 10px; border-radius: 11px; background: var(--card); border: 1.5px solid var(--line); }
+html[data-aesthetic="paper"] .chat-root .pb.ok { border-color: var(--pp-mint-bd); }
+html[data-aesthetic="paper"] .chat-root .pb .dots { display: flex; gap: 4px; }
+html[data-aesthetic="paper"] .chat-root .pb .dots i { width: 14px; height: 16px; border-radius: 5px; border: 1.5px solid var(--ink); background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .pb .dots i.x { background: var(--pp-peach); }
+html[data-aesthetic="paper"] .chat-root .pb .lb { font-size: 12.5px; color: var(--ink-soft); }
+html[data-aesthetic="paper"] .chat-root .pb .lb b { color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .rz-pill { padding: 2px 9px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--pp-peach); color: var(--pp-note-ink); font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; white-space: nowrap; }
+html[data-aesthetic="paper"] .chat-root .rz-pill.ok { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .rz-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+
+/* ── Quote: the minutes on a legal pad ────────────────────────────────────── */
+html[data-aesthetic="paper"] .chat-root .qt {
+  position: relative; margin-top: 16px; padding: 14px 18px 16px 50px; border: 1.5px solid var(--line-med); border-radius: 6px 6px 16px 16px;
+  background-color: var(--card);
+  background-image: linear-gradient(to right, transparent 36px, var(--pp-rose-bd, var(--pp-peach-bd)) 36px, var(--pp-rose-bd, var(--pp-peach-bd)) 38px, transparent 38px),
+                    repeating-linear-gradient(to bottom, transparent 0, transparent 25px, var(--line) 25px, var(--line) 26px);
+  background-position: 0 0, 0 9px;
+}
+html[data-aesthetic="paper"] .chat-root .qt::before { content: ''; position: absolute; top: -9px; left: 50%; width: 84px; height: 18px; margin-left: -42px; background: var(--pp-butter); opacity: .75; transform: rotate(-2deg); border-radius: 2px; }
+html[data-aesthetic="paper"] .chat-root .qt-src { display: block; padding: 0; border: 0; background: none; font-family: var(--font-geist-sans); font-size: 12px; line-height: 26px; color: var(--muted); text-align: left; cursor: pointer; }
+html[data-aesthetic="paper"] .chat-root .qt-src b { color: var(--ink); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .qt-src:hover b { text-decoration: underline; }
+html[data-aesthetic="paper"] .chat-root .qt blockquote { margin: 0; padding-right: 84px; font-family: var(--font-fraunces); font-weight: 500; font-size: 16.5px; letter-spacing: -.015em; line-height: 26px; color: var(--ink); text-wrap: pretty; }
+html[data-aesthetic="paper"] .chat-root .qt-stamp {
+  position: absolute; right: 16px; bottom: 14px; padding: 4px 10px; border: 2.5px solid var(--pp-mint-ink); border-radius: 8px; background: var(--card);
+  color: var(--pp-mint-ink); font-family: var(--font-geist-mono); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; transform: rotate(-7deg); text-align: center; line-height: 1.25;
+  animation: pp-rz-stamp .45s var(--pp-ease-spring) .5s both;
+}
+html[data-aesthetic="paper"] .chat-root .qt-stamp small { display: block; font-size: 9.5px; letter-spacing: .04em; }
+html[data-aesthetic="paper"] .chat-root .qt-items { margin-top: 12px; display: grid; gap: 6px; }
+html[data-aesthetic="paper"] .chat-root .qt-items > .shp-kicker { padding: 0 4px; }
+html[data-aesthetic="paper"] .chat-root .ai-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); }
+html[data-aesthetic="paper"] .chat-root .ai-row .box { width: 18px; height: 18px; padding: 0; display: grid; place-items: center; border-radius: 5px; border: 1.5px solid var(--ink); background: var(--card); color: var(--pp-note-ink); cursor: pointer; }
+html[data-aesthetic="paper"] .chat-root .ai-row .box.on { background: var(--pp-mint); }
+html[data-aesthetic="paper"] .chat-root .ai-t b { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+html[data-aesthetic="paper"] .chat-root .ai-t span { display: block; font-size: 11.5px; color: var(--muted); }
+html[data-aesthetic="paper"] .chat-root .ai-d { font-family: var(--font-geist-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+html[data-aesthetic="paper"] .chat-root .ai-row.late .ai-d { color: var(--pp-peach-ink); font-weight: 600; }
+html[data-aesthetic="paper"] .chat-root .qt-err { margin: 2px 4px 0; font-size: 12px; color: var(--pp-peach-ink); }
+
+@media (max-width: 640px) {
+  html[data-aesthetic] body .chat-root .fc { grid-template-columns: 66px minmax(0, 1fr); }
+  html[data-aesthetic] body .chat-root .fc-stub .d { font-size: 30px; }
+  html[data-aesthetic] body .chat-root .fc-dl { grid-template-columns: minmax(0, 1fr); }
+  html[data-aesthetic] body .chat-root .mts { gap: 3px; }
+  html[data-aesthetic] body .chat-root .mt { border-radius: 5px; font-size: 8px; }
+  html[data-aesthetic] body .chat-root .mt svg { width: 8px; height: 8px; }
+  html[data-aesthetic] body .chat-root .md { font-size: 8px; }
+  html[data-aesthetic] body .chat-root .rz-who { grid-template-columns: auto minmax(0, 1fr); }
+  html[data-aesthetic] body .chat-root .rz-stamp { grid-column: 1 / -1; justify-self: start; }
+  html[data-aesthetic] body .chat-root .rz-c { grid-template-columns: 38px minmax(0, 1fr); }
+  html[data-aesthetic] body .chat-root .rz-nc ul { padding-right: 0; }
+  html[data-aesthetic] body .chat-root .rz-fair { position: static; display: inline-block; margin-top: 8px; }
+  html[data-aesthetic] body .chat-root .pb { grid-template-columns: auto minmax(0, 1fr); }
+  html[data-aesthetic] body .chat-root .rz-pill { grid-column: 1 / -1; justify-self: start; }
+  html[data-aesthetic] body .chat-root .qt { padding-left: 44px; }
+  html[data-aesthetic] body .chat-root .qt blockquote { padding-right: 0; }
+  html[data-aesthetic] body .chat-root .qt-stamp { position: static; display: inline-block; margin-top: 6px; }
+  html[data-aesthetic] body .chat-root .ab-areas { grid-template-columns: minmax(0, 1fr); }
+}

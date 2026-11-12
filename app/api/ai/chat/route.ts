@@ -4,7 +4,7 @@ import { buildContext } from "@/lib/context";
 import { checkMutationRate } from "@/lib/rate-limit";
 import { aiEnabled, getOpenAI, CHAT_MODEL, CHAT_REASONING_EFFORT } from "@/lib/ai";
 import { chatToolsFor, TOOL_UI, runTool, isReadTool, runProposal, isProposalTool, isSelfServiceProposal, isAnswerTool, parseComposeAnswer, SCREEN_PATHS, type Proposal, type ToolAccess, type AnswerRow, type WireAnswerRow } from "@/lib/ai-tools";
-import { createRefIndex, attachRefs } from "@/lib/ai-refs";
+import { createRefIndex, attachRefs, noteRefs } from "@/lib/ai-refs";
 import { createShapeEvidence, buildShape, attachPeople, checkVerdict } from "@/lib/ai-shapes";
 import { buildSystemPrompt } from "@/lib/ai-prompt";
 import { getPeek } from "@/lib/services/peek-service";
@@ -49,6 +49,10 @@ interface ClientMessage {
 //                                             Advisory rows additionally carry a `tier` and a
 //                                             `screen` resolved from a closed enum (see resolveScreen).
 // text       { delta }                      — plain-prose fallback (refusals, how-to, fast-path, errors)
+// notice     { kind }                       — the turn ended in a status (timeout/error/cut_short); sent
+//                                             just before that status's text, which older clients show
+// note_refs  { refs: [{ text, ref }] }      — after a plain-text reply: names in it that are records
+//                                             this turn read (lib/ai-refs noteRefs)
 // done       {}
 // The client renders steps as the reasoning ledger (pending → active → done on a
 // ruled margin) and keeps a standing "Composing the answer" line.
@@ -407,7 +411,13 @@ export async function POST(req: NextRequest) {
               messages.push({ role: "system", content: CUT_OFF_NOTE });
               continue;
             }
-            if (finishReason === "length" && fullText.trim()) send("text", { delta: CUT_SHORT_TEXT });
+            if (finishReason === "length" && fullText.trim()) {
+              send("notice", { kind: "cut_short" });
+              send("text", { delta: CUT_SHORT_TEXT });
+            }
+            // Records the reply names, so they can be tapped like rows.
+            const named = fullText.trim() ? noteRefs(fullText, refIndex) : [];
+            if (named.length) send("note_refs", { refs: named });
             break;
           }
 
@@ -623,9 +633,11 @@ export async function POST(req: NextRequest) {
           // A stalled upstream stream — not an app bug. Tell the client the
           // response timed out rather than the generic error copy.
           logError(e, { route: "/api/ai/chat", method: "POST", userId: ctx.actorId, extra: { reason: "stream-idle-timeout" } });
+          send("notice", { kind: "timeout" });
           send("text", { delta: "\n\n_(The response timed out. Please try again.)_" });
         } else {
           logError(e, { route: "/api/ai/chat", method: "POST", userId: ctx.actorId });
+          send("notice", { kind: "error" });
           send("text", { delta: "\n\n_(Sorry — I hit an error. Try again in a moment.)_" });
         }
         send("done", {});
