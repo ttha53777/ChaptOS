@@ -6,7 +6,8 @@ import { useChapter } from "../../../../context/ChapterContext";
 import { requestJson } from "../../../../lib/api";
 import { orgHref } from "@/lib/org-paths";
 
-// Danger Zone — permanently delete the current organization.
+// Danger Zone — permanently delete the current organization. Rendered as the
+// rose card at the foot of Settings → Identity (styles in identity.css).
 //
 // Org-admin only: renders nothing for anyone who isn't an admin of the ACTIVE
 // org (or a platform admin). This mirrors exactly what the server enforces, so
@@ -30,7 +31,7 @@ interface DeletionSummary {
   parties: number;
 }
 
-export function DangerZone({ onError }: { onError: (msg: string) => void }) {
+export function DangerZone({ onError, memberCount }: { onError: (msg: string) => void; memberCount: number }) {
   const { currentUser } = useChapter();
 
   // Admin of the active org? Platform admins also qualify.
@@ -44,22 +45,21 @@ export function DangerZone({ onError }: { onError: (msg: string) => void }) {
 
   return (
     <>
-      <div
-        className="rounded-xl p-4"
-        style={{ border: "1px solid var(--rose-bg)", background: "var(--rose-bg)" }}
-      >
-        <h3 className="sc-h" style={{ color: "var(--rose)" }}>Danger zone</h3>
-        <p className="sc-note mt-1 mb-3">
-          Permanently delete this organization and everything in it — members, events,
-          transactions, documents, and history. This cannot be undone.
-        </p>
-        <button onClick={() => setOpen(true)} className="sc-btn sc-btn-danger">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          Delete this organization
+      <section className="id-danger" aria-labelledby="id-dz">
+        <div className="ic">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.44c-.8.08-1.57.18-2.34.32a.75.75 0 0 0 .27 1.48l.15-.03.84 10.06A2.75 2.75 0 0 0 7.66 18.5h4.68a2.75 2.75 0 0 0 2.74-2.48l.84-10.06.15.03a.75.75 0 0 0 .27-1.48c-.77-.14-1.55-.24-2.34-.32v-.44A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.67.02 2.5.07v-.32c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.32C8.33 4.02 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" /></svg>
+        </div>
+        <div className="tx">
+          <h3 id="id-dz">Delete this chapter</h3>
+          <p>
+            {/* One string: vendored Next drops the space after a {expr}. */}
+            {`Removes the chapter and everything in it — roster, money, meetings, docs — for ${memberCount === 1 ? "the 1 person" : `all ${memberCount} people`} in it. This can't be undone.`}
+          </p>
+        </div>
+        <button type="button" onClick={() => setOpen(true)} className="id-btn rose solid">
+          Delete chapter…
         </button>
-      </div>
+      </section>
 
       {open && currentUser.org && (
         <DeleteOrgModal

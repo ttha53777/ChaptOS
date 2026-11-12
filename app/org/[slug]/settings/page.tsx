@@ -7,7 +7,7 @@ import { Sidebar, isNavVisible } from "../../../components/Sidebar";
 import { useIsOrgAdmin } from "../../../hooks/useIsOrgAdmin";
 import { useOrgPath } from "../../../hooks/useOrgPath";
 import { orgInitials } from "@/lib/org-initials";
-import { GeneralSection } from "./sections/GeneralSection";
+import { IdentitySection } from "./sections/IdentitySection";
 import { ThresholdsSection } from "./sections/ThresholdsSection";
 import { SemestersSection } from "./sections/SemestersSection";
 import { AccountsSection } from "./sections/AccountsSection";
@@ -15,7 +15,6 @@ import { RolesSection } from "./sections/RolesSection";
 import { ActivityLogSection } from "./sections/ActivityLogSection";
 import { InvitationsSection } from "./sections/InvitationsSection";
 import { WorkflowsSection } from "./sections/WorkflowsSection";
-import { VocabSection } from "./sections/VocabSection";
 import { MemberFieldsSection } from "./sections/MemberFieldsSection";
 import { CustomMetricsSection } from "./sections/CustomMetricsSection";
 import { EventTypesSection } from "./sections/EventTypesSection";
@@ -36,7 +35,7 @@ import "./settings-ledger.css";
 
 type SectionId =
   | "index"
-  | "general" | "vocabulary"
+  | "identity"
   | "accounts" | "invitations" | "roles" | "member-fields"
   | "thresholds" | "semesters" | "custom-metrics" | "event-types" | "event-fields" | "calendar" | "opening-balance" | "money-categories" | "workflows"
   | "activity-log" | "billing";
@@ -64,18 +63,13 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    id: "general", label: "General", group: "Identity", tint: "",
+    // Icon, Instagram handle and vocabulary on one page (IdentitySection).
     // Don't advertise a chapter rename here — nothing in the product can do it
     // (PATCH /api/orgs/config takes no `name`). See A2 in
     // docs/settings-ux-audit.md; restore the mention when rename ships.
-    blurb: "Chapter icon, data controls & quick actions.",
-    lede: "Your chapter's identity and the controls you reach for most.",
-    icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z",
-  },
-  {
-    id: "vocabulary", label: "Vocabulary", group: "Identity", tint: "",
-    blurb: "Rename canonical terms to match your org's language.",
-    lede: "Swap the platform's default words for the ones your org actually uses. Changes ripple across every page.",
+    id: "identity", label: "Identity", group: "Identity", tint: "",
+    blurb: "Chapter icon, Instagram handle and the words you use.",
+    lede: "Your icon, your handle and the words you use. Everyone in the chapter sees these, and the previews update as you go.",
     icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
   },
   {
@@ -194,7 +188,7 @@ const GROUP_TITLE: Record<Intent, string> = {
   System: "System",
 };
 const GROUP_LEDE: Record<Intent, string> = {
-  Identity: "Your chapter's name, language and the controls you reach for most.",
+  Identity: "Your icon, your handle and the words you use. Everyone in the chapter sees these, and the previews update as you go.",
   Membership: "Who belongs to this org — accounts, invites, roles and the data you keep on members.",
   Operations: "The numbers and surfaces that run your chapter — thresholds, periods, metrics and which pages show.",
   System: "The record of everything that's changed across the app.",
@@ -289,7 +283,6 @@ function SettingsPageBody() {
     if (id === "roles")          return canManageRoles;
     if (id === "invitations")    return canManageSettings;
     if (id === "workflows")      return canManageSettings;
-    if (id === "vocabulary")     return canManageSettings;
     if (id === "thresholds")     return canManageSettings;
     if (id === "member-fields")  return canManageSettings;
     if (id === "custom-metrics") return canManageSettings;
@@ -438,8 +431,10 @@ function SettingsPageBody() {
   useEffect(() => {
     if (deepLinkHandledRef.current) return;
     const params = new URLSearchParams(window.location.search);
-    const id = params.get("section");
-    if (!id) { deepLinkHandledRef.current = true; return; }
+    const raw = params.get("section");
+    if (!raw) { deepLinkHandledRef.current = true; return; }
+    // General and Vocabulary merged into Identity; old links still land there.
+    const id = raw === "general" || raw === "vocabulary" ? "identity" : raw;
 
     // Wait for ChapterContext before deciding. Permission bits ride in with
     // currentUser, and until they land `isVisible` reports false for every
@@ -464,7 +459,10 @@ function SettingsPageBody() {
   }, [currentUser]);
 
   const activeGroup = dest === "index" ? null : dest;
-  const focusItem = activeGroup && focusId ? BY_ID[focusId] : null;
+  // Identity is one section with its own badge and steps, so it gets a page of
+  // its own rather than a sheet inside the group/focus layouts.
+  const identityPage = activeGroup === "Identity";
+  const focusItem = activeGroup && !identityPage && focusId ? BY_ID[focusId] : null;
 
   // Nav filter — substring match on label or blurb. When the filter is active the
   // rail shows matching *sections* (each jumps to its group page + anchor); when
@@ -483,13 +481,12 @@ function SettingsPageBody() {
   function renderSection(id: NavItem["id"]) {
     const props = { onStatus: setStatusMsg, onError: setPageError };
     switch (id) {
-      case "general":        return <GeneralSection {...props} />;
+      case "identity":       return <IdentitySection {...props} />;
       case "thresholds":     return <ThresholdsSection {...props} />;
       case "semesters":      return <SemestersSection {...props} />;
       case "accounts":       return <AccountsSection {...props} />;
       case "invitations":    return <InvitationsSection {...props} />;
       case "workflows":      return <WorkflowsSection {...props} />;
-      case "vocabulary":     return <VocabSection {...props} />;
       case "member-fields":  return <MemberFieldsSection {...props} />;
       case "custom-metrics": return <CustomMetricsSection {...props} />;
       case "event-types":    return <EventTypesSection {...props} />;
@@ -788,8 +785,26 @@ function SettingsPageBody() {
                 </section>
               )}
 
+              {/* ── Identity — how the chapter looks & talks ── */}
+              {identityPage && (
+                <div className="set-group-page" data-group="identity">
+                  <button className="set-back" onClick={() => selectDest("index")}>
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Index
+                  </button>
+                  <div className="set-detail-head">
+                    <div className="kicker">Settings</div>
+                    <h2>How your chapter looks &amp; talks</h2>
+                    <p className="lede">{GROUP_LEDE.Identity}</p>
+                  </div>
+                  <IdentitySection onStatus={setStatusMsg} onError={setPageError} />
+                </div>
+              )}
+
               {/* ── Group page — every visible section in this intent, stacked ── */}
-              {activeGroup && !focusItem && (
+              {activeGroup && !identityPage && !focusItem && (
                 <div className="set-group-page" data-group={activeGroup.toLowerCase()}>
                   <button className="set-back" onClick={() => selectDest("index")}>
                     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
