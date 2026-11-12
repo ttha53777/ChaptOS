@@ -242,7 +242,13 @@ export async function POST(req: NextRequest) {
             send("step", { id: "fast:0", verb: ui.verb, ...(ui.source ? { source: ui.source } : {}) });
             send("step_done", { id: "fast:0" });
           }
-          send("text", { delta: fast.text });
+          if (fast.answer) {
+            const { verdict, shape, rows } = fast.answer;
+            send("answer", { verdict, rows: rows.map(resolveScreen), follows: [], ...(shape ? { shape } : {}), sources: ui?.source ? [ui.source] : [] });
+            shapeType = shape?.type ?? null;
+          } else {
+            send("text", { delta: fast.text });
+          }
           send("done", {});
           return; // finally{} still runs: emits the timing line + closes the stream
         }

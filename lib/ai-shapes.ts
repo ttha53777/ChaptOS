@@ -24,6 +24,7 @@ import { DATE_RE, isValidCalendarDate, todayISO } from "@/lib/dates";
 import type { ShapeRequest } from "@/lib/ai-shape-request";
 import { getBrotherStatus, type Brother as BrotherType } from "@/app/data";
 import { fmtUsd, money } from "@/lib/money";
+import { formatEventTime } from "@/lib/event-time";
 import type {
   AnswerShape, AskBack, PeekCard, RefType, AskBackPerson, BreakdownPart, BreakdownShape,
   EntityRef, LookedSource, MissingShape, TallyMark, TallyMetric, TallyShape, WeekItem, WeekShape,
@@ -198,6 +199,11 @@ async function buildTally(req: ShapeRequest, evidence: ShapeEvidence, scoped: Sc
   if (!read) return null;
   const metric = req.metric ?? inferMetric(read.args);
   if (!metric) return null;
+  return tallyOf(metric, scoped, orgId);
+}
+
+/** The whole roster against one metric, read fresh. Also what the fast-path draws. */
+export async function tallyOf(metric: TallyMetric, scoped: Scoped, orgId: number): Promise<BuiltShape | null> {
   // The model may have read a filtered or limited list; a tally needs everyone,
   // so re-read the roster the same way list_brothers does (thresholds cached).
   const rows = await scoped.member.listRoster();
@@ -353,7 +359,7 @@ export function minutesOf(time: string | null): number {
 /** Pure: rows in the window → week. Exported for tests. */
 export function weekFromRows(input: {
   start: string;
-  events: Array<{ id: number; title: string; date: string; time: string | null; category: string }>;
+  events: Array<{ id: number; title: string; date: string; time: string | null; schedule?: unknown; category: string }>;
   deadlines: Array<{ id: number; title: string; dueDate: string | null }>;
   types: Array<{ slug: string; label: string; color: string; colorDark: string | null }>;
 }): BuiltShape {
@@ -363,17 +369,21 @@ export function weekFromRows(input: {
   const sameDay = (date: string, title: string) => `${date}|${title.trim().toLowerCase()}`;
   const taskKeys = new Set(input.deadlines.filter(d => d.dueDate).map(d => sameDay(d.dueDate!, d.title)));
   const events = input.events.filter(e => !(e.category === "deadline" && taskKeys.has(sameDay(e.date, e.title))));
+  // Sorted on the stored clock, shown the way the rest of the app writes a time.
+  const startsAt = new Map<WeekItem, number>();
   const items: WeekItem[] = [
     ...events.map((e): WeekItem => {
       const t = types.get(e.category);
-      return {
+      const item: WeekItem = {
         ref: { type: "event", id: e.id },
         kind: e.category === "deadline" ? "deadline" : "event",
         date: e.date,
-        time: e.time?.trim() || null,
+        time: formatEventTime(e.time, e.schedule),
         title: e.title,
         cat: { slug: e.category, label: t?.label ?? e.category, color: t?.color ?? null, colorDark: t?.colorDark ?? null },
       };
+      startsAt.set(item, minutesOf(e.time));
+      return item;
     }),
     ...input.deadlines.filter(d => d.dueDate).map((d): WeekItem => ({
       ref: { type: "task", id: d.id },
@@ -387,7 +397,7 @@ export function weekFromRows(input: {
     // Within a day: deadlines first (they're what a glance is for), then by time.
     .sort((a, b) => a.date.localeCompare(b.date)
       || (a.kind === b.kind ? 0 : a.kind === "deadline" ? -1 : 1)
-      || minutesOf(a.time) - minutesOf(b.time))
+      || (startsAt.get(a) ?? minutesOf(a.time)) - (startsAt.get(b) ?? minutesOf(b.time)))
     .slice(0, WEEK_MAX_ITEMS);
 
   const shape: WeekShape = { type: "week", start: input.start, items };
@@ -420,12 +430,17 @@ async function buildWeek(req: ShapeRequest, evidence: ShapeEvidence, scoped: Sco
   const start = req.start ?? startArg(cal) ?? startArg(due)
     ?? (typeof digestStart === "string" && isValidCalendarDate(digestStart) ? digestStart : undefined)
     ?? todayISO();
+  return weekOf(start, scoped);
+}
+
+/** The seven days from `start`, read fresh. Also what the fast-path draws for "this week". */
+export async function weekOf(start: string, scoped: Scoped): Promise<BuiltShape> {
   const end = addDaysISO(start, 6);
 
   const [events, deadlines, types] = await Promise.all([
     scoped.calendarEvent.findMany({
       where: { date: { gte: start, lte: end } },
-      select: { id: true, title: true, date: true, time: true, category: true },
+      select: { id: true, title: true, date: true, time: true, schedule: true, category: true },
       orderBy: { date: "asc" },
     }),
     scoped.task.findMany({

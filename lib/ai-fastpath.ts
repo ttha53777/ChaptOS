@@ -22,6 +22,9 @@ import type { db } from "@/lib/db";
 import { isoWeekBounds } from "@/lib/dates";
 import { fmtUsd } from "@/lib/money";
 import { formatEventTime } from "@/lib/event-time";
+import { tallyOf, weekOf, type BuiltShape } from "@/lib/ai-shapes";
+import type { AnswerRow } from "@/lib/ai-tools";
+import type { AnswerShape, TallyMetric } from "@/lib/api-types/chat";
 
 export interface FastPathResult {
   /** The complete answer text, streamed as a single SSE `text` event. */
@@ -30,6 +33,8 @@ export interface FastPathResult {
   pattern: string;
   /** The read tool that served it — the route renders its TOOL_UI verb/source as a one-step ledger. */
   tool: string;
+  /** The structured form of the answer: sent as an `answer` event instead of `text`. */
+  answer?: { verdict: string; rows: AnswerRow[]; shape?: AnswerShape };
 }
 
 // A tool result is either the "happy" shape or, when a list tool matched nothing,
@@ -97,6 +102,15 @@ interface Intent {
   match: (q: string) => { tool: string; args: Record<string, unknown> } | null;
   /** Render the answer; return null to abort → fall through to the LLM. */
   format: (result: ToolResult) => string | null;
+  /** Compose the answer the way compose_answer would; null keeps the text. */
+  draw?: (d: { args: Record<string, unknown>; result: ToolResult; scoped: ReturnType<typeof db>; orgId: number }) => Promise<FastPathResult["answer"] | null>;
+}
+
+/** A roster subset as its tally; nobody in the subset keeps the one-line text. */
+async function drawTally(metric: TallyMetric, scoped: ReturnType<typeof db>, orgId: number, verdict: (hit: number, of: number) => string): Promise<FastPathResult["answer"] | null> {
+  const built: BuiltShape | null = await tallyOf(metric, scoped, orgId);
+  if (!built || built.shape.type !== "tally" || built.shape.hit === 0) return null;
+  return { verdict: verdict(built.shape.hit, built.shape.of), ...built };
 }
 
 // Normalize: lowercase, strip punctuation to spaces, collapse whitespace.
@@ -151,6 +165,11 @@ const INTENTS: Intent[] = [
         ...lines.map(l => `- ${l}`),
       ].join("\n");
     },
+    draw: ({ result, scoped, orgId }) => {
+      const total = asBrotherList(result)?.summary.totalDuesOwed;
+      return drawTally("owes_dues", scoped, orgId, (hit, of) =>
+        `*${hit} of ${of}* ${hit === 1 ? "owes" : "owe"} dues${typeof total === "number" ? `, ${money(total)} in all` : ""}.`);
+    },
   },
 
   // ── At-risk: "who's at risk", "at-risk brothers" ────────────────────────────
@@ -173,6 +192,8 @@ const INTENTS: Intent[] = [
         ...lines.map(l => `- ${l}`),
       ].join("\n");
     },
+    draw: ({ scoped, orgId }) =>
+      drawTally("at_risk", scoped, orgId, (hit, of) => `*${hit} of ${of}* ${hit === 1 ? "is" : "are"} at risk.`),
   },
 
   // ── Treasury balance ────────────────────────────────────────────────────────
@@ -189,6 +210,8 @@ const INTENTS: Intent[] = [
       if (typeof t.balance !== "number") return null;
       return `${money(t.balance)} (treasury balance).`;
     },
+    // No picture for a single figure: the verdict line, sourced like any answer.
+    draw: async ({ result }) => ({ verdict: `*${money((result as { balance: number }).balance)}* in the treasury.`, rows: [] }),
   },
 
   // ── This week's events ──────────────────────────────────────────────────────
@@ -207,6 +230,12 @@ const INTENTS: Intent[] = [
       if (rows.length === 0) return "Nothing on the calendar this week.";
       const lines = rows.map(e => `- **${e.title}** — ${e.date}${formatEventTime(e.time, e.schedule) ? ` ${formatEventTime(e.time, e.schedule)}` : ""}${e.category ? ` (${e.category})` : ""}`);
       return [`This week (calendar):`, ...lines].join("\n");
+    },
+    draw: async ({ args, scoped }) => {
+      const built = await weekOf(String(args.start), scoped);
+      const n = built.shape.type === "week" ? built.shape.items.length : 0;
+      if (n === 0) return null;
+      return { verdict: `*${n} ${n === 1 ? "thing" : "things"}* on this week.`, ...built };
     },
   },
 ];
@@ -255,7 +284,9 @@ export async function tryFastPath(question: string, scoped: ReturnType<typeof db
     if (isErrorResult(result)) return null; // tool failed → let the model retry
     const text = intent.format(result);
     if (text == null || text.trim() === "") return null; // formatter abstained
-    return { text, pattern: intent.pattern, tool: matched.tool };
+    // A picture that fails to build is not a miss: the text still answers.
+    const answer = intent.draw ? await intent.draw({ args: matched.args, result, scoped, orgId }).catch(() => null) : null;
+    return { text, pattern: intent.pattern, tool: matched.tool, ...(answer ? { answer } : {}) };
   } catch {
     return null; // any throw → fall through to the LLM path
   }
