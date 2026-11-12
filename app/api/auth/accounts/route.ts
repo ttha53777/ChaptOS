@@ -28,12 +28,12 @@ export async function GET() {
       roles?: { role: { id: number; name: string; color: string | null; rank: number } }[];
     }>;
     try {
-      const [roster, roleRows] = await Promise.all([
-        // The one caller that genuinely needs email — this is the account-admin
-        // surface — so it opts in explicitly.
-        db(user.orgId).member.listRoster({ fields: "contact" }),
-        db(user.orgId).brotherRole.listWithRole([]),
-      ]);
+      // The one caller that genuinely needs email — this is the account-admin
+      // surface — so it opts in explicitly.
+      const roster = await db(user.orgId).member.listRoster({ fields: "contact" });
+      // listWithRole filters `brotherId IN (...)`, so it needs the roster's ids —
+      // an empty list matches nothing and every member showed no roles.
+      const roleRows = await db(user.orgId).brotherRole.listWithRole(roster.map(b => b.id));
       const rolesByBrotherId = new Map<number, { role: { id: number; name: string; color: string | null; rank: number } }[]>();
       for (const br of roleRows) {
         const list = rolesByBrotherId.get(br.brotherId) ?? [];
