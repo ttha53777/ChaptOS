@@ -74,8 +74,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "accounts", label: "Accounts", group: "Membership", tint: "",
-    blurb: "Everyone on the roster, their roles and admins.",
-    lede: "Who belongs to this org, which roles they hold, and who's an admin.",
+    blurb: "Who's in, their roles, and what each person can change.",
+    lede: "Everyone here, sorted by how much they can change. Roles decide what officers can touch; admins hold the master key.",
     icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
   },
   {
