@@ -44,6 +44,23 @@
 .cs-dock .composer .clip:hover { color: var(--vio); background: var(--vio-bg); }
 .cs-dock .composer .clip:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; }
 
+/* ── Composer microphone (dictation) ──────────────────────────────────────── */
+.cs-dock .composer .mic {
+  flex: 0 0 auto; align-self: flex-end; width: 32px; height: 32px; margin: 0 -2px 2px -4px;
+  display: grid; place-items: center; cursor: pointer; background: transparent; border: 0;
+  border-radius: 9px; color: var(--muted); transition: color .14s, background .14s;
+}
+.cs-dock .composer .mic:hover:not(:disabled) { color: var(--vio); background: var(--vio-bg); }
+.cs-dock .composer .mic:focus-visible { outline: 2px solid var(--vio); outline-offset: 1px; }
+.cs-dock .composer .mic:disabled { color: var(--faint); cursor: default; }
+.cs-dock .composer .mic.is-listening { color: var(--vio); background: var(--vio-bg); animation: cs-mic-pulse 1.4s ease-in-out infinite; }
+@keyframes cs-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--vio) 34%, transparent); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .cs-dock .composer .mic.is-listening { animation: none; } }
+.cs-dock .mic-note { margin: 0 2px 6px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+
 /* ── Drop target ──────────────────────────────────────────────────────────── */
 .cs-spot.is-dropping { position: relative; }
 .cs-spot.is-dropping::after {
@@ -111,6 +128,9 @@ html[data-aesthetic="paper"] .chat-root .att-chip.is-failed .att-meta { color: v
 html[data-aesthetic="paper"] .chat-root .att-bar { background: var(--ink); }
 html[data-aesthetic="paper"] .cs-dock .composer .clip { color: var(--ink); }
 html[data-aesthetic="paper"] .cs-dock .composer .clip:hover { background: var(--pp-lilac-soft); color: var(--ink); }
+html[data-aesthetic="paper"] .cs-dock .composer .mic { color: var(--ink); }
+html[data-aesthetic="paper"] .cs-dock .composer .mic:hover:not(:disabled),
+html[data-aesthetic="paper"] .cs-dock .composer .mic.is-listening { background: var(--pp-lilac-soft); color: var(--ink); }
 html[data-aesthetic="paper"] .cs-spot.is-dropping::after { border: 2px dashed var(--ink); border-radius: 4px; color: var(--ink); background: color-mix(in srgb, var(--pp-butter-soft) 90%, transparent); }
 html[data-aesthetic="paper"] .chat-root .cite-chip { border-radius: 3px; background: var(--pp-butter-soft); border-color: var(--pp-butter-bd); color: var(--ink); }
 html[data-aesthetic="paper"] .chat-root .cite-chip .cl { color: var(--pp-butter-ink); font-weight: 600; }

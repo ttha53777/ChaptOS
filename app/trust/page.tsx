@@ -784,6 +784,14 @@ export default function TrustPage() {
                 <strong>never the original file</strong>, and only the passages the assistant
                 asks for are sent to OpenAI, the same way any other lookup is.
               </p>
+              <p>
+                <strong>Dictation.</strong>{" "}On a computer you can speak a question instead
+                of typing it. The speech-to-text is done by your browser&apos;s own service
+                (Google in Chrome, Apple in Safari), under that company&apos;s terms.{" "}
+                <strong>The audio never reaches our servers or OpenAI</strong>; we receive only
+                the text, and only when you send it, exactly as if you had typed it. The
+                microphone is on only between pressing the button and the end of your sentence.
+              </p>
               <p>Four other features use the same provider:</p>
               <ul className="tp__list">
                 <li>
@@ -967,7 +975,9 @@ export default function TrustPage() {
                 <li>
                   <strong>Clickjacking and sniffing protections</strong>{" "}— the app refuses to
                   be embedded in a frame, declares strict referrer behaviour, and denies
-                  camera, microphone and geolocation to itself outright.
+                  camera and geolocation to itself outright. The microphone is allowed to
+                  our own pages only, and is used for one thing: dictating a question to
+                  Ask Chapt when you press the microphone button.
                 </li>
                 <li>
                   <strong>Writes are schema-validated</strong>{" "}before they reach the

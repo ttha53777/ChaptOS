@@ -359,7 +359,10 @@ never human-reviewed, or never used for training.
   — enforced at the database, not just the UI" ([Trust.tsx:89](app/components/landing/sections/Trust.tsx#L89)) an **accurate** claim.
 - **Enforced security headers** ([next.config.ts](next.config.ts)): `X-Frame-Options: DENY`,
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`,
-  `Permissions-Policy: camera=(), microphone=(), geolocation=()`,
+  `Permissions-Policy: camera=(), microphone=(self), geolocation=()` (microphone opened to our own
+  origin 2026-11-12 for Ask Chapt dictation — browser Web Speech API in
+  [useDictation.ts](app/components/chat/useDictation.ts); audio goes to the browser vendor's recogniser
+  (Google/Apple), never to our server or OpenAI, so it adds no sub-processor),
   `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`.
 - **Central CSRF enforcement** on every mutating API route (§5).
 - **Input validation on every write** — Zod schemas in [lib/validation/](lib/validation/), 26 modules.

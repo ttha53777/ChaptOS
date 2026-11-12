@@ -19,7 +19,7 @@ import { useRouter } from "next/navigation";
 import { orgFetch } from "../lib/api";
 import { iterSSE } from "../lib/sse";
 import { useChapter } from "../context/ChapterContext";
-import { IcCal, IcClip, IcCoin, IcSend, IcStop, IcUsers } from "./chat/icons";
+import { IcCal, IcClip, IcCoin, IcMic, IcSend, IcStop, IcUsers } from "./chat/icons";
 import { MarkdownLite } from "./chat/MarkdownLite";
 import { LedgerHandoff, ReasoningLedger, TraceBlock } from "./chat/ReasoningLedger";
 import { AnswerBlock } from "./chat/AnswerBlock";
@@ -28,6 +28,7 @@ import { EventIdeaPanel, type EventIdeaSeed } from "./chat/EventIdeaPanel";
 import { WritCard } from "./chat/WritCard";
 import { useProposalChoices } from "./chat/useProposalChoices";
 import { usePhoneSheet, useSheetDrag } from "./chat/usePhoneSheet";
+import { useDictation } from "./chat/useDictation";
 import { PhoneLanding } from "./chat/PhoneLanding";
 import { ApprovalsView } from "./chat/ApprovalsView";
 import { AttachmentTray } from "./chat/AttachmentTray";
@@ -223,6 +224,12 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
   const actorName = currentUser?.name ?? "you";
   const att = useAttachments(storageKey, fileLimits);
+  // Spoken words land in the composer as they're heard; sending stays manual.
+  const dictation = useDictation(text => {
+    setInput(text);
+    requestAnimationFrame(() => { if (textareaRef.current) autosize(textareaRef.current); });
+  });
+  const cancelDictation = dictation.cancel;
 
   // The option sets a card's category picker offers. Fetched on first open
   // rather than on mount: the widget rides every dashboard route, and a member
@@ -295,8 +302,9 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
 
   const closeSpotlight = useCallback(() => {
     setOpen(false);
+    cancelDictation();
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
-  }, []);
+  }, [cancelDictation]);
 
   const { phone, keyboard } = usePhoneSheet(open, overlayRef);
   const dragHandlers = useSheetDrag(spotRef, closeSpotlight, phone);
@@ -476,6 +484,10 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
     // A file still uploading or being read isn't attached yet — wait for it.
     if (!trimmed || streaming || att.busy) return;
 
+    // The question is going as it stands — a word still in the air mustn't
+    // refill the composer after it clears.
+    cancelDictation();
+
     // A new turn supersedes whatever record was open.
     setPeek(null);
     setExcerpt(null);
@@ -652,7 +664,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [streaming, patchMessage, enqueueStage, flushStage, att.busy, att.takeForSend]);
+  }, [streaming, patchMessage, enqueueStage, flushStage, att.busy, att.takeForSend, cancelDictation]);
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
@@ -1103,6 +1115,7 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
             {/* Dock / composer */}
             <div className="cs-dock">
               {att.enabled && <AttachmentTray chips={att.chips} onRemove={att.remove} />}
+              {dictation.error && <p className="mic-note" role="status">{dictation.error}</p>}
               <form className="composer" onSubmit={handleSubmit}>
                 {att.enabled && fileLimits && (
                   <>
@@ -1131,10 +1144,33 @@ export function ChatWidget({ brotherId, storageKey }: { brotherId: number; stora
                   rows={1}
                   enterKeyHint="send"
                   placeholder={scene === "approvals" ? "Ask about an approval…" : scene === "briefing" ? "Ask the chapter anything…" : "Ask a follow-up…"}
-                  onChange={e => { setInput(e.target.value); autosize(e.target); }}
+                  onChange={e => {
+                    // Typing takes the composer back — the next heard word would overwrite it.
+                    if (dictation.listening) dictation.cancel();
+                    setInput(e.target.value);
+                    autosize(e.target);
+                  }}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
                 />
+                {dictation.supported && (
+                  <button
+                    type="button"
+                    className={`mic${dictation.listening ? " is-listening" : ""}`}
+                    aria-pressed={dictation.listening}
+                    aria-label={dictation.listening ? "Stop dictating" : "Dictate your question"}
+                    title={dictation.listening ? "Stop dictating" : "Dictate"}
+                    disabled={streaming}
+                    onClick={() => {
+                      if (dictation.listening) dictation.stop();
+                      else dictation.start(input);
+                      // Back to the field, so Enter sends rather than toggling the mic.
+                      textareaRef.current?.focus();
+                    }}
+                  >
+                    <IcMic />
+                  </button>
+                )}
                 <button
                   type="submit"
                   className={`send${streaming ? " stop" : ""}`}

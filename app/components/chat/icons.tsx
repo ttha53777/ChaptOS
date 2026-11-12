@@ -139,6 +139,11 @@ export function IcClip({ size = 17, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={1.8}><path d="M20 11.5l-8.2 8.2a5 5 0 01-7.1-7.1l8.6-8.6a3.4 3.4 0 014.8 4.8l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8" /></svg>;
 }
 
+/** Dictate — the composer's microphone. */
+export function IcMic({ size = 17, className }: IconProps) {
+  return <svg {...base(size)} className={className} strokeWidth={1.8}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21" /></svg>;
+}
+
 /** A document — an attached file's chip and citation. */
 export function IcFile({ size = 14, className }: IconProps) {
   return <svg {...base(size)} className={className} strokeWidth={1.8}><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z" /><path d="M14 3v5h5M9 13h6M9 17h4" /></svg>;
