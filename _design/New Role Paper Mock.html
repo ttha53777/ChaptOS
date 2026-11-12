@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New Role · Paper Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  ISOLATED MOCK: Settings → Roles → "+ New role", rebuilt as a sheet.
+
+  Replaces the inline RoleEditor (name input, number Rank field, 10 hex dots,
+  15 checkboxes in 4 fieldsets). Same data model, nothing new on the server:
+    { name, color (hex, same SWATCHES), rank (int < my max rank), permissions (bitfield) }
+
+  What changes for the officer:
+    1. Start from — six starting points (Blank + five common chairs) that fill
+       name, color and permissions. Everything stays editable.
+    2. Name + color — big title field; the color dots show the role chip
+       exactly as the roster will draw it.
+    3. What can they change? — every permission is a page tile ("Treasury",
+       "Parties"…) with a plain sentence. Off = "Can see", on = "Can change".
+       The headline that everyone can already SEE every page answers the most
+       common confusion. Roster / Roles / Org settings carry a "Big one" tag.
+    4. Where does it sit? — the number field becomes a ladder of the org's
+       real roles. Click a gap ("between Treasurer and members") or a rung
+       ("level with Social"). The rank number is derived and shown small.
+       Rungs at or above your own rank are locked, matching the server rule.
+  Right column: a live member card + "A Rush Chair can…" sentence list.
+  No permissions picked → the button reads "Create as a label" (replaces the
+  "Save a role with no permissions?" confirm dialog).
+
+  Create drops the new role into the list behind the sheet, highlighted.
+-->
+<style>
+:root {
+  --pp-peach:#FFD5C4;  --pp-peach-soft:#FFEDE5;  --pp-peach-ink:#C9542D;
+  --pp-sky:#CFE2FF;    --pp-sky-soft:#EAF2FF;    --pp-sky-ink:#2A66C7;
+  --pp-mint:#C7EFDA;   --pp-mint-soft:#E6F8EF;   --pp-mint-ink:#1B815B;
+  --pp-butter:#FFE5A0; --pp-butter-soft:#FFF6DC; --pp-butter-ink:#9C6B08;
+  --pp-lilac:#E1D8FF;  --pp-lilac-soft:#F1EDFF;  --pp-lilac-ink:#6244CC;
+  --pp-rose:#FFD6E6;   --pp-rose-soft:#FFEDF4;   --pp-rose-ink:#C23C77;
+  --sh-1:0 1px 2px rgba(38,33,27,.05), 0 3px 10px rgba(38,33,27,.045);
+
+  --paper:#FFFCF6; --paper-2:#FBF5EA; --card:#FFFFFF; --card-3:#F4ECDD;
+  --ink:#26211B; --ink-soft:#544A3F; --muted:#8A7F71; --faint:#998D7C;
+  --line:#EBE1CF; --line-med:#DCD0B9; --scrim:rgba(38,33,27,.28);
+
+  --g-people:var(--pp-lilac); --g-money:var(--pp-mint); --g-cal:var(--pp-butter); --g-comms:var(--pp-sky);
+
+  --display:"Bricolage Grotesque", Inter, system-ui, sans-serif;
+  --sans:Inter, -apple-system, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --spring:cubic-bezier(.16,.9,.3,1.02);
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --pp-peach:#E5A28A;  --pp-peach-soft:rgba(255,178,148,.085); --pp-peach-ink:#FFB49A;
+  --pp-sky:#8DB2EC;    --pp-sky-soft:rgba(150,190,255,.085);   --pp-sky-ink:#AACBFF;
+  --pp-mint:#80CBA4;   --pp-mint-soft:rgba(140,220,180,.08);   --pp-mint-ink:#8FDDB6;
+  --pp-butter:#E3BF66; --pp-butter-soft:rgba(255,214,120,.08); --pp-butter-ink:#F0CC72;
+  --pp-lilac:#A593EE;  --pp-lilac-soft:rgba(180,160,255,.10);  --pp-lilac-ink:#C4B6FF;
+  --pp-rose:#E598B7;   --pp-rose-soft:rgba(255,160,200,.08);   --pp-rose-ink:#FFAACB;
+  --sh-1:0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.25);
+  --paper:#15110D; --paper-2:#1B1712; --card:#1F1A15; --card-3:#2B251E;
+  --ink:#F2EADC; --ink-soft:#CDBFAB; --muted:#948876; --faint:#7D7262;
+  --line:#2F271E; --line-med:#43382B; --scrim:rgba(5,4,2,.6);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh; background: var(--paper); color: var(--ink);
+  font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+button { font: inherit; color: inherit; }
+input { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+svg { flex-shrink: 0; }
+
+/* Role chip: the one shape every surface uses for a role ─────────────────── */
+.chip {
+  --rc: #94A3B8;
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px;
+  background: color-mix(in oklab, var(--rc) 16%, var(--card));
+  border: 1.5px solid color-mix(in oklab, var(--rc) 60%, var(--ink));
+  font: 600 .76rem var(--sans); color: var(--ink); white-space: nowrap; max-width: 100%;
+}
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); flex-shrink: 0; }
+.chip span { overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Settings page behind the sheet ───────────────────────────────────────── */
+.app { display: grid; grid-template-columns: 248px minmax(0,1fr); min-height: 100vh; }
+.se-nav { border-right: 1.5px solid var(--line); background: var(--paper-2); padding: 20px 14px; }
+.se-back { display: inline-flex; align-items: center; gap: 6px; font: 550 .8rem var(--sans); color: var(--muted); margin: 2px 6px 18px; }
+.se-back svg { width: 14px; height: 14px; }
+.se-h { font: 700 1.35rem var(--display); letter-spacing: -.03em; margin: 0 8px 16px; }
+.se-g { font: 600 .62rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 16px 8px 6px; display: flex; align-items: center; gap: 7px; }
+.se-g i { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid var(--ink); background: var(--s); }
+.se-it { display: block; padding: 6px 10px; border-radius: 9px; font: 500 .84rem var(--sans); color: var(--ink-soft); }
+.se-it.on { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-lilac); font-weight: 600; }
+
+.se-main { padding: 34px 44px 120px; max-width: 900px; }
+.se-crumb { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.se-title { font: 700 2.2rem/1.05 var(--display); letter-spacing: -.035em; margin: 6px 0 6px; }
+.se-lede { color: var(--ink-soft); margin: 0 0 22px; max-width: 58ch; }
+.sheet-page {
+  position: relative; background: var(--card); border: 1.5px solid var(--ink); border-radius: 18px; padding: 18px 20px 8px 46px;
+  box-shadow: 4px 4px 0 var(--pp-lilac);
+}
+.sheet-page::before { /* punched holes, like the real paper settings sheets */
+  content: ""; position: absolute; left: 16px; top: 22px; bottom: 22px; width: 12px;
+  background: radial-gradient(circle, var(--paper) 4px, var(--line-med) 4.5px, transparent 5.5px) 0 0/12px 58px repeat-y;
+}
+.rl-bar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding-bottom: 14px; border-bottom: 1.5px dashed var(--line-med); }
+.rl-bar p { margin: 0; color: var(--muted); font-size: .84rem; max-width: 50ch; }
+.rl-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 16px; align-items: center; padding: 13px 0; border-bottom: 1.5px solid var(--card-3); }
+.rl-row:last-child { border-bottom: 0; }
+.rl-row .sub { font-size: .78rem; color: var(--muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl-row .ppl { font-size: .78rem; color: var(--muted); }
+.rl-row .rk { font: 500 .72rem var(--mono); color: var(--faint); }
+.rl-row.fresh { animation: fresh 2.4s ease-out both; border-radius: 12px; }
+@keyframes fresh { 0%, 40% { background: var(--pp-butter-soft); box-shadow: 0 0 0 8px var(--pp-butter-soft); } 100% { background: transparent; box-shadow: 0 0 0 8px transparent; } }
+.new-tag { font: 700 .6rem var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; background: var(--pp-butter); color: #26211B; border: 1.5px solid var(--ink); margin-left: 6px; transform: rotate(-3deg); display: inline-block; }
+
+.btn {
+  --bg: var(--ink); --fg: var(--paper); --hs: var(--pp-lilac);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+  padding: 10px 17px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--bg); color: var(--fg);
+  font: 600 .88rem var(--sans); letter-spacing: -.01em; white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--hs);
+  transition: transform .18s var(--spring), box-shadow .18s var(--spring), background .15s;
+}
+.btn:hover:not(:disabled) { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--hs); }
+.btn.sm { padding: 7px 13px; font-size: .82rem; }
+.btn.ghost { --bg: transparent; --fg: var(--ink-soft); border-color: var(--line-med); box-shadow: none; }
+.btn:disabled { --bg: var(--paper-2); --fg: var(--muted); border-color: var(--line-med); box-shadow: none; cursor: not-allowed; }
+.btn svg { width: 15px; height: 15px; }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; } .se-nav { display: none; }
+  .se-main { padding: 22px 16px 120px; }
+  .sheet-page { padding: 14px 14px 6px 34px; }
+  .sheet-page::before { left: 10px; }
+  .rl-bar { flex-direction: column; align-items: stretch; }
+  .rl-row { grid-template-columns: minmax(0,1fr) auto; } .rl-row .rk { display: none; }
+}
+
+/* ── Sheet ────────────────────────────────────────────────────────────────── */
+.scrim { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(6px) saturate(115%); z-index: 10; animation: fade .25s both; }
+@keyframes fade { from { opacity: 0; } }
+.stage { position: fixed; inset: 0; z-index: 20; overflow-y: auto; display: flex; justify-content: center; align-items: flex-start; padding: 40px 16px 110px; }
+.panel {
+  --acc: var(--rc-soft, var(--pp-lilac));
+  position: relative; width: 100%; max-width: 1040px; background: var(--card); border: 1.5px solid var(--ink); border-radius: 22px;
+  box-shadow: 7px 7px 0 var(--acc); animation: sheet-in .4s var(--spring) both; transition: box-shadow .3s;
+}
+@keyframes sheet-in { from { opacity: 0; transform: translateY(16px) scale(.98); } }
+.x {
+  position: absolute; top: 14px; right: 14px; z-index: 3; width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 10px; border: 1.5px solid transparent; background: none; color: var(--muted); cursor: pointer;
+}
+.x:hover { color: var(--ink); border-color: var(--line); }
+.x svg { width: 17px; height: 17px; }
+
+.cols { display: grid; grid-template-columns: minmax(0,1fr) 330px; }
+.form { padding: 24px 30px 8px; min-width: 0; }
+.side { border-left: 1.5px dashed var(--line-med); background: var(--paper-2); border-radius: 0 20px 0 0; padding: 24px 22px; }
+.side-in { position: sticky; top: 24px; }
+
+.kicker { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.h1 { font: 700 1.75rem/1.1 var(--display); letter-spacing: -.035em; margin: 6px 40px 4px 0; }
+.lede { margin: 0 0 6px; color: var(--ink-soft); }
+
+.step { padding: 22px 0 24px; border-bottom: 1.5px solid var(--card-3); }
+.step:last-child { border-bottom: 0; }
+.step-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.step-n {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--ink); font: 700 .74rem var(--display); background: var(--card); transform: translateY(2px);
+  transition: background .2s;
+}
+.step.done .step-n { background: var(--ink); color: var(--paper); }
+.step-t { font: 650 1.12rem var(--display); letter-spacing: -.02em; }
+.step-sub { margin: 0 0 14px 34px; color: var(--muted); font-size: .86rem; }
+.step-body { margin-left: 34px; }
+
+/* 1 · Start from */
+.tpls { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.tpl {
+  position: relative; text-align: left; cursor: pointer; padding: 11px 12px 12px; border-radius: 14px;
+  border: 1.5px solid var(--line-med); background: var(--card); transition: transform .18s var(--spring), box-shadow .18s, border-color .15s;
+}
+.tpl:hover { border-color: var(--ink); transform: translateY(-1px); }
+.tpl[aria-pressed="true"] { border-color: var(--ink); box-shadow: 3px 3px 0 color-mix(in oklab, var(--rc) 45%, var(--card)); background: color-mix(in oklab, var(--rc) 7%, var(--card)); }
+.tpl .nm { display: flex; align-items: center; gap: 7px; font: 600 .88rem var(--sans); }
+.tpl .nm i { width: 10px; height: 10px; border-radius: 50%; background: var(--rc); border: 1.5px solid color-mix(in oklab, var(--rc) 55%, var(--ink)); }
+.tpl.blank .nm i { background: none; border: 1.5px dashed var(--muted); }
+.tpl .ds { font-size: .74rem; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+.tpl .ck { position: absolute; top: 9px; right: 9px; width: 18px; height: 18px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; opacity: 0; transform: scale(.5); transition: .2s var(--spring); }
+.tpl .ck svg { width: 11px; height: 11px; }
+.tpl[aria-pressed="true"] .ck { opacity: 1; transform: none; }
+
+/* 2 · Name + color */
+.name {
+  width: 100%; background: none; border: 0; outline: none;
+  font: 650 1.7rem/1.2 var(--display); letter-spacing: -.035em; color: var(--ink);
+  border-bottom: 1.5px dashed var(--line-med); padding: 2px 0 10px; transition: border-color .15s;
+}
+.name::placeholder { color: var(--line-med); }
+.name:focus { border-bottom-color: var(--ink); }
+.name-meta { display: flex; justify-content: space-between; gap: 10px; font-size: .74rem; color: var(--muted); margin: 6px 0 16px; }
+.name-meta .warn { color: var(--pp-rose-ink); font-weight: 550; }
+.lbl { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: block; }
+.sws { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw {
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer; padding: 0; position: relative;
+  background: var(--c); border: 1.5px solid color-mix(in oklab, var(--c) 55%, var(--ink));
+  transition: transform .18s var(--spring), box-shadow .18s;
+}
+.sw:hover { transform: scale(1.1); }
+.sw[aria-checked="true"] { box-shadow: 0 0 0 3px var(--card), 0 0 0 4.5px var(--ink); }
+.sw[aria-checked="true"]::after { content: ""; position: absolute; inset: 0; margin: auto; width: 9px; height: 5px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.sw:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.sw-name { font-size: .76rem; color: var(--muted); margin-top: 8px; }
+.sw-list { display: contents; }
+.sw-div { width: 1.5px; height: 22px; background: var(--line-med); align-self: center; margin: 0 2px; }
+/* Custom color: a rainbow dot that opens the native picker, then wears the picked color */
+.sw-custom {
+  --c: conic-gradient(#EF4444, #F59E0B, #84CC16, #10B981, #06B6D4, #3B82F6, #8B5CF6, #EC4899, #EF4444);
+  background: var(--c); border-color: var(--ink); display: grid; place-items: center; overflow: visible;
+}
+.sw-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.sw-custom .plus { width: 16px; height: 16px; border-radius: 50%; background: var(--card); border: 1.5px solid var(--ink); display: grid; place-items: center; pointer-events: none; }
+.sw-custom .plus svg { width: 10px; height: 10px; }
+.sw-custom.on { background: var(--picked); border-color: color-mix(in oklab, var(--picked) 55%, var(--ink)); box-shadow: 0 0 0 3px var(--card), 0 0 0 4.5px var(--ink); }
+.sw-custom.on .plus { display: none; }
+.sw-custom.on::after { content: ""; position: absolute; inset: 0; margin: auto; width: 9px; height: 5px; border: 2px solid #fff; border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); pointer-events: none; }
+.sw-custom:focus-within { outline: 2px solid var(--ink); outline-offset: 4px; }
+.hex {
+  display: inline-flex; align-items: center; gap: 0; height: 30px; padding: 0 4px 0 10px; border-radius: 999px; margin-left: 4px;
+  border: 1.5px solid var(--line-med); background: var(--paper); transition: border-color .15s;
+}
+.hex:focus-within { border-color: var(--ink); }
+.hex i { width: 12px; height: 12px; border-radius: 50%; background: var(--rc, #8B5CF6); border: 1px solid color-mix(in oklab, var(--rc, #8B5CF6) 55%, var(--ink)); margin-right: 7px; }
+.hex span { font: 500 .78rem var(--mono); color: var(--muted); }
+.hex input { width: 64px; border: 0; outline: none; background: none; font: 500 .78rem var(--mono); text-transform: uppercase; color: var(--ink); padding: 0; }
+.hex.bad { border-color: var(--pp-rose-ink); }
+
+/* 3 · Page shelf */
+.legend { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 12px 14px; margin-bottom: 18px; border-radius: 14px; background: var(--paper-2); border: 1.5px solid var(--line); }
+.lg { display: flex; align-items: center; gap: 9px; font-size: .8rem; color: var(--muted); line-height: 1.25; }
+.lg b { display: block; color: var(--ink); font-weight: 600; font-size: .82rem; }
+.lg .spec { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0; }
+.lg .spec svg { width: 15px; height: 15px; }
+.lg .spec.see { border: 1.5px dashed var(--line-med); background: var(--paper); color: var(--muted); }
+.lg .spec.chg { border: 1.5px solid var(--ink); background: var(--pp-mint); color: #26211B; box-shadow: 2px 2px 0 var(--ink); transform: rotate(-4deg); }
+.lg .spec.big-spec { width: 14px; }
+.lg .spec.big-spec i { width: 8px; height: 8px; border-radius: 50%; background: var(--pp-rose-ink); box-shadow: 0 0 0 3px var(--pp-rose-soft); }
+.lg-arrow { color: var(--line-med); font: 500 1rem var(--sans); }
+.tally { margin-left: auto; display: flex; align-items: center; gap: 8px; font: 500 .74rem var(--mono); color: var(--muted); }
+.dots { display: flex; gap: 3px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-med); transition: background .2s, transform .25s var(--spring); }
+.dots i.on { background: var(--ink); transform: scale(1.15); }
+
+.shelf { display: grid; grid-template-columns: 128px minmax(0,1fr); gap: 14px; padding: 14px 0; border-top: 1.5px dashed var(--line); }
+.shelf:first-of-type { border-top: 0; padding-top: 2px; }
+.tab { align-self: start; position: relative; padding: 10px 12px 11px; border-radius: 12px 12px 12px 4px; background: color-mix(in oklab, var(--g) 45%, var(--card)); border: 1.5px solid var(--ink); }
+.tab::before { content: ""; position: absolute; left: -1.5px; top: -9px; width: 46px; height: 10px; border-radius: 7px 7px 0 0; background: inherit; border: 1.5px solid var(--ink); border-bottom: 0; }
+.tab .t { font: 650 .9rem/1.15 var(--display); letter-spacing: -.015em; color: var(--ink); }
+.tab .n { font: 500 .68rem var(--mono); color: var(--ink-soft); margin-top: 3px; display: block; }
+.tab button { margin-top: 8px; border: 1.5px solid color-mix(in oklab, var(--ink) 35%, transparent); background: var(--card); cursor: pointer; font: 600 .7rem var(--sans); color: var(--ink); padding: 3px 9px; border-radius: 999px; }
+.tab button:hover { border-color: var(--ink); }
+
+.pgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 9px; }
+.pg {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+  min-height: 92px; padding: 12px 6px 10px; border-radius: 14px; border: 1.5px dashed var(--line-med); background: var(--paper);
+  transition: border-color .15s, background .2s, box-shadow .22s var(--spring), transform .22s var(--spring);
+}
+.pg:hover { border-color: var(--muted); transform: translateY(-2px); }
+.pg .ico { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: var(--muted); background: var(--card-3); transition: background .2s, color .2s, transform .3s var(--spring); }
+.pg .ico svg { width: 20px; height: 20px; }
+.pg .lb { font: 600 .78rem/1.15 var(--sans); color: var(--ink-soft); text-align: center; hyphens: manual; max-width: 100%; }
+.pg .stp { position: absolute; top: -7px; right: -7px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; border: 2px solid var(--card); opacity: 0; transform: scale(.3) rotate(-30deg); transition: .28s var(--spring); }
+.pg .stp svg { width: 12px; height: 12px; }
+.pg .bg1 { position: absolute; top: 8px; left: 8px; width: 7px; height: 7px; border-radius: 50%; background: var(--pp-rose-ink); box-shadow: 0 0 0 2.5px var(--pp-rose-soft); }
+.pg[aria-pressed="true"] { border-style: solid; border-color: var(--ink); background: color-mix(in oklab, var(--g) 22%, var(--card)); box-shadow: 3px 3px 0 var(--ink); transform: translate(-1px,-1px); }
+.pg[aria-pressed="true"] .ico { background: var(--g); color: #26211B; border: 1.5px solid var(--ink); transform: rotate(-6deg); }
+.pg[aria-pressed="true"] .lb { color: var(--ink); }
+.pg[aria-pressed="true"] .stp { opacity: 1; transform: none; }
+.pg:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.pg.pop .ico { animation: pop .4s var(--spring); }
+@keyframes pop { 40% { transform: rotate(-12deg) scale(1.22); } }
+
+.line { grid-column: 2; min-height: 20px; font-size: .8rem; color: var(--muted); line-height: 1.4; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.line b { color: var(--ink); font-weight: 600; }
+.line .on { font: 600 .6rem var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 1.5px 6px; border-radius: 5px; background: var(--ink); color: var(--paper); }
+.line .off { font: 600 .6rem var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 1px 5px; border-radius: 5px; border: 1px dashed var(--line-med); color: var(--muted); }
+.big { font: 700 .56rem var(--sans); letter-spacing: .08em; text-transform: uppercase; padding: 1.5px 5px; border-radius: 5px; background: var(--pp-rose-soft); color: var(--pp-rose-ink); border: 1px solid color-mix(in oklab, var(--pp-rose) 80%, var(--line)); }
+@media (max-width: 640px) {
+  .shelf { grid-template-columns: 1fr; gap: 10px; padding: 16px 0 12px; }
+  .shelf:first-of-type { padding-top: 10px; }
+  .tab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; }
+  .tab .n { margin: 0; } .tab button { margin: 0 0 0 auto; }
+  .pgs { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 7px; }
+  .pg { min-height: 82px; padding: 10px 4px 8px; } .pg .lb { font-size: .72rem; }
+  .line { grid-column: 1; }
+  .legend { gap: 12px; } .lg-arrow { display: none; } .tally { margin-left: 0; width: 100%; }
+}
+
+/* 4 · Ladder */
+.ladder { position: relative; padding-left: 26px; }
+.ladder::before { content: ""; position: absolute; left: 8px; top: 12px; bottom: 12px; width: 2px; background: repeating-linear-gradient(var(--line-med) 0 6px, transparent 6px 11px); }
+.rung { position: relative; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-radius: 12px; border: 1.5px solid transparent; cursor: pointer; background: none; width: 100%; text-align: left; }
+.rung::before { content: ""; position: absolute; left: -23px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--card); border: 2px solid var(--line-med); }
+.rung:hover:not(:disabled) { border-color: var(--line-med); }
+.rung .lvl { margin-left: auto; font-size: .72rem; color: var(--muted); }
+.rung .rk { font: 500 .68rem var(--mono); color: var(--faint); }
+.rung.me .you { font: 600 .62rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--pp-lilac-ink); }
+.rung:disabled { cursor: not-allowed; opacity: .55; }
+.rung:disabled .lvl { display: none; }
+.rung .lock { width: 13px; height: 13px; color: var(--muted); }
+.rung.base { font-size: .82rem; color: var(--muted); }
+.rung.base .ppl { display: inline-flex; }
+.gap { position: relative; display: block; width: 100%; height: 22px; border: 0; background: none; cursor: pointer; padding: 0; }
+.gap::before { /* a "+" on the spine so the slot is findable without hover */
+  content: "+"; position: absolute; left: -26px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%;
+  display: grid; place-items: center; font: 700 .72rem/1 var(--sans); color: var(--muted);
+  background: var(--card); border: 1.5px dashed var(--line-med); transition: .15s;
+}
+.gap::after { content: "Put it here"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font: 550 .72rem var(--sans); color: var(--faint); opacity: .55; transition: opacity .15s, color .15s; }
+.gap:hover:not(:disabled)::after { opacity: 1; color: var(--ink); }
+.gap:hover:not(:disabled)::before { border-style: solid; border-color: var(--ink); color: var(--ink); }
+.gap:disabled { cursor: not-allowed; }
+.gap:disabled::before, .gap:disabled::after { display: none; }
+@media (max-width: 640px) { .rung .lvl { display: none; } }
+.slot { position: relative; padding: 4px 0; animation: slot-in .35s var(--spring) both; }
+@keyframes slot-in { from { opacity: 0; transform: translateX(-10px); } }
+.slot::before { content: ""; position: absolute; left: -24px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: var(--rc); border: 2px solid var(--ink); }
+.slot .card {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 12px; border-radius: 12px;
+  border: 1.5px solid var(--ink); background: var(--card); box-shadow: 3px 3px 0 color-mix(in oklab, var(--rc) 45%, var(--card));
+}
+.slot .card .where { font-size: .78rem; color: var(--ink-soft); }
+.slot.level { padding: 0; }
+.rung.with-new { border-color: var(--ink); background: var(--card); box-shadow: 3px 3px 0 color-mix(in oklab, var(--rc) 45%, var(--card)); }
+.rank-why { margin: 14px 0 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.why { padding: 10px 12px; border-radius: 12px; background: var(--paper-2); border: 1.5px solid var(--line); font-size: .78rem; color: var(--ink-soft); line-height: 1.4; }
+.why b { display: block; color: var(--ink); font-weight: 600; font-size: .8rem; margin-bottom: 2px; }
+
+/* Preview column */
+.pv-lbl { font: 600 .66rem var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.mcard {
+  position: relative; background: var(--card); border: 1.5px solid var(--ink); border-radius: 16px; padding: 16px; transform: rotate(-1.2deg);
+  box-shadow: 4px 4px 0 color-mix(in oklab, var(--rc) 40%, var(--card)); transition: box-shadow .3s;
+}
+.mcard::after { /* washi tape */
+  content: ""; position: absolute; top: -10px; left: 50%; width: 78px; height: 20px; margin-left: -39px; transform: rotate(3deg);
+  background: color-mix(in oklab, var(--rc) 30%, transparent); border-left: 2px dotted rgba(255,255,255,.5); border-right: 2px dotted rgba(255,255,255,.5);
+}
+.mc-top { display: flex; gap: 12px; align-items: center; }
+.av { width: 44px; height: 44px; border-radius: 13px; border: 1.5px solid var(--ink); background: var(--pp-peach); display: grid; place-items: center; font: 700 1rem var(--display); color: #26211B; transform: rotate(-4deg); }
+.mc-n { font: 650 1.05rem var(--display); letter-spacing: -.02em; }
+.mc-s { font-size: .74rem; color: var(--muted); }
+.mc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip.ghosty { opacity: .55; }
+.chip.live { animation: chip-in .35s var(--spring); }
+@keyframes chip-in { from { transform: scale(.8); } }
+
+.can { margin-top: 22px; }
+.can-h { font: 650 1rem var(--display); letter-spacing: -.02em; margin-bottom: 8px; line-height: 1.3; }
+.can-h em { font-style: normal; background: linear-gradient(transparent 58%, color-mix(in oklab, var(--rc) 35%, transparent) 58%); padding: 0 2px; }
+.can ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.can li { display: flex; gap: 9px; align-items: flex-start; font-size: .84rem; color: var(--ink-soft); animation: li-in .3s var(--spring) both; }
+@keyframes li-in { from { opacity: 0; transform: translateX(6px); } }
+.can li svg { width: 16px; height: 16px; margin-top: 1px; color: var(--pp-mint-ink); }
+.can li.see svg { color: var(--muted); }
+.can li.empty { color: var(--muted); font-style: italic; }
+.careful { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: var(--pp-rose-soft); border: 1.5px solid color-mix(in oklab, var(--pp-rose) 80%, var(--line)); font-size: .78rem; color: var(--ink-soft); }
+.careful b { color: var(--pp-rose-ink); font-weight: 650; }
+.after { margin-top: 18px; font-size: .76rem; color: var(--muted); line-height: 1.45; border-top: 1.5px dashed var(--line-med); padding-top: 12px; }
+
+/* Phone mini preview */
+.mini { display: none; }
+
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px 14px 30px; border-top: 1.5px solid var(--ink); background: var(--paper-2); border-radius: 0 0 20px 20px; }
+.foot .sum { font-size: .8rem; color: var(--muted); min-width: 0; }
+.foot .sum b { color: var(--ink); font-weight: 600; }
+.btns { display: flex; gap: 8px; }
+
+/* Mock strip */
+.mock {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50; max-width: calc(100vw - 24px);
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 7px 8px;
+  border-radius: 14px; border: 1.5px solid var(--ink); background: var(--card); box-shadow: var(--sh-1);
+  font: 550 .74rem var(--sans);
+}
+.mock .lb { font: 600 .6rem var(--mono); letter-spacing: .1em; color: var(--muted); padding: 0 4px; }
+.mock button { border: 1.5px solid var(--line-med); background: var(--paper); border-radius: 8px; padding: 4px 9px; cursor: pointer; font: inherit; }
+.mock button[aria-pressed="true"] { border-color: var(--ink); background: var(--pp-lilac-soft); }
+.mock .sep { width: 1px; height: 18px; background: var(--line); }
+
+@media (max-width: 960px) {
+  .cols { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .mini {
+    display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 2; margin: 0 -30px; padding: 10px 30px;
+    background: color-mix(in oklab, var(--card) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1.5px dashed var(--line-med);
+    font-size: .78rem; color: var(--muted);
+  }
+  .mini .chip { flex-shrink: 1; min-width: 0; }
+}
+@media (max-width: 640px) {
+  .stage { padding: 10px 8px 100px; }
+  .form { padding: 18px 16px 4px; }
+  .mini { margin: 0 -16px; padding: 10px 16px; }
+  .h1 { font-size: 1.45rem; }
+  .step-sub, .step-body { margin-left: 0; }
+  .tpls { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .rank-why { grid-template-columns: 1fr; }
+  .name { font-size: 1.45rem; }
+  .foot { padding: 12px 14px; flex-direction: column; align-items: stretch; }
+  .foot .btns { width: 100%; } .foot .btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></symbol>
+
+  <symbol id="p-roster" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><path d="M16 5.5a3 3 0 010 5.5M18 14c1.7.6 2.7 2.2 3 5"/></symbol>
+  <symbol id="p-attend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="17" rx="2.5"/><path d="M9 3v3M15 3v3"/><path d="M8.5 13.5l2.5 2.5 4.5-5"/></symbol>
+  <symbol id="p-roles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="p-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+  <symbol id="p-treasury" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M7 15h3"/></symbol>
+  <symbol id="p-fund" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10M8 4v3c-2 1.5-3 3.5-3 6.5V20h14v-6.5c0-3-1-5-3-6.5V4"/><path d="M12 11v5M10 13.5h4"/></symbol>
+  <symbol id="p-events" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="p-party" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l5-13 8 8z"/><path d="M14 6c.5-1.5 2-2 3-1.5M18 10c1.5-.5 2.5.5 2.5 1.5M15 3v.5M21 7h-.5"/></symbol>
+  <symbol id="p-service" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.3-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.7-7 10-7 10z"/></symbol>
+  <symbol id="p-term" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h16"/><path d="M8 3v4M15 10v4M11 17v4"/></symbol>
+  <symbol id="p-announce" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l7 4V6L7 10z"/><path d="M18 9a4 4 0 010 6"/></symbol>
+  <symbol id="p-docs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
+  <symbol id="p-tasks" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.5 12l2.5 2.5L16 9.5"/></symbol>
+  <symbol id="p-polls" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V12M12 20V5M19 20v-5"/></symbol>
+  <symbol id="p-media" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="3.8"/><circle cx="17" cy="7" r=".6" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <aside class="se-nav" aria-label="Settings">
+    <div class="se-back"><svg><use href="#i-back"/></svg>Back to app</div>
+    <div class="se-h">Settings</div>
+    <div class="se-g"><i style="--s:var(--pp-peach)"></i>Identity</div>
+    <span class="se-it">General</span><span class="se-it">Vocabulary</span>
+    <div class="se-g"><i style="--s:var(--pp-lilac)"></i>Membership</div>
+    <span class="se-it">Accounts</span><span class="se-it on">Roles</span><span class="se-it">Invitations</span><span class="se-it">Member fields</span>
+    <div class="se-g"><i style="--s:var(--pp-mint)"></i>Operations</div>
+    <span class="se-it">Workflows</span><span class="se-it">Thresholds</span><span class="se-it">Event types</span><span class="se-it">Semesters</span>
+    <div class="se-g"><i style="--s:var(--pp-butter)"></i>System</div>
+    <span class="se-it">Activity log</span><span class="se-it">Billing</span>
+  </aside>
+  <main class="se-main">
+    <div class="se-crumb">Membership</div>
+    <h1 class="se-title">Roles</h1>
+    <p class="se-lede">Roles decide who can change what. One person can hold several; their access is everything those roles grant combined.</p>
+    <div class="sheet-page">
+      <div class="rl-bar">
+        <p>Org admins have full access regardless of roles; see Accounts.</p>
+        <button class="btn sm" id="openBtn"><svg><use href="#i-plus"/></svg>New role</button>
+      </div>
+      <div id="roleList"></div>
+    </div>
+  </main>
+</div>
+
+<div id="sheetWrap">
+  <div class="scrim" id="scrim"></div>
+  <div class="stage" id="stage">
+    <div class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <button class="x" id="closeX" aria-label="Close"><svg><use href="#i-x"/></svg></button>
+      <div class="cols">
+        <div class="form">
+          <div class="kicker">Settings · Roles</div>
+          <h2 class="h1" id="sheetTitle">Make a new role</h2>
+          <p class="lede">A role is a title plus the parts of the app that person can change. Four quick choices.</p>
+          <div class="mini" id="mini"></div>
+
+          <section class="step" id="s1">
+            <div class="step-h"><span class="step-n">1</span><span class="step-t">Start from</span></div>
+            <p class="step-sub">Pick the closest one. It fills everything below, and you can change any of it.</p>
+            <div class="step-body"><div class="tpls" id="tpls"></div></div>
+          </section>
+
+          <section class="step" id="s2">
+            <div class="step-h"><span class="step-n">2</span><span class="step-t">Name it and pick a color</span></div>
+            <p class="step-sub">The name and color show on the roster, member cards and task assignments.</p>
+            <div class="step-body">
+              <label class="sr-only" for="name">Role name</label>
+              <input id="name" class="name" maxlength="60" placeholder="e.g. Rush Chair" autocomplete="off">
+              <div class="name-meta"><span id="nameNote"></span><span id="nameCount">0/60</span></div>
+              <span class="lbl" id="colorLbl">Color</span>
+              <div class="sws" id="sws" role="radiogroup" aria-labelledby="colorLbl">
+                <span class="sw-list" id="swList"></span>
+                <span class="sw-div" aria-hidden="true"></span>
+                <label class="sw sw-custom" id="swCustom" title="Pick any color">
+                  <input type="color" id="picker" value="#8B5CF6" aria-label="Pick any color">
+                  <span class="plus"><svg aria-hidden="true"><use href="#i-plus"/></svg></span>
+                </label>
+                <label class="hex" id="hexBox"><i></i><span>#</span><input id="hex" maxlength="6" spellcheck="false" autocomplete="off" aria-label="Hex color code"></label>
+              </div>
+              <div class="sw-name" id="swName"></div>
+            </div>
+          </section>
+
+          <section class="step" id="s3">
+            <div class="step-h"><span class="step-n">3</span><span class="step-t">What can they change?</span></div>
+            <p class="step-sub">Tap the pages this role looks after. Hover or press one to see exactly what it unlocks.</p>
+            <div class="step-body">
+              <div class="legend">
+                <div class="lg"><span class="spec see"><svg><use href="#i-eye"/></svg></span><span><b>Can see</b>Everyone, already</span></div>
+                <span class="lg-arrow" aria-hidden="true">→</span>
+                <div class="lg"><span class="spec chg"><svg><use href="#i-pen"/></svg></span><span><b>Can change</b>Add, edit, delete</span></div>
+                <div class="lg"><span class="spec big-spec"><i></i></span><span><b>Big one</b>Give carefully</span></div>
+                <div class="tally" id="tally"></div>
+              </div>
+              <div id="groups"></div>
+            </div>
+          </section>
+
+          <section class="step" id="s4">
+            <div class="step-h"><span class="step-n">4</span><span class="step-t">Where does it sit?</span></div>
+            <p class="step-sub">Click a spot on the ladder. Higher roles can hand out and edit the ones below them.</p>
+            <div class="step-body">
+              <div class="ladder" id="ladder"></div>
+              <div class="rank-why">
+                <div class="why"><b>Who can give it out</b><span id="whyGive"></span></div>
+                <div class="why"><b>Who it can manage</b><span id="whyManage"></span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="side" aria-label="Preview">
+          <div class="side-in">
+            <div class="pv-lbl">How it'll look</div>
+            <div class="mcard">
+              <div class="mc-top"><div class="av">JL</div><div><div class="mc-n">Jordan Lee</div><div class="mc-s">Class of 2028 · on the roster</div></div></div>
+              <div class="mc-chips" id="mcChips"></div>
+            </div>
+            <div class="can" id="can"></div>
+            <div class="after">After you create it, give it to people from <b>Accounts</b> or from anyone's card on the roster.</div>
+          </div>
+        </aside>
+      </div>
+      <div class="foot">
+        <div class="sum" id="sum"></div>
+        <div class="btns">
+          <button class="btn ghost" id="cancel">Cancel</button>
+          <button class="btn" id="create">Create role</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mock" aria-label="Mock controls">
+  <span class="lb">YOU ARE</span>
+  <button data-me="100" aria-pressed="true">President</button>
+  <button data-me="80" aria-pressed="false">Vice President</button>
+  <span class="sep"></span>
+  <button id="themeBtn">Night</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const ic = (n, cls = '') => `<svg class="${cls}" aria-hidden="true"><use href="#${n}"/></svg>`;
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Same bits + copy as lib/permissions.ts / RolesSection PERMISSION_COPY, rewritten as plain sentences.
+const P = {
+  MANAGE_BROTHERS:      { bit: 1<<0,  l: 'Roster',       i: 'p-roster',   d: 'Approve join requests, edit member details and dues', can: 'approve new members and edit the roster', big: true },
+  MANAGE_ATTENDANCE:    { bit: 1<<6,  l: 'Attendance',   i: 'p-attend',   d: 'Take attendance and approve excuses', can: 'take attendance and approve excuses' },
+  MANAGE_ROLES:         { bit: 1<<8,  l: 'Roles',        i: 'p-roles',    d: 'Make roles and hand out ones below their own', can: 'make roles and hand out the ones below theirs', big: true },
+  MANAGE_SETTINGS:      { bit: 1<<11, l: 'Org settings', i: 'p-settings', d: 'Change how the org is set up, manage invite links', can: 'change org settings and invite links', big: true },
+  MANAGE_TREASURY:      { bit: 1<<1,  l: 'Treasury',     i: 'p-treasury', d: 'Record transactions, set budgets, export the books', can: 'keep the books and set budgets', big: true },
+  MANAGE_FUNDRAISING:   { bit: 1<<14, l: 'Fundraisers',  i: 'p-fund',     d: 'Plan fundraisers and wrap them up', can: 'run fundraisers' },
+  MANAGE_EVENTS:        { bit: 1<<2,  l: 'Events',       i: 'p-events',   d: 'Add and edit events on the Timeline', can: 'add and edit events' },
+  MANAGE_PARTIES:       { bit: 1<<3,  l: 'Parties',      i: 'p-party',    d: 'Plan parties, run the door, wrap up', can: 'run parties' },
+  MANAGE_SERVICE:       { bit: 1<<5,  l: 'Service',      i: 'p-service',  d: 'Add service events and log hours', can: 'run service events' },
+  MANAGE_SEMESTERS:     { bit: 1<<7,  l: 'Semesters',    i: 'p-term',     d: 'Start and edit terms', can: 'set up semesters' },
+  MANAGE_ANNOUNCEMENTS: { bit: 1<<10, l: 'Announce\u00ADment', i: 'p-announce', d: 'Post the pinned announcement', can: 'post the announcement' },
+  MANAGE_DOCS:          { bit: 1<<9,  l: 'Docs',         i: 'p-docs',     d: 'Pin, edit and remove shared docs', can: 'pin and edit shared docs' },
+  MANAGE_TASKS:         { bit: 1<<12, l: 'Tasks',        i: 'p-tasks',    d: 'Assign tasks and deadlines', can: 'assign tasks and deadlines' },
+  MANAGE_POLLS:         { bit: 1<<13, l: 'Polls',        i: 'p-polls',    d: 'Start, close and delete polls', can: 'run polls' },
+  MANAGE_INSTAGRAM:     { bit: 1<<4,  l: 'Media',        i: 'p-media',    d: 'Plan and schedule social posts', can: 'plan social posts' },
+};
+const GROUPS = [
+  { l: 'People & access', g: 'var(--g-people)', p: ['MANAGE_BROTHERS', 'MANAGE_ATTENDANCE', 'MANAGE_ROLES', 'MANAGE_SETTINGS'] },
+  { l: 'Money',           g: 'var(--g-money)',  p: ['MANAGE_TREASURY', 'MANAGE_FUNDRAISING'] },
+  { l: 'Calendar',        g: 'var(--g-cal)',    p: ['MANAGE_EVENTS', 'MANAGE_PARTIES', 'MANAGE_SERVICE', 'MANAGE_SEMESTERS'] },
+  { l: 'Communication',   g: 'var(--g-comms)',  p: ['MANAGE_ANNOUNCEMENTS', 'MANAGE_DOCS', 'MANAGE_TASKS', 'MANAGE_POLLS', 'MANAGE_INSTAGRAM'] },
+];
+const ALL = Object.values(P).reduce((a, p) => a | p.bit, 0);
+
+// Real SWATCHES from RolesSection, with names so the choice reads in words.
+const SW = [['#F59E0B','Amber'],['#EF4444','Red'],['#EC4899','Pink'],['#8B5CF6','Violet'],['#5865F2','Indigo'],['#3B82F6','Blue'],['#06B6D4','Cyan'],['#10B981','Green'],['#84CC16','Lime'],['#94A3B8','Slate']];
+
+const bits = names => names.reduce((a, n) => a | P[n].bit, 0);
+const TPL = [
+  { id: 'blank', n: 'Blank',           c: '#94A3B8', d: 'Start empty',                    p: [] },
+  { id: 'rush',  n: 'Rush Chair',      c: '#8B5CF6', d: 'Recruitment, new members',       p: ['MANAGE_BROTHERS', 'MANAGE_ATTENDANCE', 'MANAGE_EVENTS'] },
+  { id: 'sec',   n: 'Secretary',       c: '#3B82F6', d: 'Minutes, roll call, reminders',  p: ['MANAGE_ATTENDANCE', 'MANAGE_ANNOUNCEMENTS', 'MANAGE_DOCS', 'MANAGE_TASKS'] },
+  { id: 'soc',   n: 'Social Chair',    c: '#EC4899', d: 'Parties and socials',            p: ['MANAGE_EVENTS', 'MANAGE_PARTIES', 'MANAGE_TASKS'] },
+  { id: 'phil',  n: 'Philanthropy',    c: '#10B981', d: 'Service and fundraisers',        p: ['MANAGE_SERVICE', 'MANAGE_FUNDRAISING', 'MANAGE_EVENTS'] },
+  { id: 'hist',  n: 'Historian',       c: '#06B6D4', d: 'Photos, posts, archives',        p: ['MANAGE_INSTAGRAM', 'MANAGE_DOCS'] },
+];
+
+// The org's existing roles (Fraternity template + a VP).
+let ROLES = [
+  { name: 'President',      color: '#F59E0B', rank: 100, perms: ALL, ppl: 1, sys: true },
+  { name: 'Vice President', color: '#EF4444', rank: 80,  perms: bits(['MANAGE_BROTHERS','MANAGE_ROLES','MANAGE_SETTINGS','MANAGE_ATTENDANCE']), ppl: 1 },
+  { name: 'Treasurer',      color: '#10B981', rank: 50,  perms: bits(['MANAGE_TREASURY','MANAGE_FUNDRAISING']), ppl: 1 },
+  { name: 'Social',         color: '#EC4899', rank: 50,  perms: bits(['MANAGE_EVENTS','MANAGE_PARTIES','MANAGE_TASKS']), ppl: 2 },
+  { name: 'PR',             color: '#3B82F6', rank: 50,  perms: bits(['MANAGE_INSTAGRAM']), ppl: 1 },
+];
+let fresh = null;
+
+let S, me = 100;
+function reset() {
+  S = { tpl: null, name: '', color: '#8B5CF6', perms: 0, place: null, popped: null };
+  S.place = defaultPlace();
+}
+
+/* ── Ladder model: rungs = distinct ranks (desc), with gaps between ── */
+function rungs() {
+  const m = new Map();
+  ROLES.forEach(r => { if (!m.has(r.rank)) m.set(r.rank, []); m.get(r.rank).push(r); });
+  return [...m.entries()].sort((a, b) => b[0] - a[0]).map(([rank, roles]) => ({ rank, roles }));
+}
+// place = { kind: 'gap', hi, lo } | { kind: 'level', rank }
+function rankOf(pl) {
+  if (pl.kind === 'level') return pl.rank;
+  const r = Math.floor((pl.hi + pl.lo) / 2);
+  return r <= pl.lo ? pl.lo + 1 : r;
+}
+function gapOk(hi, lo) { return hi - lo >= 2 && Math.min(hi - 1, Math.floor((hi + lo) / 2)) < me; }
+function defaultPlace() {
+  const rs = rungs(); const low = rs[rs.length - 1];
+  return { kind: 'gap', hi: low.rank, lo: 0 };
+}
+function placeText(pl) {
+  const rs = rungs();
+  if (pl.kind === 'level') return `level with ${rs.find(r => r.rank === pl.rank).roles.map(r => r.name).join(', ')}`;
+  const above = rs.find(r => r.rank === pl.hi), below = rs.find(r => r.rank === pl.lo);
+  const a = above ? above.roles.map(r => r.name).join(' / ') : null;
+  const b = below ? below.roles.map(r => r.name).join(' / ') : 'members with no role';
+  return a ? `below ${a}, above ${b}` : `above ${b}`;
+}
+
+const label = () => S.name.trim() || 'New role';
+const chosen = () => Object.entries(P).filter(([, p]) => S.perms & p.bit);
+
+/* ── Render ── */
+function renderTpls() {
+  $('tpls').innerHTML = TPL.map(t => `
+    <button class="tpl ${t.id === 'blank' ? 'blank' : ''}" data-tpl="${t.id}" aria-pressed="${S.tpl === t.id}" style="--rc:${t.c}">
+      <span class="ck">${ic('i-check')}</span>
+      <span class="nm"><i></i>${t.n}</span>
+      <span class="ds">${t.d}${t.p.length ? ` · ${t.p.length} pages` : ''}</span>
+    </button>`).join('');
+}
+function renderSw() {
+  $('swList').innerHTML = SW.map(([c, n]) => `<button class="sw" role="radio" aria-checked="${S.color === c}" aria-label="${n}" data-c="${c}" style="--c:${c}"></button>`).join('');
+  const preset = SW.find(s => s[0] === S.color);
+  const cu = $('swCustom');
+  cu.classList.toggle('on', !preset);
+  cu.style.setProperty('--picked', S.color);
+  if (document.activeElement !== $('picker')) $('picker').value = S.color.toLowerCase();
+  if (document.activeElement !== $('hex')) { $('hex').value = S.color.slice(1).toUpperCase(); $('hexBox').classList.remove('bad'); }
+  $('hexBox').style.setProperty('--rc', S.color);
+  $('swName').textContent = preset ? preset[1] : `Custom · ${S.color.toUpperCase()}`;
+}
+function groupLine(gi, hover) {
+  const g = GROUPS[gi];
+  if (hover) {
+    const p = P[hover], is = !!(S.perms & p.bit);
+    return `<b>${p.l}</b><span class="${is ? 'on' : 'off'}">${is ? 'Can change' : 'Can see'}</span><span>${p.d}.</span>${p.big ? '<span class="big">Big one</span>' : ''}`;
+  }
+  const on = g.p.filter(n => S.perms & P[n].bit).map(n => P[n].l);
+  if (!on.length) return `<span>None picked. ${label()} can see these pages but not change them.</span>`;
+  if (on.length === g.p.length) return `<span>${label()} can change <b>all of ${g.l.toLowerCase()}</b>.</span>`;
+  return `<span>${label()} can change <b>${on.join(', ').replace(/, ([^,]*)$/, ' and $1')}</b>.</span>`;
+}
+let hoverP = null;
+function renderGroups() {
+  const n = chosen().length, tot = Object.keys(P).length;
+  $('tally').innerHTML = `<span class="dots">${Object.values(P).map(p => `<i class="${S.perms & p.bit ? 'on' : ''}"></i>`).join('')}</span><span>${n} of ${tot}</span>`;
+  $('groups').innerHTML = GROUPS.map((g, gi) => {
+    const on = g.p.filter(n => S.perms & P[n].bit).length;
+    const hv = g.p.includes(hoverP) ? hoverP : null;
+    return `<div class="shelf" style="--g:${g.g}">
+      <div class="tab"><div class="t">${g.l}</div><span class="n">${on} of ${g.p.length}</span>
+        <button data-grp="${gi}">${on === g.p.length ? 'Clear' : 'Pick all'}</button></div>
+      <div class="pgs">${g.p.map(n => {
+        const p = P[n], is = !!(S.perms & p.bit);
+        return `<button class="pg ${S.popped === n ? 'pop' : ''}" data-p="${n}" data-g="${gi}" aria-pressed="${is}" aria-label="${p.l}: ${p.d}${p.big ? ' (big one)' : ''}">
+          ${p.big ? '<span class="bg1" aria-hidden="true"></span>' : ''}
+          <span class="stp" aria-hidden="true">${ic('i-check')}</span>
+          <span class="ico">${ic(p.i)}</span><span class="lb">${p.l}</span>
+        </button>`;
+      }).join('')}</div>
+      <div class="line" data-line="${gi}" aria-live="polite">${groupLine(gi, hv)}</div></div>`;
+  }).join('');
+}
+function setHover(n) {
+  if (hoverP === n) return;
+  const prev = hoverP; hoverP = n;
+  const gis = new Set([prev, n].filter(Boolean).map(x => GROUPS.findIndex(g => g.p.includes(x))));
+  gis.forEach(gi => { const el = document.querySelector(`[data-line="${gi}"]`); if (el) el.innerHTML = groupLine(gi, GROUPS[gi].p.includes(hoverP) ? hoverP : null); });
+}
+function newCard(level) {
+  const rk = rankOf(S.place);
+  return `<span class="chip live" style="--rc:${S.color}"><span>${esc(label())}</span></span>
+    <span class="where">${level ? '' : esc(placeText(S.place))}</span>
+    <span class="rk" style="margin-left:auto;font:500 .68rem var(--mono);color:var(--faint)">Rank ${rk}</span>`;
+}
+function renderLadder() {
+  const rs = rungs(); let h = '';
+  const gap = (hi, lo) => {
+    const sel = S.place.kind === 'gap' && S.place.hi === hi && S.place.lo === lo;
+    if (sel) return `<div class="slot" style="--rc:${S.color}"><div class="card">${newCard(false)}</div></div>`;
+    const ok = gapOk(hi, lo);
+    return `<button class="gap" data-gap="${hi},${lo}" ${ok ? '' : 'disabled'} aria-label="Place between rank ${hi} and ${lo}"></button>`;
+  };
+  rs.forEach((r, i) => {
+    const locked = r.rank >= me;
+    const isMe = r.roles.some(x => x.rank === me && (me === 100 ? x.name === 'President' : x.name === 'Vice President'));
+    const sel = S.place.kind === 'level' && S.place.rank === r.rank;
+    h += `<button class="rung ${isMe ? 'me' : ''} ${sel ? 'with-new' : ''}" data-level="${r.rank}" ${locked ? 'disabled' : ''} style="--rc:${S.color}">
+      ${r.roles.map(x => `<span class="chip" style="--rc:${x.color}"><span>${x.name}</span></span>`).join('')}
+      ${sel ? `<span class="chip live" style="--rc:${S.color}"><span>${esc(label())}</span></span>` : ''}
+      ${isMe ? '<span class="you">You</span>' : ''}
+      ${locked && !isMe ? ic('i-lock', 'lock') : ''}
+      <span class="lvl">${sel ? '' : 'Level with'}</span>
+      <span class="rk">${r.rank}</span>
+    </button>`;
+    h += gap(r.rank, rs[i + 1]?.rank ?? 0);
+  });
+  h += `<div class="rung base" style="cursor:default">Members with no role <span class="rk" style="margin-left:auto">0</span></div>`;
+  $('ladder').innerHTML = h;
+
+  const rk = rankOf(S.place);
+  const givers = ROLES.filter(r => r.rank > rk && (r.perms & P.MANAGE_ROLES.bit)).map(r => r.name);
+  $('whyGive').textContent = (givers.length ? givers.join(', ') : 'Org admins') + (givers.length ? ' and org admins.' : ' only.');
+  const under = ROLES.filter(r => r.rank < rk).map(r => r.name);
+  $('whyManage').textContent = S.perms & P.MANAGE_ROLES.bit
+    ? (under.length ? `${label()} could hand out ${under.join(', ')}.` : `Nothing yet. No roles sit below ${label()}.`)
+    : `Only matters if ${label()} can change Roles. Right now it can't.`;
+}
+function renderPreview() {
+  const others = `<span class="chip ghosty" style="--rc:#3B82F6"><span>PR</span></span>`;
+  $('mcChips').innerHTML = `<span class="chip live" style="--rc:${S.color}"><span>${esc(label())}</span></span>${others}`;
+  const c = chosen();
+  const bigs = c.filter(([, p]) => p.big).map(([, p]) => p.l);
+  $('can').innerHTML = `
+    <div class="can-h">A <em>${esc(label())}</em> can…</div>
+    <ul>${c.length
+      ? c.map(([, p]) => `<li>${ic('i-check')}<span>${p.can.charAt(0).toUpperCase() + p.can.slice(1)}</span></li>`).join('')
+      : `<li class="empty">Nothing extra yet. It's just a title.</li>`}
+      <li class="see">${ic('i-eye')}<span>${c.length === Object.keys(P).length ? 'Change everything in the app' : 'See everything else, like every member'}</span></li>
+    </ul>
+    ${bigs.length ? `<div class="careful"><b>Give this one to people you trust.</b> ${bigs.join(', ')} ${bigs.length > 1 ? 'are' : 'is'} hard to undo by mistake.</div>` : ''}`;
+  const pnl = $('panel');
+  pnl.style.setProperty('--rc', S.color);
+  pnl.style.setProperty('--rc-soft', `color-mix(in oklab, ${S.color} 40%, var(--card))`);
+  $('mini').innerHTML = `<span class="chip" style="--rc:${S.color}"><span>${esc(label())}</span></span><span>${c.length ? `can change ${c.length} page${c.length > 1 ? 's' : ''}` : 'just a title'}</span>`;
+}
+function renderFoot() {
+  const c = chosen().length, name = S.name.trim();
+  const clash = ROLES.some(r => r.name.toLowerCase() === name.toLowerCase());
+  $('nameNote').innerHTML = clash ? `<span class="warn">You already have a role called ${esc(name)}.</span>` : '';
+  $('nameCount').textContent = `${S.name.length}/60`;
+  $('sum').innerHTML = name
+    ? `<b>${esc(name)}</b> · ${c ? `changes ${c} page${c > 1 ? 's' : ''}` : 'no extra access'} · ${esc(placeText(S.place))}`
+    : 'Give it a name to create it.';
+  const b = $('create');
+  b.disabled = !name || clash;
+  b.textContent = c ? 'Create role' : 'Create as a label';
+  b.style.setProperty('--hs', `color-mix(in oklab, ${S.color} 45%, var(--card))`);
+  $('s1').classList.toggle('done', !!S.tpl);
+  $('s2').classList.toggle('done', !!name);
+  $('s3').classList.toggle('done', c > 0);
+  $('s4').classList.add('done');
+}
+function renderList() {
+  $('roleList').innerHTML = [...ROLES].sort((a, b) => b.rank - a.rank).map(r => {
+    const names = Object.values(P).filter(p => r.perms & p.bit).map(p => p.l);
+    const sub = r.perms === ALL ? 'Everything' : names.length ? names.join(', ') : 'No extra access';
+    return `<div class="rl-row ${fresh === r.name ? 'fresh' : ''}">
+      <div style="min-width:0"><span class="chip" style="--rc:${r.color}"><span>${r.name}</span></span>${fresh === r.name ? '<span class="new-tag">New</span>' : ''}<div class="sub">${sub}</div></div>
+      <span class="ppl">${r.ppl ? `${r.ppl} ${r.ppl > 1 ? 'people' : 'person'}` : 'No one yet'}</span>
+      <span class="rk">Rank ${r.rank}</span></div>`;
+  }).join('');
+}
+function render() { renderTpls(); renderSw(); renderGroups(); renderLadder(); renderPreview(); renderFoot(); }
+
+/* ── Events ── */
+$('tpls').onclick = e => {
+  const b = e.target.closest('[data-tpl]'); if (!b) return;
+  const t = TPL.find(x => x.id === b.dataset.tpl);
+  S.tpl = t.id; S.perms = bits(t.p);
+  if (t.id !== 'blank') { S.name = t.n; S.color = t.c; } else { S.name = ''; }
+  $('name').value = S.name; render();
+};
+$('name').oninput = e => { S.name = e.target.value; renderLadder(); renderPreview(); renderFoot(); };
+$('swList').onclick = e => { const b = e.target.closest('[data-c]'); if (!b) return; S.color = b.dataset.c; render(); };
+$('picker').oninput = e => { S.color = e.target.value.toUpperCase(); render(); };
+$('hex').oninput = e => {
+  const v = e.target.value.replace(/[^0-9a-f]/gi, '');
+  if (v !== e.target.value) e.target.value = v;
+  const ok = /^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v);
+  $('hexBox').classList.toggle('bad', !ok && v.length > 0);
+  if (ok) { S.color = '#' + (v.length === 3 ? [...v].map(c => c + c).join('') : v).toUpperCase(); render(); }
+};
+$('hex').onblur = () => renderSw();
+$('swList').onkeydown = e => {
+  if (!['ArrowRight', 'ArrowLeft'].includes(e.key)) return;
+  const i = SW.findIndex(s => s[0] === S.color), n = (i + (e.key === 'ArrowRight' ? 1 : -1) + SW.length) % SW.length;
+  S.color = SW[n][0]; render(); $('swList').children[n].focus(); e.preventDefault();
+};
+$('groups').onclick = e => {
+  const t = e.target.closest('[data-p]');
+  if (t) { S.perms ^= P[t.dataset.p].bit; S.popped = S.perms & P[t.dataset.p].bit ? t.dataset.p : null; render(); S.popped = null; $('groups').querySelector(`[data-p="${t.dataset.p}"]`).focus(); return; }
+  const g = e.target.closest('[data-grp]');
+  if (g) { const gp = GROUPS[+g.dataset.grp].p, m = bits(gp); S.perms = (S.perms & m) === m ? S.perms & ~m : S.perms | m; render(); }
+};
+$('groups').addEventListener('mouseover', e => { const t = e.target.closest('[data-p]'); setHover(t ? t.dataset.p : null); });
+$('groups').addEventListener('mouseleave', () => setHover(null));
+$('groups').addEventListener('focusin', e => { const t = e.target.closest('[data-p]'); if (t) setHover(t.dataset.p); });
+$('ladder').onclick = e => {
+  const g = e.target.closest('[data-gap]:not(:disabled)');
+  if (g) { const [hi, lo] = g.dataset.gap.split(',').map(Number); S.place = { kind: 'gap', hi, lo }; renderLadder(); renderFoot(); return; }
+  const l = e.target.closest('[data-level]:not(:disabled)');
+  if (l) { S.place = { kind: 'level', rank: +l.dataset.level }; renderLadder(); renderFoot(); }
+};
+
+function openSheet() { reset(); $('name').value = ''; $('sheetWrap').hidden = false; document.body.style.overflow = 'hidden'; render(); $('stage').scrollTop = 0; }
+function closeSheet() { $('sheetWrap').hidden = true; document.body.style.overflow = ''; }
+$('openBtn').onclick = openSheet;
+$('cancel').onclick = closeSheet; $('closeX').onclick = closeSheet;
+$('stage').onclick = e => { if (e.target === $('stage')) closeSheet(); };
+document.onkeydown = e => { if (e.key === 'Escape' && !$('sheetWrap').hidden) closeSheet(); };
+$('create').onclick = () => {
+  ROLES.push({ name: S.name.trim(), color: S.color, rank: rankOf(S.place), perms: S.perms, ppl: 0 });
+  fresh = S.name.trim(); closeSheet(); renderList();
+};
+
+document.querySelectorAll('[data-me]').forEach(b => b.onclick = () => {
+  me = +b.dataset.me;
+  document.querySelectorAll('[data-me]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  S.place = defaultPlace(); render();
+});
+$('themeBtn').onclick = () => {
+  const n = document.documentElement.dataset.theme === 'night' ? 'day' : 'night';
+  document.documentElement.dataset.theme = n; $('themeBtn').textContent = n === 'night' ? 'Day' : 'Night';
+};
+
+renderList(); openSheet();
+</script>
+</body>
+</html>
