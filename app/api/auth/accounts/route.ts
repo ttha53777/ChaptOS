@@ -25,6 +25,7 @@ export async function GET() {
       authUserId: string | null;
       isAdmin: boolean;
       email: string | null;
+      avatarUrl: string | null;
       roles?: { role: { id: number; name: string; color: string | null; rank: number } }[];
     }>;
     try {
@@ -42,14 +43,14 @@ export async function GET() {
       }
       brothers = roster.map(b => ({
         id: b.id, name: b.name, role: b.role, authUserId: b.authUserId,
-        isAdmin: b.isOrgAdmin, email: b.email ?? null,
+        isAdmin: b.isOrgAdmin, email: b.email ?? null, avatarUrl: b.avatarUrl,
         roles: rolesByBrotherId.get(b.id) ?? [],
       }));
     } catch {
       const roster = await db(user.orgId).member.listRoster({ fields: "contact" });
       brothers = roster.map(b => ({
         id: b.id, name: b.name, role: b.role, authUserId: b.authUserId,
-        isAdmin: b.isOrgAdmin, email: b.email ?? null,
+        isAdmin: b.isOrgAdmin, email: b.email ?? null, avatarUrl: b.avatarUrl,
       }));
     }
     // Membership.name is nullable with a fallback, so the ordering that used to
@@ -65,6 +66,7 @@ export async function GET() {
         isSelf: b.authUserId === user.authUserId,
         isAdmin: b.isAdmin,
         email: b.email,
+        avatarUrl: b.avatarUrl,
         roles: (b.roles ?? [])
           .map(r => r.role)
           .sort((a, z) => z.rank - a.rank),

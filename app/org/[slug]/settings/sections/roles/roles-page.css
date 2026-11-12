@@ -1,0 +1,275 @@
+/* Settings → Roles: roles and who holds them.
+   Built from _design/Roles Holders Paper Mock.html. Paper is the only look, so
+   these rules are unscoped; every class carries the rp- prefix (the role sheet
+   owns rs-, the old list owned rl-). Chips reuse .rs-chip from role-sheet.css. */
+
+.rp {
+  --rp-display: var(--font-fraunces);
+  --rp-sans: var(--font-geist-sans);
+  --rp-mono: var(--font-geist-mono);
+  --rp-spring: var(--pp-ease-spring, cubic-bezier(.16,.9,.3,1.02));
+  container-type: inline-size;
+  color: var(--ink); font-family: var(--rp-sans); font-size: 14px; line-height: 1.45;
+}
+.rp svg, .rp-pick svg, .rp-toast svg { flex-shrink: 0; }
+
+/* The opened section is a loose-leaf sheet; the index cards are paper already,
+   so on this page the sheet steps aside and the cards sit on the desk. */
+html[data-aesthetic="paper"] .dash .set-focus-page > .set-section:has(> .rp) {
+  max-width: 1000px; padding: 0; background: none; border: 0; box-shadow: none;
+}
+html[data-aesthetic="paper"] .dash .set-focus-page > .set-section:has(> .rp)::before,
+html[data-aesthetic="paper"] .dash .set-focus-page > .set-section:has(> .rp)::after { content: none; }
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.rp-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 22px; }
+.rp-views { display: inline-flex; padding: 4px; border-radius: 14px; background: var(--paper-2); border: 1.5px solid var(--line-med); }
+.rp-views button {
+  display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; cursor: pointer;
+  padding: 7px 14px; border-radius: 10px; font: 600 .84rem var(--rp-sans); color: var(--muted);
+  transition: background .15s, color .15s, box-shadow .2s var(--rp-spring);
+}
+.rp-views button svg { width: 15px; height: 15px; }
+.rp-views button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink), 2px 2px 0 1.5px var(--pp-sky); }
+.rp-views .n { font: 600 .68rem var(--rp-mono); color: var(--faint); }
+.rp-search {
+  flex: 1; min-width: 180px; max-width: 320px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  border: 1.5px solid var(--line-med); border-radius: 12px; background: var(--card); cursor: text;
+  transition: border-color .15s, box-shadow .2s var(--rp-spring);
+}
+.rp-search:focus-within { border-color: var(--ink); box-shadow: 3px 3px 0 var(--pp-sky); }
+.rp-search svg { width: 15px; height: 15px; color: var(--muted); }
+.rp-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; padding: 9px 0; font: 400 .88rem var(--rp-sans); color: var(--ink); }
+.rp-bar .rp-btn { margin-left: auto; }
+
+.rp-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;
+  padding: 8px 15px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper);
+  font: 600 .82rem var(--rp-sans); white-space: nowrap; box-shadow: 2.5px 2.5px 0 var(--pp-sky);
+  transition: transform .18s var(--rp-spring), box-shadow .18s var(--rp-spring);
+}
+.rp-btn:hover { transform: translate(-1.5px,-1.5px); box-shadow: 4.5px 4.5px 0 var(--pp-sky); }
+.rp-btn svg { width: 14px; height: 14px; }
+
+.rp-none { padding: 26px 8px; text-align: center; color: var(--muted); font-size: .88rem; margin: 0; }
+
+/* ── Avatar ───────────────────────────────────────────────────────────────── */
+.rp-av {
+  --sz: 30px; width: var(--sz); height: var(--sz); border-radius: 50%; flex-shrink: 0; display: inline-grid; place-items: center;
+  background: var(--av, var(--pp-sky)); border: 1.5px solid var(--ink); color: #26211B; object-fit: cover;
+  font: 700 calc(var(--sz) * .36)/1 var(--rp-display); letter-spacing: -.02em;
+}
+
+/* ── By role: index cards ─────────────────────────────────────────────────── */
+.rp-cards { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 30px 22px; padding-top: 8px; align-items: start; }
+@container (max-width: 640px) { .rp-cards { grid-template-columns: minmax(0,1fr); } }
+
+.rp-card {
+  --rc: #94A3B8; --rc-soft: color-mix(in oklab, var(--rc) 14%, var(--card)); --tilt: -.35deg;
+  position: relative; display: flex; flex-direction: column; border-radius: 6px 6px 16px 16px; min-width: 0;
+  background: var(--card); border: 1.5px solid var(--ink); transform: rotate(var(--tilt));
+  box-shadow: 5px 5px 0 color-mix(in oklab, var(--rc) 40%, var(--card));
+  transition: transform .3s var(--rp-spring), box-shadow .3s var(--rp-spring);
+}
+.rp-card:nth-child(even) { --tilt: .3deg; }
+.rp-card:nth-child(3n) { --tilt: -.15deg; }
+.rp-card:hover { transform: rotate(0) translate(-2px,-2px); box-shadow: 7px 7px 0 color-mix(in oklab, var(--rc) 50%, var(--card)); }
+.rp-card.flash { animation: rp-flash .7s var(--rp-spring); }
+@keyframes rp-flash { 40% { box-shadow: 9px 9px 0 color-mix(in oklab, var(--rc) 65%, var(--card)); } }
+@container (max-width: 640px) { .rp-card, .rp-card:hover { transform: none; } }
+
+.rp-tape {
+  position: absolute; top: -11px; left: 50%; width: 78px; height: 22px; z-index: 2; border-radius: 2px; opacity: .92;
+  transform: translateX(-50%) rotate(-3deg); pointer-events: none;
+  background: repeating-linear-gradient(45deg, color-mix(in oklab, var(--rc) 45%, var(--card)) 0 7px, color-mix(in oklab, var(--rc) 28%, var(--card)) 7px 14px);
+}
+.rp-card:nth-child(even) .rp-tape { left: 62%; transform: translateX(-50%) rotate(4deg); }
+
+.rp-card-head {
+  display: flex; align-items: flex-start; gap: 12px; padding: 18px 18px 14px; border-radius: 5px 5px 0 0;
+  background: var(--rc-soft); border-bottom: 1.5px solid var(--ink);
+  box-shadow: inset 0 -4px 0 color-mix(in oklab, var(--rc) 55%, var(--card));
+}
+.rp-card-id { min-width: 0; flex: 1; }
+.rp-card-name {
+  border: 0; background: none; padding: 0; cursor: pointer; text-align: left; max-width: 100%; color: var(--ink);
+  font: 750 1.4rem/1.1 var(--rp-display); letter-spacing: -.03em; display: inline-flex; align-items: center; gap: 6px;
+}
+.rp-card-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-card-name svg { width: 15px; height: 15px; color: color-mix(in oklab, var(--rc) 70%, var(--ink)); transition: transform .2s var(--rp-spring); }
+.rp-card-name:hover svg { transform: translateX(3px); }
+.rp-perms { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.rp-perm {
+  padding: 2px 8px; border-radius: 6px; font: 600 .7rem var(--rp-sans); color: var(--ink-soft);
+  background: var(--card); border: 1.5px solid color-mix(in oklab, var(--rc) 35%, var(--line-med));
+}
+.rp-new {
+  display: inline-block; padding: 2px 6px; border-radius: 6px; transform: rotate(-3deg);
+  font: 700 .6rem var(--rp-sans); letter-spacing: .08em; text-transform: uppercase;
+  background: var(--pp-butter); color: var(--pp-note-ink); border: 1.5px solid var(--pp-note-ink);
+}
+.rp-tally {
+  flex-shrink: 0; display: grid; place-content: center; width: 62px; height: 58px; border-radius: 14px; text-align: center; line-height: 1;
+  background: var(--card); border: 1.5px solid var(--ink); box-shadow: 2px 2px 0 color-mix(in oklab, var(--rc) 55%, var(--card));
+}
+.rp-tally b { font: 750 1.35rem var(--rp-display); letter-spacing: -.03em; display: block; }
+.rp-tally small { font: 650 .5rem var(--rp-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: block; margin-top: 3px; }
+.rp-tally.zero b { color: var(--faint); }
+
+/* ruled body, with a margin rule in the role's color */
+.rp-lines { list-style: none; margin: 0; padding: 4px 0 10px; position: relative; }
+.rp-lines::before { content: ""; position: absolute; left: 40px; top: 0; bottom: 0; width: 1.5px; background: color-mix(in oklab, var(--rc) 40%, transparent); }
+.rp-line { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 12px 0 0; border-bottom: 1px solid var(--line); animation: rp-pop .35s var(--rp-spring); }
+.rp-no { width: 40px; text-align: center; font: 500 .68rem var(--rp-mono); color: var(--faint); flex-shrink: 0; }
+.rp-line-tx { flex: 1; min-width: 0; }
+.rp-line-tx b { display: block; font: 600 .9rem var(--rp-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-line-tx small { display: block; font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-line.empty .rp-line-tx { font-size: .84rem; color: var(--faint); font-style: italic; }
+.rp-you { font: 650 .6rem var(--rp-sans); letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--ink); color: var(--paper); flex-shrink: 0; }
+.rp-x {
+  width: 30px; height: 30px; border-radius: 9px; border: 1.5px solid transparent; background: none; cursor: pointer; flex-shrink: 0;
+  display: grid; place-items: center; color: var(--faint); opacity: .55; transition: opacity .15s, background .15s, color .15s, border-color .15s;
+}
+.rp-line:hover .rp-x, .rp-x:focus-visible { opacity: 1; }
+.rp-x:hover { background: var(--pp-rose-soft); color: var(--pp-rose-ink); border-color: color-mix(in oklab, var(--pp-rose-ink) 40%, transparent); }
+.rp-x svg { width: 12px; height: 12px; }
+@media (hover: none) { .rp-x { opacity: 1; } }
+.rp-line.add { border-bottom: 0; animation: none; }
+.rp-add-line {
+  flex: 1; display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 9px 12px; cursor: pointer; text-align: left;
+  border: 1.5px dashed var(--line-med); border-radius: 12px; background: none; font: 600 .84rem var(--rp-sans); color: var(--muted);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.rp-add-line:hover { border-style: solid; border-color: var(--ink); color: var(--ink); background: var(--rc-soft); }
+.rp-plus { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--paper); flex-shrink: 0; }
+.rp-plus svg { width: 11px; height: 11px; }
+
+/* locked: ranked at or above you — same card, flatter, with a rubber stamp */
+.rp-card.locked { background: var(--paper-2); border-color: var(--line-med); box-shadow: 4px 4px 0 var(--line); }
+.rp-card.locked .rp-card-head {
+  border-bottom-color: var(--line-med); background: color-mix(in oklab, var(--rc) 8%, var(--paper-2));
+  box-shadow: inset 0 -4px 0 color-mix(in oklab, var(--rc) 25%, var(--paper-2));
+}
+.rp-stamp {
+  flex-shrink: 0; align-self: center; transform: rotate(-7deg); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px;
+  border: 2px solid currentColor; color: color-mix(in oklab, var(--muted) 80%, transparent);
+  font: 700 .64rem var(--rp-mono); letter-spacing: .12em; text-transform: uppercase;
+}
+.rp-stamp svg { width: 11px; height: 11px; }
+.rp-stamp .short { display: none; }
+@container (max-width: 460px) {
+  .rp-stamp .long { display: none; }
+  .rp-stamp .short { display: inline; }
+  .rp-card-name { font-size: 1.25rem; }
+}
+
+.rp-new-card {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 190px; cursor: pointer;
+  border-radius: 6px 6px 16px 16px; border: 2px dashed var(--line-med); color: var(--muted); font: 650 .95rem var(--rp-display);
+  background: repeating-linear-gradient(transparent 0 47px, color-mix(in oklab, var(--line) 70%, transparent) 47px 48px);
+  transition: border-color .15s, color .15s, background-color .15s, transform .3s var(--rp-spring);
+}
+.rp-new-card:hover { border-color: var(--ink); color: var(--ink); background-color: var(--card); transform: rotate(-.4deg); }
+.rp-plus.big { width: 40px; height: 40px; background: var(--card); color: currentColor; border: 1.5px solid currentColor; }
+.rp-plus.big svg { width: 15px; height: 15px; }
+.rp-new-card small { font: 500 .76rem var(--rp-sans); color: var(--faint); }
+
+@keyframes rp-pop { from { transform: scale(.85); opacity: 0; } }
+
+/* ── By person: the register ──────────────────────────────────────────────── */
+.rp-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.rp-fpill {
+  border: 1.5px solid var(--line-med); background: var(--card); border-radius: 999px; padding: 5px 12px; cursor: pointer;
+  font: 600 .78rem var(--rp-sans); color: var(--ink-soft); display: inline-flex; gap: 6px; align-items: center;
+}
+.rp-fpill b { font: 600 .68rem var(--rp-mono); color: var(--faint); }
+.rp-fpill[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.rp-fpill[aria-pressed="true"] b { color: var(--paper); opacity: .7; }
+.rp-register { border: 1.5px solid var(--ink); border-radius: 18px; background: var(--card); overflow: hidden; box-shadow: 4px 4px 0 var(--pp-sky); }
+.rp-prow { display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 14px; align-items: center; padding: 11px 16px; border-top: 1.5px solid var(--line); }
+.rp-prow:first-child { border-top: 0; }
+.rp-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rp-who-tx { min-width: 0; }
+.rp-who-tx b { font: 600 .9rem var(--rp-sans); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-who-tx small { font-size: .74rem; color: var(--muted); }
+.rp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.rp-chip { padding-right: 4px; animation: rp-pop .35s var(--rp-spring); }
+.rp-chip.fixed { padding-right: 10px; }
+.rp-chip-x { width: 18px; height: 18px; border-radius: 50%; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: var(--faint); margin-left: -2px; }
+.rp-chip-x:hover { color: var(--pp-rose-ink); background: var(--card); }
+.rp-chip-x svg { width: 10px; height: 10px; }
+.rp-norole { font-size: .8rem; color: var(--faint); font-style: italic; }
+.rp-add-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 4px; border-radius: 999px; cursor: pointer;
+  border: 1.5px dashed var(--line-med); background: none; font: 600 .76rem var(--rp-sans); color: var(--ink-soft);
+  transition: border-color .15s, background .15s;
+}
+.rp-add-pill:hover { border-style: solid; border-color: var(--ink); background: var(--paper-2); }
+.rp-add-pill .rp-plus { width: 18px; height: 18px; }
+.rp-add-pill .rp-plus svg { width: 9px; height: 9px; }
+@container (max-width: 600px) { .rp-prow { grid-template-columns: minmax(0,1fr); gap: 8px; } }
+
+/* ── Picker (inside the shared <Modal>) ───────────────────────────────────── */
+.ui-modal-body:has(> .rp-pick) { padding: 0; }
+.rp-pick {
+  --rp-spring: var(--pp-ease-spring, cubic-bezier(.16,.9,.3,1.02));
+  display: flex; flex-direction: column; max-height: min(640px, calc(100dvh - 80px));
+  color: var(--ink); font: 400 14px/1.45 var(--font-geist-sans);
+}
+.rp-pick-head { padding: 20px 20px 12px; border-bottom: 1.5px dashed var(--line-med); }
+.rp-pick-k { font: 600 .64rem var(--font-geist-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.rp-pick-t { font: 700 1.45rem/1.15 var(--font-fraunces); letter-spacing: -.03em; margin: 8px 0 4px; display: flex; align-items: center; gap: 10px; padding-right: 30px; }
+.rp-pick-sub { margin: 0 0 12px; font-size: .84rem; color: var(--muted); }
+.rp-pick .rp-search { max-width: none; }
+.rp-pick-list { overflow-y: auto; padding: 6px 10px; flex: 1; min-height: 120px; overscroll-behavior: contain; }
+.rp-sec { font: 600 .62rem var(--font-geist-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin: 10px 10px 4px; }
+.rp-opt {
+  width: 100%; display: flex; align-items: center; gap: 11px; padding: 8px 10px; border: 0; border-radius: 12px; cursor: pointer;
+  background: none; text-align: left; color: var(--ink); transition: background .12s;
+}
+.rp-opt:hover:not(:disabled) { background: var(--paper-2); }
+.rp-opt:disabled { cursor: not-allowed; }
+.rp-opt:disabled:not([aria-selected="true"]) .rp-opt-tx, .rp-opt:disabled .rp-dot { opacity: .55; }
+.rp-opt-tx { flex: 1; min-width: 0; }
+.rp-opt-tx b { display: block; font: 600 .88rem var(--font-geist-sans); }
+.rp-opt-tx small { display: block; font-size: .74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-tick {
+  width: 24px; height: 24px; border-radius: 8px; border: 1.5px solid var(--line-med); display: grid; place-items: center; flex-shrink: 0;
+  transition: background .15s, border-color .15s, transform .2s var(--rp-spring);
+}
+.rp-tick svg { width: 13px; height: 13px; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .25s var(--rp-spring); }
+.rp-opt[aria-selected="true"] .rp-tick { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.rp-opt[aria-selected="true"] .rp-tick svg { opacity: 1; transform: none; }
+.rp-opt:active:not(:disabled) .rp-tick { transform: scale(.88); }
+.rp-dot {
+  width: 30px; height: 30px; border-radius: 10px; flex-shrink: 0; border: 1.5px solid var(--ink); display: grid; place-items: center;
+  background: color-mix(in oklab, var(--rc) 30%, var(--card));
+}
+.rp-dot::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--rc); }
+.rp-lk { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.rp-lk svg { width: 11px; height: 11px; }
+.rp-pick-foot { display: flex; align-items: center; gap: 10px; padding: 12px 16px 14px 20px; border-top: 1.5px solid var(--line); }
+.rp-pick-sum { flex: 1; font-size: .8rem; color: var(--muted); min-width: 0; }
+.rp-pick-sum b { color: var(--ink); }
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+.rp-toast {
+  position: fixed; left: 50%; bottom: calc(24px + var(--mtb-space, 0px)); z-index: 60; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--ink); color: var(--paper);
+  font: 550 .84rem var(--font-geist-sans); transition: transform .35s var(--pp-ease-spring, ease), opacity .25s; max-width: calc(100vw - 32px);
+}
+.rp-toast.show { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+.rp-toast > svg { width: 15px; height: 15px; color: var(--pp-mint); }
+.rp-toast .m { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-toast button { border: 0; border-radius: 999px; padding: 5px 12px; background: color-mix(in oklab, var(--paper) 16%, transparent); color: var(--paper); font: 600 .78rem var(--font-geist-sans); cursor: pointer; }
+.rp-toast button:hover { background: color-mix(in oklab, var(--paper) 28%, transparent); }
+
+/* Narrow: views + New role share the first row, search takes the second. */
+@container (max-width: 560px) {
+  .rp-bar .rp-search { max-width: none; flex-basis: 100%; order: 3; }
+  .rp-views button { padding: 7px 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp *, .rp-pick *, .rp-toast { animation: none !important; transition: none !important; }
+}

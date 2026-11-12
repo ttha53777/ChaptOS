@@ -614,38 +614,3 @@ header.dash-toolbar .set-crumb svg { color: var(--tb-faint, var(--faint)); }
 @media (prefers-reduced-motion: reduce) {
   .dash.dash-settings * { transition: none !important; animation: none !important; }
 }
-
-/* ── Roles — role list; each row opens the role sheet (sections/roles/) ─────────── */
-.dash .set-section .rl-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.dash .set-section .rl-bar .sc-note { max-width: 58ch; }
-.dash .set-section .rl-list { overflow: clip; }
-.dash .set-section .rl-item { border-bottom: 1px solid var(--line-soft); }
-.dash .set-section .rl-item:last-child { border-bottom: none; }
-.dash .set-section .rl-head {
-  position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
-  padding: 13px 16px; text-align: left; background: none; border: 0; cursor: pointer;
-  transition: background .12s;
-}
-.dash .set-section .rl-head:hover { background: var(--card-2); }
-.dash .set-section .rl-head:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(var(--vio-rgb),.45); }
-.dash .set-section .rl-head-main { flex: 1; min-width: 0; display: block; }
-.dash .set-section .rl-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.dash .set-section .rl-sub { font-size: 11.5px; color: var(--faint); margin-top: 2px; line-height: 1.4; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash .set-section .rl-meta {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0;
-  font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.dash .set-section .rl-meta-rank { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
-.dash .set-section .rl-chev { width: 14px; height: 14px; flex-shrink: 0; color: var(--faint); transition: transform .15s; }
-.dash .set-section .rl-locked {
-  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
-  font-family: var(--mono); font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint);
-}
-.dash .set-section .rl-locked svg { width: 11px; height: 11px; }
-
-
-@media (max-width: 560px) {
-  .dash .set-section .rl-bar { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
-  .dash .set-section .rl-bar .sc-btn { align-self: flex-start; }
-  .dash .set-section .rl-meta-rank { display: none; }
-}

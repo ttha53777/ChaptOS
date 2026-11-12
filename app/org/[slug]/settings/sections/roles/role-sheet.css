@@ -324,19 +324,3 @@
 @media (prefers-reduced-motion: reduce) {
   .rs *, .rs *::before, .rs *::after { animation: none !important; transition: none !important; }
 }
-
-/* ── Roles list (Settings → Roles), rows now open the sheet ───────────────── */
-.dash .set-section .rl-head { align-items: center; }
-.dash .set-section .rl-title { flex-wrap: wrap; row-gap: 4px; }
-.dash .set-section .rl-sub { margin-top: 5px; }
-.dash .set-section .rl-chev { width: 15px; height: 15px; transition: transform .2s var(--pp-ease-spring); }
-.dash .set-section .rl-head:hover .rl-chev { transform: translateX(2px); color: var(--ink); }
-.dash .set-section .rl-locked { display: inline-flex; align-items: center; gap: 4px; }
-.dash .set-section .rl-locked svg { width: 11px; height: 11px; }
-.rl-new {
-  display: inline-block; padding: 2px 6px; border-radius: 6px; transform: rotate(-3deg);
-  font: 700 .6rem var(--font-geist-sans); letter-spacing: .08em; text-transform: uppercase;
-  background: var(--pp-butter); color: var(--pp-note-ink); border: 1.5px solid var(--pp-note-ink);
-}
-.dash .set-section .rl-item.rl-fresh { animation: rl-fresh 2.6s ease-out both; }
-@keyframes rl-fresh { 0%, 45% { background: var(--pp-butter-soft); } 100% { background: transparent; } }

@@ -86,8 +86,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     id: "roles", label: "Roles", group: "Membership", tint: "",
-    blurb: "Permission roles and per-brother assignments.",
-    lede: "Define what each role can do, then assign roles to brothers to control access across the app.",
+    blurb: "Roles, what they can do, and who holds them.",
+    lede: "A role is a job with its own access. Give it to one person or several, and anyone can hold more than one. Changes save as you tap.",
     icon: "M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6l8-4z",
   },
   {
