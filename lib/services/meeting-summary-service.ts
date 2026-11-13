@@ -69,6 +69,28 @@ export async function summarizeMeeting(ctx: RequestContext, id: number) {
 }
 
 /**
+ * What any member may read of a meeting's minutes: the saved summary and its
+ * action items. Never the minutes body, the agenda seed or the collaborative
+ * doc, which stay behind MANAGE_EVENTS (GET /api/calendar/[id]/notes).
+ */
+export async function getMeetingSummary(ctx: RequestContext, id: number) {
+  const row = await ctx.db.calendarEvent.findUnique({
+    where: { id },
+    select: { id: true, title: true, date: true, notesSummaryData: true, notesSummaryAt: true },
+  });
+  if (!row) throw new NotFoundError("Meeting");
+  const summary = parseMeetingSummary(row.notesSummaryData);
+  return {
+    eventId: row.id,
+    title: row.title,
+    date: row.date,
+    summary,
+    summarizedAt: summary ? row.notesSummaryAt?.toISOString() ?? null : null,
+    canTickAll: can(ctx, "MANAGE_EVENTS"),
+  };
+}
+
+/**
  * Tick an action item on or off. Officers who manage events can tick any item;
  * a member can tick the ones the summary resolved to them. Read-modify-write
  * under a row lock, so two people ticking different items can't drop one.

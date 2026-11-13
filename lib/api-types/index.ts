@@ -41,6 +41,7 @@
  *   GET    /api/calendar                       CalendarEvent[]
  *   GET    /api/calendar/event-types           CalEventType[]
  *   PATCH  /api/calendar/[id]/details          (claim a "who's bringing what" item)
+ *   GET    /api/calendar/[id]/summary          MeetingSummary          (published summary + action items; never the minutes)
  *   PATCH  /api/calendar/[id]/action-items     MeetingSummaryBody      (body toggleActionItemInput; the item's owner, or MANAGE_EVENTS)
  *   GET    /api/calendar/subscription          CalendarSubscriptionView (send ?view=member)
  *   GET    /api/attendance/live                LiveCheckIn | null

@@ -143,6 +143,24 @@ export interface MeetingSummaryBody {
   actions: MeetingActionItem[];
 }
 
+/**
+ * GET /api/calendar/[id]/summary — what any member may read of a meeting's
+ * minutes: the saved summary and its action items. Never the minutes body.
+ *
+ * A member may tick an action item whose `brotherId` is theirs; with
+ * `canTickAll` (MANAGE_EVENTS) they may tick any.
+ */
+export interface MeetingSummary {
+  eventId: number;
+  title: string;
+  date: string;
+  /** null when nobody has summarized the minutes yet. */
+  summary: MeetingSummaryBody | null;
+  /** ISO, when the summary was made; null with no summary. */
+  summarizedAt: string | null;
+  canTickAll: boolean;
+}
+
 /** An upcoming entry exactly as the subscribed calendar will show it. */
 export interface CalendarFeedPreviewEntry {
   title: string;
