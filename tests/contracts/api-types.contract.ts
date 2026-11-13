@@ -23,7 +23,7 @@
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
-  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, MemberUpdated,
+  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, HomeResponse, MemberUpdated,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -52,6 +52,7 @@ import type { listDocs } from "@/lib/services/doc-service";
 import type { listFolders } from "@/lib/services/doc-folder-service";
 import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meeting-summary-service";
 import type { getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
+import type { getHome } from "@/lib/services/home-service";
 import type { updateBrother } from "@/lib/services/brother-service";
 import type { getDuesBoard, getMemberDuesBook, issueDuesCharge, previewDuesCharge, voidDuesWaiver, waiveDues } from "@/lib/services/dues-charge-service";
 
@@ -132,6 +133,7 @@ export const actionItemToggled: Widen<MeetingSummaryBody> = served<Served<typeof
 // ?view=member answers the base shape; the admin view only adds fields to it.
 export const calendarSubscription: Widen<CalendarSubscriptionView> = served<Served<typeof getCalendarSubscription>>();
 
+export const home: Widen<HomeResponse> = served<Served<typeof getHome>>();
 export const memberUpdated: Widen<MemberUpdated> = served<Served<typeof updateBrother>>();
 
 export const chatAttachments: Widen<ChatAttachmentInfo[]> = served<Served<typeof listAttachments>>();

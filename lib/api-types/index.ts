@@ -38,6 +38,7 @@
  *   GET    /api/brothers/[id]/profile          MemberProfile
  *   PATCH  /api/brothers/[id]                  MemberUpdated           (own row: body updateBrotherInput, the app sends { name })
  *   POST   /api/orgs/leave                     LeaveOrgResponse        (body leaveOrgInput; last admin → 409)
+ *   GET    /api/home                           HomeResponse            (?today=YYYY-MM-DD)
  *   GET    /api/calendar                       CalendarEvent[]
  *   GET    /api/calendar/event-types           CalEventType[]
  *   PATCH  /api/calendar/[id]/details          (claim a "who's bringing what" item)
@@ -97,3 +98,4 @@ export type * from "./mobile";
 export type * from "./fundraisers";
 export type * from "./service";
 export type * from "./docs";
+export type * from "./home";
