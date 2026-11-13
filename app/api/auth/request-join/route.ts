@@ -6,6 +6,7 @@ import { logError } from "@/lib/observability";
 import { deadReasonStatus } from "@/lib/auth/invite-lookup";
 import { submitJoinRequest } from "@/lib/auth/join-request-submit";
 import { submitJoinRequestInput } from "@/lib/validation/join-request";
+import type { RequestJoinResponse } from "@/lib/api-types";
 
 /**
  * Ask to join an org. Replaces POST /api/auth/redeem-invite.
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     switch (outcome.state) {
       case "pending":
       case "already_member":
-        return Response.json({ ok: true, state: outcome.state, orgSlug: outcome.orgSlug });
+        return Response.json({ ok: true, state: outcome.state, orgSlug: outcome.orgSlug } satisfies RequestJoinResponse);
 
       case "rejected":
         // 403, not 410: the LINK is fine, this person specifically was declined.

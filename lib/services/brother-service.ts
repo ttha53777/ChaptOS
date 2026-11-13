@@ -305,7 +305,8 @@ export async function updateBrother(
     duesOwed:     updated.duesOwed,
     gpa:          updated.gpa,
     serviceHours: updated.serviceHours,
-    customFields: updated.customFields,
+    // sanitizeCustomFields only ever stores this shape; the column is plain JSONB.
+    customFields: updated.customFields as Record<string, string | number | null> | null,
     archivedAt:   updated.archivedAt,
   };
 }

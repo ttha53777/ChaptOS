@@ -121,3 +121,53 @@ export interface MyExcuseItem {
   decidedAt:       string | null;
   rejectionNote:   string | null;
 }
+
+/** One follow-up from a meeting's summary. */
+export interface MeetingActionItem {
+  /** Stable within one summary; PATCH /api/calendar/[id]/action-items addresses items by it. */
+  id: string;
+  text: string;
+  /** The owner as the minutes wrote them ("Dev"), or null when nobody was named. */
+  owner: string | null;
+  /** The roster member that name resolved to, when it resolved to exactly one. */
+  brotherId: number | null;
+  /** YYYY-MM-DD, only when the minutes gave a date. */
+  due: string | null;
+  done: boolean;
+}
+
+/** The structured summary. PATCH /api/calendar/[id]/action-items answers this. */
+export interface MeetingSummaryBody {
+  gist: string;
+  decisions: string[];
+  actions: MeetingActionItem[];
+}
+
+/** An upcoming entry exactly as the subscribed calendar will show it. */
+export interface CalendarFeedPreviewEntry {
+  title: string;
+  location: string;
+  schedule: Schedule;
+  /** A dated task rather than an event. */
+  deadline: boolean;
+  timeUnconfirmed: boolean;
+}
+
+/**
+ * GET /api/calendar/subscription?view=member — the "Add to Calendar" sheet.
+ * Admins get extra audit fields without `view=member`; the app always sends it.
+ */
+export interface CalendarSubscriptionView {
+  enabled: boolean;
+  /** The feed is rolled out to this org at all. */
+  available: boolean;
+  /** The webcal-able .ics URL, only while the feed is on. Treat it as a secret. */
+  url: string | null;
+  orgName: string;
+  preview: CalendarFeedPreviewEntry[];
+  timeZone: string | null;
+  admin: boolean;
+  validated: boolean;
+  status: { state: "unknown" | "retrying" | "publishing" | "current"; updatedAt: string | null };
+  generation: number;
+}

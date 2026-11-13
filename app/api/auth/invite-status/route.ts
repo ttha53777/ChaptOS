@@ -4,6 +4,7 @@ import { resolveJoinViewer } from "@/lib/auth/join-viewer";
 import { rateLimit, clientIp, tooManyRequests } from "@/lib/rate-limit";
 import { logError } from "@/lib/observability";
 import { resolveInviteToken, deadReasonStatus, DEAD_REASON_MESSAGE } from "@/lib/auth/invite-lookup";
+import type { InviteStatusResponse } from "@/lib/api-types";
 
 export type { JoinState } from "@/lib/auth/join-state";
 const headers = { "Cache-Control": "private, no-store" };
@@ -25,9 +26,9 @@ export async function GET(req: NextRequest) {
     // Decisions and access survive dead links; a rejected request only blocks
     // its own link. A replacement must still be valid before showing the form.
     if (!lookup.ok && (!viewer || viewer.state === "ready")) {
-      return Response.json({ valid: false, reason: lookup.reason, message: DEAD_REASON_MESSAGE[lookup.reason], org, account: session?.account ?? null }, { status: deadReasonStatus(lookup.reason), headers });
+      return Response.json({ valid: false, reason: lookup.reason, message: DEAD_REASON_MESSAGE[lookup.reason], org, account: session?.account ?? null } satisfies InviteStatusResponse, { status: deadReasonStatus(lookup.reason), headers });
     }
-    return Response.json({ valid: true, state: viewer?.state ?? "guest", submittedName: viewer?.submittedName ?? null, org, account: session?.account ?? null }, { headers });
+    return Response.json({ valid: true, state: viewer?.state ?? "guest", submittedName: viewer?.submittedName ?? null, org, account: session?.account ?? null } satisfies InviteStatusResponse, { headers });
   } catch (e) {
     logError(e, { route: "/api/auth/invite-status", method: "GET" });
     return Response.json({ error: "Couldn't check this invite." }, { status: 500, headers });

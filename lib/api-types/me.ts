@@ -160,3 +160,80 @@ export interface AccountDeletionPreview {
   isPlatformAdmin: boolean;
   orgs: AccountDeletionOrg[];
 }
+
+/**
+ * POST /api/auth/terms (body: acceptTermsInput) answers the fresh TermsStatus,
+ * so the wall can close without refetching /api/auth/me.
+ */
+export type AcceptTermsResponse = TermsStatus;
+
+/**
+ * PATCH /api/brothers/[id] — the caller's own roster row in this org (or anyone's,
+ * with MANAGE_BROTHERS). Body: updateBrotherInput. The app edits `name` only.
+ */
+export interface MemberUpdated {
+  id: number;
+  /** This org's display name for them. */
+  name: string;
+  role: string;
+  attendance: number;
+  duesOwed: number;
+  gpa: number;
+  serviceHours: number;
+  customFields: Record<string, string | number | null> | null;
+  archivedAt: string | null;
+}
+
+/** POST /api/orgs/leave (body: { confirmSlug }) — the caller left the active org. The last org admin gets 409. */
+export interface LeaveOrgResponse {
+  ok: true;
+  organizationId: number;
+  slug: string;
+}
+
+/** Where a signed-in person stands with one org's invite link. */
+export type JoinState = "guest" | "ready" | "pending" | "rejected" | "already_member";
+
+/** Why an invite link can't be used. */
+export type InviteDeadReason = "expired" | "revoked" | "exhausted" | "reserved" | "not_found";
+
+/** The account behind the session, before any roster row exists. */
+export interface JoinAccount {
+  email: string | null;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
+export interface InviteOrg {
+  name: string;
+  slug: string;
+  logoUrl: string | null;
+}
+
+/**
+ * GET /api/auth/invite-status?token= — the pre-flight for a pasted invite link.
+ * Public; with a session it also says where this account stands. A dead link
+ * answers 404 (not_found) or 410 with the `valid: false` body.
+ */
+export type InviteStatusResponse =
+  | { valid: true; state: JoinState; submittedName: string | null; org: InviteOrg | null; account: JoinAccount | null }
+  | { valid: false; reason: InviteDeadReason; message: string; org: InviteOrg | null; account: JoinAccount | null };
+
+/**
+ * POST /api/auth/request-join (body: submitJoinRequestInput). 200 means filed (or
+ * already a member). Refusals use the error body plus `state` ("rejected" 403,
+ * "full" 410) or `reason` (a dead link, 404/410).
+ */
+export interface RequestJoinResponse {
+  ok: true;
+  state: "pending" | "already_member";
+  orgSlug: string;
+}
+
+/** GET /api/auth/join-status?slug= — the caller's own request to one org. 404 when there's none. */
+export interface JoinStatusResponse {
+  state: "pending" | "rejected" | "already_member";
+  submittedName: string | null;
+  orgSlug: string;
+  account: JoinAccount;
+}

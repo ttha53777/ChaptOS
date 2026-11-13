@@ -7,8 +7,9 @@ export async function ownJoinStatus(authUserId: string, slug: string, client: Pi
   const org = await client.organization.findUnique({ where: { slug }, select: { id: true } });
   if (!org) return null;
   const viewer = await resolveJoinViewer(org.id, authUserId, undefined, client);
-  if (viewer.state === "ready") return null;
-  return { ...viewer, orgSlug: slug };
+  // "guest" can't happen (the caller is signed in); the check only narrows the type.
+  if (viewer.state === "ready" || viewer.state === "guest") return null;
+  return { ...viewer, state: viewer.state, orgSlug: slug };
 }
 
 /** Account notices are read from the durable request, not a duplicate inbox. */

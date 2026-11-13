@@ -1,4 +1,4 @@
-import { UNCLEAR_TIME, scheduleDate, scheduleTime, timeIsClear } from "@/lib/calendar-feed/schedule";
+import { UNCLEAR_TIME, scheduleDate, scheduleTime, timeIsClear, type Schedule } from "@/lib/calendar-feed/schedule";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { Prisma, type CalendarEvent } from "@/app/generated/prisma/client";
 import { guardLegacyNotes, withoutNotesDoc } from "@/lib/collaboration/notes-compat";
@@ -19,7 +19,8 @@ export async function listServiceEvents(ctx: RequestContext) {
   const byId = new Map(calendar.map(row => [row.id, row]));
   return events.map(event => {
     const linked = byId.get(event.calendarEventId ?? -1);
-    return { ...event, schedule: linked?.schedule ?? null, time: linked?.time ?? null };
+    // A Json column to Prisma; every write goes through scheduleSchema, so it is one.
+    return { ...event, schedule: (linked?.schedule ?? null) as Schedule | null, time: linked?.time ?? null };
   });
 }
 

@@ -6,12 +6,15 @@ import { leaveOrgInput } from "@/lib/validation/org";
 import { leaveOrg } from "@/lib/services/membership-service";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
+import type { LeaveOrgResponse } from "@/lib/api-types";
 
 // POST /api/orgs/leave — the caller leaves the active org (drops their own
 // membership + role grants). Any member may do this; the last org admin is
 // refused by the service. The active org is resolved by buildContext() from the
 // x-org-slug header / active_org cookie, so there's no org id in the path to
 // drift. Same-origin CSRF guard on this destructive verb (cookies are SameSite=Lax).
+// The app calls it with Authorization: Bearer and x-org-slug: native fetch sends
+// no Origin, which isSameOrigin lets through, and the cookie clear is a no-op there.
 export async function POST(req: NextRequest) {
   if (!isSameOrigin(req)) {
     return Response.json({ error: "Cross-origin request rejected" }, { status: 403 });
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
     // next slug-less request doesn't resolve a dangling org id. The client
     // hard-navigates afterward; org resolution then falls back to a remaining
     // membership (or /welcome when none remain).
-    const res = NextResponse.json({ ok: true, organizationId: result.organizationId, slug: result.slug });
+    const res = NextResponse.json({ ok: true, organizationId: result.organizationId, slug: result.slug } satisfies LeaveOrgResponse);
     res.cookies.set(ACTIVE_ORG_COOKIE, "", { path: "/", httpOnly: true, sameSite: "lax", maxAge: 0 });
     return res;
   } catch (e) {

@@ -5,6 +5,7 @@ import { ownJoinStatusInput } from "@/lib/validation/join-request";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { toResponse } from "@/lib/errors";
 import { logError, logTiming } from "@/lib/observability";
+import type { JoinStatusResponse } from "@/lib/api-types";
 
 /** Bootstrap read: the applicant has an account but no member ctx yet. */
 export async function GET(req: NextRequest) {
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     const { slug } = ownJoinStatusInput.parse({ slug: req.nextUrl.searchParams.get("slug") });
     const status = await ownJoinStatus(session.authUserId, slug);
     if (!status) return Response.json({ error: "No request found for this account." }, { status: 404, headers });
-    return Response.json({ ...status, account: session.account }, { headers });
+    return Response.json({ ...status, account: session.account } satisfies JoinStatusResponse, { headers });
   } catch (e) {
     logError(e, { route: "/api/auth/join-status", method: "GET" });
     return toResponse(e);

@@ -6,7 +6,7 @@ import { recordTermsAcceptance, termsStatus } from "@/lib/auth/terms-acceptance"
 import { TermsAcceptanceContext } from "@/lib/state";
 import { toResponse } from "@/lib/errors";
 import { logError } from "@/lib/observability";
-import type { TermsStatus } from "@/lib/api-types";
+import type { AcceptTermsResponse } from "@/lib/api-types";
 
 /**
  * POST /api/auth/terms — "I agree" on the in-app Terms of Service prompt.
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   try {
     const { version } = acceptTermsInput.parse(await req.json().catch(() => ({})));
     await recordTermsAcceptance({ authUserId: user.authUserId, version, context: TermsAcceptanceContext.Prompt });
-    return Response.json(termsStatus(version) satisfies TermsStatus);
+    return Response.json(termsStatus(version) satisfies AcceptTermsResponse);
   } catch (e) {
     logError(e, { route: "/api/auth/terms", method: "POST", userId: user.id });
     return toResponse(e);

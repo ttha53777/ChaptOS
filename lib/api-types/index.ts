@@ -27,14 +27,22 @@
  *
  *   GET    /api/mobile/config                  MobileConfig            (public)
  *   GET    /api/auth/me                        MeResponse
+ *   POST   /api/auth/terms                     AcceptTermsResponse     (body acceptTermsInput)
+ *   GET    /api/auth/invite-status             InviteStatusResponse    (?token=; public, session optional; dead link 404/410)
+ *   POST   /api/auth/request-join              RequestJoinResponse     (no roster row needed; body submitJoinRequestInput)
+ *   GET    /api/auth/join-status               JoinStatusResponse      (?slug=; no roster row needed; 404 = no request)
  *   GET    /api/auth/join-requests             OwnJoinRequest[]        (no roster row needed)
  *   GET    /api/auth/account                   AccountDeletionPreview  (no roster row needed)
  *   DELETE /api/auth/account                   { ok: true }            (body { confirm: "DELETE" }; 409 → details: AccountDeletionPreview)
  *   GET    /api/brothers                       Brother[]
  *   GET    /api/brothers/[id]/profile          MemberProfile
+ *   PATCH  /api/brothers/[id]                  MemberUpdated           (own row: body updateBrotherInput, the app sends { name })
+ *   POST   /api/orgs/leave                     LeaveOrgResponse        (body leaveOrgInput; last admin → 409)
  *   GET    /api/calendar                       CalendarEvent[]
  *   GET    /api/calendar/event-types           CalEventType[]
  *   PATCH  /api/calendar/[id]/details          (claim a "who's bringing what" item)
+ *   PATCH  /api/calendar/[id]/action-items     MeetingSummaryBody      (body toggleActionItemInput; the item's owner, or MANAGE_EVENTS)
+ *   GET    /api/calendar/subscription          CalendarSubscriptionView (send ?view=member)
  *   GET    /api/attendance/live                LiveCheckIn | null
  *   POST   /api/attendance/[eventId]/check-in  LiveCheckIn | null      (DELETE undoes)
  *   GET    /api/attendance/mine                MyAttendance
@@ -45,6 +53,14 @@
  *   PATCH  /api/tasks/[id]                     Task                    (an assignee may tick it)
  *   GET    /api/polls                          Poll[]
  *   POST   /api/polls/[id]/vote                Poll
+ *   GET    /api/service-events                 ServiceEvent[]
+ *   GET    /api/service-participation          ServiceParticipationRow[] (whole org; filter brotherId for "my hours")
+ *   GET    /api/service-events/[id]/participation ServiceParticipationRow[]
+ *   POST   /api/service-events/[id]/participation/me ServiceParticipationRow[] (body logMyParticipationInput)
+ *   GET    /api/fundraisers                    Fundraiser[]            (read-only for members)
+ *   GET    /api/fundraisers/[id]               Fundraiser
+ *   GET    /api/docs                           Doc[]                   (read-only for members)
+ *   GET    /api/docs/folders                   DocFolder[]
  *   GET    /api/activity                       ActivityEntry[]
  *   GET    /api/announcement                   Announcement
  *   POST   /api/ai/chat                        SSE: ChatStreamEvents   (or ChatAvailability JSON when off)
@@ -78,3 +94,5 @@ export type * from "./chat";
 export type * from "./chat-attachments";
 export type * from "./mobile";
 export type * from "./fundraisers";
+export type * from "./service";
+export type * from "./docs";

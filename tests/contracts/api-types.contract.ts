@@ -16,12 +16,14 @@
  *               absent, primitive kind, nesting — is checked exactly.
  *
  * Routes that build their body inline are checked where they're written, with
- * `satisfies` (/api/auth/me, /api/treasury), and the chat stream's send() is
- * typed against ChatStreamEvents.
+ * `satisfies` (/api/auth/me, /api/treasury, /api/auth/terms,
+ * /api/auth/invite-status, /api/auth/request-join, /api/auth/join-status,
+ * /api/orgs/leave), and the chat stream's send() is typed against ChatStreamEvents.
  */
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
+  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummaryBody, CalendarSubscriptionView, MemberUpdated,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -43,6 +45,14 @@ import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
 import type { listTransactions } from "@/lib/services/transaction-service";
 import type { listReimbursements } from "@/lib/services/reimbursement-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
+import type { listServiceEvents } from "@/lib/services/service-event-service";
+import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation } from "@/lib/services/service-participation-service";
+import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-service";
+import type { listDocs } from "@/lib/services/doc-service";
+import type { listFolders } from "@/lib/services/doc-folder-service";
+import type { setActionItemDone } from "@/lib/services/meeting-summary-service";
+import type { getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
+import type { updateBrother } from "@/lib/services/brother-service";
 import type { getDuesBoard, getMemberDuesBook, issueDuesCharge, previewDuesCharge, voidDuesWaiver, waiveDues } from "@/lib/services/dues-charge-service";
 
 type Fn = (...args: never[]) => unknown;
@@ -104,6 +114,23 @@ export const duesChargePreview: Widen<DuesChargePreview> = served<Served<typeof 
 export const duesChargeIssued: Widen<DuesChargeIssued> = served<Served<typeof issueDuesCharge>>();
 export const duesWaived: Widen<DuesWaived> = served<Served<typeof waiveDues>>();
 export const duesWaiverVoided: Widen<DuesWaived> = served<Served<typeof voidDuesWaiver>>();
+
+export const serviceEvents: Widen<ServiceEvent[]> = served<Served<typeof listServiceEvents>>();
+export const serviceParticipation: Widen<ServiceParticipationRow[]> = served<Served<typeof listParticipationForOrg>>();
+export const serviceEventParticipation: Widen<ServiceParticipationRow[]> = served<Served<typeof listParticipationForEvent>>();
+export const myServiceLogged: Widen<ServiceParticipationRow[]> = served<Served<typeof logMyParticipation>>();
+
+export const fundraisers: Widen<Fundraiser[]> = served<Served<typeof listFundraisers>>();
+export const fundraiser: Widen<Fundraiser> = served<Served<typeof getFundraiser>>();
+
+export const docs: Widen<Doc[]> = served<Served<typeof listDocs>>();
+export const docFolders: Widen<DocFolder[]> = served<Served<typeof listFolders>>();
+
+export const actionItemToggled: Widen<MeetingSummaryBody> = served<Served<typeof setActionItemDone>>();
+// ?view=member answers the base shape; the admin view only adds fields to it.
+export const calendarSubscription: Widen<CalendarSubscriptionView> = served<Served<typeof getCalendarSubscription>>();
+
+export const memberUpdated: Widen<MemberUpdated> = served<Served<typeof updateBrother>>();
 
 export const chatAttachments: Widen<ChatAttachmentInfo[]> = served<Served<typeof listAttachments>>();
 export const chatAttachmentUploaded: Widen<ChatAttachmentInfo> = served<Served<typeof uploadAttachment>>();
