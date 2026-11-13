@@ -46,7 +46,7 @@ import type { listTransactions } from "@/lib/services/transaction-service";
 import type { listReimbursements } from "@/lib/services/reimbursement-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents } from "@/lib/services/service-event-service";
-import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation } from "@/lib/services/service-participation-service";
+import type { listParticipationForOrg, listParticipationForEvent, logMyParticipation, removeMyParticipation } from "@/lib/services/service-participation-service";
 import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-service";
 import type { listDocs } from "@/lib/services/doc-service";
 import type { listFolders } from "@/lib/services/doc-folder-service";
@@ -119,6 +119,7 @@ export const serviceEvents: Widen<ServiceEvent[]> = served<Served<typeof listSer
 export const serviceParticipation: Widen<ServiceParticipationRow[]> = served<Served<typeof listParticipationForOrg>>();
 export const serviceEventParticipation: Widen<ServiceParticipationRow[]> = served<Served<typeof listParticipationForEvent>>();
 export const myServiceLogged: Widen<ServiceParticipationRow[]> = served<Served<typeof logMyParticipation>>();
+export const myServiceRemoved: Widen<ServiceParticipationRow[]> = served<Served<typeof removeMyParticipation>>();
 
 export const fundraisers: Widen<Fundraiser[]> = served<Served<typeof listFundraisers>>();
 export const fundraiser: Widen<Fundraiser> = served<Served<typeof getFundraiser>>();

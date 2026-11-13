@@ -57,7 +57,7 @@
  *   GET    /api/service-events                 ServiceEvent[]
  *   GET    /api/service-participation          ServiceParticipationRow[] (whole org; filter brotherId for "my hours")
  *   GET    /api/service-events/[id]/participation ServiceParticipationRow[]
- *   POST   /api/service-events/[id]/participation/me ServiceParticipationRow[] (body logMyParticipationInput)
+ *   POST   /api/service-events/[id]/participation/me ServiceParticipationRow[] (body logMyParticipationInput; DELETE undoes)
  *   GET    /api/fundraisers                    Fundraiser[]            (read-only for members)
  *   GET    /api/fundraisers/[id]               Fundraiser
  *   GET    /api/docs                           Doc[]                   (read-only for members)

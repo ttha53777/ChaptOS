@@ -119,6 +119,22 @@ export async function logMyParticipation(ctx: RequestContext, serviceEventId: nu
   });
 }
 
+/**
+ * Self-service undo: the acting member removes their own hours from one event,
+ * e.g. after logging the wrong one. Keyed by the event and ctx.actorId, never a
+ * row id from the body, so a member can only ever remove their own row. Answers
+ * the event's roster after the change, like logMyParticipation.
+ */
+export async function removeMyParticipation(ctx: RequestContext, serviceEventId: number) {
+  const row = await ctx.db.serviceParticipation.findFirst({
+    where: { serviceEventId, brotherId: ctx.actorId },
+    select: { id: true },
+  });
+  if (!row) throw new NotFoundError("Service participation");
+  await removeParticipation(ctx, row.id);
+  return listParticipationForEvent(ctx, serviceEventId);
+}
+
 /** Update one participation row's hours in place. */
 export async function updateParticipation(ctx: RequestContext, id: number, input: UpdateParticipationInput) {
   const existing = await ctx.db.serviceParticipation.findUnique({ where: { id } });
