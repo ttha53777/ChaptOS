@@ -16,7 +16,7 @@
  *               absent, primitive kind, nesting — is checked exactly.
  *
  * Routes that build their body inline are checked where they're written, with
- * `satisfies` (/api/auth/me, /api/treasury, /api/auth/terms,
+ * `satisfies` (/api/auth/me, /api/treasury, /api/auth/avatar, /api/auth/terms,
  * /api/auth/invite-status, /api/auth/request-join, /api/auth/join-status,
  * /api/orgs/leave), and the chat stream's send() is typed against ChatStreamEvents.
  */

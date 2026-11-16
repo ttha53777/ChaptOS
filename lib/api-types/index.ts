@@ -28,6 +28,7 @@
  *   GET    /api/mobile/config                  MobileConfig            (public)
  *   GET    /api/auth/me                        MeResponse
  *   POST   /api/auth/terms                     AcceptTermsResponse     (body acceptTermsInput)
+ *   POST   /api/auth/avatar                    AvatarResponse          (multipart `file`; DELETE → AvatarResponse)
  *   GET    /api/auth/invite-status             InviteStatusResponse    (?token=; public, session optional; dead link 404/410)
  *   POST   /api/auth/request-join              RequestJoinResponse     (no roster row needed; body submitJoinRequestInput)
  *   GET    /api/auth/join-status               JoinStatusResponse      (?slug=; no roster row needed; 404 = no request)

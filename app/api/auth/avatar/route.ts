@@ -1,7 +1,8 @@
 import { syncBrotherAvatar } from "@/lib/brother-avatar";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { liveSession } from "@/lib/auth/live-session";
 import { logError } from "@/lib/observability";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import type { AvatarResponse } from "@/lib/api-types";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const BUCKET = "avatars";
@@ -13,10 +14,11 @@ function extForType(type: string): string {
   return "jpg";
 }
 
+// Cookie (browser) or Authorization: Bearer (the app); see lib/auth/live-session.ts.
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await liveSession();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, storage } = session;
 
   // Throttle uploads per user — guards the Supabase storage bucket against
   // runaway/abusive loops. CSRF is covered centrally by the proxy (/api/*).
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
   const path = `${user.id}/avatar.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await storage
     .from(BUCKET)
     .upload(path, buffer, { contentType: file.type, upsert: true });
 
@@ -57,12 +59,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  const { data: urlData } = storage.from(BUCKET).getPublicUrl(path);
   const avatarUrl = `${urlData.publicUrl}?v=${Date.now()}`;
 
-  const { error: updateError } = await supabase.auth.updateUser({
-    data: { avatar_url: avatarUrl, custom_avatar: true },
-  });
+  const { error: updateError } = await session.updateMetadata({ avatar_url: avatarUrl, custom_avatar: true });
 
   if (updateError) {
     logError(updateError, { route: "/api/auth/avatar updateUser", method: "POST", userId: user?.id });
@@ -71,18 +71,18 @@ export async function POST(request: Request) {
 
   await syncBrotherAvatar(user.id, avatarUrl);
 
-  return Response.json({ avatarUrl });
+  return Response.json({ avatarUrl } satisfies AvatarResponse);
 }
 
 export async function DELETE() {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await liveSession();
+  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, storage } = session;
 
-  const { data: files } = await supabase.storage.from(BUCKET).list(user.id);
+  const { data: files } = await storage.from(BUCKET).list(user.id);
   if (files?.length) {
     const paths = files.map(f => `${user.id}/${f.name}`);
-    const { error: removeError } = await supabase.storage.from(BUCKET).remove(paths);
+    const { error: removeError } = await storage.from(BUCKET).remove(paths);
     if (removeError) {
       logError(removeError, { route: "/api/auth/avatar remove", method: "DELETE", userId: user?.id });
     }
@@ -93,12 +93,7 @@ export async function DELETE() {
     (typeof meta.picture === "string" ? meta.picture : null) ??
     (typeof meta.avatar_url === "string" && !meta.custom_avatar ? meta.avatar_url : null);
 
-  const { error: updateError } = await supabase.auth.updateUser({
-    data: {
-      avatar_url: fallback,
-      custom_avatar: false,
-    },
-  });
+  const { error: updateError } = await session.updateMetadata({ avatar_url: fallback, custom_avatar: false });
 
   if (updateError) {
     logError(updateError, { route: "/api/auth/avatar updateUser", method: "DELETE", userId: user?.id });
@@ -107,5 +102,5 @@ export async function DELETE() {
 
   await syncBrotherAvatar(user.id, fallback);
 
-  return Response.json({ avatarUrl: fallback });
+  return Response.json({ avatarUrl: fallback } satisfies AvatarResponse);
 }

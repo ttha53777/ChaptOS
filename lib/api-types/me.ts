@@ -167,6 +167,11 @@ export interface AccountDeletionPreview {
  */
 export type AcceptTermsResponse = TermsStatus;
 
+/** POST|DELETE /api/auth/avatar (POST: multipart `file`, image, ≤ 2 MB). DELETE falls back to the Google picture, or null. */
+export interface AvatarResponse {
+  avatarUrl: string | null;
+}
+
 /**
  * PATCH /api/brothers/[id] — the caller's own roster row in this org (or anyone's,
  * with MANAGE_BROTHERS). Body: updateBrotherInput. The app edits `name` only.
