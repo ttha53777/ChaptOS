@@ -4,7 +4,7 @@ import { compareAppVersions, isBelowMinimum, parseAppVersion } from "@/lib/app-v
 import { mobileConfig, outdatedAppResponse } from "@/lib/mobile-config";
 import { proxy } from "@/proxy";
 
-const ENV = ["MOBILE_MIN_VERSION", "MOBILE_LATEST_VERSION"] as const;
+const ENV = ["MOBILE_MIN_VERSION", "MOBILE_LATEST_VERSION", "MOBILE_IOS_STORE_URL", "MOBILE_ANDROID_STORE_URL"] as const;
 let saved: Record<string, string | undefined>;
 beforeEach(() => { saved = Object.fromEntries(ENV.map(k => [k, process.env[k]])); ENV.forEach(k => delete process.env[k]); });
 afterEach(() => { ENV.forEach(k => saved[k] === undefined ? delete process.env[k] : (process.env[k] = saved[k])); vi.restoreAllMocks(); });
@@ -40,13 +40,21 @@ describe("parseAppVersion / compareAppVersions", () => {
 
 describe("mobileConfig", () => {
   it("reports nulls when unset", () => {
-    expect(mobileConfig()).toEqual({ minVersion: null, latestVersion: null });
+    expect(mobileConfig()).toMatchObject({ minVersion: null, latestVersion: null, iosStoreUrl: null, androidStoreUrl: null });
+    expect(mobileConfig().termsVersion).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+  it("reports https store links and drops anything else", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.MOBILE_IOS_STORE_URL = "https://apps.apple.com/app/id123";
+    process.env.MOBILE_ANDROID_STORE_URL = "javascript:alert(1)";
+    expect(mobileConfig()).toMatchObject({ iosStoreUrl: "https://apps.apple.com/app/id123", androidStoreUrl: null });
+    expect(err).toHaveBeenCalledTimes(1);
   });
   it("reports set versions, and drops (loudly, once) one that doesn't parse", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     process.env.MOBILE_MIN_VERSION = "1.2.0";
     process.env.MOBILE_LATEST_VERSION = "one point three";
-    expect(mobileConfig()).toEqual({ minVersion: "1.2.0", latestVersion: null });
+    expect(mobileConfig()).toMatchObject({ minVersion: "1.2.0", latestVersion: null });
     mobileConfig();
     expect(err).toHaveBeenCalledTimes(1);
   });

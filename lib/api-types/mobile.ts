@@ -9,6 +9,15 @@ export interface MobileConfig {
   minVersion: string | null;
   /** The newest store build, for a soft "update available" nudge. Null = unknown. */
   latestVersion: string | null;
+  /** Where the blocking "Update ChaptOS" screen sends people. Null until the listing exists. */
+  iosStoreUrl: string | null;
+  androidStoreUrl: string | null;
+  /**
+   * The current Terms of Service version (YYYY-MM-DD). The join screen sends it
+   * as `termsVersion` before the person has a roster row (and so no
+   * /api/auth/me TermsStatus to read it from).
+   */
+  termsVersion: string;
 }
 
 /** Body of the 426 any /api route answers a build below MobileConfig.minVersion. */

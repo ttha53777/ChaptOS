@@ -23,7 +23,8 @@
 import type {
   ActivityEntry, Brother, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
-  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, HomeResponse, MemberUpdated,
+  ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView,
+  HomeResponse, MemberUpdated, MobileConfig,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -54,6 +55,7 @@ import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meetin
 import type { getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
 import type { getHome } from "@/lib/services/home-service";
 import type { updateBrother } from "@/lib/services/brother-service";
+import type { mobileConfig } from "@/lib/mobile-config";
 import type { getDuesBoard, getMemberDuesBook, issueDuesCharge, previewDuesCharge, voidDuesWaiver, waiveDues } from "@/lib/services/dues-charge-service";
 
 type Fn = (...args: never[]) => unknown;
@@ -135,6 +137,7 @@ export const calendarSubscription: Widen<CalendarSubscriptionView> = served<Serv
 
 export const home: Widen<HomeResponse> = served<Served<typeof getHome>>();
 export const memberUpdated: Widen<MemberUpdated> = served<Served<typeof updateBrother>>();
+export const mobileConfigBody: MobileConfig = served<ReturnType<typeof mobileConfig>>();
 
 export const chatAttachments: Widen<ChatAttachmentInfo[]> = served<Served<typeof listAttachments>>();
 export const chatAttachmentUploaded: Widen<ChatAttachmentInfo> = served<Served<typeof uploadAttachment>>();

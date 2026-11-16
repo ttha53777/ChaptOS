@@ -1,5 +1,6 @@
 import { APP_UPDATE_REQUIRED, APP_VERSION_HEADER, isBelowMinimum, parseAppVersion } from "@/lib/app-version";
 import type { AppUpdateRequired, MobileConfig } from "@/lib/api-types";
+import { TERMS_VERSION } from "@/lib/terms";
 
 /**
  * A version from the environment, or null when unset. A value that doesn't
@@ -22,9 +23,29 @@ function envVersion(name: "MOBILE_MIN_VERSION" | "MOBILE_LATEST_VERSION"): strin
   return raw;
 }
 
+/** A store listing URL from the environment, or null when unset or not https. */
+function envStoreUrl(name: "MOBILE_IOS_STORE_URL" | "MOBILE_ANDROID_STORE_URL"): string | null {
+  const raw = process.env[name]?.trim();
+  if (!raw) return null;
+  try {
+    if (new URL(raw).protocol === "https:") return raw;
+  } catch { /* fall through */ }
+  if (!warnedInvalid.has(`${name}=${raw}`)) {
+    warnedInvalid.add(`${name}=${raw}`);
+    console.error(`${name}=${JSON.stringify(raw)} is not an https URL; ignoring it`);
+  }
+  return null;
+}
+
 /** What GET /api/mobile/config reports. Read per call so an env change needs no code change. */
 export function mobileConfig(): MobileConfig {
-  return { minVersion: envVersion("MOBILE_MIN_VERSION"), latestVersion: envVersion("MOBILE_LATEST_VERSION") };
+  return {
+    minVersion: envVersion("MOBILE_MIN_VERSION"),
+    latestVersion: envVersion("MOBILE_LATEST_VERSION"),
+    iosStoreUrl: envStoreUrl("MOBILE_IOS_STORE_URL"),
+    androidStoreUrl: envStoreUrl("MOBILE_ANDROID_STORE_URL"),
+    termsVersion: TERMS_VERSION,
+  };
 }
 
 /**
