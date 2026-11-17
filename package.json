@@ -25,7 +25,8 @@
     "events:flush-admissions": "tsx scripts/flush-admission-events.ts",
     "test:notes:browser": "tsx scripts/test-collaborative-notes.ts",
     "calendar:feeds": "tsx scripts/calendar-feeds.ts",
-    "test:calendar:browser": "tsx scripts/test-calendar-subscription-browser.ts"
+    "test:calendar:browser": "tsx scripts/test-calendar-subscription-browser.ts",
+    "smoke:mobile": "tsx scripts/mobile-bearer-smoke.ts"
   },
   "dependencies": {
     "@codemirror/commands": "6.11.0",
