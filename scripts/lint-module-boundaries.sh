@@ -7,6 +7,9 @@
 #   - lib/services/** may NOT import other services (cross-service traffic
 #     goes through events).
 #   - lib/services/** may NOT import from @/app/api.
+#   - lib/api-types/** stays type-only.
+#   - mobile/** may import only `import type` from lib/api-types and Zod
+#     schemas from lib/validation.
 #
 # Lines containing "lint-modules:ignore" are exempted.
 #
@@ -41,6 +44,16 @@ E=$( {
   grep -rnE '^export (default|const|let|var|function|async|class|enum|\{|\* )' lib/api-types/ 2>/dev/null
 } | grep -v 'lint-modules:ignore')
 if [[ -n "$E" ]]; then HITS="$HITS\n[API-TYPES RUNTIME] lib/api-types must stay type-only (import type / export type / interfaces):\n$E\n"; fi
+
+# 6. mobile/ is the native app. From the rest of the repo it may take only the
+#    wire types (`import type` from lib/api-types) and the request schemas
+#    (lib/validation, plain Zod). Anything else would bundle server code into
+#    the app or couple it to web internals. Relative paths that climb out of
+#    mobile/ count too. Multi-line imports are parsed whole: scripts/lint-mobile-imports.py.
+if [[ -d mobile ]]; then
+F=$(python3 scripts/lint-mobile-imports.py)
+if [[ -n "$F" ]]; then HITS="$HITS\n[MOBILE→REPO] mobile/ may take only 'import type' from lib/api-types and Zod schemas from lib/validation:\n$F\n"; fi
+fi
 
 if [[ -z "$HITS" ]]; then
   echo "lint-modules: OK — module boundaries respected"
