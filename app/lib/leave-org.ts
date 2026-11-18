@@ -1,5 +1,6 @@
 import { requestJson } from "./api";
 import { orgHref } from "@/lib/org-paths";
+import { skipNextSplash } from "@/lib/first-load-splash";
 
 /**
  * Leave the active org, then hard-navigate somewhere valid: another org the user
@@ -24,6 +25,7 @@ export async function leaveOrg({ orgSlug, memberships, activeOrgId }: {
       body: JSON.stringify({ confirmSlug: orgSlug }),
     });
     const remaining = memberships.find(m => m.organizationId !== activeOrgId);
+    skipNextSplash();   // a hop between orgs, not an arrival
     window.location.assign(remaining ? orgHref(remaining.orgSlug) : "/welcome");
     return new Promise<string>(() => {});
   } catch (e) {

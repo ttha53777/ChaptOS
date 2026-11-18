@@ -5,6 +5,7 @@ import { JoinRequestStatus } from "@/lib/state";
 import { AwaitingApproval } from "./AwaitingApproval";
 import { NeedsInvite } from "./NeedsInvite";
 import { ActiveOrgSync } from "./ActiveOrgSync";
+import { FirstLoadSplash } from "@/app/components/first-load-splash/FirstLoadSplash";
 
 /**
  * Is this Google account waiting on <slug> to let them in?
@@ -96,7 +97,7 @@ export default async function OrgLayout({
       // change every API depends on). Until then, cross-org admin viewing by URL
       // shows the admin's active-org data under a foreign slug — misleading, so
       // admins should use /admin/orgs for cross-org work. Tracked as a follow-up.
-      return <>{children}</>;
+      return <><FirstLoadSplash />{children}</>;
     }
     // Member of nothing → onboarding.
     if (user.memberships.length === 0) {
@@ -133,8 +134,11 @@ export default async function OrgLayout({
   // POST the correction without blocking or reloading. Common case (cookie already
   // matches) skips the POST entirely.
   const cookieStale = user.cookieOrgId !== membership.organizationId;
+  // The first load splash is an overlay, rendered first so it paints first. It
+  // never wraps or gates the page: children mount and fetch underneath at once.
   return (
     <>
+      <FirstLoadSplash />
       {cookieStale && <ActiveOrgSync organizationId={membership.organizationId} />}
       {children}
     </>

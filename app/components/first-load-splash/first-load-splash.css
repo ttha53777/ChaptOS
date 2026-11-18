@@ -1,0 +1,208 @@
+/* ── First load splash ────────────────────────────────────────────────────────
+   Built 1:1 from _design/First Load Splash Mock.html. Read that file's header
+   for the three beats; this is the same CSS, with the mock's tokens mapped onto
+   the app's paper palette (app/paper-aesthetic.css) and every class prefixed
+   fls- so nothing here can touch the app underneath.
+
+   Beat 1 (the draw) is pure CSS so it starts on the first paint, before any
+   JavaScript arrives. It only runs under html[data-fls="on"], which the inline
+   boot script stamps on a hard load (lib/first-load-splash.ts). Under "cached"
+   the same markup paints the finished mark instead. Beats 2 and 3 are WAAPI,
+   driven from ChapterContext by FirstLoadSplashDriver.tsx.
+
+   The mock's multi-keyframe WAAPI effects ease the whole effect (one timing
+   function across all keyframes). CSS can't express that, so fls-eye,
+   fls-squash and fls-blink are that effect sampled into linear stops, apex
+   included (see the generator note at the bottom).
+
+   Lives in its own file, not app/globals.css: the dev server can keep serving a
+   stale compile of globals.css. */
+
+/* Hidden unless the boot script ran, so a client navigation that renders this
+   markup from the RSC payload never shows it, not even for a frame. */
+.fls { display: none; }
+html[data-fls] .fls {
+  display: block; position: fixed; inset: 0; z-index: 2000;
+  container-type: size; overflow: hidden;
+  color: var(--ink); font-family: var(--fls-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* While the splash is up, the spots it lands on stay hidden so nothing doubles
+   up. The driver stamps data-fls-landed the frame the tile touches down. */
+html[data-fls]:not([data-fls-landed]) .sb .sb-org .sb-logo,
+html[data-fls]:not([data-fls-landed]) .sb .sb-org-txt,
+html[data-fls]:not([data-fls-landed]) .sb .sb-org-chev,
+html[data-fls]:not([data-fls-landed]) .tb-logo,
+html[data-fls]:not([data-fls-landed]) .tb-logo ~ .tb-stack { visibility: hidden; }
+
+/* ── Tokens: the mock's names, pointed at the app's palette ─────────────────── */
+.fls {
+  --fls-paper: var(--paper);
+  --fls-ink: var(--ink);
+  --fls-muted: var(--muted);
+  --fls-note-ink: var(--pp-note-ink);
+  --fls-butter: var(--pp-butter);
+  --fls-lilac: var(--pp-lilac);
+  --fls-peach: var(--pp-peach);
+  --fls-sky: var(--pp-sky);
+  --fls-mint: var(--pp-mint);
+  --fls-rose: var(--pp-rose);
+  --fls-peach-ink: var(--pp-peach-ink);
+  --fls-mint-ink: var(--pp-mint-ink);
+  --fls-lilac-ink: var(--pp-lilac-ink);
+  --fls-display: var(--font-fraunces);
+  --fls-ui: var(--font-geist-sans);
+  --fls-mono: var(--font-geist-mono);
+  --fls-spring: cubic-bezier(.16,.9,.3,1.02);
+  --fls-out: cubic-bezier(.22,1,.36,1);
+  --fls-inout: cubic-bezier(.65,0,.35,1);
+  /* not colours: how strongly the shapes, ink rings, grain and dots print */
+  --fls-shape-op: 1; --fls-ring-op: .5; --fls-grain-op: .13; --fls-dot-op: .09;
+}
+html[data-theme="dusk"] .fls { --fls-shape-op: .4; --fls-ring-op: .32; --fls-grain-op: .08; --fls-dot-op: .1; }
+
+/* ── The paper ──────────────────────────────────────────────────────────────── */
+.fls-splash { position: absolute; inset: 0; display: grid; place-items: center; background: var(--fls-paper); overflow: hidden; }
+.fls-dots { position: absolute; inset: 0; pointer-events: none; opacity: var(--fls-dot-op);
+  background-image: radial-gradient(circle, var(--fls-ink) .9px, transparent 1.2px); background-size: 22px 22px; background-position: center; }
+
+/* Cut-paper shapes in the six pastels, tucked at the edges, each printed like a
+   riso: the flat colour and a thin ink line that missed it by a hair.
+   Outer <i> = position, parallax (translate) and entrance/exit (transform);
+   inner <b> = the shape itself, drifting slowly on its own. */
+.fls-shapes { position: absolute; inset: 0; pointer-events: none; }
+.fls-shapes i { position: absolute; display: block; transform: rotate(var(--r,0deg)); translate: var(--px,0px) var(--py,0px); will-change: transform; }
+.fls-shapes b { position: absolute; inset: 0; border-radius: inherit; background: var(--c); opacity: var(--fls-shape-op);
+  animation: fls-drift var(--fd,11s) ease-in-out infinite alternate; animation-delay: var(--fdl,0s); }
+.fls-shapes i.fls-ring::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1.5px solid var(--fls-ink); opacity: var(--fls-ring-op);
+  transform: translate(var(--ox,.8cqmin), var(--oy,-.6cqmin)); animation: fls-drift var(--fd,11s) ease-in-out infinite alternate; animation-delay: calc(var(--fdl,0s) - .8s); }
+@keyframes fls-drift { from { translate: 0 0; } to { translate: var(--fx,0) var(--fy,-1.2cqmin); } }
+.fls-sh-peach  { --c: var(--fls-peach);  width: 34cqmin; height: 34cqmin; border-radius: 50%; left: -10cqmin; top: -13cqmin; --fx: .8cqmin; --fy: 1cqmin; --fd: 13s; }
+.fls-sh-sky    { --c: var(--fls-sky);    width: 12cqmin; height: 12cqmin; border-radius: 3cqmin; right: 10cqw; top: 11cqh; --r: 14deg; --fy: -1.4cqmin; --fd: 9s; --fdl: -3s; }
+.fls-sh-mint   { --c: var(--fls-mint);   width: 28cqmin; height: 14cqmin; border-radius: 14cqmin 14cqmin 0 0; left: 12cqw; bottom: -3px; --fy: 0; --fx: .6cqmin; --fd: 12s; --ox: 1.1cqmin; --oy: 0; }
+.fls-sh-lilac  { --c: var(--fls-lilac);  width: 26cqmin; height: 8.5cqmin; border-radius: 8.5cqmin; right: -6cqmin; bottom: 15cqh; --r: -18deg; --fy: -1cqmin; --fd: 10s; --fdl: -5s; }
+.fls-sh-rose   { --c: var(--fls-rose);   width: 4.4cqmin; height: 4.4cqmin; border-radius: 50%; right: 24cqw; bottom: 31cqh; --fy: -1.6cqmin; --fd: 7s; --fdl: -2s; }
+.fls-sh-butter { --c: var(--fls-butter); width: 3.2cqmin; height: 3.2cqmin; border-radius: .9cqmin; left: 22cqw; top: 25cqh; --r: 22deg; --fy: 1.2cqmin; --fd: 8s; --fdl: -4s; }
+.fls-sh-o      { --c: transparent;       width: 6.5cqmin; height: 6.5cqmin; border-radius: 50%; left: 30cqw; bottom: 20cqh; --fd: 10s; --fdl: -6s; }
+.fls-sh-mint::after { border-bottom: 0 !important; }
+.fls-sh-o b { border: 1.5px solid var(--fls-ink); opacity: var(--fls-ring-op); }
+
+/* paper grain over everything; above .13 multiply the cream turns grey */
+.fls-grain { position: absolute; inset: 0; pointer-events: none; opacity: var(--fls-grain-op); mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .15 0 0 0 0 .13 0 0 0 0 .1 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+html[data-theme="dusk"] .fls-grain { mix-blend-mode: screen; filter: invert(1); }
+
+/* ── The lockup ─────────────────────────────────────────────────────────────── */
+.fls-stage { position: relative; display: flex; flex-direction: column; align-items: center; gap: 30px; }
+.fls-lockup { --s: 1; display: flex; align-items: center; gap: calc(24px*var(--s)); }
+.fls-mark { width: calc(116px*var(--s)); height: calc(116px*var(--s)); flex: none; overflow: visible; }
+.fls-mark text { font-family: var(--fls-display); font-weight: 700; letter-spacing: -.02em; }
+.fls-tilt { transform-origin: 20px 20px; }
+.fls-squash { transform-origin: 20px 35.5px; }
+.fls-eyes { transform-origin: 20px 16px; }
+.fls-eye-l { transform-origin: 14.6px 16px; }
+.fls-eye-r { transform-origin: 25.4px 16px; }
+.fls-tile-shadow { fill: var(--fls-lilac); transform: translate(2.2px,2.2px); }
+.fls-org-init, .fls-org-img { transform-origin: 20px 20px; }
+
+/* ChaptOS and the org name share one cell so the lockup doesn't jump. The cap
+   keeps a long org name on screen (the mock never met one). */
+.fls-words { display: grid; align-items: center; min-width: calc(290px*var(--s));
+  max-width: calc(100cqw - 116px*var(--s) - 24px*var(--s) - 32px); }
+.fls-words > * { grid-area: 1/1; min-width: 0; }
+.fls-word { font-family: var(--fls-display); font-weight: 700; letter-spacing: -.035em; font-size: calc(64px*var(--s)); line-height: 1; display: flex; color: var(--fls-ink); white-space: nowrap; }
+.fls-word span { display: inline-block; }
+.fls-word .fls-os { position: relative; margin-left: .02em; padding: 0 .08em; isolation: isolate; }
+.fls-word .fls-os::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0; top: .14em; bottom: .04em;
+  background: var(--fls-butter); border-radius: .32em .44em .3em .5em; transform: rotate(-1.4deg); transform-origin: left center; }
+.fls-org { display: flex; flex-direction: column; gap: calc(8px*var(--s)); opacity: 0; }
+.fls-org-name { font-family: var(--fls-display); font-weight: 600; letter-spacing: -.03em; font-size: calc(56px*var(--s)); line-height: 1.02;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transform-origin: left top; }
+.fls-org-term { font-family: var(--fls-ui); font-size: calc(17px*var(--s)); letter-spacing: .04em; color: var(--fls-muted); transform-origin: left top; }
+.fls-org-term:empty::before { content: "\00a0"; }
+
+.fls-status { font-family: var(--fls-mono); font-size: 12.5px; letter-spacing: .02em; color: var(--fls-muted); height: 18px; display: flex; align-items: center; gap: 10px; }
+.fls-ticks { display: flex; gap: 4px; }
+.fls-ticks i { width: 2px; height: 12px; border-radius: 2px; transform-origin: bottom; transform: scaleY(.25); opacity: .35;
+  animation: fls-tick 1.1s var(--fls-spring) infinite; }
+.fls-ticks i:nth-child(1) { background: var(--fls-peach-ink); }
+.fls-ticks i:nth-child(2) { background: var(--fls-mint-ink); animation-delay: .12s; }
+.fls-ticks i:nth-child(3) { background: var(--fls-lilac-ink); animation-delay: .24s; }
+.fls.fls-quiet .fls-ticks i { animation: none; }
+@keyframes fls-tick { 0%,100% { transform: scaleY(.3); opacity: .35; } 35% { transform: scaleY(1); opacity: 1; } }
+.fls-msg { display: inline-block; transition: opacity .2s, transform .25s var(--fls-spring); }
+.fls-msg.fls-out { opacity: 0; transform: translateY(-5px); }
+
+/* ── Phone (under 768px wide) ───────────────────────────────────────────────── */
+@container (max-width: 767px) {
+  .fls-lockup { --s: .6; }
+  .fls-org-term { font-size: 12px; }
+  .fls-stage { gap: 24px; }
+}
+
+/* ── Beat 1: the draw. Only on a full first load (data-fls="on"). ───────────────
+   Times and easings are the mock's intro(), to the millisecond. The finished
+   state is each element's resting style above, which is what "cached" and
+   reduced motion paint. */
+html[data-fls="on"] .fls-outline { animation: fls-dash 720ms var(--fls-inout) 80ms backwards; }
+html[data-fls="on"] .fls-fill { animation: fls-fill 760ms var(--fls-out) 520ms both; }
+html[data-fls="on"] .fls-wave { animation: fls-wave 1400ms linear 520ms both; }
+html[data-fls="on"] .fls-tile-shadow { animation: fls-shadow 420ms var(--fls-spring) 1420ms both; }
+html[data-fls="on"] .fls-eye-l { animation: fls-eye 380ms linear 960ms both; }
+html[data-fls="on"] .fls-eye-r { animation: fls-eye 380ms linear 1050ms both; }
+/* fill "backwards" on the dashes: once drawn the pattern drops off, so the
+   closed outline shows no seam where the stroke meets itself */
+html[data-fls="on"] .fls-smile { animation: fls-dash 420ms var(--fls-out) 1140ms backwards; }
+html[data-fls="on"] .fls-squash { animation: fls-squash 520ms linear 1380ms; }
+html[data-fls="on"] .fls-eyes { animation: fls-blink 220ms linear 1560ms; }
+/* the mark draws dead-centre, then steps aside for the wordmark: half of the
+   gap plus the 290-wide word cell, which is all the cell holds before we know
+   the org */
+html[data-fls="on"] .fls-lockup { animation: fls-step 620ms var(--fls-spring) 1400ms both; }
+html[data-fls="on"] .fls-word span { animation: fls-letter 520ms var(--fls-spring) both; }
+html[data-fls="on"] .fls-word span:nth-child(1) { animation-delay: 1460ms; }
+html[data-fls="on"] .fls-word span:nth-child(2) { animation-delay: 1505ms; }
+html[data-fls="on"] .fls-word span:nth-child(3) { animation-delay: 1550ms; }
+html[data-fls="on"] .fls-word span:nth-child(4) { animation-delay: 1595ms; }
+html[data-fls="on"] .fls-word span:nth-child(5) { animation-delay: 1640ms; }
+html[data-fls="on"] .fls-word span:nth-child(6) { animation-delay: 1685ms; }
+/* the mock's highlighter is a 380ms ease-out-cubic rAF on scaleX */
+html[data-fls="on"] .fls-word .fls-os::before { animation: fls-hl 380ms cubic-bezier(.33,1,.68,1) 1800ms both; }
+/* the shapes settle onto the page as the face lands */
+html[data-fls="on"] .fls-shapes i { animation: fls-shape-in 700ms var(--fls-spring) both; }
+html[data-fls="on"] .fls-shapes i:nth-child(1) { animation-delay: 1300ms; }
+html[data-fls="on"] .fls-shapes i:nth-child(2) { animation-delay: 1370ms; }
+html[data-fls="on"] .fls-shapes i:nth-child(3) { animation-delay: 1440ms; }
+html[data-fls="on"] .fls-shapes i:nth-child(4) { animation-delay: 1510ms; }
+html[data-fls="on"] .fls-shapes i:nth-child(5) { animation-delay: 1580ms; }
+html[data-fls="on"] .fls-shapes i:nth-child(6) { animation-delay: 1650ms; }
+html[data-fls="on"] .fls-shapes i:nth-child(7) { animation-delay: 1720ms; }
+html[data-fls="on"] .fls-status { animation: fls-status 400ms var(--fls-out) 1700ms both; }
+html[data-fls="on"] .fls-ticks i:nth-child(1) { animation-delay: 1750ms; }
+html[data-fls="on"] .fls-ticks i:nth-child(2) { animation-delay: 1870ms; }
+html[data-fls="on"] .fls-ticks i:nth-child(3) { animation-delay: 1990ms; }
+
+@keyframes fls-dash { from { stroke-dasharray: 1 2; stroke-dashoffset: 1; } to { stroke-dasharray: 1 2; stroke-dashoffset: 0; } }
+@keyframes fls-fill { from { transform: translate(0px,34px); } to { transform: translate(0px,0px); } }
+@keyframes fls-wave { from { transform: translateX(0); } to { transform: translateX(20px); } }
+@keyframes fls-shadow { from { transform: translate(0,0); opacity: 0; } to { transform: translate(2.2px,2.2px); opacity: 1; } }
+@keyframes fls-step { from { transform: translateX(calc(157px*var(--s))); } to { transform: translateX(0); } }
+@keyframes fls-letter { from { transform: translateY(.5em); opacity: 0; filter: blur(4px); } to { transform: translateY(0); opacity: 1; filter: blur(0); } }
+@keyframes fls-hl { from { transform: rotate(-1.4deg) scaleX(0); } to { transform: rotate(-1.4deg) scaleX(1); } }
+@keyframes fls-shape-in { from { transform: rotate(var(--r,0deg)) scale(0) rotate(-40deg); } to { transform: rotate(var(--r,0deg)) scale(1) rotate(0deg); } }
+@keyframes fls-status { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* sampled from the mock's WAAPI effects (SPRING, ease-out, ease-in-out over the whole effect) */
+@keyframes fls-eye{0%{transform:scale(0)}5%{transform:scale(0.5773)}10%{transform:scale(1.0297)}14.76%{transform:scale(1.35)}15%{transform:scale(1.3446)}20%{transform:scale(1.2508)}25%{transform:scale(1.183)}30%{transform:scale(1.1335)}35%{transform:scale(1.0969)}40%{transform:scale(1.0696)}45%{transform:scale(1.0492)}50%{transform:scale(1.0339)}55%{transform:scale(1.0225)}60%{transform:scale(1.014)}65%{transform:scale(1.0079)}70%{transform:scale(1.0036)}75%{transform:scale(1.0008)}80%{transform:scale(0.9991)}85%{transform:scale(0.9984)}90%{transform:scale(0.9984)}95%{transform:scale(0.999)}100%{transform:scale(1)}}
+@keyframes fls-squash{0%{transform:scale(1,1)}6.25%{transform:scale(1.0204,0.9762)}12.5%{transform:scale(1.0397,0.9537)}18.75%{transform:scale(1.0581,0.9322)}19.41%{transform:scale(1.06,0.93)}25%{transform:scale(1.0399,0.9546)}31.25%{transform:scale(1.0185,0.9808)}37.5%{transform:scale(0.9981,1.0056)}43.75%{transform:scale(0.979,1.029)}46.84%{transform:scale(0.97,1.04)}50%{transform:scale(0.973,1.036)}56.25%{transform:scale(0.9785,1.0287)}62.5%{transform:scale(0.9835,1.0219)}68.75%{transform:scale(0.9881,1.0159)}75%{transform:scale(0.992,1.0107)}81.25%{transform:scale(0.9953,1.0063)}87.5%{transform:scale(0.9978,1.003)}93.75%{transform:scale(0.9994,1.0008)}100%{transform:scale(1,1)}}
+@keyframes fls-blink{0%{transform:scaleY(1)}8.33%{transform:scaleY(0.9734)}16.67%{transform:scaleY(0.8902)}25%{transform:scaleY(0.7474)}33.33%{transform:scaleY(0.5468)}41.67%{transform:scaleY(0.2983)}47.09%{transform:scaleY(0.12)}50%{transform:scaleY(0.2)}58.33%{transform:scaleY(0.4259)}66.67%{transform:scaleY(0.6292)}75%{transform:scaleY(0.7933)}83.33%{transform:scaleY(0.9102)}91.67%{transform:scaleY(0.9782)}100%{transform:scaleY(1)}}
+
+/* ── Reduced motion: no draw, no drift, no ticks. The driver shows the finished
+   org tile and leaves with a short crossfade. ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html[data-fls] .fls *, html[data-fls] .fls *::before, html[data-fls] .fls *::after { animation: none !important; }
+}
+
+/* Generator for the sampled keyframes: for t in 0..1 (plus the time each
+   interior keyframe offset is reached), value = piecewise-linear(keyframes,
+   easing(t)), with easing the mock's effect-level cubic-bezier. */

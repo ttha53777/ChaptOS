@@ -5,6 +5,7 @@ import { Modal } from "../../../../components/dashboard/primitives";
 import { useChapter } from "../../../../context/ChapterContext";
 import { requestJson } from "../../../../lib/api";
 import { orgHref } from "@/lib/org-paths";
+import { skipNextSplash } from "@/lib/first-load-splash";
 
 // Danger Zone — permanently delete the current organization. Rendered as the
 // rose card at the foot of Settings → Identity (styles in identity.css).
@@ -123,6 +124,7 @@ function DeleteOrgModal({
       // Land somewhere valid now that the active org is gone. Prefer another org
       // the user still belongs to; otherwise the onboarding entry point.
       const remaining = memberships.find(m => m.organizationId !== activeOrgId);
+      skipNextSplash();   // a hop between orgs, not an arrival
       window.location.assign(remaining ? orgHref(remaining.orgSlug) : "/welcome");
     } catch (e) {
       const message = e instanceof Error ? e.message : "";

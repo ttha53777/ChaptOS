@@ -6,6 +6,7 @@ import { useChapter } from "../context/ChapterContext";
 import { SvgIcon } from "./SvgIcon";
 import { PaperIcon } from "./paper/PaperIcon";
 import { orgHref } from "@/lib/org-paths";
+import { skipNextSplash } from "@/lib/first-load-splash";
 
 const ICON_CHECK = "M5 13l4 4L19 7";
 const ICON_PLUS = "M12 4v16m8-8H4";
@@ -91,7 +92,10 @@ export function OrgSwitcher({ termLabel }: { termLabel: string }) {
                   aria-current={active ? "true" : undefined}
                   onClick={() => {
                     setOpen(false);
-                    if (!active) window.location.assign(orgHref(m.orgSlug));
+                    if (!active) {
+                      skipNextSplash();   // switching orgs isn't a first load
+                      window.location.assign(orgHref(m.orgSlug));
+                    }
                   }}
                 >
                   <OrgLogo name={m.orgName} logoUrl={m.orgLogoUrl} small />
