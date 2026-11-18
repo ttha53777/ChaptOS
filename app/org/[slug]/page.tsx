@@ -34,6 +34,7 @@ import type { BuiltinMetricId } from "@/lib/onboarding/kinds";
 import { isAttendanceExempt } from "@/lib/thresholds";
 import { taskUrgency, type TaskUrgency } from "@/lib/tasks/urgency";
 import { Sidebar, SvgIcon, isNavVisible } from "../../components/Sidebar";
+import { OrgLogo } from "../../components/OrgSwitcher";
 import { BrotherAvatar } from "../../components/BrotherAvatar";
 import { useChapter } from "../../context/ChapterContext";
 import { useToast } from "../../components/dashboard/Toast";
@@ -2484,6 +2485,10 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
+          {/* The org's tile, so the toolbar carries the same mark as the
+              sidebar header (and the first load splash has somewhere to land
+              below lg, where the sidebar is a drawer). */}
+          <OrgLogo name={currentUser?.org?.name ?? ""} logoUrl={currentUser?.org?.logoUrl ?? null} small className="tb-logo" />
           {/* Phones get the org's name here under a small "Dashboard", and
               your own face on the right, which opens your standing (the
               briefing's My standing chip folds away below 768px). */}

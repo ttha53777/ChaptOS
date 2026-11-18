@@ -10,9 +10,11 @@ import { orgHref } from "@/lib/org-paths";
 const ICON_CHECK = "M5 13l4 4L19 7";
 const ICON_PLUS = "M12 4v16m8-8H4";
 
-function OrgLogo({ name, logoUrl, small }: { name: string; logoUrl: string | null; small?: boolean }) {
+/** The org's logo tile: the uploaded logo, else its initials. Also the phone
+ *  toolbar's tile (className "tb-logo"), where the first load splash lands. */
+export function OrgLogo({ name, logoUrl, small, className }: { name: string; logoUrl: string | null; small?: boolean; className?: string }) {
   return (
-    <span className={`sb-logo${small ? " sm" : ""}`} aria-hidden="true">
+    <span className={`sb-logo${small ? " sm" : ""}${className ? ` ${className}` : ""}`} aria-hidden="true">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {logoUrl ? <img src={logoUrl} alt="" /> : name ? orgInitials(name) : null}
     </span>
