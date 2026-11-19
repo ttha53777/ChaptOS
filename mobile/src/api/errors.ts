@@ -23,3 +23,9 @@ export class NetworkError extends Error {
 
 export const isApiError = (e: unknown, status?: number): e is ApiError =>
   e instanceof ApiError && (status === undefined || e.status === status);
+
+/** What to tell a person about a failure: the server's own sentence when it sent one. */
+export function errorMessage(e: unknown, fallback = "Something went wrong. Try again in a moment."): string {
+  if (e instanceof ApiError || e instanceof NetworkError) return e.message || fallback;
+  return fallback;
+}

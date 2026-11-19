@@ -1,5 +1,5 @@
 import type { MeResponse, MobileConfig, OwnJoinRequest } from "@/lib/api-types";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { api } from "~/api/client";
 import { isApiError } from "~/api/errors";
@@ -33,15 +33,19 @@ async function fetchMe(slug: string | null): Promise<MeResponse | null> {
 
 export function useMe(enabled: boolean) {
   const { ready, slug } = activeOrg.use();
-  const query = useQuery({ queryKey: keys.me(slug), queryFn: () => fetchMe(slug), enabled: enabled && ready });
-  // Adopt the org the server resolved, so later calls name it explicitly.
+  // While a chapter switch loads, keep showing the previous chapter's `me`: without it
+  // the entry state drops to "loading" and the whole tab tree unmounts mid-switch.
+  const query = useQuery({ queryKey: keys.me(slug), queryFn: () => fetchMe(slug), enabled: enabled && ready, placeholderData: keepPreviousData });
+  // Adopt the org the server resolved, so later calls name it explicitly. Never from
+  // placeholder data: that's the chapter being switched away from.
   const data = query.data;
+  const placeholder = query.isPlaceholderData;
   useEffect(() => {
     const resolved = data?.org?.slug ?? null;
-    if (!data || !resolved || resolved === slug) return;
+    if (placeholder || !data || !resolved || resolved === slug) return;
     queryClient.setQueryData(keys.me(resolved), data);
     setActiveOrg(resolved);
-  }, [data, slug]);
+  }, [data, slug, placeholder]);
   return query;
 }
 

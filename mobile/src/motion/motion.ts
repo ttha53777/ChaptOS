@@ -39,7 +39,7 @@ export const DUR = {
   tap: 120,
   fade: 180,
   move: 240,
-  sheet: 320,
+  sheet: 500,
   stamp: 340,
   moment: 900,
 } as const;

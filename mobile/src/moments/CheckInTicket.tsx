@@ -11,13 +11,17 @@
  *   server says no the ink smears off, the stub blushes and shakes its head, reattaches;
  *                  error haptic and a line saying why
  *
+ * Closed: no button; the stub says how it ended (and keeps your HERE if you made it).
+ * An approved excuse replaces the button with a line; a pending one keeps it.
+ * The `ref` handle's undo() is the toast's Undo: same motion as the stub's own button.
+ *
  * Reduced motion: no tear. The stamp fades in at rest, the count cross-fades,
  * haptics are unchanged.
  *
  * Takes async callbacks so a real screen (U3 Today) can wire it to
  * POST /attendance/[eventId]/check-in and its undo without changing the motion.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { StyleSheet, View } from "react-native";
 import Animated, {
   FadeIn, FadeOut, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring, withTiming,
@@ -33,7 +37,12 @@ import type { Tone } from "~/theme/palette";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 
-export type CheckInWindow = "open" | "closing" | "void";
+export type CheckInWindow = "open" | "closing" | "closed" | "void";
+
+export interface CheckInTicketHandle {
+  /** Take the check-in back with the full motion (the toast's Undo). */
+  undo: () => void;
+}
 
 export interface CheckInTicketProps {
   title: string;
@@ -49,20 +58,25 @@ export interface CheckInTicketProps {
   of: number;
   /** e.g. "CLOSES IN 4:12" while the window is closing. */
   closingLabel?: string;
+  /** How a closed window ended, e.g. "Closed by Maya Rivera at 9:14 PM". */
+  closedLine?: string;
+  /** The member's own excuse for this event. Approved = accounted for, no button. */
+  excuse?: { status: "approved" | "pending" | "rejected"; reason: string } | null;
   onCheckIn: () => Promise<void>;
   onUndo: () => Promise<void>;
+  ref?: Ref<CheckInTicketHandle>;
   /** What shows through the notches. */
   ground?: string;
 }
 
-const TONE: Record<CheckInWindow, Tone> = { open: "mint", closing: "butter", void: "rose" };
+const TONE: Record<CheckInWindow, Tone> = { open: "mint", closing: "butter", closed: "sky", void: "rose" };
 
 function nowLabel(): string {
   return new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 export function CheckInTicket(props: CheckInTicketProps) {
-  const { title, dow, day, meta, window: win, checkedIn, others, of, closingLabel, onCheckIn, onUndo, ground } = props;
+  const { title, dow, day, meta, window: win, checkedIn, others, of, closingLabel, closedLine, excuse, onCheckIn, onUndo, ground, ref } = props;
   const { c } = useTheme();
   const m = useMotion();
 
@@ -184,7 +198,12 @@ export function CheckInTicket(props: CheckInTicketProps) {
     }
   }
 
+  const undoRef = useRef(undo);
+  undoRef.current = undo;
+  useImperativeHandle(ref, () => ({ undo: () => { void undoRef.current(); } }), []);
+
   const tone = TONE[win];
+  const excused = excuse?.status === "approved";
   const ink = c.pastel[tone].ink;
   const here = phase === "here";
   const showRow = phase !== "out";
@@ -203,7 +222,7 @@ export function CheckInTicket(props: CheckInTicketProps) {
           <View style={styles.kick}>
             <View style={[styles.dot, { backgroundColor: ink }]} />
             <T v="kicker" color={ink}>
-              {win === "void" ? "Check-in cancelled" : win === "closing" ? (closingLabel ?? "Closing soon") : "Check-in open"}
+              {win === "void" ? "Check-in cancelled" : win === "closed" ? "Check-in closed" : win === "closing" ? (closingLabel ?? "Closing soon") : "Check-in open"}
             </T>
           </View>
           <T v="title" numberOfLines={2}>{title}</T>
@@ -234,13 +253,26 @@ export function CheckInTicket(props: CheckInTicketProps) {
               <T v="callout" numberOfLines={1}>{phase === "failing" ? "Not checked in" : phase === "undoing" ? "Taking it back" : "You're checked in"}</T>
               {at ? <T v="mono" color={c.ink3}>{at}</T> : null}
             </View>
-            {here && <Button label="Undo" variant="soft" size="sm" onPress={undo} accessibilityHint="Removes your check-in" />}
+            {here && win !== "closed" && <Button label="Undo" variant="soft" size="sm" onPress={undo} accessibilityHint="Removes your check-in" />}
           </View>
           <Stamp label="HERE" sub={at || undefined} tone="mint" state={stamp} rotate={-9} onImpact={landed} />
+        </Animated.View>
+      ) : win === "closed" ? (
+        <Animated.View key="closed" entering={fade(DUR.fade)} style={{ gap: 4 }}>
+          <T v="callout">{excused ? "You were excused from this one." : "You weren't checked in."}</T>
+          <T v="meta" color={c.ink3}>{closedLine ?? "The window has closed and attendance was recorded."}</T>
+        </Animated.View>
+      ) : excused ? (
+        <Animated.View key="excused" entering={fade(DUR.fade)} style={{ gap: 4 }}>
+          <T v="callout">You're excused from this one.</T>
+          <T v="meta" color={c.ink3}>{`"${excuse?.reason}" was approved, so you're already accounted for.`}</T>
         </Animated.View>
       ) : (
         <Animated.View key="out" entering={fade(DUR.fade)} exiting={fadeOut} style={{ gap: 10 }}>
           <Button label="I'm here" icon="hand" tone="mint" block onPress={checkIn} accessibilityHint="Checks you in to this meeting" />
+          {excuse?.status === "pending" && !error ? (
+            <T v="meta" color={c.ink3}>Your excuse is still pending. If you made it, check in anyway.</T>
+          ) : null}
           {error && <T v="meta" color={c.pastel.rose.ink} accessibilityLiveRegion="polite">{error}</T>}
         </Animated.View>
       )}

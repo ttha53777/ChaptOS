@@ -24,6 +24,11 @@ const variant: Variant = ((): Variant => {
 
 const PROD_API = "https://chaptos.com";
 
+/** Keep only the entries that are non-empty strings. */
+function strings(o: Record<string, string | null | undefined>): Record<string, string> {
+  return Object.fromEntries(Object.entries(o).filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""));
+}
+
 function apiUrl(): string | null {
   const override = process.env.EXPO_PUBLIC_API_URL?.trim();
   if (variant === "production") return PROD_API;
@@ -69,13 +74,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["expo-splash-screen", { backgroundColor: "#FFFCF6", dark: { backgroundColor: "#15110D" } }],
     "expo-web-browser",
     "expo-secure-store",
+    ["expo-image-picker", {
+      photosPermission: "Chapt uses your photos so you can pick a profile picture.",
+      cameraPermission: "Chapt uses the camera so you can take a profile picture.",
+      microphonePermission: false,
+    }],
   ],
   experiments: { typedRoutes: true },
   extra: {
     variant,
-    apiUrl: apiUrl(),
-    supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? null,
-    supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? null,
+    // Omit a value rather than send null: Expo's config serialization turns a null in
+    // `extra` into `{}`, which then reads as "set" (and crashed config.ts on `.replace`).
+    ...strings({
+      apiUrl: apiUrl(),
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    }),
     // Filled by `eas init` (needs `npx expo login`); EAS builds require it.
     ...(process.env.EAS_PROJECT_ID ? { eas: { projectId: process.env.EAS_PROJECT_ID } } : {}),
   },

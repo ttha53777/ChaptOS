@@ -7,6 +7,7 @@
  * Motion Lab now). The overrides live in memory for U0; persisting the user's choice
  * arrives with the settings screen.
  */
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AccessibilityInfo, useColorScheme, useWindowDimensions } from "react-native";
 import { ReduceMotion, useReducedMotion, type WithSpringConfig, type WithTimingConfig } from "react-native-reanimated";
@@ -17,12 +18,16 @@ import { TYPE_SIZES, type TypeSize } from "./type";
 export type Appearance = "system" | "day" | "night";
 export type ReducedSetting = "system" | "on" | "off";
 export type Speed = 1 | 4;
+/** Sheet open/close duration. 500 (the mock's) was picked 2026-11-18 over the plan's 320;
+ *  the Motion Lab still plays both side by side and can flip the real sheets for comparison. */
+export type SheetMs = 320 | 500;
 
 interface Settings {
   appearance: Appearance;
   reduced: ReducedSetting;
   typeSize: TypeSize;
   speed: Speed;
+  sheetMs: SheetMs;
 }
 
 interface Ctx extends Settings {
@@ -32,10 +37,12 @@ interface Ctx extends Settings {
   set: (patch: Partial<Settings>) => void;
 }
 
+const APPEARANCE_KEY = "chaptos.appearance";
+
 const PaperCtx = createContext<Ctx | null>(null);
 
 export function PaperProvider({ children }: { children: ReactNode }) {
-  const [s, setS] = useState<Settings>({ appearance: "system", reduced: "system", typeSize: "System", speed: 1 });
+  const [s, setS] = useState<Settings>({ appearance: "system", reduced: "system", typeSize: "System", speed: 1, sheetMs: 500 });
   const scheme = useColorScheme();
   const { fontScale: osScale } = useWindowDimensions();
 
@@ -49,7 +56,17 @@ export function PaperProvider({ children }: { children: ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  const set = useCallback((patch: Partial<Settings>) => setS(prev => ({ ...prev, ...patch })), []);
+  // Appearance is the one setting a member picks (More → On this phone); it's remembered.
+  // The rest are Motion Lab overrides and reset on launch.
+  useEffect(() => {
+    AsyncStorage.getItem(APPEARANCE_KEY).then(v => {
+      if (v === "day" || v === "night" || v === "system") setS(prev => ({ ...prev, appearance: v }));
+    }).catch(() => {});
+  }, []);
+  const set = useCallback((patch: Partial<Settings>) => {
+    if (patch.appearance) AsyncStorage.setItem(APPEARANCE_KEY, patch.appearance).catch(() => {});
+    setS(prev => ({ ...prev, ...patch }));
+  }, []);
 
   const value = useMemo<Ctx>(() => {
     const dark = s.appearance === "night" || (s.appearance === "system" && scheme === "dark");
@@ -82,8 +99,8 @@ export function useFontScale(): number {
 
 /** Settings + setter, for the Motion Lab and (later) Me → On this phone. */
 export function usePaperSettings() {
-  const { appearance, reduced, typeSize, speed, set } = usePaper();
-  return { appearance, reduced, typeSize, speed, set };
+  const { appearance, reduced, typeSize, speed, sheetMs, set } = usePaper();
+  return { appearance, reduced, typeSize, speed, sheetMs, set };
 }
 
 export interface Motion {
@@ -91,6 +108,8 @@ export interface Motion {
   reduced: boolean;
   /** Lab slow-motion factor (1 in normal use). */
   speed: Speed;
+  /** Sheet open/close duration at 1× (before slow-mo). */
+  sheetMs: SheetMs;
   /** A duration in ms with slow-mo applied; also use it for setTimeout-paced steps. */
   t: (ms: number) => number;
   timing: (ms?: number, ease?: EaseName) => WithTimingConfig;
@@ -98,15 +117,16 @@ export interface Motion {
 }
 
 export function useMotion(): Motion {
-  const { isReduced, speed } = usePaper();
+  const { isReduced, speed, sheetMs } = usePaper();
   return useMemo<Motion>(() => ({
     reduced: isReduced,
     speed,
+    sheetMs,
     t: ms => ms * speed,
     timing: (ms = DUR.move, ease = "standard") => ({ duration: ms * speed, easing: EASE[ease], reduceMotion: ReduceMotion.Never }),
     spring: (name = "settle") => {
       const cfg = SPRING[name];
       return { duration: cfg.duration * speed, dampingRatio: cfg.dampingRatio, reduceMotion: ReduceMotion.Never };
     },
-  }), [isReduced, speed]);
+  }), [isReduced, speed, sheetMs]);
 }

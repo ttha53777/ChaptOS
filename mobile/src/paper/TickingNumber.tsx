@@ -17,15 +17,17 @@ export interface TickingNumberProps {
   v?: TypeName;
   color?: string;
   accessibilityLabel?: string;
+  /** Force the roll direction (a countdown's "4:10 → 4:09" isn't a number, but falls). */
+  direction?: 1 | -1;
 }
 
-export function TickingNumber({ value, v = "figure", color, accessibilityLabel }: TickingNumberProps) {
+export function TickingNumber({ value, v = "figure", color, accessibilityLabel, direction }: TickingNumberProps) {
   const text = String(value);
   const prevText = useRef(text);
   const dir = useRef<1 | -1>(1);
   if (prevText.current !== text) {
     const a = Number(prevText.current), b = Number(text);
-    dir.current = Number.isFinite(a) && Number.isFinite(b) && b < a ? -1 : 1;
+    dir.current = direction ?? (Number.isFinite(a) && Number.isFinite(b) && b < a ? -1 : 1);
     prevText.current = text;
   }
   // right-align positions so "9 → 10" rolls the ones column, not every column

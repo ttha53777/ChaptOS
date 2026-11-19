@@ -9,11 +9,25 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { QueryClient } from "@tanstack/react-query";
+import NetInfo from "@react-native-community/netinfo";
+import { focusManager, onlineManager, QueryClient } from "@tanstack/react-query";
+import { AppState } from "react-native";
 import { isApiError, NetworkError } from "~/api/errors";
 import { config } from "~/config";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+// TanStack assumes "always online" in React Native. NetInfo tells it the truth, so
+// queries pause offline (and the screens say they're showing last-known data) and
+// refetch when the phone reconnects.
+onlineManager.setEventListener(setOnline =>
+  NetInfo.addEventListener(state => setOnline(state.isConnected !== false && state.isInternetReachable !== false)));
+
+// Coming back to the foreground counts as "focus": stale queries on screen refetch.
+focusManager.setEventListener(handleFocus => {
+  const sub = AppState.addEventListener("change", s => handleFocus(s === "active"));
+  return () => sub.remove();
+});
 
 export const queryClient = new QueryClient({
   defaultOptions: {

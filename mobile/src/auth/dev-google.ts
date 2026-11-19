@@ -6,12 +6,16 @@
  * Phase 7 replaces this file with native Google + Sign in with Apple
  * (signInWithIdToken); nothing outside ~/auth imports it.
  *
- * Redirect: chaptos://auth-callback in builds, exp://<host>/--/auth-callback in
- * Expo Go (it can't claim the app's scheme). Both must be in Supabase's redirect
- * allowlist, or Supabase sends the browser to the Site URL instead and the
- * session never reaches the app.
+ * Redirect: chaptos://auth-callback everywhere on iOS, including Expo Go. iOS's auth
+ * session (ASWebAuthenticationSession) catches the redirect by scheme itself, so no
+ * app has to own `chaptos://` for it to work, and the address never changes with the
+ * Mac's IP or Metro's port. Android's Custom Tabs need the OS to route the URL, and
+ * Expo Go can't claim our scheme, so Android in Expo Go uses
+ * exp://<host>/--/auth-callback. Each must be in Supabase's redirect allowlist, or
+ * Supabase sends the browser to the Site URL instead and the session never arrives.
  */
 import * as Linking from "expo-linking";
+import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { supabase } from "./supabase";
 
@@ -20,6 +24,7 @@ WebBrowser.maybeCompleteAuthSession();
 export type SignInResult = { ok: true } | { ok: false; cancelled: boolean; message: string };
 
 export function redirectUrl(): string {
+  if (Platform.OS === "ios") return "chaptos://auth-callback";
   return Linking.createURL("auth-callback");
 }
 

@@ -16,6 +16,8 @@ type Extra = {
 };
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
+/** A value from `extra`, only if it really is a non-empty string (a null there can arrive as `{}`). */
+const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
 
 function devApiUrl(): string {
   const host = Constants.expoConfig?.hostUri?.split(":")[0];
@@ -24,9 +26,9 @@ function devApiUrl(): string {
 
 export const config = {
   variant: extra.variant ?? "development",
-  apiUrl: (extra.apiUrl ?? devApiUrl()).replace(/\/$/, ""),
-  supabaseUrl: extra.supabaseUrl ?? "",
-  supabaseAnonKey: extra.supabaseAnonKey ?? "",
+  apiUrl: (str(extra.apiUrl) ?? devApiUrl()).replace(/\/$/, ""),
+  supabaseUrl: str(extra.supabaseUrl) ?? "",
+  supabaseAnonKey: str(extra.supabaseAnonKey) ?? "",
   /** Sent as x-app-version; the server's 426 gate compares it to MOBILE_MIN_VERSION. */
   appVersion: Constants.expoConfig?.version ?? "0.0.0",
 } as const;
