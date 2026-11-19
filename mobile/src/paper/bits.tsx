@@ -104,11 +104,12 @@ export function initials(name: string): string {
   return (a + b).toUpperCase();
 }
 
-export interface AvatarProps { name: string; uri?: string | null; tone?: Tone; size?: AvatarSize; ring?: string; style?: StyleProp<ViewStyle> }
+/** `px` sets an exact diameter (the photo and initials scale with it); `size` picks a preset. */
+export interface AvatarProps { name: string; uri?: string | null; tone?: Tone; size?: AvatarSize; px?: number; ring?: string; style?: StyleProp<ViewStyle> }
 
-export function Avatar({ name, uri, tone = "lilac", size = "md", ring, style }: AvatarProps) {
+export function Avatar({ name, uri, tone = "lilac", size = "md", px, ring, style }: AvatarProps) {
   const { c } = useTheme();
-  const d = AV[size];
+  const d = px ?? AV[size];
   const lg = size === "lg";
   return (
     <View

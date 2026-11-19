@@ -12,7 +12,8 @@
  *
  * States: first load = skeleton rows; nothing loaded and an error = ErrorState; offline or a
  * failed refresh over last-known data = StaleNote; a chapter with no events and no dated
- * tasks = the day-one empty (no button: members can't add events).
+ * tasks = the day-one empty (no button: members can't add events); everything in the past
+ * with Earlier closed = the Today marker alone with "Nothing coming up" (NothingAhead).
  */
 import type { LayoutChangeEvent } from "react-native";
 import { useMemo, useRef, useState, type ReactNode } from "react";
@@ -33,7 +34,7 @@ import { viewerOf } from "~/tasks/model";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { EventSheet, SubscribeSheet } from "~/timeline/EventSheet";
 import { buildRows, byMonth, type Row } from "~/timeline/model";
-import { EarlierBar, MonthBody, MonthHead, type Mine } from "~/timeline/Spine";
+import { EarlierBar, MonthBody, MonthHead, NothingAhead, type Mine } from "~/timeline/Spine";
 import { T } from "~/ui/T";
 
 export default function Timeline() {
@@ -91,18 +92,22 @@ export default function Timeline() {
   const sticky: number[] = [];
   if (rows) children.push(<StaleNote key="stale" updatedAt={cal.dataUpdatedAt} failed={cal.isError} onRetry={() => void refresh()} />);
   if (rows && past.length) children.push(<EarlierBar key="earlier" count={past.length} open={earlier} onToggle={() => setEarlier(o => !o)} />);
+  const nextKey = ahead.find(r => r.kind === "event")?.key ?? null;
+  let start = 0;
+  if (rows && past.length && !ahead.length && !earlier) children.push(<NothingAhead key="nothing" />);
   if (rows) {
     for (const mo of months) {
       sticky.push(children.length);
       children.push(<MonthHead key={`h${mo.key}`} month={mo} past={mo.key < today.slice(0, 7)} />);
       const holdsToday = mo.key === todayMonth;
       children.push(
-        <MonthBody key={`b${mo.key}`} month={mo} today={today} types={types.data} mine={mine}
+        <MonthBody key={`b${mo.key}`} month={mo} today={today} types={types.data} mine={mine} nextKey={nextKey} start={start}
           todayKey={holdsToday ? (mo.rows.some(r => r.key === todayKey) ? todayKey : "end") : null}
           onOpen={(r: Row) => setOpenKey(r.key)}
           onLayout={(e: LayoutChangeEvent) => { bodyY.current.set(mo.key, e.nativeEvent.layout.y); placeMarker(); }}
           onTodayLayout={holdsToday ? (y: number) => { markerIn.current = { month: mo.key, y }; placeMarker(); } : undefined} />,
       );
+      start += mo.rows.length;
     }
   }
 
@@ -166,6 +171,11 @@ function JumpPill({ scrollY, todayY, onJump }: {
   const [dir, setDir] = useState<"up" | "down" | null>(null);
   const shown = useSharedValue(0);
   const view = height - 220; // roughly what's visible under the bar and above the tab bar
+  // Built here on the JS thread. The reaction below runs on the UI thread, where calling
+  // m.timing() (a plain JS function) is a fatal "non-worklet function" error: that crashed
+  // the Timeline whenever the Today marker went out of view. Worklets may capture configs.
+  const showCfg = m.timing(DUR.move, "spring");
+  const hideCfg = m.timing(DUR.move, "out");
 
   useAnimatedReaction(
     () => {
@@ -176,7 +186,7 @@ function JumpPill({ scrollY, todayY, onJump }: {
     },
     (next, prev) => {
       if (next === prev) return;
-      shown.value = withTiming(next ? 1 : 0, m.timing(DUR.move, next ? "spring" : "out"));
+      shown.value = withTiming(next ? 1 : 0, next ? showCfg : hideCfg);
       if (next) scheduleOnRN(setDir, next);
     },
   );

@@ -22,7 +22,6 @@ import { Sheet } from "~/shell/sheets";
 import { ErrorState, SkeletonCard } from "~/shell/states";
 import { canTick, whoLine, type Viewer } from "~/tasks/model";
 import { tickTask } from "~/tasks/tick";
-import { alpha } from "~/theme/palette";
 import { useTheme } from "~/theme/PaperProvider";
 import { clockLabel, dayStart } from "~/today/time";
 import { T } from "~/ui/T";
@@ -54,7 +53,7 @@ function CalPage({ date, slug }: { date: string; slug: string }) {
   const d = dayStart(date);
   const ink = inkOf(slug, c);
   return (
-    <View style={[styles.page, { backgroundColor: c.card, borderColor: c.ink, boxShadow: `3px 3px 0 ${alpha(c.ink, 0.9)}` }]}
+    <View style={[styles.page, { backgroundColor: c.card, borderColor: c.ink, boxShadow: `3px 3px 0 ${c.note.fill[toneOf(slug)]}` }]}
       accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Tape width={34} rotate={-6} style={{ position: "absolute", top: -9, alignSelf: "center" }} />
       <View style={[styles.pageTop, { backgroundColor: ink }]}>
