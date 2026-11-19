@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-11-19T15:42:27.908Z",
+  "capturedAt": "2026-11-19T20:20:42.217Z",
   "who": {
     "busy": {
       "org": {
@@ -19,10 +19,33 @@
     }
   },
   "index": {
-    "members": [
+    "chapter": [
+      "busy-admin-day-full.png",
+      "busy-admin-day-fold.png",
+      "busy-admin-day-minutes.png",
+      "busy-admin-day-minutes-sum.png",
+      "busy-admin-day-minutes-att.png",
+      "busy-admin-day-minutes-none.png",
       "busy-member-day-full.png",
-      "busy-member-day-fold.png"
+      "busy-member-day-fold.png",
+      "busy-member-day-minutes.png",
+      "busy-member-day-minutes-sum.png",
+      "busy-member-day-minutes-att.png",
+      "busy-member-day-minutes-none.png",
+      "dayone-admin-day-full.png",
+      "dayone-admin-day-fold.png",
+      "dayone-member-day-full.png",
+      "dayone-member-day-fold.png"
     ]
   },
-  "problems": []
+  "problems": [
+    "_design/parity/web/chapter/dayone-admin-day-minutes.png: missing .led-row:not(.missing)",
+    "_design/parity/web/chapter/dayone-admin-day-minutes-sum.png: missing .led-row:not(.missing)",
+    "_design/parity/web/chapter/dayone-admin-day-minutes-att.png: missing .led-row:not(.missing)",
+    "_design/parity/web/chapter/dayone-admin-day-minutes-none.png: missing .led-row.missing",
+    "_design/parity/web/chapter/dayone-member-day-minutes.png: missing .led-row:not(.missing)",
+    "_design/parity/web/chapter/dayone-member-day-minutes-sum.png: missing .led-row:not(.missing)",
+    "_design/parity/web/chapter/dayone-member-day-minutes-att.png: missing .led-row:not(.missing)",
+    "_design/parity/web/chapter/dayone-member-day-minutes-none.png: missing .led-row.missing"
+  ]
 }

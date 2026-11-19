@@ -30,13 +30,23 @@ export function MinutesText({ text }: { text: string }) {
   const { c } = useTheme();
   const ink = c.note.ink;
   const lines = text.replace(/\r/g, "").split("\n");
+  // sections are numbered in the margin, 01, 02, … (the web's read view)
+  let section = 0;
   return (
     <LegalPad>
       <View style={{ gap: 4 }}>
         {lines.map((raw, i) => {
           if (!raw.trim()) return <View key={i} style={{ height: 8 }} />;
           const h = HEADING.exec(raw);
-          if (h) return <T key={i} v="subhead" color={ink} style={[styles.h, i === 0 && { marginTop: 0 }]}>{h[2]!.replace(/\*\*/g, "")}</T>;
+          if (h) {
+            section += 1;
+            return (
+              <View key={i} style={[styles.hRow, i === 0 && { marginTop: 0 }]}>
+                <T v="mono" size={11.5} color={c.pastel.rose.ink} style={styles.num}>{String(section).padStart(2, "0")}</T>
+                <T v="subhead" color={ink} style={styles.h}>{h[2]!.replace(/\*\*/g, "")}</T>
+              </View>
+            );
+          }
           const ck = CHECK.exec(raw);
           if (ck) {
             const done = ck[1] !== " ";
@@ -59,7 +69,9 @@ export function MinutesText({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  h: { marginTop: 10, fontSize: 16 },
+  hRow: { flexDirection: "row", alignItems: "baseline", gap: 16, marginTop: 14, marginLeft: -38 },
+  num: { width: 22, textAlign: "right" },
+  h: { fontSize: 17, flex: 1 },
   item: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   mark: { width: 18, textAlign: "right" },
   box: { width: 15, height: 15, borderRadius: 4, borderWidth: 1.5, marginTop: 4, alignItems: "center", justifyContent: "center" },

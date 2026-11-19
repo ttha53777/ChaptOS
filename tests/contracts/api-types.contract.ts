@@ -25,7 +25,7 @@ import type {
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
   HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
-  AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized,
+  AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized, MinutesSaved,
   ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow, InstagramPost,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
@@ -40,7 +40,7 @@ import type { approveJoinRequest, listPendingRequestPage } from "@/lib/services/
 import type { publicBrother } from "@/lib/brother-avatar";
 import type { createTask, getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
-import type { listCalendar, previewDeleteCalendar } from "@/lib/services/calendar-service";
+import type { listCalendar, previewDeleteCalendar, updateCalendar } from "@/lib/services/calendar-service";
 import type { listAgendaTemplates } from "@/lib/services/agenda-template-service";
 import type { summarizeMeeting } from "@/lib/services/meeting-summary-service";
 import type { listEventTypes } from "@/lib/services/calendar-event-type-service";
@@ -127,6 +127,8 @@ export const excuseDecided: Widen<ExcuseDecided> = served<Served<typeof decideEx
 export const eventDeletePreview: Widen<EventDeletePreview> = served<Served<typeof previewDeleteCalendar>>();
 export const agendaTemplates: Widen<AgendaTemplate[]> = served<Served<typeof listAgendaTemplates>>();
 export const meetingSummarized: Widen<MeetingSummarized> = served<Served<typeof summarizeMeeting>>();
+// The minutes autosave reads these off the PATCH answer (the rest of the row rides along).
+export const minutesSaved: Widen<MinutesSaved> = served<Served<typeof updateCalendar>>();
 
 export const activity: Widen<ActivityEntry[]> = served<Served<typeof listRecentActivity>>();
 export const ownJoinRequests: Widen<OwnJoinRequest[]> = served<Served<typeof listOwnJoinRequests>>();

@@ -81,10 +81,10 @@ export function resolveOwner(owner: string | null, roster: { brotherId: number; 
   if (!owner?.trim()) return null;
   const want = norm(owner);
   const exact = roster.filter(m => norm(m.name) === want);
-  if (exact.length === 1) return exact[0].brotherId;
+  if (exact.length === 1) return exact[0]!.brotherId;
   if (exact.length > 1) return null;
   const first = roster.filter(m => norm(m.name).split(" ")[0] === want.split(" ")[0]);
-  return first.length === 1 ? first[0].brotherId : null;
+  return first.length === 1 ? first[0]!.brotherId : null;
 }
 
 /**

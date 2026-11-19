@@ -51,7 +51,7 @@
  *   PATCH  /api/calendar/[id]/action-items     MeetingSummaryBody      (body toggleActionItemInput; the item's owner, or MANAGE_EVENTS)
  *   GET    /api/calendar/subscription          CalendarSubscriptionView (send ?view=member; ?summary=1 answers CalendarFeedLive)
  *   POST   /api/calendar                       (201; MANAGE_EVENTS; body createCalendarInput, + repeat; the app re-reads GET /api/calendar)
- *   PATCH  /api/calendar/[id]                  (MANAGE_EVENTS; body updateCalendarInput; the app re-reads GET /api/calendar)
+ *   PATCH  /api/calendar/[id]                  MinutesSaved            (MANAGE_EVENTS; body updateCalendarInput; the app re-reads GET /api/calendar, except a minutes autosave { description }, 409 once shared)
  *   DELETE /api/calendar/[id]                  204                     (MANAGE_EVENTS)
  *   GET    /api/calendar/[id]/delete-preview   EventDeletePreview      (MANAGE_EVENTS)
  *   GET    /api/calendar/agenda-templates      AgendaTemplate[]        (MANAGE_EVENTS)

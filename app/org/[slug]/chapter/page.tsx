@@ -22,7 +22,7 @@ import { useOrgPath } from "../../../hooks/useOrgPath";
 import { useActiveSemester } from "../../../hooks/useActiveSemester";
 import { CalendarEvent, fmtDate, roleTitle } from "../../../data";
 import { orgFetch } from "../../../lib/api";
-import { daysFromToday, todayStr } from "../../../lib/dates";
+import { todayStr } from "../../../lib/dates";
 import "../../../components/dashboard/dashboard-ledger.css";
 import "../../../components/dashboard/meetings-ledger.css";
 import "../../../components/timeline/calendar-event-form.css";
@@ -42,6 +42,11 @@ import { orgSlugFromPath } from "@/lib/org-paths";
 import { usePhoneSheet } from "../../../components/chat/usePhoneSheet";
 import { BottomSheet } from "../../../components/BottomSheet";
 import "../../../components/meeting-notes/minutes-phone.css";
+import {
+  DOWS, MISSING_LINE, MONTHS, attLabel, bookCount, bookTabs, digestRuns, dueLabel, emptyTabLine,
+  excuseLine, fmtMins, hasNotes, ledgerRow, localDate, meetingProgress as progressBetween, onDeckHead, onDeckRoll,
+  relativeWhen as relativeFrom, sectionAt, splitMeetings, summaryBadge, taken,
+} from "@/lib/meetings/book";
 
 const CollaborativeNotesEditor = dynamic(() => import("@/app/components/meeting-notes/CollaborativeNotesEditor"), { ssr: false });
 
@@ -63,77 +68,18 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DOWS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const LOW_TURNOUT = 0.7;
-
-function localDate(dateStr: string) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
+// The page's rules live in lib/meetings/book.ts (shared with the native app); these
+// bind them to today and to Temporal-read clock times (lib/event-time).
 
 function fmtDateFull(dateStr: string) {
   return localDate(dateStr).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
-// Date parts for the ledger date column ("Tue / 9 / Jun").
-function dateParts(dateStr: string) {
-  const dt = localDate(dateStr);
-  return { dow: DOWS[dt.getDay()], dnum: dt.getDate(), mon: MONTHS[dt.getMonth()] };
-}
-
-// Relative "In N days / Today / Tomorrow" label from a yyyy-mm-dd string.
-function relativeWhen(dateStr: string) {
-  const diff = daysFromToday(dateStr);
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  if (diff > 1) return `In ${diff} days`;
-  if (diff === -1) return "Yesterday";
-  return `${Math.abs(diff)} days ago`;
-}
+const relativeWhen = (dateStr: string) => relativeFrom(dateStr, todayStr());
 
 /** The start of an event's time ("7:30 PM" out of "7:30 PM – 9:00 PM"). */
 function startTimeOf(e: CalendarEvent) {
   return formatEventTime(e.time, e.schedule)?.split(/\s*[–-]\s*/)[0] ?? null;
-}
-
-/** "tonight" / "today" / "tomorrow" / "on Wednesday" / "on Oct 14" — for prose. */
-function whenPhrase(e: CalendarEvent) {
-  const diff = daysFromToday(e.date);
-  if (diff === 0) return /PM/i.test(startTimeOf(e) ?? "") ? "tonight" : "today";
-  if (diff === 1) return "tomorrow";
-  if (diff > 1 && diff < 7) return `on ${DOWS_LONG[localDate(e.date).getDay()]}`;
-  return `on ${fmtDate(e.date)}`;
-}
-
-function andList(items: string[]) {
-  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-}
-
-// "Has minutes" means written beyond the agenda a template copied in — an
-// untouched agenda is still a meeting with no minutes (lib/agenda-template.ts).
-const hasNotes = (e: CalendarEvent) => hasMinutes(e);
-
-// One-line preview for the ledger row: the summary's gist, else the minutes' first lines.
-function notesPreview(event: CalendarEvent): string {
-  const data = parseMeetingSummary(event.notesSummaryData);
-  if (data?.gist) return data.gist;
-  const summary = (event.notesSummary ?? "").split("\n").map(l => l.replace(/^[-*]\s*/, "").replace(/\*\*/g, "").trim()).find(Boolean);
-  if (summary) return summary;
-  return minutesBeyondAgenda(event)
-    .split("\n")
-    .filter(l => !headingOf(l))
-    .map(l => l.replace(/^[-*•]\s*/, "").trim())
-    .filter(l => l && !/^(opened|closed|agenda|action items)\b/i.test(l))
-    .slice(0, 2)
-    .join(" · ");
-}
-
-/** "Oct 10" from a yyyy-mm-dd due date. */
-function dueLabel(iso: string) {
-  const [, m, d] = iso.split("-").map(Number);
-  return `${MONTHS[m - 1]} ${d}`;
 }
 
 // Per-event counts from GET /api/attendance/summary.
@@ -146,7 +92,6 @@ type AttendanceDetail = {
 type LiveCheckIn = { event: { id: number }; state: "open" | "closing" | "closed"; presentCount: number; eligibleCount: number; msRemaining: number } | null;
 type PendingExcuse = { id: number; brotherName: string; calendarEventId: number };
 
-const taken = (row: AttendanceSummaryRow | undefined) => !!row && row.eligible > 0;
 
 // ─── MeetingForm (shared by add + edit) ───────────────────────────────────────
 // Built on the Timeline's cef-* vocabulary, so both aesthetics already dress it.
@@ -607,24 +552,9 @@ function meetingClock(event: CalendarEvent, now: Date): string | null {
 function meetingProgress(event: CalendarEvent, now: Date): { mins: number; left: number; pct: number } | null {
   const parsed = event.schedule == null ? null : scheduleSchema.safeParse(event.schedule);
   if (!parsed?.success || parsed.data.kind === "allDay") return null;
-  const start = new Date(parsed.data.start).getTime(), end = endInstant(parsed.data).getTime();
-  if (now.getTime() < start || now.getTime() >= end) return null;
-  const mins = Math.floor((now.getTime() - start) / 60_000);
-  return { mins, left: Math.max(0, Math.ceil((end - now.getTime()) / 60_000)), pct: Math.round(((now.getTime() - start) / (end - start)) * 100) };
+  return progressBetween(new Date(parsed.data.start), endInstant(parsed.data), now);
 }
-const fmtMins = (m: number) => m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 
-/** The `## ` section a position in the minutes falls under. */
-function sectionAt(text: string, pos: number): string {
-  let section = "", at = 0;
-  for (const line of text.split("\n")) {
-    if (at > pos) break;
-    const m = /^##\s+(.*)/.exec(line);
-    if (m) section = m[1].trim();
-    at += line.length + 1;
-  }
-  return section;
-}
 
 // ─── MeetingDetailOverlay (the minutes book) ──────────────────────────────────
 
@@ -815,9 +745,7 @@ function MeetingDetailOverlay({
   const progress = meetingProgress(event, now);
   const noteLines = notesDraft.split("\n").filter(l => l.trim()).length;
   const canSummarize = !running && (shared ? sharedStatus.saving !== "loading" && sharedStatus.connection !== "Unavailable" : !!notesDraft.trim());
-  const attLabel = !event.mandatory ? "Optional — no roll"
-    : taken(attendanceRow) ? `${attendanceRow!.present} of ${attendanceRow!.eligible} present`
-    : canTakeAttendance ? "Take attendance" : "Attendance";
+  const att = attLabel(event, attendanceRow, canTakeAttendance);
   const itemCount = summary ? summary.decisions.length + summary.actions.length : 0;
   const conn = sharedStatus.connection;
   const live = conn === "Live" ? { cls: "on", label: "Live" }
@@ -849,8 +777,7 @@ function MeetingDetailOverlay({
   const selfName = brotherList.find(b => b.id === selfId)?.name.trim() ?? "You";
   const canWrite = shared || (canEditNotes && !event.notesInitialized);
   const writeNow = () => { setTab("min"); if (shared) editorRef.current?.write(); else padRef.current?.focus(); };
-  const stale = !!summary && notesSummaryStale(event);
-  const openItems = summary ? summary.actions.filter(a => !a.done).length : 0;
+  const sumBadge = summaryBadge(event, running);
   const day = localDate(event.date);
   const icon = (d: React.ReactNode) => <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>{d}</svg>;
   const spark = (
@@ -939,7 +866,7 @@ function MeetingDetailOverlay({
           <span className={`mt-req ${event.mandatory ? "on" : ""}`}>{event.mandatory ? "Required" : "Optional"}</span>
           {/* The chip opens the margin, where the attendance card takes (or edits) the roll. */}
           <button type="button" className={`mt-attchip${margin ? " on" : ""}`} aria-pressed={margin} onClick={() => setMargin(m => !m)} title={margin ? "Put the margin away" : "Show attendance in the margin"}>
-            <PaperIcon name="people" className="pp-ic" />{attLabel}
+            <PaperIcon name="people" className="pp-ic" />{att}
           </button>
           {clockText && <span className="mt-clock">{clockText.replace(/ · .*/, "")} · <b>{clockText.replace(/.* · /, "")}</b></span>}
         </div>
@@ -960,14 +887,14 @@ function MeetingDetailOverlay({
                     <small><span><b>{fmtMins(progress.mins)}</b> in</span><span>{fmtMins(progress.left)} left</span></small>
                     <div className="bar"><i style={{ width: `${progress.pct}%` }} /></div>
                   </div>
-                ) : <span className="att">{attLabel}</span>}
+                ) : <span className="att">{att}</span>}
               </div>
             </div>
           </div>
           <div className="mt-tabs" role="tablist" aria-label="Minutes, summary and attendance">
             {([
               ["min", "Minutes", null],
-              ["sum", "Summary", running ? <span className="ct">…</span> : summary ? <span className={`ct${stale ? " w" : ""}`}>{stale ? "!" : openItems}</span> : null],
+              ["sum", "Summary", sumBadge ? <span className={`ct${sumBadge.warn ? " w" : ""}`}>{sumBadge.text}</span> : null],
               ["att", "Who came", taken(attendanceRow) ? <span className="ct g">{attendanceRow!.present}</span> : null],
             ] as const).map(([k, label, badge]) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}{badge}</button>
@@ -1429,48 +1356,19 @@ export default function ChapterPage() {
   // that have, newest first. Later upcoming meetings live on the Timeline.
   const today = todayStr();
   const now = useNow();
-  const { nextMeeting, pastMeetings } = useMemo(() => {
-    const upcoming = events.filter(e => !isEventOver(e, now)).sort(compareEvents);
-    const past = events.filter(e => isEventOver(e, now)).sort((a, b) => compareEvents(b, a));
-    return { nextMeeting: upcoming[0] ?? null, pastMeetings: past };
-  }, [events, now]);
+  const { next: nextMeeting, past: pastMeetings } = useMemo(
+    () => splitMeetings(events, compareEvents, e => isEventOver(e, now)),
+    [events, now],
+  );
+  const summaryRows = useMemo(() => new Map(Object.values(summary).map(r => [r.calendarEventId, r] as const)), [summary]);
 
-  // This term's books, for the digest.
-  const term = useMemo(() => {
-    const inTerm = (e: CalendarEvent) => !semester || (e.date >= semester.startDate && e.date <= semester.endDate);
-    const held = pastMeetings.filter(inTerm);
-    const rows = held.map(e => summary[e.id]).filter(taken);
-    const present = rows.reduce((n, r) => n + r!.present, 0);
-    const eligible = rows.reduce((n, r) => n + r!.eligible, 0);
-    return {
-      held,
-      avg: eligible ? Math.round((present / eligible) * 100) : null,
-      missing: held.filter(e => !hasNotes(e)),
-    };
-  }, [pastMeetings, summary, semester]);
+  const book = bookTabs(pastMeetings, summaryRows);
+  const shown = book.lists[filter];
 
-  const missingAll = pastMeetings.filter(e => !hasNotes(e));
-  const lowAll = pastMeetings.filter(e => { const r = summary[e.id]; return taken(r) && r!.present / r!.eligible < LOW_TURNOUT; });
-  const shown = filter === "missing" ? missingAll : filter === "low" ? lowAll : pastMeetings;
-
-  const digest: React.ReactNode = events.length === 0
-    ? "No meetings on the calendar yet. Schedule the first one and this page becomes the chapter’s minute book: what was said, who was there, and who owes what."
-    : <>
-        {nextMeeting
-          ? <>Chapter meets <b>{whenPhrase(nextMeeting)}{startTimeOf(nextMeeting) ? ` at ${startTimeOf(nextMeeting)}` : ""}</b>{nextMeeting.location ? ` in ${nextMeeting.location}` : ""}. </>
-          : "Nothing is on deck. "}
-        {term.held.length
-          ? <>
-              <b>{term.held.length} meeting{term.held.length === 1 ? "" : "s"}</b> on the books this term
-              {term.avg != null && <>, turnout averaging <b>{term.avg}%</b></>}
-              {term.missing.length
-                ? term.missing.length <= 3
-                  ? <> — but <b>{andList(term.missing.map(e => fmtDate(e.date)))}</b> still {term.missing.length === 1 ? "has" : "have"} no minutes.</>
-                  : <> — but <b>{term.missing.length} of them</b> still have no minutes.</>
-                : ", every one with minutes."}
-            </>
-          : "This is the first one — its minutes start the book."}
-      </>;
+  const digest: React.ReactNode = digestRuns({
+    count: events.length, next: nextMeeting, past: pastMeetings, rows: summaryRows,
+    term: semester ? { startDate: semester.startDate, endDate: semester.endDate } : null, today, start: startTimeOf,
+  }).map((r, i) => (r.b ? <b key={i}>{r.text}</b> : r.text));
 
   const addDefaults = useMemo(() => nextMeetingDraft(events, semester, today), [events, semester, today]);
   // No meetings at all yet: the page explains itself instead of showing an
@@ -1628,7 +1526,7 @@ export default function ChapterPage() {
                   <div className="sec-label">
                     <h2>Past meetings</h2>
                     <span className="rule" />
-                    <span className="cnt">{pastMeetings.length} meeting{pastMeetings.length === 1 ? "" : "s"} · newest first</span>
+                    <span className="cnt">{bookCount(pastMeetings.length)}</span>
                   </div>
 
                   {pastMeetings.length === 0 ? (
@@ -1640,7 +1538,7 @@ export default function ChapterPage() {
                   ) : (
                     <>
                       <div className="mt-tabs" role="tablist" aria-label="Filter past meetings">
-                        {([["all", "All", pastMeetings.length], ["missing", "No minutes", missingAll.length], ["low", `Under ${LOW_TURNOUT * 100}%`, lowAll.length]] as const).map(([key, label, n]) => (
+                        {book.tabs.map(({ key, label, count: n }) => (
                           <button key={key} role="tab" aria-selected={filter === key} className={filter === key ? "on" : ""} onClick={() => setFilter(key)}>
                             {label} <span className="ct">{n}</span>
                           </button>
@@ -1648,15 +1546,10 @@ export default function ChapterPage() {
                       </div>
                       <div className="ledger-list">
                         {shown.length === 0 && (
-                          <div className="r-locked" style={{ padding: "22px 18px" }}>{filter === "missing" ? "Every past meeting has minutes." : `No meeting dipped under ${LOW_TURNOUT * 100}%.`}</div>
+                          <div className="r-locked" style={{ padding: "22px 18px" }}>{emptyTabLine(filter)}</div>
                         )}
                         {shown.map(ev => {
-                          const dp = dateParts(ev.date);
-                          const preview = notesPreview(ev);
-                          const filed = hasNotes(ev);
-                          const row = summary[ev.id];
-                          const low = taken(row) && row!.present / row!.eligible < LOW_TURNOUT;
-                          const summarized = !!(ev.notesSummary ?? "").trim();
+                          const { parts: dp, preview, filed, low, summarized, tag, stat, counted } = ledgerRow(ev, summary[ev.id]);
                           return (
                             <button key={ev.id} type="button" className={`led-row${filed ? "" : " missing"}${freshId === ev.id ? " fresh" : ""}`} onClick={() => handleOpen(ev.id)}>
                               <div className="led-date">
@@ -1673,14 +1566,14 @@ export default function ChapterPage() {
                                 {filed && preview ? (
                                   <div className="sum">{preview}</div>
                                 ) : !filed ? (
-                                  <div className="sum empty">Minutes not filed — add notes before the next meeting.</div>
+                                  <div className="sum empty">{MISSING_LINE}</div>
                                 ) : null}
                               </div>
                               <div className="led-stats">
-                                <span className={`tag ${filed ? "minutes" : "nominutes"}`}>{filed ? "Minutes" : "No minutes"}</span>
+                                <span className={`tag ${filed ? "minutes" : "nominutes"}`}>{tag}</span>
                                 <div className="stat">
-                                  <div className={`sv${taken(row) ? (low ? " lo" : "") : " none"}`}>
-                                    {taken(row) ? `${row!.present}/${row!.eligible}` : "—"}
+                                  <div className={`sv${counted ? (low ? " lo" : "") : " none"}`}>
+                                    {stat}
                                   </div>
                                   <div className="sk">present</div>
                                 </div>
@@ -1829,16 +1722,12 @@ function OnDeckHero({
   onReviewExcuses: () => void;
   onGoToCheckIn: () => void;
 }) {
-  const dp = dateParts(event.date);
   const dt = localDate(event.date);
-  const isToday = daysFromToday(event.date) === 0;
+  const head = onDeckHead(event, todayStr(), startTimeOf(event));
+  const isToday = head.isToday;
   const time = formatEventTime(event.time, event.schedule);
-  const wasTaken = taken(summary);
-  const present = summary?.present ?? 0;
-  const eligible = summary?.eligible ?? 0;
-  const excused = summary?.excused ?? 0;
-  const absent = Math.max(eligible - present, 0);
-  const pct = (n: number, of: number) => (of > 0 ? (n / of) * 100 : 0);
+  const roll = onDeckRoll(event, summary, live, todayStr());
+  const wasTaken = roll.kind === "taken";
 
   return (
     <div className={`ondeck${isToday ? " live" : ""}`}>
@@ -1849,9 +1738,9 @@ function OnDeckHero({
       </div>
       <div className="od-body">
         <div className="od-top">
-          <span className="pill">{isToday ? <><i className="dot" />{whenPhrase(event) === "tonight" ? "Tonight" : "Today"}</> : "Next meeting"}</span>
+          <span className="pill">{isToday ? <><i className="dot" />{head.pill}</> : head.pill}</span>
           <span className="when">
-            <span>{dp.dow} · {fmtDate(event.date)}{isToday ? "" : ` · ${relativeWhen(event.date).toLowerCase()}`}</span>
+            <span>{head.when}</span>
           </span>
         </div>
         <h3>{event.title}</h3>
@@ -1861,44 +1750,44 @@ function OnDeckHero({
           <span><PaperIcon name="people" />{event.mandatory ? "Required for everyone" : "Optional"}</span>
         </p>
 
-        <div className={`od-progress${!event.mandatory || (!live && !wasTaken) ? " none" : ""}`}>
-          {!event.mandatory ? (
+        <div className={`od-progress${roll.kind === "optional" || roll.kind === "pending" ? " none" : ""}`}>
+          {roll.kind === "optional" ? (
             <>
-              <div className="p-head"><span className="p-lbl">Attendance</span></div>
-              <p className="p-msg">Optional meeting — no roll is taken, and it doesn’t touch anyone’s standing.</p>
+              <div className="p-head"><span className="p-lbl">{roll.label}</span></div>
+              <p className="p-msg">{roll.msg}</p>
             </>
-          ) : live ? (
+          ) : roll.kind === "live" ? (
             <>
               <div className="p-head">
-                <span className="p-lbl ok">Check-in open</span>
-                <span className="p-count"><b>{live.presentCount}</b> / {live.eligibleCount} here so far</span>
+                <span className="p-lbl ok">{roll.label}</span>
+                <span className="p-count"><b>{roll.present}</b> / {roll.of} here so far</span>
               </div>
-              <div className="meter"><i className="fill-present" style={{ width: `${pct(live.presentCount, live.eligibleCount)}%` }} /></div>
-              <p className="p-msg">Anyone who hasn’t checked in when it closes is marked absent.</p>
+              <div className="meter"><i className="fill-present" style={{ width: `${roll.presentPct}%` }} /></div>
+              <p className="p-msg">{roll.msg}</p>
             </>
-          ) : wasTaken ? (
+          ) : roll.kind === "taken" ? (
             <>
               <div className="p-head">
-                <span className="p-lbl">Attendance marked</span>
-                <span className="p-count"><b>{present}</b> / {eligible} present</span>
+                <span className="p-lbl">{roll.label}</span>
+                <span className="p-count"><b>{roll.present}</b> / {roll.of} present</span>
               </div>
               <div className="meter">
-                <i className="fill-present" style={{ width: `${pct(present, eligible)}%` }} />
-                <i className="fill-absent" style={{ width: `${pct(absent, eligible)}%` }} />
+                <i className="fill-present" style={{ width: `${roll.presentPct}%` }} />
+                <i className="fill-absent" style={{ width: `${roll.absentPct}%` }} />
               </div>
               <div className="p-legend">
-                <span className="li"><span className="d" style={{ background: "var(--vio)" }} />Present {present}</span>
-                <span className="li"><span className="d" style={{ background: "var(--faint)" }} />{`Absent ${absent}`}</span>
-                {excused > 0 && <span className="li ex"><span className="d" style={{ background: "var(--gold)" }} />Excused {excused}</span>}
+                <span className="li"><span className="d" style={{ background: "var(--vio)" }} />Present {roll.present}</span>
+                <span className="li"><span className="d" style={{ background: "var(--faint)" }} />{`Absent ${roll.absent}`}</span>
+                {roll.excused > 0 && <span className="li ex"><span className="d" style={{ background: "var(--gold)" }} />Excused {roll.excused}</span>}
               </div>
             </>
           ) : (
             <>
               <div className="p-head">
-                <span className="p-lbl">Attendance not taken yet</span>
-                {(summary?.expected ?? 0) > 0 && <span className="p-count">{summary!.expected} expected</span>}
+                <span className="p-lbl">{roll.label}</span>
+                {roll.expected > 0 && <span className="p-count">{roll.expected} expected</span>}
               </div>
-              <p className="p-msg">{isToday ? "Mark who’s there once the meeting starts." : "Opens on the day. Excuses filed before then are already counted."}</p>
+              <p className="p-msg">{roll.msg}</p>
             </>
           )}
         </div>
@@ -1906,7 +1795,7 @@ function OnDeckHero({
         {pending.length > 0 && (
           <button type="button" className="od-exc" onClick={onReviewExcuses}>
             <PaperIcon name="flag" className="pp-ic" />
-            {pending.length} excuse{pending.length === 1 ? "" : "s"} waiting for review · {andList(pending.map(p => p.brotherName.split(" ")[0]))}
+            {excuseLine(pending.map(p => p.brotherName))}
             <PaperIcon name="arrow-r" className="pp-ic" />
           </button>
         )}

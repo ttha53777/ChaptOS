@@ -17,6 +17,7 @@ SHARED = (
     "@/lib/dashboard/", "@/lib/dashboard-layout", "@/lib/nav-order", "@/lib/tracked-metrics",
     "@/lib/thresholds", "@/lib/money", "@/lib/dates", "@/lib/tasks/urgency", "@/lib/workflow-features",
     "@/lib/event-hue", "@/lib/timeline/",
+    "@/lib/meetings/", "@/lib/agenda-template", "@/lib/meeting-summary", "@/lib/collaboration/notes-protocol",
 )
 SKIP_DIRS = {"node_modules", ".expo", "dist", "ios", "android"}
 STMT = re.compile(

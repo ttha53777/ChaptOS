@@ -125,3 +125,32 @@ Verified 2026-11-19 on :3100 (day):
 - Busy admin full, busy member, day-one org: compared with `web/members/*`. Fixed from that comparison: the dues/status columns were too wide (names wrapped), and the lateness only showed once dues had loaded (`_app-shot` gained `--settle`).
 - Card edit end to end: PATCH `{gpa:3.6}`, then Undo PATCH `{gpa:3.55}`; the card updated live.
 - Not exercised by the seed: the join band (no pending requests). It typechecks against the contract types; approve/reject still need a device check with a real request.
+
+## Chapter / Meetings (Phase 5), what landed
+
+Built 2026-11-19, uncommitted.
+
+- **Shared rules:** `lib/meetings/book.ts` (on SHARED, together with `lib/agenda-template`, `lib/meeting-summary` and `lib/collaboration/notes-protocol`).
+  - Covers on deck/past split, book tabs, ledger row, digest runs, On deck roll and head, excuse line, attLabel, meetingProgress, Summary badge.
+  - Time-zone inputs are injected: the web passes Temporal (`compareEvents`/`isEventOver`/`startTimeOf`), the app passes `~/meetings/time` (ports in `~/dash/UpNextCard`).
+  - The web Chapter page renders from it: all 16 chapter captures are pixel-IDENTICAL before vs after.
+  - The app's `meetings/model.ts` lost its own split (it used start + 90 min, which disagreed with the web), its preview and its digest.
+- **Wire (additive):**
+  - `MinutesSaved` is the response of `PATCH /api/calendar/[id]`, with a route-map line and contract entry `minutesSaved`. The existing smoke probe covers the path.
+  - Round trip verified on :3100: 200 with `{id, description, notesUpdatedAt, notesContentRevision, notesInitialized}`.
+- **Meetings list:**
+  - Briefing ("The *minutes*." + digest / day one "Every meeting, *written down*."), Add meeting, Ask about past meetings.
+  - On deck card: the four roll states, the excuses-waiting line that opens the review, check-in / Take or Edit attendance, Start / Open minutes, Edit.
+  - Past meetings ledger with All / No minutes / Under 70% tabs; day one with the web's three pictures and captions.
+- **Meeting view = the phone minutes sheet:**
+  - Ticket with clock bar, then tabs Minutes / Summary (badge, `!` when stale) / Who came (present count).
+  - Minutes: legal pad with sections numbered 01, 02, …
+  - Summary: card with tickable action items and "was due" dates.
+  - Who came: name-chip groups. App keeps: the member's own excuse line (`AttendanceBlock mineOnly`) and the officer check-in desk.
+  - Dock as on the web; ⋯ sheet with Share as text / Edit / Delete.
+- **Deviations:**
+  - Templates is web-only.
+  - Summarize shows for everyone, as on the web (the server has no permission check on it).
+  - Shared (Yjs) minutes are written only on the web. The app writes unshared minutes: a textarea autosaved 600ms after typing stops, and on leaving; a 409 drops back to read.
+  - Download .md and Print are folded into Share as text.
+- **Not exercised in the UI:** the app Write path. ok-today has collaborative notes on, so every meeting reads as shared there.

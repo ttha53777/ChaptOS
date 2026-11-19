@@ -281,6 +281,16 @@ export interface AgendaTemplate {
   updatedBy: { id: number; name: string } | null;
 }
 
+/** PATCH /api/calendar/[id] — the saved meeting. The app reads only the minutes' side of it,
+ *  to autosave minutes without re-reading the calendar. 409 once the notes are shared. */
+export interface MinutesSaved {
+  id: number;
+  description: string | null;
+  notesUpdatedAt: string | null;
+  notesContentRevision: number;
+  notesInitialized: boolean;
+}
+
 /** POST /api/ai/summarize-meeting — the meeting's fresh summary (parse notesSummaryData before reading). */
 export interface MeetingSummarized {
   id: number;

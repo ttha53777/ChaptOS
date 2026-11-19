@@ -43,7 +43,8 @@ const GROUPS: { key: Group; label: string; tone: Tone }[] = [
 
 const reasonSchema = submitExcuseInput.shape.reason;
 
-export function AttendanceBlock({ event, meId, today }: { event: CalendarEvent; meId: number; today: string }) {
+/** `mineOnly`: just my line and the excuse (the minutes sheet draws who came itself, as name chips). */
+export function AttendanceBlock({ event, meId, today, mineOnly }: { event: CalendarEvent; meId: number; today: string; mineOnly?: boolean }) {
   const { c } = useTheme();
   const att = useEventAttendance(event.id);
   const mine = useMyAttendance();
@@ -77,7 +78,7 @@ export function AttendanceBlock({ event, meId, today }: { event: CalendarEvent; 
 
   return (
     <View style={{ gap: 12 }}>
-      <T v="label" color={c.ink3} accessibilityRole="header">Attendance</T>
+      {mineOnly ? null : <T v="label" color={c.ink3} accessibilityRole="header">Attendance</T>}
 
       <MyLine here={here} past={past} absent={absent} excuse={myExcuse} filing={filing}
         onLanded={() => { haptics.soft(); toast.show("Excuse filed", { detail: "An officer will look at it." }); }}
@@ -97,7 +98,7 @@ export function AttendanceBlock({ event, meId, today }: { event: CalendarEvent; 
         </View>
       ) : null}
 
-      {att.data ? <WhoCame data={att.data} group={group} setGroup={setGroup} past={past} />
+      {mineOnly ? null : att.data ? <WhoCame data={att.data} group={group} setGroup={setGroup} past={past} />
         : att.isError ? <ErrorState compact title="Couldn't load who came." error={att.error} onRetry={() => void att.refetch()} />
         : <SkeletonCard lines={1} title={false} />}
 

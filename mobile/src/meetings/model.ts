@@ -1,27 +1,14 @@
 /**
- * Pure rules for Meetings, ported from the web's Chapter page (app/org/[slug]/chapter/
- * page.tsx) and lib/agenda-template.ts:
- *
- *   meetings      the calendar's "chapter" events
- *   on deck       the earliest one that isn't over (over = an earlier day, or today and an
- *                 hour and a half past its start); past = the rest, newest first
- *   has minutes   written beyond the agenda a template copied in (hasMinutes)
- *   preview       the summary's gist, else the minutes' first lines (notesPreview)
- *   low turnout   a taken roll under 70% (LOW_TURNOUT)
- *   digest        "Chapter meets Thursday at 7:00 PM in …. 6 meetings this term, turnout
- *                 averaging 84%, but Oct 2 still has no minutes."
- *
- * Plus the form's arithmetic: the usual weekday / time / room, and a wall-clock time in
- * the chapter's zone as the instant the server's schedule wants (no Temporal here, so the
- * zone offset comes from Intl, checked twice across a DST edge).
+ * Meetings, the app's own half: permission bits and the meeting form's arithmetic (the
+ * usual weekday / time / room, and a wall-clock time in the chapter's zone as the instant
+ * the server's schedule wants; no Temporal here, so the zone offset comes from Intl,
+ * checked twice across a DST edge). The Chapter page's rules live in @/lib/meetings/book.
  */
-import type { AttendanceSummaryRow, CalendarEvent, MeetingSummaryBody, MeResponse } from "@/lib/api-types";
-import { daysFrom, parseClock } from "~/today/time";
+import type { CalendarEvent, MeResponse } from "@/lib/api-types";
+import { parseClock } from "~/today/time";
 
 export const MANAGE_EVENTS = 1 << 2;
 export const MANAGE_ATTENDANCE = 1 << 6;
-const LOW_TURNOUT = 0.7;
-const OVER_AFTER_MIN = 90;
 
 const hasBit = (me: MeResponse, bit: number) => me.isAdmin || (me.permissions & bit) !== 0;
 export const canEvents = (me: MeResponse) => hasBit(me, MANAGE_EVENTS);
@@ -29,93 +16,13 @@ export const canAttendance = (me: MeResponse) => hasBit(me, MANAGE_ATTENDANCE);
 
 export const isMeeting = (e: CalendarEvent) => e.category === "chapter";
 
-const byWhen = (a: CalendarEvent, b: CalendarEvent) =>
-  a.date.localeCompare(b.date) || (minutesOf(a) ?? -1) - (minutesOf(b) ?? -1) || a.id - b.id;
-
 /** Minutes after midnight the event starts, from its "HH:MM" or "7:00 PM" time. */
 export const minutesOf = (e: Pick<CalendarEvent, "time">): number | null => parseClock(e.time);
 
-export function isOver(e: CalendarEvent, today: string, nowMin: number): boolean {
-  if (e.date < today) return true;
-  if (e.date > today) return false;
-  const m = minutesOf(e);
-  return m != null && nowMin > m + OVER_AFTER_MIN;
-}
+/* The page's rules (on deck, the book, previews, the digest, the roll) are shared with the
+ * web: @/lib/meetings/book. What stays here is the app's own: permission bits and the form. */
 
-export function splitMeetings(events: CalendarEvent[], today: string, nowMin: number) {
-  const meetings = events.filter(isMeeting);
-  const upcoming = meetings.filter(e => !isOver(e, today, nowMin)).sort(byWhen);
-  const past = meetings.filter(e => isOver(e, today, nowMin)).sort((a, b) => byWhen(b, a));
-  return { next: upcoming[0] ?? null, later: upcoming.slice(1), past };
-}
-
-/* ── minutes ──────────────────────────────────────────────────────────────────── */
-
-const HEADING = /^\s{0,3}(#{1,6})\s+(.*)$/;
-
-export function hasMinutes(e: Pick<CalendarEvent, "description" | "notesSeed">): boolean {
-  const notes = (e.description ?? "").trim();
-  if (!notes) return false;
-  const seed = (e.notesSeed ?? "").trim();
-  return !seed || notes !== seed;
-}
-
-export function minutesBeyondAgenda(e: Pick<CalendarEvent, "description" | "notesSeed">): string {
-  const notes = e.description ?? "";
-  const seed = e.notesSeed ?? "";
-  if (!seed.trim()) return notes.trim();
-  const untouched = new Set(seed.split("\n").map(l => l.trim()).filter(l => l && !HEADING.test(l)));
-  return notes.split("\n").filter(l => !untouched.has(l.trim())).join("\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
-/** lib/meeting-summary.ts, as far as the ledger needs it: the gist, if the data has one. */
-function gistOf(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const g = (data as Partial<MeetingSummaryBody>).gist;
-  return typeof g === "string" && g.trim() ? g.trim() : null;
-}
-
-export function notesPreview(e: CalendarEvent): string {
-  const gist = gistOf(e.notesSummaryData);
-  if (gist) return gist;
-  const summary = (e.notesSummary ?? "").split("\n").map(l => l.replace(/^[-*]\s*/, "").replace(/\*\*/g, "").trim()).find(Boolean);
-  if (summary) return summary;
-  return minutesBeyondAgenda(e)
-    .split("\n")
-    .filter(l => !HEADING.test(l))
-    .map(l => l.replace(/^[-*•]\s*/, "").replace(/^\[[ xX]\]\s*/, "").trim())
-    .filter(l => l && !/^(opened|closed|agenda|action items)\b/i.test(l))
-    .slice(0, 2)
-    .join(" · ");
-}
-
-export const isSummarized = (e: CalendarEvent) => !!gistOf(e.notesSummaryData) || !!(e.notesSummary ?? "").trim();
-
-/* ── the roll ─────────────────────────────────────────────────────────────────── */
-
-export const taken = (r: AttendanceSummaryRow | undefined): r is AttendanceSummaryRow => !!r && r.eligible > 0;
-export const isLow = (r: AttendanceSummaryRow | undefined) => taken(r) && r.present / r.eligible < LOW_TURNOUT;
-export const LOW_PCT = LOW_TURNOUT * 100;
-
-export type PastFilter = "all" | "missing" | "low";
-
-export function filterPast(past: CalendarEvent[], rows: Map<number, AttendanceSummaryRow>, f: PastFilter): CalendarEvent[] {
-  if (f === "missing") return past.filter(e => !hasMinutes(e));
-  if (f === "low") return past.filter(e => isLow(rows.get(e.id)));
-  return past;
-}
-
-/* ── the digest ───────────────────────────────────────────────────────────────── */
-
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DOWS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-export const shortDate = (iso: string) => `${MON[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 const weekdayOf = (iso: string) => new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))).getDay();
-
-function andList(items: string[]) {
-  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
-}
 
 /** "7:00 PM" from minutes after midnight. */
 export function clock12(min: number): string {
@@ -123,38 +30,7 @@ export function clock12(min: number): string {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
-export function whenPhrase(e: CalendarEvent, today: string): string {
-  const n = daysFrom(today, e.date);
-  if (n === 0) return "today";
-  if (n === 1) return "tomorrow";
-  if (n > 1 && n < 7) return DOWS_LONG[weekdayOf(e.date)]!;
-  return shortDate(e.date);
-}
-
-export interface Digest { lead: string; strong: string; rest: string }
-
-/** The briefing line, in three runs so the screen can ink the middle one. */
-export function digest(next: CalendarEvent | null, past: CalendarEvent[], rows: Map<number, AttendanceSummaryRow>, today: string, term: { startDate: string; endDate: string } | null): Digest[] {
-  const out: Digest[] = [];
-  if (next) {
-    const m = minutesOf(next);
-    out.push({ lead: "Chapter meets ", strong: `${whenPhrase(next, today)}${m != null ? ` at ${clock12(m)}` : ""}`, rest: next.location ? ` in ${next.location}.` : "." });
-  } else {
-    out.push({ lead: "Nothing is on deck.", strong: "", rest: "" });
-  }
-  const held = past.filter(e => !term || (e.date >= term.startDate && e.date <= term.endDate));
-  if (!held.length) { out.push({ lead: " This is the first one: its minutes start the book.", strong: "", rest: "" }); return out; }
-  const counted = held.map(e => rows.get(e.id)).filter(taken);
-  const present = counted.reduce((n, r) => n + r.present, 0);
-  const eligible = counted.reduce((n, r) => n + r.eligible, 0);
-  const missing = held.filter(e => !hasMinutes(e));
-  const avg = eligible ? `, turnout averaging ${Math.round((present / eligible) * 100)}%` : "";
-  out.push({ lead: " ", strong: `${held.length} ${held.length === 1 ? "meeting" : "meetings"}`, rest: ` this term${avg}` });
-  if (!missing.length) out.push({ lead: ", every one with minutes.", strong: "", rest: "" });
-  else if (missing.length <= 3) out.push({ lead: ", but ", strong: andList(missing.map(e => shortDate(e.date))), rest: ` still ${missing.length === 1 ? "has" : "have"} no minutes.` });
-  else out.push({ lead: ", but ", strong: `${missing.length} of them`, rest: " still have no minutes." });
-  return out;
-}
+export { LOW_PCT, shortDate } from "@/lib/meetings/book";
 
 /* ── the form ─────────────────────────────────────────────────────────────────── */
 

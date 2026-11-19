@@ -14,9 +14,10 @@
  *   decide an excuse                 PATCH /api/excuses/[id]
  *   excuse someone else              POST /api/excuses { brotherId } (approved on the spot)
  *   summarize the minutes            POST /api/ai/summarize-meeting
+ *   write the minutes (unshared)     PATCH /api/calendar/[id] { description } → MinutesSaved
  */
 import type {
-  AgendaTemplate, AttendanceSummaryRow, EventDeletePreview, ExcuseDecided, ExcuseListItem, LiveCheckIn, MeetingSummarized,
+  AgendaTemplate, AttendanceSummaryRow, CalendarEvent, EventDeletePreview, ExcuseDecided, ExcuseListItem, LiveCheckIn, MeetingSummarized, MinutesSaved,
 } from "@/lib/api-types";
 import type { recordAttendanceInput, checkInWindowInput } from "@/lib/validation/attendance";
 import type { decideExcuseInput, submitExcuseInput } from "@/lib/validation/excuse";
@@ -189,3 +190,19 @@ export async function summarizeMeeting(id: number): Promise<MeetingSummarized> {
   void queryClient.invalidateQueries({ queryKey: calKeys.events(slug) });
   return r;
 }
+
+/**
+ * Saves minutes typed on the phone (only for a meeting whose notes aren't shared: the
+ * web's collaborative editor owns those, and the server answers 409 once they are).
+ * Patches the calendar cache from the answer instead of re-reading the calendar on
+ * every pause in typing.
+ */
+export async function saveMinutes(id: number, description: string): Promise<MinutesSaved> {
+  const slug = slugNow();
+  const r = await api<MinutesSaved>(`/api/calendar/${id}`, { method: "PATCH", body: { description }, org: slug });
+  queryClient.setQueryData<CalendarEvent[]>(calKeys.events(slug), list => list?.map(e => (e.id === id ? {
+    ...e, description: r.description, notesUpdatedAt: r.notesUpdatedAt, notesContentRevision: r.notesContentRevision, notesInitialized: r.notesInitialized,
+  } : e)));
+  return r;
+}
+
