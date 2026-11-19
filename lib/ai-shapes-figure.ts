@@ -117,14 +117,20 @@ async function buildBalance(evidence: ShapeEvidence, scoped: Scoped, today: stri
   const read = treasuryRead(evidence.get("get_treasury")?.result);
   if (!read) return null;
   // The same rows get_treasury sums (non-deleted transactions, every party's
-  // door take), now with their dates. Any member can read the treasury, so this
-  // shows nothing the tool didn't. Two reads, one at a time (pool of 2).
-  const txs = await scoped.transaction.findMany({ where: { deletedAt: null }, select: { date: true, type: true, amount: true } }) as Array<{ date: string; type: string; amount: number }>;
-  const parties = await scoped.partyEvent.findMany({ select: { date: true, doorRevenue: true } }) as Array<{ date: string; doorRevenue: number | null }>;
+  // door take), now by date. The ledger is summed per day in the database, so
+  // this costs one row per day that had money move, not one per transaction.
+  // Any member can read the treasury, so it shows nothing the tool didn't.
+  // Two reads side by side fill the pool of 2; the semester waits its turn.
+  const [grouped, partyRows] = await Promise.all([
+    scoped.transaction.groupBy({ by: ["date", "type"], where: { deletedAt: null }, _sum: { amount: true } }),
+    scoped.partyEvent.findMany({ where: { doorRevenue: { gt: 0 } }, select: { date: true, doorRevenue: true } }),
+  ]);
+  const days = grouped as unknown as Array<{ date: string; type: string; _sum: { amount: number | null } }>;
+  const parties = partyRows as Array<{ date: string; doorRevenue: number | null }>;
   const semester = await getActiveSemester(scoped);
   const moves = [
-    ...txs.map(t => ({ date: t.date, amount: t.type === "income" ? t.amount : -t.amount })),
-    ...parties.filter(p => p.doorRevenue).map(p => ({ date: p.date, amount: p.doorRevenue! })),
+    ...days.map(d => ({ date: d.date, amount: (d.type === "income" ? 1 : -1) * (d._sum.amount ?? 0) })),
+    ...parties.map(p => ({ date: p.date, amount: p.doorRevenue ?? 0 })),
   ];
   return balanceFigure({ read, moves, today, windowStart: semester?.startDate ?? null, termLabel: semester?.label ?? null });
 }
