@@ -78,6 +78,8 @@ const PROBES: Record<string, Probe> = {
   "GET /api/join-requests":                    { path: () => "/api/join-requests?page=1" },
   "POST /api/join-requests/[id]/approve":      { path: () => `/api/join-requests/${NONE}/approve`, body: {} },
   "POST /api/join-requests/[id]/reject":       { path: () => `/api/join-requests/${NONE}/reject` },
+  "GET /api/invites":                          { path: () => "/api/invites" },
+  "POST /api/invites":                         { path: () => "/api/invites", body: { expiry: "never-a-preset" } },
   "POST /api/orgs/leave":                      { path: () => "/api/orgs/leave", body: {} },
   "GET /api/home":                             { path: () => `/api/home?today=${today}` },
   "GET /api/dashboard":                        { path: () => `/api/dashboard?today=${today}` },

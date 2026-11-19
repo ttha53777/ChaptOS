@@ -6,8 +6,9 @@
  *                 "13 members active. 7 at risk and 2 on watch — 3 owe $420 in dues and
  *                 8 sit below the 80% attendance line." Day one (≤ 1 member): the web's
  *                 "It's just you so far…" and How joining works
- *   actions       Export (the roster as CSV through the share sheet) and Ask who's
- *                 slipping (Ask Chapt, question ready)
+ *   actions       Invite members (MANAGE_SETTINGS; ~/members/InviteSheet), Export (the
+ *                 roster as CSV through the share sheet) and Ask who's slipping (Ask Chapt,
+ *                 question ready)
  *   join band     MANAGE_BROTHERS: requests waiting, review/approve (role) and decline
  *   measures      the ledger tiles; a tile filters or sorts the roster and scrolls to it
  *   standing      band bar, legend chips, faces ringed by standing
@@ -37,6 +38,7 @@ import { haptics } from "~/motion/haptics";
 import { DeclineSheet, JoinBand, ReviewSheet } from "~/members/JoinRequests";
 import { MemberCard } from "~/members/MemberCard";
 import { measuredOf, trackedOf, vocab } from "~/members/model";
+import { InviteSheet } from "~/members/InviteSheet";
 import { PayDues } from "~/members/PayDues";
 import { HowJoining, Measures, RosterCard, StandingCard, type Focus } from "~/members/Roster";
 import { navLabel, plural } from "~/more/model";
@@ -49,7 +51,7 @@ import { SlotView, useSlot } from "~/shell/slot";
 import { PageBrief } from "~/ui/PageBrief";
 import { T } from "~/ui/T";
 
-const BROTHERS = 1 << 0, TREASURY = 1 << 1, ATTENDANCE = 1 << 6;
+const BROTHERS = 1 << 0, TREASURY = 1 << 1, ATTENDANCE = 1 << 6, SETTINGS = 1 << 11;
 type SortKey = "attendance" | "gpa" | "serviceHours" | "duesOwed";
 const SORT_LABEL: Record<SortKey, string> = { attendance: "attendance, lowest first", gpa: "GPA, lowest first", serviceHours: "hours, fewest first", duesOwed: "dues, most owed first" };
 
@@ -57,7 +59,7 @@ export default function Members() {
   const entry = useEntryOf("ready");
   const me = entry?.me ?? null;
   const has = (bit: number) => !!me && (me.isAdmin || (me.permissions & bit) !== 0);
-  const canBrothers = has(BROTHERS), canTreasury = has(TREASURY), canAttendance = has(ATTENDANCE);
+  const canBrothers = has(BROTHERS), canTreasury = has(TREASURY), canAttendance = has(ATTENDANCE), canSettings = has(SETTINGS);
 
   const roster = useRoster();
   const dues = useDuesBoard(!!me);
@@ -78,6 +80,7 @@ export default function Members() {
   const paySlot = useSlot<number>();
   const [review, setReview] = useState<JoinRequestRow | null>(null);
   const [decline, setDecline] = useState<JoinRequestRow | null>(null);
+  const [inviting, setInviting] = useState(false);
 
   const list = roster.data;
   const t = me?.org?.thresholds;
@@ -145,7 +148,7 @@ export default function Members() {
   else body = (
     <View style={{ gap: 16 }}>
       {joins.data ? <JoinBand page={joins.data} seatsLeft={seatsLeft} onReview={setReview} onDecline={setDecline} /> : null}
-      {dayOne ? <HowJoining /> : null}
+      {dayOne ? <HowJoining onInvite={canSettings ? () => setInviting(true) : undefined} /> : null}
       {derived.kpis ? (
         <Measures k={derived.kpis} roster={list} t={t} tracked={tracked} measured={measured} good={derived.counts.Good}
           nothingMeasured={nothingMeasured} words={{ meetings: meetingsWord, dues: duesWord, service: serviceWord, members }} onFocus={focus} />
@@ -182,6 +185,13 @@ export default function Members() {
         lead="The " mark={members} markTone="peach" sub={summary} />
       {list && derived ? (
         <View key="acts" style={styles.acts}>
+          {canSettings ? (
+            <Pressable accessibilityRole="button" accessibilityHint="Opens the invite link to copy or share" onPress={() => setInviting(true)}
+              style={({ pressed }) => [styles.act, { borderColor: c.ink, backgroundColor: c.ink }, pressed ? { transform: [{ translateX: 1 }, { translateY: 1 }] } : hard(c.pastel.lilac.fill, 3)]}>
+              <Icon name="envelope" size={15} color={c.paper} />
+              <T v="button" size={14} color={c.paper}>{`Invite ${members.toLowerCase()}`}</T>
+            </Pressable>
+          ) : null}
           <Pressable accessibilityRole="button" onPress={exportCsv}
             style={({ pressed }) => [styles.act, { borderColor: c.ink, backgroundColor: c.card }, pressed ? null : hard(c.pastel.peach.fill, 3)]}>
             <Icon name="out" size={15} color={c.ink} />
@@ -200,6 +210,7 @@ export default function Members() {
       <SlotView slot={paySlot}>{(id, close) => <PayDues member={byId(list, id)} onClose={close} />}</SlotView>
       <ReviewSheet row={review} roles={roles.data ?? []} rolesState={roles.isError ? "error" : roles.data ? "ok" : "loading"}
         maxRank={me.maxRank} memberWord={memberWord} onClose={() => setReview(null)} onDecline={r => { setReview(null); setDecline(r); }} />
+      {canSettings ? <InviteSheet open={inviting} orgName={org?.name ?? "your chapter"} memberWord={members} seatsLeft={me.isAdmin ? seatsLeft : null} onClose={() => setInviting(false)} /> : null}
       <DeclineSheet row={decline} onClose={() => setDecline(null)} onDeclined={() => setDecline(null)} />
     </Screen>
   );

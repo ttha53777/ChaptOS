@@ -329,7 +329,7 @@ const STEPS: { icon: IconName; title: string; line: string }[] = [
 ];
 
 /** "How joining works", for a roster of one (the web's .bh-inv). */
-export function HowJoining() {
+export function HowJoining({ onInvite }: { onInvite?: () => void }) {
   const { c } = useTheme();
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.line, boxShadow: c.sh1 }]} accessibilityLabel="How joining works">
@@ -338,6 +338,13 @@ export function HowJoining() {
       <T v="body" size={14.5} lh={1.5} color={c.ink2} style={{ marginTop: 8 }}>
         Anyone with the link can ask. Their request waits here until you approve it, and you can hand them a role as you do.
       </T>
+      {onInvite ? (
+        <Pressable accessibilityRole="button" onPress={onInvite}
+          style={({ pressed }) => [styles.getLink, { borderColor: c.ink, backgroundColor: c.ink }, pressed ? { transform: [{ translateX: 1 }, { translateY: 1 }] } : hard(c.pastel.sky.fill, 3)]}>
+          <Icon name="link" size={14} color={c.paper} />
+          <T v="button" size={14} color={c.paper}>Get an invite link</T>
+        </Pressable>
+      ) : null}
       <View style={{ marginTop: 14, gap: 12 }}>
         {STEPS.map((s, i) => (
           <View key={s.title} style={styles.step}>
@@ -387,6 +394,7 @@ const styles = StyleSheet.create({
   pay: { paddingVertical: 6, paddingHorizontal: 13, borderRadius: 999, borderWidth: 1.5 },
   tag: { paddingVertical: 3, paddingHorizontal: 8, borderRadius: 999, borderWidth: 1 },
   foot: { paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1.5 },
+  getLink: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 8, marginTop: 14, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1.5 },
   step: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   stepN: { width: 26, height: 26, borderRadius: 999, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginTop: 1 },
 });

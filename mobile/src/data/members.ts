@@ -10,10 +10,12 @@
  * The photo is cropped square by the picker and shrunk here to 512px JPEG so it's always
  * far under the 2 MB limit, whatever the camera shot.
  */
-import type { AvatarResponse, Brother, DuesBoard, JoinRequestApproved, JoinRequestPage, MeResponse, MemberProfile, MemberUpdated, Transaction } from "@/lib/api-types";
+import type { AvatarResponse, Brother, DuesBoard, InviteLink, JoinRequestApproved, JoinRequestPage, MeResponse, MemberProfile, MemberUpdated, Transaction } from "@/lib/api-types";
 import type { updateBrotherInput } from "@/lib/validation/brother";
 import type { approveJoinRequestInput } from "@/lib/validation/join-request";
 import type { createTransactionInput } from "@/lib/validation/transaction";
+import type { createInviteInput } from "@/lib/validation/invite";
+import { config } from "~/config";
 import { useQuery } from "@tanstack/react-query";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { z } from "zod";
@@ -141,4 +143,31 @@ export function recordDuesPayment(b: Pick<Brother, "id" | "name">, amount: numbe
     type: "income", category: "Dues", amount, date, description: `Dues payment — ${b.name}`, paymentMethod, brotherId: b.id,
   };
   return api<Transaction>("/api/transactions", { method: "POST", body });
+}
+
+/* ── invite links (MANAGE_SETTINGS) ───────────────────────────────────────────── */
+
+/** GET /api/invites: the org's links; the sheet shows the usable ones, newest first. */
+export function useInvites(enabled: boolean) {
+  const { slug } = useActiveOrg();
+  return useQuery({
+    queryKey: ["invites", slug] as const,
+    queryFn: () => api<InviteLink[]>("/api/invites", { org: slug }),
+    select: rows => rows.filter(r => r.status === "active"),
+    enabled,
+  });
+}
+
+/** Mints a 7-day link, only ever on an explicit press (a link is a credential), as the web. */
+export async function createInvite(): Promise<InviteLink> {
+  const body: z.input<typeof createInviteInput> = { expiry: "7d" };
+  const made = await api<InviteLink>("/api/invites", { method: "POST", body });
+  queryClient.setQueryData<InviteLink[]>(["invites", slugNow()], prev => [made, ...(prev ?? [])]);
+  return made;
+}
+
+/** The link to hand out: the web origin the app talks to (the preview proxies, so its own). */
+export function joinUrl(token: string): string {
+  const base = config.apiUrl || (typeof window !== "undefined" && window.location ? window.location.origin : "https://chaptos.com");
+  return `${base}/join/${token}`;
 }

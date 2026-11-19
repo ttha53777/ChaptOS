@@ -24,7 +24,7 @@ import type {
   ActivityEntry, Brother, DashboardResponse, CalEventType, CalendarEvent, DuesBoard, DuesChargeIssued, DuesChargePreview, DuesWaived, LiveCheckIn, MemberDuesBook, MemberProfile,
   MyAttendance, MyExcuseItem, OwnJoinRequest, Poll, Reimbursement, Task, TaskDetail, Transaction, TransactionCategory,
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView, CalendarFeedLive,
-  HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved,
+  HomeResponse, MemberUpdated, MobileConfig, JoinRequestPage, JoinRequestApproved, InviteLink,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized,
   ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow, InstagramPost,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
@@ -37,6 +37,7 @@ import type { rankedFromMembers, rankedFromEvents, tableFromMembers, rollFromPeo
 import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { approveJoinRequest, listPendingRequestPage } from "@/lib/services/join-request-service";
+import type { createInvite, listInvites } from "@/lib/services/invite-service";
 import type { publicBrother } from "@/lib/brother-avatar";
 import type { createTask, getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
@@ -181,6 +182,9 @@ export const calendarSubscription: Widen<CalendarSubscriptionView> = served<Serv
 // The roster's join-requests band (Phase 4): the page the app pages through, and an approval.
 export const joinRequestPage: Widen<JoinRequestPage> = served<Served<typeof listPendingRequestPage>>();
 export const joinRequestApproved: Widen<JoinRequestApproved> = served<Served<typeof approveJoinRequest>>();
+// Invite links from the roster's Invite sheet.
+export const inviteLinks: Widen<InviteLink[]> = served<Served<typeof listInvites>>();
+export const inviteCreated: Widen<InviteLink> = served<Served<typeof createInvite>>();
 export const calendarFeedSummary: Widen<CalendarFeedLive> = served<Served<typeof calendarFeedLive>>();
 
 export const home: Widen<HomeResponse> = served<Served<typeof getHome>>();

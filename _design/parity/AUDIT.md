@@ -104,7 +104,7 @@ Verified 2026-11-19 on :3100 (busy admin, day): fold and full against `web/timel
 
 The web's roster rules moved to a shared module, `lib/dashboard/roster.ts`: `roleTitle`, `statusCounts`, `rosterKpis`, `rosterSummary`, `standingHint`, `filterRoster`, `rosterCsv`. `app/data.ts` re-exports `roleTitle` from it. The web Members page renders from it, and its captures before/after are pixel-identical (busy, admin + member, fold + full).
 
-Wire (additive): `JoinRequestRow` / `JoinSeatCheck` / `JoinRequestPage` / `JoinRequestApproved` in `lib/api-types/roster.ts`. Route-map lines for `GET /api/join-requests`, `POST …/[id]/approve` and `POST …/[id]/reject`, plus contract entries and smoke probes (nonexistent ids, so they only ever 404). The `PATCH /api/brothers/[id]` note now covers officer edits. The bearer static check passes on all 101 routes.
+Wire (additive): `JoinRequestRow` / `JoinSeatCheck` / `JoinRequestPage` / `JoinRequestApproved` in `lib/api-types/roster.ts`. Route-map lines for `GET /api/join-requests`, `POST …/[id]/approve` and `POST …/[id]/reject`, plus contract entries and smoke probes (nonexistent ids, so they only ever 404). The `PATCH /api/brothers/[id]` note now covers officer edits. Invite links (`InviteLink`; `GET /api/invites`, `POST /api/invites`, MANAGE_SETTINGS) are on the wire the same way; the POST probe sends an invalid expiry, so it can't mint a link. The bearer static check passes on all 101 routes.
 
 App Members (`mobile/src/app/(tabs)/members/index.tsx`, `mobile/src/members/{Roster,JoinRequests,PayDues}.tsx`):
 - Brief: "<org> · <Member> Roster", "The Members.", the summary sentence.
@@ -125,3 +125,13 @@ Verified 2026-11-19 on :3100 (day):
 - Busy admin full, busy member, day-one org: compared with `web/members/*`. Fixed from that comparison: the dues/status columns were too wide (names wrapped), and the lateness only showed once dues had loaded (`_app-shot` gained `--settle`).
 - Card edit end to end: PATCH `{gpa:3.6}`, then Undo PATCH `{gpa:3.55}`; the card updated live.
 - Not exercised by the seed: the join band (no pending requests). It typechecks against the contract types; approve/reject still need a device check with a real request.
+
+### Invite (added 2026-11-19)
+
+Members > Invite members (MANAGE_SETTINGS), `mobile/src/members/InviteSheet.tsx`, follows the web's InviteLinkSheet:
+- The newest usable link prints as an admission ticket: "Admit one · asks to join", the chapter, the link, and a stub with days left (and uses left) plus Copy link / Share. Up to two more usable links sit under it as rows.
+- With no working link, a printer slot offers "Create a link (expires in 7 days)". Minting only ever happens on that press.
+- The web's paragraph and seats line (admins only) are kept. Labels, expiry and limits stay in Settings on the web.
+- Day one's How joining works gets "Get an invite link".
+- Verified on :3100 (busy admin): empty slot, then Create (POST 201 `{expiry:"7d"}`; the ticket prints in), then Copy (clipboard holds the /join/ link, the button flips to Copied, toast).
+- The link's origin is the API origin the app talks to (`config.apiUrl`). Check it reads chaptos.com on a production build.

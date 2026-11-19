@@ -40,6 +40,8 @@
  *   GET    /api/join-requests                  JoinRequestPage         (MANAGE_BROTHERS; ?page=1, query joinRequestPageInput)
  *   POST   /api/join-requests/[id]/approve     JoinRequestApproved     (MANAGE_BROTHERS; body approveJoinRequestInput; 402 out of seats, 409 JOIN_REQUEST_DECIDED)
  *   POST   /api/join-requests/[id]/reject      204                     (MANAGE_BROTHERS; 409 JOIN_REQUEST_DECIDED)
+ *   GET    /api/invites                        InviteLink[]            (MANAGE_SETTINGS; ?include=all adds dead links)
+ *   POST   /api/invites                        InviteLink              (201; MANAGE_SETTINGS; body createInviteInput, the app sends { expiry: "7d" })
  *   PATCH  /api/brothers/[id]                  MemberUpdated           (own row or MANAGE_BROTHERS: body updateBrotherInput; the app sends { name } | { gpa } | { serviceHours })
  *   POST   /api/orgs/leave                     LeaveOrgResponse        (body leaveOrgInput; last admin → 409)
  *   GET    /api/home                           HomeResponse            (?today=YYYY-MM-DD)

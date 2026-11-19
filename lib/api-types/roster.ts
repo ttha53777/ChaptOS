@@ -66,3 +66,24 @@ export interface JoinRequestApproved {
   name: string;
   roleName: string | null;
 }
+
+/** One invite link (GET /api/invites, POST /api/invites; MANAGE_SETTINGS). A link is a
+ *  credential: opening it files a join request, it never adds anyone by itself. */
+export interface InviteLink {
+  id: number;
+  /** The /join/<token> path segment. */
+  token: string;
+  label: string | null;
+  maxUses: number | null;
+  status: "active" | "expired" | "revoked" | "exhausted" | "reserved";
+  /** ISO instant, or null for a link that never expires. */
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  redemptionCount: number;
+  /** Requests through this link still waiting for an officer. */
+  pendingCount: number;
+  /** Places left under maxUses; null when uncapped. */
+  availableUses: number | null;
+  createdByName: string | null;
+}
