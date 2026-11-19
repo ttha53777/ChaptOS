@@ -4,6 +4,7 @@ import { assertSeatAvailable } from "@/lib/billing/guard";
 import type { RequestContext } from "@/lib/context";
 import { emit } from "@/lib/events";
 import { ConflictError, ForbiddenError, NotFoundError, PaymentRequiredError } from "@/lib/errors";
+import { can } from "@/lib/permissions";
 import { prismaPrivileged } from "@/lib/prisma-privileged"; // lint-direct-prisma:ignore cross-org membership count, see countMemberships
 import type { UpdateBrotherInput } from "@/lib/validation/brother";
 import { removeReceiptObjects } from "@/lib/supabase/receipts";
@@ -218,6 +219,18 @@ export async function updateBrother(
   input: UpdateBrotherInput,
 ) {
   await assertOutranks(ctx, brotherId, "edit");
+
+  // The route lets your own row through without MANAGE_BROTHERS (selfId). That opening
+  // is for your name in this chapter and your custom fields, nothing else: GPA, service
+  // hours, the role title and archiving are what the chapter records ABOUT you, and a
+  // member who could write them could put themselves in good standing (or drop off the
+  // billable roster). Refused, not dropped, so a client can't mistake it for a save.
+  if (brotherId === ctx.actorId && !can(ctx, "MANAGE_BROTHERS")) {
+    const officerOnly = (["role", "gpa", "serviceHours", "archived"] as const).filter(k => input[k] !== undefined);
+    if (officerOnly.length) {
+      throw new ForbiddenError("You can change your own name and profile fields. An officer records the rest.");
+    }
+  }
 
   // Every field here lands on the ROSTER ROW — this org's Membership — so an
   // edit made in one chapter never touches what another chapter records about

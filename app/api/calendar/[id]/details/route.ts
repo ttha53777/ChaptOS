@@ -4,6 +4,7 @@ import { toResponse, ValidationError } from "@/lib/errors";
 import { detailActionInput } from "@/lib/event-details";
 import { changeEventDetail } from "@/lib/services/calendar-service";
 import { logError } from "@/lib/observability";
+import type { EventDetailsUpdated } from "@/lib/api-types";
 
 // No requirePerm: any member may claim a "Who's bringing what" item for
 // themselves; the service decides who may clear a claim or tick the checklist.
@@ -14,7 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const numId = Number((await params).id);
     if (!Number.isInteger(numId) || numId <= 0) throw new ValidationError("Invalid ID");
     const action = detailActionInput.parse(await req.json().catch(() => ({})));
-    return Response.json({ details: await changeEventDetail(ctx, numId, action) });
+    return Response.json({ details: await changeEventDetail(ctx, numId, action) } satisfies EventDetailsUpdated);
   } catch (e) {
     logError(e, { route: "/api/calendar/[id]/details", method: "PATCH", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

@@ -1,6 +1,9 @@
 // Timeline, attendance and excuse wire shapes. Type-only: see lib/api-types/index.ts for the rules.
 import type { Schedule } from "@/lib/calendar-feed/schedule";
 import type { EventDetail } from "@/lib/event-details";
+
+/** One "More details" entry on an event (lib/event-details.ts). Members never receive checklist/budget. */
+export type { EventDetail };
 import type { CheckInStatus, ExcuseStatus } from "@/lib/state";
 
 // Per-org timeline event type — the client view of a CalendarEventType row.
@@ -104,6 +107,27 @@ export type LiveCheckIn = {
   };
 };
 
+/**
+ * GET /api/attendance/[eventId] — who came to a required event, for every member (the
+ * web timeline's Attendance block). Only the active semester's records. An excuse's
+ * `reason` is null unless the caller manages attendance or wrote it. Semester-exempt
+ * members are in no bucket (their ids are in `exempt`). With no active semester every
+ * list is empty.
+ */
+export interface EventAttendance {
+  attended: { brotherId: number; brotherName: string; at: string }[];
+  excused: { brotherId: number; brotherName: string; reason: string | null; isRetroactive: boolean }[];
+  unexcused: { brotherId: number; brotherName: string }[];
+  exempt: number[];
+  /** Members can still tap themselves in, so the lists are still filling. */
+  checkInOpen: boolean;
+}
+
+/** PATCH /api/calendar/[id]/details — the event's details after the claim (member view). */
+export interface EventDetailsUpdated {
+  details: EventDetail[];
+}
+
 /** GET /api/attendance/mine — the events the caller was marked present at. */
 export interface MyAttendance {
   attendedEventIds: number[];
@@ -188,4 +212,76 @@ export interface CalendarSubscriptionView {
   validated: boolean;
   status: { state: "unknown" | "retrying" | "publishing" | "current"; updatedAt: string | null };
   generation: number;
+}
+
+/* ── Meetings (the phone's Meetings page and its officer tools) ─────────────── */
+
+/** GET /api/attendance/summary — per required event, how the roll stands (?category=chapter). */
+export interface AttendanceSummaryRow {
+  calendarEventId: number;
+  present: number;
+  eligible: number;
+  /** Approved excuses (exempt members aside). */
+  excused: number;
+  /** Who the roll will cover: roster minus exempt minus excused. Once taken, `eligible` is the denominator. */
+  expected: number;
+}
+
+/** GET /api/excuses — every excuse (or ?status=pending), oldest first. MANAGE_ATTENDANCE. */
+export interface ExcuseListItem {
+  id: number;
+  brotherId: number;
+  brotherName: string;
+  calendarEventId: number;
+  eventTitle: string;
+  eventDate: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  submittedAt: string;
+  isRetroactive: boolean;
+  rejectionNote: string | null;
+}
+
+/** PATCH /api/excuses/[id] — the decision as recorded. */
+export interface ExcuseDecided {
+  id: number;
+  brotherId: number;
+  status: "pending" | "approved" | "rejected";
+  attendance: number | null;
+}
+
+/** GET /api/calendar/[id]/delete-preview — what deleting the event takes with it. */
+export interface EventDeletePreview {
+  attendance: number;
+  excuses: number;
+  party: { name: string; doorRevenue: number; expenses: number; completed: boolean } | null;
+  serviceMembers: number;
+  programming: boolean;
+  fundraiser: { supplies: number; wrapped: boolean } | null;
+  /** A party ledger needs MANAGE_PARTIES to delete; null = nothing blocks it. */
+  blocked: "MANAGE_PARTIES" | null;
+}
+
+/** GET /api/calendar/agenda-templates — a standing agenda a new meeting can start from. MANAGE_EVENTS. */
+export interface AgendaTemplate {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  body: string;
+  isDefault: boolean;
+  uses: number;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: { id: number; name: string } | null;
+}
+
+/** POST /api/ai/summarize-meeting — the meeting's fresh summary (parse notesSummaryData before reading). */
+export interface MeetingSummarized {
+  id: number;
+  notesSummary: string | null;
+  notesSummaryData: unknown;
+  notesSummaryAt: string | null;
+  notesSummaryRevision: number | null;
+  notesContentRevision: number;
 }

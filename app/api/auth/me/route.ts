@@ -103,6 +103,9 @@ export async function GET() {
               // The sidebar and onboarding picker filter surfaces by the org's
               // enabled workflows. Pull it in the same round-trip as the org name.
               config: { select: { enabledWorkflows: true, vocabularyOverrides: true, thresholds: true, disabledFeatures: true, customMemberFields: true, navOrder: true, dashboardLayout: true, instagramHandle: true, onboardingCompletedAt: true } },
+              // The active term (attendance, excuses and check-in all need one), so a
+              // client can say "no active term" quietly instead of meeting a 400.
+              semesters: { where: { isActive: true }, select: { label: true, startDate: true, endDate: true }, orderBy: { id: "desc" }, take: 1 },
             },
           }),
           scoped.orgMetricDefinition.onTx(tx).count({ where: { deletedAt: null } }),
@@ -315,6 +318,8 @@ export async function GET() {
             // complete) and is the same signal the server onboarding guard gates
             // on. A missing config row reads as not-yet-complete.
             onboardingComplete: org.config?.onboardingCompletedAt != null,
+            // The active term, or null when the chapter hasn't started one.
+            activeTerm: org.semesters[0] ?? null,
             // Billing trouble worth a banner, or null. Admin-only by
             // construction: `subscription` above is only read when elevated.
             billingAlert,

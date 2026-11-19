@@ -64,6 +64,9 @@ export interface MeOrg {
   /** The admin-arranged dashboard every member sees. Null until someone customizes it. */
   dashboardLayout: DashboardLayout | null;
   customMemberFields: CustomMemberFieldDef[];
+  /** The term attendance, excuses and check-in count toward; null when none is active
+   *  (those writes then answer 400 "No active semester"). Dates are YYYY-MM-DD. */
+  activeTerm: { label: string; startDate: string; endDate: string } | null;
   metricDefinitionCount: number;
   pendingReimbursementCount: number;
   /** Server-zeroed for viewers without MANAGE_BROTHERS. */
@@ -132,8 +135,10 @@ export interface OwnJoinRequest {
   id: number;
   submittedName: string;
   status: string;
+  /** ISO. When it was filed (re-filing from a new link resets it). */
+  requestedAt: string;
   decidedAt: string | null;
-  org: { name: string; slug: string };
+  org: { name: string; slug: string; logoUrl: string | null };
 }
 
 /** One org a deleted account would be removed from. */

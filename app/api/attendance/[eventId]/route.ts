@@ -7,6 +7,7 @@ import { logError } from "@/lib/observability";
 import { hasPermission } from "@/lib/permissions";
 import { checkInState } from "@/lib/checkin";
 import { CheckInStatus } from "@/lib/state";
+import type { EventAttendance } from "@/lib/api-types";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
   const { ctx, error } = await buildContext({ rateLimit: false });
@@ -20,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     // No active semester is an empty state, not a client error: there's simply no
     // attendance to report yet. Return empty buckets so the rail renders its empty
     // state instead of the timeline logging a spurious 400.
-    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [], exempt: [], checkInOpen: false });
+    if (!semester) return Response.json({ excused: [], unexcused: [], attended: [], exempt: [], checkInOpen: false } satisfies EventAttendance);
 
     const [event, records, excuses, exemptions] = await Promise.all([
       ctx.db.calendarEvent.findUnique({
@@ -72,7 +73,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ eve
     const status = event ? checkInState(event) : null;
     const checkInOpen = status === CheckInStatus.Open || status === CheckInStatus.Closing;
 
-    return Response.json({ excused, unexcused, attended, exempt: [...exemptBrotherIds], checkInOpen });
+    return Response.json({ excused, unexcused, attended, exempt: [...exemptBrotherIds], checkInOpen } satisfies EventAttendance);
   } catch (e) {
     logError(e, { route: "/api/attendance/[eventId]", method: "GET", userId: ctx.actorId, extra: { requestId: ctx.requestId } });
     return toResponse(e);

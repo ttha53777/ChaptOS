@@ -3,9 +3,9 @@
  *
  *   - deleteBrother last-admin guard: deleting the FINAL admin (Brother.isAdmin)
  *     is blocked so an org can never be left with no one who can administer it.
- *   - dues access split: updateBrother lets full MANAGE_BROTHERS edit duesOwed,
- *     but a self-edit (no perm) may only touch profile + service hours — duesOwed
- *     in a self-edit payload is silently dropped, never written.
+ *   - duesOwed is never writable here, for anyone: it is dropped from the payload.
+ *   - self-edit (your own row, no MANAGE_BROTHERS) may change only your name and
+ *     custom fields; GPA, service hours, role title and archiving are refused.
  *   - custom-field sanitization: values are coerced/truncated against the org's
  *     server-side field definitions; unknown ids are stripped, never persisted.
  *
@@ -232,10 +232,52 @@ describe("duesOwed is not writable through updateBrother", () => {
     const member = await createBrother({ orgId: org.id, duesOwed: 99 });
 
     const selfCtx = ctxFor(org.id, member.id); // no perms, not admin
-    const updated = await updateBrother(selfCtx, member.id, { duesOwed: 0, serviceHours: 12 } as never);
+    const updated = await updateBrother(selfCtx, member.id, { duesOwed: 0, name: "Renamed" } as never);
 
-    expect(updated.serviceHours).toBe(12);
+    expect(updated.name).toBe("Renamed");
     expect(updated.duesOwed).toBe(99);
+  });
+});
+
+describe("self-edit can't touch what the chapter records about you", () => {
+  it.each([
+    ["gpa", { gpa: 4 }],
+    ["serviceHours", { serviceHours: 40 }],
+    ["role", { role: "President" }],
+    ["archived", { archived: true }],
+  ])("a member without MANAGE_BROTHERS can't set their own %s", async (_k, input) => {
+    const { org } = await seedOrg();
+    const member = await createBrother({ orgId: org.id, gpa: 2.1, serviceHours: 3 });
+    const selfCtx = ctxFor(org.id, member.id);
+
+    await expect(updateBrother(selfCtx, member.id, input)).rejects.toBeInstanceOf(ForbiddenError);
+    const row = await testPrisma.membership.findFirstOrThrow({ where: { organizationId: org.id, brotherId: member.id } });
+    expect(row.gpa).toBe(2.1);
+    expect(row.serviceHours).toBe(3);
+    expect(row.archivedAt).toBeNull();
+  });
+
+  it("refuses the whole payload, so a name riding along with a GPA isn't half-saved", async () => {
+    const { org } = await seedOrg();
+    const member = await createBrother({ orgId: org.id, gpa: 2.1 });
+    await expect(updateBrother(ctxFor(org.id, member.id), member.id, { name: "Sneaky", gpa: 4 })).rejects.toBeInstanceOf(ForbiddenError);
+    const row = await testPrisma.membership.findFirstOrThrow({ where: { organizationId: org.id, brotherId: member.id } });
+    expect(row.name).not.toBe("Sneaky");
+  });
+
+  it("an officer with MANAGE_BROTHERS can still set their own GPA", async () => {
+    const { org } = await seedOrg();
+    const officer = await createBrother({ orgId: org.id });
+    const ctx = ctxFor(org.id, officer.id, { permissions: PERMISSIONS.MANAGE_BROTHERS });
+    const updated = await updateBrother(ctx, officer.id, { gpa: 3.9 });
+    expect(updated.gpa).toBe(3.9);
+  });
+
+  it("an org admin can too", async () => {
+    const { org } = await seedOrg();
+    const admin = await createBrother({ orgId: org.id });
+    const updated = await updateBrother(ctxFor(org.id, admin.id, { isOrgAdmin: true }), admin.id, { serviceHours: 9 });
+    expect(updated.serviceHours).toBe(9);
   });
 });
 

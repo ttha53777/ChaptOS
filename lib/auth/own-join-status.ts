@@ -16,9 +16,10 @@ export async function ownJoinStatus(authUserId: string, slug: string, client: Pi
 export async function listOwnJoinRequests(authUserId: string) {
   const rows = await prismaPrivileged.joinRequest.findMany({
     where: { authUserId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 30,
-    select: { id: true, name: true, status: true, decidedAt: true,
-      organization: { select: { name: true, slug: true } } },
+    select: { id: true, name: true, status: true, createdAt: true, decidedAt: true,
+      organization: { select: { name: true, slug: true, logoUrl: true } } },
   });
   return rows.map(r => ({ id: r.id, submittedName: r.name, status: r.status,
+    requestedAt: r.createdAt.toISOString(),
     decidedAt: r.decidedAt?.toISOString() ?? null, org: r.organization }));
 }
