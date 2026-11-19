@@ -7,15 +7,19 @@
  * (data only: no fill, no decoration, the first and last month named, the high and low
  * marked); requests waiting on approval; and the latest lines of the ledger.
  *
- * Recording, editing and approving stay on chaptos.com, where the treasury's controls and
- * its approval record live. Reads GET /api/treasury, /api/transactions,
- * /api/treasury/categories (labels) and /api/reimbursements (what's waiting).
+ * Keepers (MANAGE_TREASURY, stage 6) record here too: Log expense / Log revenue under the
+ * balance, and a ledger line opens its sheet (Edit, Mark paid, Delete; ~/money/TxForm).
+ * Approving reimbursements stays on chaptos.com, where its approval record lives. Reads
+ * GET /api/treasury, /api/transactions, /api/treasury/categories (labels) and
+ * /api/reimbursements (what's waiting).
  */
 import type { Transaction, TransactionCategory, TreasuryData } from "@/lib/api-types";
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Circle, Line, Polyline } from "react-native-svg";
-import { useCategories, useReimbursements, useTransactions, useTreasury } from "~/data/money";
+import { keepsBooks, useCategories, useReimbursements, useTransactions, useTreasury } from "~/data/money";
+import { DeleteTx, labelOf, TxForm, TxSheet, type TxKind } from "~/money/TxForm";
+import { Button } from "~/paper/Button";
 import { useEntryOf } from "~/entry/EntryContext";
 import { money } from "~/members/model";
 import { useCountUp } from "~/money/countUp";
@@ -28,6 +32,7 @@ import { alpha } from "~/theme/palette";
 import { useTheme } from "~/theme/PaperProvider";
 import { monthDay } from "~/today/time";
 import { T } from "~/ui/T";
+import { Icon } from "~/icons/Icon";
 
 const RECENT = 12;
 
@@ -40,7 +45,12 @@ export default function TreasuryPage() {
   const tx = useTransactions(allowed);
   const cats = useCategories(allowed);
   const reimb = useReimbursements(allowed && keeper);
+  const books = !!entry && keepsBooks(entry.me);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [form, setForm] = useState<{ kind: TxKind; tx: Transaction | null } | null>(null);
+  const [doomed, setDoomed] = useState<Transaction | null>(null);
   if (!entry) return null;
+  const openTx = openId != null ? tx.data?.find(x => x.id === openId) ?? null : null;
   const refresh = () => Promise.all([t.refetch(), tx.refetch(), reimb.refetch()]);
 
   if (!allowed) {
@@ -58,6 +68,13 @@ export default function TreasuryPage() {
       {!t.data ? (t.isError ? <ErrorState title="Couldn't load the treasury." error={t.error} onRetry={() => void refresh()} /> : <SkeletonCard height={220} />)
         : <Balance data={t.data} />}
 
+      {books ? (
+        <View style={styles.acts}>
+          <Button label="Log expense" icon="wallet" tone="rose" variant="ghost" onPress={() => setForm({ kind: "expense", tx: null })} style={{ flex: 1 }} block />
+          <Button label="Log revenue" icon="cash" tone="mint" variant="ghost" onPress={() => setForm({ kind: "income", tx: null })} style={{ flex: 1 }} block />
+        </View>
+      ) : null}
+
       {waiting.length ? (
         <View style={[styles.waiting, { borderColor: c.pastel.rose.border, backgroundColor: c.pastel.rose.soft }]} accessibilityRole="summary">
           <T v="callout">
@@ -70,9 +87,19 @@ export default function TreasuryPage() {
       <View style={{ gap: 10 }}>
         <T v="label" color={c.ink3} accessibilityRole="header">Latest in the ledger</T>
         {!tx.data ? (tx.isError ? <ErrorState compact title="Couldn't load the ledger." error={tx.error} onRetry={() => void tx.refetch()} /> : <SkeletonCard lines={5} />)
-          : <Ledger list={tx.data} cats={cats.data ?? []} />}
-        <T v="meta" color={c.ink3}>Read-only here. Record, edit and approve on chaptos.com.</T>
+          : <Ledger list={tx.data} cats={cats.data ?? []} onOpen={books ? x => setOpenId(x.id) : undefined} />}
+        <T v="meta" color={c.ink3}>{books ? "Tap a line to edit it, mark it paid or delete it." : "Read-only here. The treasurer records the ledger."}</T>
       </View>
+
+      {books ? (
+        <>
+          <TxSheet tx={openTx} cats={cats.data ?? []} keeper onClose={() => setOpenId(null)}
+            onEdit={x => { setOpenId(null); setForm({ kind: x.type, tx: x }); }}
+            onDelete={x => { setOpenId(null); setDoomed(x); }} />
+          <TxForm open={form != null} kind={form?.kind ?? "expense"} tx={form?.tx ?? null} cats={cats.data ?? []} onClose={() => setForm(null)} />
+          <DeleteTx tx={doomed} onClose={() => setDoomed(null)} />
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -126,7 +153,7 @@ function Trend({ points }: { points: TreasuryData["trend"] }) {
   );
 }
 
-function Ledger({ list, cats }: { list: Transaction[]; cats: TransactionCategory[] }) {
+function Ledger({ list, cats, onOpen }: { list: Transaction[]; cats: TransactionCategory[]; onOpen?: (t: Transaction) => void }) {
   const { c } = useTheme();
   const rows = list.filter(t => !t.deletedAt)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
@@ -134,20 +161,23 @@ function Ledger({ list, cats }: { list: Transaction[]; cats: TransactionCategory
   if (!rows.length) {
     return <EmptyState compact title="Nothing in the ledger yet." line="Income and expenses the treasurer records show up here." />;
   }
-  const label = (t: Transaction) => cats.find(x => x.kind === t.type && x.slug === t.category)?.label ?? t.category;
+  const label = (t: Transaction) => labelOf(cats, t);
   return (
     <View style={[styles.ledger, { borderColor: c.line, backgroundColor: c.card }]}>
       {rows.map((t, i) => {
         const inc = t.type === "income";
         return (
-          <View key={t.id} style={[styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: c.lineSoft }]}
-            accessible accessibilityLabel={`${t.description || label(t)}, ${monthDay(t.date)}, ${inc ? "in" : "out"} ${money(t.amount)}`}>
+          <Pressable key={t.id} disabled={!onOpen} onPress={() => onOpen?.(t)}
+            style={({ pressed }) => [styles.row, i > 0 && { borderTopWidth: 1, borderTopColor: c.lineSoft }, pressed && { opacity: 0.6 }]}
+            accessibilityRole={onOpen ? "button" : undefined}
+            accessibilityLabel={`${t.description || label(t)}, ${monthDay(t.date)}, ${inc ? "in" : "out"} ${money(t.amount)}${t.status === "scheduled" ? ", scheduled" : ""}`}>
             <View style={{ flex: 1, gap: 2 }}>
               <T v="callout" numberOfLines={1}>{t.description || label(t)}</T>
-              <T v="meta" color={c.ink3} numberOfLines={1}>{monthDay(t.date)} · {label(t)}{t.status === "pending" ? " · pending" : ""}</T>
+              <T v="meta" color={c.ink3} numberOfLines={1}>{monthDay(t.date)} · {label(t)}{t.status === "scheduled" ? " · scheduled" : ""}</T>
             </View>
             <T v="mono" color={inc ? c.pastel.mint.ink : c.ink} style={{ fontSize: 13 }}>{inc ? "+" : "−"}{money(t.amount)}</T>
-          </View>
+            {onOpen ? <Icon name="chev-r" size={14} color={c.ink3} /> : null}
+          </Pressable>
         );
       })}
     </View>
@@ -158,5 +188,6 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1.5, borderRadius: 20, padding: 16, gap: 6 },
   waiting: { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 4 },
   ledger: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14 },
+  acts: { flexDirection: "row", gap: 10 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
 });

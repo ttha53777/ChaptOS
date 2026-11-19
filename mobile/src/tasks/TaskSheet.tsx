@@ -6,7 +6,8 @@
  *
  * The task itself is read live from the cached list, so ticking here (Done / Done my part
  * / Reopen in the footer) updates the sheet in place: the crowd's new dot drops in while
- * the sheet stays open. There's nothing to edit: assignees can only tick.
+ * the sheet stays open. Assignees can only tick; officers (MANAGE_TASKS) also get Edit in
+ * the header and Delete under the tick, which hand off to ~/tasks/TaskForm.
  */
 import type { Brother, Task, TaskHistoryEntry } from "@/lib/api-types";
 import { StyleSheet, View } from "react-native";
@@ -24,13 +25,22 @@ import { BAND_TONE } from "./Deck";
 import { bandOf, canTick, deckLabel, rowWhen, whoLine, type Viewer } from "./model";
 import { tickTask } from "./tick";
 
-export function TaskSheet({ task, viewer, today, roster, onClose }: {
+export function TaskSheet({ task, viewer, today, roster, onClose, onEdit, onDelete }: {
   task: Task | null; viewer: Viewer; today: string; roster: Map<number, Brother>; onClose: () => void;
+  /** Officers only (MANAGE_TASKS); left out, the sheet stays read-only. */
+  onEdit?: (t: Task) => void; onDelete?: (t: Task) => void;
 }) {
+  const officer = viewer.canManage && !!onEdit;
   return (
     <Sheet open={task != null} onClose={onClose} size="half" tone={task ? BAND_TONE[bandOf(task, today)] : "lilac"}
       kicker={task ? deckLabel(task, today) : undefined} title={task?.title} icon="check"
-      footer={task ? <Footer task={task} viewer={viewer} /> : undefined}>
+      actions={officer && task ? <Button label="Edit" size="sm" variant="soft" icon="pencil" onPress={() => onEdit!(task)} /> : null}
+      footer={task ? (
+        <View style={{ gap: 8, flex: 1 }}>
+          <Footer task={task} viewer={viewer} />
+          {officer && onDelete ? <Button label="Delete task" size="sm" variant="soft" icon="trash" onPress={() => onDelete(task)} style={{ alignSelf: "center" }} /> : null}
+        </View>
+      ) : undefined}>
       {task ? <Body task={task} viewer={viewer} today={today} roster={roster} /> : null}
     </Sheet>
   );

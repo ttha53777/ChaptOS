@@ -9,12 +9,16 @@
  *   GET    /api/treasury/categories            TransactionCategory[] (the request's budget line)
  *   GET    /api/treasury                       TreasuryData
  *   GET    /api/transactions                   Transaction[]
+ *   POST   /api/transactions                   Transaction     (MANAGE_TREASURY; Log expense / Log revenue)
+ *   PATCH  /api/transactions/[id]              Transaction     (MANAGE_TREASURY; edit, Mark paid = status "posted")
+ *   DELETE /api/transactions/[id]              204             (MANAGE_TREASURY; a soft delete)
  *
  * A receipt photo is shrunk on the phone first (long edge 1600px, JPEG): the server takes
  * up to 4 MB and sniffs the bytes (JPEG, PNG, WebP, HEIC or PDF).
  */
 import type { MeResponse, Reimbursement, Transaction, TransactionCategory, TreasuryData } from "@/lib/api-types";
 import type { createReimbursementInput } from "@/lib/validation/reimbursement";
+import type { createTransactionInput, updateTransactionInput } from "@/lib/validation/transaction";
 import { useQuery } from "@tanstack/react-query";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import type { z } from "zod";
@@ -33,6 +37,11 @@ const TREASURY_BIT = 1 << 1; // MANAGE_TREASURY
 
 /** The treasury page is for the books' keepers: their role grants treasury, or they run the chapter. */
 export const seesTreasury = (me: MeResponse) => me.isAdmin || (me.permissions & TREASURY_BIT) !== 0;
+/** Who may record, edit and delete ledger lines: the same MANAGE_TREASURY the routes check. */
+export const keepsBooks = seesTreasury;
+
+/** app/data.ts PAYMENT_METHODS (runtime constants can't be imported into the app). */
+export const PAYMENT_METHODS = ["venmo", "zelle", "cash", "card", "check", "invoice"] as const;
 
 const useSlug = () => useActiveOrg().slug;
 
@@ -67,6 +76,41 @@ export function useTransactions(enabled = true) {
 /* ── writes ───────────────────────────────────────────────────────────────────── */
 
 type CreateBody = z.input<typeof createReimbursementInput>;
+export type NewTxBody = z.input<typeof createTransactionInput>;
+export type TxPatch = z.input<typeof updateTransactionInput>;
+
+/** A ledger line moves the balance, the trend, the budget lines and (dues) home. */
+function ledgerWritten() {
+  const slug = activeOrg.get().slug;
+  void queryClient.invalidateQueries({ queryKey: moneyKeys.transactions(slug) });
+  void queryClient.invalidateQueries({ queryKey: moneyKeys.treasury(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+}
+
+const putTx = (t: Transaction) => queryClient.setQueryData<Transaction[]>(moneyKeys.transactions(activeOrg.get().slug), list => {
+  if (!list) return list;
+  return list.some(x => x.id === t.id) ? list.map(x => (x.id === t.id ? t : x)) : [t, ...list];
+});
+
+export async function createTransaction(body: NewTxBody): Promise<Transaction> {
+  const t = await api<Transaction>("/api/transactions", { method: "POST", body });
+  putTx(t);
+  ledgerWritten();
+  return t;
+}
+
+export async function patchTransaction(id: number, body: TxPatch): Promise<Transaction> {
+  const t = await api<Transaction>(`/api/transactions/${id}`, { method: "PATCH", body });
+  putTx(t);
+  ledgerWritten();
+  return t;
+}
+
+export async function deleteTransaction(id: number): Promise<void> {
+  await api<void>(`/api/transactions/${id}`, { method: "DELETE" });
+  queryClient.setQueryData<Transaction[]>(moneyKeys.transactions(activeOrg.get().slug), list => list?.filter(x => x.id !== id));
+  ledgerWritten();
+}
 
 export interface ReceiptFile { uri: string; name: string; type: string }
 

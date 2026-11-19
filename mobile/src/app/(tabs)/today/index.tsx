@@ -11,12 +11,14 @@
  */
 import type { LiveCheckIn } from "@/lib/api-types";
 import { router } from "expo-router";
+import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useAnnouncement, useHome, useLiveCheckIn, useScreenFocused } from "~/data/home";
 import { useEntryOf } from "~/entry/EntryContext";
 import { Screen } from "~/shell/Screen";
 import { EmptyState, ErrorState, FadeIn, SkeletonCard, StaleNote } from "~/shell/states";
-import { AnnouncementNote } from "~/today/AnnouncementNote";
+import { AnnouncementNote, NoNote } from "~/today/AnnouncementNote";
+import { canPin, noteOn, NoteEditor } from "~/today/NoteEditor";
 import { AskBar } from "~/today/AskBar";
 import { CheckInBand } from "~/today/CheckInBand";
 import { bandVisible, useNow } from "~/today/live";
@@ -31,8 +33,10 @@ export default function Today() {
   const home = useHome();
   const live = useLiveCheckIn(focused);
   const note = useAnnouncement();
+  const [writing, setWriting] = useState(false);
 
   if (!entry) return null;
+  const pin = canPin(entry.me);
   const first = entry.me.name.split(" ")[0] || entry.me.name;
   const subtitle = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
 
@@ -71,7 +75,9 @@ export default function Today() {
         </View>
       )}
 
-      {note.data ? <AnnouncementNote a={note.data} /> : null}
+      {note.data && noteOn(entry.me) ? <AnnouncementNote a={note.data} onEdit={pin ? () => setWriting(true) : undefined} />
+        : pin && note.isSuccess ? <NoNote onWrite={() => setWriting(true)} /> : null}
+      {pin ? <NoteEditor open={writing} current={note.data} onClose={() => setWriting(false)} /> : null}
     </Screen>
   );
 }

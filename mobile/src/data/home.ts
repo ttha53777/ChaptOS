@@ -7,12 +7,17 @@
  * coming back to the foreground prefetches it (useLivePreload), so by the time anyone
  * looks at the band or opens the ticket the answer is already in the cache. The
  * check-in POST/DELETE answer with the new LiveCheckIn, which goes straight in.
+ *
+ * The pinned note's one write (PUT /api/announcement, MANAGE_ANNOUNCEMENTS) answers
+ * with the note, which replaces the cached one.
  */
 import type { Announcement, HomePlateItem, HomeResponse, LiveCheckIn } from "@/lib/api-types";
+import type { upsertAnnouncementInput } from "@/lib/validation/announcement";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import type { z } from "zod";
 import { api } from "~/api/client";
 import { activeOrg, useActiveOrg } from "~/state/org";
 import { queryClient } from "./query";
@@ -47,6 +52,15 @@ export function useAnnouncement() {
     queryFn: () => api<Announcement>("/api/announcement", { org: slug }),
     staleTime: 5 * 60_000,
   });
+}
+
+type NoteBody = z.input<typeof upsertAnnouncementInput>;
+
+/** MANAGE_ANNOUNCEMENTS: write or replace the pinned note (the web has no "clear"). */
+export async function saveAnnouncement(body: NoteBody): Promise<NonNullable<Announcement>> {
+  const a = await api<NonNullable<Announcement>>("/api/announcement", { method: "PUT", body });
+  queryClient.setQueryData(homeKeys.announcement(activeOrg.get().slug), a);
+  return a;
 }
 
 /** True while the screen calling it is the focused one (tab roots stay mounted when hidden). */

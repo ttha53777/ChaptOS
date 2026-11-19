@@ -18,10 +18,13 @@ ticks through `src/tasks/tick.ts`). Members runs on `GET /api/brothers` (card:
 (`app/components/MobileTabBar.tsx`): Home · Timeline · [Create] · Members (the org's word,
 only with the "members" workflow) · More (badge: my overdue tasks). Create
 (`src/shell/CreateSheet.tsx`) has the web's tiles in the web's order and gates, each one
-added once its form exists on the phone: so far the Open check-in hero (MANAGE_ATTENDANCE),
-New event ("events" workflow + MANAGE_EVENTS), Reimbursement and Log excuse ("Which
-meeting?", then the excuse pad; officers with MANAGE_ATTENDANCE also pick who it's for, and
-theirs is approved as filed). Meetings (stage 2, More → Chapter): the digest line, on deck,
+added once its form exists on the phone, and now every one does: the Open check-in hero
+(MANAGE_ATTENDANCE), then New event ("events" workflow + MANAGE_EVENTS), Add task
+(MANAGE_TASKS), Pinned note (MANAGE_ANNOUNCEMENTS + the operations "announcement" section
+on), Log expense and Log revenue ("finance" + MANAGE_TREASURY), Reimbursement, Log excuse
+("Which meeting?", then the excuse pad; officers with MANAGE_ATTENDANCE also pick who it's
+for, and theirs is approved as filed) and IG post. Where the web shows a tile to people the
+route would refuse, the phone shows it only to people who can save. Meetings (stage 2, More → Chapter): the digest line, on deck,
 the book (filters All / No minutes / Under 70%), and a pushed meeting page with check-in
 window controls, Take attendance (changed rows only), excuse review, Summarize, Edit and
 Delete (preview + OFF THE TIMELINE stamp). Minutes read on the phone, written on the web
@@ -45,7 +48,19 @@ length when moved, a legacy free-text time stays until a real one is set), wrap 
 skipped once a roll exists, with an empty roster or with no active term) ending in the till
 moment, and delete with the web's confirm. Every party write refreshes the Timeline, home and
 the treasury (the door is in Treasury's balance). The web has no party Create tile, so the
-phone has none. More is the web sidebar (`src/more/model.ts` sidebarFor:
+phone has none. Media (stage 5, More → Media, the web sidebar's "Instagram" under the
+communications workflow; `GET /api/instagram`, writes `POST` / `PATCH /api/instagram/[id]` /
+`DELETE`, all MANAGE_INSTAGRAM): "What's going out." briefing with the digest and Ask what to
+post next, the four measures (Queued · Overdue · This week · Cadence; a measure narrows the list
+to its lane, Cadence opens the month), search, then Lanes (Overdue · This week · Upcoming ·
+Posted) or Month (posting days marked by format, quiet stretches of 5+ days hatched). Each post
+is a tiny print (Snap) that stays "developing" until it's posted. The post sheet shows timing,
+format and the event it promotes (opens the Timeline's sheet on top); officers Mark posted (the
+Posted moment; with no date sent the server stamps the org-local today, UTC when the org has no
+time zone), edit (a retired format offers "Keep X"; changing *to* one is refused) and delete. No
+posts = day one (three snapshots, Plan the first post + the web's four ideas). More's card shows
+what's overdue (badged for officers), else the next one due. Create gains IG post for people
+who can save one (communications + MANAGE_INSTAGRAM; the web shows it to everyone). More is the web sidebar (`src/more/model.ts` sidebarFor:
 NAV_GROUPS order sorted by `navOrder`, NAV_WORKFLOW_MAP gates, NAV_DISPLAY words, minus
 what the tab bar carries and what the phone hasn't built yet), then Yours (my own
 records), as index cards: Meetings, Tasks, Docs, Programming, Service, Fundraisers, Treasury; Attendance (punch strip), Service
@@ -71,8 +86,21 @@ charges and a once-a-session count-up (`src/money/countUp.ts`); Reimbursements l
 requests (pencilled Pending, inked Reimbursed, rose Declined) and files new ones
 (`POST /api/reimbursements`, then the receipt from the camera, a photo or a PDF,
 `src/money/receipt.ts`), sent with the envelope moment; Treasury (everyone on "finance", as on the web;
-requests waiting only for keepers: `seesTreasury`) is read-only: balance, the monthly line,
-requests waiting, the latest ledger lines. Today's dues row opens the dues book. The
+requests waiting only for keepers: `seesTreasury`): balance, the monthly line, requests
+waiting, the latest ledger lines. Keepers (MANAGE_TREASURY, stage 6) record there too: Log
+expense / Log revenue (`src/money/TxForm.tsx`: amount, any day, a future expense starts
+Scheduled as on the web, what it was, the org's own category, how it was paid;
+`POST /api/transactions`), and a ledger line opens its slip with Edit (can flip income ↔
+expense), Mark paid and Delete (`PATCH` / `DELETE /api/transactions/[id]`, a soft delete).
+The web's period picker and event links aren't on the phone; a scheduled line still counts
+in the balance, as on the web. Approving reimbursements stays on the web. Tasks (stage 6)
+gives MANAGE_TASKS a + in the header and Edit / Delete in the task sheet
+(`src/tasks/TaskForm.tsx`, the web's PaperTaskSheet: day chips + day stubs + the meetings
+Clock, People / Roles / Everyone with each-or-any, a note; days outside the term are off).
+Today's pinned note gets Edit for MANAGE_ANNOUNCEMENTS, and an empty "Write one" card when
+nothing is pinned (`src/today/NoteEditor.tsx`: title, message, an optional link label +
+https address; `PUT /api/announcement`; there's no clear, as on the web). Today's dues row
+opens the dues book. The
 Motion Lab (`/lab`) is dev only.
 
 **Testing Today against :3100:** `scripts/_today-seed.ts` (repo root) seeds two chapters
@@ -97,7 +125,14 @@ months of ledger lines, my reimbursed + declined requests and Leo's pending one)
 no command to put everything back. Parties were seeded through the API (no seed command):
 four closed (three with a roll), two waiting on a wrap-up (Game Day Tailgate is the hero),
 two upcoming. Officer paths need `update "Role" set permissions=10 where id=6` (2 = treasury
-| 8 = parties) on the throwaway Postgres; put it back to 2 after. Join routes need the
+| 8 = parties) on the throwaway Postgres; put it back to 2 after. Media posts were seeded through
+the API too (ids 1-13: four overdue, one with the retired "Story + Feed" set by psql because the
+API only takes Story/Reel/Carousel; this week; upcoming, most linked to an event; four posted).
+Media's officer paths need `permissions=18` (2 = treasury | 16 = instagram). Stage 6's officer
+paths need `permissions=5122` (2 = treasury | 1024 = announcements | 4096 = tasks); the money
+routes refuse at `permissions=0`. Stage 6 seed, through the API: tasks 12-14 (a role task,
+an Everyone · any, a people task), ledger lines 2-4 (a card expense, bake-sale revenue, a
+$500 venue deposit Scheduled for Dec 5). Join routes need the
 phone's real sign-in (the forged cookie can't reach them).
 
 Delete account can't be tested on :3100 either: `/api/auth/account` needs a real Supabase
@@ -161,11 +196,13 @@ src/moments/        signature moments (CheckInTicket, TaskDone: stamp + confetti
                     Vote: pen-stroke X + result bars, ExcuseFile: fold + file, Pin: supply claim,
                     Develop: the photo print developing, Punch: service holes, Jar: fundraisers,
                     Letter: the sealed join letter + Join approved, Envelope: reimbursement SENT,
-                    Till: a party's receipt feeding out of the till + CLOSED OUT)
+                    Till: a party's receipt feeding out of the till + CLOSED OUT,
+                    Posted: the print stops developing + POSTED stamp + confetti)
 src/more/           U7: model (the web sidebar ported: groups, navOrder, gates, words; Yours; live
                     lines; my required-meeting marks; what Log excuse can excuse)
 src/money/          U9: receipt (camera / photo / PDF → shrunk upload), countUp (first-view balance roll),
-                    RequestSheet (request + add-receipt sheets, shared by Reimbursements and Create)
+                    RequestSheet (request + add-receipt sheets, shared by Reimbursements and Create),
+                    TxForm (stage 6: TxForm log/edit, TxSheet a line's slip, DeleteTx)
 src/chat/           U8: stream (SSE over expo/fetch), thread (store + staging queue), intent
                     (guessed steps), files (attachments), Ledger, Answer + shapes/, Proposal,
                     Composer, Landing, PeekBody, LocalSheet
@@ -175,6 +212,9 @@ src/meetings/       stage 2: model (web Chapter rules: on deck/past, hasMinutes,
 src/parties/        stage 4: model (the web page's helpers: due/upcoming, takings, briefing, signed
                     money), bits (Wristband, Hero envelope, TakingsCard + Strip, Book rows, the
                     receipt lines, roll dots), sheets (PartySheet, PartyForm, WrapUp, DeleteParty)
+src/media/          stage 5: model (lanes, measures, digest, due pills, quiet-stretch gaps, org-local
+                    today), bits (Snap prints, FormatChip, DuePill, MeasureTile, LaneHead, PostRow,
+                    Month + hatch), sheets (PostSheet, PostForm, DeletePost, DayPosts)
 src/programming/    stage 3: model (lib/programming gates, status line, stats, starter ideas), Card
                     (lane papers), EventSheet (ladder, facts, wrap-up, links), steps (OwnerSheet,
                     FixStep, WrapUp, OffTimeline, NewIdea, EditDetails, AttachLink)
@@ -186,11 +226,13 @@ src/shell/          U1 shell: Screen (header, org stamp, pull to refresh), Sheet
                     loading/empty/error/offline states
 src/tasks/          U5: Deck (On you), Board (Overdue / Upcoming), Ballot (sealed envelope),
                     TaskSheet, bits (check-tick, strike, crowd strip), model (pure rules),
-                    tick.ts / vote.ts (the shared optimistic writes)
+                    tick.ts / vote.ts (the shared optimistic writes), TaskForm (stage 6: the
+                    officers' new / edit task sheet + DeleteTask)
 src/timeline/       U4: Spine (month heads, rows, Today marker, Earlier), EventSheet (+ the
                     Add to Calendar sheet), Details (supply claims), Attendance (excuses),
                     Minutes (action items), model (pure rules)
-src/today/          U3 Today pieces: CheckInBand, UpNext ticket + countdown, Plate, AnnouncementNote,
+src/today/          U3 Today pieces: CheckInBand, UpNext ticket + countdown, Plate, AnnouncementNote
+                    (+ NoNote), NoteEditor (stage 6: the pinned note's editor, noteOn / canPin),
                     live.ts (window state between polls), time.ts (lenient event times)
 src/ui/             T (type-scale text), Segmented, Switch (paper switch)
 ```

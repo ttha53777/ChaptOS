@@ -14,9 +14,15 @@
  *                   to everyone and lets the server refuse): ~/meetings/EventForm
  *   Log excuse      officers (MANAGE_ATTENDANCE) also pick who it's for; theirs is
  *                   approved as it's filed (POST /api/excuses with brotherId)
+ *   Add task        MANAGE_TASKS, as on the web: the task sheet (~/tasks/TaskForm)
+ *   Pinned note     MANAGE_ANNOUNCEMENTS + the operations "announcement" section on, as on
+ *                   the web: the note editor (~/today/NoteEditor), with the current note in
+ *   Log expense     workflow "finance" + MANAGE_TREASURY (the route's gate; the web shows
+ *   Log revenue     them to every admin and lets the server refuse): ~/money/TxForm
+ *   IG post         workflow "communications" + MANAGE_INSTAGRAM (the route's gate; the web
+ *                   shows it to everyone): Media's post form (~/media/sheets PostForm)
  *
- * Still to come, in the web's order: Add task, Pinned note, Log expense, Log revenue,
- * IG post.
+ * Every tile on the web's phone bar now has its phone form.
  *
  * The tiles (`.mcr-it`) rise 14pt and fade in one after another, 40ms apart (the mock's
  * `.qa-i`); a press presses the tile in and inks its border. The chosen form stacks over
@@ -32,8 +38,15 @@ import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring, with
 import { useCalendar, useMyAttendance, useMyExcuses } from "~/data/calendar";
 import { localDay } from "~/data/home";
 import { excuseFor } from "~/data/meetings";
-import { useCategories, visibleExpense } from "~/data/money";
+import { useAnnouncement } from "~/data/home";
+import { keepsBooks, useCategories, visibleExpense } from "~/data/money";
+import { TxForm } from "~/money/TxForm";
+import { TaskForm } from "~/tasks/TaskForm";
+import { viewerOf } from "~/tasks/model";
+import { canPin, NoteEditor } from "~/today/NoteEditor";
 import { useRoster } from "~/data/tasks";
+import { canManage as canMedia } from "~/media/model";
+import { PostForm } from "~/media/sheets";
 import { errorMessage } from "~/api/errors";
 import { OpenCheckInSheet } from "~/meetings/CheckIn";
 import { EventForm } from "~/meetings/EventForm";
@@ -54,13 +67,18 @@ import { Sheet } from "./sheets";
 import { SkeletonList } from "./states";
 import { toast } from "./toast";
 
-type Key = "event" | "reimburse" | "excuse";
+type Key = "event" | "task" | "announcement" | "expense" | "revenue" | "reimburse" | "excuse" | "ig";
 
 /** The web's FACE: label, glyph, tone. */
 const FACE: Record<Key, { label: string; icon: IconName; tone: Tone }> = {
-  event:     { label: "New event", icon: "cal", tone: "sky" },
+  event:        { label: "New event", icon: "cal", tone: "sky" },
+  task:         { label: "Add task", icon: "box", tone: "peach" },
+  announcement: { label: "Pinned note", icon: "pin", tone: "butter" },
+  expense:      { label: "Log expense", icon: "wallet", tone: "rose" },
+  revenue:      { label: "Log revenue", icon: "cash", tone: "mint" },
   reimburse: { label: "Reimbursement", icon: "receipt", tone: "butter" },
   excuse:    { label: "Log excuse", icon: "form", tone: "lilac" },
+  ig:        { label: "IG post", icon: "camera", tone: "peach" },
 };
 
 export function CreateSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -70,9 +88,25 @@ export function CreateSheet({ open, onClose }: { open: boolean; onClose: () => v
   const events = !!me && !!me.org?.enabledWorkflows.includes("events") && canEvents(me);
   const officerA = !!me && canAttendance(me);
   const cats = useCategories(open && finance);
+  // The web shows "IG post" to everyone with the communications workflow, but only
+  // MANAGE_INSTAGRAM can save one; the phone offers it only to people who can.
+  const ig = !!me && !!me.org?.enabledWorkflows.includes("communications") && canMedia(me);
+  const cal = useCalendar();
+  const tasks = !!me && viewerOf(me).canManage;
+  const pin = !!me && canPin(me);
+  const note = useAnnouncement();
+  const books = finance && !!me && keepsBooks(me);
 
   // the web's order: event, task, announcement, then expense, revenue, reimburse, excuse, ig
-  const keys: Key[] = [...(events ? ["event" as const] : []), ...(finance ? ["reimburse" as const] : []), "excuse"];
+  const keys: Key[] = [
+    ...(events ? ["event" as const] : []),
+    ...(tasks ? ["task" as const] : []),
+    ...(pin ? ["announcement" as const] : []),
+    ...(books ? ["expense" as const, "revenue" as const] : []),
+    ...(finance ? ["reimburse" as const] : []),
+    "excuse",
+    ...(ig ? ["ig" as const] : []),
+  ];
   useEffect(() => { if (!open) setForm(null); }, [open]);
 
   const done = () => { setForm(null); onClose(); };
@@ -96,6 +130,15 @@ export function CreateSheet({ open, onClose }: { open: boolean; onClose: () => v
       ) : null}
       <ExcuseFlow open={open && form === "excuse"} onBack={() => setForm(null)} onFiled={done} officer={officerA} />
       {events ? <EventForm open={open && form === "event"} kind="event" onClose={() => setForm(null)} onSaved={done} /> : null}
+      {tasks ? <TaskForm open={open && form === "task"} task={null} onClose={() => setForm(null)} onSaved={done} /> : null}
+      {pin ? <NoteEditor open={open && form === "announcement"} current={note.data} onClose={() => setForm(null)} onSaved={done} /> : null}
+      {books ? (
+        <TxForm open={open && (form === "expense" || form === "revenue")} kind={form === "revenue" ? "income" : "expense"} tx={null}
+          cats={cats.data ?? []} onClose={() => setForm(null)} onSaved={done} />
+      ) : null}
+      {ig ? (
+        <PostForm open={open && form === "ig"} post={null} events={cal.data ?? []} onClose={() => setForm(null)} onSaved={done} />
+      ) : null}
       {officerA ? <OpenCheckInSheet open={open && form === "checkin"} onClose={() => setForm(null)} onOpened={done} /> : null}
     </>
   );

@@ -60,6 +60,10 @@
  *   POST   /api/programming/[id]/docs          ProgrammingDoc          (MANAGE_EVENTS; body attachProgrammingDocInput)
  *   DELETE /api/programming/[id]/docs/[docId]  204                     (MANAGE_EVENTS)
  *   GET    /api/roles                          RoleChip[]
+ *   GET    /api/instagram                      InstagramPost[]         (everyone with the communications workflow)
+ *   POST   /api/instagram                      InstagramPost           (201; MANAGE_INSTAGRAM; body createInstagramTaskInput)
+ *   PATCH  /api/instagram/[id]                 InstagramPost           (MANAGE_INSTAGRAM; body updateInstagramTaskInput; status "posted" = Mark posted)
+ *   DELETE /api/instagram/[id]                 204                     (MANAGE_INSTAGRAM)
  *   GET    /api/parties                        Party[]                 (everyone with the parties workflow)
  *   POST   /api/parties                        Party                   (201; MANAGE_PARTIES; body createPartyInput; makes its Timeline entry)
  *   PATCH  /api/parties/[id]                   Party                   (MANAGE_PARTIES; body updatePartyInput, or wrapUpPartyInput + wrapUp: true)
@@ -79,7 +83,9 @@
  *   PATCH  /api/excuses/[id]                   ExcuseDecided           (MANAGE_ATTENDANCE; body decideExcuseInput)
  *   GET    /api/tasks                          Task[]
  *   GET    /api/tasks/[id]                     TaskDetail              (each-task ticks + history)
- *   PATCH  /api/tasks/[id]                     Task                    (an assignee may tick it)
+ *   POST   /api/tasks                          Task                    (201; MANAGE_TASKS; body createTaskInput)
+ *   PATCH  /api/tasks/[id]                     Task                    (an assignee may tick it; MANAGE_TASKS edits anything)
+ *   DELETE /api/tasks/[id]                     204                     (MANAGE_TASKS)
  *   GET    /api/polls                          Poll[]
  *   POST   /api/polls/[id]/vote                Poll
  *   GET    /api/service-events                 ServiceEvent[]
@@ -91,7 +97,8 @@
  *   GET    /api/docs                           Doc[]                   (read-only for members)
  *   GET    /api/docs/folders                   DocFolder[]
  *   GET    /api/activity                       ActivityEntry[]
- *   GET    /api/announcement                   Announcement
+ *   GET    /api/announcement                   Announcement            (null = no pinned note)
+ *   PUT    /api/announcement                   Announcement            (MANAGE_ANNOUNCEMENTS; body upsertAnnouncementInput)
  *   POST   /api/ai/chat                        SSE: ChatStreamEvents   (or ChatAvailability JSON when off)
  *   GET    /api/ai/chat                        ChatAvailability        (files/fileLimits present when attachments are on)
  *   GET    /api/ai/peek?type=&id=              PeekCard                (an answer row's record; type: member|event|task|transaction)
@@ -101,6 +108,9 @@
  *   GET    /api/ai/attachments/[id]/units/[ref] AttachmentUnit         (ref: p7, s2, l3, sh1, sh1!B2:D9)
  *   GET    /api/treasury                       TreasuryData
  *   GET    /api/transactions                   Transaction[]
+ *   POST   /api/transactions                   Transaction             (201; MANAGE_TREASURY; body createTransactionInput)
+ *   PATCH  /api/transactions/[id]              Transaction             (MANAGE_TREASURY; body updateTransactionInput)
+ *   DELETE /api/transactions/[id]              204                     (MANAGE_TREASURY; soft delete)
  *   GET    /api/treasury/categories            TransactionCategory[]   (every member; hidden ones included)
  *   GET    /api/reimbursements                 Reimbursement[]
  *   POST   /api/reimbursements                 Reimbursement           (201; body createReimbursementInput; your own, or anyone's with treasury)
@@ -121,6 +131,7 @@ export type * from "./tasks";
 export type * from "./calendar";
 export type * from "./programming";
 export type * from "./parties";
+export type * from "./media";
 export type * from "./treasury";
 export type * from "./dues";
 export type * from "./activity";

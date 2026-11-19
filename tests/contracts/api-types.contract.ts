@@ -26,7 +26,7 @@ import type {
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView,
   HomeResponse, MemberUpdated, MobileConfig,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized,
-  ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow,
+  ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow, InstagramPost,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -37,7 +37,7 @@ import type { rankedFromMembers, rankedFromEvents, tableFromMembers, rollFromPeo
 import type { listAttachments, uploadAttachment, getAttachmentUnit } from "@/lib/services/chat-attachment-service";
 import type { listVisibleBrothers, getMemberProfile } from "@/lib/services/brother-service";
 import type { publicBrother } from "@/lib/brother-avatar";
-import type { getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
+import type { createTask, getTaskDetail, listTasks, updateTask } from "@/lib/services/task-service";
 import type { listPolls, castVote } from "@/lib/services/poll-service";
 import type { listCalendar, previewDeleteCalendar } from "@/lib/services/calendar-service";
 import type { listAgendaTemplates } from "@/lib/services/agenda-template-service";
@@ -47,7 +47,7 @@ import type { getLiveCheckIn, listMyAttendance, selfCheckIn, undoSelfCheckIn, su
 import type { listMyExcuses, listExcuses, decideExcuse } from "@/lib/services/excuse-service";
 import type { listRecentActivity } from "@/lib/services/activity-service";
 import type { listOwnJoinRequests } from "@/lib/auth/own-join-status";
-import type { listTransactions } from "@/lib/services/transaction-service";
+import type { createTransaction, listTransactions, updateTransaction } from "@/lib/services/transaction-service";
 import type { createReimbursement, listReimbursements } from "@/lib/services/reimbursement-service";
 import type { listTransactionCategories } from "@/lib/services/transaction-category-service";
 import type { listServiceEvents } from "@/lib/services/service-event-service";
@@ -56,6 +56,7 @@ import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-s
 import type { listDocs } from "@/lib/services/doc-service";
 import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
 import type { listRoles } from "@/lib/services/role-service";
+import type { listInstagramTasks, createInstagramTask, updateInstagramTask } from "@/lib/services/instagram-service";
 import type { listParties, createParty, updateParty, wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
 import type { listFolders } from "@/lib/services/doc-folder-service";
 import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meeting-summary-service";
@@ -97,6 +98,7 @@ export const memberProfile: Widen<MemberProfile> = served<Served<typeof getMembe
 
 export const tasks: Widen<Task[]> = served<Served<typeof listTasks>>();
 export const taskUpdate: Widen<Task> = served<Served<typeof updateTask>>();
+export const taskCreated: Widen<Task> = served<Served<typeof createTask>>();
 export const taskDetail: Widen<TaskDetail> = served<Served<typeof getTaskDetail>>();
 
 export const polls: Widen<Poll[]> = served<Served<typeof listPolls>>();
@@ -128,6 +130,8 @@ export const activity: Widen<ActivityEntry[]> = served<Served<typeof listRecentA
 export const ownJoinRequests: Widen<OwnJoinRequest[]> = served<Served<typeof listOwnJoinRequests>>();
 
 export const transactions: Widen<Transaction[]> = served<Served<typeof listTransactions>>();
+export const transactionCreated: Widen<Transaction> = served<Served<typeof createTransaction>>();
+export const transactionUpdated: Widen<Transaction> = served<Served<typeof updateTransaction>>();
 export const reimbursements: Widen<Reimbursement[]> = served<Served<typeof listReimbursements>>();
 export const reimbursementCreated: Widen<Reimbursement> = served<Served<typeof createReimbursement>>();
 export const categories: Widen<TransactionCategory[]> = served<Served<typeof listTransactionCategories>>();
@@ -161,6 +165,9 @@ export const partyCreated: Widen<Party> = served<Served<typeof createParty>>();
 export const partyUpdated: Widen<Party> = served<Served<typeof updateParty>>();
 export const partyWrapped: Widen<Party> = served<Served<typeof wrapUpParty>>();
 export const partyRolls: Widen<PartyRollRow[]> = served<Served<typeof summarizePartyAttendance>>();
+export const mediaPosts: Widen<InstagramPost[]> = served<Served<typeof listInstagramTasks>>();
+export const mediaPostCreated: Widen<InstagramPost> = served<Served<typeof createInstagramTask>>();
+export const mediaPostUpdated: Widen<InstagramPost> = served<Served<typeof updateInstagramTask>>();
 export const roles: Widen<RoleChip[]> = served<Served<typeof listRoles>>();
 export const docFolders: Widen<DocFolder[]> = served<Served<typeof listFolders>>();
 

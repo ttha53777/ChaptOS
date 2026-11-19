@@ -3,17 +3,18 @@
  * board (Overdue / Upcoming, as on the web). Reads GET /api/tasks and GET /api/polls; the
  * sheet adds GET /api/tasks/[id] and names from GET /api/brothers.
  *
- * Writes are only the two a member has: tick (PATCH /api/tasks/[id] { status }, the same
- * path Today's plate uses, ~/tasks/tick) and vote (POST /api/polls/[id]/vote).
+ * A member's writes are tick (PATCH /api/tasks/[id] { status }, the same path Today's
+ * plate uses, ~/tasks/tick) and vote (POST /api/polls/[id]/vote). Officers (MANAGE_TASKS)
+ * also get New task (header) and Edit / Delete from the task sheet (~/tasks/TaskForm).
  *
  * States: first load = skeletons in the deck's and rows' shapes; nothing loaded and an
  * error = ErrorState; offline or a failed refresh over last-known data (the persisted
- * cache) = StaleNote; a chapter with no tasks and no polls = the day-one empty, with no
- * button, because members can't hand out tasks.
+ * cache) = StaleNote; a chapter with no tasks and no polls = the day-one empty, with
+ * "Hand out the first task" for officers and no button for members.
  */
 import type { Poll } from "@/lib/api-types";
 import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { localDay } from "~/data/home";
 import { usePolls, useRoster, useTasks } from "~/data/tasks";
 import { useEntryOf } from "~/entry/EntryContext";
@@ -25,14 +26,21 @@ import { Ballot } from "~/tasks/Ballot";
 import { Board } from "~/tasks/Board";
 import { Deck } from "~/tasks/Deck";
 import { byDue, canVote, isMine, pileOf, viewerOf, type Viewer } from "~/tasks/model";
+import { DeleteTask, TaskForm } from "~/tasks/TaskForm";
 import { TaskSheet } from "~/tasks/TaskSheet";
+import type { Task } from "@/lib/api-types";
+import { Icon } from "~/icons/Icon";
 
 export default function Tasks() {
+  const { c } = useTheme();
   const entry = useEntryOf("ready");
   const tasks = useTasks();
   const polls = usePolls();
   const roster = useRoster();
   const [openId, setOpenId] = useState<number | null>(null);
+  // the form: null = closed, "new" = a new task, a Task = editing it
+  const [form, setForm] = useState<Task | "new" | null>(null);
+  const [doomed, setDoomed] = useState<Task | null>(null);
   const today = localDay();
 
   const viewer = useMemo(() => (entry ? viewerOf(entry.me) : null), [entry]);
@@ -42,6 +50,12 @@ export default function Tasks() {
   const list = tasks.data;
   const refresh = () => Promise.all([tasks.refetch(), polls.refetch(), roster.refetch()]);
   const open = openId != null ? list?.find(t => t.id === openId) ?? null : null;
+  const right = viewer.canManage ? (
+    <Pressable onPress={() => setForm("new")} accessibilityRole="button" accessibilityLabel="New task" hitSlop={8}
+      style={({ pressed }) => [styles.plus, { backgroundColor: c.ink, boxShadow: `${pressed ? 1 : 2}px ${pressed ? 1 : 2}px 0 ${c.note.fill.peach}` }, pressed && { transform: [{ translateX: 1 }, { translateY: 1 }] }]}>
+      <Icon name="plus" size={16} color={c.paper} />
+    </Pressable>
+  ) : undefined;
 
   const mineOpen = (list ?? []).filter(t => t.status !== "done" && isMine(t, viewer)).sort(byDue);
   const over = mineOpen.filter(t => pileOf(t, today) === "over").length;
@@ -50,7 +64,7 @@ export default function Tasks() {
     : `${over ? `${over} overdue · ` : ""}${mineOpen.length - over} coming up`;
 
   return (
-    <Screen title="Tasks" subtitle={subtitle} large back="More" onRefresh={refresh}>
+    <Screen title="Tasks" subtitle={subtitle} large back="More" onRefresh={refresh} right={right}>
       {list ? <StaleNote updatedAt={tasks.dataUpdatedAt} failed={tasks.isError || polls.isError} onRetry={() => void refresh()} /> : null}
 
       {list ? (
@@ -63,6 +77,7 @@ export default function Tasks() {
             ]}
             title="Nothing here yet."
             line="When an officer hands out a task or asks the chapter to vote, it shows up here. Anything handed to you lands on top."
+            action={viewer.canManage ? { label: "Hand out the first task", icon: "plus", onPress: () => setForm("new") } : undefined}
           />
         ) : (
           <FadeIn style={{ gap: 28 }}>
@@ -82,7 +97,11 @@ export default function Tasks() {
         </View>
       )}
 
-      <TaskSheet task={open} viewer={viewer} today={today} roster={people} onClose={() => setOpenId(null)} />
+      <TaskSheet task={open} viewer={viewer} today={today} roster={people} onClose={() => setOpenId(null)}
+        onEdit={viewer.canManage ? t => { setOpenId(null); setForm(t); } : undefined}
+        onDelete={viewer.canManage ? t => { setOpenId(null); setDoomed(t); } : undefined} />
+      <TaskForm open={form != null} task={form === "new" ? null : form} onClose={() => setForm(null)} />
+      <DeleteTask task={doomed} onClose={() => setDoomed(null)} />
     </Screen>
   );
 }
@@ -121,5 +140,6 @@ function Polls({ polls, error, onRetry, viewer, today }: {
 
 const styles = StyleSheet.create({
   sk: { gap: 12 },
+  plus: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   head: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
 });

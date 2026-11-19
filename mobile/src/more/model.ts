@@ -13,8 +13,9 @@
  *   Dues                  the chapter tracks dues, or has the "finance" workflow
  *   Reimbursements        workflow "finance" (the web's Treasury → Reimbursements tab)
  */
-import type { CalendarEvent, Doc, Fundraiser, MeResponse, MemberDuesBook, MyExcuseItem, Party, Reimbursement, ServiceEvent, ServiceParticipationRow, Task, TreasuryData } from "@/lib/api-types";
+import type { CalendarEvent, Doc, Fundraiser, InstagramPost, MeResponse, MemberDuesBook, MyExcuseItem, Party, Reimbursement, ServiceEvent, ServiceParticipationRow, Task, TreasuryData } from "@/lib/api-types";
 import type { IconName } from "~/icons/Icon";
+import { days as mediaDays, summary as mediaSummary } from "~/media/model";
 import { money, trackedOf } from "~/members/model";
 import { isUpcoming, monDay, profit, signed, upcomingLabel, waiting } from "~/parties/model";
 import { isMine, pileOf, type Viewer } from "~/tasks/model";
@@ -59,6 +60,7 @@ const NATIVE: Record<string, { id: PageId; icon: IconName; tone: Tone }> = {
   Tasks:       { id: "tasks", icon: "box", tone: "lilac" },
   Programming: { id: "programming", icon: "board", tone: "peach" },
   Docs:        { id: "docs", icon: "folder", tone: "butter" },
+  Instagram:   { id: "media", icon: "camera", tone: "lilac" },
   Service:     { id: "service", icon: "heart", tone: "mint" },
   Parties:     { id: "parties", icon: "note", tone: "rose" },
   Fundraisers: { id: "fundraisers", icon: "jar", tone: "rose" },
@@ -203,6 +205,20 @@ export function partiesLive(list: Party[] | undefined, today: string, officer: b
   }
   const closed = list.filter(p => p.completed);
   return { line: closed.length ? `${signed(closed.reduce((s, p) => s + profit(p), 0))} net` : `${list.length} on the books`, badge: 0, started: true };
+}
+
+/** Media's card: what's overdue (badged for officers), else the next post due, else the cadence. */
+export function mediaLive(list: InstagramPost[] | undefined, today: string, officer: boolean): Live {
+  if (!list) return { line: null, badge: 0, started: true };
+  if (!list.length) return { line: "Not started", badge: 0, started: false };
+  const s = mediaSummary(list, today);
+  if (s.overdue) return { line: `${s.overdue} overdue`, badge: officer ? s.overdue : 0, started: true };
+  const next = list.filter(p => p.status !== "posted").sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+  if (next) {
+    const n = mediaDays(next.dueDate, today);
+    return { line: `${n === 0 ? "Today" : n === 1 ? "Tomorrow" : `In ${n} days`}: ${next.title}`, badge: 0, started: true };
+  }
+  return { line: s.sinceLast == null ? `${list.length} posted` : s.sinceLast === 0 ? "Posted today" : `Last post ${s.sinceLast}d ago`, badge: 0, started: true };
 }
 
 /** Meetings' card: the next one, else how many were held; badge = excuses waiting (officers). */

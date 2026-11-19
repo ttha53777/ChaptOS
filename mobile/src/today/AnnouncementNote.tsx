@@ -7,6 +7,9 @@
  * one), the note lands with a small tape-press: scale 1.04 → 1 and a 1.5° settle,
  * 300ms on the spring curve, with a soft haptic. Reduced: it cross-fades in. The
  * first render never animates.
+ *
+ * Officers who can pin (MANAGE_ANNOUNCEMENTS) get Edit on the note, and when there's no
+ * note, NoNote: the web's empty pin with "Write one".
  */
 import type { Announcement } from "@/lib/api-types";
 import { useEffect, useRef } from "react";
@@ -18,7 +21,7 @@ import { StickyNote } from "~/paper/bits";
 import { useMotion, useTheme } from "~/theme/PaperProvider";
 import { T } from "~/ui/T";
 
-export function AnnouncementNote({ a }: { a: NonNullable<Announcement> }) {
+export function AnnouncementNote({ a, onEdit }: { a: NonNullable<Announcement>; onEdit?: () => void }) {
   const { c } = useTheme();
   const m = useMotion();
   const seen = useRef(a.updatedAt);
@@ -54,11 +57,32 @@ export function AnnouncementNote({ a }: { a: NonNullable<Announcement> }) {
             <Button label={a.ctaLabel || "Open link"} icon="link" variant="soft" size="sm" style={styles.cta}
               onPress={() => { void Linking.openURL(link); }} />
           ) : null}
-          <T v="meta" color={c.note.ink} style={{ opacity: 0.65 }}>{`${a.authorName ? `${a.authorName} · ` : ""}${when}`}</T>
+          <View style={styles.foot}>
+            <T v="meta" color={c.note.ink} style={{ opacity: 0.65, flex: 1 }}>{`${a.authorName ? `${a.authorName} · ` : ""}${when}`}</T>
+            {onEdit ? <Button label="Edit" icon="pencil" variant="soft" size="sm" onPress={onEdit} /> : null}
+          </View>
         </View>
       </StickyNote>
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({ cta: { alignSelf: "flex-start", marginTop: 2 } });
+/** No note pinned, for someone who can pin one: the web's empty pin. */
+export function NoNote({ onWrite }: { onWrite: () => void }) {
+  const { c } = useTheme();
+  return (
+    <View style={[styles.empty, { borderColor: c.line2 }]}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <T v="callout" color={c.ink2}>Nothing pinned.</T>
+        <T v="meta" color={c.ink3}>One note for the whole chapter, at the bottom of everyone's Today.</T>
+      </View>
+      <Button label="Write one" icon="pin" tone="butter" variant="ghost" size="sm" onPress={onWrite} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  cta: { alignSelf: "flex-start", marginTop: 2 },
+  foot: { flexDirection: "row", alignItems: "center", gap: 8 },
+  empty: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderStyle: "dashed", borderRadius: 16, padding: 14 },
+});

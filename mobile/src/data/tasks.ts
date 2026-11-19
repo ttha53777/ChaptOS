@@ -5,14 +5,19 @@
  * The writes (PATCH /api/tasks/[id] { status }, POST /api/polls/[id]/vote) live here as
  * plain requests and cache edits; the choreography around them (optimistic order, undo,
  * toasts, refusals) is ~/tasks/tick.ts and ~/tasks/vote.ts, shared by Today and Tasks.
+ *
+ * Officer writes (MANAGE_TASKS, stage 6): POST /api/tasks, PATCH /api/tasks/[id] with any
+ * editable field, DELETE /api/tasks/[id]. Each one refreshes the list, Today's plate and
+ * the Timeline (a dated task is a deadline there).
  */
 import type { Brother, Poll, Task, TaskDetail } from "@/lib/api-types";
-import type { updateTaskInput } from "@/lib/validation/task";
+import type { createTaskInput, updateTaskInput } from "@/lib/validation/task";
 import type { castVoteInput } from "@/lib/validation/poll";
 import { useQuery } from "@tanstack/react-query";
 import type { z } from "zod";
 import { api } from "~/api/client";
 import { activeOrg, useActiveOrg } from "~/state/org";
+import { calKeys } from "./calendar";
 import { queryClient } from "./query";
 
 export const taskKeys = {
@@ -55,12 +60,45 @@ export function useRoster(enabled = true) {
 /* ── requests ─────────────────────────────────────────────────────────────────── */
 
 type TaskPatch = z.input<typeof updateTaskInput>;
+export type NewTaskBody = z.input<typeof createTaskInput>;
+export type TaskEdit = TaskPatch;
 type VoteBody = z.input<typeof castVoteInput>;
 
 /** A member ticks their own task (or their part of an Everyone · each task), or unticks it. */
 export function setTaskDone(taskId: number, done: boolean): Promise<Task> {
   const body: TaskPatch = { status: done ? "done" : "open" };
   return api<Task>(`/api/tasks/${taskId}`, { method: "PATCH", body });
+}
+
+/** Everything a task touches: the list, Today's plate, the Timeline's deadlines. */
+function taskWritten(id?: number) {
+  const slug = slugNow();
+  void queryClient.invalidateQueries({ queryKey: taskKeys.tasks(slug) });
+  void queryClient.invalidateQueries({ queryKey: ["home", slug] });
+  void queryClient.invalidateQueries({ queryKey: calKeys.events(slug) });
+  if (id != null) void queryClient.invalidateQueries({ queryKey: taskKeys.detail(slug, id) });
+}
+
+/** Officers (MANAGE_TASKS): hand out a new task. The server's row joins the cached list at once. */
+export async function createTask(body: NewTaskBody): Promise<Task> {
+  const t = await api<Task>("/api/tasks", { method: "POST", body });
+  queryClient.setQueryData<Task[]>(taskKeys.tasks(slugNow()), list => (list ? [...list, t] : list));
+  taskWritten(t.id);
+  return t;
+}
+
+/** Officers: change any editable field (title, due, note, who). */
+export async function editTask(id: number, body: TaskEdit): Promise<Task> {
+  const t = await api<Task>(`/api/tasks/${id}`, { method: "PATCH", body });
+  patchTaskInCache(id, t);
+  taskWritten(id);
+  return t;
+}
+
+export async function deleteTask(id: number): Promise<void> {
+  await api<void>(`/api/tasks/${id}`, { method: "DELETE" });
+  queryClient.setQueryData<Task[]>(taskKeys.tasks(slugNow()), list => list?.filter(t => t.id !== id));
+  taskWritten();
 }
 
 export function postVote(pollId: number, optionId: number): Promise<Poll> {
