@@ -5,6 +5,17 @@
 import { Redirect, router } from "expo-router";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { MeetingsLab } from "~/lab/meetings";
+import { ProgrammingLab } from "~/lab/programming";
+import { SheetDurationLab, ShellLab, TabBarLab } from "~/lab/shell";
+import { AnnouncementLab, BandLab, CountdownLab, SwipeLab } from "~/lab/today";
+import { CheckTickLab, CrowdLab, EnvelopeLab, ShuffleLab, TaskDoneLab, VoteLab } from "~/lab/tasks";
+import { ActionItemLab, ExcuseFileLab, PinLab } from "~/lab/timeline";
+import { DevelopLab } from "~/lab/members";
+import { JarLab, PunchLab } from "~/lab/more";
+import { InviteTicketLab, LetterLab } from "~/lab/entry";
+import { AnswerLab, LedgerLab } from "~/lab/chat";
+import { BalanceLab, ReimbursementLab } from "~/lab/money";
 import { ButtonLab, CheckInLab, HapticsLab, IconLab, PaletteLab, PaperLab, StampLab, TickLab, TypeLab } from "~/lab/sections";
 import { Button } from "~/paper/Button";
 import { Kicker } from "~/paper/bits";
@@ -42,6 +53,33 @@ function Lab() {
               options={[{ value: 1, label: "1×" }, { value: 4, label: "4× slow" }]} />
           </View>
         </View>
+        <DevelopLab />
+        <PunchLab />
+        <JarLab />
+        <InviteTicketLab />
+        <LetterLab />
+        <LedgerLab />
+        <AnswerLab />
+        <ReimbursementLab />
+        <BalanceLab />
+        <PinLab />
+        <ExcuseFileLab />
+        <ActionItemLab />
+        <TaskDoneLab />
+        <ShuffleLab />
+        <CheckTickLab />
+        <CrowdLab />
+        <VoteLab />
+        <EnvelopeLab />
+        <TabBarLab />
+        <MeetingsLab />
+        <ProgrammingLab />
+        <SheetDurationLab />
+        <ShellLab />
+        <BandLab />
+        <CountdownLab />
+        <SwipeLab />
+        <AnnouncementLab />
         <CheckInLab />
         <StampLab />
         <TickLab />
