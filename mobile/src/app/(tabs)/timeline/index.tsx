@@ -136,7 +136,11 @@ export default function Timeline() {
   const overAt = (e: CalendarEvent) => isOver(e, today, now);
   const filtered = useMemo(() => (rows ? filterByLayer(rows.all, layer) : []), [rows, layer]);
   const counts = useMemo(() => layerCounts(rows?.all ?? []), [rows]);
-  const line = useMemo(() => buildTimeline(filtered, today, byStart, overAt), [filtered, today, now]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The clock ticks every minute, but the line only changes when an event tips into the
+  // past: rebuild on that (the ids that are over), not on every tick. Rebuilding per tick
+  // made new event arrays, so every memoized Spine and Row redrew once a minute.
+  const overKey = filtered.filter(overAt).map(e => e.id).join(",");
+  const line = useMemo(() => buildTimeline(filtered, today, byStart, overAt), [filtered, today, overKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const overduePast = rows ? overdueInPast(line, rows.doneById) : 0;
   const week = weekOf(today);
   const overdueTasks = (tasks.data ?? []).filter(t => t.status !== "done" && t.dueDate != null && t.dueDate < today).length;

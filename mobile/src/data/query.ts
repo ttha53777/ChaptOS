@@ -43,7 +43,19 @@ export const queryClient = new QueryClient({
 
 export const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: "chaptos.query-cache", throttleTime: 1000 });
 
-export const persistOptions = { persister, maxAge: DAY, buster: config.appVersion };
+/**
+ * Kept out of the persisted copy: queries that never succeeded, and the live check-in.
+ * The persister re-serializes the WHOLE cache to AsyncStorage on every change (throttled
+ * to 1s), on the JS thread; the live window polls every 12s while one is showing, so
+ * persisting it meant a full-cache JSON.stringify + write every 12s at a meeting, and a
+ * restored window is stale by definition (it's refetched as the app comes forward).
+ */
+const NOT_PERSISTED = new Set<unknown>(["liveCheckIn"]);
+
+export const persistOptions = {
+  persister, maxAge: DAY, buster: config.appVersion,
+  dehydrateOptions: { shouldDehydrateQuery: (q: { state: { status: string }; queryKey: readonly unknown[] }) => q.state.status === "success" && !NOT_PERSISTED.has(q.queryKey[0]) },
+};
 
 /** Forget everything the previous session loaded. */
 export async function resetCache(): Promise<void> {

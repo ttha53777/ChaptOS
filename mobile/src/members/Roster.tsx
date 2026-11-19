@@ -24,7 +24,7 @@ import { roleTitle, type RosterKpis, type StatusFilter } from "@/lib/dashboard/r
 import type { Thresholds } from "@/lib/thresholds";
 import type { TrackedMetrics } from "@/lib/tracked-metrics";
 import { fmtUsd } from "@/lib/money";
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition, ReduceMotion, useAnimatedStyle, useSharedValue, withDelay, withSpring, withTiming } from "react-native-reanimated";
 import { Icon, type IconName } from "~/icons/Icon";
@@ -196,6 +196,7 @@ export function RosterCard({ roster, shown, counts, t, tracked, measured, nothin
 }) {
   const { c } = useTheme();
   const m = useMotion();
+  const animateRows = !m.reduced && shown.length <= 40;
   const layout = m.reduced ? undefined : LinearTransition.springify().damping(22).stiffness(240).reduceMotion(ReduceMotion.System);
   const chips: StatusFilter[] = ["All", "Good", "Watch", "At Risk"];
   return (
@@ -243,14 +244,19 @@ export function RosterCard({ roster, shown, counts, t, tracked, measured, nothin
         <T v="body" size={14.5} color={c.ink3} style={{ padding: 20, textAlign: "center", fontStyle: "italic" }}>
           {`No ${words.members.toLowerCase()} match your filters.`}
         </T>
-      ) : shown.map((b, i) => (
-        <Animated.View key={b.id} layout={layout} entering={m.reduced ? undefined : FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
-          exiting={m.reduced ? undefined : FadeOut.duration(120).reduceMotion(ReduceMotion.System)}>
+      ) : shown.map((b, i) => {
+        const row = (
           <Row b={b} first={i === 0} status={getBrotherStatus(b, t, measured)} nothingMeasured={nothingMeasured}
             dues={tracked.duesOwed} late={lateDays(b.id)} excuses={excuses?.[b.id] ?? 0}
-            canPay={canPay} onPay={() => onPay(b)} onOpen={() => onOpen(b)} photo={(b.id === meId ? myPhoto ?? b.avatarUrl : b.avatarUrl) ?? null} />
-        </Animated.View>
-      ))}
+            canPay={canPay} onPay={onPay} onOpen={onOpen} photo={(b.id === meId ? myPhoto ?? b.avatarUrl : b.avatarUrl) ?? null} />
+        );
+        // A long roster skips the per-row layout/enter/exit animations: animating every row's
+        // position on each filter change is what made searching a big chapter stutter.
+        return animateRows ? (
+          <Animated.View key={b.id} layout={layout} entering={FadeIn.duration(180).reduceMotion(ReduceMotion.System)}
+            exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)}>{row}</Animated.View>
+        ) : <View key={b.id}>{row}</View>;
+      })}
 
       {shown.length > 0 ? (
         <View style={[styles.foot, { backgroundColor: c.paper2, borderTopColor: c.line }]}>
@@ -263,10 +269,14 @@ export function RosterCard({ roster, shown, counts, t, tracked, measured, nothin
   );
 }
 
-function Row({ b, first, status, nothingMeasured, dues, late, excuses, canPay, onPay, onOpen, photo }: {
+/** Memoized: props are primitives, the row's own Brother, and stable callbacks, so a parent
+ *  re-render (a keystroke in search, a filter tap) only redraws rows that changed. */
+const Row = memo(function Row({ b, first, status, nothingMeasured, dues, late, excuses, canPay, onPay: payFor, onOpen: openFor, photo }: {
   b: Brother; first: boolean; status: BrotherStatus; nothingMeasured: boolean; dues: boolean; late: number; excuses: number;
-  canPay: boolean; onPay: () => void; onOpen: () => void; photo: string | null;
+  canPay: boolean; onPay: (b: Brother) => void; onOpen: (b: Brother) => void; photo: string | null;
 }) {
+  const onPay = () => payFor(b);
+  const onOpen = () => openFor(b);
   const { c } = useTheme();
   const band = bandOf(status);
   const tag = nothingMeasured ? { tag: "NOT YET", soft: c.paper2, border: c.line2, ink: c.ink3 }
@@ -318,7 +328,7 @@ function Row({ b, first, status, nothingMeasured, dues, late, excuses, canPay, o
       </View>
     </Pressable>
   );
-}
+});
 
 /* ── Day one ──────────────────────────────────────────────────────────────────── */
 

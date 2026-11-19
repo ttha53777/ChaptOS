@@ -24,7 +24,7 @@
 import type { Brother, JoinRequestRow } from "@/lib/api-types";
 import { filterRoster, rosterCsv, rosterKpis, rosterSummary, standingHint, statusCounts, type StatusFilter } from "@/lib/dashboard/roster";
 import { router } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { type LayoutChangeEvent, type ScrollViewInstance, Share, StyleSheet, View, Pressable } from "react-native";
 import Animated, { FadeInDown, ReduceMotion } from "react-native-reanimated";
 import { usePendingExcuses } from "~/data/meetings";
@@ -95,17 +95,25 @@ export default function Members() {
     return out;
   }, [pending.data]);
 
-  const derived = useMemo(() => {
+  // Typing in the search re-filters off a deferred copy (the field stays responsive on a
+  // long roster), and the counts and KPIs don't depend on it, so they aren't recomputed —
+  // or the cards above re-rendered — per keystroke.
+  const dq = useDeferredValue(q);
+  const summary0 = useMemo(() => {
     if (!list || !t) return null;
-    const counts = statusCounts(list, t, measured);
-    const kpis = rosterKpis(list, t, tracked, measured, dues.data ? late : undefined);
-    let shown = filterRoster(list, q, filter, t, measured);
-    if (sort) {
-      const dir = sort === "duesOwed" ? -1 : 1;
-      shown = [...shown].sort((a, b) => (a[sort] - b[sort]) * dir || a.name.localeCompare(b.name));
-    }
-    return { counts, kpis, shown };
-  }, [list, t, tracked, measured, q, filter, sort, late, dues.data]);
+    return { counts: statusCounts(list, t, measured), kpis: rosterKpis(list, t, tracked, measured, dues.data ? late : undefined) };
+  }, [list, t, tracked, measured, late, dues.data]);
+  const shown = useMemo(() => {
+    if (!list || !t) return null;
+    const out = filterRoster(list, dq, filter, t, measured);
+    if (!sort) return out;
+    const dir = sort === "duesOwed" ? -1 : 1;
+    return [...out].sort((a, b) => (a[sort] - b[sort]) * dir || a.name.localeCompare(b.name));
+  }, [list, t, measured, dq, filter, sort]);
+  const derived = useMemo(() => (summary0 && shown ? { ...summary0, shown } : null), [summary0, shown]);
+
+  const openCard = useCallback((b: Brother) => cardSlot.set(b.id), [cardSlot]);
+  const openPay = useCallback((b: Brother) => paySlot.set(b.id), [paySlot]);
 
   if (!me || !t) return null;
   const org = me.org;
@@ -116,7 +124,6 @@ export default function Members() {
   const meetingsWord = vocab(me, "Meetings");
   const dayOne = !!list && list.length <= 1;
   const seatsLeft = org?.seats ? Math.max(0, org.seats.capacity - org.seats.used) : null;
-  const openCard = (b: Brother) => cardSlot.set(b.id);
   const toRoster = () => scrollRef.current?.scrollTo({ y: Math.max(0, rosterY.current - 70), animated: !m.reduced });
 
   const focus = (f: Focus) => {
@@ -167,7 +174,7 @@ export default function Members() {
         ) : null}
         <RosterCard roster={list} shown={derived.shown} counts={derived.counts} t={t} tracked={tracked} measured={measured}
           nothingMeasured={nothingMeasured} filter={filter} onFilter={setFilter} q={q} onQ={setQ}
-          lateDays={late} excuses={canAttendance ? excuses : null} canPay={canTreasury} onPay={b => paySlot.set(b.id)} onOpen={openCard}
+          lateDays={late} excuses={canAttendance ? excuses : null} canPay={canTreasury} onPay={openPay} onOpen={openCard}
           meId={me.id} myPhoto={me.avatarUrl ?? null} words={{ members, dues: duesWord, service: serviceWord }} />
       </View>
     </View>
