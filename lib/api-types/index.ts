@@ -60,6 +60,11 @@
  *   POST   /api/programming/[id]/docs          ProgrammingDoc          (MANAGE_EVENTS; body attachProgrammingDocInput)
  *   DELETE /api/programming/[id]/docs/[docId]  204                     (MANAGE_EVENTS)
  *   GET    /api/roles                          RoleChip[]
+ *   GET    /api/parties                        Party[]                 (everyone with the parties workflow)
+ *   POST   /api/parties                        Party                   (201; MANAGE_PARTIES; body createPartyInput; makes its Timeline entry)
+ *   PATCH  /api/parties/[id]                   Party                   (MANAGE_PARTIES; body updatePartyInput, or wrapUpPartyInput + wrapUp: true)
+ *   DELETE /api/parties/[id]                   204                     (MANAGE_PARTIES; takes its Timeline entry, roll and excuses with it)
+ *   GET    /api/parties/attendance-summary     PartyRollRow[]          (rolled parties this term)
  *   POST   /api/ai/summarize-meeting           MeetingSummarized       (body { id }; the app offers it with MANAGE_EVENTS, as the web does)
  *   GET    /api/attendance/live                LiveCheckIn | null
  *   POST   /api/attendance/[eventId]/check-in  LiveCheckIn | null      (DELETE undoes)
@@ -115,6 +120,7 @@ export type * from "./roster";
 export type * from "./tasks";
 export type * from "./calendar";
 export type * from "./programming";
+export type * from "./parties";
 export type * from "./treasury";
 export type * from "./dues";
 export type * from "./activity";

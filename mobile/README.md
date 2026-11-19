@@ -31,7 +31,21 @@ Planning dashed cards, Confirmed inked, Done filed with stars) with type chips; 
 has the stage ladder, and officers (MANAGE_EVENTS) move lanes through the same gates the server
 enforces (FixStep collects owner / date / place, WrapUp collects stars / spend / notes, going
 off the Timeline asks first), edit details, change the owner (person or role), attach and
-remove links, add ideas and delete. More is the web sidebar (`src/more/model.ts` sidebarFor:
+remove links, add ideas and delete. Parties (stage 4, More → Parties; `GET /api/parties` +
+`/api/parties/attendance-summary`): "The house ledger." briefing, Ask what the door cleared
+(opens `/ask?q=` with the web's question waiting in the composer), the one task as a sealed
+envelope (oldest party that happened with no figures: Close it out), the takings card (net,
+door, spent + kept %, avg member roll, best night, the night-by-night strip; a bar opens its
+party) and the book (every party newest first: wristbands, rose margin rule, due rows washed,
+upcoming rows hatched). The party sheet is the night's till receipt (thermal paper), notes,
+facts and roll dots, with Open in Timeline (the Timeline's own event sheet, on top). Officers
+(MANAGE_PARTIES) add and edit (day stubs + clock + wristband cards; a timed party keeps its
+length when moved, a legacy free-text time stays until a real one is set), wrap up in two steps
+(door + expenses + notes with the net preview, then who came + Mandatory; the roll step is
+skipped once a roll exists, with an empty roster or with no active term) ending in the till
+moment, and delete with the web's confirm. Every party write refreshes the Timeline, home and
+the treasury (the door is in Treasury's balance). The web has no party Create tile, so the
+phone has none. More is the web sidebar (`src/more/model.ts` sidebarFor:
 NAV_GROUPS order sorted by `navOrder`, NAV_WORKFLOW_MAP gates, NAV_DISPLAY words, minus
 what the tab bar carries and what the phone hasn't built yet), then Yours (my own
 records), as index cards: Meetings, Tasks, Docs, Programming, Service, Fundraisers, Treasury; Attendance (punch strip), Service
@@ -80,7 +94,10 @@ letter), `approve` (→ "Join approved"; only Oozma Kappa comes back), `reject`,
 `noterm` / `term`. For money: `treasurer` / `untreasurer` (a Treasurer role, so More →
 Treasury shows) and `money` / `unmoney` (Spring dues paid in full for the PAID stamp, three
 months of ledger lines, my reimbursed + declined requests and Leo's pending one). Run with
-no command to put everything back. Join routes need the
+no command to put everything back. Parties were seeded through the API (no seed command):
+four closed (three with a roll), two waiting on a wrap-up (Game Day Tailgate is the hero),
+two upcoming. Officer paths need `update "Role" set permissions=10 where id=6` (2 = treasury
+| 8 = parties) on the throwaway Postgres; put it back to 2 after. Join routes need the
 phone's real sign-in (the forged cookie can't reach them).
 
 Delete account can't be tested on :3100 either: `/api/auth/account` needs a real Supabase
@@ -143,7 +160,8 @@ src/paper/          primitives: Button, Surface/Tile/Pill/Chip/Kicker/Avatar/Tap
 src/moments/        signature moments (CheckInTicket, TaskDone: stamp + confetti + fly-off,
                     Vote: pen-stroke X + result bars, ExcuseFile: fold + file, Pin: supply claim,
                     Develop: the photo print developing, Punch: service holes, Jar: fundraisers,
-                    Letter: the sealed join letter + Join approved, Envelope: reimbursement SENT)
+                    Letter: the sealed join letter + Join approved, Envelope: reimbursement SENT,
+                    Till: a party's receipt feeding out of the till + CLOSED OUT)
 src/more/           U7: model (the web sidebar ported: groups, navOrder, gates, words; Yours; live
                     lines; my required-meeting marks; what Log excuse can excuse)
 src/money/          U9: receipt (camera / photo / PDF → shrunk upload), countUp (first-view balance roll),
@@ -154,6 +172,9 @@ src/chat/           U8: stream (SSE over expo/fetch), thread (store + staging qu
 src/meetings/       stage 2: model (web Chapter rules: on deck/past, hasMinutes, preview, digest,
                     form defaults, wall time → instant in the org zone), EventForm, TakeAttendance,
                     CheckIn (OpenCheckInSheet + WindowPanel), ExcuseReview, DeleteSheet, MinutesText
+src/parties/        stage 4: model (the web page's helpers: due/upcoming, takings, briefing, signed
+                    money), bits (Wristband, Hero envelope, TakingsCard + Strip, Book rows, the
+                    receipt lines, roll dots), sheets (PartySheet, PartyForm, WrapUp, DeleteParty)
 src/programming/    stage 3: model (lib/programming gates, status line, stats, starter ideas), Card
                     (lane papers), EventSheet (ladder, facts, wrap-up, links), steps (OwnerSheet,
                     FixStep, WrapUp, OffTimeline, NewIdea, EditDetails, AttachLink)

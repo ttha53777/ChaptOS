@@ -13,9 +13,10 @@
  *   Dues                  the chapter tracks dues, or has the "finance" workflow
  *   Reimbursements        workflow "finance" (the web's Treasury → Reimbursements tab)
  */
-import type { CalendarEvent, Doc, Fundraiser, MeResponse, MemberDuesBook, MyExcuseItem, Reimbursement, ServiceEvent, ServiceParticipationRow, Task, TreasuryData } from "@/lib/api-types";
+import type { CalendarEvent, Doc, Fundraiser, MeResponse, MemberDuesBook, MyExcuseItem, Party, Reimbursement, ServiceEvent, ServiceParticipationRow, Task, TreasuryData } from "@/lib/api-types";
 import type { IconName } from "~/icons/Icon";
 import { money, trackedOf } from "~/members/model";
+import { isUpcoming, monDay, profit, signed, upcomingLabel, waiting } from "~/parties/model";
 import { isMine, pileOf, type Viewer } from "~/tasks/model";
 import type { Tone } from "~/theme/palette";
 
@@ -59,6 +60,7 @@ const NATIVE: Record<string, { id: PageId; icon: IconName; tone: Tone }> = {
   Programming: { id: "programming", icon: "board", tone: "peach" },
   Docs:        { id: "docs", icon: "folder", tone: "butter" },
   Service:     { id: "service", icon: "heart", tone: "mint" },
+  Parties:     { id: "parties", icon: "note", tone: "rose" },
   Fundraisers: { id: "fundraisers", icon: "jar", tone: "rose" },
   Treasury:    { id: "treasury", icon: "wallet", tone: "sky" },
 };
@@ -186,6 +188,21 @@ export function programmingLive(list: { stage: string; dueDate: string | null; s
   const live = list.filter(e => e.stage !== "done").length;
   const wrap = officer ? list.filter(e => e.stage === "confirmed" && (e.schedule?.kind === "allDay" && e.schedule.end ? e.schedule.end <= today : e.dueDate != null && e.dueDate < today)).length : 0;
   return { line: live ? `${live} on the slate` : `${list.length} wrapped`, badge: wrap, started: true };
+}
+
+/** Parties' card: wrap-ups waiting (officers; the badge too), else the next party, else the net. */
+export function partiesLive(list: Party[] | undefined, today: string, officer: boolean): Live {
+  if (!list) return { line: null, badge: 0, started: true };
+  if (!list.length) return { line: "Not started", badge: 0, started: false };
+  const wait = officer ? waiting(list, today).length : 0;
+  if (wait) return { line: `${wait} to close out`, badge: wait, started: true };
+  const next = list.filter(p => isUpcoming(p, today)).sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (next) {
+    const when = upcomingLabel(next.date, today);
+    return { line: `${when === "Upcoming" ? monDay(next.date) : when}: ${next.name}`, badge: 0, started: true };
+  }
+  const closed = list.filter(p => p.completed);
+  return { line: closed.length ? `${signed(closed.reduce((s, p) => s + profit(p), 0))} net` : `${list.length} on the books`, badge: 0, started: true };
 }
 
 /** Meetings' card: the next one, else how many were held; badge = excuses waiting (officers). */

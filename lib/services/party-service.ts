@@ -9,12 +9,17 @@ import { scheduleDate, scheduleTime } from "@/lib/calendar-feed/schedule";
 import { parseEventDetails, withPartyFields } from "@/lib/event-details";
 import { followDateChange } from "@/lib/calendar-feed/reschedule";
 import { assertWithinActiveSemester } from "./semester-bounds";
+import type { Schedule } from "@/lib/calendar-feed/schedule";
 
-// Every party DTO carries its calendar entry's timing. An editor that received a
-// party without it would reopen a timed party as all-day and wipe the time on save.
+// Every party DTO carries its calendar entry's timing and mandatory flag (the Party
+// wire type). An editor that received a party without the timing would reopen a
+// timed party as all-day and wipe the time on save.
+function linkedFields(event: { mandatory: boolean; schedule: unknown; time: string | null } | null | undefined) {
+  return { mandatory: event?.mandatory ?? false, schedule: (event?.schedule ?? null) as Schedule | null, time: event?.time ?? null };
+}
 async function linkedTiming(ctx: RequestContext, calendarEventId: number | null) {
-  const event = calendarEventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: calendarEventId }, select: { schedule: true, time: true } });
-  return { schedule: event?.schedule ?? null, time: event?.time ?? null };
+  const event = calendarEventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: calendarEventId }, select: { mandatory: true, schedule: true, time: true } });
+  return linkedFields(event);
 }
 
 export async function listParties(ctx: RequestContext) {
@@ -25,8 +30,7 @@ export async function listParties(ctx: RequestContext) {
   });
   const byId = new Map(events.map(event => [event.id, event]));
   return parties.map(party => {
-    const event = byId.get(party.attendanceEventId ?? -1);
-    return { ...party, mandatory: event?.mandatory ?? false, schedule: event?.schedule ?? null, time: event?.time ?? null };
+    return { ...party, ...linkedFields(byId.get(party.attendanceEventId ?? -1)) };
   });
 }
 
@@ -270,8 +274,7 @@ export async function wrapUpParty(ctx: RequestContext, id: number, input: WrapUp
   }
 
   await emit(ctx, "party.completed", { type: "PartyEvent", id: updated.id }, { name: updated.name, date: updated.date });
-  const event = eventId == null ? null : await ctx.db.calendarEvent.findUnique({ where: { id: eventId }, select: { mandatory: true } });
-  return { ...updated, attendanceEventId: eventId, mandatory: event?.mandatory ?? false, ...await linkedTiming(ctx, eventId) };
+  return { ...updated, attendanceEventId: eventId, ...await linkedTiming(ctx, eventId) };
 }
 
 /**

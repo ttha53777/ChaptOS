@@ -12,6 +12,8 @@
  */
 import { usePendingExcuses } from "~/data/meetings";
 import { useProgramming } from "~/data/programming";
+import { useParties } from "~/data/parties";
+import { canManage as canParties } from "~/parties/model";
 import { canManage } from "~/programming/model";
 import { canAttendance } from "~/meetings/model";
 import { router, type Href } from "expo-router";
@@ -29,7 +31,7 @@ import { Icon } from "~/icons/Icon";
 import { MemberCard } from "~/members/MemberCard";
 import { titleOf } from "~/members/model";
 import {
-  attendanceLive, docsLive, meetingsLive, programmingLive, duesLive, excusesLive, fundraisersLive, myMeetings, reimbursementsLive, serviceLive, sidebarFor, tasksLive, treasuryLive, yoursFor,
+  attendanceLive, docsLive, meetingsLive, partiesLive, programmingLive, duesLive, excusesLive, fundraisersLive, myMeetings, reimbursementsLive, serviceLive, sidebarFor, tasksLive, treasuryLive, yoursFor,
   type Live, type Page, type PageId,
 } from "~/more/model";
 import { viewerOf } from "~/tasks/model";
@@ -64,6 +66,7 @@ export default function More() {
   const treasury = useTreasury(on("treasury"));
   const tasks = useTasks(on("tasks"));
   const prog = useProgramming(on("programming"));
+  const parties = useParties(on("parties"));
   const pending = usePendingExcuses(!!me && on("meetings") && canAttendance(me));
 
   if (!entry || !me) return null;
@@ -72,6 +75,7 @@ export default function More() {
   const live: Partial<Record<PageId, Live>> = {
     tasks: tasksLive(tasks.data, viewer, today),
     programming: programmingLive(prog.data, today, !!me && canManage(me)),
+    parties: partiesLive(parties.data, today, !!me && canParties(me)),
     meetings: meetingsLive(cal.data, today, (pending.data ?? []).filter(x => x.status === "pending").length),
     attendance: attendanceLive(meetings),
     service: serviceLive(svc.data, parts.data, me.id, me.org?.thresholds.serviceHoursGoal ?? 0),
@@ -82,7 +86,7 @@ export default function More() {
     docs: docsLive(docs.data),
     fundraisers: fundraisersLive(funds.data, today),
   };
-  const refresh = () => Promise.all([roster.refetch(), cal.refetch(), att.refetch(), excuses.refetch(), svc.refetch(), parts.refetch(), dues.refetch(), docs.refetch(), funds.refetch(), reimb.refetch(), treasury.refetch(), tasks.refetch()]);
+  const refresh = () => Promise.all([roster.refetch(), cal.refetch(), att.refetch(), excuses.refetch(), svc.refetch(), parts.refetch(), dues.refetch(), docs.refetch(), funds.refetch(), reimb.refetch(), treasury.refetch(), tasks.refetch(), prog.refetch(), parties.refetch()]);
   const sections = [...groups, ...(yours.length ? [{ label: "Yours", pages: yours }] : [])];
   // tilts keep alternating down the whole page, not restarting per group
   const offset = sections.map((_, i) => sections.slice(0, i).reduce((n, g) => n + g.pages.length, 0));

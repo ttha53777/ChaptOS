@@ -7,6 +7,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MeetingsLab } from "~/lab/meetings";
 import { ProgrammingLab } from "~/lab/programming";
+import { PartiesLab } from "~/lab/parties";
 import { SheetDurationLab, ShellLab, TabBarLab } from "~/lab/shell";
 import { AnnouncementLab, BandLab, CountdownLab, SwipeLab } from "~/lab/today";
 import { CheckTickLab, CrowdLab, EnvelopeLab, ShuffleLab, TaskDoneLab, VoteLab } from "~/lab/tasks";
@@ -74,6 +75,7 @@ function Lab() {
         <TabBarLab />
         <MeetingsLab />
         <ProgrammingLab />
+        <PartiesLab />
         <SheetDurationLab />
         <ShellLab />
         <BandLab />

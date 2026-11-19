@@ -26,7 +26,7 @@ import type {
   ServiceEvent, ServiceParticipationRow, Fundraiser, Doc, DocFolder, MeetingSummary, MeetingSummaryBody, CalendarSubscriptionView,
   HomeResponse, MemberUpdated, MobileConfig,
   AttendanceSummaryRow, ExcuseListItem, ExcuseDecided, EventDeletePreview, AgendaTemplate, MeetingSummarized,
-  ProgrammingEvent, ProgrammingDoc, RoleChip,
+  ProgrammingEvent, ProgrammingDoc, RoleChip, Party, PartyRollRow,
   ChatAttachmentInfo, AttachmentUnit, DatedShape, LogbookShape, PastDueShape, RankedShape, TableShape, RollShape, YesNoShape, StatusShape, RecordShape, ZeroShape, PeekCard,
 } from "@/lib/api-types";
 import type { datedFromThings, logbookFromRecords, pastDueFromTasks } from "@/lib/ai-shapes-calendar";
@@ -56,6 +56,7 @@ import type { listFundraisers, getFundraiser } from "@/lib/services/fundraiser-s
 import type { listDocs } from "@/lib/services/doc-service";
 import type { listProgrammingTasks, createProgrammingTask, updateProgrammingTask, setStage, listProgrammingEventDocs, attachProgrammingDoc } from "@/lib/services/programming-service";
 import type { listRoles } from "@/lib/services/role-service";
+import type { listParties, createParty, updateParty, wrapUpParty, summarizePartyAttendance } from "@/lib/services/party-service";
 import type { listFolders } from "@/lib/services/doc-folder-service";
 import type { getMeetingSummary, setActionItemDone } from "@/lib/services/meeting-summary-service";
 import type { getCalendarSubscription } from "@/lib/services/calendar-subscription-service";
@@ -155,6 +156,11 @@ export const programmingUpdated: Widen<ProgrammingEvent> = served<Served<typeof 
 export const programmingStaged: Widen<ProgrammingEvent> = served<Served<typeof setStage>>();
 export const programmingDocs: Widen<ProgrammingDoc[]> = served<Served<typeof listProgrammingEventDocs>>();
 export const programmingDocAttached: Widen<ProgrammingDoc> = served<Served<typeof attachProgrammingDoc>>();
+export const parties: Widen<Party[]> = served<Served<typeof listParties>>();
+export const partyCreated: Widen<Party> = served<Served<typeof createParty>>();
+export const partyUpdated: Widen<Party> = served<Served<typeof updateParty>>();
+export const partyWrapped: Widen<Party> = served<Served<typeof wrapUpParty>>();
+export const partyRolls: Widen<PartyRollRow[]> = served<Served<typeof summarizePartyAttendance>>();
 export const roles: Widen<RoleChip[]> = served<Served<typeof listRoles>>();
 export const docFolders: Widen<DocFolder[]> = served<Served<typeof listFolders>>();
 

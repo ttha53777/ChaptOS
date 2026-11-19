@@ -15,7 +15,7 @@
  * forgets the attached files on the server too.
  */
 import type { AnswerCitation, EntityRef } from "@/lib/api-types";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Platform, ScrollView, StyleSheet, TextInput, View } from "react-native";
@@ -52,7 +52,10 @@ export default function Ask() {
   const thread = useThread();
   const avail = useChatAvailability();
   const kbUp = useKeyboardState(s => s.isVisible);
-  const [draft, setDraft] = useState("");
+  // ?q= arrives from a page's ask button (Parties: "Ask what the door cleared"): it
+  // waits in the composer, one tap from sent.
+  const { q: seed } = useLocalSearchParams<{ q?: string }>();
+  const [draft, setDraft] = useState(typeof seed === "string" ? seed : "");
   const [peek, setPeek] = useState<EntityRef | null>(null);
   const [cite, setCite] = useState<AnswerCitation | null>(null);
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
